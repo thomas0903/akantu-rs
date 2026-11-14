@@ -278,6 +278,14 @@ runner.
   https://github.com/actions/<name>`, 2026-11-14). Dependabot
   (`.github/dependabot.yml`) proposes updates of these pins; copy an accepted
   update into `ci/github/` as well, or the self-test fails.
+- Branch protection on `main` (Settings → Branches): a pull request is
+  required, the checks `fast`, `selftest`, `msrv`, `rustdoc` and `manual` must
+  pass, force pushes and deletion of the branch are blocked, and "Do not allow
+  bypassing the above settings" is on, so the rule binds administrators too.
+  No approving review is required while the project has one maintainer; raise
+  the count when there are more. In force since 15 November 2026. On another
+  platform, set the equivalent: a protected default branch that changes only
+  through merge requests, with the same five jobs required.
 - Coverage has no threshold and is uploaded nowhere; `--fail-under-lines` and an
   upload service are open choices.
 
