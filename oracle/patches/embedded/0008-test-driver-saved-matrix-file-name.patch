@@ -1,0 +1,17 @@
+# SPDX-License-Identifier: LGPL-3.0-or-later
+# akantu-rs oracle variant `embedded` (D-060), patch 0008 — test driver.
+# Upstream: Akantu (EPFL/LSMS) 35a851780d0b, test_embedded_interface_model.sh
+# (review V82 EM-12 (iv)): the test saves K with saveMatrix("matrix_test"),
+# and SparseMatrixAIJ::saveMatrix appends ".mtx" to a name without extension
+# (sparse_matrix_aij.cc:129-132), so `diff matrix matrix_test` compares with
+# a missing file. The driver diffs the file actually written; the criterion
+# (saved K equal to the 2015 golden `matrix` byte for byte) is unchanged.
+# Applied only to a COPY.
+
+--- a/test/test_model/test_solid_mechanics_model/test_embedded_interface/test_embedded_interface_model.sh
++++ b/test/test_model/test_solid_mechanics_model/test_embedded_interface/test_embedded_interface_model.sh
+@@ -1,3 +1,3 @@
+ #!/bin/bash
+ 
+-./test_embedded_interface_model && diff matrix matrix_test >/dev/null 2>&1
++./test_embedded_interface_model && diff matrix matrix_test.mtx >/dev/null 2>&1

@@ -1,0 +1,97 @@
+# x86_64 regeneration of fixtures/model/diffusion vs the committed (aarch64) corpus
+# oracle: an x86_64 Linux virtual machine, host CPU AMD Ryzen 7 9700X
+#   image akantu-oracle:dev sha256:45122c213e9fa194b6b58dcc31fc23b5fa4f7c0f64d0a452e40ae072c51c5cdb, install-strict READY e168f393
+#   reference 35a851780d0b9471d258ed53a003ae98aaa95ea0 (/home/user/akantu, clean), probe sources b2b8b3c1, created 2026-11-11T03:25:26Z
+# command: DIFF_PROBE_STAGE_ONLY=1 AKANTU_SRC_HOST=/home/user/akantu oracle/probes/diffusion/generate.sh --out ~/stage
+#   ([diffusion_probe] three identical runs: 56 case(s), D-035)
+# comparison: python3 -I oracle/probes/diffusion/compare_platforms.py fixtures ~/stage
+cube_explicit: identical (9 files)
+nonlinear_explicit_hexahedron_8: identical (19 files)
+nonlinear_explicit_quadrangle_8: identical (19 files)
+nonlinear_explicit_segment_2: identical (20 files)
+nonlinear_explicit_tetrahedron_4: identical (20 files)
+nonlinear_explicit_triangle_3: identical (20 files)
+nonlinear_implicit_hexahedron_8: identical (23 files)
+nonlinear_implicit_quadrangle_8: identical (23 files)
+nonlinear_implicit_segment_2: identical (24 files)
+nonlinear_implicit_tetrahedron_4: identical (24 files)
+nonlinear_implicit_triangle_3: identical (24 files)
+nonlinear_static_hexahedron_8: identical (19 files)
+nonlinear_static_quadrangle_8: identical (19 files)
+nonlinear_static_segment_2: identical (20 files)
+nonlinear_static_tetrahedron_4: identical (20 files)
+nonlinear_static_triangle_3: identical (20 files)
+patch_explicit_hexahedron_20: identical (27 files)
+patch_explicit_hexahedron_8: identical (27 files)
+patch_explicit_pentahedron_15: identical (29 files)
+patch_explicit_pentahedron_6: identical (29 files)
+patch_explicit_quadrangle_4: identical (25 files)
+patch_explicit_quadrangle_8: identical (25 files)
+patch_explicit_segment_2: identical (28 files)
+patch_explicit_segment_3: identical (27 files)
+patch_explicit_tetrahedron_10: identical (27 files)
+patch_explicit_tetrahedron_4: identical (28 files)
+patch_explicit_triangle_3: identical (26 files)
+patch_explicit_triangle_6: identical (25 files)
+patch_implicit_hexahedron_20: identical (31 files)
+patch_implicit_hexahedron_8: identical (31 files)
+patch_implicit_pentahedron_15: identical (33 files)
+patch_implicit_pentahedron_6: identical (33 files)
+patch_implicit_quadrangle_4: identical (29 files)
+patch_implicit_quadrangle_8: identical (29 files)
+patch_implicit_segment_2: identical (32 files)
+patch_implicit_segment_3: identical (31 files)
+patch_implicit_tetrahedron_10: identical (31 files)
+patch_implicit_tetrahedron_4: identical (32 files)
+patch_implicit_triangle_3: identical (30 files)
+patch_implicit_triangle_6: identical (29 files)
+patch_static_hexahedron_20: identical (24 files)
+patch_static_hexahedron_8: identical (24 files)
+patch_static_pentahedron_15: identical (26 files)
+patch_static_pentahedron_6: identical (26 files)
+patch_static_quadrangle_4: identical (22 files)
+patch_static_quadrangle_8: identical (22 files)
+patch_static_segment_2: identical (25 files)
+patch_static_segment_3: identical (24 files)
+patch_static_tetrahedron_10: identical (24 files)
+patch_static_tetrahedron_4: identical (25 files)
+patch_static_triangle_3: identical (23 files)
+patch_static_triangle_6: identical (22 files)
+square_explicit: identical (9 files)
+square_implicit: DIFFERENT
+  data/internal_heat_rate.npy: 851/11857 values differ, max |d| 8.004e-11, max rel 2.936e-09, max ulp 26356512, first at flat index 9: -0.1273937153031306 vs -0.12739371530615395
+  data/newton__error.npy: 10/10 values differ, max |d| 1.421e-14, max rel 1.148e-02, max ulp 70367168106505, first at flat index 0: 1.223648638084287e-12 vs 1.2378591745144531e-12
+  data/temperature.npy: 121/11857 values differ, max |d| 2.842e-14, max rel 2.205e-16, max ulp 1, first at flat index 10: 100.10101617079545 vs 100.10101617079546
+  data/temperature_rate.npy: 10944/11857 values differ, max |d| 3.908e-14, max rel 4.186e-11, max ulp 262404, first at flat index 0: 0.0011343078526862445 vs 0.0011343078526862434
+  manifest differs outside provenance: keys ['parameters']
+square_static: DIFFERENT
+  data/internal_heat_rate.npy: 8588/11857 values differ, max |d| 1.160e-10, max rel 2.000e+00, max ulp 8905446050660089856, first at flat index 25: 1650.8017845405652 vs 1650.8017845405648
+  data/newton__error.npy: 1/1 values differ, max |d| 1.418e-12, max rel 1.665e-02, max ulp 109717508096659, first at flat index 0: 8.37573304298739e-11 vs 8.517539598542368e-11
+  data/temperature.npy: 2900/11857 values differ, max |d| 5.684e-14, max rel 4.434e-16, max ulp 3, first at flat index 411: 103.94621766789986 vs 103.94621766789984
+  manifest differs outside provenance: keys ['parameters']
+two_laws_mixed: identical (28 files)
+SUMMARY cases=56 different=2 files_compared=1362
+# Classification: K, M, J (coordinates and values), the initial temperature and the
+# blocked DOFs of both differing cases are identical on both platforms (manifest parameters);
+# only the output of the Eigen sparse direct solve (SparseLU, 11 857 DOFs) differs. Cause: Eigen
+# 3.4.0 sizes the depth blocking kc of the dense gebp/trsm kernels inside SparseLU from the L1
+# cache size it queries with CPUID on x86 (queryCacheSizes_amd); aarch64 has no query and uses
+# the default L1 = 16 KiB (max_kc = 408). Eigen in the oracle image on this host reports:
+#   queryCacheSizes l1=65536 l2=524288 l3=16777216
+# (g++ -O2 -DEIGEN_DONT_VECTORIZE, Eigen::internal::queryCacheSizes / Eigen::l1CacheSize()).
+# Supernode updates deeper than 408 then sum in a different order (small cases: identical).
+# Evidence: the port (crates/akantu-linalg/src/eigen_sparse_lu/dense.rs, const L1) rebuilt
+# locally with L1 = 64 KiB (uncommitted experiment, reverted) replays the x86 square_static
+# (603697 values) and square_implicit (835625 values) bit for bit, and all 56 x86 cases pass
+# (model_diffusion_fixtures 10/10). Not libm. Consequence: x86 oracle results of large Eigen
+# solves depend on the host CPU model's reported L1 size (hosts differ: this run was on
+# a Ryzen 7 9700X, the oracle image was built on an EPYC 9455). Remedies (not applied at the
+# time): build the oracle with -DEIGEN_NO_CPUID -DEIGEN_DEFAULT_L1_CACHE_SIZE=16384
+# -DEIGEN_DEFAULT_L2_CACHE_SIZE=524288 -DEIGEN_DEFAULT_L3_CACHE_SIZE=524288 (aarch64 blocking on
+# every host), or have the probes call Eigen::setCpuCacheSizes(...), or give the port's Eigen
+# translation Eigen's setCpuCacheSizes as a configuration. The aarch64 fixtures stay
+# authoritative (D-043); no golden file was replaced.
+# Distributed evidence on x86_64: oracle/results/x86_64/diffusion-parallel-strict.txt (UD-275
+# reproduced: Unknown ghost synchronization tag : diffusion on every rank, 2 and 4 ranks, patch
+# and irregular meshes; only the debug-message timestamps and the interleaving of the ranks'
+# stderr lines differ from the aarch64 record).

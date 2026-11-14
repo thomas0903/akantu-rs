@@ -1,0 +1,104 @@
+# SPDX-License-Identifier: LGPL-3.0-or-later
+# akantu-rs CI tooling (not ported from Akantu): feature-gated cargo commands
+# of the merge gate (targets and code behind a feature that no workspace
+# member enables by default).
+#
+# The `gates` tier (ci/tiers/gates.sh) runs every line below inside the
+# project's MPI image, one step per line (`feature-N`, N = position among the
+# command lines). A `cargo test` line is accounted for like the workspace test
+# step (every test binary of a `--no-run` build must report, failures are
+# compared with ci/tools/known-failures.txt). Any failing line fails the tier.
+# The gate map of ci/github/README.md gives every line a workflow job
+# (checked by ci/tools/gate_map.py).
+#
+# Format: one command per line; `#` comments and blank lines are ignored.
+# Each line starts with `cargo `, contains `--locked`, and uses only the
+# characters A-Z a-z 0-9 _ . , : = / @ + - and single spaces (the line is
+# split on spaces: no quotes, no shell syntax). A `cargo test` line also
+# contains `--no-fail-fast`.
+# Add a line whenever a crate gains targets or code behind a feature that no
+# workspace member enables by default; the MUMPS and PETSc native back-ends
+# keep their own tiers (mumps, petsc).
+
+# IGFEM mesh generation and model tests (akantu-igfem/cgal, D-042 GPL switch)
+cargo clippy -p akantu-igfem --all-targets --features cgal --locked -- -D warnings
+cargo test -p akantu-igfem --features cgal --locked --no-fail-fast
+# umbrella line of the IGFEM package (implies cgal)
+cargo check -p akantu --features igfem --locked
+# umbrella with the GPL geometry (AABB tree, spherical kernel)
+cargo test -p akantu --features cgal --locked --no-fail-fast
+# release-only cohesive tests: the ten 3-D cases of
+# upstream_cohesive are ignored in debug builds (31-37 s each) and the 3-D
+# replays of cohesive_fixtures are skipped there, so this line is their gate
+cargo test --release -p akantu-cohesive --locked --no-fail-fast
+# release-only example tests: the examples'
+# whole-run oracle comparisons and the default-mode test past the first
+# contact of bloc_friction are compiled only in optimised builds; the whole
+# facade in release (the example binaries are most of it; examples_embedded
+# runs in the cgal line above)
+cargo test --release -p akantu --locked --no-fail-fast
+# Python interface (akantu-python/python):
+# the MPI image has CPython 3.13 with its headers, so PyO3 builds and the
+# test binaries link libpython; the wheel and pytest run in the `wheel` tier
+# (docs/TESTING.md)
+cargo clippy -p akantu-python --all-targets --features python --locked -- -D warnings
+cargo test -p akantu-python --features python --locked --no-fail-fast
+# the non-local extra materials through the facade (extra-materials-non-local
+# = extra-materials + akantu-extra-materials/damage-non-local): the facade feature must keep building
+cargo check -p akantu --features extra-materials-non-local --locked
+# the solid model's spatial convergence study with its finest 3-D levels
+# (rule CONV-1, docs/NUMERICAL_VALIDATION.md): the binary runs in
+# every profile, its finest 3-D level (the only pairs with a band <= 1/8 for
+# the six 3-D types) only in optimised builds
+# (the whole package, like the cohesive line above: it is also the only gate
+# run of the solid model's other optimised-only tests,
+# upstream_solid_mechanics_model_dynamics (implicit 3-D bars, 2 / 4 ranks) and
+# model_ported_tests::test_solid_mechanics_model_dynamics_implicit_3d)
+cargo test --release -p akantu-solid --locked --no-fail-fast
+# the diffusion, phase-field and coupled convergence studies (rule CONV-1,
+# docs/NUMERICAL_VALIDATION.md): the binaries run in every profile; the 3-D levels of the
+# diffusion and phase-field studies that give their 3-D types' pairs with a
+# band <= 1/8 (and n = 16 of the phase-field _hexahedron_20), the finest
+# transient level and the finest coupled level only in
+# optimised builds; `--test` selections (the analyser
+# expects no doc-tests for them): these packages have no other
+# optimised-only tests
+cargo test --release -p akantu-diffusion --locked --no-fail-fast --test spatial_convergence
+cargo test --release -p akantu-phase-field --locked --no-fail-fast --test spatial_convergence
+cargo test --release -p akantu-couplers --locked --no-fail-fast --test spatial_convergence_phase_field
+# documentation warnings are failures: the
+# [workspace.lints.rustdoc] table of Cargo.toml denies broken and private
+# intra-doc links, invalid HTML tags and code-block attributes, bare URLs and
+# redundant explicit links, so each `cargo doc` line below fails on one.
+# --no-deps documents only the named packages (the dependencies' own docs are
+# the workspace line's); the default-feature documentation of every member
+cargo doc --workspace --no-deps --locked
+# the documentation of code behind a feature that no member enables by
+# default, only for the features the check tier's image (akantu-rs-mpi:dev:
+# OpenMPI + libclang, CPython 3.13 + headers) can build: `mpi` and `cgal` and
+# `python`. NOT here: `scotch` (libscotch is only in the akantu-rs-scotch
+# image; akantu-mesh and akantu-bench have code behind it, and so does the
+# MPI build of akantu-python, feature `mpi`, which implies `scotch`), `mumps`
+# and `petsc` (their images only); the delivered CI documents those in its
+# `features` tier (`doc --workspace --all-features`, PETSc leg). Items whose
+# link target exists only behind a feature are written as plain code text in
+# the doc comments.
+cargo doc -p akantu-comm --features mpi --no-deps --locked
+cargo doc -p akantu --features mpi --no-deps --locked
+cargo doc -p akantu-bench --features mpi --no-deps --locked
+cargo doc -p akantu --features cgal --no-deps --locked
+cargo doc -p akantu-igfem --features cgal --no-deps --locked
+cargo doc -p akantu-python --features python --no-deps --locked
+# the two pure-Rust features with documented items that no member enables by
+# default: akantu-core's test-only `export-all`
+# and the non-local registration functions of akantu-extra-materials
+# (`damage-non-local`; akantu-igfem enables it only as a dev-dependency)
+cargo doc -p akantu-core --features export-all --no-deps --locked
+cargo doc -p akantu-extra-materials --features damage-non-local --no-deps --locked
+# the akantu-bench release replays: the three
+# `perf_cohesive_fixture` replays (`coh_np1_eigen_bitwise`, 1,500 steps
+# bitwise; `ela_np1_eigen_bitwise`; `ela_np2_global_local_world_runs`) are
+# `#[ignore]`d in unoptimised builds and run in no other gate. A line takes no
+# environment variable, so the elastic cases run their default 200 steps
+# (`PERF_ALL=1` would run the whole fixture; not in the gate)
+cargo test --release -p akantu-bench --locked --no-fail-fast

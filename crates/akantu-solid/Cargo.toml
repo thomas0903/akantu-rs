@@ -1,0 +1,108 @@
+# SPDX-License-Identifier: LGPL-3.0-or-later
+[package]
+name = "akantu-solid"
+description = "SolidMechanicsModel and the solid materials (port of src/model/solid_mechanics)"
+version.workspace = true
+edition.workspace = true
+rust-version.workspace = true
+license.workspace = true
+repository.workspace = true
+authors.workspace = true
+homepage.workspace = true
+keywords.workspace = true
+categories.workspace = true
+publish = false
+# Not part of a package: the mutation-testing script of the convergence study.
+exclude = ["scripts/"]
+
+[features]
+default = ["damage-non-local"]
+# Upstream package `damage_non_local` (ARCHITECTURE): registers the
+# keywords `mazars_non_local`, `plastic_mazars_non_local`, `marigo_non_local`
+# and the weight functions `damage_wf`, `remove_wf`.
+damage-non-local = []
+# Real-MPI test binaries: scripts/mpi/run-par-tests.sh (Docker).
+mpi = ["akantu-comm/mpi", "akantu-mesh/mpi"]
+# Scotch partitioner of akantu-mesh (Docker image docker/scotch).
+scotch = ["akantu-mesh/scotch"]
+# MUMPS instances of the patch tests (test target patch_mumps;
+# Docker image docker/mumps, scripts/mumps/run-mumps-tier.sh).
+mumps = ["mpi", "akantu-solver/mumps"]
+# The PETSc DOF manager for the model (`dof_manager_type = petsc`,
+# `SolidMechanicsModel::init_dof_manager("petsc")`, DOF-015).
+# Off by default; needs MPI and a system PETSc (docker/petsc, PETSc tier).
+# Licence: a build with this feature links PETSc and its GPL-2+ dependencies
+# and is distributed under GPL-3.0-or-later as a whole (D-076 option A,
+# NOTICE.md "PETSc").
+petsc = ["akantu-solver/petsc", "akantu-comm/mpi"]
+
+[dependencies]
+akantu-core.workspace = true
+akantu-parser.workspace = true
+akantu-comm.workspace = true
+akantu-mesh.workspace = true
+akantu-fe.workspace = true
+akantu-linalg.workspace = true
+akantu-solver.workspace = true
+akantu-io.workspace = true
+akantu-model.workspace = true
+
+[dev-dependencies]
+# Differential tests against the golden material fixtures.
+akantu-validation.workspace = true
+serde_json.workspace = true
+sha2 = "0.10.9" # MIT OR Apache-2.0 (as akantu-solver dev): per-step state digests of fixtures/model/smm
+
+[lints]
+workspace = true
+
+[[test]]
+name = "mpi_smm"
+harness = false
+required-features = ["mpi"]
+
+# `default/auto[mumps]` instances of upstream's patch tests:
+# harness = false, one MPI process (the mumps tier runs it as a singleton).
+[[test]]
+name = "patch_mumps"
+harness = false
+required-features = ["mumps"]
+
+# The PETSc instances of the patch tests (TEST-050…053):
+# harness = false, one MPI process (the PETSc tier runs it as a singleton).
+[[test]]
+name = "patch_petsc"
+harness = false
+required-features = ["petsc"]
+
+# Non-local test binaries that need the `damage_non_local` keywords
+# (`mazars_non_local`, `marigo_non_local`, `damage_wf`, `remove_wf`): built
+# only with the feature, like upstream's tests need AKANTU_DAMAGE_NON_LOCAL.
+# `material_plumbing` adapts to the feature instead.
+[[test]]
+name = "non_local_fixtures"
+required-features = ["damage-non-local"]
+
+[[test]]
+name = "non_local_adversarial"
+required-features = ["damage-non-local"]
+
+[[test]]
+name = "non_local_materials"
+required-features = ["damage-non-local"]
+
+[[test]]
+name = "non_local_event_route"
+required-features = ["damage-non-local"]
+
+[[test]]
+name = "non_local_parallel"
+required-features = ["damage-non-local"]
+
+[[test]]
+name = "upstream_material_non_local"
+required-features = ["damage-non-local"]
+
+[[test]]
+name = "upstream_non_local_toolbox"
+required-features = ["damage-non-local"]

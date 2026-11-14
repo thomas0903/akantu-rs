@@ -1,0 +1,101 @@
+<!-- SPDX-License-Identifier: LGPL-3.0-or-later -->
+# Upstream CI rows CI-001 to CI-029 and their Rust counterparts
+
+Upstream sources (reference `35a85178`): `.gitlab-ci.yml`,
+`.gitlab/ci.d/{templates,images,code-quality}.yaml`, `cmake/*`,
+`packages/*.cmake`, `extra_packages/*/package.cmake`, `CMakePresets.json`,
+`setup.py`, `setup.cfg`, `pyproject.toml`, `test/ci/*`; inventory
+`docs/inventory/tests_examples_python.md`. The tiers named below are those of
+`ci/run-all.sh` (`ci/README.md`); the workflow jobs are in
+`ci/github/README.md`. The status column copies `docs/FEATURE_PARITY.md`,
+which is authoritative.
+
+| Row | Upstream | Rust counterpart | Status |
+|---|---|---|---|
+| CI-001 | GitLab stages `version → configure → build_libs → build_tests → test → code_quality → deploy → release`; workflow on merge requests, the default branch and `v*` tags; `.code_only_rules` | the tiers and presets of `ci/run-all.sh`; the GitHub workflows `ci/github/*.yml` (fast, features, medium, memcheck, coverage, python, docs, packaging, distro, expensive) with pull-request, push and tag triggers and `paths-ignore` for documentation-only changes; the gate map in `ci/github/README.md`, checked by `ci/tools/gate_map.py` | Implemented, unverified: every job has run once on GitHub (14 November 2026: of 29 jobs, 21 passed; six failed for three reasons; the documentation deployment failed because GitHub Pages was off; the macOS wheel job was cancelled at its time limit); the causes were fixed afterwards (`docs/TESTING.md`, "State at release"); the row needs a run with every job green |
+| CI-002 | ruff (79 columns), clang-tidy, clang-format, warning parser over build logs | tier `lint`: `cargo fmt --all --check` (clang-format), `cargo clippy --workspace --all-targets --locked -- -D warnings` (clang-tidy and the warning parser: any warning fails; feature-gated code is linted by the `features` tier with `clippy --all-features` in the image with the native libraries), `bash -n` and `shellcheck -x` of `ci/` and `scripts/` (clean with shellcheck 0.9.0), `ruff check python/` with its `[tool.ruff] line-length = 79` | Verified |
+| CI-003 | `register_test`: package filter, `UNSTABLE`, `.sh` override, `.verified` (never compared, UD-018), `PARALLEL` levels N…1, gtest discovery, valgrind | package filter → cargo features (tier `features` checks every switch; tests behind `#[cfg(feature)]` or `required-features`, and tier `gates` runs the feature-gated test lines); `UNSTABLE` → none (a failing test is fixed or listed in `ci/tools/known-failures.txt`, never ignored); `.sh` override → `harness = false` MPI binaries run by `scripts/mpi/run-*-tier.sh`; `.verified` → comparisons inside the tests; `PARALLEL` → fixed rank lists 1, 2, 4 (tiers `mpi`, `par`) and 8 (`expensive`), so UD-015 cannot occur; the parallel examples → tier `examples`; valgrind → tier `memcheck` for the FFI code and tier `miri` for the safe wrappers | Verified |
+| CI-004 | `register_gtest_sources` / `register_gtest_test`, `gtest_discover_tests`, rank-0 printing | libtest: one binary per `tests/*.rs`, every `#[test]` discovered and reported; `ci/tools/analyze_tests.py` accounts for every binary in tier `test` | Verified |
+| CI-005 | `add_test_tree`, `add_akantu_test`, `AKANTU_BUILD_ALL_TESTS`, `AKANTU_BUILD_UNSTABLE_TESTS`, `AKANTU_TESTS_ALWAYS_USE_MPI`, absent test directories | `cargo test --workspace` builds every test of every member; `is_test_active` ↔ cargo features and `required-features`; no unstable class by policy; `AKANTU_TESTS_ALWAYS_USE_MPI` ↔ the rank-1 runs of the `mpi` tier (serial tests are not run under `mpirun`); the absent directories `test_mesh`, `test_contact`, `test_heat_transfer_model`, `test_pbc_tweak`, `benchmark` have nothing to port | Verified |
+| CI-006 | `akantu_test_driver.sh`: work directory, environment file, MPI launcher, valgrind, `.lastout/.lasterr`, early `exit 0` | `ci/lib.sh` `ci_step`: one log per step, exit code recorded, per-step timeout (`CI_STEP_TIMEOUT`, default 3600 s), MPI launch through `scripts/mpi`; pass = exit 0. The early-exit hole of upstream's driver (UD-018: it exits before the `.verified` diff) is closed by the analyser step of tier `test`: a binary that exits early has no libtest result line and fails; the tier fails when the analyser is missing | Verified |
+| CI-007 | `cmake/akantu_diff.sh` (run `./$1`, diff stdout) | none: nothing upstream calls it | Exception (approved) |
+| CI-008 | `FindGMSH.cmake`, `add_mesh` at build time | frozen Gmsh meshes `fixtures/meshes/gmsh-4.13.1/` (D-009; Gmsh output depends on the platform), regenerated only by `oracle/probes/mesh_io/freeze-meshes.sh`; tier `fixtures` verifies them; build-time mesh generation itself is not provided | Exception (approved) |
+| CI-009 | `AkantuExampleMacros.cmake`, `AKANTU_EXAMPLES`, `AKANTU_TEST_EXAMPLES` (parallel examples on 2 ranks) | examples are compiled by `lint` (clippy `--all-targets`) and `features`; their whole runs are the `facade` run of tier `release` (`cargo test --release -p akantu`, analysed, with a floor; a pull-request job); `parallel_2d` and `phase_field_parallel` run at 2 ranks on real MPI in tier `examples` (`phase_field_parallel` runs 20 of its 999 steps, `--steps 20`, where upstream's parallel test runs the whole example) | Verified |
+| CI-010 | environment scripts (`PYTHONPATH`, `LD_LIBRARY_PATH`), ASAN/LSAN suppressions, sanitizer blacklist | tier `miri` (the safe-wrapper and foreign-view code of `akantu-python` and the `akantu-core` array storage) and tier `memcheck` (valgrind over the FFI code Miri cannot run: Open MPI in `akantu-comm/src/mpi_backend.rs`, MUMPS, Scotch, PETSc, libm in `akantu-parser/src/cmath.rs`, `akantu-capi`; image `docker/memcheck`; suppressions `ci/memcheck/openmpi.supp`, two entries, each justified and anchored at a third-party function). Not covered: the CPython and NumPy FFI of `akantu-python`, the `akantu-linalg` PETSc unit tests. ASan is not used: it needs nightly `-Zbuild-std` and instrumented native libraries to see across the FFI boundary | Verified |
+| CI-011 | Debian image (trixie, Open MPI, MUMPS, Scotch, PETSc, …; MCA `btl tcp,self`, oversubscription) | `docker/mpi` (Debian trixie, Open MPI 5.0.7-1, the same MCA intent including oversubscription), `docker/scotch`, `docker/mumps`, `docker/petsc` (each `FROM` the MPI image); used by the docker backend of every tier | Verified |
+| CI-012 | Ubuntu 22.04 image (CMake 3.22: gtest MPI variants skipped; CGAL installed, unused) | `ci/github/distro.yml`: a digest-pinned `ubuntu:22.04` container started by `ci/github/distro-run.sh` (host backend inside, system Open MPI, Scotch and Python), tiers `features` and `test` with MUMPS and PETSc declared not applicable; diagnostic (`continue-on-error`): bitwise parity is claimed on the project image only (D-043) | Verified |
+| CI-013 | manylinux_2_28 wheel image (Spack, scikit-build, `auditwheel`, cp39…cp313) | tier `wheel` with `CI_WHEEL_COMPAT=manylinux_2_28` and `CI_WHEEL_SMOKE` for CPython 3.9 and 3.13, in the job `packaging.yml:wheel-linux` inside the digest-pinned PyPA `manylinux_2_28_x86_64` image (repository variable `MANYLINUX_IMAGE`) | Verified |
+| CI-014 | macOS wheel (Spack environment, apple-clang, `delocate-wheel`) | `packaging.yml:wheel-macos` (`macos-15`, arm64) running the same tier with `CI_WHEEL_COMPAT=off` (maturin's own tag; no delocate step: the extension links no shared library outside Python); the macOS platform lines of `ci/pytest-skips.txt` | Implemented, unverified: the first GitHub run was cancelled at the job's former 60-minute limit (now 150) |
+| CI-015 | code-quality image (trixie-slim, build dependencies, gmsh) | `docker/mpi` carries rustfmt and clippy, so `lint` runs in the same image as the tests | Verified |
+| CI-016 | kaniko image builds on merge requests (manual; two inconsistent jobs) | `ci/github/images.sh` builds the images in the job from `docker/` and caches them with `actions/cache`; `scripts/mpi/build-image.sh` and `scripts/petsc/build-image.sh` also rewrite the committed records. The upstream inconsistency is not reproduced | Verified |
+| CI-017 | `version_determination`: `cmake/semver.py` from `git describe` (`GIT_DEPTH 500`) | tier `version`: every member on `workspace.package.version`, the Python package takes it from Cargo (`dynamic = ["version"]`), a `v*` tag must be `v<version>`, `git describe --tags --always --dirty` printed; run in `packaging.yml:crates-dry-run`. Deriving the version from `git describe` is not ported (D-114) | Exception (approved) |
+| CI-018 | `.configure`: the CI CMake option set (cohesive, implicit Mumps+PETSc, parallel, structural, diffusion, damage_non_local, phase_field, python, contact, traction_at_split_node_contact, examples, tests) | the package ↔ feature table below; tier `features` checks each feature alone, none, default and all. The default features of `akantu` are not upstream's preset `common`: upstream also enables traction at split-node contact and non-local damage (the port's `ntn-contact` and `extra-materials-non-local` are off by default), and the port's default has `embedded`; `parallel` and `implicit` need no switch (native features are opt-in, the solver is chosen at run time) | Verified |
+| CI-019 | three-stage builds (`akantu`, `py11_akantu`, all) with `-j1`, ccache 1 GiB, 5 h timeout | cargo builds inside each tier, `CARGO_BUILD_JOBS=4` in the image (4 CPUs and 6 GiB container caps), per-step timeout, persistent target volume or `actions/cache` | Verified |
+| CI-020 | `ctest -T test --timeout 1800`, gcovr coverage, JUnit via `ctest2junit.xsl` | tier `test` with the analyser and the baseline, `summary.json` (schema `akantu-rs-ci-summary/1`) instead of JUnit, tier `release` for optimised builds, tier `coverage` (`cargo-llvm-cov` 0.9.1, D-085; report only) | Verified |
+| CI-021 | Python package pipeline: library without tests, Python or MPI (Eigen solver), install, wheels, test `import akantu` and `dynamics.py` | tier `wheel`: maturin abi3 wheel, `pip install`, `import akantu`, the whole pytest suite including the Python example comparisons (`dynamics.py` among them); `eigen_modes*` skip outside the oracle's SciPy | Verified |
+| CI-022 | twine upload (GitLab registry, PyPI), release tarball, CHANGELOG extraction, RTD link | tier `package` (dry run: `cargo package --list` per member, readiness report, downstream consumer); no upload, no registry, no token. No publication for now (D-114) | Exception (approved) |
+| CI-023 | `Jenkinsfile` (Phabricator / c4science; referenced Dockerfile and scripts absent; obsolete option) | none: the pipeline references absent directories and a removed option and could never run | Exception (approved) |
+| CI-024 | Sphinx and breathe over Doxygen XML, RTD (ubuntu-22.04, Python 3.11) | tier `docs` (`cargo doc --workspace --no-deps`, `RUSTDOCFLAGS="-D warnings"`; doc tests run in `test`), tier `pydocs` (pdoc 16.0.0 over the wheel, in place of Sphinx autodoc); hosting on GitHub Pages (D-114): `docs.yml` jobs `site` (mdBook manual, rustdoc and pdoc assembled by `ci/github/pages-site.sh` under one index page) and `deploy` (`actions/deploy-pages`), on a push to `main` | Implemented, unverified: the build parts pass; the deployment has not run (Pages not enabled) |
+| CI-025 | `CMakePresets.json`, `.gitpod.yml`, CDash `CTestConfig.cmake`, gdb pretty printers, valgrind and MPI suppressions, MCA parameters | presets → the presets of `run-all.sh` and the feature sets of tier `features` (every upstream preset by name below); MCA parameters → `ENV` of `docker/mpi`; MSRV check (D-025) → tier `msrv`. Gitpod, the CDash drop site and the gdb printers are not ported (developer conveniences of the C++ build, D-085) | Verified |
+| CI-026 | `AKANTU_USE_<package>` switches, defaults, `DEPENDS` closure, generated `AKANTU_*` macros, disabled-package errors | cargo features (table below); `ci/tools/feature_matrix.py table` prints each feature's closure and native needs; tier `features` checks that every switch compiles alone and in combination with `-D warnings`; a disabled feature removes the items (a compile-time error for users, the counterpart of upstream's configure-time error) | Verified |
+| CI-027 | implicit back-end selection: Eigen, Mumps, PETSc, Mumps+PETSc; warning for parallel with Eigen; Eigen asserts one rank | `eigen` (bit-identical `SparseLU` translation) always, `faer` selectable (D-040); `mumps` of `akantu-linalg` / `akantu-solver` (tier `features` checks it in the MUMPS image, tier `mumps` runs it); `petsc` of `akantu-linalg` (tier `petsc` in the PETSc image, a memcheck kind, the PETSc leg of `features`) | Verified |
+| CI-028 | build types: Release, profiling and coverage define `AKANTU_NDEBUG`; debug and RelWithDebInfo differ (NaN or zero initialisation, assertions) | the debug tiers (`test`, `exportall`, `features`, the MPI tiers: debug assertions and overflow checks on) and tier `release` (the optimised runs); the default-NaN convention of D-046 does not depend on the build | Verified |
+| CI-029 | `AkantuConfig.cmake`, install, system or bundled dependencies AUTO/ON/OFF, downstream consumption | cargo resolves dependencies (no install step, no bundled copies); tier `package` checks a downstream crate against `akantu` (default and no-default features); tier `minver` checks the declared version floors; tier `licence` audits every resolved dependency and the GPL separation. UD-065 (the installed `AkantuConfig.cmake` misses imported targets) has no cargo counterpart | Verified |
+
+## Upstream package switches and cargo features
+
+Upstream `packages/*.cmake` (`package_declare … DEPENDS …`) against the port's
+features. `ci/tools/feature_matrix.py table` prints each feature's closure.
+
+| Upstream package (default) | DEPENDS (upstream) | Cargo feature (default) | Closure in the port | Note |
+|---|---|---|---|---|
+| `core` (always) | akantu_iterators, Boost, Eigen3 | none (crates `akantu-core` to `akantu-model`) | | always built |
+| `solid_mechanics` (ON) | core | `akantu/solid` (on) | `akantu-solid` | |
+| `cohesive_element` (ON) | solid_mechanics | `akantu/cohesive` (on) | solid, `akantu-cohesive` | |
+| `contact_mechanics` (ON) | model_couplers, cohesive_element | `akantu/contact` (on) | `akantu-contact` only | the port's `couplers` depends on the models (crate graph, D-026), not the reverse: `contact` alone pulls neither couplers nor cohesive |
+| `phase_field` (ON) | model_couplers | `akantu/phase-field` (on) | `akantu-phase-field` only | as `contact` |
+| `model_couplers` (advanced) | | `akantu/couplers` (on) | solid, cohesive, contact, phase-field, `akantu-couplers` | reverse of upstream |
+| `diffusion` (ON) | | `akantu/diffusion` (on) | `akantu-diffusion` | |
+| `structural_mechanics` (OFF) | implicit | `akantu/structural` (on) | `akantu-structural` | on by default: no native dependency |
+| `embedded` (OFF) | CGAL | `akantu/embedded` (on) | solid, `akantu-embedded` | uses the LGPL geometry (`LinearScan`); never implies `cgal` (D-042) |
+| `CGAL` (OFF) | | `akantu/cgal` (off) | `akantu-geometry-cgal` (GPL-3.0-or-later) | the build is GPL as a whole; licence audit |
+| `extra_materials` (advanced) | solid_mechanics | `akantu/extra-materials` (off) | solid, `akantu-extra-materials` | |
+| `extra_materials_non_local` (advanced) | extra_materials, damage_non_local | `akantu/extra-materials-non-local` (off) | extra-materials, `akantu-extra-materials/damage-non-local` | |
+| `IGFEM` (advanced) | CGAL | `akantu/igfem` (off) | solid, `akantu-igfem`, `cgal` | GPL as a whole (the GPL sphere intersector, D-042) |
+| `traction_at_split_node_contact` (OFF) | IOHelper | `akantu/ntn-contact` (off) | solid, `akantu-ntn-contact` | |
+| `damage_non_local` (OFF) | | `akantu-solid/damage-non-local` (on in `akantu-solid`) | | the non-local manager and laws of the solid model |
+| `implicit` (META) | Mumps / PETSc / Eigen selection | always available (`eigen`, `faer`) | | CI-027 |
+| `parallel` (META) | MPI, Scotch | `akantu/mpi`, `akantu/scotch`, `akantu-comm/mpi`, `akantu-mesh/{mpi,scotch}` and the `mpi` / `scotch` features of the model crates (off) | native | |
+| `MPI` | | `akantu-comm/mpi` (off) | rsmpi, cc | needs MPI and libclang (image) |
+| `Scotch` | | `akantu-mesh/scotch` (off) | cc | needs libscotch (image `docker/scotch`) |
+| `Mumps` | | `akantu-linalg/mumps`, `akantu-solver/mumps` (off) | `akantu-comm/mpi`, a C shim; MUMPS, ScaLAPACK and PT-Scotch in `docker/mumps` | CI-027 |
+| `PETSc` | parallel | `akantu-linalg/petsc` (off) | native | CI-027; Debian's PETSc links GPL-2+ libraries, so a distributed binary built with it is GPL as a whole |
+| `ScaLAPACK` | MPI | none of its own (linked by the `mumps` shim) | native | |
+| `python_interface` (OFF) | | `akantu-python/python` (off) | pyo3, numpy | wheels: CI-013, CI-014, CI-021 |
+| `debug_tools`, `documentation`, `gtest`, `dumpers`, `IOHelper`, `akantu_iterators`, `Boost`, `Eigen3` | | | | replaced by Rust code and tooling (`docs/ARCHITECTURE.md`) |
+
+## Upstream configure presets and the presets of `ci/run-all.sh`
+
+Every preset of the reference `CMakePresets.json` (version 6: eight configure
+presets, four build presets, one test preset) against `ci/run-all.sh`. "No
+counterpart" always gives the reason (D-116 decided the developer-container
+presets and `relwithdebinfo`).
+
+| Upstream preset (kind) | What it configures | Counterpart in `ci/run-all.sh` |
+|---|---|---|
+| `common` (configure, hidden) | Ninja, `builds/build-${presetName}`; cohesive element, implicit, parallel, structural mechanics, diffusion, damage non-local, phase field, contact mechanics, traction at split-node contact all ON | tier `features` (every cargo feature alone, none, default, all) and the table above. Not the port's default feature set (CI-018); Ninja and the build directory have no counterpart (cargo) |
+| `debug` (configure, inherits `common`) | `AKANTU_TESTS=TRUE`, `CMAKE_BUILD_TYPE=Debug` | preset `fast`: tier `test` (debug assertions and overflow checks on) with `lint`, `fixtures`, `parity`, `licence` |
+| `release` (configure, inherits `common`) | `CMAKE_BUILD_TYPE=Release` (no tests) | tier `release` (preset `medium`) |
+| `relwithdebinfo` (configure, inherits `common`) | `CMAKE_BUILD_TYPE=RelWithDebInfo` | tier `release`: the port's one optimised profile, `[profile.release]` with `debug = 1`. There is no optimised build with debug assertions; the assertions run in the debug tiers |
+| `debug-gcc` (configure, inherits `debug`) | GCC compilers | no counterpart: the port has one compiler (the rustc of `rust-toolchain.toml`; the oldest supported one is checked by tier `msrv`); a second distribution is tier `distro` |
+| `relwithdebinfo-gcc` (configure) | the same GCC compilers | as `debug-gcc` for the compiler; the build type as `relwithdebinfo` |
+| `devcontainer` (configure, inherits `debug-gcc`) | adds `AKANTU_EXAMPLES=TRUE`, `AKANTU_IMPLICIT_SOLVER=Mumps+PETSc`, `AKANTU_PYTHON_INTERFACE=TRUE`, `AKANTU_USE_SYSTEM_EIGEN=FALSE` | no developer container (a convenience, as Gitpod). Its switches are covered by tiers `examples`, `mumps`, `petsc` and preset `python`; MUMPS and PETSc are compiled together by the all-features check of tier `features` in the PETSc image; the bundled Eigen has no counterpart (the Eigen solver is a Rust translation, D-040) |
+| `devcontainer-relwithdebinfo` (configure) | the same switches | as `devcontainer`; the build type as `relwithdebinfo` |
+| `all-debug` (build) | build of `debug` | the builds inside tiers `lint`, `test`, `features`; cargo builds what a tier runs |
+| `all-release` (build) | build of `release` | the `--release` builds inside tier `release` |
+| `devcontainer`, `devcontainer-relwithdebinfo` (build) | builds of the developer-container presets | no counterpart (as the configure presets) |
+| `test-all` (test) | `ctest` of `debug`, `outputOnFailure` | tier `test` (`--no-fail-fast`, one log per step, the failing test's output in the step log and `summary.json`; the analyser accounts for every binary) |
+
+The presets `features`, `packaging`, `python`, `docs`, `miri`, `memcheck`,
+`coverage`, `distro`, `expensive` and `all` of `ci/run-all.sh` follow
+upstream's GitLab stages and the port's own checks, not `CMakePresets.json`.

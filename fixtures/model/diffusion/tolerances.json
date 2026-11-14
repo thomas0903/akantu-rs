@@ -1,0 +1,11 @@
+{
+  "format_version": 1,
+  "rules": [
+    {
+      "quantity": "*",
+      "justification": "Diffusion (docs/NUMERICAL_VALIDATION.md, 'Diffusion (heat transfer)'): every case of fixtures/model/diffusion is produced with the Eigen sparse solver, whose MPL-2.0 translation is bit-identical; every quantity is either an input fed unchanged to the port (mesh, input file, boundary and initial fields computed with the probe's sequential sums) or the output of computations whose operation order the port replicates statement by statement (FE kernels with Eigen product routes incl. computeBtDB of order 2, DOF-manager assembly orders, the HeatDiffusion law with its fixed-size coefficient-based products, integration schemes, Newton-Raphson norms, energy sums in upstream accumulation order). Bit identity is the expected result; any difference is a defect.",
+      "evidence": "crates/akantu-diffusion/tests/model_diffusion_fixtures.rs observes every compared value bit-identical (56 cases, ~2.05 million values incl. per-step SHA-256 digests of T || dT/dt || internal flow for up to 100 steps); the oracle replays use the default (corrected) mode of every switch except the solver's UD-287 switch (all cases) and UD-276 (two_laws_mixed).",
+      "reviewed_by": "independent review during the port, November 2026"
+    }
+  ]
+}

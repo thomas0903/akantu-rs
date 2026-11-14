@@ -1,0 +1,790 @@
+{
+  "format_version": 1,
+  "case_id": "parallel/periodic_1d_x/np2/rank1",
+  "description": "TestMeshPeriodic: makePeriodic on a distributed mesh (seeded Scotch), periodic synchronizer and makeConsistentForPeriodicity, rank view",
+  "status": "golden",
+  "generator": {
+    "probe": "parallel_probe",
+    "probe_version": "4",
+    "command": "oracle/probes/parallel/generate.sh "
+  },
+  "reference": {
+    "sha": "35a851780d0b9471d258ed53a003ae98aaa95ea0",
+    "describe": "v5.0.7-post1-554-g35a851780",
+    "patches": [
+      "modified:cmake/AkantuTestsMacros.cmake sha256=c280165a84912eab4bcc081b9eaaaa06aafdd83d4f48d982e11b0859abf9672f (reference sha256=36290de2ec8b111028138fe82029efa16501512241a5bc264fa30ff3e3239b9e)"
+    ]
+  },
+  "build": {
+  "config": "strict",
+  "compiler": "g++ (Debian 14.2.0-19) 14.2.0",
+  "cxx_flags": "-ffp-contract=off -DEIGEN_DONT_VECTORIZE -DEIGEN_NO_CPUID -DEIGEN_DEFAULT_L1_CACHE_SIZE=16384 -DEIGEN_DEFAULT_L2_CACHE_SIZE=524288 -DEIGEN_DEFAULT_L3_CACHE_SIZE=524288 -O2 -g -DNDEBUG -g3 -ggdb3 -flarge-source-files -std=c++20 -flto=auto -fno-fat-lto-objects -fPIC -frounding-math (actual flags of src/model/solid_mechanics/solid_mechanics_model.cc; warnings and non-FP -D defines omitted)",
+  "build_type": "RelWithDebInfo",
+  "arch": "x86_64",
+  "os": "Debian GNU/Linux 13 (trixie)",
+  "libraries": {"eigen_cache_sizes_measured": "16384,524288,524288 (Eigen::l1/l2/l3CacheSize() read at run time in the probe process, D-050)", 
+    "eigen3": "3.4.0-5",
+    "boost": "1.83.0.2+b2",
+    "openmpi": "5.0.7-1",
+    "mumps": "5.7.3-3+b1",
+    "petsc": "3.22.5+dfsg1-2",
+    "scotch": "7.0.7-1",
+    "openblas": "0.3.29+ds-3",
+    "scalapack": "2.2.2-1",
+    "hdf5": "1.14.5+repack-3",
+    "gmsh": "4.13.1+ds1-6",
+    "pybind11": "2.13.6-2",
+    "numpy": "1:2.2.4+ds-1",
+    "scipy": "1.15.3-1",
+    "gcc": "4:14.2.0-1",
+    "gfortran": "4:14.2.0-1",
+    "oracle_image": "sha256:2da26d87e063f3c88264f589cf73381feff583eeaa7770d2e01ae034651d59f5",
+    "oracle_build_scripts": "cca6e460cd3430bf0180262e7ebe26be762112e9",
+    "oracle_install_reference_sha": "35a851780d0b9471d258ed53a003ae98aaa95ea0",
+    "oracle_install_image": "sha256:2da26d87e063f3c88264f589cf73381feff583eeaa7770d2e01ae034651d59f5",
+    "openblas_coretype": "Haswell",
+    "openblas_num_threads": "1",
+    "eigen_cache_sizes": "16384,524288,524288 (compile-time pin of the library and of the probe translation unit: EIGEN_NO_CPUID + defaults, D-050)",
+    "host_cpu": "AMD EPYC 4585PX 16-Core Processor",
+    "x86_64_level": "v3",
+    "sha256:libakantu.so.5.0.7": "554ecfc7838d8c8aa3955f37f2efb556a7f09426083b74af262ffdcccff657ff",
+    "probe_tree_sha256": "89ce0121c3f54c1f48be6d800fa840bb6aca63c611ae8d70e4da223eba64eb48",
+    "probe_sources_commit": "31ae1a090aef641c12eb967d99b457a9f1813837",
+    "cmake_cxx_flags": "-ffp-contract=off -DEIGEN_DONT_VECTORIZE -DEIGEN_NO_CPUID -DEIGEN_DEFAULT_L1_CACHE_SIZE=16384 -DEIGEN_DEFAULT_L2_CACHE_SIZE=524288 -DEIGEN_DEFAULT_L3_CACHE_SIZE=524288 -O2 -g -DNDEBUG -g3 -ggdb3 -flarge-source-files",
+    "probe": "parallel_probe"
+  },
+  "probe_compile_command": "/usr/bin/c++ '-DAKANTU_PROBE_BUILD_TYPE=\"RelWithDebInfo\"' '-DAKANTU_PROBE_CONFIG=\"strict\"' '-DAKANTU_PROBE_CXX_FLAGS=\"-ffp-contract=off -DEIGEN_DONT_VECTORIZE -DEIGEN_NO_CPUID -DEIGEN_DEFAULT_L1_CACHE_SIZE=16384 -DEIGEN_DEFAULT_L2_CACHE_SIZE=524288 -DEIGEN_DEFAULT_L3_CACHE_SIZE=524288  -O2 -g -DNDEBUG\"' -DBOOST_GRAPH_DYN_LINK -DBOOST_GRAPH_NO_LIB -DBOOST_REGEX_DYN_LINK -DBOOST_REGEX_NO_LIB -DCGAL_USE_GMPXX=1 -I/probes/parallel/../include -isystem /build/install-strict/include/akantu -isystem /opt/CGAL-5.6.2/include -isystem /usr/lib/x86_64-linux-gnu/openmpi/include -isystem /usr/lib/x86_64-linux-gnu/openmpi/include/openmpi -isystem /usr/lib/petscdir/petsc3.22/x86_64-linux-gnu-real/include -isystem /usr/include/scotch -isystem /build/install-strict/include/akantu_iterators -isystem /usr/include/eigen3 -isystem /build/install-strict/include/iohelper -O2 -g -DNDEBUG -std=gnu++20 -ffp-contract=off -DEIGEN_DONT_VECTORIZE -DEIGEN_NO_CPUID -DEIGEN_DEFAULT_L1_CACHE_SIZE=16384 -DEIGEN_DEFAULT_L2_CACHE_SIZE=524288 -DEIGEN_DEFAULT_L3_CACHE_SIZE=524288 -Wall -Wextra -pedantic -Wno-array-bounds -Wno-use-after-free -Wno-stringop-overread -DOMPI_SKIP_MPICXX -Wno-literal-suffix -frounding-math -o CMakeFiles/parallel_probe.dir/parallel_probe.cc.o -c /probes/parallel/parallel_probe.cc",
+  "probe_cxx_flags": "-DAKANTU_PROBE_BUILD_TYPE=\"RelWithDebInfo\" -DAKANTU_PROBE_CONFIG=\"strict\" -DAKANTU_PROBE_CXX_FLAGS=\"-ffp-contract=off -DEIGEN_DONT_VECTORIZE -DEIGEN_NO_CPUID -DEIGEN_DEFAULT_L1_CACHE_SIZE=16384 -DEIGEN_DEFAULT_L2_CACHE_SIZE=524288 -DEIGEN_DEFAULT_L3_CACHE_SIZE=524288  -O2 -g -DNDEBUG\" -DBOOST_GRAPH_DYN_LINK -DBOOST_GRAPH_NO_LIB -DBOOST_REGEX_DYN_LINK -DBOOST_REGEX_NO_LIB -DCGAL_USE_GMPXX=1 -O2 -g -DNDEBUG -std=gnu++20 -ffp-contract=off -DEIGEN_DONT_VECTORIZE -DEIGEN_NO_CPUID -DEIGEN_DEFAULT_L1_CACHE_SIZE=16384 -DEIGEN_DEFAULT_L2_CACHE_SIZE=524288 -DEIGEN_DEFAULT_L3_CACHE_SIZE=524288 -Wall -Wextra -pedantic -Wno-array-bounds -Wno-use-after-free -Wno-stringop-overread -DOMPI_SKIP_MPICXX -Wno-literal-suffix -frounding-math"
+},
+  "created": "2026-11-11T16:58:59Z",
+  "parameters": {
+    "oracle_pin/eigen_cache_sizes": "16384 524288 524288",
+    "oracle_pin/openblas_coretype": "Haswell",
+    "oracle_pin/openblas_num_threads": "1",
+    "is_periodic": true,
+    "rank": 1,
+    "nb_ranks": 2,
+    "nb_global_nodes": 5,
+    "is_distributed": true,
+    "blocks": [
+      "_point_1/not_ghost",
+      "_segment_2/not_ghost",
+      "_point_1/ghost",
+      "_segment_2/ghost"
+    ],
+    "element_schemes": [
+      "send/0",
+      "recv/0"
+    ],
+    "node_schemes": [
+      "recv/0"
+    ],
+    "element_group_dimension/bulk": 1,
+    "element_group_dimension/corner": 0,
+    "element_group_dimension/x-minus": 0,
+    "element_group_dimension/x-plus": 0,
+    "element_groups": [
+      "bulk",
+      "corner",
+      "x-minus",
+      "x-plus"
+    ],
+    "node_groups": [
+      "bulk_nodes",
+      "corner_nodes",
+      "x-minus_nodes",
+      "x-plus_nodes"
+    ],
+    "type_table": [
+      "_segment_2"
+    ],
+    "periodic_schemes": [
+      "recv/0"
+    ],
+    "periodic/nondyadic_order_dependent_masters": 0,
+    "periodic/nondyadic_order_dependent_nodes": 0,
+    "periodic/nondyadic_run_dependent_gids/0": [],
+    "periodic/nondyadic_run_dependent_gids/1": [],
+    "periodic/nondyadic_run_dependent_masters": 0,
+    "periodic/nondyadic_run_dependent_entries": 0
+  },
+  "storage": {
+    "mode": "committed",
+    "bytes": 6624
+  },
+  "quantities": [
+    {
+      "name": "mesh/bbox_before",
+      "file": "data/mesh__bbox_before.npy",
+      "dtype": "f64",
+      "shape": [
+        4,
+        1
+      ],
+      "axes": [
+        "entry",
+        "component"
+      ],
+      "layout": "table",
+      "sha256": "85d5518ab5c8c81e7fccc2cde18c0efafe4fdf61c72aa24ebd31c3e72e0a67b9",
+      "description": "local lower, local upper, global lower, global upper corner",
+      "tolerance_class": "exact"
+    },
+    {
+      "name": "mesh/bbox_after",
+      "file": "data/mesh__bbox_after.npy",
+      "dtype": "f64",
+      "shape": [
+        4,
+        1
+      ],
+      "axes": [
+        "entry",
+        "component"
+      ],
+      "layout": "table",
+      "sha256": "23180d95401448d12a8a5c627f55b350b70fd5440db3008cf3406be2f0ea477b",
+      "description": "local lower, local upper, global lower, global upper corner",
+      "tolerance_class": "exact"
+    },
+    {
+      "name": "nodes/global_ids",
+      "file": "data/nodes__global_ids.npy",
+      "dtype": "i64",
+      "shape": [
+        5
+      ],
+      "axes": [
+        "entry"
+      ],
+      "layout": "table",
+      "sha256": "cd259fbc6971095c300f62e74a512770fbeb7d3649983642c188d4e977e03ae1",
+      "description": "getNodeGlobalId per local node",
+      "tolerance_class": "exact"
+    },
+    {
+      "name": "nodes/flags",
+      "file": "data/nodes__flags.npy",
+      "dtype": "i64",
+      "shape": [
+        5
+      ],
+      "axes": [
+        "entry"
+      ],
+      "layout": "table",
+      "sha256": "ce7cd1535354a0ef0d4a08c2c8f2ae39013ae8cb17528c45942248bc3a4a498b",
+      "description": "getNodeFlag per local node (NodeFlag bits)",
+      "tolerance_class": "exact"
+    },
+    {
+      "name": "nodes/pranks",
+      "file": "data/nodes__pranks.npy",
+      "dtype": "i64",
+      "shape": [
+        5
+      ],
+      "axes": [
+        "entry"
+      ],
+      "layout": "table",
+      "sha256": "2ffd5e1dd9fcdad7c8059a1fcf3aa0aa7c83fc43abdc7ed9723e00671ecfdc22",
+      "description": "getNodePrank per local node (-1: none)",
+      "tolerance_class": "exact"
+    },
+    {
+      "name": "nodes/coordinates",
+      "file": "data/nodes__coordinates.npy",
+      "dtype": "f64",
+      "shape": [
+        5,
+        1
+      ],
+      "axes": [
+        "entry",
+        "component"
+      ],
+      "layout": "table",
+      "sha256": "46271189bf9b86c1b160c9632e7d3d0874132510e35cc1aa1c5513c48e3792f2",
+      "description": "node coordinates",
+      "tolerance_class": "exact"
+    },
+    {
+      "name": "conn/_point_1/not_ghost",
+      "file": "data/conn___point_1__not_ghost.npy",
+      "dtype": "i64",
+      "shape": [
+        1
+      ],
+      "axes": [
+        "entry"
+      ],
+      "layout": "table",
+      "sha256": "f6df0000bed676f0a4b777e2a1d915b6608dab452e11737f82c685cebf0e8ba7",
+      "description": "connectivity (local node ids)",
+      "tolerance_class": "exact"
+    },
+    {
+      "name": "mesh_data/tag_0/_point_1/not_ghost",
+      "file": "data/mesh_data__tag_0___point_1__not_ghost.npy",
+      "dtype": "i64",
+      "shape": [
+        1
+      ],
+      "axes": [
+        "entry"
+      ],
+      "layout": "table",
+      "sha256": "79a3ec9e5013300721fe2cc296c3d7016af2098b51ea46190de859dc1de8fb8e",
+      "description": "elemental Int mesh data",
+      "tolerance_class": "exact"
+    },
+    {
+      "name": "conn/_segment_2/not_ghost",
+      "file": "data/conn___segment_2__not_ghost.npy",
+      "dtype": "i64",
+      "shape": [
+        2,
+        2
+      ],
+      "axes": [
+        "entry",
+        "component"
+      ],
+      "layout": "table",
+      "sha256": "3ee2caf13cad40893e0c7914dc0f043f9c8b4497182ea6429215f8cda618feda",
+      "description": "connectivity (local node ids)",
+      "tolerance_class": "exact"
+    },
+    {
+      "name": "mesh_data/tag_0/_segment_2/not_ghost",
+      "file": "data/mesh_data__tag_0___segment_2__not_ghost.npy",
+      "dtype": "i64",
+      "shape": [
+        2
+      ],
+      "axes": [
+        "entry"
+      ],
+      "layout": "table",
+      "sha256": "a7a9b887002d6ea73bfc1997bf5d0577838df9ff1a5fa0f9d51ced915a111b5d",
+      "description": "elemental Int mesh data",
+      "tolerance_class": "exact"
+    },
+    {
+      "name": "conn/_point_1/ghost",
+      "file": "data/conn___point_1__ghost.npy",
+      "dtype": "i64",
+      "shape": [
+        1
+      ],
+      "axes": [
+        "entry"
+      ],
+      "layout": "table",
+      "sha256": "fc44e6cab97678b988677b1e24dc073c80b029ccf6566c7bc1bd9ec1061a6106",
+      "description": "connectivity (local node ids)",
+      "tolerance_class": "exact"
+    },
+    {
+      "name": "ghosts_counters/_point_1/ghost",
+      "file": "data/ghosts_counters___point_1__ghost.npy",
+      "dtype": "i64",
+      "shape": [
+        1
+      ],
+      "axes": [
+        "entry"
+      ],
+      "layout": "table",
+      "sha256": "fc44e6cab97678b988677b1e24dc073c80b029ccf6566c7bc1bd9ec1061a6106",
+      "description": "ghost counters",
+      "tolerance_class": "exact"
+    },
+    {
+      "name": "mesh_data/tag_0/_point_1/ghost",
+      "file": "data/mesh_data__tag_0___point_1__ghost.npy",
+      "dtype": "i64",
+      "shape": [
+        1
+      ],
+      "axes": [
+        "entry"
+      ],
+      "layout": "table",
+      "sha256": "5bd6c697aa9beab24702e737e4748b43885706094cdc3c8bf1f9d6fd5e5a69a2",
+      "description": "elemental Int mesh data",
+      "tolerance_class": "exact"
+    },
+    {
+      "name": "conn/_segment_2/ghost",
+      "file": "data/conn___segment_2__ghost.npy",
+      "dtype": "i64",
+      "shape": [
+        1,
+        2
+      ],
+      "axes": [
+        "entry",
+        "component"
+      ],
+      "layout": "table",
+      "sha256": "39d595e81a2459515a287fccca7ab6fb3e258fbc43208b231d661dcf795d4927",
+      "description": "connectivity (local node ids)",
+      "tolerance_class": "exact"
+    },
+    {
+      "name": "ghosts_counters/_segment_2/ghost",
+      "file": "data/ghosts_counters___segment_2__ghost.npy",
+      "dtype": "i64",
+      "shape": [
+        1
+      ],
+      "axes": [
+        "entry"
+      ],
+      "layout": "table",
+      "sha256": "fc44e6cab97678b988677b1e24dc073c80b029ccf6566c7bc1bd9ec1061a6106",
+      "description": "ghost counters",
+      "tolerance_class": "exact"
+    },
+    {
+      "name": "mesh_data/tag_0/_segment_2/ghost",
+      "file": "data/mesh_data__tag_0___segment_2__ghost.npy",
+      "dtype": "i64",
+      "shape": [
+        1
+      ],
+      "axes": [
+        "entry"
+      ],
+      "layout": "table",
+      "sha256": "060d6c3223cfe286cbf0c25b0ce5a4f877096219e064cfe401ebb8658501387c",
+      "description": "elemental Int mesh data",
+      "tolerance_class": "exact"
+    },
+    {
+      "name": "element_scheme/send/0",
+      "file": "data/element_scheme__send__0.npy",
+      "dtype": "i64",
+      "shape": [
+        1,
+        3
+      ],
+      "axes": [
+        "entry",
+        "component"
+      ],
+      "layout": "table",
+      "sha256": "2ac3781162e37e3032b30509ffeffd9d997dcf522dc9702c2190740d437ebaa8",
+      "description": "(type code, element, ghost) in scheme order",
+      "tolerance_class": "exact"
+    },
+    {
+      "name": "element_scheme/recv/0",
+      "file": "data/element_scheme__recv__0.npy",
+      "dtype": "i64",
+      "shape": [
+        1,
+        3
+      ],
+      "axes": [
+        "entry",
+        "component"
+      ],
+      "layout": "table",
+      "sha256": "40c1f35682971c4f14c75b1f3ca7e5c7859207de3675a913ebebfbe5039a2083",
+      "description": "(type code, element, ghost) in scheme order",
+      "tolerance_class": "exact"
+    },
+    {
+      "name": "node_scheme/recv/0",
+      "file": "data/node_scheme__recv__0.npy",
+      "dtype": "i64",
+      "shape": [
+        1
+      ],
+      "axes": [
+        "entry"
+      ],
+      "layout": "table",
+      "sha256": "fc44e6cab97678b988677b1e24dc073c80b029ccf6566c7bc1bd9ec1061a6106",
+      "description": "local nodes in scheme order",
+      "tolerance_class": "exact"
+    },
+    {
+      "name": "element_group/bulk/_segment_2/not_ghost",
+      "file": "data/element_group__bulk___segment_2__not_ghost.npy",
+      "dtype": "i64",
+      "shape": [
+        2
+      ],
+      "axes": [
+        "entry"
+      ],
+      "layout": "table",
+      "sha256": "edf57b3e7cc4d837db7a3b400e84ffa2cc07b6adc347edef9feabbc11c5183cb",
+      "description": "group elements",
+      "tolerance_class": "exact"
+    },
+    {
+      "name": "element_group/bulk/_segment_2/ghost",
+      "file": "data/element_group__bulk___segment_2__ghost.npy",
+      "dtype": "i64",
+      "shape": [
+        1
+      ],
+      "axes": [
+        "entry"
+      ],
+      "layout": "table",
+      "sha256": "f6df0000bed676f0a4b777e2a1d915b6608dab452e11737f82c685cebf0e8ba7",
+      "description": "group elements",
+      "tolerance_class": "exact"
+    },
+    {
+      "name": "element_group/corner/_point_1/ghost",
+      "file": "data/element_group__corner___point_1__ghost.npy",
+      "dtype": "i64",
+      "shape": [
+        1
+      ],
+      "axes": [
+        "entry"
+      ],
+      "layout": "table",
+      "sha256": "f6df0000bed676f0a4b777e2a1d915b6608dab452e11737f82c685cebf0e8ba7",
+      "description": "group elements",
+      "tolerance_class": "exact"
+    },
+    {
+      "name": "element_group/x-plus/_point_1/not_ghost",
+      "file": "data/element_group__x-plus___point_1__not_ghost.npy",
+      "dtype": "i64",
+      "shape": [
+        1
+      ],
+      "axes": [
+        "entry"
+      ],
+      "layout": "table",
+      "sha256": "f6df0000bed676f0a4b777e2a1d915b6608dab452e11737f82c685cebf0e8ba7",
+      "description": "group elements",
+      "tolerance_class": "exact"
+    },
+    {
+      "name": "node_group/bulk_nodes",
+      "file": "data/node_group__bulk_nodes.npy",
+      "dtype": "i64",
+      "shape": [
+        4
+      ],
+      "axes": [
+        "entry"
+      ],
+      "layout": "table",
+      "sha256": "dc5de563b86c3210ee39b3adc9c39934ef72b87a5c20f475ccc78e336ea75a7e",
+      "description": "group nodes",
+      "tolerance_class": "exact"
+    },
+    {
+      "name": "node_group/corner_nodes",
+      "file": "data/node_group__corner_nodes.npy",
+      "dtype": "i64",
+      "shape": [
+        1
+      ],
+      "axes": [
+        "entry"
+      ],
+      "layout": "table",
+      "sha256": "fc44e6cab97678b988677b1e24dc073c80b029ccf6566c7bc1bd9ec1061a6106",
+      "description": "group nodes",
+      "tolerance_class": "exact"
+    },
+    {
+      "name": "node_group/x-minus_nodes",
+      "file": "data/node_group__x-minus_nodes.npy",
+      "dtype": "i64",
+      "shape": [
+        0
+      ],
+      "axes": [
+        "entry"
+      ],
+      "layout": "table",
+      "sha256": "e734dac55ea9fbbe782af2d8c02c3c5992131906228afb2aaaf137d6f3ed74db",
+      "description": "group nodes",
+      "tolerance_class": "exact"
+    },
+    {
+      "name": "node_group/x-plus_nodes",
+      "file": "data/node_group__x-plus_nodes.npy",
+      "dtype": "i64",
+      "shape": [
+        1
+      ],
+      "axes": [
+        "entry"
+      ],
+      "layout": "table",
+      "sha256": "f6df0000bed676f0a4b777e2a1d915b6608dab452e11737f82c685cebf0e8ba7",
+      "description": "group nodes",
+      "tolerance_class": "exact"
+    },
+    {
+      "name": "periodic/pairs",
+      "file": "data/periodic__pairs.npy",
+      "dtype": "i64",
+      "shape": [
+        1,
+        2
+      ],
+      "axes": [
+        "entry",
+        "component"
+      ],
+      "layout": "table",
+      "sha256": "d9f2839cae10ddc3235e7fe1c9c2eb3f7f81287ec71b93d573c5dfe745b2475f",
+      "description": "(master, slave) local node pairs, sorted",
+      "tolerance_class": "exact"
+    },
+    {
+      "name": "periodic_scheme/recv/0",
+      "file": "data/periodic_scheme__recv__0.npy",
+      "dtype": "i64",
+      "shape": [
+        1
+      ],
+      "axes": [
+        "entry"
+      ],
+      "layout": "table",
+      "sha256": "060d6c3223cfe286cbf0c25b0ce5a4f877096219e064cfe401ebb8658501387c",
+      "description": "local nodes in scheme order",
+      "tolerance_class": "exact"
+    },
+    {
+      "name": "periodic/identity_input",
+      "file": "data/periodic__identity_input.npy",
+      "dtype": "f64",
+      "shape": [
+        5,
+        1
+      ],
+      "axes": [
+        "entry",
+        "component"
+      ],
+      "layout": "table",
+      "sha256": "d5b10189b94bd794c6715ebde6b1a16406fbb9b044b029961043f5ae5e91b93f",
+      "description": "10, -1 on periodic slaves",
+      "tolerance_class": "exact"
+    },
+    {
+      "name": "periodic/identity_output",
+      "file": "data/periodic__identity_output.npy",
+      "dtype": "f64",
+      "shape": [
+        5,
+        1
+      ],
+      "axes": [
+        "entry",
+        "component"
+      ],
+      "layout": "table",
+      "sha256": "074893c9821e436d3adbe7932feb8a2bd45c39d57a51a01bcbe072b18be94f8a",
+      "description": "after makeConsistent _id",
+      "tolerance_class": "exact"
+    },
+    {
+      "name": "periodic/sum_input",
+      "file": "data/periodic__sum_input.npy",
+      "dtype": "f64",
+      "shape": [
+        5,
+        1
+      ],
+      "axes": [
+        "entry",
+        "component"
+      ],
+      "layout": "table",
+      "sha256": "b17ea67d908d76ca0301259c1f1d0b104eab77804e98b23a6fc9534515d93302",
+      "description": "100, 100 / 2^shared on local-or-master periodic masters",
+      "tolerance_class": "exact"
+    },
+    {
+      "name": "periodic/sum_after_id",
+      "file": "data/periodic__sum_after_id.npy",
+      "dtype": "f64",
+      "shape": [
+        5,
+        1
+      ],
+      "axes": [
+        "entry",
+        "component"
+      ],
+      "layout": "table",
+      "sha256": "d921b0a429482a5735c98a571bbe8dbc91a232475ab2461e5d3bea3446e59b76",
+      "description": "after makeConsistent _id",
+      "tolerance_class": "exact"
+    },
+    {
+      "name": "periodic/sum_output",
+      "file": "data/periodic__sum_output.npy",
+      "dtype": "f64",
+      "shape": [
+        5,
+        1
+      ],
+      "axes": [
+        "entry",
+        "component"
+      ],
+      "layout": "table",
+      "sha256": "b17ea67d908d76ca0301259c1f1d0b104eab77804e98b23a6fc9534515d93302",
+      "description": "after makeConsistent _id then _sum",
+      "tolerance_class": "exact"
+    },
+    {
+      "name": "periodic/multimap_order",
+      "file": "data/periodic__multimap_order.npy",
+      "dtype": "i64",
+      "shape": [
+        1,
+        2
+      ],
+      "axes": [
+        "entry",
+        "component"
+      ],
+      "layout": "table",
+      "sha256": "d9f2839cae10ddc3235e7fe1c9c2eb3f7f81287ec71b93d573c5dfe745b2475f",
+      "description": "(master, slave) local pairs in the iteration order of the unordered_multimap",
+      "tolerance_class": "exact"
+    },
+    {
+      "name": "periodic/nondyadic_input",
+      "file": "data/periodic__nondyadic_input.npy",
+      "dtype": "f64",
+      "shape": [
+        5,
+        2
+      ],
+      "axes": [
+        "entry",
+        "component"
+      ],
+      "layout": "table",
+      "sha256": "7ebf90bcfd3660cd098040ba711ceba2f19ba0bb62b44c44c146249cf29f5163",
+      "description": "1 / (3 + gid), 0.1 (gid + 1)",
+      "tolerance_class": "exact"
+    },
+    {
+      "name": "periodic/nondyadic_after_id",
+      "file": "data/periodic__nondyadic_after_id.npy",
+      "dtype": "f64",
+      "shape": [
+        5,
+        2
+      ],
+      "axes": [
+        "entry",
+        "component"
+      ],
+      "layout": "table",
+      "sha256": "180833dfc128d56270bf35b3effe334ccc9afd868c3e60ea730a90e8c88c3d5d",
+      "description": "makeConsistentForPeriodicity _id",
+      "tolerance_class": "exact"
+    },
+    {
+      "name": "periodic/nondyadic_sum_order_dependent",
+      "file": "data/periodic__nondyadic_sum_order_dependent.npy",
+      "dtype": "i64",
+      "shape": [
+        5
+      ],
+      "axes": [
+        "entry"
+      ],
+      "layout": "table",
+      "sha256": "57e5192318b22f29fc58acc50675885193301aa0ee6a94036f63baf164aad2c0",
+      "description": "1: the node's _sum comes from a master accumulated from >= 2 remote ranks in arrival order (structural rule of probe version 3, a superset of the run-dependent entries nondyadic_sum_run_dependent; recorded as 0 in nondyadic_after_sum)",
+      "tolerance_class": "exact"
+    },
+    {
+      "name": "periodic/nondyadic_after_sum",
+      "file": "data/periodic__nondyadic_after_sum.npy",
+      "dtype": "f64",
+      "shape": [
+        5,
+        2
+      ],
+      "axes": [
+        "entry",
+        "component"
+      ],
+      "layout": "table",
+      "sha256": "060dd6894995eb88db554b114246115f9c1d8747494c6378c8a4571be3b4c464",
+      "description": "makeConsistentForPeriodicity _sum (entries of nondyadic_sum_order_dependent recorded as 0)",
+      "tolerance_class": "exact"
+    },
+    {
+      "name": "periodic/nondyadic_sum_contributions",
+      "file": "data/periodic__nondyadic_sum_contributions.npy",
+      "dtype": "f64",
+      "shape": [
+        5,
+        2
+      ],
+      "axes": [
+        "entry",
+        "component"
+      ],
+      "layout": "table",
+      "sha256": "f13c4a453283cdedcb25fe6244795611e387c5836cb6068f15aff772707145f8",
+      "description": "zero_pure_ghosts then upstream's reduceSynchronizeArrayLocal<AddOperation> (local slaves -> masters in multimap order): at every periodic master copy, this rank's contribution to the ghost -> owner reduction (on the owner: the value the remote contributions are added to)",
+      "tolerance_class": "exact"
+    },
+    {
+      "name": "periodic/nondyadic_sum_run_dependent",
+      "file": "data/periodic__nondyadic_sum_run_dependent.npy",
+      "dtype": "i64",
+      "shape": [
+        5,
+        2
+      ],
+      "axes": [
+        "entry",
+        "component"
+      ],
+      "layout": "table",
+      "sha256": "92243c36a082fa05248c0148992cff5466fbd5a405481eae18386f47149ecde2",
+      "description": "1: the entry's _sum comes from a master whose remote contributions give >= 2 distinct results over their arrival orders (run-dependent upstream, D-039 amendment; recorded as 0 in nondyadic_after_sum_deterministic)",
+      "tolerance_class": "exact"
+    },
+    {
+      "name": "periodic/nondyadic_after_sum_deterministic",
+      "file": "data/periodic__nondyadic_after_sum_deterministic.npy",
+      "dtype": "f64",
+      "shape": [
+        5,
+        2
+      ],
+      "axes": [
+        "entry",
+        "component"
+      ],
+      "layout": "table",
+      "sha256": "060dd6894995eb88db554b114246115f9c1d8747494c6378c8a4571be3b4c464",
+      "description": "makeConsistentForPeriodicity _sum (entries of nondyadic_sum_run_dependent recorded as 0)",
+      "tolerance_class": "exact"
+    }
+  ],
+  "tags": [
+    "parallel"
+  ]
+}

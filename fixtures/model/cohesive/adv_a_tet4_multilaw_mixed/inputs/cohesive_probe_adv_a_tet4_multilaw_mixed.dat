@@ -1,0 +1,23 @@
+model solid_mechanics_model_cohesive [
+  material elastic [
+    name = body
+    rho = 1e3
+    E = 1e9
+    nu = 0.2
+  ]
+  material cohesive_linear [
+    name = coh_default
+    beta = 1
+    kappa = 2
+    G_c = 10
+    sigma_c = 1e6 uniform [-2e5, 2e5]
+    penalty = 1e12
+  ]
+  material cohesive_linear_uncoupled [
+    name = insertion
+    beta = 1
+    G_c = 10
+    sigma_c = 0.8e6
+    roughness = 0.8
+  ]
+]

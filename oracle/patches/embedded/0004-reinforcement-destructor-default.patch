@@ -1,0 +1,19 @@
+# SPDX-License-Identifier: LGPL-3.0-or-later
+# akantu-rs oracle variant `embedded` (D-060), patch 0004 — link fix.
+# Upstream: Akantu (EPFL/LSMS) 35a851780d0b, material_reinforcement.hh
+# (UD-587, review V82 EM-12 (i)): ~MaterialReinforcement() is declared and
+# never defined (undefined reference at link time). Defined `= default`
+# (the class owns no resource; the internals belong to the law's internal
+# handler). No numerical effect. Applied only to a COPY of the sources.
+
+--- a/src/model/solid_mechanics/materials/material_embedded/material_reinforcement.hh
++++ b/src/model/solid_mechanics/materials/material_embedded/material_reinforcement.hh
+@@ -54,7 +54,7 @@ public:
+   MaterialReinforcement(EmbeddedInterfaceModel & model, const ID & id = "");
+ 
+   /// Destructor
+-  ~MaterialReinforcement() override;
++  ~MaterialReinforcement() override = default;
+ 
+ protected:
+   void initialize();

@@ -1,0 +1,50 @@
+# SPDX-License-Identifier: LGPL-3.0-or-later
+# akantu-rs CI: a second distribution (row CI-012; upstream also built on
+# Ubuntu 22.04 next to Debian), weekly and on manual dispatch. The `distro`
+# preset (tiers `features` and `test`, host backend) runs inside a
+# digest-pinned ubuntu:22.04 container (glibc 2.35, Open MPI 4.1, Scotch 6,
+# system Python) started by ci/github/distro-run.sh on an ubuntu-24.04
+# runner; the same command reproduces it on any machine with Docker.
+# Diagnostic, hence continue-on-error: bitwise parity is claimed on the
+# project's Debian image only (D-043), and another libm can move the last bit
+# of a golden comparison. The job shows that the native features (rsmpi,
+# bindgen, cc, PyO3) still build against another system stack; a failing test
+# is read, not ignored. MUMPS and PETSc are not installed in the container,
+# so the feature-matrix checks that need them are declared not applicable
+# (CI_NATIVE_NA) and a real failure stands out.
+name: distro
+on:
+  schedule:
+    - cron: "17 7 * * 6"
+  workflow_dispatch:
+permissions:
+  contents: read
+env:
+  # Container caps of scripts/mpi/in-docker.sh. The defaults (4 CPUs / 6g) fit
+  # the standard runner of a public repository (4 vCPU / 16 GB); on a
+  # private repository's 2-vCPU runner set the repository variable
+  # AKANTU_RS_DOCKER_CPUS=2 (ci/github/README.md, "Runners and their limits").
+  AKANTU_RS_DOCKER_CPUS: ${{ vars.AKANTU_RS_DOCKER_CPUS || '4' }}
+  AKANTU_RS_DOCKER_MEMORY: ${{ vars.AKANTU_RS_DOCKER_MEMORY || '6g' }}
+concurrency:
+  group: distro-${{ github.ref }}
+  cancel-in-progress: false
+jobs:
+  ubuntu-22-04:
+    runs-on: ubuntu-24.04
+    timeout-minutes: 120
+    continue-on-error: true
+    steps:
+      - uses: actions/checkout@de0fac2e4500dabe0009e67214ff5f5447ce83dd # v6.0.2
+        with:
+          persist-credentials: false
+      - name: Free disk space on the runner
+        run: ci/github/free-disk.sh
+      - name: features and test tiers on bare Ubuntu 22.04 (digest-pinned container)
+        run: ci/github/distro-run.sh "$RUNNER_TEMP/distro-out"
+      - if: always()
+        uses: actions/upload-artifact@bbbca2ddaa5d8feaa63e36b76fdaad77386f024f # v7.0.0
+        with:
+          name: ci-distro-ubuntu-22-04
+          path: ${{ runner.temp }}/distro-out
+          retention-days: 14

@@ -1,0 +1,396 @@
+{
+  "format_version": 1,
+  "case_id": "model/smm_fd/static_patch_quadrangle_4",
+  "description": "finite-deformation patch test (static, _quadrangle_4) on the upstream patch-test mesh, Eigen sparse solver",
+  "status": "golden",
+  "generator": {
+    "probe": "smm_fd_probe",
+    "probe_version": "1",
+    "command": "oracle/probes/smm/generate.sh "
+  },
+  "reference": {
+    "sha": "35a851780d0b9471d258ed53a003ae98aaa95ea0",
+    "describe": "v5.0.7-post1-554-g35a851780",
+    "patches": [
+      "modified:cmake/AkantuTestsMacros.cmake sha256=c280165a84912eab4bcc081b9eaaaa06aafdd83d4f48d982e11b0859abf9672f (reference sha256=36290de2ec8b111028138fe82029efa16501512241a5bc264fa30ff3e3239b9e)"
+    ]
+  },
+  "build": {
+  "config": "strict",
+  "compiler": "g++ (Debian 14.2.0-19) 14.2.0",
+  "cxx_flags": "-ffp-contract=off -DEIGEN_DONT_VECTORIZE -O2 -g -DNDEBUG -g3 -ggdb3 -flarge-source-files -std=c++20 -flto=auto -fno-fat-lto-objects -fPIC -frounding-math (actual flags of src/model/solid_mechanics/solid_mechanics_model.cc; warnings and non-FP -D defines omitted)",
+  "build_type": "RelWithDebInfo",
+  "arch": "aarch64",
+  "os": "Debian GNU/Linux 13 (trixie)",
+  "libraries": {
+    "eigen3": "3.4.0-5",
+    "boost": "1.83.0.2+b2",
+    "openmpi": "5.0.7-1",
+    "mumps": "5.7.3-3+b1",
+    "petsc": "3.22.5+dfsg1-2",
+    "scotch": "7.0.7-1",
+    "openblas": "0.3.29+ds-3",
+    "scalapack": "2.2.2-1",
+    "hdf5": "1.14.5+repack-3",
+    "gmsh": "4.13.1+ds1-6",
+    "pybind11": "2.13.6-2",
+    "numpy": "1:2.2.4+ds-1",
+    "scipy": "1.15.3-1",
+    "gcc": "4:14.2.0-1",
+    "gfortran": "4:14.2.0-1",
+    "oracle_image": "sha256:6683233d0a3b9341eb5cedf5879bc9ccb76ddf3d91e9aa0fd35b99dc7866d7a6",
+    "oracle_build_scripts": "45b473da9cbfb356a039d94609fe39f6f36a1a9a",
+    "oracle_install_reference_sha": "35a851780d0b9471d258ed53a003ae98aaa95ea0",
+    "oracle_install_image": "sha256:6683233d0a3b9341eb5cedf5879bc9ccb76ddf3d91e9aa0fd35b99dc7866d7a6",
+    "sha256:libakantu.so.5.0.7": "9768e51184f0423c49abfd67535e6f3bc371522045b0b634223cce0ee07f0b0b",
+    "probe_tree_sha256": "ef26a0c0749ff2dd38dd933077263919227443a2c099eba985176085ac8fe59b",
+    "probe_sources_commit": "6add2fe861b01e20c5b3f02362ec73dabb14ca8c",
+    "cmake_cxx_flags": "-ffp-contract=off -DEIGEN_DONT_VECTORIZE -O2 -g -DNDEBUG -g3 -ggdb3 -flarge-source-files",
+    "probe": "smm_fd_probe"
+  },
+  "probe_compile_command": "/usr/bin/c++ '-DAKANTU_PROBE_BUILD_TYPE=\"RelWithDebInfo\"' '-DAKANTU_PROBE_CONFIG=\"strict\"' '-DAKANTU_PROBE_CXX_FLAGS=\"-ffp-contract=off -DEIGEN_DONT_VECTORIZE  -O2 -g -DNDEBUG\"' -DBOOST_GRAPH_DYN_LINK -DBOOST_GRAPH_NO_LIB -DBOOST_REGEX_DYN_LINK -DBOOST_REGEX_NO_LIB -DCGAL_USE_GMPXX=1 -I/probes/smm/../include -isystem /build/install-strict/include/akantu -isystem /opt/CGAL-5.6.2/include -isystem /usr/lib/aarch64-linux-gnu/openmpi/include -isystem /usr/lib/aarch64-linux-gnu/openmpi/include/openmpi -isystem /usr/lib/petscdir/petsc3.22/aarch64-linux-gnu-real/include -isystem /usr/include/scotch -isystem /build/install-strict/include/akantu_iterators -isystem /usr/include/eigen3 -isystem /build/install-strict/include/iohelper -O2 -g -DNDEBUG -std=gnu++20 -ffp-contract=off -DEIGEN_DONT_VECTORIZE -Wall -Wextra -pedantic -Wno-array-bounds -Wno-use-after-free -Wno-stringop-overread -DOMPI_SKIP_MPICXX -Wno-literal-suffix -frounding-math -o CMakeFiles/smm_fd_probe.dir/smm_fd_probe.cc.o -c /probes/smm/smm_fd_probe.cc",
+  "probe_cxx_flags": "-DAKANTU_PROBE_BUILD_TYPE=\"RelWithDebInfo\" -DAKANTU_PROBE_CONFIG=\"strict\" -DAKANTU_PROBE_CXX_FLAGS=\"-ffp-contract=off -DEIGEN_DONT_VECTORIZE  -O2 -g -DNDEBUG\" -DBOOST_GRAPH_DYN_LINK -DBOOST_GRAPH_NO_LIB -DBOOST_REGEX_DYN_LINK -DBOOST_REGEX_NO_LIB -DCGAL_USE_GMPXX=1 -O2 -g -DNDEBUG -std=gnu++20 -ffp-contract=off -DEIGEN_DONT_VECTORIZE -Wall -Wextra -pedantic -Wno-array-bounds -Wno-use-after-free -Wno-stringop-overread -DOMPI_SKIP_MPICXX -Wno-literal-suffix -frounding-math"
+},
+  "created": "2026-11-10T16:45:07Z",
+  "inputs": [
+    {
+      "role": "mesh",
+      "path": "inputs/_quadrangle_4.msh",
+      "source": "upstream:test/test_model/patch_tests/data/_quadrangle_4.msh",
+      "sha256": "2cce0507c878bc943c565ff77e524453bc48845d647f46c58d0a0832937356f4"
+    },
+    {
+      "role": "material",
+      "path": "inputs/smm_fd_probe_patch.dat",
+      "source": "generated:smm_fd_probe.cc",
+      "sha256": "c5da2b7636f98d1ccde908ed77fdbbc551b90c0781b72546f4744d2f5b4e968d"
+    }
+  ],
+  "parameters": {
+    "spatial_dimension": 2,
+    "element_type": "_quadrangle_4",
+    "model_id": "_quadrangle_4",
+    "analysis": "static",
+    "newton": true,
+    "newton_max_iterations": 10,
+    "newton_threshold": 1e-10,
+    "newton_convergence_type": "solution",
+    "K/symmetric": true,
+    "K/size": 18,
+    "K/nnz": 107,
+    "K/coords_sha256": "bf7ea0ee40756b75b9ce4919b163183f381c8cd3fcd0cad1de42a915d790aadf",
+    "K/values_sha256": "896458fa538fc5eac410bb499effe9f9212bc0c2171d4bc7acf14a7f4f3bfdee",
+    "mesh_types": [
+      "_segment_2",
+      "_quadrangle_4"
+    ],
+    "groups": [
+      {
+        "name": "boundary_0",
+        "dimension": 1,
+        "types": [
+          "_segment_2"
+        ]
+      }
+    ]
+  },
+  "storage": {
+    "mode": "committed",
+    "bytes": 7938
+  },
+  "quantities": [
+    {
+      "name": "blocked_dofs",
+      "file": "data/blocked_dofs.npy",
+      "dtype": "u8",
+      "shape": [
+        9,
+        2
+      ],
+      "axes": [
+        "entry",
+        "component"
+      ],
+      "layout": "table",
+      "sha256": "aaceb2139b10f71ffdbe29e8a397bfae88b6ace389f3bfaadb7e0f4201341a9f",
+      "description": "blocked flags after applyBC"
+    },
+    {
+      "name": "initial_displacement",
+      "file": "data/initial_displacement.npy",
+      "dtype": "f64",
+      "shape": [
+        9,
+        2
+      ],
+      "axes": [
+        "entry",
+        "component"
+      ],
+      "layout": "table",
+      "sha256": "5bc377345afcb38378ee1b85c523caf533c0a13b00452b819991356d444f26b8",
+      "description": "displacement after applyBC (affine on boundary)"
+    },
+    {
+      "name": "newton/nb_iterations",
+      "file": "data/newton__nb_iterations.npy",
+      "dtype": "i64",
+      "shape": [
+        1
+      ],
+      "axes": [
+        "entry"
+      ],
+      "layout": "table",
+      "sha256": "8dc1caa6136c378e6ca865e89cdf5407fee376c2d6aee5af8f9d8ccdc4c8aaea",
+      "description": "nb_iterations per solveStep"
+    },
+    {
+      "name": "newton/error",
+      "file": "data/newton__error.npy",
+      "dtype": "f64",
+      "shape": [
+        1
+      ],
+      "axes": [
+        "entry"
+      ],
+      "layout": "table",
+      "sha256": "00008dbf55cf4536cea7d8236ce34ceaee425dd92d4fb174e7e2d626ed70e479",
+      "description": "error per solveStep"
+    },
+    {
+      "name": "displacement",
+      "file": "data/displacement.npy",
+      "dtype": "f64",
+      "shape": [
+        9,
+        2
+      ],
+      "axes": [
+        "entry",
+        "component"
+      ],
+      "layout": "table",
+      "sha256": "f3d4ce80c5c6b360f95a0197967b04da0f3c4098ce8a2ec0030c071529b27e23",
+      "description": "final displacement"
+    },
+    {
+      "name": "internal_force",
+      "file": "data/internal_force.npy",
+      "dtype": "f64",
+      "shape": [
+        9,
+        2
+      ],
+      "axes": [
+        "entry",
+        "component"
+      ],
+      "layout": "table",
+      "sha256": "c51a4e33b78f43ae5807bdb390bad2f9e2b1e381572d33169860de97ff1722f1",
+      "description": "final internal force"
+    },
+    {
+      "name": "energy/potential",
+      "file": "data/energy__potential.npy",
+      "dtype": "f64",
+      "shape": [
+        1
+      ],
+      "axes": [
+        "entry"
+      ],
+      "layout": "table",
+      "sha256": "8abfc6439faa1153f9ca4f582dc3b1d2ec752692c832b814ce528f27443eb554",
+      "description": "getEnergy(\"potential\") at the final state"
+    },
+    {
+      "name": "stress/_quadrangle_4",
+      "file": "data/stress___quadrangle_4.npy",
+      "dtype": "f64",
+      "shape": [
+        16,
+        4
+      ],
+      "axes": [
+        "entry",
+        "component"
+      ],
+      "layout": "table",
+      "sha256": "ed926233db325e7b2c60b3407fc8e1e5d4ff6f14d97138cb1f31de5dc9167bb8",
+      "description": "material stress per quadrature point, raw column-major dim x dim tuples"
+    },
+    {
+      "name": "grad_u/_quadrangle_4",
+      "file": "data/grad_u___quadrangle_4.npy",
+      "dtype": "f64",
+      "shape": [
+        16,
+        4
+      ],
+      "axes": [
+        "entry",
+        "component"
+      ],
+      "layout": "table",
+      "sha256": "3ebb9dc88ec334df5c544d39f2f3b4c0c0f201df198a608665d1b7befefde12e",
+      "description": "material grad_u per quadrature point, raw column-major dim x dim tuples"
+    },
+    {
+      "name": "piola_kirchhoff_2/_quadrangle_4",
+      "file": "data/piola_kirchhoff_2___quadrangle_4.npy",
+      "dtype": "f64",
+      "shape": [
+        16,
+        4
+      ],
+      "axes": [
+        "entry",
+        "component"
+      ],
+      "layout": "table",
+      "sha256": "656e3d427fe881d63f9c44e15adc42747c6d306af20277d47113bf03ccc80e88",
+      "description": "second Piola-Kirchhoff stress per quadrature point, raw column-major tuples"
+    },
+    {
+      "name": "filter/_quadrangle_4",
+      "file": "data/filter___quadrangle_4.npy",
+      "dtype": "i64",
+      "shape": [
+        4
+      ],
+      "axes": [
+        "entry"
+      ],
+      "layout": "table",
+      "sha256": "dc5de563b86c3210ee39b3adc9c39934ef72b87a5c20f475ccc78e336ea75a7e",
+      "description": "element filter of the material"
+    },
+    {
+      "name": "K/rows",
+      "file": "data/K__rows.npy",
+      "dtype": "i64",
+      "shape": [
+        107
+      ],
+      "axes": [
+        "entry"
+      ],
+      "layout": "table",
+      "sha256": "b579896e2b9fcd7a58d6238088b1e521e32826d3fd70fde11be4769f8a316d80",
+      "description": "SparseMatrixAIJ::getIRN - 1 (storage order)"
+    },
+    {
+      "name": "K/cols",
+      "file": "data/K__cols.npy",
+      "dtype": "i64",
+      "shape": [
+        107
+      ],
+      "axes": [
+        "entry"
+      ],
+      "layout": "table",
+      "sha256": "7ecce954892085b698fb179224da01cd41ef6c8bbcbe25982f0027fa89e096f1",
+      "description": "SparseMatrixAIJ::getJCN - 1 (storage order)"
+    },
+    {
+      "name": "K/values",
+      "file": "data/K__values.npy",
+      "dtype": "f64",
+      "shape": [
+        107
+      ],
+      "axes": [
+        "entry"
+      ],
+      "layout": "table",
+      "sha256": "444789c7db3de933e461f9dfdb2cbf47ed460511141a37ab4eb6c4764b9f1cfd",
+      "description": "SparseMatrixAIJ::getA (storage order)"
+    },
+    {
+      "name": "cauchy/stress/_quadrangle_4",
+      "file": "data/cauchy__stress___quadrangle_4.npy",
+      "dtype": "f64",
+      "shape": [
+        16,
+        4
+      ],
+      "axes": [
+        "entry",
+        "component"
+      ],
+      "layout": "table",
+      "sha256": "c3306368fdc802814742749eb67d15030704fa3321fd92cbea0579958be3a8e5",
+      "description": "stress internal after Material::onDump (Cauchy stress, finite deformation)"
+    },
+    {
+      "name": "mesh/connectivity/_segment_2",
+      "file": "data/mesh__connectivity___segment_2.npy",
+      "dtype": "i64",
+      "shape": [
+        8,
+        2
+      ],
+      "axes": [
+        "element",
+        "node_local"
+      ],
+      "layout": "elemental",
+      "sha256": "ac7d31a4dc56d90eb337254ae4e1012d7acd65aebd78e72c1d05559f9e550885",
+      "element_type": "_segment_2",
+      "description": "connectivity after buildFacets (facets appended by upstream)"
+    },
+    {
+      "name": "mesh/connectivity/_quadrangle_4",
+      "file": "data/mesh__connectivity___quadrangle_4.npy",
+      "dtype": "i64",
+      "shape": [
+        4,
+        4
+      ],
+      "axes": [
+        "element",
+        "node_local"
+      ],
+      "layout": "elemental",
+      "sha256": "ff6b1ce2288ab6f058927b410e169bd240b99388d40248482ab9c07d85a7dc05",
+      "element_type": "_quadrangle_4",
+      "description": "connectivity after buildFacets (facets appended by upstream)"
+    },
+    {
+      "name": "group/boundary_0/elements/_segment_2",
+      "file": "data/group__boundary_0__elements___segment_2.npy",
+      "dtype": "i64",
+      "shape": [
+        8
+      ],
+      "axes": [
+        "entry"
+      ],
+      "layout": "table",
+      "sha256": "526e70da61bf1819a529488ae3faaea3cf187f507afd2deb8e1e39ad50904e43",
+      "description": "element group elements"
+    },
+    {
+      "name": "group/boundary_0/nodes",
+      "file": "data/group__boundary_0__nodes.npy",
+      "dtype": "i64",
+      "shape": [
+        8
+      ],
+      "axes": [
+        "entry"
+      ],
+      "layout": "table",
+      "sha256": "13f00e7bb2cd8bd0bb6b10f7f544211f9e1fb916222f247790400a7c4af475ef",
+      "description": "node group (iteration order)"
+    }
+  ],
+  "tags": [
+    "model",
+    "smm",
+    "finite_deformation"
+  ]
+}

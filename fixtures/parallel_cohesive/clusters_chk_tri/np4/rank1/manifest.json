@@ -1,0 +1,944 @@
+{
+  "format_version": 1,
+  "case_id": "parallel_cohesive/clusters_chk_tri/np4/rank1",
+  "description": "Mesh::createClusters with a checkerboard filter on the distributed Tri3 square, a group of the last rank only (rank view)",
+  "status": "golden",
+  "generator": {
+    "probe": "parallel_cohesive_probe",
+    "probe_version": "3",
+    "command": "oracle/probes/parallel_cohesive/generate.sh --out /home/user/pcp-stage-20261112T064412Z"
+  },
+  "reference": {
+    "sha": "35a851780d0b9471d258ed53a003ae98aaa95ea0",
+    "describe": "v5.0.7-post1-554-g35a851780",
+    "patches": [
+      "modified:cmake/AkantuTestsMacros.cmake sha256=c280165a84912eab4bcc081b9eaaaa06aafdd83d4f48d982e11b0859abf9672f (reference sha256=36290de2ec8b111028138fe82029efa16501512241a5bc264fa30ff3e3239b9e)"
+    ]
+  },
+  "build": {
+  "config": "strict",
+  "compiler": "g++ (Debian 14.2.0-19) 14.2.0",
+  "cxx_flags": "-ffp-contract=off -DEIGEN_DONT_VECTORIZE -DEIGEN_NO_CPUID -DEIGEN_DEFAULT_L1_CACHE_SIZE=16384 -DEIGEN_DEFAULT_L2_CACHE_SIZE=524288 -DEIGEN_DEFAULT_L3_CACHE_SIZE=524288 -O2 -g -DNDEBUG -g3 -ggdb3 -flarge-source-files -std=c++20 -flto=auto -fno-fat-lto-objects -fPIC -frounding-math (actual flags of src/model/solid_mechanics/solid_mechanics_model.cc; warnings and non-FP -D defines omitted)",
+  "build_type": "RelWithDebInfo",
+  "arch": "x86_64",
+  "os": "Debian GNU/Linux 13 (trixie)",
+  "libraries": {"eigen_cache_sizes_measured": "16384,524288,524288 (Eigen::l1/l2/l3CacheSize() read at run time in the probe process, D-050)", 
+    "eigen3": "3.4.0-5",
+    "boost": "1.83.0.2+b2",
+    "openmpi": "5.0.7-1",
+    "mumps": "5.7.3-3+b1",
+    "petsc": "3.22.5+dfsg1-2",
+    "scotch": "7.0.7-1",
+    "openblas": "0.3.29+ds-3",
+    "scalapack": "2.2.2-1",
+    "hdf5": "1.14.5+repack-3",
+    "gmsh": "4.13.1+ds1-6",
+    "pybind11": "2.13.6-2",
+    "numpy": "1:2.2.4+ds-1",
+    "scipy": "1.15.3-1",
+    "gcc": "4:14.2.0-1",
+    "gfortran": "4:14.2.0-1",
+    "oracle_image": "sha256:2da26d87e063f3c88264f589cf73381feff583eeaa7770d2e01ae034651d59f5",
+    "oracle_build_scripts": "cca6e460cd3430bf0180262e7ebe26be762112e9",
+    "oracle_install_reference_sha": "35a851780d0b9471d258ed53a003ae98aaa95ea0",
+    "oracle_install_image": "sha256:2da26d87e063f3c88264f589cf73381feff583eeaa7770d2e01ae034651d59f5",
+    "openblas_coretype": "Haswell",
+    "openblas_num_threads": "1",
+    "eigen_cache_sizes": "16384,524288,524288 (compile-time pin of the library and of the probe translation unit: EIGEN_NO_CPUID + defaults, D-050)",
+    "host_cpu": "AMD EPYC 9455 48-Core Processor",
+    "x86_64_level": "v3",
+    "sha256:libakantu.so.5.0.7": "554ecfc7838d8c8aa3955f37f2efb556a7f09426083b74af262ffdcccff657ff",
+    "probe_tree_sha256": "2219e793289a498d2d33acb36ecb19cdaccf33d7070e50f6d62586081355c65c",
+    "probe_sources_commit": "cf5ef15859ac02dcd17ac39d5899d8dbac27f2bd",
+    "cmake_cxx_flags": "-ffp-contract=off -DEIGEN_DONT_VECTORIZE -DEIGEN_NO_CPUID -DEIGEN_DEFAULT_L1_CACHE_SIZE=16384 -DEIGEN_DEFAULT_L2_CACHE_SIZE=524288 -DEIGEN_DEFAULT_L3_CACHE_SIZE=524288 -O2 -g -DNDEBUG -g3 -ggdb3 -flarge-source-files",
+    "probe": "parallel_cohesive_probe"
+  },
+  "probe_compile_command": "/usr/bin/c++ '-DAKANTU_PROBE_BUILD_TYPE=\"RelWithDebInfo\"' '-DAKANTU_PROBE_CONFIG=\"strict\"' '-DAKANTU_PROBE_CXX_FLAGS=\"-ffp-contract=off -DEIGEN_DONT_VECTORIZE -DEIGEN_NO_CPUID -DEIGEN_DEFAULT_L1_CACHE_SIZE=16384 -DEIGEN_DEFAULT_L2_CACHE_SIZE=524288 -DEIGEN_DEFAULT_L3_CACHE_SIZE=524288  -O2 -g -DNDEBUG\"' -DBOOST_GRAPH_DYN_LINK -DBOOST_GRAPH_NO_LIB -DBOOST_REGEX_DYN_LINK -DBOOST_REGEX_NO_LIB -DCGAL_USE_GMPXX=1 -I/probes/parallel_cohesive/../include -isystem /build/install-strict/include/akantu -isystem /opt/CGAL-5.6.2/include -isystem /usr/lib/x86_64-linux-gnu/openmpi/include -isystem /usr/lib/x86_64-linux-gnu/openmpi/include/openmpi -isystem /usr/lib/petscdir/petsc3.22/x86_64-linux-gnu-real/include -isystem /usr/include/scotch -isystem /build/install-strict/include/akantu_iterators -isystem /usr/include/eigen3 -isystem /build/install-strict/include/iohelper -O2 -g -DNDEBUG -std=gnu++20 -ffp-contract=off -DEIGEN_DONT_VECTORIZE -DEIGEN_NO_CPUID -DEIGEN_DEFAULT_L1_CACHE_SIZE=16384 -DEIGEN_DEFAULT_L2_CACHE_SIZE=524288 -DEIGEN_DEFAULT_L3_CACHE_SIZE=524288 -Wall -Wextra -pedantic -Wno-array-bounds -Wno-use-after-free -Wno-stringop-overread -DOMPI_SKIP_MPICXX -Wno-literal-suffix -frounding-math -o CMakeFiles/parallel_cohesive_probe.dir/parallel_cohesive_probe.cc.o -c /probes/parallel_cohesive/parallel_cohesive_probe.cc",
+  "probe_cxx_flags": "-DAKANTU_PROBE_BUILD_TYPE=\"RelWithDebInfo\" -DAKANTU_PROBE_CONFIG=\"strict\" -DAKANTU_PROBE_CXX_FLAGS=\"-ffp-contract=off -DEIGEN_DONT_VECTORIZE -DEIGEN_NO_CPUID -DEIGEN_DEFAULT_L1_CACHE_SIZE=16384 -DEIGEN_DEFAULT_L2_CACHE_SIZE=524288 -DEIGEN_DEFAULT_L3_CACHE_SIZE=524288  -O2 -g -DNDEBUG\" -DBOOST_GRAPH_DYN_LINK -DBOOST_GRAPH_NO_LIB -DBOOST_REGEX_DYN_LINK -DBOOST_REGEX_NO_LIB -DCGAL_USE_GMPXX=1 -O2 -g -DNDEBUG -std=gnu++20 -ffp-contract=off -DEIGEN_DONT_VECTORIZE -DEIGEN_NO_CPUID -DEIGEN_DEFAULT_L1_CACHE_SIZE=16384 -DEIGEN_DEFAULT_L2_CACHE_SIZE=524288 -DEIGEN_DEFAULT_L3_CACHE_SIZE=524288 -Wall -Wextra -pedantic -Wno-array-bounds -Wno-use-after-free -Wno-stringop-overread -DOMPI_SKIP_MPICXX -Wno-literal-suffix -frounding-math"
+},
+  "created": "2026-11-12T06:44:18Z",
+  "parameters": {
+    "oracle_pin/eigen_cache_sizes": "16384 524288 524288",
+    "oracle_pin/openblas_coretype": "Haswell",
+    "oracle_pin/openblas_num_threads": "1",
+    "rank": 1,
+    "nb_ranks": 4,
+    "clusters/chk/chk_0/blocks": [],
+    "clusters/chk/chk_0/dimension": 2,
+    "clusters/chk/chk_1/blocks": [
+      "_triangle_3/not_ghost"
+    ],
+    "clusters/chk/chk_1/dimension": 2,
+    "clusters/chk/chk_10/blocks": [
+      "_triangle_3/not_ghost"
+    ],
+    "clusters/chk/chk_10/dimension": 2,
+    "clusters/chk/chk_11/blocks": [],
+    "clusters/chk/chk_11/dimension": 2,
+    "clusters/chk/chk_12/blocks": [
+      "_triangle_3/not_ghost"
+    ],
+    "clusters/chk/chk_12/dimension": 2,
+    "clusters/chk/chk_13/blocks": [
+      "_triangle_3/not_ghost"
+    ],
+    "clusters/chk/chk_13/dimension": 2,
+    "clusters/chk/chk_14/blocks": [],
+    "clusters/chk/chk_14/dimension": 2,
+    "clusters/chk/chk_15/blocks": [],
+    "clusters/chk/chk_15/dimension": 2,
+    "clusters/chk/chk_16/blocks": [],
+    "clusters/chk/chk_16/dimension": 2,
+    "clusters/chk/chk_17/blocks": [],
+    "clusters/chk/chk_17/dimension": 2,
+    "clusters/chk/chk_18/blocks": [],
+    "clusters/chk/chk_18/dimension": 2,
+    "clusters/chk/chk_19/blocks": [],
+    "clusters/chk/chk_19/dimension": 2,
+    "clusters/chk/chk_2/blocks": [
+      "_triangle_3/ghost"
+    ],
+    "clusters/chk/chk_2/dimension": 2,
+    "clusters/chk/chk_20/blocks": [],
+    "clusters/chk/chk_20/dimension": 2,
+    "clusters/chk/chk_21/blocks": [
+      "_triangle_3/not_ghost"
+    ],
+    "clusters/chk/chk_21/dimension": 2,
+    "clusters/chk/chk_22/blocks": [
+      "_triangle_3/not_ghost"
+    ],
+    "clusters/chk/chk_22/dimension": 2,
+    "clusters/chk/chk_23/blocks": [
+      "_triangle_3/not_ghost"
+    ],
+    "clusters/chk/chk_23/dimension": 2,
+    "clusters/chk/chk_24/blocks": [
+      "_triangle_3/not_ghost"
+    ],
+    "clusters/chk/chk_24/dimension": 2,
+    "clusters/chk/chk_25/blocks": [],
+    "clusters/chk/chk_25/dimension": 2,
+    "clusters/chk/chk_26/blocks": [],
+    "clusters/chk/chk_26/dimension": 2,
+    "clusters/chk/chk_27/blocks": [],
+    "clusters/chk/chk_27/dimension": 2,
+    "clusters/chk/chk_28/blocks": [],
+    "clusters/chk/chk_28/dimension": 2,
+    "clusters/chk/chk_29/blocks": [],
+    "clusters/chk/chk_29/dimension": 2,
+    "clusters/chk/chk_3/blocks": [],
+    "clusters/chk/chk_3/dimension": 2,
+    "clusters/chk/chk_30/blocks": [],
+    "clusters/chk/chk_30/dimension": 2,
+    "clusters/chk/chk_31/blocks": [],
+    "clusters/chk/chk_31/dimension": 2,
+    "clusters/chk/chk_4/blocks": [],
+    "clusters/chk/chk_4/dimension": 2,
+    "clusters/chk/chk_5/blocks": [],
+    "clusters/chk/chk_5/dimension": 2,
+    "clusters/chk/chk_6/blocks": [
+      "_triangle_3/ghost"
+    ],
+    "clusters/chk/chk_6/dimension": 2,
+    "clusters/chk/chk_7/blocks": [],
+    "clusters/chk/chk_7/dimension": 2,
+    "clusters/chk/chk_8/blocks": [
+      "_triangle_3/ghost"
+    ],
+    "clusters/chk/chk_8/dimension": 2,
+    "clusters/chk/chk_9/blocks": [
+      "_triangle_3/ghost"
+    ],
+    "clusters/chk/chk_9/dimension": 2,
+    "clusters/chk/names": [
+      "chk_0",
+      "chk_1",
+      "chk_10",
+      "chk_11",
+      "chk_12",
+      "chk_13",
+      "chk_14",
+      "chk_15",
+      "chk_16",
+      "chk_17",
+      "chk_18",
+      "chk_19",
+      "chk_2",
+      "chk_20",
+      "chk_21",
+      "chk_22",
+      "chk_23",
+      "chk_24",
+      "chk_25",
+      "chk_26",
+      "chk_27",
+      "chk_28",
+      "chk_29",
+      "chk_3",
+      "chk_30",
+      "chk_31",
+      "chk_4",
+      "chk_5",
+      "chk_6",
+      "chk_7",
+      "chk_8",
+      "chk_9"
+    ],
+    "groups/element_groups": [
+      "chk_0",
+      "chk_1",
+      "chk_10",
+      "chk_11",
+      "chk_12",
+      "chk_13",
+      "chk_14",
+      "chk_15",
+      "chk_16",
+      "chk_17",
+      "chk_18",
+      "chk_19",
+      "chk_2",
+      "chk_20",
+      "chk_21",
+      "chk_22",
+      "chk_23",
+      "chk_24",
+      "chk_25",
+      "chk_26",
+      "chk_27",
+      "chk_28",
+      "chk_29",
+      "chk_3",
+      "chk_30",
+      "chk_31",
+      "chk_4",
+      "chk_5",
+      "chk_6",
+      "chk_7",
+      "chk_8",
+      "chk_9",
+      "last_rank_only"
+    ],
+    "groups/node_groups": [
+      "chk_0_nodes",
+      "chk_10_nodes",
+      "chk_11_nodes",
+      "chk_12_nodes",
+      "chk_13_nodes",
+      "chk_14_nodes",
+      "chk_15_nodes",
+      "chk_16_nodes",
+      "chk_17_nodes",
+      "chk_18_nodes",
+      "chk_19_nodes",
+      "chk_1_nodes",
+      "chk_20_nodes",
+      "chk_21_nodes",
+      "chk_22_nodes",
+      "chk_23_nodes",
+      "chk_24_nodes",
+      "chk_25_nodes",
+      "chk_26_nodes",
+      "chk_27_nodes",
+      "chk_28_nodes",
+      "chk_29_nodes",
+      "chk_2_nodes",
+      "chk_30_nodes",
+      "chk_31_nodes",
+      "chk_3_nodes",
+      "chk_4_nodes",
+      "chk_5_nodes",
+      "chk_6_nodes",
+      "chk_7_nodes",
+      "chk_8_nodes",
+      "chk_9_nodes",
+      "last_rank_only_nodes"
+    ]
+  },
+  "storage": {
+    "mode": "committed",
+    "bytes": 6344
+  },
+  "quantities": [
+    {
+      "name": "clusters/chk/returned",
+      "file": "data/clusters__chk__returned.npy",
+      "dtype": "i64",
+      "shape": [
+        1
+      ],
+      "axes": [
+        "entry"
+      ],
+      "layout": "table",
+      "sha256": "931c47d90c296d47b286cd01624d3f938f89625dcaedc8a37a159180e1a2c18e",
+      "description": "createClusters(2, chk, filter)",
+      "tolerance_class": "exact"
+    },
+    {
+      "name": "clusters/chk/chk_0/nodes",
+      "file": "data/clusters__chk__chk_0__nodes.npy",
+      "dtype": "i64",
+      "shape": [
+        0
+      ],
+      "axes": [
+        "entry"
+      ],
+      "layout": "table",
+      "sha256": "e734dac55ea9fbbe782af2d8c02c3c5992131906228afb2aaaf137d6f3ed74db",
+      "description": "node group (local ids, group order)",
+      "tolerance_class": "exact"
+    },
+    {
+      "name": "clusters/chk/chk_1/elements/_triangle_3/not_ghost",
+      "file": "data/clusters__chk__chk_1__elements___triangle_3__not_ghost.npy",
+      "dtype": "i64",
+      "shape": [
+        2
+      ],
+      "axes": [
+        "entry"
+      ],
+      "layout": "table",
+      "sha256": "8292cceb91ed67e3903070cf6e89d369519adc70a2873a96924da1b3c2cab596",
+      "description": "group elements (group order)",
+      "tolerance_class": "exact"
+    },
+    {
+      "name": "clusters/chk/chk_1/nodes",
+      "file": "data/clusters__chk__chk_1__nodes.npy",
+      "dtype": "i64",
+      "shape": [
+        4
+      ],
+      "axes": [
+        "entry"
+      ],
+      "layout": "table",
+      "sha256": "2a9d39f6d677cf172ea75aa49b4bd8dbe214724e6c712a32fc726a4de3f55e22",
+      "description": "node group (local ids, group order)",
+      "tolerance_class": "exact"
+    },
+    {
+      "name": "clusters/chk/chk_10/elements/_triangle_3/not_ghost",
+      "file": "data/clusters__chk__chk_10__elements___triangle_3__not_ghost.npy",
+      "dtype": "i64",
+      "shape": [
+        2
+      ],
+      "axes": [
+        "entry"
+      ],
+      "layout": "table",
+      "sha256": "b244c658cf3bcbe12cef40bd713326b92a1cc88151ba1ffb09267e809ea3948b",
+      "description": "group elements (group order)",
+      "tolerance_class": "exact"
+    },
+    {
+      "name": "clusters/chk/chk_10/nodes",
+      "file": "data/clusters__chk__chk_10__nodes.npy",
+      "dtype": "i64",
+      "shape": [
+        4
+      ],
+      "axes": [
+        "entry"
+      ],
+      "layout": "table",
+      "sha256": "cfbda2da298f9c2cfa91e41d2ac4eeafb3397c906cea61535de27bc5de572043",
+      "description": "node group (local ids, group order)",
+      "tolerance_class": "exact"
+    },
+    {
+      "name": "clusters/chk/chk_11/nodes",
+      "file": "data/clusters__chk__chk_11__nodes.npy",
+      "dtype": "i64",
+      "shape": [
+        0
+      ],
+      "axes": [
+        "entry"
+      ],
+      "layout": "table",
+      "sha256": "e734dac55ea9fbbe782af2d8c02c3c5992131906228afb2aaaf137d6f3ed74db",
+      "description": "node group (local ids, group order)",
+      "tolerance_class": "exact"
+    },
+    {
+      "name": "clusters/chk/chk_12/elements/_triangle_3/not_ghost",
+      "file": "data/clusters__chk__chk_12__elements___triangle_3__not_ghost.npy",
+      "dtype": "i64",
+      "shape": [
+        2
+      ],
+      "axes": [
+        "entry"
+      ],
+      "layout": "table",
+      "sha256": "0967c308f3d272e95185192fa21a1cdec1d41926f2d502993e50125135b34d48",
+      "description": "group elements (group order)",
+      "tolerance_class": "exact"
+    },
+    {
+      "name": "clusters/chk/chk_12/nodes",
+      "file": "data/clusters__chk__chk_12__nodes.npy",
+      "dtype": "i64",
+      "shape": [
+        4
+      ],
+      "axes": [
+        "entry"
+      ],
+      "layout": "table",
+      "sha256": "7bc3e613862b7a0cc5d5cc7f20545f8a0c312644206b2bba154af398a2d8afe3",
+      "description": "node group (local ids, group order)",
+      "tolerance_class": "exact"
+    },
+    {
+      "name": "clusters/chk/chk_13/elements/_triangle_3/not_ghost",
+      "file": "data/clusters__chk__chk_13__elements___triangle_3__not_ghost.npy",
+      "dtype": "i64",
+      "shape": [
+        2
+      ],
+      "axes": [
+        "entry"
+      ],
+      "layout": "table",
+      "sha256": "edf57b3e7cc4d837db7a3b400e84ffa2cc07b6adc347edef9feabbc11c5183cb",
+      "description": "group elements (group order)",
+      "tolerance_class": "exact"
+    },
+    {
+      "name": "clusters/chk/chk_13/nodes",
+      "file": "data/clusters__chk__chk_13__nodes.npy",
+      "dtype": "i64",
+      "shape": [
+        4
+      ],
+      "axes": [
+        "entry"
+      ],
+      "layout": "table",
+      "sha256": "dc5de563b86c3210ee39b3adc9c39934ef72b87a5c20f475ccc78e336ea75a7e",
+      "description": "node group (local ids, group order)",
+      "tolerance_class": "exact"
+    },
+    {
+      "name": "clusters/chk/chk_14/nodes",
+      "file": "data/clusters__chk__chk_14__nodes.npy",
+      "dtype": "i64",
+      "shape": [
+        0
+      ],
+      "axes": [
+        "entry"
+      ],
+      "layout": "table",
+      "sha256": "e734dac55ea9fbbe782af2d8c02c3c5992131906228afb2aaaf137d6f3ed74db",
+      "description": "node group (local ids, group order)",
+      "tolerance_class": "exact"
+    },
+    {
+      "name": "clusters/chk/chk_15/nodes",
+      "file": "data/clusters__chk__chk_15__nodes.npy",
+      "dtype": "i64",
+      "shape": [
+        0
+      ],
+      "axes": [
+        "entry"
+      ],
+      "layout": "table",
+      "sha256": "e734dac55ea9fbbe782af2d8c02c3c5992131906228afb2aaaf137d6f3ed74db",
+      "description": "node group (local ids, group order)",
+      "tolerance_class": "exact"
+    },
+    {
+      "name": "clusters/chk/chk_16/nodes",
+      "file": "data/clusters__chk__chk_16__nodes.npy",
+      "dtype": "i64",
+      "shape": [
+        0
+      ],
+      "axes": [
+        "entry"
+      ],
+      "layout": "table",
+      "sha256": "e734dac55ea9fbbe782af2d8c02c3c5992131906228afb2aaaf137d6f3ed74db",
+      "description": "node group (local ids, group order)",
+      "tolerance_class": "exact"
+    },
+    {
+      "name": "clusters/chk/chk_17/nodes",
+      "file": "data/clusters__chk__chk_17__nodes.npy",
+      "dtype": "i64",
+      "shape": [
+        0
+      ],
+      "axes": [
+        "entry"
+      ],
+      "layout": "table",
+      "sha256": "e734dac55ea9fbbe782af2d8c02c3c5992131906228afb2aaaf137d6f3ed74db",
+      "description": "node group (local ids, group order)",
+      "tolerance_class": "exact"
+    },
+    {
+      "name": "clusters/chk/chk_18/nodes",
+      "file": "data/clusters__chk__chk_18__nodes.npy",
+      "dtype": "i64",
+      "shape": [
+        0
+      ],
+      "axes": [
+        "entry"
+      ],
+      "layout": "table",
+      "sha256": "e734dac55ea9fbbe782af2d8c02c3c5992131906228afb2aaaf137d6f3ed74db",
+      "description": "node group (local ids, group order)",
+      "tolerance_class": "exact"
+    },
+    {
+      "name": "clusters/chk/chk_19/nodes",
+      "file": "data/clusters__chk__chk_19__nodes.npy",
+      "dtype": "i64",
+      "shape": [
+        0
+      ],
+      "axes": [
+        "entry"
+      ],
+      "layout": "table",
+      "sha256": "e734dac55ea9fbbe782af2d8c02c3c5992131906228afb2aaaf137d6f3ed74db",
+      "description": "node group (local ids, group order)",
+      "tolerance_class": "exact"
+    },
+    {
+      "name": "clusters/chk/chk_2/elements/_triangle_3/ghost",
+      "file": "data/clusters__chk__chk_2__elements___triangle_3__ghost.npy",
+      "dtype": "i64",
+      "shape": [
+        2
+      ],
+      "axes": [
+        "entry"
+      ],
+      "layout": "table",
+      "sha256": "da908c6f7a54b0e3f3683dc63efabf25d002ba7c4c160d507a3e1603944019b2",
+      "description": "group elements (group order)",
+      "tolerance_class": "exact"
+    },
+    {
+      "name": "clusters/chk/chk_2/nodes",
+      "file": "data/clusters__chk__chk_2__nodes.npy",
+      "dtype": "i64",
+      "shape": [
+        4
+      ],
+      "axes": [
+        "entry"
+      ],
+      "layout": "table",
+      "sha256": "a55108b7b39a7d7374b40b00ab35a6e3f3aee3b3b8fcff41c936883bf63f28bc",
+      "description": "node group (local ids, group order)",
+      "tolerance_class": "exact"
+    },
+    {
+      "name": "clusters/chk/chk_20/nodes",
+      "file": "data/clusters__chk__chk_20__nodes.npy",
+      "dtype": "i64",
+      "shape": [
+        0
+      ],
+      "axes": [
+        "entry"
+      ],
+      "layout": "table",
+      "sha256": "e734dac55ea9fbbe782af2d8c02c3c5992131906228afb2aaaf137d6f3ed74db",
+      "description": "node group (local ids, group order)",
+      "tolerance_class": "exact"
+    },
+    {
+      "name": "clusters/chk/chk_21/elements/_triangle_3/not_ghost",
+      "file": "data/clusters__chk__chk_21__elements___triangle_3__not_ghost.npy",
+      "dtype": "i64",
+      "shape": [
+        2
+      ],
+      "axes": [
+        "entry"
+      ],
+      "layout": "table",
+      "sha256": "0257786f1dd441fe9c7eb887fed56d890a91bd0d73de2e7c6779ac75be4f0f79",
+      "description": "group elements (group order)",
+      "tolerance_class": "exact"
+    },
+    {
+      "name": "clusters/chk/chk_21/nodes",
+      "file": "data/clusters__chk__chk_21__nodes.npy",
+      "dtype": "i64",
+      "shape": [
+        4
+      ],
+      "axes": [
+        "entry"
+      ],
+      "layout": "table",
+      "sha256": "8dbd4f918d107c1d60b2bebb7c1acfa026fac4a678a61d0e7ebb667588a28c99",
+      "description": "node group (local ids, group order)",
+      "tolerance_class": "exact"
+    },
+    {
+      "name": "clusters/chk/chk_22/elements/_triangle_3/not_ghost",
+      "file": "data/clusters__chk__chk_22__elements___triangle_3__not_ghost.npy",
+      "dtype": "i64",
+      "shape": [
+        2
+      ],
+      "axes": [
+        "entry"
+      ],
+      "layout": "table",
+      "sha256": "83163acf2768319a2ce66604bfc9ff4f4847ec420bf61da6233b693f98db84e5",
+      "description": "group elements (group order)",
+      "tolerance_class": "exact"
+    },
+    {
+      "name": "clusters/chk/chk_22/nodes",
+      "file": "data/clusters__chk__chk_22__nodes.npy",
+      "dtype": "i64",
+      "shape": [
+        4
+      ],
+      "axes": [
+        "entry"
+      ],
+      "layout": "table",
+      "sha256": "1e997471b525c1653a6f6730072658a41e98da02236f7f105e064ce288aab225",
+      "description": "node group (local ids, group order)",
+      "tolerance_class": "exact"
+    },
+    {
+      "name": "clusters/chk/chk_23/elements/_triangle_3/not_ghost",
+      "file": "data/clusters__chk__chk_23__elements___triangle_3__not_ghost.npy",
+      "dtype": "i64",
+      "shape": [
+        2
+      ],
+      "axes": [
+        "entry"
+      ],
+      "layout": "table",
+      "sha256": "afec382b1a6125f44915a673331c183f2bfcc98c9443e55586fdc13cd01dc294",
+      "description": "group elements (group order)",
+      "tolerance_class": "exact"
+    },
+    {
+      "name": "clusters/chk/chk_23/nodes",
+      "file": "data/clusters__chk__chk_23__nodes.npy",
+      "dtype": "i64",
+      "shape": [
+        4
+      ],
+      "axes": [
+        "entry"
+      ],
+      "layout": "table",
+      "sha256": "7a566c7b1c22bb08d8a1236f15f1bab145d45a84dd863455a213cf41780cb9ad",
+      "description": "node group (local ids, group order)",
+      "tolerance_class": "exact"
+    },
+    {
+      "name": "clusters/chk/chk_24/elements/_triangle_3/not_ghost",
+      "file": "data/clusters__chk__chk_24__elements___triangle_3__not_ghost.npy",
+      "dtype": "i64",
+      "shape": [
+        2
+      ],
+      "axes": [
+        "entry"
+      ],
+      "layout": "table",
+      "sha256": "94122365a36661fef31f5151a52a2e98519950459e4e54b92f3fbfc0164cd849",
+      "description": "group elements (group order)",
+      "tolerance_class": "exact"
+    },
+    {
+      "name": "clusters/chk/chk_24/nodes",
+      "file": "data/clusters__chk__chk_24__nodes.npy",
+      "dtype": "i64",
+      "shape": [
+        4
+      ],
+      "axes": [
+        "entry"
+      ],
+      "layout": "table",
+      "sha256": "96d5f19276c96f1c0e4d40436ef7c50e85e2ad08c124db2fe343d1300d57d81e",
+      "description": "node group (local ids, group order)",
+      "tolerance_class": "exact"
+    },
+    {
+      "name": "clusters/chk/chk_25/nodes",
+      "file": "data/clusters__chk__chk_25__nodes.npy",
+      "dtype": "i64",
+      "shape": [
+        0
+      ],
+      "axes": [
+        "entry"
+      ],
+      "layout": "table",
+      "sha256": "e734dac55ea9fbbe782af2d8c02c3c5992131906228afb2aaaf137d6f3ed74db",
+      "description": "node group (local ids, group order)",
+      "tolerance_class": "exact"
+    },
+    {
+      "name": "clusters/chk/chk_26/nodes",
+      "file": "data/clusters__chk__chk_26__nodes.npy",
+      "dtype": "i64",
+      "shape": [
+        0
+      ],
+      "axes": [
+        "entry"
+      ],
+      "layout": "table",
+      "sha256": "e734dac55ea9fbbe782af2d8c02c3c5992131906228afb2aaaf137d6f3ed74db",
+      "description": "node group (local ids, group order)",
+      "tolerance_class": "exact"
+    },
+    {
+      "name": "clusters/chk/chk_27/nodes",
+      "file": "data/clusters__chk__chk_27__nodes.npy",
+      "dtype": "i64",
+      "shape": [
+        0
+      ],
+      "axes": [
+        "entry"
+      ],
+      "layout": "table",
+      "sha256": "e734dac55ea9fbbe782af2d8c02c3c5992131906228afb2aaaf137d6f3ed74db",
+      "description": "node group (local ids, group order)",
+      "tolerance_class": "exact"
+    },
+    {
+      "name": "clusters/chk/chk_28/nodes",
+      "file": "data/clusters__chk__chk_28__nodes.npy",
+      "dtype": "i64",
+      "shape": [
+        0
+      ],
+      "axes": [
+        "entry"
+      ],
+      "layout": "table",
+      "sha256": "e734dac55ea9fbbe782af2d8c02c3c5992131906228afb2aaaf137d6f3ed74db",
+      "description": "node group (local ids, group order)",
+      "tolerance_class": "exact"
+    },
+    {
+      "name": "clusters/chk/chk_29/nodes",
+      "file": "data/clusters__chk__chk_29__nodes.npy",
+      "dtype": "i64",
+      "shape": [
+        0
+      ],
+      "axes": [
+        "entry"
+      ],
+      "layout": "table",
+      "sha256": "e734dac55ea9fbbe782af2d8c02c3c5992131906228afb2aaaf137d6f3ed74db",
+      "description": "node group (local ids, group order)",
+      "tolerance_class": "exact"
+    },
+    {
+      "name": "clusters/chk/chk_3/nodes",
+      "file": "data/clusters__chk__chk_3__nodes.npy",
+      "dtype": "i64",
+      "shape": [
+        0
+      ],
+      "axes": [
+        "entry"
+      ],
+      "layout": "table",
+      "sha256": "e734dac55ea9fbbe782af2d8c02c3c5992131906228afb2aaaf137d6f3ed74db",
+      "description": "node group (local ids, group order)",
+      "tolerance_class": "exact"
+    },
+    {
+      "name": "clusters/chk/chk_30/nodes",
+      "file": "data/clusters__chk__chk_30__nodes.npy",
+      "dtype": "i64",
+      "shape": [
+        0
+      ],
+      "axes": [
+        "entry"
+      ],
+      "layout": "table",
+      "sha256": "e734dac55ea9fbbe782af2d8c02c3c5992131906228afb2aaaf137d6f3ed74db",
+      "description": "node group (local ids, group order)",
+      "tolerance_class": "exact"
+    },
+    {
+      "name": "clusters/chk/chk_31/nodes",
+      "file": "data/clusters__chk__chk_31__nodes.npy",
+      "dtype": "i64",
+      "shape": [
+        0
+      ],
+      "axes": [
+        "entry"
+      ],
+      "layout": "table",
+      "sha256": "e734dac55ea9fbbe782af2d8c02c3c5992131906228afb2aaaf137d6f3ed74db",
+      "description": "node group (local ids, group order)",
+      "tolerance_class": "exact"
+    },
+    {
+      "name": "clusters/chk/chk_4/nodes",
+      "file": "data/clusters__chk__chk_4__nodes.npy",
+      "dtype": "i64",
+      "shape": [
+        0
+      ],
+      "axes": [
+        "entry"
+      ],
+      "layout": "table",
+      "sha256": "e734dac55ea9fbbe782af2d8c02c3c5992131906228afb2aaaf137d6f3ed74db",
+      "description": "node group (local ids, group order)",
+      "tolerance_class": "exact"
+    },
+    {
+      "name": "clusters/chk/chk_5/nodes",
+      "file": "data/clusters__chk__chk_5__nodes.npy",
+      "dtype": "i64",
+      "shape": [
+        0
+      ],
+      "axes": [
+        "entry"
+      ],
+      "layout": "table",
+      "sha256": "e734dac55ea9fbbe782af2d8c02c3c5992131906228afb2aaaf137d6f3ed74db",
+      "description": "node group (local ids, group order)",
+      "tolerance_class": "exact"
+    },
+    {
+      "name": "clusters/chk/chk_6/elements/_triangle_3/ghost",
+      "file": "data/clusters__chk__chk_6__elements___triangle_3__ghost.npy",
+      "dtype": "i64",
+      "shape": [
+        2
+      ],
+      "axes": [
+        "entry"
+      ],
+      "layout": "table",
+      "sha256": "b46c5bac89c9ef7cb951561003bdc2611f104b3ae58815df3ea9a51b92a33136",
+      "description": "group elements (group order)",
+      "tolerance_class": "exact"
+    },
+    {
+      "name": "clusters/chk/chk_6/nodes",
+      "file": "data/clusters__chk__chk_6__nodes.npy",
+      "dtype": "i64",
+      "shape": [
+        4
+      ],
+      "axes": [
+        "entry"
+      ],
+      "layout": "table",
+      "sha256": "5c424da7a9dbabd21af860529ef05cff8ac77817a2e3b55e92a8e0bc42402360",
+      "description": "node group (local ids, group order)",
+      "tolerance_class": "exact"
+    },
+    {
+      "name": "clusters/chk/chk_7/nodes",
+      "file": "data/clusters__chk__chk_7__nodes.npy",
+      "dtype": "i64",
+      "shape": [
+        0
+      ],
+      "axes": [
+        "entry"
+      ],
+      "layout": "table",
+      "sha256": "e734dac55ea9fbbe782af2d8c02c3c5992131906228afb2aaaf137d6f3ed74db",
+      "description": "node group (local ids, group order)",
+      "tolerance_class": "exact"
+    },
+    {
+      "name": "clusters/chk/chk_8/elements/_triangle_3/ghost",
+      "file": "data/clusters__chk__chk_8__elements___triangle_3__ghost.npy",
+      "dtype": "i64",
+      "shape": [
+        2
+      ],
+      "axes": [
+        "entry"
+      ],
+      "layout": "table",
+      "sha256": "de4d88f1c7b603e3ec586544decbe0be32871e75a72ef56dbec5bd11b9b3899a",
+      "description": "group elements (group order)",
+      "tolerance_class": "exact"
+    },
+    {
+      "name": "clusters/chk/chk_8/nodes",
+      "file": "data/clusters__chk__chk_8__nodes.npy",
+      "dtype": "i64",
+      "shape": [
+        4
+      ],
+      "axes": [
+        "entry"
+      ],
+      "layout": "table",
+      "sha256": "bea89bf0192335a4d2d8b2c40b5eba3d2efcab778865138dd63c96da432e6ca4",
+      "description": "node group (local ids, group order)",
+      "tolerance_class": "exact"
+    },
+    {
+      "name": "clusters/chk/chk_9/elements/_triangle_3/ghost",
+      "file": "data/clusters__chk__chk_9__elements___triangle_3__ghost.npy",
+      "dtype": "i64",
+      "shape": [
+        2
+      ],
+      "axes": [
+        "entry"
+      ],
+      "layout": "table",
+      "sha256": "824c4b7b87be0e815247414f68db42bebbcbe6de6574e4427f194083ef8da969",
+      "description": "group elements (group order)",
+      "tolerance_class": "exact"
+    },
+    {
+      "name": "clusters/chk/chk_9/nodes",
+      "file": "data/clusters__chk__chk_9__nodes.npy",
+      "dtype": "i64",
+      "shape": [
+        4
+      ],
+      "axes": [
+        "entry"
+      ],
+      "layout": "table",
+      "sha256": "a27e78b11e0c8637ab91b56c6a1abdaca8aaecfd51913fb8ca64151314526962",
+      "description": "node group (local ids, group order)",
+      "tolerance_class": "exact"
+    }
+  ],
+  "tags": [
+    "parallel",
+    "mesh"
+  ]
+}

@@ -1,0 +1,29 @@
+{
+ "arch": "x86_64",
+ "created": "2026-11-11T04:34:34Z",
+ "exit_status": 1,
+ "generator": "oracle/probes/gold/python_fe_check.sh",
+ "image_id": "sha256:45122c213e9fa194b6b58dcc31fc23b5fa4f7c0f64d0a452e40ae072c51c5cdb",
+ "input": "fixtures/solver_model/static_model_solver/data/displacement.npy (oracle, full precision) as disp.csv (%.17g), force -10 at the last node, node 0 blocked",
+ "openblas": "not pinned in the original run; the re-verification below used OPENBLAS_CORETYPE=Haswell OPENBLAS_NUM_THREADS=1 (D-050) with the same result (an independent review also got identical output pinned and unpinned)",
+ "outputs": {
+  "exit_status": "4355a46b19d348dc2f57c046f8ef63d4538ebb936000f3c9ee954a27460dd865",
+  "output.txt": "8abe3ff35602abf76c739c6a0092d553ff4330c148c7c3ec46dbf6ce5e1aaaed"
+ },
+ "reference_sha": "35a851780d0b9471d258ed53a003ae98aaa95ea0",
+ "reverification": {
+  "arch": "x86_64",
+  "by": "the fix round after an independent review",
+  "command": "AKANTU_SRC_HOST=/home/user/akantu oracle/probes/gold/python_fe_check.sh --out /home/user/pyfe-out",
+  "created": "2026-11-11T05:44:25Z",
+  "image_id": "sha256:45122c213e9fa194b6b58dcc31fc23b5fa4f7c0f64d0a452e40ae072c51c5cdb",
+  "probe_sources_commit": "04dd4fa16d8fbc4a948e00e6de95f1fcf653d433",
+  "result": "3 runs in fresh containers identical modulo the scratch-directory name; output.txt identical to this fixture's modulo that name (relative error 1.1916780266424304e-14), exit_status identical (1); the data files of this fixture were not replaced",
+  "runs": 3,
+  "host": "an x86_64 Linux virtual machine"
+ },
+ "runs": 3,
+ "runs_identical": true,
+ "runs_identical_modulo": "the random scratch-directory name /tmp/pyfe.XXXXXX in the traceback line (output.txt holds /tmp/pyfe.u9oZzX)",
+ "script": "test/test_model/test_common/test_model_solver/test_model_solver.py with test/python_fe, copy changed as documented in the generator (UD-699)"
+}

@@ -1,0 +1,60 @@
+# SPDX-License-Identifier: LGPL-3.0-or-later
+name: Difference from C++ Akantu
+description: akantu-rs gives a different result from the C++ library on the same input.
+labels: ["difference from C++"]
+body:
+  - type: markdown
+    attributes:
+      value: |
+        Many differences are known defects of the C++ library that the port corrects on purpose. Search
+        docs/UPSTREAM_DEFECTS.md first: each entry names the switch that reproduces upstream's behaviour.
+        CONTRIBUTING.md, "Reporting a difference from C++ Akantu", explains why each field below matters.
+  - type: textarea
+    id: difference
+    attributes:
+      label: What differs
+      description: The quantities that differ, by how much (largest absolute and relative difference, or ULPs) and from which step.
+    validations:
+      required: true
+  - type: textarea
+    id: inputs
+    attributes:
+      label: Input file and mesh
+      description: Attach or paste the .dat input file and the .msh mesh. For a .geo file, give the Gmsh version (Gmsh output differs between platforms).
+    validations:
+      required: true
+  - type: textarea
+    id: drivers
+    attributes:
+      label: Drivers
+      description: The C++ program or Python script run with Akantu, and the Rust or Python code run with akantu-rs.
+    validations:
+      required: true
+  - type: input
+    id: cpp-version
+    attributes:
+      label: C++ Akantu version and build
+      description: Version or commit, build type, solver back-end (Eigen, MUMPS, PETSc), compiler and BLAS.
+    validations:
+      required: true
+  - type: input
+    id: rs-version
+    attributes:
+      label: akantu-rs commit and features
+      placeholder: "git rev-parse HEAD; cargo features or the wheel used"
+    validations:
+      required: true
+  - type: input
+    id: platform
+    attributes:
+      label: Platform
+      description: Operating system, CPU architecture and model, number of MPI ranks and partitioner.
+    validations:
+      required: true
+  - type: checkboxes
+    id: checked
+    attributes:
+      label: Checks
+      options:
+        - label: I searched docs/UPSTREAM_DEFECTS.md and the open issues for this difference.
+          required: true

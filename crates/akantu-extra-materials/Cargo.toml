@@ -1,0 +1,52 @@
+# SPDX-License-Identifier: LGPL-3.0-or-later
+[package]
+name = "akantu-extra-materials"
+description = "Extra solid materials (port of extra_packages/extra-materials)"
+version.workspace = true
+edition.workspace = true
+rust-version.workspace = true
+license.workspace = true
+repository.workspace = true
+authors.workspace = true
+homepage.workspace = true
+keywords.workspace = true
+categories.workspace = true
+publish = false
+# Not part of a package: the mutation-testing script of the extra materials.
+exclude = ["scripts/"]
+
+[dependencies]
+akantu-core.workspace = true
+akantu-comm.workspace = true
+akantu-parser.workspace = true
+akantu-mesh.workspace = true
+akantu-linalg.workspace = true
+akantu-io.workspace = true
+akantu-model.workspace = true
+akantu-solid.workspace = true
+
+[features]
+# Upstream package `extra_materials_non_local` (ADVANCED, off by default;
+# DEPENDS extra_materials damage_non_local): the keywords of the non-local
+# variants (`register_extra_non_local_materials{,_with}`), driven by the
+# solid model's non-local manager; forwards to the solid package
+# `damage_non_local` as upstream's DEPENDS.
+damage-non-local = ["akantu-solid/damage-non-local"]
+# Real-MPI test binary mpi_xmat:
+# scripts/mpi/run-par-tests.sh (Docker).
+mpi = ["akantu-comm/mpi", "akantu-mesh/mpi"]
+# Scotch partitioner of akantu-mesh (the par tier's `--scotch` build).
+scotch = ["akantu-mesh/scotch"]
+
+[dev-dependencies]
+akantu-validation.workspace = true
+# the non-local variants' tests use their keywords
+akantu-extra-materials = { path = ".", features = ["damage-non-local"] }
+
+[lints]
+workspace = true
+
+[[test]]
+name = "mpi_xmat"
+harness = false
+required-features = ["mpi"]

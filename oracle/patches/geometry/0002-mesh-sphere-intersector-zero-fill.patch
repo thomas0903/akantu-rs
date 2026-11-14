@@ -1,0 +1,20 @@
+# SPDX-License-Identifier: LGPL-3.0-or-later
+# akantu-rs probe-local patch (UD-414, D-003 category A), applied after 0001:
+# MeshSphereIntersector::constructData() calls Array::clear(), which since
+# commit afd7269e9 (2020, 'changed empty to clear and clear to zero to match
+# stl') means resize(0) instead of zero-fill, so new_node_per_elem is left
+# EMPTY and the first new node is written out of bounds (AKANTU_DEBUG_ASSERT
+# in the strict oracle). This patch restores the intended zero fill
+# (Array::zero()). Applied to a COPY of the header next to the probe; the
+# reference checkout and the installed library are not modified.
+--- a/src/geometry/mesh_sphere_intersector_tmpl.hh
++++ b/src/geometry/mesh_sphere_intersector_tmpl.hh
+@@ -60,7 +60,7 @@
+ void MeshSphereIntersector<dim, type>::constructData(GhostType ghost_type) {
+ 
+   this->new_node_per_elem->resize(this->mesh.getNbElement(type, ghost_type));
+-  this->new_node_per_elem->clear();
++  this->new_node_per_elem->zero();
+ 
+   MeshGeomIntersector<dim, type, Line_arc<SK>, SK::Sphere_3, SK>::constructData(
+       ghost_type);

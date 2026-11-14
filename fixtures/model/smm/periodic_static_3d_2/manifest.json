@@ -1,0 +1,483 @@
+{
+  "format_version": 1,
+  "case_id": "model/smm/periodic_static_3d_2",
+  "description": "TestPeriodicStatic (tensile) on the frozen cube.msh, periodic in 2 direction(s): BC functors, then the static solve (Eigen)",
+  "status": "golden",
+  "generator": {
+    "probe": "smm_probe",
+    "probe_version": "2",
+    "command": "oracle/probes/smm/generate.sh "
+  },
+  "reference": {
+    "sha": "35a851780d0b9471d258ed53a003ae98aaa95ea0",
+    "describe": "v5.0.7-post1-554-g35a851780",
+    "patches": [
+      "modified:cmake/AkantuTestsMacros.cmake sha256=c280165a84912eab4bcc081b9eaaaa06aafdd83d4f48d982e11b0859abf9672f (reference sha256=36290de2ec8b111028138fe82029efa16501512241a5bc264fa30ff3e3239b9e)"
+    ]
+  },
+  "build": {
+  "config": "strict",
+  "compiler": "g++ (Debian 14.2.0-19) 14.2.0",
+  "cxx_flags": "-ffp-contract=off -DEIGEN_DONT_VECTORIZE -O2 -g -DNDEBUG -g3 -ggdb3 -flarge-source-files -std=c++20 -flto=auto -fno-fat-lto-objects -fPIC -frounding-math (actual flags of src/model/solid_mechanics/solid_mechanics_model.cc; warnings and non-FP -D defines omitted)",
+  "build_type": "RelWithDebInfo",
+  "arch": "x86_64",
+  "os": "Debian GNU/Linux 13 (trixie)",
+  "libraries": {
+    "eigen3": "3.4.0-5",
+    "boost": "1.83.0.2+b2",
+    "openmpi": "5.0.7-1",
+    "mumps": "5.7.3-3+b1",
+    "petsc": "3.22.5+dfsg1-2",
+    "scotch": "7.0.7-1",
+    "openblas": "0.3.29+ds-3",
+    "scalapack": "2.2.2-1",
+    "hdf5": "1.14.5+repack-3",
+    "gmsh": "4.13.1+ds1-6",
+    "pybind11": "2.13.6-2",
+    "numpy": "1:2.2.4+ds-1",
+    "scipy": "1.15.3-1",
+    "gcc": "4:14.2.0-1",
+    "gfortran": "4:14.2.0-1",
+    "oracle_image": "sha256:45122c213e9fa194b6b58dcc31fc23b5fa4f7c0f64d0a452e40ae072c51c5cdb",
+    "oracle_build_scripts": "e168f393291494c869fa759b3ad9ae4a371a0369",
+    "oracle_install_reference_sha": "35a851780d0b9471d258ed53a003ae98aaa95ea0",
+    "oracle_install_image": "sha256:45122c213e9fa194b6b58dcc31fc23b5fa4f7c0f64d0a452e40ae072c51c5cdb",
+    "sha256:libakantu.so.5.0.7": "5491d902b6f363e11b47d2dc1d0aff0597374e8ff785bbfe2bff534f38509e81",
+    "probe_tree_sha256": "8554acde7e9b559f4164544814b3bc4cead003445387eee626ba9661b422583d",
+    "probe_sources_commit": "83b8f4b3c5ddd365a8b9845bcf60e39125dff4d5",
+    "cmake_cxx_flags": "-ffp-contract=off -DEIGEN_DONT_VECTORIZE -O2 -g -DNDEBUG -g3 -ggdb3 -flarge-source-files",
+    "probe": "smm_probe"
+  },
+  "probe_compile_command": "/usr/bin/c++ '-DAKANTU_PROBE_BUILD_TYPE=\"RelWithDebInfo\"' '-DAKANTU_PROBE_CONFIG=\"strict\"' '-DAKANTU_PROBE_CXX_FLAGS=\"-ffp-contract=off -DEIGEN_DONT_VECTORIZE  -O2 -g -DNDEBUG\"' -DBOOST_GRAPH_DYN_LINK -DBOOST_GRAPH_NO_LIB -DBOOST_REGEX_DYN_LINK -DBOOST_REGEX_NO_LIB -DCGAL_USE_GMPXX=1 -I/probes/smm/../include -isystem /build/install-strict/include/akantu -isystem /opt/CGAL-5.6.2/include -isystem /usr/lib/x86_64-linux-gnu/openmpi/include -isystem /usr/lib/x86_64-linux-gnu/openmpi/include/openmpi -isystem /usr/lib/petscdir/petsc3.22/x86_64-linux-gnu-real/include -isystem /usr/include/scotch -isystem /build/install-strict/include/akantu_iterators -isystem /usr/include/eigen3 -isystem /build/install-strict/include/iohelper -O2 -g -DNDEBUG -std=gnu++20 -ffp-contract=off -DEIGEN_DONT_VECTORIZE -Wall -Wextra -pedantic -Wno-array-bounds -Wno-use-after-free -Wno-stringop-overread -DOMPI_SKIP_MPICXX -Wno-literal-suffix -frounding-math -o CMakeFiles/smm_probe.dir/smm_probe.cc.o -c /probes/smm/smm_probe.cc",
+  "probe_cxx_flags": "-DAKANTU_PROBE_BUILD_TYPE=\"RelWithDebInfo\" -DAKANTU_PROBE_CONFIG=\"strict\" -DAKANTU_PROBE_CXX_FLAGS=\"-ffp-contract=off -DEIGEN_DONT_VECTORIZE  -O2 -g -DNDEBUG\" -DBOOST_GRAPH_DYN_LINK -DBOOST_GRAPH_NO_LIB -DBOOST_REGEX_DYN_LINK -DBOOST_REGEX_NO_LIB -DCGAL_USE_GMPXX=1 -O2 -g -DNDEBUG -std=gnu++20 -ffp-contract=off -DEIGEN_DONT_VECTORIZE -Wall -Wextra -pedantic -Wno-array-bounds -Wno-use-after-free -Wno-stringop-overread -DOMPI_SKIP_MPICXX -Wno-literal-suffix -frounding-math"
+},
+  "created": "2026-11-11T04:51:39Z",
+  "inputs": [
+    {
+      "role": "mesh",
+      "path": "inputs/cube.msh",
+      "source": "frozen:test/test_mesh_utils/test_mesh_periodic/cube.msh",
+      "sha256": "1de713de669faf8f17a61f62186a97ec60d00ae017187e1f158ed104e19a663c"
+    },
+    {
+      "role": "material",
+      "path": "inputs/material.dat",
+      "source": "upstream:test/test_mesh_utils/test_mesh_periodic/material.dat",
+      "sha256": "db9d6adc9f6c77942c5d4fef9743fa78b5414e2e5edb0e4c8a755d5131ac1e53"
+    }
+  ],
+  "parameters": {
+    "spatial_dimension": 3,
+    "periodic_directions": 2,
+    "is_periodic": true,
+    "oracle_pins": {
+      "eigen_cpu_cache_sizes": "setCpuCacheSizes(16384, 524288, 524288) at the start of main",
+      "OPENBLAS_CORETYPE": "Haswell",
+      "OPENBLAS_NUM_THREADS": "1"
+    },
+    "solve_error": "",
+    "newton/nb_iterations": 2,
+    "newton/converged": true,
+    "K/symmetric": true,
+    "K/size": 36,
+    "K/nnz": 522,
+    "K/coords_sha256": "227e79ccd15ba554da98a38da177f819a06159694e3780a2b5861aefad63a746",
+    "K/values_sha256": "2aa187bac9a209b4d498ee674ad8c6c31684c2e6992f8315f58886633388df27"
+  },
+  "storage": {
+    "mode": "committed",
+    "bytes": 32789
+  },
+  "quantities": [
+    {
+      "name": "periodic/slaves",
+      "file": "data/periodic__slaves.npy",
+      "dtype": "i64",
+      "shape": [
+        15
+      ],
+      "axes": [
+        "entry"
+      ],
+      "layout": "table",
+      "sha256": "8b4d4f9ef64886462b486f7247052d0b4e6ff276b8d1e95735322ba407d7b5cd",
+      "description": "periodic slave nodes (increasing)"
+    },
+    {
+      "name": "periodic/masters",
+      "file": "data/periodic__masters.npy",
+      "dtype": "i64",
+      "shape": [
+        15
+      ],
+      "axes": [
+        "entry"
+      ],
+      "layout": "table",
+      "sha256": "17f343bf8fbea4b7062e9c95133ed0e0cbc49928b85fb9b57bd1649048f2c784",
+      "description": "getPeriodicMaster(slave)"
+    },
+    {
+      "name": "corner_fixed/displacement",
+      "file": "data/corner_fixed__displacement.npy",
+      "dtype": "f64",
+      "shape": [
+        27,
+        3
+      ],
+      "axes": [
+        "entry",
+        "component"
+      ],
+      "layout": "table",
+      "sha256": "9d643112f5fa877f4d24e00616f0afb8b075601a0e4db85cd2a46b8db9310d96",
+      "description": "displacement"
+    },
+    {
+      "name": "corner_fixed/blocked_dofs",
+      "file": "data/corner_fixed__blocked_dofs.npy",
+      "dtype": "u8",
+      "shape": [
+        27,
+        3
+      ],
+      "axes": [
+        "entry",
+        "component"
+      ],
+      "layout": "table",
+      "sha256": "c95123c84de7bbc8b2e433ca286d97e97105c4263eb6aedc0fec0f9f1f9c17d3",
+      "description": "blocked flags"
+    },
+    {
+      "name": "corner_fixed/external_force",
+      "file": "data/corner_fixed__external_force.npy",
+      "dtype": "f64",
+      "shape": [
+        27,
+        3
+      ],
+      "axes": [
+        "entry",
+        "component"
+      ],
+      "layout": "table",
+      "sha256": "9d643112f5fa877f4d24e00616f0afb8b075601a0e4db85cd2a46b8db9310d96",
+      "description": "external force"
+    },
+    {
+      "name": "line_fixed/displacement",
+      "file": "data/line_fixed__displacement.npy",
+      "dtype": "f64",
+      "shape": [
+        27,
+        3
+      ],
+      "axes": [
+        "entry",
+        "component"
+      ],
+      "layout": "table",
+      "sha256": "9d643112f5fa877f4d24e00616f0afb8b075601a0e4db85cd2a46b8db9310d96",
+      "description": "displacement"
+    },
+    {
+      "name": "line_fixed/blocked_dofs",
+      "file": "data/line_fixed__blocked_dofs.npy",
+      "dtype": "u8",
+      "shape": [
+        27,
+        3
+      ],
+      "axes": [
+        "entry",
+        "component"
+      ],
+      "layout": "table",
+      "sha256": "cb843cab4cd1af6bf07793fc61d3efc7db4bcbf217c34ad7e0dad1a52d498f04",
+      "description": "blocked flags"
+    },
+    {
+      "name": "line_fixed/external_force",
+      "file": "data/line_fixed__external_force.npy",
+      "dtype": "f64",
+      "shape": [
+        27,
+        3
+      ],
+      "axes": [
+        "entry",
+        "component"
+      ],
+      "layout": "table",
+      "sha256": "9d643112f5fa877f4d24e00616f0afb8b075601a0e4db85cd2a46b8db9310d96",
+      "description": "external force"
+    },
+    {
+      "name": "z_minus_fixed/displacement",
+      "file": "data/z_minus_fixed__displacement.npy",
+      "dtype": "f64",
+      "shape": [
+        27,
+        3
+      ],
+      "axes": [
+        "entry",
+        "component"
+      ],
+      "layout": "table",
+      "sha256": "9d643112f5fa877f4d24e00616f0afb8b075601a0e4db85cd2a46b8db9310d96",
+      "description": "displacement"
+    },
+    {
+      "name": "z_minus_fixed/blocked_dofs",
+      "file": "data/z_minus_fixed__blocked_dofs.npy",
+      "dtype": "u8",
+      "shape": [
+        27,
+        3
+      ],
+      "axes": [
+        "entry",
+        "component"
+      ],
+      "layout": "table",
+      "sha256": "c61e6bec4fda2d4ae6eca881ed6bcd362aa310c6e291e6fbe0b4b884e045fc04",
+      "description": "blocked flags"
+    },
+    {
+      "name": "z_minus_fixed/external_force",
+      "file": "data/z_minus_fixed__external_force.npy",
+      "dtype": "f64",
+      "shape": [
+        27,
+        3
+      ],
+      "axes": [
+        "entry",
+        "component"
+      ],
+      "layout": "table",
+      "sha256": "9d643112f5fa877f4d24e00616f0afb8b075601a0e4db85cd2a46b8db9310d96",
+      "description": "external force"
+    },
+    {
+      "name": "traction/displacement",
+      "file": "data/traction__displacement.npy",
+      "dtype": "f64",
+      "shape": [
+        27,
+        3
+      ],
+      "axes": [
+        "entry",
+        "component"
+      ],
+      "layout": "table",
+      "sha256": "9d643112f5fa877f4d24e00616f0afb8b075601a0e4db85cd2a46b8db9310d96",
+      "description": "displacement"
+    },
+    {
+      "name": "traction/blocked_dofs",
+      "file": "data/traction__blocked_dofs.npy",
+      "dtype": "u8",
+      "shape": [
+        27,
+        3
+      ],
+      "axes": [
+        "entry",
+        "component"
+      ],
+      "layout": "table",
+      "sha256": "c61e6bec4fda2d4ae6eca881ed6bcd362aa310c6e291e6fbe0b4b884e045fc04",
+      "description": "blocked flags"
+    },
+    {
+      "name": "traction/external_force",
+      "file": "data/traction__external_force.npy",
+      "dtype": "f64",
+      "shape": [
+        27,
+        3
+      ],
+      "axes": [
+        "entry",
+        "component"
+      ],
+      "layout": "table",
+      "sha256": "785b72a6843a1d078ad92ca1ea67f1a3c14107e330338d6b0880cf6db19a5d10",
+      "description": "external force"
+    },
+    {
+      "name": "newton/error",
+      "file": "data/newton__error.npy",
+      "dtype": "f64",
+      "shape": [
+        1
+      ],
+      "axes": [
+        "entry"
+      ],
+      "layout": "table",
+      "sha256": "382a85fd4d539034487f3a19e193a03a4af80902b821f5fc9b3ad529db32fbc5",
+      "description": "NonLinearSolver error"
+    },
+    {
+      "name": "solved/displacement",
+      "file": "data/solved__displacement.npy",
+      "dtype": "f64",
+      "shape": [
+        27,
+        3
+      ],
+      "axes": [
+        "entry",
+        "component"
+      ],
+      "layout": "table",
+      "sha256": "9867eed9d3202de31f89a1b30223c56a716f2bdde16cf8c3686a0fde4d6790e9",
+      "description": "displacement"
+    },
+    {
+      "name": "solved/blocked_dofs",
+      "file": "data/solved__blocked_dofs.npy",
+      "dtype": "u8",
+      "shape": [
+        27,
+        3
+      ],
+      "axes": [
+        "entry",
+        "component"
+      ],
+      "layout": "table",
+      "sha256": "c61e6bec4fda2d4ae6eca881ed6bcd362aa310c6e291e6fbe0b4b884e045fc04",
+      "description": "blocked flags"
+    },
+    {
+      "name": "solved/external_force",
+      "file": "data/solved__external_force.npy",
+      "dtype": "f64",
+      "shape": [
+        27,
+        3
+      ],
+      "axes": [
+        "entry",
+        "component"
+      ],
+      "layout": "table",
+      "sha256": "785b72a6843a1d078ad92ca1ea67f1a3c14107e330338d6b0880cf6db19a5d10",
+      "description": "external force"
+    },
+    {
+      "name": "solved/internal_force",
+      "file": "data/solved__internal_force.npy",
+      "dtype": "f64",
+      "shape": [
+        27,
+        3
+      ],
+      "axes": [
+        "entry",
+        "component"
+      ],
+      "layout": "table",
+      "sha256": "d73aca629aa53463d95697fc5de47dd8bf8bff6c4c62a2b0faa42265d4826ee7",
+      "description": "internal force"
+    },
+    {
+      "name": "stress/_hexahedron_8",
+      "file": "data/stress___hexahedron_8.npy",
+      "dtype": "f64",
+      "shape": [
+        64,
+        9
+      ],
+      "axes": [
+        "entry",
+        "component"
+      ],
+      "layout": "table",
+      "sha256": "413a414fa9d6030ec3a99c41fc861818572889375c276421a3020882d7c4adf0",
+      "description": "material stress per quadrature point, raw column-major dim x dim tuples"
+    },
+    {
+      "name": "grad_u/_hexahedron_8",
+      "file": "data/grad_u___hexahedron_8.npy",
+      "dtype": "f64",
+      "shape": [
+        64,
+        9
+      ],
+      "axes": [
+        "entry",
+        "component"
+      ],
+      "layout": "table",
+      "sha256": "2f7b41f9bafae76733aa6ccaea40d40f91fa59c62cfb52da12f7860144bc80e3",
+      "description": "material grad_u per quadrature point, raw column-major dim x dim tuples"
+    },
+    {
+      "name": "filter/_hexahedron_8",
+      "file": "data/filter___hexahedron_8.npy",
+      "dtype": "i64",
+      "shape": [
+        8
+      ],
+      "axes": [
+        "entry"
+      ],
+      "layout": "table",
+      "sha256": "13f00e7bb2cd8bd0bb6b10f7f544211f9e1fb916222f247790400a7c4af475ef",
+      "description": "element filter of the material"
+    },
+    {
+      "name": "K/rows",
+      "file": "data/K__rows.npy",
+      "dtype": "i64",
+      "shape": [
+        522
+      ],
+      "axes": [
+        "entry"
+      ],
+      "layout": "table",
+      "sha256": "ebc7e3b12d7bac3f3d8398e12faa4e4737e2657f4a023855072dc89ca6b44860",
+      "description": "SparseMatrixAIJ::getIRN - 1 (storage order)"
+    },
+    {
+      "name": "K/cols",
+      "file": "data/K__cols.npy",
+      "dtype": "i64",
+      "shape": [
+        522
+      ],
+      "axes": [
+        "entry"
+      ],
+      "layout": "table",
+      "sha256": "93eabe91daf15ab12407b74bf0a6412733107a97bc0a7aef9479630bede7cfe3",
+      "description": "SparseMatrixAIJ::getJCN - 1 (storage order)"
+    },
+    {
+      "name": "K/values",
+      "file": "data/K__values.npy",
+      "dtype": "f64",
+      "shape": [
+        522
+      ],
+      "axes": [
+        "entry"
+      ],
+      "layout": "table",
+      "sha256": "f8802538b0bb5f1d6250071146c766e362f90c443e6d07bd015893232eba9a86",
+      "description": "SparseMatrixAIJ::getA (storage order)"
+    }
+  ],
+  "tags": [
+    "model",
+    "smm"
+  ]
+}

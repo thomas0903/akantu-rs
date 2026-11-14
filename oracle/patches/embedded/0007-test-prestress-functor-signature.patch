@@ -1,0 +1,25 @@
+# SPDX-License-Identifier: LGPL-3.0-or-later
+# akantu-rs oracle variant `embedded` (D-060), patch 0007 — test compile fix.
+# Upstream: Akantu (EPFL/LSMS) 35a851780d0b, test/test_model/
+# test_solid_mechanics_model/test_embedded_interface/
+# test_embedded_interface_model_prestress.cc (review V82 EM-12 (iii)):
+# StressSolution::operator() still has the pre-VectorProxy signature of
+# NeumannFunctor (Vector<Real> &, const), so it overrides nothing and the
+# abstract functor cannot be instantiated. Same body with the current
+# signature. The test's criteria are unchanged. Applied only to a COPY.
+
+--- a/test/test_model/test_solid_mechanics_model/test_embedded_interface/test_embedded_interface_model_prestress.cc
++++ b/test/test_model/test_solid_mechanics_model/test_embedded_interface/test_embedded_interface_model_prestress.cc
+@@ -43,9 +43,9 @@ struct StressSolution : public BC::Neumann::FromHigherDim {
+ 
+   virtual ~StressSolution() = default;
+ 
+-  void operator()(const IntegrationPoint & /*quad_point*/, Vector<Real> & dual,
+-                  const Vector<Real> & coord,
+-                  const Vector<Real> & normals) const {
++  void operator()(const IntegrationPoint & /*quad_point*/,
++                  VectorProxy<Real> & dual, const VectorProxy<const Real> & coord,
++                  const VectorProxy<const Real> & normals) override {
+     Int dim = coord.size();
+ 
+     if (dim < 2) {

@@ -1,0 +1,59 @@
+# SPDX-License-Identifier: LGPL-3.0-or-later
+# akantu-rs oracle variant `embedded` (D-060), patch 0002 — API adaptation of
+# the model. Upstream: Akantu (EPFL/LSMS) 35a851780d0b, src/model/
+# solid_mechanics/solid_mechanics_model_embedded_interface/
+# embedded_interface_model.{hh,cc} (UD-025/UD-587). The constitutive-law
+# refactoring renamed the virtual assignMaterialToElements to
+# assignConstitutiveLawToElements (the `override` overrides nothing),
+# replaced the type MaterialSelector by ConstitutiveLawSelector and removed
+# the member `materials` (accessor getConstitutiveLaw). Same calls under the
+# new names; no numerical effect. Applied only to a COPY of the sources.
+
+--- a/src/model/solid_mechanics/solid_mechanics_model_embedded_interface/embedded_interface_model.cc
++++ b/src/model/solid_mechanics/solid_mechanics_model_embedded_interface/embedded_interface_model.cc
+@@ -108,7 +108,7 @@ void EmbeddedInterfaceModel::initModel() {
+ }
+ 
+ /* -------------------------------------------------------------------------- */
+-void EmbeddedInterfaceModel::assignMaterialToElements(
++void EmbeddedInterfaceModel::assignConstitutiveLawToElements(
+     const ElementTypeMapArray<Idx> * filter) {
+   delete interface_material_selector;
+   interface_material_selector =
+@@ -120,12 +120,12 @@ void EmbeddedInterfaceModel::assignMaterialToElements(
+       [&](auto && element) {
+         auto mat_index = (*interface_material_selector)(element);
+         // material_index(element) = mat_index;
+-        materials[mat_index]->addElement(element);
++        this->getConstitutiveLaw(mat_index).addElement(element);
+         // this->material_local_numbering(element) = index;
+       },
+       _element_filter = filter, _spatial_dimension = 1);
+ 
+-  SolidMechanicsModel::assignMaterialToElements(filter);
++  SolidMechanicsModel::assignConstitutiveLawToElements(filter);
+ }
+ 
+ /* -------------------------------------------------------------------------- */
+--- a/src/model/solid_mechanics/solid_mechanics_model_embedded_interface/embedded_interface_model.hh
++++ b/src/model/solid_mechanics/solid_mechanics_model_embedded_interface/embedded_interface_model.hh
+@@ -82,8 +82,8 @@ public:
+       const ModelOptions & options = EmbeddedInterfaceModelOptions()) override;
+ 
+   /// Initialise the materials
+-  void
+-  assignMaterialToElements(const ElementTypeMapArray<Idx> * filter) override;
++  void assignConstitutiveLawToElements(
++      const ElementTypeMapArray<Idx> * filter) override;
+ 
+   /// Initialize the embedded shape functions
+   void initModel() override;
+@@ -125,7 +125,7 @@ protected:
+   Mesh & primitive_mesh;
+ 
+   /// Material selector for interface
+-  MaterialSelector * interface_material_selector;
++  ConstitutiveLawSelector * interface_material_selector;
+ };
+ 
+ /// Material selector based on mesh data for interface elements

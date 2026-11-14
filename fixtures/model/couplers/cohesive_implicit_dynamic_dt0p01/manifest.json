@@ -1,0 +1,511 @@
+{
+  "format_version": 1,
+  "case_id": "model/couplers/cohesive_implicit_dynamic_dt0p01",
+  "description": "the cohesive_static set-up (cohesive-contact mesh, CouplerSolidCohesiveContact, intrinsic cohesive_linear, epsilon_n = 1e3, compression of 1e-3/50 per step, Newton at 100 iterations) with _implicit_dynamic and a fixed time step, until the first Newton failure (at most 6 steps); per-iterate trace of every step (B-021)",
+  "status": "golden",
+  "generator": {
+    "probe": "couplers_probe",
+    "probe_version": "2",
+    "command": "CPL_PROBE_CASES=cohesive_implicit_dynamic_qs,cohesive_implicit_dynamic_dt0p01 oracle/probes/couplers/generate.sh "
+  },
+  "reference": {
+    "sha": "35a851780d0b9471d258ed53a003ae98aaa95ea0",
+    "describe": "v5.0.7-post1-554-g35a851780",
+    "patches": [
+      "modified:cmake/AkantuTestsMacros.cmake sha256=c280165a84912eab4bcc081b9eaaaa06aafdd83d4f48d982e11b0859abf9672f (reference sha256=36290de2ec8b111028138fe82029efa16501512241a5bc264fa30ff3e3239b9e)"
+    ]
+  },
+  "build": {
+  "config": "strict",
+  "compiler": "g++ (Debian 14.2.0-19) 14.2.0",
+  "cxx_flags": "-ffp-contract=off -DEIGEN_DONT_VECTORIZE -DEIGEN_NO_CPUID -DEIGEN_DEFAULT_L1_CACHE_SIZE=16384 -DEIGEN_DEFAULT_L2_CACHE_SIZE=524288 -DEIGEN_DEFAULT_L3_CACHE_SIZE=524288 -O2 -g -DNDEBUG -g3 -ggdb3 -flarge-source-files -std=c++20 -flto=auto -fno-fat-lto-objects -fPIC -frounding-math (actual flags of src/model/solid_mechanics/solid_mechanics_model.cc; warnings and non-FP -D defines omitted)",
+  "build_type": "RelWithDebInfo",
+  "arch": "x86_64",
+  "os": "Debian GNU/Linux 13 (trixie)",
+  "libraries": {"eigen_cache_sizes_measured": "16384,524288,524288 (Eigen::l1/l2/l3CacheSize() read at run time in the probe process, D-050)", 
+    "eigen3": "3.4.0-5",
+    "boost": "1.83.0.2+b2",
+    "openmpi": "5.0.7-1",
+    "mumps": "5.7.3-3+b1",
+    "petsc": "3.22.5+dfsg1-2",
+    "scotch": "7.0.7-1",
+    "openblas": "0.3.29+ds-3",
+    "scalapack": "2.2.2-1",
+    "hdf5": "1.14.5+repack-3",
+    "gmsh": "4.13.1+ds1-6",
+    "pybind11": "2.13.6-2",
+    "numpy": "1:2.2.4+ds-1",
+    "scipy": "1.15.3-1",
+    "gcc": "4:14.2.0-1",
+    "gfortran": "4:14.2.0-1",
+    "oracle_image": "sha256:2da26d87e063f3c88264f589cf73381feff583eeaa7770d2e01ae034651d59f5",
+    "oracle_build_scripts": "cca6e460cd3430bf0180262e7ebe26be762112e9",
+    "oracle_install_reference_sha": "35a851780d0b9471d258ed53a003ae98aaa95ea0",
+    "oracle_install_image": "sha256:2da26d87e063f3c88264f589cf73381feff583eeaa7770d2e01ae034651d59f5",
+    "openblas_coretype": "Haswell",
+    "openblas_num_threads": "1",
+    "eigen_cache_sizes": "16384,524288,524288 (compile-time pin of the library and of the probe translation unit: EIGEN_NO_CPUID + defaults, D-050)",
+    "host_cpu": "AMD Ryzen 7 9700X 8-Core Processor",
+    "x86_64_level": "v3",
+    "sha256:libakantu.so.5.0.7": "554ecfc7838d8c8aa3955f37f2efb556a7f09426083b74af262ffdcccff657ff",
+    "probe_tree_sha256": "20813edf1a906b432ffcd0d076d6fc8378f098fd762816808dd44b43709b37c2",
+    "probe_sources_commit": "67de2bfab006f2e4de97d7d39fbca66a6389d459",
+    "cmake_cxx_flags": "-ffp-contract=off -DEIGEN_DONT_VECTORIZE -DEIGEN_NO_CPUID -DEIGEN_DEFAULT_L1_CACHE_SIZE=16384 -DEIGEN_DEFAULT_L2_CACHE_SIZE=524288 -DEIGEN_DEFAULT_L3_CACHE_SIZE=524288 -O2 -g -DNDEBUG -g3 -ggdb3 -flarge-source-files",
+    "probe": "couplers_probe"
+  },
+  "probe_compile_command": "/usr/bin/c++ '-DAKANTU_PROBE_BUILD_TYPE=\"RelWithDebInfo\"' '-DAKANTU_PROBE_CONFIG=\"strict\"' '-DAKANTU_PROBE_CXX_FLAGS=\"-ffp-contract=off -DEIGEN_DONT_VECTORIZE -DEIGEN_NO_CPUID -DEIGEN_DEFAULT_L1_CACHE_SIZE=16384 -DEIGEN_DEFAULT_L2_CACHE_SIZE=524288 -DEIGEN_DEFAULT_L3_CACHE_SIZE=524288  -O2 -g -DNDEBUG\"' -DBOOST_GRAPH_DYN_LINK -DBOOST_GRAPH_NO_LIB -DBOOST_REGEX_DYN_LINK -DBOOST_REGEX_NO_LIB -DCGAL_USE_GMPXX=1 -I/probes/couplers/../include -isystem /build/install-strict/include/akantu -isystem /opt/CGAL-5.6.2/include -isystem /usr/lib/x86_64-linux-gnu/openmpi/include -isystem /usr/lib/x86_64-linux-gnu/openmpi/include/openmpi -isystem /usr/lib/petscdir/petsc3.22/x86_64-linux-gnu-real/include -isystem /usr/include/scotch -isystem /build/install-strict/include/akantu_iterators -isystem /usr/include/eigen3 -isystem /build/install-strict/include/iohelper -O2 -g -DNDEBUG -std=gnu++20 -ffp-contract=off -DEIGEN_DONT_VECTORIZE -DEIGEN_NO_CPUID -DEIGEN_DEFAULT_L1_CACHE_SIZE=16384 -DEIGEN_DEFAULT_L2_CACHE_SIZE=524288 -DEIGEN_DEFAULT_L3_CACHE_SIZE=524288 -Wall -Wextra -pedantic -Wno-array-bounds -Wno-use-after-free -Wno-stringop-overread -DOMPI_SKIP_MPICXX -Wno-literal-suffix -frounding-math -o CMakeFiles/couplers_probe.dir/couplers_probe.cc.o -c /probes/couplers/couplers_probe.cc",
+  "probe_cxx_flags": "-DAKANTU_PROBE_BUILD_TYPE=\"RelWithDebInfo\" -DAKANTU_PROBE_CONFIG=\"strict\" -DAKANTU_PROBE_CXX_FLAGS=\"-ffp-contract=off -DEIGEN_DONT_VECTORIZE -DEIGEN_NO_CPUID -DEIGEN_DEFAULT_L1_CACHE_SIZE=16384 -DEIGEN_DEFAULT_L2_CACHE_SIZE=524288 -DEIGEN_DEFAULT_L3_CACHE_SIZE=524288  -O2 -g -DNDEBUG\" -DBOOST_GRAPH_DYN_LINK -DBOOST_GRAPH_NO_LIB -DBOOST_REGEX_DYN_LINK -DBOOST_REGEX_NO_LIB -DCGAL_USE_GMPXX=1 -O2 -g -DNDEBUG -std=gnu++20 -ffp-contract=off -DEIGEN_DONT_VECTORIZE -DEIGEN_NO_CPUID -DEIGEN_DEFAULT_L1_CACHE_SIZE=16384 -DEIGEN_DEFAULT_L2_CACHE_SIZE=524288 -DEIGEN_DEFAULT_L3_CACHE_SIZE=524288 -Wall -Wextra -pedantic -Wno-array-bounds -Wno-use-after-free -Wno-stringop-overread -DOMPI_SKIP_MPICXX -Wno-literal-suffix -frounding-math"
+},
+  "created": "2026-11-11T19:23:38Z",
+  "inputs": [
+    {
+      "role": "mesh",
+      "path": "inputs/cohesive-contact.msh",
+      "source": "examples/c++/contact_mechanics_model/hertz/cohesive-contact.geo",
+      "sha256": "4825e738b8e78f5d16bc34c72e618eb4c22c45574ce2e3604d28c27a54c9d8dd"
+    },
+    {
+      "role": "material",
+      "path": "inputs/couplers_probe_cohesive_implicit_dynamic_dt0p01_material.dat",
+      "source": "examples/c++/contact_mechanics_model/hertz/material-cohesive.dat (epsilon_n = 1e+03)",
+      "sha256": "44cbaff1aee4cf3190c3e76d3853ea1eb12c864070e830b92f6d1d32cb90acde"
+    }
+  ],
+  "parameters": {
+    "analysis_method": "_implicit_dynamic",
+    "time_step": 0.01,
+    "max_steps": 6,
+    "increment": 2.0000000000000002e-05,
+    "epsilon_n": 1000.0,
+    "max_iterations": 100,
+    "sparse_solver_type": "eigen",
+    "eigen_cache_sizes": "16384,524288,524288",
+    "steps_run": 2
+  },
+  "storage": {
+    "mode": "committed",
+    "bytes": 101720
+  },
+  "quantities": [
+    {
+      "name": "input/time_step",
+      "file": "data/input__time_step.npy",
+      "dtype": "f64",
+      "shape": [
+        1
+      ],
+      "axes": [
+        "entry"
+      ],
+      "layout": "table",
+      "sha256": "37853154945803b5348c3cc02167770256be2e5a59a9eddc642920d68e0d5901",
+      "description": "time step (exact)"
+    },
+    {
+      "name": "trace/step_0/events",
+      "file": "data/trace__step_0__events.npy",
+      "dtype": "i64",
+      "shape": [
+        22
+      ],
+      "axes": [
+        "entry"
+      ],
+      "layout": "table",
+      "sha256": "c139d9327c1fd619ef068747e8171eef72a8ec90d677c25a60447d5158082b68",
+      "description": "callback events in order: 1 matrix K, 4 other matrix, 2 residual, 3 corrector"
+    },
+    {
+      "name": "trace/step_0/residual",
+      "file": "data/trace__step_0__residual.npy",
+      "dtype": "f64",
+      "shape": [
+        5,
+        36
+      ],
+      "axes": [
+        "entry",
+        "component"
+      ],
+      "layout": "table",
+      "sha256": "825f7188cdc4dcd9191f9ca9e74638d3dea34d47a6ae96710a9a71738b56e991",
+      "description": "global residual at every residual event"
+    },
+    {
+      "name": "trace/step_0/solution",
+      "file": "data/trace__step_0__solution.npy",
+      "dtype": "f64",
+      "shape": [
+        4,
+        36
+      ],
+      "axes": [
+        "entry",
+        "component"
+      ],
+      "layout": "table",
+      "sha256": "1483e517de0c73bad409af9b00b664e2ba4bcbcebbb720d2ae22c60cc990f483",
+      "description": "global solution (increment) at every corrector event"
+    },
+    {
+      "name": "trace/step_0/displacement",
+      "file": "data/trace__step_0__displacement.npy",
+      "dtype": "f64",
+      "shape": [
+        4,
+        36
+      ],
+      "axes": [
+        "entry",
+        "component"
+      ],
+      "layout": "table",
+      "sha256": "e96f6149c62c088cfb1350d670245fd7a65a987cde91390d40e82159e8229a90",
+      "description": "displacement after every corrector"
+    },
+    {
+      "name": "step_0/displacement",
+      "file": "data/step_0__displacement.npy",
+      "dtype": "f64",
+      "shape": [
+        18,
+        2
+      ],
+      "axes": [
+        "entry",
+        "component"
+      ],
+      "layout": "table",
+      "sha256": "c369285862861530c8f50acadbebde2dfa6db8abd6bb8a0f386820513a84a4e1",
+      "description": "displacement"
+    },
+    {
+      "name": "step_0/velocity",
+      "file": "data/step_0__velocity.npy",
+      "dtype": "f64",
+      "shape": [
+        18,
+        2
+      ],
+      "axes": [
+        "entry",
+        "component"
+      ],
+      "layout": "table",
+      "sha256": "5ef414cdf4097757d9ca9a99e3b49be2b12c88400fdc1e2b8b43a73191fbde20",
+      "description": "velocity"
+    },
+    {
+      "name": "step_0/acceleration",
+      "file": "data/step_0__acceleration.npy",
+      "dtype": "f64",
+      "shape": [
+        18,
+        2
+      ],
+      "axes": [
+        "entry",
+        "component"
+      ],
+      "layout": "table",
+      "sha256": "4b827ba9d1b05df7c1837c970779d6aec0c945f26338978ea55f5821429cbab7",
+      "description": "acceleration"
+    },
+    {
+      "name": "step_0/internal_force",
+      "file": "data/step_0__internal_force.npy",
+      "dtype": "f64",
+      "shape": [
+        18,
+        2
+      ],
+      "axes": [
+        "entry",
+        "component"
+      ],
+      "layout": "table",
+      "sha256": "c17a30e79ebdb98cadd847977c4894cb631fc37d06e8f41a7294bbcfa90d2c84",
+      "description": "solid internal force"
+    },
+    {
+      "name": "step_0/contact_force",
+      "file": "data/step_0__contact_force.npy",
+      "dtype": "f64",
+      "shape": [
+        18,
+        2
+      ],
+      "axes": [
+        "entry",
+        "component"
+      ],
+      "layout": "table",
+      "sha256": "bd112e99cd54c97e05c9483779ba380a317e10fe6d0e466783780af55395e190",
+      "description": "contact force"
+    },
+    {
+      "name": "step_0/gaps",
+      "file": "data/step_0__gaps.npy",
+      "dtype": "f64",
+      "shape": [
+        18,
+        1
+      ],
+      "axes": [
+        "entry",
+        "component"
+      ],
+      "layout": "table",
+      "sha256": "4c00eb11168b507e70849911fcd9dbb0cac64437bc3353773a6eb8fbfb096e74",
+      "description": "gaps"
+    },
+    {
+      "name": "step_0/contact_elements",
+      "file": "data/step_0__contact_elements.npy",
+      "dtype": "i64",
+      "shape": [
+        0
+      ],
+      "axes": [
+        "entry"
+      ],
+      "layout": "table",
+      "sha256": "e734dac55ea9fbbe782af2d8c02c3c5992131906228afb2aaaf137d6f3ed74db",
+      "description": "(slave, master facet index) per contact element"
+    },
+    {
+      "name": "trace/step_1/events",
+      "file": "data/trace__step_1__events.npy",
+      "dtype": "i64",
+      "shape": [
+        504
+      ],
+      "axes": [
+        "entry"
+      ],
+      "layout": "table",
+      "sha256": "1c2b679f446c781118d3f8770461a9b9882421742118f9123b123a408d60134c",
+      "description": "callback events in order: 1 matrix K, 4 other matrix, 2 residual, 3 corrector"
+    },
+    {
+      "name": "trace/step_1/residual",
+      "file": "data/trace__step_1__residual.npy",
+      "dtype": "f64",
+      "shape": [
+        102,
+        36
+      ],
+      "axes": [
+        "entry",
+        "component"
+      ],
+      "layout": "table",
+      "sha256": "ea107bf114e542550ffba0df43f3202e1a12d452078a9f521f10847ac7440c15",
+      "description": "global residual at every residual event"
+    },
+    {
+      "name": "trace/step_1/solution",
+      "file": "data/trace__step_1__solution.npy",
+      "dtype": "f64",
+      "shape": [
+        100,
+        36
+      ],
+      "axes": [
+        "entry",
+        "component"
+      ],
+      "layout": "table",
+      "sha256": "cb58dfb9b64c215e3cde66d63aff5a2c21f272084a6862552bb2066fd3b992c8",
+      "description": "global solution (increment) at every corrector event"
+    },
+    {
+      "name": "trace/step_1/displacement",
+      "file": "data/trace__step_1__displacement.npy",
+      "dtype": "f64",
+      "shape": [
+        100,
+        36
+      ],
+      "axes": [
+        "entry",
+        "component"
+      ],
+      "layout": "table",
+      "sha256": "9ae9ddc1c04b80a4ca97f51a0550722a1023c0cd6ff74cc318b5f75e33d159fb",
+      "description": "displacement after every corrector"
+    },
+    {
+      "name": "step_1/displacement",
+      "file": "data/step_1__displacement.npy",
+      "dtype": "f64",
+      "shape": [
+        18,
+        2
+      ],
+      "axes": [
+        "entry",
+        "component"
+      ],
+      "layout": "table",
+      "sha256": "413aaf19e7422fee7780cb026ea66554c325b5ab490336d359e3c5fbb3a81c1f",
+      "description": "displacement"
+    },
+    {
+      "name": "step_1/velocity",
+      "file": "data/step_1__velocity.npy",
+      "dtype": "f64",
+      "shape": [
+        18,
+        2
+      ],
+      "axes": [
+        "entry",
+        "component"
+      ],
+      "layout": "table",
+      "sha256": "5ef414cdf4097757d9ca9a99e3b49be2b12c88400fdc1e2b8b43a73191fbde20",
+      "description": "velocity"
+    },
+    {
+      "name": "step_1/acceleration",
+      "file": "data/step_1__acceleration.npy",
+      "dtype": "f64",
+      "shape": [
+        18,
+        2
+      ],
+      "axes": [
+        "entry",
+        "component"
+      ],
+      "layout": "table",
+      "sha256": "4b827ba9d1b05df7c1837c970779d6aec0c945f26338978ea55f5821429cbab7",
+      "description": "acceleration"
+    },
+    {
+      "name": "step_1/internal_force",
+      "file": "data/step_1__internal_force.npy",
+      "dtype": "f64",
+      "shape": [
+        18,
+        2
+      ],
+      "axes": [
+        "entry",
+        "component"
+      ],
+      "layout": "table",
+      "sha256": "6ff6f822801d4e04230d60b238bbbccdaed460b34469d1d75af9f17875e28ade",
+      "description": "solid internal force"
+    },
+    {
+      "name": "step_1/contact_force",
+      "file": "data/step_1__contact_force.npy",
+      "dtype": "f64",
+      "shape": [
+        18,
+        2
+      ],
+      "axes": [
+        "entry",
+        "component"
+      ],
+      "layout": "table",
+      "sha256": "7ab3e3d17924d5005a436e2921128716783505b66784c0857afb5520269c9647",
+      "description": "contact force"
+    },
+    {
+      "name": "step_1/gaps",
+      "file": "data/step_1__gaps.npy",
+      "dtype": "f64",
+      "shape": [
+        18,
+        1
+      ],
+      "axes": [
+        "entry",
+        "component"
+      ],
+      "layout": "table",
+      "sha256": "4009e0e503779bd0bf44100703ec87852cff5a6748cb3b2d916658a6e55215fa",
+      "description": "gaps"
+    },
+    {
+      "name": "step_1/contact_elements",
+      "file": "data/step_1__contact_elements.npy",
+      "dtype": "i64",
+      "shape": [
+        12
+      ],
+      "axes": [
+        "entry"
+      ],
+      "layout": "table",
+      "sha256": "3d045f87900a4ef58e42c0bb9226bdfb7f26ab5d7480ca394ff4fd1ae49b27ce",
+      "description": "(slave, master facet index) per contact element"
+    },
+    {
+      "name": "newton/converged",
+      "file": "data/newton__converged.npy",
+      "dtype": "i64",
+      "shape": [
+        2
+      ],
+      "axes": [
+        "entry"
+      ],
+      "layout": "table",
+      "sha256": "06a5e75b5c298e897a18975fc7df079bd9563f5345be6d6a3425b0042496bcf0",
+      "description": "1 = converged, 0 = Newton failure (run stops)"
+    },
+    {
+      "name": "newton/iterations",
+      "file": "data/newton__iterations.npy",
+      "dtype": "i64",
+      "shape": [
+        2
+      ],
+      "axes": [
+        "entry"
+      ],
+      "layout": "table",
+      "sha256": "fa012bef1e024d8dc78b18e1b0d7d8599f08a52193de75fcbf073dd04f8d2e59",
+      "description": "nb_iterations per step"
+    },
+    {
+      "name": "newton/error",
+      "file": "data/newton__error.npy",
+      "dtype": "f64",
+      "shape": [
+        2
+      ],
+      "axes": [
+        "entry"
+      ],
+      "layout": "table",
+      "sha256": "963bd4d4c6cc2c8c5cc0fe99c13a2426077d0bacc2ad6e30b059c3cbe5902b6a",
+      "description": "error per step"
+    },
+    {
+      "name": "nb_contact_elements",
+      "file": "data/nb_contact_elements.npy",
+      "dtype": "i64",
+      "shape": [
+        2
+      ],
+      "axes": [
+        "entry"
+      ],
+      "layout": "table",
+      "sha256": "3f9cd1ec89eaa02fcae390e3d9f9d5ba970236a3d097084f0c3af6f8b5c3a792",
+      "description": "contact elements after each step"
+    }
+  ],
+  "tags": [
+    "model",
+    "couplers",
+    "cohesive",
+    "contact"
+  ]
+}

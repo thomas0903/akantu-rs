@@ -1,0 +1,41 @@
+# SPDX-License-Identifier: LGPL-3.0-or-later
+# akantu-rs probe-local patch (UD-409): compile fixes ONLY for upstream's
+# MeshSphereIntersector (src/geometry/mesh_sphere_intersector_tmpl.hh at
+# 35a8517), which does not compile in Akantu 5 (raw pointers assigned to
+# std::unique_ptr members, Array<UInt> for an Array<Int> member, delete of
+# unique_ptr members, Eigen VectorXd(Index, double) constructor). No semantic
+# change. Applied by oracle/probes/geometry/run-in-container.sh to a COPY of
+# the header next to the probe; the reference checkout and the installed
+# oracle library are not modified (the class is header-only).
+--- a/src/geometry/mesh_sphere_intersector_tmpl.hh
++++ b/src/geometry/mesh_sphere_intersector_tmpl.hh
+@@ -47,17 +47,14 @@
+ #endif
+ 
+   // initialize the intersection pointsss array with the spatial dimension
+-  this->intersection_points = new Array<Real>(0, dim);
++  this->intersection_points = std::make_unique<Array<Real>>(0, dim);
+   //  A maximum is set to the number of intersection nodes per element to limit
+   //  the size of new_node_per_elem: 2 in 2D and 4 in 3D
+-  this->new_node_per_elem = new Array<UInt>(0, 1 + 4 * (dim - 1));
++  this->new_node_per_elem = std::make_unique<Array<Int>>(0, 1 + 4 * (dim - 1));
+ }
+ 
+ template <Int dim, ElementType type>
+-MeshSphereIntersector<dim, type>::~MeshSphereIntersector() {
+-  delete this->new_node_per_elem;
+-  delete this->intersection_points;
+-}
++MeshSphereIntersector<dim, type>::~MeshSphereIntersector() = default;
+ 
+ template <Int dim, ElementType type>
+ void MeshSphereIntersector<dim, type>::constructData(GhostType ghost_type) {
+@@ -102,7 +99,7 @@
+     }
+ 
+     // the intersection point written as a vector
+-    Vector<Real> new_node(dim, 0.0);
++    Vector<Real> new_node = Vector<Real>::Zero(dim);
+     cgal::Cartesian::Point_3 point(CGAL::to_double(pair->first.x()),
+                                    CGAL::to_double(pair->first.y()),
+                                    CGAL::to_double(pair->first.z()));

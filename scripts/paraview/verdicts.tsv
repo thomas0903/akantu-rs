@@ -1,0 +1,63 @@
+# SPDX-License-Identifier: LGPL-3.0-or-later
+# akantu-rs project tooling: the verdict of every run of the ParaView visual
+# check, written by hand after the causes were read in both sources
+# (the report explains each). make_report.py puts them in
+# the report's summary table next to the measured file counts.
+# Columns (tab separated): id (cases.tsv, or py-<case> of python-cases.tsv) |
+# verdict: identical | compat (identical with upstream's behaviour switched on:
+# the default corrects a defect, --upstream-compat gives upstream's bytes) |
+# differs (no setting of the port gives upstream's file: the port's file is
+# the corrected one) | gap (the port cannot do what upstream does) | port-only |
+# cause, with the defect entries of docs/UPSTREAM_DEFECTS.md (- = none).
+predefined_bc	identical	-
+user_defined_bc	identical	-
+python_user_defined_bc	identical	-
+static	identical	-
+explicit_dynamic	identical	-
+implicit_dynamic	identical	-
+example_parser	identical	-
+new_local_material	identical	-
+dumper_low_level	compat	the wheels turn in the port; upstream's `applyRotation` writes into a copy (UD-473, B)
+dumper_low_level_compat	identical	-
+dumpable_interface	differs	upstream's `train` piece holds a 1,496-value `color` for 15,244 cells (ParaView reports an error for `color` and shows the piece empty) and its `wheels` pieces whole-mesh arrays (UD-474, C); by default also UD-473
+dumpable_interface_compat	differs	UD-474 (as above)
+parallel_2d	differs	padded 2-D stress: upstream writes 81 values per cell (UD-110, B) and leaves 4 entries uninitialised (UD-111, A)
+parallel_2d_compat	differs	the 4 uninitialised entries of upstream's padded stress (UD-111, A); everything else byte-identical
+cohesive_extrinsic	identical	-
+cohesive_intrinsic	identical	-
+cohesive_extrinsic_ig_tg	identical	-
+scalability_test	compat	no cohesive element: the empty `cohesive elements` pieces, invalid base64 upstream (UD-114, B)
+scalability_test_compat	identical	-
+scalability_test_cohesive	compat	UD-114 until the first insertion, then upstream's 3-D facet tangents (UD-217, B) insert other facets
+scalability_test_cohesive_compat	identical	-
+heat_diffusion_dynamics_2d	identical	-
+heat_diffusion_dynamics_3d	identical	-
+heat_diffusion_static_2d	identical	-
+bernoulli_beam_2_example	identical	-
+material_viscoelastic_maxwell_energies	compat	the Maxwell branch relaxes in the port (UD-029, B); step lifecycle (UD-010, B); `strain` as 16 values per cell upstream (UD-110, B)
+material_viscoelastic_maxwell_energies_compat	identical	-
+phase_field_notch	identical	-
+phase_field_parallel	identical	-
+contact_explicit_dynamic	identical	-
+contact_explicit_static	identical	-
+cohesive_contact_explicit_dynamic	differs	after the insertion upstream's `blocked_dofs` is 3 values short (UD-850, B); by default also the contact `gaps` of 2 dumps (UD-363, B, ≤ 1.4e-20 m)
+cohesive_contact_explicit_dynamic_compat	differs	UD-850 (as above); every value exactly
+bloc_friction	compat	upstream measures the friction slip on the previous master facet (UD-365, B)
+bloc_friction_compat	identical	-
+steady_state	identical	-
+embedded	port-only	upstream's embedded package does not compile at this commit; built with the project's minimal compile patches (D-060), the example stops with a segmentation fault in `initFull` (UD-851, A; cause: UD-1140)
+py-dynamics	differs	`strain` as 16 values per cell upstream (UD-110, B); equal after mapping
+py-plate_hole	differs	UD-110 (`strain`)
+py-custom_material	differs	UD-110 (`strain`)
+py-bi_material	differs	UD-110 (`strain`)
+py-solver_callback	differs	UD-110 (`strain`)
+py-multi_material	differs	UD-110 (`strain`); empty cohesive pieces (UD-114)
+py-phasefield_static	differs	UD-110 (`strain`)
+py-phasefield_dynamic_full	differs	UD-110 (`strain`)
+py-cohesive_plate	differs	UD-110 (`strain`); empty cohesive pieces (UD-114)
+py-fragmentation	differs	UD-110 (`strain`); empty cohesive pieces (UD-114)
+py-eigen_modes	identical	-
+py-compression_full	identical	-
+py-detection_explicit_full	identical	-
+py-bloc_friction_full	identical	-
+py-cohesive_custom_material_full	differs	UD-110 (`strain`); empty cohesive pieces (UD-114); both runs stop at line 191 (UD-980)

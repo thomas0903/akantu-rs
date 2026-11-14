@@ -1,0 +1,71 @@
+{
+  "format_version": 1,
+  "rules": [
+    {
+      "quantity": "field_matrix/elemental",
+      "justification": "Bitwise: per quadrature point N^T diag(rho) N is one Eigen product evaluated by the replicated gebp/coefficient order (akantu_core::eigen_gebp, D-036), every coefficient a single nonzero term; the per-element integration sums det(J) w f in upstream GEMV order from +0 (same rule, Jacobians computed on the fly as upstream).",
+      "evidence": "2026-11-10: crates/akantu-fe/tests/fe_engine_extra_matches_oracle.rs reproduces every value of the 12 fixtures bit for bit (macOS arm64); x86_64 Linux: replay by an independent review",
+      "reviewed_by": "independent review during the port, November 2026"
+    },
+    {
+      "quantity": "lumped/elemental",
+      "justification": "Bitwise: row sum = computeNtb + integrate (exact FE kernels E0, same order), diagonal scaling = integrate(rho) times the literal nodal factors; no reassociation.",
+      "evidence": "2026-11-10: crates/akantu-fe/tests/fe_engine_extra_matches_oracle.rs reproduces every value of the 12 fixtures bit for bit (macOS arm64); x86_64 Linux: replay by an independent review",
+      "reviewed_by": "independent review during the port, November 2026"
+    },
+    {
+      "quantity": "lumped/assembled",
+      "justification": "Bitwise: test-side element-order scatter from zero of the exact elemental arrays, the order DOFManagerDefault::assembleElementalArrayLocalArray uses (scale factor 1.0 is exact).",
+      "evidence": "2026-11-10: crates/akantu-fe/tests/fe_engine_extra_matches_oracle.rs reproduces every value of the 12 fixtures bit for bit (macOS arm64); x86_64 Linux: replay by an independent review",
+      "reviewed_by": "independent review during the port, November 2026"
+    },
+    {
+      "quantity": "order_*/integrated",
+      "justification": "Bitwise: Jacobians at the order-n Gauss points with the verbatim formulas, multiplied by the literal order-n weights, per-element GEMV sum from +0 as IntegratorGauss::integrate<type, n>.",
+      "evidence": "2026-11-10: crates/akantu-fe/tests/fe_engine_extra_matches_oracle.rs reproduces every value of the 12 fixtures bit for bit (macOS arm64); x86_64 Linux: replay by an independent review",
+      "reviewed_by": "independent review during the port, November 2026"
+    },
+    {
+      "quantity": "order_*/integral_scalar",
+      "justification": "Bitwise: the per-element integrals above combined with the replicated Math::reduce (sorted pairwise sum).",
+      "evidence": "2026-11-10: crates/akantu-fe/tests/fe_engine_extra_matches_oracle.rs reproduces every value of the 12 fixtures bit for bit (macOS arm64); x86_64 Linux: replay by an independent review",
+      "reviewed_by": "independent review during the port, November 2026"
+    },
+    {
+      "quantity": "elemental/*/inv_matrices",
+      "justification": "Bitwise: Eigen fixed-size closed-form inverse (cofactor formulas for 1x1..4x4) of the basis matrix of the physical quadrature-point coordinates (exact E0 coordinates), same operation order.",
+      "evidence": "2026-11-10: crates/akantu-fe/tests/fe_engine_extra_matches_oracle.rs reproduces every value of the 12 fixtures bit for bit (macOS arm64); x86_64 Linux: replay by an independent review",
+      "reviewed_by": "independent review during the port, November 2026"
+    },
+    {
+      "quantity": "elemental/*/itp_matrices",
+      "justification": "Bitwise: copies of input coordinates (1, x, y, z) and the single product x*y of the quadrangle basis.",
+      "evidence": "2026-11-10: crates/akantu-fe/tests/fe_engine_extra_matches_oracle.rs reproduces every value of the 12 fixtures bit for bit (macOS arm64); x86_64 Linux: replay by an independent review",
+      "reviewed_by": "independent review during the port, November 2026"
+    },
+    {
+      "quantity": "elemental/*/result",
+      "justification": "Bitwise: the two small products coefficients = inv * field^T and result = coefficients^T * itp^T in Eigen's lazy-product order (sizes < 20, coefficient-based).",
+      "evidence": "2026-11-10: crates/akantu-fe/tests/fe_engine_extra_matches_oracle.rs reproduces every value of the 12 fixtures bit for bit (macOS arm64); x86_64 Linux: replay by an independent review",
+      "reviewed_by": "independent review during the port, November 2026"
+    },
+    {
+      "quantity": "order_*/field",
+      "justification": "Exact: recorded input (exactly representable test values or probe-computed coordinates), read by the Rust test as input, not a computed output.",
+      "evidence": "2026-11-10: crates/akantu-fe/tests/fe_engine_extra_matches_oracle.rs reproduces every value of the 12 fixtures bit for bit (macOS arm64); x86_64 Linux: replay by an independent review",
+      "reviewed_by": "independent review during the port, November 2026"
+    },
+    {
+      "quantity": "elemental/*/points",
+      "justification": "Exact: recorded input (exactly representable test values or probe-computed coordinates), read by the Rust test as input, not a computed output.",
+      "evidence": "2026-11-10: crates/akantu-fe/tests/fe_engine_extra_matches_oracle.rs reproduces every value of the 12 fixtures bit for bit (macOS arm64); x86_64 Linux: replay by an independent review",
+      "reviewed_by": "independent review during the port, November 2026"
+    },
+    {
+      "quantity": "elemental/*/field",
+      "justification": "Exact: recorded input (exactly representable test values or probe-computed coordinates), read by the Rust test as input, not a computed output.",
+      "evidence": "2026-11-10: crates/akantu-fe/tests/fe_engine_extra_matches_oracle.rs reproduces every value of the 12 fixtures bit for bit (macOS arm64); x86_64 Linux: replay by an independent review",
+      "reviewed_by": "independent review during the port, November 2026"
+    }
+  ]
+}

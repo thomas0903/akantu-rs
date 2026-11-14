@@ -1,0 +1,46 @@
+# SPDX-License-Identifier: LGPL-3.0-or-later
+[package]
+name = "akantu-python"
+description = "Python bindings of akantu-rs (PyO3 and NumPy) following the API of upstream's `akantu` Python package"
+version.workspace = true
+edition.workspace = true
+rust-version.workspace = true
+license.workspace = true
+repository.workspace = true
+authors.workspace = true
+homepage.workspace = true
+keywords.workspace = true
+categories.workspace = true
+publish = false
+
+[lib]
+# Same extension-module name as upstream (`akantu/py11_akantu*.so`), so the
+# upstream pure-Python `akantu/__init__.py` layer can be reused unchanged.
+name = "py11_akantu"
+crate-type = ["cdylib", "rlib"]
+
+[features]
+# Off by default so that `cargo build/test --workspace` needs no Python.
+# Build the extension with maturin (`python/pyproject.toml` enables this
+# feature; see docs/TESTING.md). PyO3's `extension-module` feature is
+# deliberately not used: maturin sets `PYO3_BUILD_EXTENSION_MODULE` for wheel
+# builds (PyO3 ≥ 0.26), while `cargo test/clippy --features python` link the
+# test binaries against libpython.
+python = ["dep:pyo3", "dep:numpy"]
+# The MPI build of the module (D-101 (1); upstream's CMake build
+# with `AKANTU_PARALLEL`, `has_mpi()` True): the runtime's static
+# communicator is the MPI world (MPI initialised by mpi4py first, as
+# upstream's `akantu/__init__.py` imports it, or by the module), and
+# `Mesh.distribute()` partitions with Scotch over it. Opt-in: the default
+# wheel stays sequential like upstream's published one. Needs an MPI
+# implementation (`mpicc`, libclang) and Scotch at build time, as the
+# `akantu-rs-scotch:dev` image provides (docs/TESTING.md).
+mpi = ["python", "akantu/mpi", "akantu/scotch"]
+
+[dependencies]
+akantu.workspace = true
+pyo3 = { workspace = true, optional = true }
+numpy = { workspace = true, optional = true }
+
+[lints]
+workspace = true

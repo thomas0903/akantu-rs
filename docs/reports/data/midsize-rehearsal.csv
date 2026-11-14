@@ -1,0 +1,18 @@
+case,ranks,code,wall_s,init_full_s,static_solve_s,solve_step_ms,check_ms,core_us_per_el_step,largest_rank_peak_mib,sum_rank_peaks_mib
+# source: docs/BENCHMARKS.md, "The mid-size rehearsal", tables "h = 0.06, full schedule" and "h = 0.04, static solve + 300 pre-insertion steps" (docs/benchmarks/midsize-2026-11-12/item2-h006/, item2-h004/); boat.dev large sandbox, AMD EPYC 9455 host, 8 vCPU, 15.6 GiB; 2026-11-12; C++ = reference 35a85178 strict install with the JOSS-patch emulation, MUMPS; Rust release with MUMPS; same mesh and Scotch partition; h0.06_full = 177,328 tetrahedra, 5,000 steps with ~51.5 k cohesive elements inserted (1 run at 1 and 2 ranks, median of 2 at 4 and 8); h0.04_pre = 558,875 tetrahedra, static solve + 300 steps before insertion, 1 run; C++ h0.04 at 8 ranks killed by the 14 GiB container limit during the static solve (empty row values)
+h0.06_full,1,cpp,1600,11.1,12.3,63.4,233,1.67,3180,3180
+h0.06_full,1,rust,1090,2.42,13.0,45.0,154,1.12,2850,2850
+h0.06_full,2,cpp,1040,4.37,10.4,47.9,145,2.18,1870,3740
+h0.06_full,2,rust,748,1.49,9.55,26.1,112,1.56,1690,3370
+h0.06_full,4,cpp,637,2.05,5.18,32.5,86.5,2.69,979,3790
+h0.06_full,4,rust,430,0.762,4.71,17.7,62.4,1.81,880,3430
+h0.06_full,8,cpp,393,0.888,2.87,19.8,52.3,3.25,634,4450
+h0.06_full,8,rust,289,0.442,4.27,13.9,39.6,2.41,565,4140
+h0.04_pre,1,cpp,456,57.8,83.4,166,718,1.58,11666,11666
+h0.04_pre,1,rust,234,7.99,75.9,70.5,286,0.637,10265,10265
+h0.04_pre,2,cpp,267,23.7,57.0,113,399,1.83,6608,12786
+h0.04_pre,2,rust,169,4.90,66.2,58.8,183,0.866,6535,12697
+h0.04_pre,4,cpp,178,9.67,38.6,87.1,261,2.49,3393,13180
+h0.04_pre,4,rust,90.2,2.96,29.3,42.4,97.8,1.00,3124,11647
+h0.04_pre,8,cpp,,,,,,,,
+h0.04_pre,8,rust,67.9,1.70,19.7,45.5,74.2,1.71,2326,13559

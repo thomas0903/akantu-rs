@@ -1,0 +1,537 @@
+{
+  "format_version": 1,
+  "case_id": "mesh_utils/generated/cohesive_1d",
+  "description": "Mesh utilities on gen:cohesive_1d (dimension 1): facets,csr,buildfacets,erase,clusters",
+  "status": "golden",
+  "generator": {
+    "probe": "mesh_utils_probe",
+    "probe_version": "1",
+    "command": "oracle/probes/mesh_utils/generate.sh "
+  },
+  "reference": {
+    "sha": "35a851780d0b9471d258ed53a003ae98aaa95ea0",
+    "describe": "v5.0.7-post1-554-g35a851780",
+    "patches": [
+      "modified:cmake/AkantuTestsMacros.cmake sha256=c280165a84912eab4bcc081b9eaaaa06aafdd83d4f48d982e11b0859abf9672f (reference sha256=36290de2ec8b111028138fe82029efa16501512241a5bc264fa30ff3e3239b9e)"
+    ]
+  },
+  "build": {
+  "config": "strict",
+  "compiler": "g++ (Debian 14.2.0-19) 14.2.0",
+  "cxx_flags": "-ffp-contract=off -DEIGEN_DONT_VECTORIZE -O2 -g -DNDEBUG -g3 -ggdb3 -flarge-source-files -std=c++20 -flto=auto -fno-fat-lto-objects -fPIC -frounding-math (actual flags of src/model/solid_mechanics/solid_mechanics_model.cc; warnings and non-FP -D defines omitted)",
+  "build_type": "RelWithDebInfo",
+  "arch": "aarch64",
+  "os": "Debian GNU/Linux 13 (trixie)",
+  "libraries": {
+    "eigen3": "3.4.0-5",
+    "boost": "1.83.0.2+b2",
+    "openmpi": "5.0.7-1",
+    "mumps": "5.7.3-3+b1",
+    "petsc": "3.22.5+dfsg1-2",
+    "scotch": "7.0.7-1",
+    "openblas": "0.3.29+ds-3",
+    "scalapack": "2.2.2-1",
+    "hdf5": "1.14.5+repack-3",
+    "gmsh": "4.13.1+ds1-6",
+    "pybind11": "2.13.6-2",
+    "numpy": "1:2.2.4+ds-1",
+    "scipy": "1.15.3-1",
+    "gcc": "4:14.2.0-1",
+    "gfortran": "4:14.2.0-1",
+    "oracle_image": "sha256:6683233d0a3b9341eb5cedf5879bc9ccb76ddf3d91e9aa0fd35b99dc7866d7a6",
+    "oracle_build_scripts": "45b473da9cbfb356a039d94609fe39f6f36a1a9a",
+    "oracle_install_reference_sha": "35a851780d0b9471d258ed53a003ae98aaa95ea0",
+    "oracle_install_image": "sha256:6683233d0a3b9341eb5cedf5879bc9ccb76ddf3d91e9aa0fd35b99dc7866d7a6",
+    "sha256:libakantu.so.5.0.7": "9768e51184f0423c49abfd67535e6f3bc371522045b0b634223cce0ee07f0b0b",
+    "probe_tree_sha256": "fec7aff27c7781d75b8e88c74f849c4646e7a89dc7b20c62e6b25823f08b73a2",
+    "probe_sources_commit": "19197ff9ae676f6148e0cf2103c3c697d60d3e26",
+    "cmake_cxx_flags": "-ffp-contract=off -DEIGEN_DONT_VECTORIZE -O2 -g -DNDEBUG -g3 -ggdb3 -flarge-source-files",
+    "probe": "mesh_utils_probe"
+  },
+  "probe_compile_command": "/usr/bin/c++ '-DAKANTU_PROBE_BUILD_TYPE=\"RelWithDebInfo\"' '-DAKANTU_PROBE_CONFIG=\"strict\"' '-DAKANTU_PROBE_CXX_FLAGS=\"-ffp-contract=off -DEIGEN_DONT_VECTORIZE  -O2 -g -DNDEBUG\"' -DBOOST_GRAPH_DYN_LINK -DBOOST_GRAPH_NO_LIB -DBOOST_REGEX_DYN_LINK -DBOOST_REGEX_NO_LIB -DCGAL_USE_GMPXX=1 -I/probes/mesh_utils/../include -isystem /build/install-strict/include/akantu -isystem /opt/CGAL-5.6.2/include -isystem /usr/lib/aarch64-linux-gnu/openmpi/include -isystem /usr/lib/aarch64-linux-gnu/openmpi/include/openmpi -isystem /usr/lib/petscdir/petsc3.22/aarch64-linux-gnu-real/include -isystem /usr/include/scotch -isystem /build/install-strict/include/akantu_iterators -isystem /usr/include/eigen3 -isystem /build/install-strict/include/iohelper -O2 -g -DNDEBUG -std=gnu++20 -ffp-contract=off -DEIGEN_DONT_VECTORIZE -Wall -Wextra -pedantic -Wno-array-bounds -Wno-use-after-free -Wno-stringop-overread -DOMPI_SKIP_MPICXX -Wno-literal-suffix -frounding-math -o CMakeFiles/mesh_utils_probe.dir/mesh_utils_probe.cc.o -c /probes/mesh_utils/mesh_utils_probe.cc",
+  "probe_cxx_flags": "-DAKANTU_PROBE_BUILD_TYPE=\"RelWithDebInfo\" -DAKANTU_PROBE_CONFIG=\"strict\" -DAKANTU_PROBE_CXX_FLAGS=\"-ffp-contract=off -DEIGEN_DONT_VECTORIZE  -O2 -g -DNDEBUG\" -DBOOST_GRAPH_DYN_LINK -DBOOST_GRAPH_NO_LIB -DBOOST_REGEX_DYN_LINK -DBOOST_REGEX_NO_LIB -DCGAL_USE_GMPXX=1 -O2 -g -DNDEBUG -std=gnu++20 -ffp-contract=off -DEIGEN_DONT_VECTORIZE -Wall -Wextra -pedantic -Wno-array-bounds -Wno-use-after-free -Wno-stringop-overread -DOMPI_SKIP_MPICXX -Wno-literal-suffix -frounding-math"
+},
+  "created": "2026-11-10T03:39:47Z",
+  "parameters": {
+    "source": "gen:cohesive_1d",
+    "spatial_dimension": 1,
+    "ops": "facets,csr,buildfacets,erase,clusters",
+    "input/blocks": [
+      "_segment_2",
+      "_cohesive_1d_2"
+    ],
+    "string_tables": {},
+    "bounds_lower": [
+      0.0
+    ],
+    "bounds_upper": [
+      2.0
+    ],
+    "csr_type/type": "_segment_2",
+    "facets/blocks": [
+      "_point_1"
+    ],
+    "facets/element_to_subelement/blocks": [
+      "_point_1"
+    ],
+    "facets/subelement_to_element/blocks": [
+      "_segment_2",
+      "_cohesive_1d_2"
+    ],
+    "facets/element_groups": [],
+    "facets/node_groups": [],
+    "build_facets/blocks": [
+      "_point_1",
+      "_segment_2",
+      "_cohesive_1d_2"
+    ],
+    "build_facets/element_to_subelement/blocks": [
+      "_point_1"
+    ],
+    "build_facets/subelement_to_element/blocks": [
+      "_segment_2",
+      "_cohesive_1d_2"
+    ],
+    "clusters/nb_clusters": 1,
+    "clusters/filter": "element index % 3 != 0",
+    "clusters/element_groups": [
+      {
+        "name": "cluster_0",
+        "dimension": 1,
+        "blocks": [
+          "_segment_2"
+        ],
+        "node_group": "cluster_0_nodes"
+      }
+    ],
+    "clusters/node_groups": [
+      "cluster_0_nodes"
+    ],
+    "erase/blocks": [
+      "_segment_2",
+      "_cohesive_1d_2"
+    ],
+    "type_table": [
+      "_segment_2",
+      "_cohesive_1d_2",
+      "_point_1"
+    ]
+  },
+  "storage": {
+    "mode": "committed",
+    "bytes": 4680
+  },
+  "quantities": [
+    {
+      "name": "input/nodes",
+      "file": "data/input__nodes.npy",
+      "dtype": "f64",
+      "shape": [
+        4,
+        1
+      ],
+      "axes": [
+        "node",
+        "spatial_dim"
+      ],
+      "layout": "nodal",
+      "sha256": "3d516557a5f484f25854995882a4b0d45ececfb4b50082d36ef9df4de0f6204e",
+      "tolerance_class": "exact"
+    },
+    {
+      "name": "input/connectivity/_segment_2",
+      "file": "data/input__connectivity___segment_2.npy",
+      "dtype": "i64",
+      "shape": [
+        2,
+        2
+      ],
+      "axes": [
+        "element",
+        "node_local"
+      ],
+      "layout": "elemental",
+      "sha256": "fc619b204806cd97b9155d867357c3a073f5e1f25803ffa3e0655f9330bcd391",
+      "tolerance_class": "exact"
+    },
+    {
+      "name": "input/connectivity/_cohesive_1d_2",
+      "file": "data/input__connectivity___cohesive_1d_2.npy",
+      "dtype": "i64",
+      "shape": [
+        1,
+        2
+      ],
+      "axes": [
+        "element",
+        "node_local"
+      ],
+      "layout": "elemental",
+      "sha256": "de0df24a6720740f0c34b1b646b75156ca9eb76152b7e7333cc63ea681b0ac49",
+      "tolerance_class": "exact"
+    },
+    {
+      "name": "csr/offsets",
+      "file": "data/csr__offsets.npy",
+      "dtype": "i64",
+      "shape": [
+        5
+      ],
+      "axes": [
+        "entry"
+      ],
+      "layout": "table",
+      "sha256": "48324b1298e62091cfee60d3873f273fbf22b50a8a24b0fc56a1917d534583dd",
+      "tolerance_class": "exact"
+    },
+    {
+      "name": "csr/values",
+      "file": "data/csr__values.npy",
+      "dtype": "i64",
+      "shape": [
+        6,
+        3
+      ],
+      "axes": [
+        "entry",
+        "component"
+      ],
+      "layout": "table",
+      "sha256": "ac558a3eba23ac27c7a329fd72778ba9d65e19dc67a378aa9d8dbac309555196",
+      "tolerance_class": "exact"
+    },
+    {
+      "name": "csr_type/offsets",
+      "file": "data/csr_type__offsets.npy",
+      "dtype": "i64",
+      "shape": [
+        5
+      ],
+      "axes": [
+        "entry"
+      ],
+      "layout": "table",
+      "sha256": "e24087dfc0efa40c8b280f8839dbdac487c5be2456ee63b23a284df057d01a6e",
+      "tolerance_class": "exact"
+    },
+    {
+      "name": "csr_type/values",
+      "file": "data/csr_type__values.npy",
+      "dtype": "i64",
+      "shape": [
+        4
+      ],
+      "axes": [
+        "entry"
+      ],
+      "layout": "table",
+      "sha256": "b3689160104effa9b0a571b3b02df89e43dde8c056643680eafeca5b4b82f48c",
+      "tolerance_class": "exact"
+    },
+    {
+      "name": "nodes_to_elements/offsets",
+      "file": "data/nodes_to_elements__offsets.npy",
+      "dtype": "i64",
+      "shape": [
+        5
+      ],
+      "axes": [
+        "entry"
+      ],
+      "layout": "table",
+      "sha256": "48324b1298e62091cfee60d3873f273fbf22b50a8a24b0fc56a1917d534583dd",
+      "tolerance_class": "exact"
+    },
+    {
+      "name": "nodes_to_elements/values",
+      "file": "data/nodes_to_elements__values.npy",
+      "dtype": "i64",
+      "shape": [
+        6,
+        3
+      ],
+      "axes": [
+        "entry",
+        "component"
+      ],
+      "layout": "table",
+      "sha256": "ac558a3eba23ac27c7a329fd72778ba9d65e19dc67a378aa9d8dbac309555196",
+      "tolerance_class": "exact"
+    },
+    {
+      "name": "facets/connectivity/_point_1",
+      "file": "data/facets__connectivity___point_1.npy",
+      "dtype": "i64",
+      "shape": [
+        4,
+        1
+      ],
+      "axes": [
+        "element",
+        "node_local"
+      ],
+      "layout": "elemental",
+      "sha256": "818a85c5555705104352c640f7c92a54d6b4a6607656b4526730d9c121ea56bc",
+      "tolerance_class": "exact"
+    },
+    {
+      "name": "facets/element_to_subelement/_point_1/offsets",
+      "file": "data/facets__element_to_subelement___point_1__offsets.npy",
+      "dtype": "i64",
+      "shape": [
+        5
+      ],
+      "axes": [
+        "entry"
+      ],
+      "layout": "table",
+      "sha256": "c4a42c9791c05ac231e6b13f5316ae79ced54932c3b644b4e887ac936fffef9d",
+      "tolerance_class": "exact"
+    },
+    {
+      "name": "facets/element_to_subelement/_point_1/values",
+      "file": "data/facets__element_to_subelement___point_1__values.npy",
+      "dtype": "i64",
+      "shape": [
+        8,
+        3
+      ],
+      "axes": [
+        "entry",
+        "component"
+      ],
+      "layout": "table",
+      "sha256": "cad6079530620731957972fc192d838b8c4b7e88083dc5eceb5e14c509c1f1d2",
+      "tolerance_class": "exact"
+    },
+    {
+      "name": "facets/subelement_to_element/_segment_2",
+      "file": "data/facets__subelement_to_element___segment_2.npy",
+      "dtype": "i64",
+      "shape": [
+        2,
+        2,
+        3
+      ],
+      "axes": [
+        "element",
+        "facet",
+        "component"
+      ],
+      "layout": "elemental",
+      "sha256": "1157f417c5c0da82ff9de6a5503d7a8f9ae5a893af963dbe039c1c114458c4a1",
+      "tolerance_class": "exact"
+    },
+    {
+      "name": "facets/subelement_to_element/_cohesive_1d_2",
+      "file": "data/facets__subelement_to_element___cohesive_1d_2.npy",
+      "dtype": "i64",
+      "shape": [
+        1,
+        2,
+        3
+      ],
+      "axes": [
+        "element",
+        "facet",
+        "component"
+      ],
+      "layout": "elemental",
+      "sha256": "28b221390967ea04f09daec6cfcf33db505f711aa0342eb3dd77008a1e648881",
+      "tolerance_class": "exact"
+    },
+    {
+      "name": "build_facets/connectivity/_point_1",
+      "file": "data/build_facets__connectivity___point_1.npy",
+      "dtype": "i64",
+      "shape": [
+        2,
+        1
+      ],
+      "axes": [
+        "element",
+        "node_local"
+      ],
+      "layout": "elemental",
+      "sha256": "2174e35cf491d33c8a7fd1bea465dcbbb83d3aff13354037e3a06bc8d33df53d",
+      "tolerance_class": "exact"
+    },
+    {
+      "name": "build_facets/connectivity/_segment_2",
+      "file": "data/build_facets__connectivity___segment_2.npy",
+      "dtype": "i64",
+      "shape": [
+        2,
+        2
+      ],
+      "axes": [
+        "element",
+        "node_local"
+      ],
+      "layout": "elemental",
+      "sha256": "fc619b204806cd97b9155d867357c3a073f5e1f25803ffa3e0655f9330bcd391",
+      "tolerance_class": "exact"
+    },
+    {
+      "name": "build_facets/connectivity/_cohesive_1d_2",
+      "file": "data/build_facets__connectivity___cohesive_1d_2.npy",
+      "dtype": "i64",
+      "shape": [
+        1,
+        2
+      ],
+      "axes": [
+        "element",
+        "node_local"
+      ],
+      "layout": "elemental",
+      "sha256": "de0df24a6720740f0c34b1b646b75156ca9eb76152b7e7333cc63ea681b0ac49",
+      "tolerance_class": "exact"
+    },
+    {
+      "name": "build_facets/element_to_subelement/_point_1/offsets",
+      "file": "data/build_facets__element_to_subelement___point_1__offsets.npy",
+      "dtype": "i64",
+      "shape": [
+        3
+      ],
+      "axes": [
+        "entry"
+      ],
+      "layout": "table",
+      "sha256": "0d176d5d3ac21dd685aee0cdb1e5faf4b790502118babdbc6933770a9e5c2030",
+      "tolerance_class": "exact"
+    },
+    {
+      "name": "build_facets/element_to_subelement/_point_1/values",
+      "file": "data/build_facets__element_to_subelement___point_1__values.npy",
+      "dtype": "i64",
+      "shape": [
+        4,
+        3
+      ],
+      "axes": [
+        "entry",
+        "component"
+      ],
+      "layout": "table",
+      "sha256": "780a55d78e8047151d91f1fbaff1583ccbca6c750634c677480828bd7bb6bea9",
+      "tolerance_class": "exact"
+    },
+    {
+      "name": "build_facets/subelement_to_element/_segment_2",
+      "file": "data/build_facets__subelement_to_element___segment_2.npy",
+      "dtype": "i64",
+      "shape": [
+        2,
+        2,
+        3
+      ],
+      "axes": [
+        "element",
+        "facet",
+        "component"
+      ],
+      "layout": "elemental",
+      "sha256": "9a1b9d09529280180a403aad23f8c09e29114c9095946994c79a3ad6aea7a4a0",
+      "tolerance_class": "exact"
+    },
+    {
+      "name": "build_facets/subelement_to_element/_cohesive_1d_2",
+      "file": "data/build_facets__subelement_to_element___cohesive_1d_2.npy",
+      "dtype": "i64",
+      "shape": [
+        1,
+        2,
+        3
+      ],
+      "axes": [
+        "element",
+        "facet",
+        "component"
+      ],
+      "layout": "elemental",
+      "sha256": "dff21ef7066bf97a5b140e6467c21fad0d8b5334dda2c8a14b303e469c1437fa",
+      "tolerance_class": "exact"
+    },
+    {
+      "name": "clusters/element_groups/cluster_0/_segment_2",
+      "file": "data/clusters__element_groups__cluster_0___segment_2.npy",
+      "dtype": "i64",
+      "shape": [
+        1
+      ],
+      "axes": [
+        "group_member"
+      ],
+      "layout": "table",
+      "sha256": "fc44e6cab97678b988677b1e24dc073c80b029ccf6566c7bc1bd9ec1061a6106",
+      "tolerance_class": "exact"
+    },
+    {
+      "name": "clusters/element_groups/cluster_0/nodes",
+      "file": "data/clusters__element_groups__cluster_0__nodes.npy",
+      "dtype": "i64",
+      "shape": [
+        2
+      ],
+      "axes": [
+        "group_member"
+      ],
+      "layout": "table",
+      "sha256": "824c4b7b87be0e815247414f68db42bebbcbe6de6574e4427f194083ef8da969",
+      "tolerance_class": "exact"
+    },
+    {
+      "name": "erase/elements",
+      "file": "data/erase__elements.npy",
+      "dtype": "i64",
+      "shape": [
+        3,
+        3
+      ],
+      "axes": [
+        "entry",
+        "component"
+      ],
+      "layout": "table",
+      "sha256": "5f32b72a72d48ca85c5a2146f4776d2bcdb429d4abd53f8e25993da794f0696b",
+      "tolerance_class": "exact"
+    },
+    {
+      "name": "erase/connectivity/_segment_2",
+      "file": "data/erase__connectivity___segment_2.npy",
+      "dtype": "i64",
+      "shape": [
+        0,
+        2
+      ],
+      "axes": [
+        "element",
+        "node_local"
+      ],
+      "layout": "elemental",
+      "sha256": "55737cf1229ed3c3f82eb23b50874fb56749277d1c3a190bccfa1f3a991a57de",
+      "tolerance_class": "exact"
+    },
+    {
+      "name": "erase/connectivity/_cohesive_1d_2",
+      "file": "data/erase__connectivity___cohesive_1d_2.npy",
+      "dtype": "i64",
+      "shape": [
+        0,
+        2
+      ],
+      "axes": [
+        "element",
+        "node_local"
+      ],
+      "layout": "elemental",
+      "sha256": "55737cf1229ed3c3f82eb23b50874fb56749277d1c3a190bccfa1f3a991a57de",
+      "tolerance_class": "exact"
+    }
+  ],
+  "tags": [
+    "mesh_utils"
+  ]
+}

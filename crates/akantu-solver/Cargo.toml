@@ -1,0 +1,60 @@
+# SPDX-License-Identifier: LGPL-3.0-or-later
+[package]
+name = "akantu-solver"
+description = "DOF manager, non-linear solvers, time-step solvers, integration schemes, solver callbacks, model solver (port of src/model/common/{dof_manager,non_linear_solver,time_step_solvers,integration_scheme}, model_solver, solver_callback)"
+version.workspace = true
+edition.workspace = true
+rust-version.workspace = true
+license.workspace = true
+repository.workspace = true
+authors.workspace = true
+homepage.workspace = true
+keywords.workspace = true
+categories.workspace = true
+publish = false
+
+[features]
+# Build the MUMPS backend (akantu-linalg/mumps, needs MPI) and the
+# real-MPI MUMPS acceptance binary of the solver stack.
+mumps = ["akantu-linalg/mumps"]
+# PETSc DOF-manager backend: KSP linear solves and the native
+# SNES / TAO non-linear solvers through akantu-linalg's PETSc bindings;
+# `DofManager::of_type("petsc")` and the models' `dof_manager_type = petsc` /
+# `init_dof_manager("petsc")`. Needs MPI and a system PETSc
+# (docker/petsc). Never part of the default build. Licence: PETSc as built
+# by Debian links GPL-2+ libraries (SuiteSparse, FFTW), so a build with this
+# feature is distributed under GPL-3.0-or-later as a whole (D-076 option A,
+# NOTICE.md "PETSc").
+petsc = ["akantu-linalg/petsc", "akantu-comm/mpi"]
+
+[dependencies]
+akantu-core.workspace = true
+akantu-parser.workspace = true
+akantu-comm.workspace = true
+akantu-mesh.workspace = true
+akantu-linalg.workspace = true
+log.workspace = true # upstream AKANTU_DEBUG_WARNING (time_step.rs)
+
+[dev-dependencies]
+akantu-validation.workspace = true
+akantu-io.workspace = true
+serde_json.workspace = true
+sha2 = "0.10.9" # MIT OR Apache-2.0 (already used by akantu-validation)
+
+# Real-MPI MUMPS acceptance of the DOF manager / model solver (harness =
+# false; scripts/mumps/run-mumps-tests.sh runs it under mpirun 1/2/4).
+[[test]]
+name = "mumps_mpi_solver"
+harness = false
+required-features = ["mumps"]
+
+# Real-MPI acceptance of the PETSc backend (harness = false): run under
+# mpirun -np 1/2/4 by scripts/petsc/run-petsc-tests.sh (image
+# akantu-rs-petsc:dev).
+[[test]]
+name = "petsc_mpi"
+harness = false
+required-features = ["petsc"]
+
+[lints]
+workspace = true

@@ -1,0 +1,430 @@
+{
+  "format_version": 1,
+  "case_id": "model/implicit_dynamic/patch_triangle_6_plastic",
+  "description": "SolidMechanicsModel implicit_dynamic run on test/test_model/patch_tests/data/_triangle_6.msh (2D)",
+  "status": "golden",
+  "generator": {
+    "probe": "model_probe",
+    "probe_version": "3",
+    "command": "oracle/scripts/generate-fixtures.sh model"
+  },
+  "reference": {
+    "sha": "35a851780d0b9471d258ed53a003ae98aaa95ea0",
+    "describe": "v5.0.7-post1-554-g35a851780",
+    "patches": [
+      "modified:cmake/AkantuTestsMacros.cmake sha256=c280165a84912eab4bcc081b9eaaaa06aafdd83d4f48d982e11b0859abf9672f (reference sha256=36290de2ec8b111028138fe82029efa16501512241a5bc264fa30ff3e3239b9e)"
+    ]
+  },
+  "build": {
+    "config": "strict",
+    "compiler": "g++ (Debian 14.2.0-19) 14.2.0",
+    "cxx_flags": "-ffp-contract=off -DEIGEN_DONT_VECTORIZE -O2 -g -DNDEBUG -g3 -ggdb3 -flarge-source-files -std=c++20 -flto=auto -fno-fat-lto-objects -fPIC -frounding-math (actual flags of src/model/solid_mechanics/solid_mechanics_model.cc; warnings and non-FP -D defines omitted)",
+    "build_type": "RelWithDebInfo",
+    "arch": "aarch64",
+    "os": "Debian GNU/Linux 13 (trixie)",
+    "libraries": {
+      "eigen3": "3.4.0-5",
+      "boost": "1.83.0.2+b2",
+      "openmpi": "5.0.7-1",
+      "mumps": "5.7.3-3+b1",
+      "petsc": "3.22.5+dfsg1-2",
+      "scotch": "7.0.7-1",
+      "openblas": "0.3.29+ds-3",
+      "scalapack": "2.2.2-1",
+      "hdf5": "1.14.5+repack-3",
+      "gmsh": "4.13.1+ds1-6",
+      "pybind11": "2.13.6-2",
+      "numpy": "1:2.2.4+ds-1",
+      "scipy": "1.15.3-1",
+      "gcc": "4:14.2.0-1",
+      "gfortran": "4:14.2.0-1",
+      "oracle_image": "sha256:6683233d0a3b9341eb5cedf5879bc9ccb76ddf3d91e9aa0fd35b99dc7866d7a6",
+      "oracle_build_scripts": "45b473da9cbfb356a039d94609fe39f6f36a1a9a",
+      "oracle_install_reference_sha": "35a851780d0b9471d258ed53a003ae98aaa95ea0",
+      "oracle_install_image": "sha256:6683233d0a3b9341eb5cedf5879bc9ccb76ddf3d91e9aa0fd35b99dc7866d7a6",
+      "sha256:libakantu.so.5.0.7": "9768e51184f0423c49abfd67535e6f3bc371522045b0b634223cce0ee07f0b0b",
+      "probe_tree_sha256": "143c75b5587251bef009294c08187254689d0953a523500b1bff8b9d6b444c5e",
+      "probe_sources_commit": "d7acf10a92889e68b31004156a2a8ecba1bc4011",
+      "cmake_cxx_flags": "-ffp-contract=off -DEIGEN_DONT_VECTORIZE -O2 -g -DNDEBUG -g3 -ggdb3 -flarge-source-files",
+      "python": "3.13.5",
+      "sha256:py11_akantu.cpython-313-aarch64-linux-gnu.so": "623ccb68555804584eed7e8aeb990b7c269dc767c7fa7993c286c3794c8410c5"
+    },
+    "probe_compile_command": "python3 /probes/python/model_probe.py (akantu module /build/install-strict/share/akantu-oracle/python/akantu)",
+    "probe_cxx_flags": "n/a: Python probe, no probe translation unit; the numerical kernels run inside libakantu compiled with cxx_flags"
+  },
+  "created": "2026-11-09T16:04:58Z",
+  "inputs": [
+    {
+      "role": "mesh",
+      "path": "inputs/_triangle_6.msh",
+      "sha256": "ad98161be4777526da0c958cc92eea2a5f297fa40a9fef29d084865478f6cd69",
+      "source": "upstream:test/test_model/patch_tests/data/_triangle_6.msh"
+    },
+    {
+      "role": "material",
+      "path": "inputs/material.dat",
+      "sha256": "4326d3466df80f7430e9e1e5b40468da1bfda287b4ffb902ac72549866e7db72",
+      "source": "generated:model_probe.py"
+    }
+  ],
+  "parameters": {
+    "probe_semantics": "tensors [..., row, col] = M(row, col) (per-tuple transpose of the column-major binding buffer); static residual = f_ext + f_int",
+    "spatial_dimension": 2,
+    "dt": 0.0001,
+    "integration_scheme": "default of _implicit_dynamic (trapezoidal rule)",
+    "solver": {
+      "type": "newton_raphson",
+      "type_source": "SolidMechanicsModel::getDefaultSolverOptions (solid_mechanics_model.cc:146-160), bindings class NonLinearSolverNewtonRaphson",
+      "max_iterations": 50,
+      "threshold": 1e-10,
+      "convergence_type": "residual",
+      "normalisation": "converged when |r_k| < threshold * |r_0| (non_linear_solver_newton_raphson.cc:128-138), |.| = 2-norm over free DOFs"
+    },
+    "bc": "x = xmin blocked; v_y = 0.05 (x - xmin) initially",
+    "conditioning": {
+      "cond2_J_free_per_step": [
+        28.506756167997494,
+        28.506756167997494,
+        28.506756167997494,
+        28.506756167997494,
+        28.506756167997494
+      ],
+      "norm2_J_free_per_step": [
+        2632757923090.044,
+        2632757923090.044,
+        2632757923090.044,
+        2632757923090.044,
+        2632757923090.044
+      ],
+      "method": "numpy SVD of the Newton matrix J[free, free] (bit-exact AIJ) as left by the last Jacobian assembly of each step"
+    },
+    "newton_contraction": {
+      "max_ratio_per_step": [
+        2.182301123358154e-15,
+        0.27975320276909194,
+        0.33954132299592915,
+        0.31966045143412314,
+        0.33513589779859887
+      ],
+      "definition": "max_k |r_{k+1}| / |r_k| over the full residual history of the step (linear convergence: the plastic tangent is not the consistent one)"
+    },
+    "M": {
+      "shape": [
+        26,
+        26
+      ],
+      "symmetric_storage": true,
+      "dof_numbering": "DOFManager equation numbering, node*dim+component in serial",
+      "source": "SparseMatrixAIJ getIRN/getJCN/getA (bit-exact, 0-based)"
+    }
+  },
+  "storage": {
+    "mode": "committed",
+    "bytes": 13986
+  },
+  "steps": {
+    "recorded": [
+      1,
+      2,
+      3,
+      4,
+      5
+    ],
+    "dt": 0.0001
+  },
+  "quantities": [
+    {
+      "name": "blocked_dofs",
+      "file": "data/blocked_dofs.npy",
+      "dtype": "bool",
+      "shape": [
+        13,
+        2
+      ],
+      "axes": [
+        "node",
+        "component"
+      ],
+      "layout": "nodal",
+      "sha256": "92d6d954b3f0aa645b03de03fe57a8c33162e703ddf783f61a5d94764308fe3b",
+      "tolerance_class": "exact"
+    },
+    {
+      "name": "displacement",
+      "file": "data/displacement.npy",
+      "dtype": "f64",
+      "shape": [
+        5,
+        13,
+        2
+      ],
+      "axes": [
+        "step",
+        "node",
+        "component"
+      ],
+      "layout": "nodal",
+      "sha256": "309483f34b682724abbbc2cc7b5449f81177582a500fb63e136a62bc46e3fa87",
+      "tolerance_class": "nonlinear_solve"
+    },
+    {
+      "name": "velocity",
+      "file": "data/velocity.npy",
+      "dtype": "f64",
+      "shape": [
+        5,
+        13,
+        2
+      ],
+      "axes": [
+        "step",
+        "node",
+        "component"
+      ],
+      "layout": "nodal",
+      "sha256": "aa558ebc47cb13b7f66964ad25ea752b12152ba34d435018b266d0b777475a6f",
+      "tolerance_class": "nonlinear_solve"
+    },
+    {
+      "name": "acceleration",
+      "file": "data/acceleration.npy",
+      "dtype": "f64",
+      "shape": [
+        5,
+        13,
+        2
+      ],
+      "axes": [
+        "step",
+        "node",
+        "component"
+      ],
+      "layout": "nodal",
+      "sha256": "cca643329affa3bbf0df9e91eea9c0a7326b9cdbf6432d7e4065a4cfa790fb94",
+      "tolerance_class": "nonlinear_solve"
+    },
+    {
+      "name": "energy/kinetic",
+      "file": "data/energy__kinetic.npy",
+      "dtype": "f64",
+      "shape": [
+        5
+      ],
+      "axes": [
+        "step"
+      ],
+      "layout": "scalar",
+      "sha256": "05911a4d908e05a36ea144adc2d0baffe724c055dd70476b322d9462c15f05b0",
+      "tolerance_class": "nonlinear_solve"
+    },
+    {
+      "name": "energy/potential",
+      "file": "data/energy__potential.npy",
+      "dtype": "f64",
+      "shape": [
+        5
+      ],
+      "axes": [
+        "step"
+      ],
+      "layout": "scalar",
+      "sha256": "cc912aa39d12e8a3d4823592d8fec5f560de15dc4c3f15819c3077e307e8413e",
+      "tolerance_class": "nonlinear_solve"
+    },
+    {
+      "name": "newton/nb_iterations",
+      "file": "data/newton__nb_iterations.npy",
+      "dtype": "i64",
+      "shape": [
+        5
+      ],
+      "axes": [
+        "step"
+      ],
+      "layout": "scalar",
+      "sha256": "67a277afd6daf521fdfee905042b0738b7d5a36f90eac620863e936a5b4fe37d",
+      "tolerance_class": "exact"
+    },
+    {
+      "name": "newton/error",
+      "file": "data/newton__error.npy",
+      "dtype": "f64",
+      "shape": [
+        5
+      ],
+      "axes": [
+        "step"
+      ],
+      "layout": "scalar",
+      "sha256": "47e98cf59c6391f041ddcf66212774b25202fe6303553c7a4b7f2053c0ea6a86",
+      "tolerance_class": "nonlinear_solve",
+      "description": "solver `error` after convergence: |r_final| (2-norm over free DOFs, absolute, N)"
+    },
+    {
+      "name": "newton/residual_norm/offsets",
+      "file": "data/newton__residual_norm__offsets.npy",
+      "dtype": "i64",
+      "shape": [
+        6
+      ],
+      "axes": [
+        "entry"
+      ],
+      "layout": "ragged_offsets",
+      "sha256": "f0f539049c30c7008be71f15864347cc72d893189f8306f761e7fa598e15fa4f",
+      "tolerance_class": "exact"
+    },
+    {
+      "name": "newton/residual_norm",
+      "file": "data/newton__residual_norm.npy",
+      "dtype": "f64",
+      "shape": [
+        81
+      ],
+      "axes": [
+        "iteration"
+      ],
+      "layout": "ragged_values",
+      "sha256": "691bc20e181170688cf3e031c008f04e8eddd4d94d9be88d1f26943c48c5aedc",
+      "ragged": {
+        "offsets": "newton/residual_norm/offsets",
+        "row_axis": "step"
+      },
+      "tolerance_class": "nonlinear_solve",
+      "description": "Akantu's convergence residual |f_ext + f_int - M a| over free DOFs at r_0 and after every Newton iteration (nb_iterations + 1 entries per step; the last equals newton/error bit for bit)"
+    },
+    {
+      "name": "newton/static_residual_norm/offsets",
+      "file": "data/newton__static_residual_norm__offsets.npy",
+      "dtype": "i64",
+      "shape": [
+        6
+      ],
+      "axes": [
+        "entry"
+      ],
+      "layout": "ragged_offsets",
+      "sha256": "f0f539049c30c7008be71f15864347cc72d893189f8306f761e7fa598e15fa4f",
+      "tolerance_class": "exact"
+    },
+    {
+      "name": "newton/static_residual_norm",
+      "file": "data/newton__static_residual_norm.npy",
+      "dtype": "f64",
+      "shape": [
+        81
+      ],
+      "axes": [
+        "iteration"
+      ],
+      "layout": "ragged_values",
+      "sha256": "b10c54189982a77a5cf34e90d7689ecca38af25d51306d9e61855c08b2cdc1dc",
+      "ragged": {
+        "offsets": "newton/static_residual_norm/offsets",
+        "row_axis": "step"
+      },
+      "tolerance_class": "nonlinear_solve",
+      "description": "pre-inertia part |f_ext + f_int| over free DOFs at every residual assembly (the inertial term -M a is added after the solver callback)"
+    },
+    {
+      "name": "newton/static_residual_last",
+      "file": "data/newton__static_residual_last.npy",
+      "dtype": "f64",
+      "shape": [
+        5,
+        13,
+        2
+      ],
+      "axes": [
+        "step",
+        "node",
+        "component"
+      ],
+      "layout": "nodal",
+      "sha256": "e691138e69f97e3ec24ff4941a08293a5d50bb3d5f278f0fa648e8a33e1a6961",
+      "tolerance_class": "nonlinear_solve",
+      "description": "f_ext + f_int at the last residual assembly of each step; at convergence it equals M a on free DOFs up to newton/error"
+    },
+    {
+      "name": "M/rows",
+      "file": "data/M__rows.npy",
+      "dtype": "i64",
+      "shape": [
+        231
+      ],
+      "axes": [
+        "nnz"
+      ],
+      "layout": "matrix",
+      "sha256": "7ab3e38bea0ca87c8d16ec9c33039a03d20bb48ed3a50bb55570e2082543bb73",
+      "tolerance_class": "exact"
+    },
+    {
+      "name": "M/cols",
+      "file": "data/M__cols.npy",
+      "dtype": "i64",
+      "shape": [
+        231
+      ],
+      "axes": [
+        "nnz"
+      ],
+      "layout": "matrix",
+      "sha256": "8abb560ccffaa0dde245607859ef0dd97710372a21faf6d803c8bda9a13aafa3",
+      "tolerance_class": "exact"
+    },
+    {
+      "name": "M/values",
+      "file": "data/M__values.npy",
+      "dtype": "f64",
+      "shape": [
+        231
+      ],
+      "axes": [
+        "nnz"
+      ],
+      "layout": "matrix",
+      "sha256": "1f6666716776a70d499b797be3913ab5a594ac90d5c9c12ebc401ceb815eb0df",
+      "tolerance_class": "kernel",
+      "description": "consistent mass matrix (bit-exact AIJ storage)"
+    },
+    {
+      "name": "mesh/nodes",
+      "file": "data/mesh__nodes.npy",
+      "dtype": "f64",
+      "shape": [
+        13,
+        2
+      ],
+      "axes": [
+        "node",
+        "spatial_dim"
+      ],
+      "layout": "nodal",
+      "sha256": "9d1526057433e8681ff2a389d87c287e3c22d4200bce1b55b8de0d14fa29a075",
+      "tolerance_class": "exact",
+      "description": "node coordinates as read"
+    },
+    {
+      "name": "mesh/connectivity/_triangle_6",
+      "file": "data/mesh__connectivity___triangle_6.npy",
+      "dtype": "i64",
+      "shape": [
+        4,
+        6
+      ],
+      "axes": [
+        "element",
+        "node_local"
+      ],
+      "layout": "elemental",
+      "sha256": "6e3935ced25f3138b89abfe79d85b561e4283deff283357e641f395e0cb52b7c",
+      "element_type": "_triangle_6",
+      "tolerance_class": "exact"
+    }
+  ],
+  "tags": [
+    "model",
+    "implicit_dynamic"
+  ]
+}

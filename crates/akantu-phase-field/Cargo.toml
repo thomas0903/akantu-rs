@@ -1,0 +1,43 @@
+# SPDX-License-Identifier: LGPL-3.0-or-later
+[package]
+name = "akantu-phase-field"
+description = "Phase-field model and phase-field laws (port of src/model/phase_field)"
+version.workspace = true
+edition.workspace = true
+rust-version.workspace = true
+license.workspace = true
+repository.workspace = true
+authors.workspace = true
+homepage.workspace = true
+keywords.workspace = true
+categories.workspace = true
+publish = false
+
+[features]
+# The PETSc DOF manager for the model (`dof_manager_type = petsc`,
+# `PhaseFieldModel::init_dof_manager("petsc")`) and the bound-constrained
+# `petsc_tao` solve of `irreversibility_type = tao` (PF-015,
+# PF-018, TEST-095, TEST-100). Off by default; needs MPI and a system PETSc
+# (docker/petsc, PETSc tier). Licence: a build with this feature links PETSc
+# and its GPL-2+ dependencies and is distributed under GPL-3.0-or-later as a
+# whole (D-076 option A, NOTICE.md "PETSc").
+petsc = ["akantu-solver/petsc", "akantu-comm/mpi"]
+
+[dependencies]
+akantu-core.workspace = true
+akantu-parser.workspace = true
+akantu-comm.workspace = true
+akantu-mesh.workspace = true
+akantu-fe.workspace = true
+akantu-solver.workspace = true
+akantu-model.workspace = true
+# ParaView dumper `phase_field` (PF-012); Gmsh meshes in the tests.
+akantu-io.workspace = true
+
+[dev-dependencies]
+# Differential tests against the golden fixtures (fixtures/model/phase_field).
+akantu-validation.workspace = true
+serde_json.workspace = true
+
+[lints]
+workspace = true

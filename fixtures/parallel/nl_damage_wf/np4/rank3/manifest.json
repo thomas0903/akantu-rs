@@ -1,0 +1,741 @@
+{
+  "format_version": 1,
+  "case_id": "parallel/nl_damage_wf/np4/rank3",
+  "description": "nl_region with the damage_wf weight function: two averaging test laws sharing the neighbourhood test_region on parallel_test.msh, rank view",
+  "status": "golden",
+  "generator": {
+    "probe": "par4_probe",
+    "probe_version": "1",
+    "command": "oracle/probes/par4/generate.sh "
+  },
+  "reference": {
+    "sha": "35a851780d0b9471d258ed53a003ae98aaa95ea0",
+    "describe": "v5.0.7-post1-554-g35a851780",
+    "patches": [
+      "modified:cmake/AkantuTestsMacros.cmake sha256=c280165a84912eab4bcc081b9eaaaa06aafdd83d4f48d982e11b0859abf9672f (reference sha256=36290de2ec8b111028138fe82029efa16501512241a5bc264fa30ff3e3239b9e)"
+    ]
+  },
+  "build": {
+  "config": "strict",
+  "compiler": "g++ (Debian 14.2.0-19) 14.2.0",
+  "cxx_flags": "-ffp-contract=off -DEIGEN_DONT_VECTORIZE -DEIGEN_NO_CPUID -DEIGEN_DEFAULT_L1_CACHE_SIZE=16384 -DEIGEN_DEFAULT_L2_CACHE_SIZE=524288 -DEIGEN_DEFAULT_L3_CACHE_SIZE=524288 -O2 -g -DNDEBUG -g3 -ggdb3 -flarge-source-files -std=c++20 -flto=auto -fno-fat-lto-objects -fPIC -frounding-math (actual flags of src/model/solid_mechanics/solid_mechanics_model.cc; warnings and non-FP -D defines omitted)",
+  "build_type": "RelWithDebInfo",
+  "arch": "x86_64",
+  "os": "Debian GNU/Linux 13 (trixie)",
+  "libraries": {"eigen_cache_sizes_measured": "16384,524288,524288 (Eigen::l1/l2/l3CacheSize() read at run time in the probe process, D-050)", 
+    "eigen3": "3.4.0-5",
+    "boost": "1.83.0.2+b2",
+    "openmpi": "5.0.7-1",
+    "mumps": "5.7.3-3+b1",
+    "petsc": "3.22.5+dfsg1-2",
+    "scotch": "7.0.7-1",
+    "openblas": "0.3.29+ds-3",
+    "scalapack": "2.2.2-1",
+    "hdf5": "1.14.5+repack-3",
+    "gmsh": "4.13.1+ds1-6",
+    "pybind11": "2.13.6-2",
+    "numpy": "1:2.2.4+ds-1",
+    "scipy": "1.15.3-1",
+    "gcc": "4:14.2.0-1",
+    "gfortran": "4:14.2.0-1",
+    "oracle_image": "sha256:2da26d87e063f3c88264f589cf73381feff583eeaa7770d2e01ae034651d59f5",
+    "oracle_build_scripts": "cca6e460cd3430bf0180262e7ebe26be762112e9",
+    "oracle_install_reference_sha": "35a851780d0b9471d258ed53a003ae98aaa95ea0",
+    "oracle_install_image": "sha256:2da26d87e063f3c88264f589cf73381feff583eeaa7770d2e01ae034651d59f5",
+    "openblas_coretype": "Haswell",
+    "openblas_num_threads": "1",
+    "eigen_cache_sizes": "16384,524288,524288 (compile-time pin of the library and of the probe translation unit: EIGEN_NO_CPUID + defaults, D-050)",
+    "host_cpu": "AMD EPYC 4585PX 16-Core Processor",
+    "x86_64_level": "v3",
+    "sha256:libakantu.so.5.0.7": "554ecfc7838d8c8aa3955f37f2efb556a7f09426083b74af262ffdcccff657ff",
+    "probe_tree_sha256": "57b4abc0f0b57c28d5bd3da00d7d89b1da2ad57ab916743f5058ab3970a76bac",
+    "probe_sources_commit": "422c80a146e2bbd0bf8bdf7253aa036cee175705",
+    "cmake_cxx_flags": "-ffp-contract=off -DEIGEN_DONT_VECTORIZE -DEIGEN_NO_CPUID -DEIGEN_DEFAULT_L1_CACHE_SIZE=16384 -DEIGEN_DEFAULT_L2_CACHE_SIZE=524288 -DEIGEN_DEFAULT_L3_CACHE_SIZE=524288 -O2 -g -DNDEBUG -g3 -ggdb3 -flarge-source-files",
+    "probe": "par4_probe"
+  },
+  "probe_compile_command": "/usr/bin/c++ '-DAKANTU_PROBE_BUILD_TYPE=\"RelWithDebInfo\"' '-DAKANTU_PROBE_CONFIG=\"strict\"' '-DAKANTU_PROBE_CXX_FLAGS=\"-ffp-contract=off -DEIGEN_DONT_VECTORIZE -DEIGEN_NO_CPUID -DEIGEN_DEFAULT_L1_CACHE_SIZE=16384 -DEIGEN_DEFAULT_L2_CACHE_SIZE=524288 -DEIGEN_DEFAULT_L3_CACHE_SIZE=524288  -O2 -g -DNDEBUG\"' -DBOOST_GRAPH_DYN_LINK -DBOOST_GRAPH_NO_LIB -DBOOST_REGEX_DYN_LINK -DBOOST_REGEX_NO_LIB -DCGAL_USE_GMPXX=1 -I/probes/par4/../include -isystem /build/install-strict/include/akantu -isystem /opt/CGAL-5.6.2/include -isystem /usr/lib/x86_64-linux-gnu/openmpi/include -isystem /usr/lib/x86_64-linux-gnu/openmpi/include/openmpi -isystem /usr/lib/petscdir/petsc3.22/x86_64-linux-gnu-real/include -isystem /usr/include/scotch -isystem /build/install-strict/include/akantu_iterators -isystem /usr/include/eigen3 -isystem /build/install-strict/include/iohelper -O2 -g -DNDEBUG -std=gnu++20 -ffp-contract=off -DEIGEN_DONT_VECTORIZE -DEIGEN_NO_CPUID -DEIGEN_DEFAULT_L1_CACHE_SIZE=16384 -DEIGEN_DEFAULT_L2_CACHE_SIZE=524288 -DEIGEN_DEFAULT_L3_CACHE_SIZE=524288 -Wall -Wextra -pedantic -Wno-array-bounds -Wno-use-after-free -Wno-stringop-overread -DOMPI_SKIP_MPICXX -Wno-literal-suffix -frounding-math -o CMakeFiles/par4_probe.dir/par4_probe.cc.o -c /probes/par4/par4_probe.cc",
+  "probe_cxx_flags": "-DAKANTU_PROBE_BUILD_TYPE=\"RelWithDebInfo\" -DAKANTU_PROBE_CONFIG=\"strict\" -DAKANTU_PROBE_CXX_FLAGS=\"-ffp-contract=off -DEIGEN_DONT_VECTORIZE -DEIGEN_NO_CPUID -DEIGEN_DEFAULT_L1_CACHE_SIZE=16384 -DEIGEN_DEFAULT_L2_CACHE_SIZE=524288 -DEIGEN_DEFAULT_L3_CACHE_SIZE=524288  -O2 -g -DNDEBUG\" -DBOOST_GRAPH_DYN_LINK -DBOOST_GRAPH_NO_LIB -DBOOST_REGEX_DYN_LINK -DBOOST_REGEX_NO_LIB -DCGAL_USE_GMPXX=1 -O2 -g -DNDEBUG -std=gnu++20 -ffp-contract=off -DEIGEN_DONT_VECTORIZE -DEIGEN_NO_CPUID -DEIGEN_DEFAULT_L1_CACHE_SIZE=16384 -DEIGEN_DEFAULT_L2_CACHE_SIZE=524288 -DEIGEN_DEFAULT_L3_CACHE_SIZE=524288 -Wall -Wextra -pedantic -Wno-array-bounds -Wno-use-after-free -Wno-stringop-overread -DOMPI_SKIP_MPICXX -Wno-literal-suffix -frounding-math"
+},
+  "created": "2026-11-12T10:33:04Z",
+  "inputs": [
+    {
+      "role": "mesh",
+      "path": "inputs/parallel_test.msh",
+      "source": "upstream:test/test_model/test_common/test_non_local_toolbox/parallel_test.msh",
+      "sha256": "8fc792ac308ba25fc2aeffcf7d92bb90803bff0610def621b39e9dd16c644e7b"
+    }
+  ],
+  "parameters": {
+    "oracle_pin/eigen_cache_sizes": "16384 524288 524288",
+    "oracle_pin/openblas_coretype": "Haswell",
+    "oracle_pin/openblas_num_threads": "1",
+    "init/test_region/pairs/not_ghost/sha256": "352f2a9dc2c63af99b341ad0de27185b3d3b7f27135976fb2a8d3bb46d03ebe1",
+    "init/test_region/weights/not_ghost/sha256": "6d1f4276cbc3026fac5825704290794e27a8e1df0524b6b653fbe548effb09b2",
+    "init/test_region/pairs/ghost/sha256": "099fd8c58bb5b60dd34e53e2fec391573b887c84003e1503ff164ec7dbd3a75d",
+    "init/test_region/weights/ghost/sha256": "a5a55aa8e1f95f4ceb34e7740af473ace16a61c77305d56c15b37805e385d99a",
+    "call0/test_region/weights/not_ghost/sha256": "6d1f4276cbc3026fac5825704290794e27a8e1df0524b6b653fbe548effb09b2",
+    "call0/test_region/weights/ghost/sha256": "a5a55aa8e1f95f4ceb34e7740af473ace16a61c77305d56c15b37805e385d99a",
+    "call1/test_region/weights/not_ghost/sha256": "a5e8229c68e8eca9a23fc6799308b14dbecc70d15304d5106e4835abf54a053a",
+    "call1/test_region/weights/ghost/sha256": "7c32fc4029fc30c79d1fd9d9da248d55c298c2ff73593f4ed2661bb925c2ed1f",
+    "ghost_filter_rewrites": 3
+  },
+  "storage": {
+    "mode": "committed",
+    "bytes": 112864
+  },
+  "quantities": [
+    {
+      "name": "distributed/conn/_triangle_3/not_ghost",
+      "file": "data/distributed__conn___triangle_3__not_ghost.npy",
+      "dtype": "i64",
+      "shape": [
+        356,
+        3
+      ],
+      "axes": [
+        "entry",
+        "component"
+      ],
+      "layout": "table",
+      "sha256": "0d28a6d3e01c9aaacabc20ffca7e6f41355e5327c39d79a77065124e4925241a",
+      "description": "global connectivity of every element (mesh order)",
+      "tolerance_class": "exact"
+    },
+    {
+      "name": "distributed/conn/_triangle_3/ghost",
+      "file": "data/distributed__conn___triangle_3__ghost.npy",
+      "dtype": "i64",
+      "shape": [
+        63,
+        3
+      ],
+      "axes": [
+        "entry",
+        "component"
+      ],
+      "layout": "table",
+      "sha256": "437c9084f4ca5bc4a1692835d6c43779e667ac280b4072a7a7598297e6f7cf63",
+      "description": "global connectivity of every element (mesh order)",
+      "tolerance_class": "exact"
+    },
+    {
+      "name": "distributed/ghost_counters/_triangle_3",
+      "file": "data/distributed__ghost_counters___triangle_3.npy",
+      "dtype": "i64",
+      "shape": [
+        63
+      ],
+      "axes": [
+        "entry"
+      ],
+      "layout": "table",
+      "sha256": "0d624607d341cc26f8f5f87c4c70ca845affa7354a06bb1f7574f470b37d5341",
+      "description": "ghost counter of every ghost element",
+      "tolerance_class": "exact"
+    },
+    {
+      "name": "distributed/node_global_ids",
+      "file": "data/distributed__node_global_ids.npy",
+      "dtype": "i64",
+      "shape": [
+        242
+      ],
+      "axes": [
+        "entry"
+      ],
+      "layout": "table",
+      "sha256": "59ab4135140db1fb422ecb83c26517a473c93901405d97f62fed16abc27822c0",
+      "description": "global id of every local node",
+      "tolerance_class": "exact"
+    },
+    {
+      "name": "distributed/node_flags",
+      "file": "data/distributed__node_flags.npy",
+      "dtype": "i64",
+      "shape": [
+        242
+      ],
+      "axes": [
+        "entry"
+      ],
+      "layout": "table",
+      "sha256": "7eb4bee12d57f80275f19a6b672712f2a258958f98ffba61e6f0525a99e46cef",
+      "description": "NodeFlag bits of every local node",
+      "tolerance_class": "exact"
+    },
+    {
+      "name": "distributed/node_pranks",
+      "file": "data/distributed__node_pranks.npy",
+      "dtype": "i64",
+      "shape": [
+        242
+      ],
+      "axes": [
+        "entry"
+      ],
+      "layout": "table",
+      "sha256": "fbd0a03f3d39d8454d4ef250966679eead7fc01ea70bd389eedd294fedc72840",
+      "description": "owner rank of every local node (-1: none)",
+      "tolerance_class": "exact"
+    },
+    {
+      "name": "distributed/nodes",
+      "file": "data/distributed__nodes.npy",
+      "dtype": "f64",
+      "shape": [
+        242,
+        2
+      ],
+      "axes": [
+        "entry",
+        "component"
+      ],
+      "layout": "table",
+      "sha256": "0dc3bfbd8808372f8d50011b3452706f7246b25d35f4a2890a6bebae8c276bcc",
+      "description": "coordinates of every local node",
+      "tolerance_class": "exact"
+    },
+    {
+      "name": "init/conn/_triangle_3/not_ghost",
+      "file": "data/init__conn___triangle_3__not_ghost.npy",
+      "dtype": "i64",
+      "shape": [
+        356,
+        3
+      ],
+      "axes": [
+        "entry",
+        "component"
+      ],
+      "layout": "table",
+      "sha256": "0d28a6d3e01c9aaacabc20ffca7e6f41355e5327c39d79a77065124e4925241a",
+      "description": "global connectivity of every element (mesh order)",
+      "tolerance_class": "exact"
+    },
+    {
+      "name": "init/conn/_triangle_3/ghost",
+      "file": "data/init__conn___triangle_3__ghost.npy",
+      "dtype": "i64",
+      "shape": [
+        63,
+        3
+      ],
+      "axes": [
+        "entry",
+        "component"
+      ],
+      "layout": "table",
+      "sha256": "437c9084f4ca5bc4a1692835d6c43779e667ac280b4072a7a7598297e6f7cf63",
+      "description": "global connectivity of every element (mesh order)",
+      "tolerance_class": "exact"
+    },
+    {
+      "name": "init/ghost_counters/_triangle_3",
+      "file": "data/init__ghost_counters___triangle_3.npy",
+      "dtype": "i64",
+      "shape": [
+        63
+      ],
+      "axes": [
+        "entry"
+      ],
+      "layout": "table",
+      "sha256": "228690487ce28ef648a4a5c008daac06cd9672e8d6c68fba72120711b6fdd61c",
+      "description": "ghost counter of every ghost element",
+      "tolerance_class": "exact"
+    },
+    {
+      "name": "init/node_global_ids",
+      "file": "data/init__node_global_ids.npy",
+      "dtype": "i64",
+      "shape": [
+        614
+      ],
+      "axes": [
+        "entry"
+      ],
+      "layout": "table",
+      "sha256": "175c1d29b261703ad0f449f592f7ac1052ca6553ed0caaeaa09fb93ac28ed2ae",
+      "description": "global id of every local node",
+      "tolerance_class": "exact"
+    },
+    {
+      "name": "init/node_flags",
+      "file": "data/init__node_flags.npy",
+      "dtype": "i64",
+      "shape": [
+        614
+      ],
+      "axes": [
+        "entry"
+      ],
+      "layout": "table",
+      "sha256": "37cbea028a7701b74eb0d95b2f3ec21c5fe0ab8f454f9be0da9d164a39c3bc16",
+      "description": "NodeFlag bits of every local node",
+      "tolerance_class": "exact"
+    },
+    {
+      "name": "init/node_pranks",
+      "file": "data/init__node_pranks.npy",
+      "dtype": "i64",
+      "shape": [
+        614
+      ],
+      "axes": [
+        "entry"
+      ],
+      "layout": "table",
+      "sha256": "49a8317c021a5400c2151f14c759ce12ecb7229c28c209164e9f05324c4f8208",
+      "description": "owner rank of every local node (-1: none)",
+      "tolerance_class": "exact"
+    },
+    {
+      "name": "init/nodes",
+      "file": "data/init__nodes.npy",
+      "dtype": "f64",
+      "shape": [
+        614,
+        2
+      ],
+      "axes": [
+        "entry",
+        "component"
+      ],
+      "layout": "table",
+      "sha256": "e81c495b714c78a8e3290a6994aac2f239c6ca4a521922235726ab60cee4c184",
+      "description": "coordinates of every local node",
+      "tolerance_class": "exact"
+    },
+    {
+      "name": "init/law_index/_triangle_3/ghost",
+      "file": "data/init__law_index___triangle_3__ghost.npy",
+      "dtype": "i64",
+      "shape": [
+        63
+      ],
+      "axes": [
+        "entry"
+      ],
+      "layout": "table",
+      "sha256": "0d624607d341cc26f8f5f87c4c70ca845affa7354a06bb1f7574f470b37d5341",
+      "description": "law of every ghost element (-1: none)",
+      "tolerance_class": "exact"
+    },
+    {
+      "name": "init/law0/filter/_triangle_3/not_ghost",
+      "file": "data/init__law0__filter___triangle_3__not_ghost.npy",
+      "dtype": "i64",
+      "shape": [
+        0
+      ],
+      "axes": [
+        "entry"
+      ],
+      "layout": "table",
+      "sha256": "e734dac55ea9fbbe782af2d8c02c3c5992131906228afb2aaaf137d6f3ed74db",
+      "description": "law element filter (ghost: rank-order rewrite, UD-232)",
+      "tolerance_class": "exact"
+    },
+    {
+      "name": "init/law0/filter/_triangle_3/ghost",
+      "file": "data/init__law0__filter___triangle_3__ghost.npy",
+      "dtype": "i64",
+      "shape": [
+        0
+      ],
+      "axes": [
+        "entry"
+      ],
+      "layout": "table",
+      "sha256": "e734dac55ea9fbbe782af2d8c02c3c5992131906228afb2aaaf137d6f3ed74db",
+      "description": "law element filter (ghost: rank-order rewrite, UD-232)",
+      "tolerance_class": "exact"
+    },
+    {
+      "name": "init/law1/filter/_triangle_3/not_ghost",
+      "file": "data/init__law1__filter___triangle_3__not_ghost.npy",
+      "dtype": "i64",
+      "shape": [
+        356
+      ],
+      "axes": [
+        "entry"
+      ],
+      "layout": "table",
+      "sha256": "36ec624d17a8fd6355fba1029bd02a425ee2ef105b7685e284bce321cb946c6d",
+      "description": "law element filter (ghost: rank-order rewrite, UD-232)",
+      "tolerance_class": "exact"
+    },
+    {
+      "name": "init/law1/filter/_triangle_3/ghost",
+      "file": "data/init__law1__filter___triangle_3__ghost.npy",
+      "dtype": "i64",
+      "shape": [
+        63
+      ],
+      "axes": [
+        "entry"
+      ],
+      "layout": "table",
+      "sha256": "ad340c0eb32fdddf06f5e9575da290cb2a46e1d8d5ab8a7b4019508f001a6c09",
+      "description": "law element filter (ghost: rank-order rewrite, UD-232)",
+      "tolerance_class": "exact"
+    },
+    {
+      "name": "init/test_region/pairs/not_ghost/count",
+      "file": "data/init__test_region__pairs__not_ghost__count.npy",
+      "dtype": "i64",
+      "shape": [
+        1
+      ],
+      "axes": [
+        "entry"
+      ],
+      "layout": "table",
+      "sha256": "60915aa5a6859b58c19d2759a3ad98e2b8ca4deb048994da9f987ded84dd508e",
+      "description": "number of pairs of the list",
+      "tolerance_class": "exact"
+    },
+    {
+      "name": "init/test_region/pairs/ghost/count",
+      "file": "data/init__test_region__pairs__ghost__count.npy",
+      "dtype": "i64",
+      "shape": [
+        1
+      ],
+      "axes": [
+        "entry"
+      ],
+      "layout": "table",
+      "sha256": "e2844c156cad9c612911bd77bfb31e199690907bc1ae1894b563a7f17984db21",
+      "description": "number of pairs of the list",
+      "tolerance_class": "exact"
+    },
+    {
+      "name": "init/test_region/grid/send/0",
+      "file": "data/init__test_region__grid__send__0.npy",
+      "dtype": "i64",
+      "shape": [
+        33,
+        3
+      ],
+      "axes": [
+        "entry",
+        "component"
+      ],
+      "layout": "table",
+      "sha256": "d0adf92be3a4ab07ff9664277468e63861a240effc4a9ff356b4debc6c54eddb",
+      "description": "scheme entries (type enum, element, ghost type), scheme order",
+      "tolerance_class": "exact"
+    },
+    {
+      "name": "init/test_region/grid/send/1",
+      "file": "data/init__test_region__grid__send__1.npy",
+      "dtype": "i64",
+      "shape": [
+        0,
+        3
+      ],
+      "axes": [
+        "entry",
+        "component"
+      ],
+      "layout": "table",
+      "sha256": "09335c7d428a982a1579c2e4ed7b3c0906514ef4adc62fc1aa06cf7af47d2f32",
+      "description": "scheme entries (type enum, element, ghost type), scheme order",
+      "tolerance_class": "exact"
+    },
+    {
+      "name": "init/test_region/grid/send/2",
+      "file": "data/init__test_region__grid__send__2.npy",
+      "dtype": "i64",
+      "shape": [
+        29,
+        3
+      ],
+      "axes": [
+        "entry",
+        "component"
+      ],
+      "layout": "table",
+      "sha256": "960642354459fb4f7752febbfa95e8636e1696cd9359571eda431de990c5cd7e",
+      "description": "scheme entries (type enum, element, ghost type), scheme order",
+      "tolerance_class": "exact"
+    },
+    {
+      "name": "init/test_region/grid/recv/0",
+      "file": "data/init__test_region__grid__recv__0.npy",
+      "dtype": "i64",
+      "shape": [
+        34,
+        3
+      ],
+      "axes": [
+        "entry",
+        "component"
+      ],
+      "layout": "table",
+      "sha256": "09672ff13099e6f19206f196afaf15f8ada55b8f14c4c3b1a0eda755722001e2",
+      "description": "scheme entries (type enum, element, ghost type), scheme order",
+      "tolerance_class": "exact"
+    },
+    {
+      "name": "init/test_region/grid/recv/1",
+      "file": "data/init__test_region__grid__recv__1.npy",
+      "dtype": "i64",
+      "shape": [
+        0,
+        3
+      ],
+      "axes": [
+        "entry",
+        "component"
+      ],
+      "layout": "table",
+      "sha256": "09335c7d428a982a1579c2e4ed7b3c0906514ef4adc62fc1aa06cf7af47d2f32",
+      "description": "scheme entries (type enum, element, ghost type), scheme order",
+      "tolerance_class": "exact"
+    },
+    {
+      "name": "init/test_region/grid/recv/2",
+      "file": "data/init__test_region__grid__recv__2.npy",
+      "dtype": "i64",
+      "shape": [
+        29,
+        3
+      ],
+      "axes": [
+        "entry",
+        "component"
+      ],
+      "layout": "table",
+      "sha256": "7ffb062021c7e7a23ee1a8dffceecfbf2bd37da0e65a65f382d60a9148100655",
+      "description": "scheme entries (type enum, element, ghost type), scheme order",
+      "tolerance_class": "exact"
+    },
+    {
+      "name": "init/volumes/_triangle_3/not_ghost",
+      "file": "data/init__volumes___triangle_3__not_ghost.npy",
+      "dtype": "f64",
+      "shape": [
+        356,
+        1
+      ],
+      "axes": [
+        "entry",
+        "component"
+      ],
+      "layout": "table",
+      "sha256": "7e9624c57f3ceeadce2de971417343681e94f283328584706fb514eeb58b0bd0",
+      "description": "per integration point (element * nb_quad + q)",
+      "tolerance_class": "exact"
+    },
+    {
+      "name": "init/volumes/_triangle_3/ghost",
+      "file": "data/init__volumes___triangle_3__ghost.npy",
+      "dtype": "f64",
+      "shape": [
+        63,
+        1
+      ],
+      "axes": [
+        "entry",
+        "component"
+      ],
+      "layout": "table",
+      "sha256": "0afe134841ddbf20c786ab1941205e16a7ef3b5fc5bd3f21a325d5bd6ef7b5ec",
+      "description": "per integration point (element * nb_quad + q)",
+      "tolerance_class": "exact"
+    },
+    {
+      "name": "call0/law0/grad_u_non_local/_triangle_3/not_ghost",
+      "file": "data/call0__law0__grad_u_non_local___triangle_3__not_ghost.npy",
+      "dtype": "f64",
+      "shape": [
+        0,
+        4
+      ],
+      "axes": [
+        "entry",
+        "component"
+      ],
+      "layout": "table",
+      "sha256": "8825ff7dd3621950d9d249e0725e93ab26e2904d6d9eff4a45bd0630772b2c67",
+      "description": "grad_u non local per law-local element and point",
+      "tolerance_class": "exact"
+    },
+    {
+      "name": "call0/law1/grad_u_non_local/_triangle_3/not_ghost",
+      "file": "data/call0__law1__grad_u_non_local___triangle_3__not_ghost.npy",
+      "dtype": "f64",
+      "shape": [
+        356,
+        4
+      ],
+      "axes": [
+        "entry",
+        "component"
+      ],
+      "layout": "table",
+      "sha256": "75b2d95a9873c3991d8e31380d9c904c91a87a6e4f0e248caaa7df799f2894da",
+      "description": "grad_u non local per law-local element and point",
+      "tolerance_class": "exact"
+    },
+    {
+      "name": "call0/volumes/_triangle_3/not_ghost",
+      "file": "data/call0__volumes___triangle_3__not_ghost.npy",
+      "dtype": "f64",
+      "shape": [
+        356,
+        1
+      ],
+      "axes": [
+        "entry",
+        "component"
+      ],
+      "layout": "table",
+      "sha256": "7e9624c57f3ceeadce2de971417343681e94f283328584706fb514eeb58b0bd0",
+      "description": "per integration point (element * nb_quad + q)",
+      "tolerance_class": "exact"
+    },
+    {
+      "name": "call0/volumes/_triangle_3/ghost",
+      "file": "data/call0__volumes___triangle_3__ghost.npy",
+      "dtype": "f64",
+      "shape": [
+        63,
+        1
+      ],
+      "axes": [
+        "entry",
+        "component"
+      ],
+      "layout": "table",
+      "sha256": "0afe134841ddbf20c786ab1941205e16a7ef3b5fc5bd3f21a325d5bd6ef7b5ec",
+      "description": "per integration point (element * nb_quad + q)",
+      "tolerance_class": "exact"
+    },
+    {
+      "name": "call1/law0/grad_u_non_local/_triangle_3/not_ghost",
+      "file": "data/call1__law0__grad_u_non_local___triangle_3__not_ghost.npy",
+      "dtype": "f64",
+      "shape": [
+        0,
+        4
+      ],
+      "axes": [
+        "entry",
+        "component"
+      ],
+      "layout": "table",
+      "sha256": "8825ff7dd3621950d9d249e0725e93ab26e2904d6d9eff4a45bd0630772b2c67",
+      "description": "grad_u non local per law-local element and point",
+      "tolerance_class": "exact"
+    },
+    {
+      "name": "call1/law1/grad_u_non_local/_triangle_3/not_ghost",
+      "file": "data/call1__law1__grad_u_non_local___triangle_3__not_ghost.npy",
+      "dtype": "f64",
+      "shape": [
+        356,
+        4
+      ],
+      "axes": [
+        "entry",
+        "component"
+      ],
+      "layout": "table",
+      "sha256": "70931f74ee08c36e38928423b45618f7927b3bc0c7809e227918ae002dc66cb2",
+      "description": "grad_u non local per law-local element and point",
+      "tolerance_class": "exact"
+    },
+    {
+      "name": "call1/law0/damage/_triangle_3/not_ghost",
+      "file": "data/call1__law0__damage___triangle_3__not_ghost.npy",
+      "dtype": "f64",
+      "shape": [
+        0,
+        1
+      ],
+      "axes": [
+        "entry",
+        "component"
+      ],
+      "layout": "table",
+      "sha256": "aa03397bf977ff4f544e8768afd91f3f4b876dc9732a7b9550ca82f5639b5ef4",
+      "description": "damage per law-local element and point",
+      "tolerance_class": "exact"
+    },
+    {
+      "name": "call1/law1/damage/_triangle_3/not_ghost",
+      "file": "data/call1__law1__damage___triangle_3__not_ghost.npy",
+      "dtype": "f64",
+      "shape": [
+        356,
+        1
+      ],
+      "axes": [
+        "entry",
+        "component"
+      ],
+      "layout": "table",
+      "sha256": "047c2525cc9e2dbfefdcab62101f9107cfd4ba5de5c13a9953c3d141df33ba4e",
+      "description": "damage per law-local element and point",
+      "tolerance_class": "exact"
+    },
+    {
+      "name": "call1/volumes/_triangle_3/not_ghost",
+      "file": "data/call1__volumes___triangle_3__not_ghost.npy",
+      "dtype": "f64",
+      "shape": [
+        356,
+        1
+      ],
+      "axes": [
+        "entry",
+        "component"
+      ],
+      "layout": "table",
+      "sha256": "5d51250208f0c57b0b2222645d51a4eba51bbb3ccec58e5d34f5f528747b420e",
+      "description": "per integration point (element * nb_quad + q)",
+      "tolerance_class": "exact"
+    },
+    {
+      "name": "call1/volumes/_triangle_3/ghost",
+      "file": "data/call1__volumes___triangle_3__ghost.npy",
+      "dtype": "f64",
+      "shape": [
+        63,
+        1
+      ],
+      "axes": [
+        "entry",
+        "component"
+      ],
+      "layout": "table",
+      "sha256": "0afe134841ddbf20c786ab1941205e16a7ef3b5fc5bd3f21a325d5bd6ef7b5ec",
+      "description": "per integration point (element * nb_quad + q)",
+      "tolerance_class": "exact"
+    },
+    {
+      "name": "call1/internal_force",
+      "file": "data/call1__internal_force.npy",
+      "dtype": "f64",
+      "shape": [
+        614,
+        2
+      ],
+      "axes": [
+        "entry",
+        "component"
+      ],
+      "layout": "table",
+      "sha256": "bb1b52d53f5e76a5243d6bd6fcd7950be08c0f59efb92663d1cebfa79d7d3f85",
+      "description": "internal force",
+      "tolerance_class": "exact"
+    }
+  ],
+  "tags": [
+    "parallel"
+  ]
+}

@@ -1,0 +1,29 @@
+# SPDX-License-Identifier: LGPL-3.0-or-later
+# Part of akantu-rs, a Rust port of Akantu (EPFL/LSMS). No upstream
+# counterpart: the first
+# session on AWS, run and judged BEFORE the main plan (mn_plan_aws.txt) is
+# started. Format: mn_session.py. Every line carries the settings of the
+# full-size rerun (D-105 / D-108); every run is @required, so the session
+# stops at the first run that is not `ok`. Budget: 0.4 h; about 0.2 h of runs.
+# Needs --meshes akantu-mn-meshes-test.tar.gz (h0.06) besides the frozen h0.12.
+# It is also the first MPI start across the hosts: the preflight's probe never
+# calls MPI_Init; s-p64 is the first job whose ranks talk over the
+# network, 8 per host as in joss64x8.
+#
+# Verdict (one line, read before the main session starts; on the head, or on
+# the Mac on the copied results):
+#   python3 -I mn/crates/akantu-bench/scripts/mn_compare.py --smoke mn-smoke mn/images.txt
+#   -> SMOKE: PASS | SMOKE: FAIL: <reasons>
+# It checks: every run `ok` (its last attempt), the preflight clean; Eigen
+# 1 vs 8 hosts A exact + B bitwise; MUMPS 1 vs 8 hosts A exact + C (counts and
+# insertion list equal to the 1-host run of the same binary); s-p64 placed
+# 8 ranks per host with MUMPS on 64 processes; rust_cohesive_compat = upstream
+# and rust_doubled_node_load = follows_elements in every summary; every
+# run's binary.sha256 = rust_bin_sha256 of images.txt.
+#
+# name        mesh   np hosts steps solver partition     estimate_h  settings
+s-eig-h1      h0.12   8  1  1500  eigen  scotch          0.03  rust_cohesive_compat=upstream rust_doubled_node_load=follows_elements @required
+s-eig-h8      h0.12   8  8  1500  eigen  run:s-eig-h1    0.03  rust_cohesive_compat=upstream rust_doubled_node_load=follows_elements @required
+s-mumps-h1    h0.12   8  1  1500  auto   run:s-eig-h1    0.03  rust_cohesive_compat=upstream rust_doubled_node_load=follows_elements @required
+s-mumps-h8    h0.12   8  8  1500  auto   run:s-eig-h1    0.03  rust_cohesive_compat=upstream rust_doubled_node_load=follows_elements @required
+s-p64         h0.06  64  8  1500  auto   scotch          0.06  rust_cohesive_compat=upstream rust_doubled_node_load=follows_elements @required

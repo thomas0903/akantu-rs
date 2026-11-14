@@ -1,0 +1,2744 @@
+{
+  "format_version": 1,
+  "case_id": "parallel_cohesive/fragments_tri/np4/rank1",
+  "description": "FragmentManager::computeAllData on a distributed mesh broken line by line (rank view)",
+  "status": "golden",
+  "generator": {
+    "probe": "parallel_cohesive_probe",
+    "probe_version": "2",
+    "command": "oracle/probes/parallel_cohesive/generate.sh --out /home/user/stage2"
+  },
+  "reference": {
+    "sha": "35a851780d0b9471d258ed53a003ae98aaa95ea0",
+    "describe": "v5.0.7-post1-554-g35a851780",
+    "patches": [
+      "modified:cmake/AkantuTestsMacros.cmake sha256=c280165a84912eab4bcc081b9eaaaa06aafdd83d4f48d982e11b0859abf9672f (reference sha256=36290de2ec8b111028138fe82029efa16501512241a5bc264fa30ff3e3239b9e)"
+    ]
+  },
+  "build": {
+  "config": "strict",
+  "compiler": "g++ (Debian 14.2.0-19) 14.2.0",
+  "cxx_flags": "-ffp-contract=off -DEIGEN_DONT_VECTORIZE -DEIGEN_NO_CPUID -DEIGEN_DEFAULT_L1_CACHE_SIZE=16384 -DEIGEN_DEFAULT_L2_CACHE_SIZE=524288 -DEIGEN_DEFAULT_L3_CACHE_SIZE=524288 -O2 -g -DNDEBUG -g3 -ggdb3 -flarge-source-files -std=c++20 -flto=auto -fno-fat-lto-objects -fPIC -frounding-math (actual flags of src/model/solid_mechanics/solid_mechanics_model.cc; warnings and non-FP -D defines omitted)",
+  "build_type": "RelWithDebInfo",
+  "arch": "x86_64",
+  "os": "Debian GNU/Linux 13 (trixie)",
+  "libraries": {"eigen_cache_sizes_measured": "16384,524288,524288 (Eigen::l1/l2/l3CacheSize() read at run time in the probe process, D-050)", 
+    "eigen3": "3.4.0-5",
+    "boost": "1.83.0.2+b2",
+    "openmpi": "5.0.7-1",
+    "mumps": "5.7.3-3+b1",
+    "petsc": "3.22.5+dfsg1-2",
+    "scotch": "7.0.7-1",
+    "openblas": "0.3.29+ds-3",
+    "scalapack": "2.2.2-1",
+    "hdf5": "1.14.5+repack-3",
+    "gmsh": "4.13.1+ds1-6",
+    "pybind11": "2.13.6-2",
+    "numpy": "1:2.2.4+ds-1",
+    "scipy": "1.15.3-1",
+    "gcc": "4:14.2.0-1",
+    "gfortran": "4:14.2.0-1",
+    "oracle_image": "sha256:2da26d87e063f3c88264f589cf73381feff583eeaa7770d2e01ae034651d59f5",
+    "oracle_build_scripts": "cca6e460cd3430bf0180262e7ebe26be762112e9",
+    "oracle_install_reference_sha": "35a851780d0b9471d258ed53a003ae98aaa95ea0",
+    "oracle_install_image": "sha256:2da26d87e063f3c88264f589cf73381feff583eeaa7770d2e01ae034651d59f5",
+    "openblas_coretype": "Haswell",
+    "openblas_num_threads": "1",
+    "eigen_cache_sizes": "16384,524288,524288 (compile-time pin of the library and of the probe translation unit: EIGEN_NO_CPUID + defaults, D-050)",
+    "host_cpu": "AMD Ryzen 7 9700X 8-Core Processor",
+    "x86_64_level": "v3",
+    "sha256:libakantu.so.5.0.7": "554ecfc7838d8c8aa3955f37f2efb556a7f09426083b74af262ffdcccff657ff",
+    "probe_tree_sha256": "2b6fc2548c1468f16f744bb147998a85dd07ce91a3da11a57707f0b0d2dbe9d7",
+    "probe_sources_commit": "f65bdd7de806cf368f16cc9a4aa2729958acfe74",
+    "cmake_cxx_flags": "-ffp-contract=off -DEIGEN_DONT_VECTORIZE -DEIGEN_NO_CPUID -DEIGEN_DEFAULT_L1_CACHE_SIZE=16384 -DEIGEN_DEFAULT_L2_CACHE_SIZE=524288 -DEIGEN_DEFAULT_L3_CACHE_SIZE=524288 -O2 -g -DNDEBUG -g3 -ggdb3 -flarge-source-files",
+    "probe": "parallel_cohesive_probe"
+  },
+  "probe_compile_command": "/usr/bin/c++ '-DAKANTU_PROBE_BUILD_TYPE=\"RelWithDebInfo\"' '-DAKANTU_PROBE_CONFIG=\"strict\"' '-DAKANTU_PROBE_CXX_FLAGS=\"-ffp-contract=off -DEIGEN_DONT_VECTORIZE -DEIGEN_NO_CPUID -DEIGEN_DEFAULT_L1_CACHE_SIZE=16384 -DEIGEN_DEFAULT_L2_CACHE_SIZE=524288 -DEIGEN_DEFAULT_L3_CACHE_SIZE=524288  -O2 -g -DNDEBUG\"' -DBOOST_GRAPH_DYN_LINK -DBOOST_GRAPH_NO_LIB -DBOOST_REGEX_DYN_LINK -DBOOST_REGEX_NO_LIB -DCGAL_USE_GMPXX=1 -I/probes/parallel_cohesive/../include -isystem /build/install-strict/include/akantu -isystem /opt/CGAL-5.6.2/include -isystem /usr/lib/x86_64-linux-gnu/openmpi/include -isystem /usr/lib/x86_64-linux-gnu/openmpi/include/openmpi -isystem /usr/lib/petscdir/petsc3.22/x86_64-linux-gnu-real/include -isystem /usr/include/scotch -isystem /build/install-strict/include/akantu_iterators -isystem /usr/include/eigen3 -isystem /build/install-strict/include/iohelper -O2 -g -DNDEBUG -std=gnu++20 -ffp-contract=off -DEIGEN_DONT_VECTORIZE -DEIGEN_NO_CPUID -DEIGEN_DEFAULT_L1_CACHE_SIZE=16384 -DEIGEN_DEFAULT_L2_CACHE_SIZE=524288 -DEIGEN_DEFAULT_L3_CACHE_SIZE=524288 -Wall -Wextra -pedantic -Wno-array-bounds -Wno-use-after-free -Wno-stringop-overread -DOMPI_SKIP_MPICXX -Wno-literal-suffix -frounding-math -o CMakeFiles/parallel_cohesive_probe.dir/parallel_cohesive_probe.cc.o -c /probes/parallel_cohesive/parallel_cohesive_probe.cc",
+  "probe_cxx_flags": "-DAKANTU_PROBE_BUILD_TYPE=\"RelWithDebInfo\" -DAKANTU_PROBE_CONFIG=\"strict\" -DAKANTU_PROBE_CXX_FLAGS=\"-ffp-contract=off -DEIGEN_DONT_VECTORIZE -DEIGEN_NO_CPUID -DEIGEN_DEFAULT_L1_CACHE_SIZE=16384 -DEIGEN_DEFAULT_L2_CACHE_SIZE=524288 -DEIGEN_DEFAULT_L3_CACHE_SIZE=524288  -O2 -g -DNDEBUG\" -DBOOST_GRAPH_DYN_LINK -DBOOST_GRAPH_NO_LIB -DBOOST_REGEX_DYN_LINK -DBOOST_REGEX_NO_LIB -DCGAL_USE_GMPXX=1 -O2 -g -DNDEBUG -std=gnu++20 -ffp-contract=off -DEIGEN_DONT_VECTORIZE -DEIGEN_NO_CPUID -DEIGEN_DEFAULT_L1_CACHE_SIZE=16384 -DEIGEN_DEFAULT_L2_CACHE_SIZE=524288 -DEIGEN_DEFAULT_L3_CACHE_SIZE=524288 -Wall -Wextra -pedantic -Wno-array-bounds -Wno-use-after-free -Wno-stringop-overread -DOMPI_SKIP_MPICXX -Wno-literal-suffix -frounding-math"
+},
+  "created": "2026-11-12T03:51:30Z",
+  "parameters": {
+    "oracle_pin/eigen_cache_sizes": "16384 524288 524288",
+    "oracle_pin/openblas_coretype": "Haswell",
+    "oracle_pin/openblas_num_threads": "1",
+    "rank": 1,
+    "nb_ranks": 4,
+    "material_dat": "model solid_mechanics_model_cohesive [\n  cohesive_inserter [\n    bounding_box = [[-10, 10], [-10, 10]]\n  ]\n  material elastic [\n    name = bulk\n    rho = 1e3\n    E = 1e3\n    nu = 0.1\n  ]\n  material cohesive_linear [\n    name = cohesive\n    beta = 1\n    G_c = 1e-3\n    sigma_c = 1\n  ]\n]\n",
+    "ins/nb_global_nodes": 108,
+    "ins/nb_nodes": 45,
+    "ins/element_scheme/keys": [
+      "send/0",
+      "send/2",
+      "send/3",
+      "recv/0",
+      "recv/2",
+      "recv/3"
+    ],
+    "ins/node_scheme/keys": [
+      "send/3",
+      "recv/0"
+    ],
+    "ins/facet_scheme/keys": [
+      "send/0",
+      "send/2",
+      "send/3",
+      "recv/0",
+      "recv/2",
+      "recv/3"
+    ],
+    "ins/cohesive_scheme/keys": [
+      "send/0",
+      "send/2",
+      "send/3",
+      "recv/0",
+      "recv/2",
+      "recv/3"
+    ],
+    "ins/facet_stress_scheme/keys": [
+      "send/0",
+      "send/2",
+      "send/3",
+      "recv/0",
+      "recv/2",
+      "recv/3"
+    ],
+    "ins/check_facets/blocks": [
+      "_segment_2/not_ghost",
+      "_segment_2/ghost"
+    ],
+    "ins/insertion_facets/blocks": [
+      "_segment_2/not_ghost",
+      "_segment_2/ghost"
+    ],
+    "ins/law1/cohesive_internals": [
+      "opening",
+      "tractions",
+      "contact_tractions",
+      "contact_opening",
+      "delta max",
+      "damage",
+      "normal",
+      "reversible_energy",
+      "total_energy",
+      "sigma_c_eff",
+      "delta_c_eff",
+      "insertion_stress"
+    ],
+    "ins/law_names": [
+      "bulk",
+      "cohesive"
+    ],
+    "frag/s1/groups/fragment_0/blocks": [
+      "_triangle_3/not_ghost",
+      "_cohesive_2d_4/not_ghost",
+      "_triangle_3/ghost",
+      "_cohesive_2d_4/ghost"
+    ],
+    "frag/s1/groups/fragment_0/dimension": 2,
+    "frag/s1/groups/names": [
+      "fragment_0"
+    ],
+    "frag/s2/groups/fragment_0/blocks": [
+      "_triangle_3/not_ghost",
+      "_triangle_3/ghost"
+    ],
+    "frag/s2/groups/fragment_0/dimension": 2,
+    "frag/s2/groups/fragment_1/blocks": [
+      "_triangle_3/not_ghost",
+      "_cohesive_2d_4/not_ghost",
+      "_triangle_3/ghost",
+      "_cohesive_2d_4/ghost"
+    ],
+    "frag/s2/groups/fragment_1/dimension": 2,
+    "frag/s2/groups/names": [
+      "fragment_0",
+      "fragment_1"
+    ],
+    "frag/s3/groups/fragment_0/blocks": [
+      "_triangle_3/not_ghost",
+      "_triangle_3/ghost"
+    ],
+    "frag/s3/groups/fragment_0/dimension": 2,
+    "frag/s3/groups/fragment_1/blocks": [],
+    "frag/s3/groups/fragment_1/dimension": 2,
+    "frag/s3/groups/fragment_2/blocks": [
+      "_triangle_3/not_ghost",
+      "_cohesive_2d_4/not_ghost",
+      "_triangle_3/ghost",
+      "_cohesive_2d_4/ghost"
+    ],
+    "frag/s3/groups/fragment_2/dimension": 2,
+    "frag/s3/groups/names": [
+      "fragment_0",
+      "fragment_1",
+      "fragment_2"
+    ],
+    "frag/s4/groups/fragment_0/blocks": [
+      "_triangle_3/not_ghost",
+      "_triangle_3/ghost"
+    ],
+    "frag/s4/groups/fragment_0/dimension": 2,
+    "frag/s4/groups/fragment_1/blocks": [
+      "_triangle_3/not_ghost",
+      "_triangle_3/ghost"
+    ],
+    "frag/s4/groups/fragment_1/dimension": 2,
+    "frag/s4/groups/fragment_2/blocks": [
+      "_triangle_3/ghost"
+    ],
+    "frag/s4/groups/fragment_2/dimension": 2,
+    "frag/s4/groups/fragment_3/blocks": [],
+    "frag/s4/groups/fragment_3/dimension": 2,
+    "frag/s4/groups/names": [
+      "fragment_0",
+      "fragment_1",
+      "fragment_2",
+      "fragment_3"
+    ],
+    "type_table": [
+      "_triangle_3",
+      "_segment_2",
+      "_cohesive_2d_4"
+    ]
+  },
+  "storage": {
+    "mode": "committed",
+    "bytes": 35912
+  },
+  "quantities": [
+    {
+      "name": "ins/inserted",
+      "file": "data/ins__inserted.npy",
+      "dtype": "i64",
+      "shape": [
+        1
+      ],
+      "axes": [
+        "entry"
+      ],
+      "layout": "table",
+      "sha256": "9d7349f714a7bf047099fa8214331cc54c06f353cb082f9ef72f8a54a965f1f6",
+      "description": "checkCohesiveStress() (global count)",
+      "tolerance_class": "exact"
+    },
+    {
+      "name": "ins/nodes/global_ids",
+      "file": "data/ins__nodes__global_ids.npy",
+      "dtype": "i64",
+      "shape": [
+        45
+      ],
+      "axes": [
+        "entry"
+      ],
+      "layout": "table",
+      "sha256": "36ecb83d6bb4732d8de64e0c40ec44ad661517f7bf16ae08cf5e6afdd0cf6511",
+      "description": "getNodeGlobalId per local node",
+      "tolerance_class": "exact"
+    },
+    {
+      "name": "ins/nodes/flags",
+      "file": "data/ins__nodes__flags.npy",
+      "dtype": "i64",
+      "shape": [
+        45
+      ],
+      "axes": [
+        "entry"
+      ],
+      "layout": "table",
+      "sha256": "481c9707a2bd4f47a0ba239cc0df8889a31326034e5060c64014a18af28684be",
+      "description": "getNodeFlag per local node (NodeFlag bits)",
+      "tolerance_class": "exact"
+    },
+    {
+      "name": "ins/nodes/pranks",
+      "file": "data/ins__nodes__pranks.npy",
+      "dtype": "i64",
+      "shape": [
+        45
+      ],
+      "axes": [
+        "entry"
+      ],
+      "layout": "table",
+      "sha256": "d5c5eb0cd022f804960c7e4c42c68b8da7d04e86f0d2dcf6087ad0045b7f7e2a",
+      "description": "getNodePrank per local node (-1: none)",
+      "tolerance_class": "exact"
+    },
+    {
+      "name": "ins/nodes/coordinates",
+      "file": "data/ins__nodes__coordinates.npy",
+      "dtype": "f64",
+      "shape": [
+        45,
+        2
+      ],
+      "axes": [
+        "entry",
+        "component"
+      ],
+      "layout": "table",
+      "sha256": "7f04f34321ab71ada3c0febaa9530f4308279aff233d4add2dc636074ed4a406",
+      "description": "node coordinates",
+      "tolerance_class": "exact"
+    },
+    {
+      "name": "ins/element_scheme/send/0",
+      "file": "data/ins__element_scheme__send__0.npy",
+      "dtype": "i64",
+      "shape": [
+        13,
+        3
+      ],
+      "axes": [
+        "entry",
+        "component"
+      ],
+      "layout": "table",
+      "sha256": "6f3a8a3c995165c2b0631ceebc9a8817c3f6d598b72e21143ef75f66b1af0a5f",
+      "description": "(type code, element, ghost) in scheme order",
+      "tolerance_class": "exact"
+    },
+    {
+      "name": "ins/element_scheme/send/2",
+      "file": "data/ins__element_scheme__send__2.npy",
+      "dtype": "i64",
+      "shape": [
+        1,
+        3
+      ],
+      "axes": [
+        "entry",
+        "component"
+      ],
+      "layout": "table",
+      "sha256": "fee64fc2ef257c98c78237f0efa37b4274d837a41ce6c3781ec4a2cfd9b57215",
+      "description": "(type code, element, ghost) in scheme order",
+      "tolerance_class": "exact"
+    },
+    {
+      "name": "ins/element_scheme/send/3",
+      "file": "data/ins__element_scheme__send__3.npy",
+      "dtype": "i64",
+      "shape": [
+        8,
+        3
+      ],
+      "axes": [
+        "entry",
+        "component"
+      ],
+      "layout": "table",
+      "sha256": "15fc83d152c4b3151a3c13be6f34a93a12288173df4dc9a3a7ef5d8e2be3541e",
+      "description": "(type code, element, ghost) in scheme order",
+      "tolerance_class": "exact"
+    },
+    {
+      "name": "ins/element_scheme/recv/0",
+      "file": "data/ins__element_scheme__recv__0.npy",
+      "dtype": "i64",
+      "shape": [
+        12,
+        3
+      ],
+      "axes": [
+        "entry",
+        "component"
+      ],
+      "layout": "table",
+      "sha256": "8a11ddc9468efab66a659059f13c14e80dde61fbfea01db95bbbf820b7235506",
+      "description": "(type code, element, ghost) in scheme order",
+      "tolerance_class": "exact"
+    },
+    {
+      "name": "ins/element_scheme/recv/2",
+      "file": "data/ins__element_scheme__recv__2.npy",
+      "dtype": "i64",
+      "shape": [
+        1,
+        3
+      ],
+      "axes": [
+        "entry",
+        "component"
+      ],
+      "layout": "table",
+      "sha256": "e8582aca4f930a0bbd89fa9003fdde533633ac7dccb2501581c427c7f536a523",
+      "description": "(type code, element, ghost) in scheme order",
+      "tolerance_class": "exact"
+    },
+    {
+      "name": "ins/element_scheme/recv/3",
+      "file": "data/ins__element_scheme__recv__3.npy",
+      "dtype": "i64",
+      "shape": [
+        4,
+        3
+      ],
+      "axes": [
+        "entry",
+        "component"
+      ],
+      "layout": "table",
+      "sha256": "9426af41df132039d462a320b068b9cb97d42b3bf7513016de4a77b645c5fda5",
+      "description": "(type code, element, ghost) in scheme order",
+      "tolerance_class": "exact"
+    },
+    {
+      "name": "ins/node_scheme/send/3",
+      "file": "data/ins__node_scheme__send__3.npy",
+      "dtype": "i64",
+      "shape": [
+        2
+      ],
+      "axes": [
+        "entry"
+      ],
+      "layout": "table",
+      "sha256": "1efe1f5e25bd66bebcdc94f3eba14b00de956cf4ee69a19a73786251a14a3226",
+      "description": "local nodes in scheme order",
+      "tolerance_class": "exact"
+    },
+    {
+      "name": "ins/node_scheme/recv/0",
+      "file": "data/ins__node_scheme__recv__0.npy",
+      "dtype": "i64",
+      "shape": [
+        13
+      ],
+      "axes": [
+        "entry"
+      ],
+      "layout": "table",
+      "sha256": "b6428fe86ad5187bcdc103b435265ce6f2ea0e1da3df2ae4d555b0db56dc6a79",
+      "description": "local nodes in scheme order",
+      "tolerance_class": "exact"
+    },
+    {
+      "name": "ins/facet_scheme/send/0",
+      "file": "data/ins__facet_scheme__send__0.npy",
+      "dtype": "i64",
+      "shape": [
+        15,
+        3
+      ],
+      "axes": [
+        "entry",
+        "component"
+      ],
+      "layout": "table",
+      "sha256": "3eb027b496f17e9594d7ab0ebd212ea3df030dfe98e5860979ed5d0fe02a58e1",
+      "description": "(type code, element, ghost) in scheme order",
+      "tolerance_class": "exact"
+    },
+    {
+      "name": "ins/facet_scheme/send/2",
+      "file": "data/ins__facet_scheme__send__2.npy",
+      "dtype": "i64",
+      "shape": [
+        0,
+        3
+      ],
+      "axes": [
+        "entry",
+        "component"
+      ],
+      "layout": "table",
+      "sha256": "09335c7d428a982a1579c2e4ed7b3c0906514ef4adc62fc1aa06cf7af47d2f32",
+      "description": "(type code, element, ghost) in scheme order",
+      "tolerance_class": "exact"
+    },
+    {
+      "name": "ins/facet_scheme/send/3",
+      "file": "data/ins__facet_scheme__send__3.npy",
+      "dtype": "i64",
+      "shape": [
+        10,
+        3
+      ],
+      "axes": [
+        "entry",
+        "component"
+      ],
+      "layout": "table",
+      "sha256": "110c7c58fa2f585d5bd957719baa201f74b600de9f03d642932ad397dcb8723f",
+      "description": "(type code, element, ghost) in scheme order",
+      "tolerance_class": "exact"
+    },
+    {
+      "name": "ins/facet_scheme/recv/0",
+      "file": "data/ins__facet_scheme__recv__0.npy",
+      "dtype": "i64",
+      "shape": [
+        21,
+        3
+      ],
+      "axes": [
+        "entry",
+        "component"
+      ],
+      "layout": "table",
+      "sha256": "f950168b52f5a782c0cfaa87a9592f7071ec9b829d78a453ed0c9aae41c9d97e",
+      "description": "(type code, element, ghost) in scheme order",
+      "tolerance_class": "exact"
+    },
+    {
+      "name": "ins/facet_scheme/recv/2",
+      "file": "data/ins__facet_scheme__recv__2.npy",
+      "dtype": "i64",
+      "shape": [
+        0,
+        3
+      ],
+      "axes": [
+        "entry",
+        "component"
+      ],
+      "layout": "table",
+      "sha256": "09335c7d428a982a1579c2e4ed7b3c0906514ef4adc62fc1aa06cf7af47d2f32",
+      "description": "(type code, element, ghost) in scheme order",
+      "tolerance_class": "exact"
+    },
+    {
+      "name": "ins/facet_scheme/recv/3",
+      "file": "data/ins__facet_scheme__recv__3.npy",
+      "dtype": "i64",
+      "shape": [
+        3,
+        3
+      ],
+      "axes": [
+        "entry",
+        "component"
+      ],
+      "layout": "table",
+      "sha256": "35b17682e86c6411c07e8928a455ea4d11f825f82d62d038c7661cfcf80ce7e2",
+      "description": "(type code, element, ghost) in scheme order",
+      "tolerance_class": "exact"
+    },
+    {
+      "name": "ins/cohesive_scheme/send/0",
+      "file": "data/ins__cohesive_scheme__send__0.npy",
+      "dtype": "i64",
+      "shape": [
+        3,
+        3
+      ],
+      "axes": [
+        "entry",
+        "component"
+      ],
+      "layout": "table",
+      "sha256": "bf0b084d06abdf9f28034221409af0868464933d788b4a276299e5e018570b99",
+      "description": "(type code, element, ghost) in scheme order",
+      "tolerance_class": "exact"
+    },
+    {
+      "name": "ins/cohesive_scheme/send/2",
+      "file": "data/ins__cohesive_scheme__send__2.npy",
+      "dtype": "i64",
+      "shape": [
+        0,
+        3
+      ],
+      "axes": [
+        "entry",
+        "component"
+      ],
+      "layout": "table",
+      "sha256": "09335c7d428a982a1579c2e4ed7b3c0906514ef4adc62fc1aa06cf7af47d2f32",
+      "description": "(type code, element, ghost) in scheme order",
+      "tolerance_class": "exact"
+    },
+    {
+      "name": "ins/cohesive_scheme/send/3",
+      "file": "data/ins__cohesive_scheme__send__3.npy",
+      "dtype": "i64",
+      "shape": [
+        2,
+        3
+      ],
+      "axes": [
+        "entry",
+        "component"
+      ],
+      "layout": "table",
+      "sha256": "802299fb45988db807251465da4a5329246cfa2c2b3a8205bc12f8c198566ab1",
+      "description": "(type code, element, ghost) in scheme order",
+      "tolerance_class": "exact"
+    },
+    {
+      "name": "ins/cohesive_scheme/recv/0",
+      "file": "data/ins__cohesive_scheme__recv__0.npy",
+      "dtype": "i64",
+      "shape": [
+        4,
+        3
+      ],
+      "axes": [
+        "entry",
+        "component"
+      ],
+      "layout": "table",
+      "sha256": "c16d4754397d2a3543335f08e004827c1c634001bea2ddb2db83e426ec302101",
+      "description": "(type code, element, ghost) in scheme order",
+      "tolerance_class": "exact"
+    },
+    {
+      "name": "ins/cohesive_scheme/recv/2",
+      "file": "data/ins__cohesive_scheme__recv__2.npy",
+      "dtype": "i64",
+      "shape": [
+        0,
+        3
+      ],
+      "axes": [
+        "entry",
+        "component"
+      ],
+      "layout": "table",
+      "sha256": "09335c7d428a982a1579c2e4ed7b3c0906514ef4adc62fc1aa06cf7af47d2f32",
+      "description": "(type code, element, ghost) in scheme order",
+      "tolerance_class": "exact"
+    },
+    {
+      "name": "ins/cohesive_scheme/recv/3",
+      "file": "data/ins__cohesive_scheme__recv__3.npy",
+      "dtype": "i64",
+      "shape": [
+        0,
+        3
+      ],
+      "axes": [
+        "entry",
+        "component"
+      ],
+      "layout": "table",
+      "sha256": "09335c7d428a982a1579c2e4ed7b3c0906514ef4adc62fc1aa06cf7af47d2f32",
+      "description": "(type code, element, ghost) in scheme order",
+      "tolerance_class": "exact"
+    },
+    {
+      "name": "ins/facet_stress_scheme/send/0",
+      "file": "data/ins__facet_stress_scheme__send__0.npy",
+      "dtype": "i64",
+      "shape": [
+        0,
+        3
+      ],
+      "axes": [
+        "entry",
+        "component"
+      ],
+      "layout": "table",
+      "sha256": "09335c7d428a982a1579c2e4ed7b3c0906514ef4adc62fc1aa06cf7af47d2f32",
+      "description": "(type code, element, ghost) in scheme order",
+      "tolerance_class": "exact"
+    },
+    {
+      "name": "ins/facet_stress_scheme/send/2",
+      "file": "data/ins__facet_stress_scheme__send__2.npy",
+      "dtype": "i64",
+      "shape": [
+        0,
+        3
+      ],
+      "axes": [
+        "entry",
+        "component"
+      ],
+      "layout": "table",
+      "sha256": "09335c7d428a982a1579c2e4ed7b3c0906514ef4adc62fc1aa06cf7af47d2f32",
+      "description": "(type code, element, ghost) in scheme order",
+      "tolerance_class": "exact"
+    },
+    {
+      "name": "ins/facet_stress_scheme/send/3",
+      "file": "data/ins__facet_stress_scheme__send__3.npy",
+      "dtype": "i64",
+      "shape": [
+        0,
+        3
+      ],
+      "axes": [
+        "entry",
+        "component"
+      ],
+      "layout": "table",
+      "sha256": "09335c7d428a982a1579c2e4ed7b3c0906514ef4adc62fc1aa06cf7af47d2f32",
+      "description": "(type code, element, ghost) in scheme order",
+      "tolerance_class": "exact"
+    },
+    {
+      "name": "ins/facet_stress_scheme/recv/0",
+      "file": "data/ins__facet_stress_scheme__recv__0.npy",
+      "dtype": "i64",
+      "shape": [
+        0,
+        3
+      ],
+      "axes": [
+        "entry",
+        "component"
+      ],
+      "layout": "table",
+      "sha256": "09335c7d428a982a1579c2e4ed7b3c0906514ef4adc62fc1aa06cf7af47d2f32",
+      "description": "(type code, element, ghost) in scheme order",
+      "tolerance_class": "exact"
+    },
+    {
+      "name": "ins/facet_stress_scheme/recv/2",
+      "file": "data/ins__facet_stress_scheme__recv__2.npy",
+      "dtype": "i64",
+      "shape": [
+        0,
+        3
+      ],
+      "axes": [
+        "entry",
+        "component"
+      ],
+      "layout": "table",
+      "sha256": "09335c7d428a982a1579c2e4ed7b3c0906514ef4adc62fc1aa06cf7af47d2f32",
+      "description": "(type code, element, ghost) in scheme order",
+      "tolerance_class": "exact"
+    },
+    {
+      "name": "ins/facet_stress_scheme/recv/3",
+      "file": "data/ins__facet_stress_scheme__recv__3.npy",
+      "dtype": "i64",
+      "shape": [
+        0,
+        3
+      ],
+      "axes": [
+        "entry",
+        "component"
+      ],
+      "layout": "table",
+      "sha256": "09335c7d428a982a1579c2e4ed7b3c0906514ef4adc62fc1aa06cf7af47d2f32",
+      "description": "(type code, element, ghost) in scheme order",
+      "tolerance_class": "exact"
+    },
+    {
+      "name": "ins/check_facets/_segment_2/not_ghost",
+      "file": "data/ins__check_facets___segment_2__not_ghost.npy",
+      "dtype": "i64",
+      "shape": [
+        56
+      ],
+      "axes": [
+        "entry"
+      ],
+      "layout": "table",
+      "sha256": "45fb4bacc519c2fbf2ba84658f699d2cde0d3bfbc1767a7c28fc1f484f45cc1d",
+      "description": "per facet flag",
+      "tolerance_class": "exact"
+    },
+    {
+      "name": "ins/check_facets/_segment_2/ghost",
+      "file": "data/ins__check_facets___segment_2__ghost.npy",
+      "dtype": "i64",
+      "shape": [
+        28
+      ],
+      "axes": [
+        "entry"
+      ],
+      "layout": "table",
+      "sha256": "cc68c13f6f20dbfcd74b2b5c7783437149243610931ea9fdef30f0f606065251",
+      "description": "per facet flag",
+      "tolerance_class": "exact"
+    },
+    {
+      "name": "ins/insertion_facets/_segment_2/not_ghost",
+      "file": "data/ins__insertion_facets___segment_2__not_ghost.npy",
+      "dtype": "i64",
+      "shape": [
+        56
+      ],
+      "axes": [
+        "entry"
+      ],
+      "layout": "table",
+      "sha256": "45fb4bacc519c2fbf2ba84658f699d2cde0d3bfbc1767a7c28fc1f484f45cc1d",
+      "description": "per facet flag",
+      "tolerance_class": "exact"
+    },
+    {
+      "name": "ins/insertion_facets/_segment_2/ghost",
+      "file": "data/ins__insertion_facets___segment_2__ghost.npy",
+      "dtype": "i64",
+      "shape": [
+        28
+      ],
+      "axes": [
+        "entry"
+      ],
+      "layout": "table",
+      "sha256": "cc68c13f6f20dbfcd74b2b5c7783437149243610931ea9fdef30f0f606065251",
+      "description": "per facet flag",
+      "tolerance_class": "exact"
+    },
+    {
+      "name": "ins/law0/filter/_triangle_3/not_ghost",
+      "file": "data/ins__law0__filter___triangle_3__not_ghost.npy",
+      "dtype": "i64",
+      "shape": [
+        32
+      ],
+      "axes": [
+        "entry"
+      ],
+      "layout": "table",
+      "sha256": "d7e613f1090f555b5641f2b446191b4b16b191e7a4ebfee85716049073143863",
+      "description": "law element filter (ghost: canonical rank order, probe patch)",
+      "tolerance_class": "exact"
+    },
+    {
+      "name": "ins/law0/filter/_triangle_3/ghost",
+      "file": "data/ins__law0__filter___triangle_3__ghost.npy",
+      "dtype": "i64",
+      "shape": [
+        17
+      ],
+      "axes": [
+        "entry"
+      ],
+      "layout": "table",
+      "sha256": "994bf022a0c9a29422035b1e8c949c37a00e5708d855d5e6eabe8f6588384feb",
+      "description": "law element filter (ghost: canonical rank order, probe patch)",
+      "tolerance_class": "exact"
+    },
+    {
+      "name": "ins/law1/filter/_triangle_3/not_ghost",
+      "file": "data/ins__law1__filter___triangle_3__not_ghost.npy",
+      "dtype": "i64",
+      "shape": [
+        0
+      ],
+      "axes": [
+        "entry"
+      ],
+      "layout": "table",
+      "sha256": "e734dac55ea9fbbe782af2d8c02c3c5992131906228afb2aaaf137d6f3ed74db",
+      "description": "law element filter (ghost: canonical rank order, probe patch)",
+      "tolerance_class": "exact"
+    },
+    {
+      "name": "ins/law1/filter/_cohesive_2d_4/not_ghost",
+      "file": "data/ins__law1__filter___cohesive_2d_4__not_ghost.npy",
+      "dtype": "i64",
+      "shape": [
+        6
+      ],
+      "axes": [
+        "entry"
+      ],
+      "layout": "table",
+      "sha256": "6d08883eb5b05b9da4664a1bf8eb352f7b8afdfa7528a0f493b57b0b79d36761",
+      "description": "law element filter (ghost: canonical rank order, probe patch)",
+      "tolerance_class": "exact"
+    },
+    {
+      "name": "ins/law1/filter/_triangle_3/ghost",
+      "file": "data/ins__law1__filter___triangle_3__ghost.npy",
+      "dtype": "i64",
+      "shape": [
+        0
+      ],
+      "axes": [
+        "entry"
+      ],
+      "layout": "table",
+      "sha256": "e734dac55ea9fbbe782af2d8c02c3c5992131906228afb2aaaf137d6f3ed74db",
+      "description": "law element filter (ghost: canonical rank order, probe patch)",
+      "tolerance_class": "exact"
+    },
+    {
+      "name": "ins/law1/filter/_cohesive_2d_4/ghost",
+      "file": "data/ins__law1__filter___cohesive_2d_4__ghost.npy",
+      "dtype": "i64",
+      "shape": [
+        4
+      ],
+      "axes": [
+        "entry"
+      ],
+      "layout": "table",
+      "sha256": "dc5de563b86c3210ee39b3adc9c39934ef72b87a5c20f475ccc78e336ea75a7e",
+      "description": "law element filter (ghost: canonical rank order, probe patch)",
+      "tolerance_class": "exact"
+    },
+    {
+      "name": "ins/law1/opening/_cohesive_2d_4/not_ghost",
+      "file": "data/ins__law1__opening___cohesive_2d_4__not_ghost.npy",
+      "dtype": "f64",
+      "shape": [
+        12,
+        2
+      ],
+      "axes": [
+        "entry",
+        "component"
+      ],
+      "layout": "table",
+      "sha256": "1243f328c393558152f9fe41dc7fc20172b92193a3ba9e503b3a7f718db2e274",
+      "description": "cohesive internal opening",
+      "tolerance_class": "exact"
+    },
+    {
+      "name": "ins/law1/opening/_cohesive_2d_4/ghost",
+      "file": "data/ins__law1__opening___cohesive_2d_4__ghost.npy",
+      "dtype": "f64",
+      "shape": [
+        8,
+        2
+      ],
+      "axes": [
+        "entry",
+        "component"
+      ],
+      "layout": "table",
+      "sha256": "b6a3a540aea0d285a76c210176fd3141d06775c8f5ab6b8c5c68893def9efea1",
+      "description": "cohesive internal opening",
+      "tolerance_class": "exact"
+    },
+    {
+      "name": "ins/law1/tractions/_cohesive_2d_4/not_ghost",
+      "file": "data/ins__law1__tractions___cohesive_2d_4__not_ghost.npy",
+      "dtype": "f64",
+      "shape": [
+        12,
+        2
+      ],
+      "axes": [
+        "entry",
+        "component"
+      ],
+      "layout": "table",
+      "sha256": "1243f328c393558152f9fe41dc7fc20172b92193a3ba9e503b3a7f718db2e274",
+      "description": "cohesive internal tractions",
+      "tolerance_class": "exact"
+    },
+    {
+      "name": "ins/law1/tractions/_cohesive_2d_4/ghost",
+      "file": "data/ins__law1__tractions___cohesive_2d_4__ghost.npy",
+      "dtype": "f64",
+      "shape": [
+        8,
+        2
+      ],
+      "axes": [
+        "entry",
+        "component"
+      ],
+      "layout": "table",
+      "sha256": "b6a3a540aea0d285a76c210176fd3141d06775c8f5ab6b8c5c68893def9efea1",
+      "description": "cohesive internal tractions",
+      "tolerance_class": "exact"
+    },
+    {
+      "name": "ins/law1/contact_tractions/_cohesive_2d_4/not_ghost",
+      "file": "data/ins__law1__contact_tractions___cohesive_2d_4__not_ghost.npy",
+      "dtype": "f64",
+      "shape": [
+        12,
+        2
+      ],
+      "axes": [
+        "entry",
+        "component"
+      ],
+      "layout": "table",
+      "sha256": "1243f328c393558152f9fe41dc7fc20172b92193a3ba9e503b3a7f718db2e274",
+      "description": "cohesive internal contact_tractions",
+      "tolerance_class": "exact"
+    },
+    {
+      "name": "ins/law1/contact_tractions/_cohesive_2d_4/ghost",
+      "file": "data/ins__law1__contact_tractions___cohesive_2d_4__ghost.npy",
+      "dtype": "f64",
+      "shape": [
+        8,
+        2
+      ],
+      "axes": [
+        "entry",
+        "component"
+      ],
+      "layout": "table",
+      "sha256": "b6a3a540aea0d285a76c210176fd3141d06775c8f5ab6b8c5c68893def9efea1",
+      "description": "cohesive internal contact_tractions",
+      "tolerance_class": "exact"
+    },
+    {
+      "name": "ins/law1/contact_opening/_cohesive_2d_4/not_ghost",
+      "file": "data/ins__law1__contact_opening___cohesive_2d_4__not_ghost.npy",
+      "dtype": "f64",
+      "shape": [
+        12,
+        2
+      ],
+      "axes": [
+        "entry",
+        "component"
+      ],
+      "layout": "table",
+      "sha256": "1243f328c393558152f9fe41dc7fc20172b92193a3ba9e503b3a7f718db2e274",
+      "description": "cohesive internal contact_opening",
+      "tolerance_class": "exact"
+    },
+    {
+      "name": "ins/law1/contact_opening/_cohesive_2d_4/ghost",
+      "file": "data/ins__law1__contact_opening___cohesive_2d_4__ghost.npy",
+      "dtype": "f64",
+      "shape": [
+        8,
+        2
+      ],
+      "axes": [
+        "entry",
+        "component"
+      ],
+      "layout": "table",
+      "sha256": "b6a3a540aea0d285a76c210176fd3141d06775c8f5ab6b8c5c68893def9efea1",
+      "description": "cohesive internal contact_opening",
+      "tolerance_class": "exact"
+    },
+    {
+      "name": "ins/law1/delta_max/_cohesive_2d_4/not_ghost",
+      "file": "data/ins__law1__delta_max___cohesive_2d_4__not_ghost.npy",
+      "dtype": "f64",
+      "shape": [
+        12,
+        1
+      ],
+      "axes": [
+        "entry",
+        "component"
+      ],
+      "layout": "table",
+      "sha256": "739bb032a4a9f1bd4009e828da403217c9f924618a10f36d5be5f3afa00a71f1",
+      "description": "cohesive internal delta max",
+      "tolerance_class": "exact"
+    },
+    {
+      "name": "ins/law1/delta_max/_cohesive_2d_4/ghost",
+      "file": "data/ins__law1__delta_max___cohesive_2d_4__ghost.npy",
+      "dtype": "f64",
+      "shape": [
+        8,
+        1
+      ],
+      "axes": [
+        "entry",
+        "component"
+      ],
+      "layout": "table",
+      "sha256": "4cd31af01573eeee90bde8b4518cd54dd2c2cf8168be9d27148aa725d54b2405",
+      "description": "cohesive internal delta max",
+      "tolerance_class": "exact"
+    },
+    {
+      "name": "ins/law1/damage/_cohesive_2d_4/not_ghost",
+      "file": "data/ins__law1__damage___cohesive_2d_4__not_ghost.npy",
+      "dtype": "f64",
+      "shape": [
+        12,
+        1
+      ],
+      "axes": [
+        "entry",
+        "component"
+      ],
+      "layout": "table",
+      "sha256": "739bb032a4a9f1bd4009e828da403217c9f924618a10f36d5be5f3afa00a71f1",
+      "description": "cohesive internal damage",
+      "tolerance_class": "exact"
+    },
+    {
+      "name": "ins/law1/damage/_cohesive_2d_4/ghost",
+      "file": "data/ins__law1__damage___cohesive_2d_4__ghost.npy",
+      "dtype": "f64",
+      "shape": [
+        8,
+        1
+      ],
+      "axes": [
+        "entry",
+        "component"
+      ],
+      "layout": "table",
+      "sha256": "4cd31af01573eeee90bde8b4518cd54dd2c2cf8168be9d27148aa725d54b2405",
+      "description": "cohesive internal damage",
+      "tolerance_class": "exact"
+    },
+    {
+      "name": "ins/law1/normal/_cohesive_2d_4/not_ghost",
+      "file": "data/ins__law1__normal___cohesive_2d_4__not_ghost.npy",
+      "dtype": "f64",
+      "shape": [
+        12,
+        2
+      ],
+      "axes": [
+        "entry",
+        "component"
+      ],
+      "layout": "table",
+      "sha256": "1243f328c393558152f9fe41dc7fc20172b92193a3ba9e503b3a7f718db2e274",
+      "description": "cohesive internal normal",
+      "tolerance_class": "exact"
+    },
+    {
+      "name": "ins/law1/normal/_cohesive_2d_4/ghost",
+      "file": "data/ins__law1__normal___cohesive_2d_4__ghost.npy",
+      "dtype": "f64",
+      "shape": [
+        8,
+        2
+      ],
+      "axes": [
+        "entry",
+        "component"
+      ],
+      "layout": "table",
+      "sha256": "b6a3a540aea0d285a76c210176fd3141d06775c8f5ab6b8c5c68893def9efea1",
+      "description": "cohesive internal normal",
+      "tolerance_class": "exact"
+    },
+    {
+      "name": "ins/law1/reversible_energy/_cohesive_2d_4/not_ghost",
+      "file": "data/ins__law1__reversible_energy___cohesive_2d_4__not_ghost.npy",
+      "dtype": "f64",
+      "shape": [
+        12,
+        1
+      ],
+      "axes": [
+        "entry",
+        "component"
+      ],
+      "layout": "table",
+      "sha256": "739bb032a4a9f1bd4009e828da403217c9f924618a10f36d5be5f3afa00a71f1",
+      "description": "cohesive internal reversible_energy",
+      "tolerance_class": "exact"
+    },
+    {
+      "name": "ins/law1/reversible_energy/_cohesive_2d_4/ghost",
+      "file": "data/ins__law1__reversible_energy___cohesive_2d_4__ghost.npy",
+      "dtype": "f64",
+      "shape": [
+        8,
+        1
+      ],
+      "axes": [
+        "entry",
+        "component"
+      ],
+      "layout": "table",
+      "sha256": "4cd31af01573eeee90bde8b4518cd54dd2c2cf8168be9d27148aa725d54b2405",
+      "description": "cohesive internal reversible_energy",
+      "tolerance_class": "exact"
+    },
+    {
+      "name": "ins/law1/total_energy/_cohesive_2d_4/not_ghost",
+      "file": "data/ins__law1__total_energy___cohesive_2d_4__not_ghost.npy",
+      "dtype": "f64",
+      "shape": [
+        12,
+        1
+      ],
+      "axes": [
+        "entry",
+        "component"
+      ],
+      "layout": "table",
+      "sha256": "739bb032a4a9f1bd4009e828da403217c9f924618a10f36d5be5f3afa00a71f1",
+      "description": "cohesive internal total_energy",
+      "tolerance_class": "exact"
+    },
+    {
+      "name": "ins/law1/total_energy/_cohesive_2d_4/ghost",
+      "file": "data/ins__law1__total_energy___cohesive_2d_4__ghost.npy",
+      "dtype": "f64",
+      "shape": [
+        8,
+        1
+      ],
+      "axes": [
+        "entry",
+        "component"
+      ],
+      "layout": "table",
+      "sha256": "4cd31af01573eeee90bde8b4518cd54dd2c2cf8168be9d27148aa725d54b2405",
+      "description": "cohesive internal total_energy",
+      "tolerance_class": "exact"
+    },
+    {
+      "name": "ins/law1/sigma_c_eff/_cohesive_2d_4/not_ghost",
+      "file": "data/ins__law1__sigma_c_eff___cohesive_2d_4__not_ghost.npy",
+      "dtype": "f64",
+      "shape": [
+        12,
+        1
+      ],
+      "axes": [
+        "entry",
+        "component"
+      ],
+      "layout": "table",
+      "sha256": "5348e7757d0f8eca6679d20f4363ddc0e575d18158752c2d17402557f4bf7d27",
+      "description": "cohesive internal sigma_c_eff",
+      "tolerance_class": "exact"
+    },
+    {
+      "name": "ins/law1/sigma_c_eff/_cohesive_2d_4/ghost",
+      "file": "data/ins__law1__sigma_c_eff___cohesive_2d_4__ghost.npy",
+      "dtype": "f64",
+      "shape": [
+        8,
+        1
+      ],
+      "axes": [
+        "entry",
+        "component"
+      ],
+      "layout": "table",
+      "sha256": "4cd31af01573eeee90bde8b4518cd54dd2c2cf8168be9d27148aa725d54b2405",
+      "description": "cohesive internal sigma_c_eff",
+      "tolerance_class": "exact"
+    },
+    {
+      "name": "ins/law1/delta_c_eff/_cohesive_2d_4/not_ghost",
+      "file": "data/ins__law1__delta_c_eff___cohesive_2d_4__not_ghost.npy",
+      "dtype": "f64",
+      "shape": [
+        12,
+        1
+      ],
+      "axes": [
+        "entry",
+        "component"
+      ],
+      "layout": "table",
+      "sha256": "be8895756b2cff1e7c54e3f107fa824e8208177525395de3cee3bd9ef71cf813",
+      "description": "cohesive internal delta_c_eff",
+      "tolerance_class": "exact"
+    },
+    {
+      "name": "ins/law1/delta_c_eff/_cohesive_2d_4/ghost",
+      "file": "data/ins__law1__delta_c_eff___cohesive_2d_4__ghost.npy",
+      "dtype": "f64",
+      "shape": [
+        8,
+        1
+      ],
+      "axes": [
+        "entry",
+        "component"
+      ],
+      "layout": "table",
+      "sha256": "bad937c66de2d8f59199ba38f68960de4dd9e44a759f3e42aff53bf0e8a0e6ef",
+      "description": "cohesive internal delta_c_eff",
+      "tolerance_class": "exact"
+    },
+    {
+      "name": "ins/law1/insertion_stress/_cohesive_2d_4/not_ghost",
+      "file": "data/ins__law1__insertion_stress___cohesive_2d_4__not_ghost.npy",
+      "dtype": "f64",
+      "shape": [
+        12,
+        2
+      ],
+      "axes": [
+        "entry",
+        "component"
+      ],
+      "layout": "table",
+      "sha256": "584e44d8cb2f895de9e76156ae06c2d3d9863d9713c801157c27c1358ef482d9",
+      "description": "cohesive internal insertion_stress",
+      "tolerance_class": "exact"
+    },
+    {
+      "name": "ins/law1/insertion_stress/_cohesive_2d_4/ghost",
+      "file": "data/ins__law1__insertion_stress___cohesive_2d_4__ghost.npy",
+      "dtype": "f64",
+      "shape": [
+        8,
+        2
+      ],
+      "axes": [
+        "entry",
+        "component"
+      ],
+      "layout": "table",
+      "sha256": "b6a3a540aea0d285a76c210176fd3141d06775c8f5ab6b8c5c68893def9efea1",
+      "description": "cohesive internal insertion_stress",
+      "tolerance_class": "exact"
+    },
+    {
+      "name": "ins/law1/facet_filter/_segment_2/not_ghost",
+      "file": "data/ins__law1__facet_filter___segment_2__not_ghost.npy",
+      "dtype": "i64",
+      "shape": [
+        50
+      ],
+      "axes": [
+        "entry"
+      ],
+      "layout": "table",
+      "sha256": "7d2bbdee3bfe4aa21f28fa8d572d9bbd6cc5e6e9ad28fe2441f5a5596cdd0043",
+      "description": "facet filter (extrinsic)",
+      "tolerance_class": "exact"
+    },
+    {
+      "name": "ins/law1/facet_filter/_segment_2/ghost",
+      "file": "data/ins__law1__facet_filter___segment_2__ghost.npy",
+      "dtype": "i64",
+      "shape": [
+        0
+      ],
+      "axes": [
+        "entry"
+      ],
+      "layout": "table",
+      "sha256": "e734dac55ea9fbbe782af2d8c02c3c5992131906228afb2aaaf137d6f3ed74db",
+      "description": "facet filter (extrinsic)",
+      "tolerance_class": "exact"
+    },
+    {
+      "name": "ins/law1/sigma_c/_segment_2/not_ghost",
+      "file": "data/ins__law1__sigma_c___segment_2__not_ghost.npy",
+      "dtype": "f64",
+      "shape": [
+        100,
+        1
+      ],
+      "axes": [
+        "entry",
+        "component"
+      ],
+      "layout": "table",
+      "sha256": "858c8c7dc87ba557a34200608af4396d10324431eca73fb998d0647d1c3c9e94",
+      "description": "facet strength sigma_c (per facet quadrature point of the facet filter)",
+      "tolerance_class": "exact"
+    },
+    {
+      "name": "ins/law1/sigma_c/_segment_2/ghost",
+      "file": "data/ins__law1__sigma_c___segment_2__ghost.npy",
+      "dtype": "f64",
+      "shape": [
+        0,
+        1
+      ],
+      "axes": [
+        "entry",
+        "component"
+      ],
+      "layout": "table",
+      "sha256": "aa03397bf977ff4f544e8768afd91f3f4b876dc9732a7b9550ca82f5639b5ef4",
+      "description": "facet strength sigma_c (per facet quadrature point of the facet filter)",
+      "tolerance_class": "exact"
+    },
+    {
+      "name": "frag/s1/nb_fragment",
+      "file": "data/frag__s1__nb_fragment.npy",
+      "dtype": "i64",
+      "shape": [
+        1
+      ],
+      "axes": [
+        "entry"
+      ],
+      "layout": "table",
+      "sha256": "fc44e6cab97678b988677b1e24dc073c80b029ccf6566c7bc1bd9ec1061a6106",
+      "description": "getNbFragment (global)",
+      "tolerance_class": "exact"
+    },
+    {
+      "name": "frag/s1/mass",
+      "file": "data/frag__s1__mass.npy",
+      "dtype": "f64",
+      "shape": [
+        1,
+        2
+      ],
+      "axes": [
+        "entry",
+        "component"
+      ],
+      "layout": "table",
+      "sha256": "2d078cfedddb97b71e2d12857d2a9c96bf4e082648c73801190d70f411f05e81",
+      "description": "getMass (all-reduced)",
+      "tolerance_class": "exact"
+    },
+    {
+      "name": "frag/s1/center_of_mass",
+      "file": "data/frag__s1__center_of_mass.npy",
+      "dtype": "f64",
+      "shape": [
+        1,
+        2
+      ],
+      "axes": [
+        "entry",
+        "component"
+      ],
+      "layout": "table",
+      "sha256": "41ec83527689de534587bfaeb08dcd8fc9006051e9bd829bc7d8b19b1fbc39de",
+      "description": "getCenterOfMass",
+      "tolerance_class": "exact"
+    },
+    {
+      "name": "frag/s1/velocity",
+      "file": "data/frag__s1__velocity.npy",
+      "dtype": "f64",
+      "shape": [
+        1,
+        2
+      ],
+      "axes": [
+        "entry",
+        "component"
+      ],
+      "layout": "table",
+      "sha256": "41ec83527689de534587bfaeb08dcd8fc9006051e9bd829bc7d8b19b1fbc39de",
+      "description": "getVelocity",
+      "tolerance_class": "exact"
+    },
+    {
+      "name": "frag/s1/moments_of_inertia",
+      "file": "data/frag__s1__moments_of_inertia.npy",
+      "dtype": "f64",
+      "shape": [
+        1,
+        2
+      ],
+      "axes": [
+        "entry",
+        "component"
+      ],
+      "layout": "table",
+      "sha256": "5a3648c6901d1e00efb7064af6ff49507ec7cf9b866a801e3078dff4e02eb535",
+      "description": "getMomentsOfInertia (eig of the all-reduced integrals)",
+      "tolerance_class": "exact"
+    },
+    {
+      "name": "frag/s1/principal_directions",
+      "file": "data/frag__s1__principal_directions.npy",
+      "dtype": "f64",
+      "shape": [
+        1,
+        4
+      ],
+      "axes": [
+        "entry",
+        "component"
+      ],
+      "layout": "table",
+      "sha256": "2f8cda1433d1805f393d2278b0bf3f2efa0dc19292b0e9d954460210c40c250b",
+      "description": "getPrincipalDirections",
+      "tolerance_class": "exact"
+    },
+    {
+      "name": "frag/s1/nb_elements_per_fragment",
+      "file": "data/frag__s1__nb_elements_per_fragment.npy",
+      "dtype": "i64",
+      "shape": [
+        1
+      ],
+      "axes": [
+        "entry"
+      ],
+      "layout": "table",
+      "sha256": "2bbc2d18b8e7e5032a9b0cbcce4fda90287db8f7020c6b5356fc0f074add7431",
+      "description": "getNbElementsPerFragment (all-reduced)",
+      "tolerance_class": "exact"
+    },
+    {
+      "name": "frag/s1/groups/fragment_0/elements/_triangle_3/not_ghost",
+      "file": "data/frag__s1__groups__fragment_0__elements___triangle_3__not_ghost.npy",
+      "dtype": "i64",
+      "shape": [
+        32
+      ],
+      "axes": [
+        "entry"
+      ],
+      "layout": "table",
+      "sha256": "d7e613f1090f555b5641f2b446191b4b16b191e7a4ebfee85716049073143863",
+      "description": "group elements (group order)",
+      "tolerance_class": "exact"
+    },
+    {
+      "name": "frag/s1/groups/fragment_0/elements/_cohesive_2d_4/not_ghost",
+      "file": "data/frag__s1__groups__fragment_0__elements___cohesive_2d_4__not_ghost.npy",
+      "dtype": "i64",
+      "shape": [
+        6
+      ],
+      "axes": [
+        "entry"
+      ],
+      "layout": "table",
+      "sha256": "6d08883eb5b05b9da4664a1bf8eb352f7b8afdfa7528a0f493b57b0b79d36761",
+      "description": "group elements (group order)",
+      "tolerance_class": "exact"
+    },
+    {
+      "name": "frag/s1/groups/fragment_0/elements/_triangle_3/ghost",
+      "file": "data/frag__s1__groups__fragment_0__elements___triangle_3__ghost.npy",
+      "dtype": "i64",
+      "shape": [
+        17
+      ],
+      "axes": [
+        "entry"
+      ],
+      "layout": "table",
+      "sha256": "029e6a20c81a7d340b7b722ab231d4751e1c50fcfed7403e60516e116255ff48",
+      "description": "group elements (group order)",
+      "tolerance_class": "exact"
+    },
+    {
+      "name": "frag/s1/groups/fragment_0/elements/_cohesive_2d_4/ghost",
+      "file": "data/frag__s1__groups__fragment_0__elements___cohesive_2d_4__ghost.npy",
+      "dtype": "i64",
+      "shape": [
+        4
+      ],
+      "axes": [
+        "entry"
+      ],
+      "layout": "table",
+      "sha256": "dc5de563b86c3210ee39b3adc9c39934ef72b87a5c20f475ccc78e336ea75a7e",
+      "description": "group elements (group order)",
+      "tolerance_class": "exact"
+    },
+    {
+      "name": "frag/s1/groups/fragment_0/nodes",
+      "file": "data/frag__s1__groups__fragment_0__nodes.npy",
+      "dtype": "i64",
+      "shape": [
+        45
+      ],
+      "axes": [
+        "entry"
+      ],
+      "layout": "table",
+      "sha256": "48565fd626b9d1f6fefc3c333de3adf5e3a9e4386c12ef35fa0ea452872ba28f",
+      "description": "node group (local ids, group order)",
+      "tolerance_class": "exact"
+    },
+    {
+      "name": "frag/s1/damage/law1/damage/_cohesive_2d_4/not_ghost",
+      "file": "data/frag__s1__damage__law1__damage___cohesive_2d_4__not_ghost.npy",
+      "dtype": "f64",
+      "shape": [
+        12,
+        1
+      ],
+      "axes": [
+        "entry",
+        "component"
+      ],
+      "layout": "table",
+      "sha256": "739bb032a4a9f1bd4009e828da403217c9f924618a10f36d5be5f3afa00a71f1",
+      "description": "cohesive damage",
+      "tolerance_class": "exact"
+    },
+    {
+      "name": "frag/s1/damage/law1/damage/_cohesive_2d_4/ghost",
+      "file": "data/frag__s1__damage__law1__damage___cohesive_2d_4__ghost.npy",
+      "dtype": "f64",
+      "shape": [
+        8,
+        1
+      ],
+      "axes": [
+        "entry",
+        "component"
+      ],
+      "layout": "table",
+      "sha256": "4cd31af01573eeee90bde8b4518cd54dd2c2cf8168be9d27148aa725d54b2405",
+      "description": "cohesive damage",
+      "tolerance_class": "exact"
+    },
+    {
+      "name": "frag/s1/local/mass",
+      "file": "data/frag__s1__local__mass.npy",
+      "dtype": "f64",
+      "shape": [
+        1,
+        2
+      ],
+      "axes": [
+        "entry",
+        "component"
+      ],
+      "layout": "table",
+      "sha256": "76109d59484975c03c46ccf2ce7fede052c0139d10d9060e58568f6571b2913a",
+      "description": "this rank's integral of rho (before the allReduce)",
+      "tolerance_class": "exact"
+    },
+    {
+      "name": "frag/s1/local/mass_center",
+      "file": "data/frag__s1__local__mass_center.npy",
+      "dtype": "f64",
+      "shape": [
+        1,
+        2
+      ],
+      "axes": [
+        "entry",
+        "component"
+      ],
+      "layout": "table",
+      "sha256": "8eb67dd7c773544b578e5c90dc9c78506b42dffb7dc75280b617e1fa219c19d9",
+      "description": "this rank's integral of rho x (before the allReduce and the division)",
+      "tolerance_class": "exact"
+    },
+    {
+      "name": "frag/s1/local/velocity",
+      "file": "data/frag__s1__local__velocity.npy",
+      "dtype": "f64",
+      "shape": [
+        1,
+        2
+      ],
+      "axes": [
+        "entry",
+        "component"
+      ],
+      "layout": "table",
+      "sha256": "21f6d6007b376c7fa4c2452f4f58da7e80eba6dd5ce526e0df15f757cd1c8712",
+      "description": "this rank's integral of rho v (before the allReduce and the division)",
+      "tolerance_class": "exact"
+    },
+    {
+      "name": "frag/s1/local/inertia",
+      "file": "data/frag__s1__local__inertia.npy",
+      "dtype": "f64",
+      "shape": [
+        1,
+        4
+      ],
+      "axes": [
+        "entry",
+        "component"
+      ],
+      "layout": "table",
+      "sha256": "1d2d85ea81fbf771e772bc90ad7d86e68ed33a24342610114c5ffee77e1b73f7",
+      "description": "this rank's integral of rho (tr(r r^T) I - r r^T) (before the allReduce)",
+      "tolerance_class": "exact"
+    },
+    {
+      "name": "frag/s1/local/nb_elements",
+      "file": "data/frag__s1__local__nb_elements.npy",
+      "dtype": "i64",
+      "shape": [
+        1
+      ],
+      "axes": [
+        "entry"
+      ],
+      "layout": "table",
+      "sha256": "931c47d90c296d47b286cd01624d3f938f89625dcaedc8a37a159180e1a2c18e",
+      "description": "this rank's not-ghost bulk elements per fragment",
+      "tolerance_class": "exact"
+    },
+    {
+      "name": "frag/s2/nb_fragment",
+      "file": "data/frag__s2__nb_fragment.npy",
+      "dtype": "i64",
+      "shape": [
+        1
+      ],
+      "axes": [
+        "entry"
+      ],
+      "layout": "table",
+      "sha256": "79a3ec9e5013300721fe2cc296c3d7016af2098b51ea46190de859dc1de8fb8e",
+      "description": "getNbFragment (global)",
+      "tolerance_class": "exact"
+    },
+    {
+      "name": "frag/s2/mass",
+      "file": "data/frag__s2__mass.npy",
+      "dtype": "f64",
+      "shape": [
+        2,
+        2
+      ],
+      "axes": [
+        "entry",
+        "component"
+      ],
+      "layout": "table",
+      "sha256": "dd18fd9d443e76fa91adf95f24df131d9e87f63ac77db9a6a0e3716c68bdae58",
+      "description": "getMass (all-reduced)",
+      "tolerance_class": "exact"
+    },
+    {
+      "name": "frag/s2/center_of_mass",
+      "file": "data/frag__s2__center_of_mass.npy",
+      "dtype": "f64",
+      "shape": [
+        2,
+        2
+      ],
+      "axes": [
+        "entry",
+        "component"
+      ],
+      "layout": "table",
+      "sha256": "ea89f16adce70e01eb025f017baa7d16b02f454634697d7ad904b0b9e62c7e4d",
+      "description": "getCenterOfMass",
+      "tolerance_class": "exact"
+    },
+    {
+      "name": "frag/s2/velocity",
+      "file": "data/frag__s2__velocity.npy",
+      "dtype": "f64",
+      "shape": [
+        2,
+        2
+      ],
+      "axes": [
+        "entry",
+        "component"
+      ],
+      "layout": "table",
+      "sha256": "ea89f16adce70e01eb025f017baa7d16b02f454634697d7ad904b0b9e62c7e4d",
+      "description": "getVelocity",
+      "tolerance_class": "exact"
+    },
+    {
+      "name": "frag/s2/moments_of_inertia",
+      "file": "data/frag__s2__moments_of_inertia.npy",
+      "dtype": "f64",
+      "shape": [
+        2,
+        2
+      ],
+      "axes": [
+        "entry",
+        "component"
+      ],
+      "layout": "table",
+      "sha256": "2f59beb003feee1f7a84ff20fc315dae7755434d3fd8ee8c76d685eb49c51773",
+      "description": "getMomentsOfInertia (eig of the all-reduced integrals)",
+      "tolerance_class": "exact"
+    },
+    {
+      "name": "frag/s2/principal_directions",
+      "file": "data/frag__s2__principal_directions.npy",
+      "dtype": "f64",
+      "shape": [
+        2,
+        4
+      ],
+      "axes": [
+        "entry",
+        "component"
+      ],
+      "layout": "table",
+      "sha256": "ddc68670ba07408c13dc69e8d42855bd221619fcb97676cbd80e3c1da327df8c",
+      "description": "getPrincipalDirections",
+      "tolerance_class": "exact"
+    },
+    {
+      "name": "frag/s2/nb_elements_per_fragment",
+      "file": "data/frag__s2__nb_elements_per_fragment.npy",
+      "dtype": "i64",
+      "shape": [
+        2
+      ],
+      "axes": [
+        "entry"
+      ],
+      "layout": "table",
+      "sha256": "258d0378471c69edbb9ca9cf2ea8fa4d6a230bb13de6b3d26284603f5efd8fcd",
+      "description": "getNbElementsPerFragment (all-reduced)",
+      "tolerance_class": "exact"
+    },
+    {
+      "name": "frag/s2/groups/fragment_0/elements/_triangle_3/not_ghost",
+      "file": "data/frag__s2__groups__fragment_0__elements___triangle_3__not_ghost.npy",
+      "dtype": "i64",
+      "shape": [
+        16
+      ],
+      "axes": [
+        "entry"
+      ],
+      "layout": "table",
+      "sha256": "3be33c54c63af8ee287fbfadcfd76b0d55c1b8094a7b20457263ce0d7d8770a8",
+      "description": "group elements (group order)",
+      "tolerance_class": "exact"
+    },
+    {
+      "name": "frag/s2/groups/fragment_0/elements/_triangle_3/ghost",
+      "file": "data/frag__s2__groups__fragment_0__elements___triangle_3__ghost.npy",
+      "dtype": "i64",
+      "shape": [
+        4
+      ],
+      "axes": [
+        "entry"
+      ],
+      "layout": "table",
+      "sha256": "dc5de563b86c3210ee39b3adc9c39934ef72b87a5c20f475ccc78e336ea75a7e",
+      "description": "group elements (group order)",
+      "tolerance_class": "exact"
+    },
+    {
+      "name": "frag/s2/groups/fragment_0/nodes",
+      "file": "data/frag__s2__groups__fragment_0__nodes.npy",
+      "dtype": "i64",
+      "shape": [
+        18
+      ],
+      "axes": [
+        "entry"
+      ],
+      "layout": "table",
+      "sha256": "c9db528668702d80a59d8b23a790a17973ead701824fde288a3222ca0bde6848",
+      "description": "node group (local ids, group order)",
+      "tolerance_class": "exact"
+    },
+    {
+      "name": "frag/s2/groups/fragment_1/elements/_triangle_3/not_ghost",
+      "file": "data/frag__s2__groups__fragment_1__elements___triangle_3__not_ghost.npy",
+      "dtype": "i64",
+      "shape": [
+        16
+      ],
+      "axes": [
+        "entry"
+      ],
+      "layout": "table",
+      "sha256": "dc1be87d88bb0bb4a961f21e9c87105ff46ee860f18aed6e595e30bc50a9538c",
+      "description": "group elements (group order)",
+      "tolerance_class": "exact"
+    },
+    {
+      "name": "frag/s2/groups/fragment_1/elements/_cohesive_2d_4/not_ghost",
+      "file": "data/frag__s2__groups__fragment_1__elements___cohesive_2d_4__not_ghost.npy",
+      "dtype": "i64",
+      "shape": [
+        2
+      ],
+      "axes": [
+        "entry"
+      ],
+      "layout": "table",
+      "sha256": "3f2d07628bf1e19d398e4422e76859f3cf2e04e043f2e9ae1737056590ecc5ae",
+      "description": "group elements (group order)",
+      "tolerance_class": "exact"
+    },
+    {
+      "name": "frag/s2/groups/fragment_1/elements/_triangle_3/ghost",
+      "file": "data/frag__s2__groups__fragment_1__elements___triangle_3__ghost.npy",
+      "dtype": "i64",
+      "shape": [
+        13
+      ],
+      "axes": [
+        "entry"
+      ],
+      "layout": "table",
+      "sha256": "af4e77297f592c6fe396d77b2738f73064f9041e2d9240f3941f6054e1c65f65",
+      "description": "group elements (group order)",
+      "tolerance_class": "exact"
+    },
+    {
+      "name": "frag/s2/groups/fragment_1/elements/_cohesive_2d_4/ghost",
+      "file": "data/frag__s2__groups__fragment_1__elements___cohesive_2d_4__ghost.npy",
+      "dtype": "i64",
+      "shape": [
+        3
+      ],
+      "axes": [
+        "entry"
+      ],
+      "layout": "table",
+      "sha256": "f9903acaeea88e7642e9820968f19d2c30dabf7aeb913e939bc23dc2f27be854",
+      "description": "group elements (group order)",
+      "tolerance_class": "exact"
+    },
+    {
+      "name": "frag/s2/groups/fragment_1/nodes",
+      "file": "data/frag__s2__groups__fragment_1__nodes.npy",
+      "dtype": "i64",
+      "shape": [
+        28
+      ],
+      "axes": [
+        "entry"
+      ],
+      "layout": "table",
+      "sha256": "b7b578ee02a8257fc7d6ea87e5f8f501c302590d6129a89d1c794ba05d200e23",
+      "description": "node group (local ids, group order)",
+      "tolerance_class": "exact"
+    },
+    {
+      "name": "frag/s2/damage/law1/damage/_cohesive_2d_4/not_ghost",
+      "file": "data/frag__s2__damage__law1__damage___cohesive_2d_4__not_ghost.npy",
+      "dtype": "f64",
+      "shape": [
+        12,
+        1
+      ],
+      "axes": [
+        "entry",
+        "component"
+      ],
+      "layout": "table",
+      "sha256": "0c3f4891ee5d34f990f968c4639a591d276fd18437c5ba83410d2257cc3b7e3f",
+      "description": "cohesive damage",
+      "tolerance_class": "exact"
+    },
+    {
+      "name": "frag/s2/damage/law1/damage/_cohesive_2d_4/ghost",
+      "file": "data/frag__s2__damage__law1__damage___cohesive_2d_4__ghost.npy",
+      "dtype": "f64",
+      "shape": [
+        8,
+        1
+      ],
+      "axes": [
+        "entry",
+        "component"
+      ],
+      "layout": "table",
+      "sha256": "6c2c3955a572c6ec3a7db251eed80a6ef1b077c92f33873226eeb92dbd9f55e8",
+      "description": "cohesive damage",
+      "tolerance_class": "exact"
+    },
+    {
+      "name": "frag/s2/local/mass",
+      "file": "data/frag__s2__local__mass.npy",
+      "dtype": "f64",
+      "shape": [
+        2,
+        2
+      ],
+      "axes": [
+        "entry",
+        "component"
+      ],
+      "layout": "table",
+      "sha256": "b698ff77cced43e6b06941a8f2a67ccae3a3ec6604bcd114932850fc97037cc8",
+      "description": "this rank's integral of rho (before the allReduce)",
+      "tolerance_class": "exact"
+    },
+    {
+      "name": "frag/s2/local/mass_center",
+      "file": "data/frag__s2__local__mass_center.npy",
+      "dtype": "f64",
+      "shape": [
+        2,
+        2
+      ],
+      "axes": [
+        "entry",
+        "component"
+      ],
+      "layout": "table",
+      "sha256": "1c8c61e6748ab06af6e9d35df85ac8f3564811ea316ce30813d1ccd054e85066",
+      "description": "this rank's integral of rho x (before the allReduce and the division)",
+      "tolerance_class": "exact"
+    },
+    {
+      "name": "frag/s2/local/velocity",
+      "file": "data/frag__s2__local__velocity.npy",
+      "dtype": "f64",
+      "shape": [
+        2,
+        2
+      ],
+      "axes": [
+        "entry",
+        "component"
+      ],
+      "layout": "table",
+      "sha256": "55751747823b9dfcd2e374acac8e0dac42f88a4b7a7b97b65b8497d8ca8c6707",
+      "description": "this rank's integral of rho v (before the allReduce and the division)",
+      "tolerance_class": "exact"
+    },
+    {
+      "name": "frag/s2/local/inertia",
+      "file": "data/frag__s2__local__inertia.npy",
+      "dtype": "f64",
+      "shape": [
+        2,
+        4
+      ],
+      "axes": [
+        "entry",
+        "component"
+      ],
+      "layout": "table",
+      "sha256": "f07fe5b7210d6edf5c5ac11aa50ab8f386d5bd702d017e9dfa3a1f6580940811",
+      "description": "this rank's integral of rho (tr(r r^T) I - r r^T) (before the allReduce)",
+      "tolerance_class": "exact"
+    },
+    {
+      "name": "frag/s2/local/nb_elements",
+      "file": "data/frag__s2__local__nb_elements.npy",
+      "dtype": "i64",
+      "shape": [
+        2
+      ],
+      "axes": [
+        "entry"
+      ],
+      "layout": "table",
+      "sha256": "d383d3273b35a6570ec074419b8337281bded0c77def5bdc8fba32e309e04234",
+      "description": "this rank's not-ghost bulk elements per fragment",
+      "tolerance_class": "exact"
+    },
+    {
+      "name": "frag/s3/nb_fragment",
+      "file": "data/frag__s3__nb_fragment.npy",
+      "dtype": "i64",
+      "shape": [
+        1
+      ],
+      "axes": [
+        "entry"
+      ],
+      "layout": "table",
+      "sha256": "5bd6c697aa9beab24702e737e4748b43885706094cdc3c8bf1f9d6fd5e5a69a2",
+      "description": "getNbFragment (global)",
+      "tolerance_class": "exact"
+    },
+    {
+      "name": "frag/s3/mass",
+      "file": "data/frag__s3__mass.npy",
+      "dtype": "f64",
+      "shape": [
+        3,
+        2
+      ],
+      "axes": [
+        "entry",
+        "component"
+      ],
+      "layout": "table",
+      "sha256": "18924680f872a7da582cfb5416d60421f5651f94956890a949982fa8afbee986",
+      "description": "getMass (all-reduced)",
+      "tolerance_class": "exact"
+    },
+    {
+      "name": "frag/s3/center_of_mass",
+      "file": "data/frag__s3__center_of_mass.npy",
+      "dtype": "f64",
+      "shape": [
+        3,
+        2
+      ],
+      "axes": [
+        "entry",
+        "component"
+      ],
+      "layout": "table",
+      "sha256": "6788b9f80e3105bf5418bc2c55ad1398427dedef052cdc4a00632f38a6498b67",
+      "description": "getCenterOfMass",
+      "tolerance_class": "exact"
+    },
+    {
+      "name": "frag/s3/velocity",
+      "file": "data/frag__s3__velocity.npy",
+      "dtype": "f64",
+      "shape": [
+        3,
+        2
+      ],
+      "axes": [
+        "entry",
+        "component"
+      ],
+      "layout": "table",
+      "sha256": "6788b9f80e3105bf5418bc2c55ad1398427dedef052cdc4a00632f38a6498b67",
+      "description": "getVelocity",
+      "tolerance_class": "exact"
+    },
+    {
+      "name": "frag/s3/moments_of_inertia",
+      "file": "data/frag__s3__moments_of_inertia.npy",
+      "dtype": "f64",
+      "shape": [
+        3,
+        2
+      ],
+      "axes": [
+        "entry",
+        "component"
+      ],
+      "layout": "table",
+      "sha256": "eb7a14f21c6d977f6e8d0b6013ec3a831ec1c22648fe4dcfdc5fc8327826f365",
+      "description": "getMomentsOfInertia (eig of the all-reduced integrals)",
+      "tolerance_class": "exact"
+    },
+    {
+      "name": "frag/s3/principal_directions",
+      "file": "data/frag__s3__principal_directions.npy",
+      "dtype": "f64",
+      "shape": [
+        3,
+        4
+      ],
+      "axes": [
+        "entry",
+        "component"
+      ],
+      "layout": "table",
+      "sha256": "2e084dc6ff25fe90d89e01885c6812a8e78b4d2fc5915a5f3c6b54fcab39ff1b",
+      "description": "getPrincipalDirections",
+      "tolerance_class": "exact"
+    },
+    {
+      "name": "frag/s3/nb_elements_per_fragment",
+      "file": "data/frag__s3__nb_elements_per_fragment.npy",
+      "dtype": "i64",
+      "shape": [
+        3
+      ],
+      "axes": [
+        "entry"
+      ],
+      "layout": "table",
+      "sha256": "3b8c67175b3adeb14a397e268cde4ceee19be06b2ef8cab7226140017e147447",
+      "description": "getNbElementsPerFragment (all-reduced)",
+      "tolerance_class": "exact"
+    },
+    {
+      "name": "frag/s3/groups/fragment_0/elements/_triangle_3/not_ghost",
+      "file": "data/frag__s3__groups__fragment_0__elements___triangle_3__not_ghost.npy",
+      "dtype": "i64",
+      "shape": [
+        16
+      ],
+      "axes": [
+        "entry"
+      ],
+      "layout": "table",
+      "sha256": "3be33c54c63af8ee287fbfadcfd76b0d55c1b8094a7b20457263ce0d7d8770a8",
+      "description": "group elements (group order)",
+      "tolerance_class": "exact"
+    },
+    {
+      "name": "frag/s3/groups/fragment_0/elements/_triangle_3/ghost",
+      "file": "data/frag__s3__groups__fragment_0__elements___triangle_3__ghost.npy",
+      "dtype": "i64",
+      "shape": [
+        4
+      ],
+      "axes": [
+        "entry"
+      ],
+      "layout": "table",
+      "sha256": "dc5de563b86c3210ee39b3adc9c39934ef72b87a5c20f475ccc78e336ea75a7e",
+      "description": "group elements (group order)",
+      "tolerance_class": "exact"
+    },
+    {
+      "name": "frag/s3/groups/fragment_0/nodes",
+      "file": "data/frag__s3__groups__fragment_0__nodes.npy",
+      "dtype": "i64",
+      "shape": [
+        18
+      ],
+      "axes": [
+        "entry"
+      ],
+      "layout": "table",
+      "sha256": "c9db528668702d80a59d8b23a790a17973ead701824fde288a3222ca0bde6848",
+      "description": "node group (local ids, group order)",
+      "tolerance_class": "exact"
+    },
+    {
+      "name": "frag/s3/groups/fragment_1/nodes",
+      "file": "data/frag__s3__groups__fragment_1__nodes.npy",
+      "dtype": "i64",
+      "shape": [
+        0
+      ],
+      "axes": [
+        "entry"
+      ],
+      "layout": "table",
+      "sha256": "e734dac55ea9fbbe782af2d8c02c3c5992131906228afb2aaaf137d6f3ed74db",
+      "description": "node group (local ids, group order)",
+      "tolerance_class": "exact"
+    },
+    {
+      "name": "frag/s3/groups/fragment_2/elements/_triangle_3/not_ghost",
+      "file": "data/frag__s3__groups__fragment_2__elements___triangle_3__not_ghost.npy",
+      "dtype": "i64",
+      "shape": [
+        16
+      ],
+      "axes": [
+        "entry"
+      ],
+      "layout": "table",
+      "sha256": "dc1be87d88bb0bb4a961f21e9c87105ff46ee860f18aed6e595e30bc50a9538c",
+      "description": "group elements (group order)",
+      "tolerance_class": "exact"
+    },
+    {
+      "name": "frag/s3/groups/fragment_2/elements/_cohesive_2d_4/not_ghost",
+      "file": "data/frag__s3__groups__fragment_2__elements___cohesive_2d_4__not_ghost.npy",
+      "dtype": "i64",
+      "shape": [
+        2
+      ],
+      "axes": [
+        "entry"
+      ],
+      "layout": "table",
+      "sha256": "3f2d07628bf1e19d398e4422e76859f3cf2e04e043f2e9ae1737056590ecc5ae",
+      "description": "group elements (group order)",
+      "tolerance_class": "exact"
+    },
+    {
+      "name": "frag/s3/groups/fragment_2/elements/_triangle_3/ghost",
+      "file": "data/frag__s3__groups__fragment_2__elements___triangle_3__ghost.npy",
+      "dtype": "i64",
+      "shape": [
+        13
+      ],
+      "axes": [
+        "entry"
+      ],
+      "layout": "table",
+      "sha256": "af4e77297f592c6fe396d77b2738f73064f9041e2d9240f3941f6054e1c65f65",
+      "description": "group elements (group order)",
+      "tolerance_class": "exact"
+    },
+    {
+      "name": "frag/s3/groups/fragment_2/elements/_cohesive_2d_4/ghost",
+      "file": "data/frag__s3__groups__fragment_2__elements___cohesive_2d_4__ghost.npy",
+      "dtype": "i64",
+      "shape": [
+        3
+      ],
+      "axes": [
+        "entry"
+      ],
+      "layout": "table",
+      "sha256": "f9903acaeea88e7642e9820968f19d2c30dabf7aeb913e939bc23dc2f27be854",
+      "description": "group elements (group order)",
+      "tolerance_class": "exact"
+    },
+    {
+      "name": "frag/s3/groups/fragment_2/nodes",
+      "file": "data/frag__s3__groups__fragment_2__nodes.npy",
+      "dtype": "i64",
+      "shape": [
+        28
+      ],
+      "axes": [
+        "entry"
+      ],
+      "layout": "table",
+      "sha256": "b7b578ee02a8257fc7d6ea87e5f8f501c302590d6129a89d1c794ba05d200e23",
+      "description": "node group (local ids, group order)",
+      "tolerance_class": "exact"
+    },
+    {
+      "name": "frag/s3/damage/law1/damage/_cohesive_2d_4/not_ghost",
+      "file": "data/frag__s3__damage__law1__damage___cohesive_2d_4__not_ghost.npy",
+      "dtype": "f64",
+      "shape": [
+        12,
+        1
+      ],
+      "axes": [
+        "entry",
+        "component"
+      ],
+      "layout": "table",
+      "sha256": "0c3f4891ee5d34f990f968c4639a591d276fd18437c5ba83410d2257cc3b7e3f",
+      "description": "cohesive damage",
+      "tolerance_class": "exact"
+    },
+    {
+      "name": "frag/s3/damage/law1/damage/_cohesive_2d_4/ghost",
+      "file": "data/frag__s3__damage__law1__damage___cohesive_2d_4__ghost.npy",
+      "dtype": "f64",
+      "shape": [
+        8,
+        1
+      ],
+      "axes": [
+        "entry",
+        "component"
+      ],
+      "layout": "table",
+      "sha256": "6c2c3955a572c6ec3a7db251eed80a6ef1b077c92f33873226eeb92dbd9f55e8",
+      "description": "cohesive damage",
+      "tolerance_class": "exact"
+    },
+    {
+      "name": "frag/s3/local/mass",
+      "file": "data/frag__s3__local__mass.npy",
+      "dtype": "f64",
+      "shape": [
+        3,
+        2
+      ],
+      "axes": [
+        "entry",
+        "component"
+      ],
+      "layout": "table",
+      "sha256": "ffc37e1a1602363c50b0f8bf9529fb6c5a783ae75783892b17c9633f759572f2",
+      "description": "this rank's integral of rho (before the allReduce)",
+      "tolerance_class": "exact"
+    },
+    {
+      "name": "frag/s3/local/mass_center",
+      "file": "data/frag__s3__local__mass_center.npy",
+      "dtype": "f64",
+      "shape": [
+        3,
+        2
+      ],
+      "axes": [
+        "entry",
+        "component"
+      ],
+      "layout": "table",
+      "sha256": "d13ffca87faaf1463a403f19deafb6ee3c0560dd9905e621454bc0d9f2eb4e84",
+      "description": "this rank's integral of rho x (before the allReduce and the division)",
+      "tolerance_class": "exact"
+    },
+    {
+      "name": "frag/s3/local/velocity",
+      "file": "data/frag__s3__local__velocity.npy",
+      "dtype": "f64",
+      "shape": [
+        3,
+        2
+      ],
+      "axes": [
+        "entry",
+        "component"
+      ],
+      "layout": "table",
+      "sha256": "806efcfb5953a7d24d528dbf2b5a5071ceabc2335789df70ecfc1c2b767612b8",
+      "description": "this rank's integral of rho v (before the allReduce and the division)",
+      "tolerance_class": "exact"
+    },
+    {
+      "name": "frag/s3/local/inertia",
+      "file": "data/frag__s3__local__inertia.npy",
+      "dtype": "f64",
+      "shape": [
+        3,
+        4
+      ],
+      "axes": [
+        "entry",
+        "component"
+      ],
+      "layout": "table",
+      "sha256": "17445da5c83e49ce437223b15ef3f8ae1857580c88a371bb112588722cd635a9",
+      "description": "this rank's integral of rho (tr(r r^T) I - r r^T) (before the allReduce)",
+      "tolerance_class": "exact"
+    },
+    {
+      "name": "frag/s3/local/nb_elements",
+      "file": "data/frag__s3__local__nb_elements.npy",
+      "dtype": "i64",
+      "shape": [
+        3
+      ],
+      "axes": [
+        "entry"
+      ],
+      "layout": "table",
+      "sha256": "06a60cc10ca4fbbebc4ac48bb410f51c579db4dce6944b4191f36b4d684fb1b6",
+      "description": "this rank's not-ghost bulk elements per fragment",
+      "tolerance_class": "exact"
+    },
+    {
+      "name": "frag/s4/nb_fragment",
+      "file": "data/frag__s4__nb_fragment.npy",
+      "dtype": "i64",
+      "shape": [
+        1
+      ],
+      "axes": [
+        "entry"
+      ],
+      "layout": "table",
+      "sha256": "060d6c3223cfe286cbf0c25b0ce5a4f877096219e064cfe401ebb8658501387c",
+      "description": "getNbFragment (global)",
+      "tolerance_class": "exact"
+    },
+    {
+      "name": "frag/s4/mass",
+      "file": "data/frag__s4__mass.npy",
+      "dtype": "f64",
+      "shape": [
+        4,
+        2
+      ],
+      "axes": [
+        "entry",
+        "component"
+      ],
+      "layout": "table",
+      "sha256": "fd12323db0b20c0852c9915dbfd968c689615c31ebb3daa3d203ce45058e4369",
+      "description": "getMass (all-reduced)",
+      "tolerance_class": "exact"
+    },
+    {
+      "name": "frag/s4/center_of_mass",
+      "file": "data/frag__s4__center_of_mass.npy",
+      "dtype": "f64",
+      "shape": [
+        4,
+        2
+      ],
+      "axes": [
+        "entry",
+        "component"
+      ],
+      "layout": "table",
+      "sha256": "888d7acc671a672b0686a8703f05f7d3eeead701fbf35e67001b5e9786ff745d",
+      "description": "getCenterOfMass",
+      "tolerance_class": "exact"
+    },
+    {
+      "name": "frag/s4/velocity",
+      "file": "data/frag__s4__velocity.npy",
+      "dtype": "f64",
+      "shape": [
+        4,
+        2
+      ],
+      "axes": [
+        "entry",
+        "component"
+      ],
+      "layout": "table",
+      "sha256": "888d7acc671a672b0686a8703f05f7d3eeead701fbf35e67001b5e9786ff745d",
+      "description": "getVelocity",
+      "tolerance_class": "exact"
+    },
+    {
+      "name": "frag/s4/moments_of_inertia",
+      "file": "data/frag__s4__moments_of_inertia.npy",
+      "dtype": "f64",
+      "shape": [
+        4,
+        2
+      ],
+      "axes": [
+        "entry",
+        "component"
+      ],
+      "layout": "table",
+      "sha256": "3cbc95f4432477c4f8d29ede7d5be372fdc3a4080c1bbb3fea91dbb8b72a14be",
+      "description": "getMomentsOfInertia (eig of the all-reduced integrals)",
+      "tolerance_class": "exact"
+    },
+    {
+      "name": "frag/s4/principal_directions",
+      "file": "data/frag__s4__principal_directions.npy",
+      "dtype": "f64",
+      "shape": [
+        4,
+        4
+      ],
+      "axes": [
+        "entry",
+        "component"
+      ],
+      "layout": "table",
+      "sha256": "e81e364c2a081dd720bdb7e6f681a4f4b3e8c584c5b5e95274f1b62b3de22ea4",
+      "description": "getPrincipalDirections",
+      "tolerance_class": "exact"
+    },
+    {
+      "name": "frag/s4/nb_elements_per_fragment",
+      "file": "data/frag__s4__nb_elements_per_fragment.npy",
+      "dtype": "i64",
+      "shape": [
+        4
+      ],
+      "axes": [
+        "entry"
+      ],
+      "layout": "table",
+      "sha256": "705885c59779f33126460f11a77c9f75123a6b884a416f1d8771de243839fe93",
+      "description": "getNbElementsPerFragment (all-reduced)",
+      "tolerance_class": "exact"
+    },
+    {
+      "name": "frag/s4/groups/fragment_0/elements/_triangle_3/not_ghost",
+      "file": "data/frag__s4__groups__fragment_0__elements___triangle_3__not_ghost.npy",
+      "dtype": "i64",
+      "shape": [
+        16
+      ],
+      "axes": [
+        "entry"
+      ],
+      "layout": "table",
+      "sha256": "3be33c54c63af8ee287fbfadcfd76b0d55c1b8094a7b20457263ce0d7d8770a8",
+      "description": "group elements (group order)",
+      "tolerance_class": "exact"
+    },
+    {
+      "name": "frag/s4/groups/fragment_0/elements/_triangle_3/ghost",
+      "file": "data/frag__s4__groups__fragment_0__elements___triangle_3__ghost.npy",
+      "dtype": "i64",
+      "shape": [
+        4
+      ],
+      "axes": [
+        "entry"
+      ],
+      "layout": "table",
+      "sha256": "dc5de563b86c3210ee39b3adc9c39934ef72b87a5c20f475ccc78e336ea75a7e",
+      "description": "group elements (group order)",
+      "tolerance_class": "exact"
+    },
+    {
+      "name": "frag/s4/groups/fragment_0/nodes",
+      "file": "data/frag__s4__groups__fragment_0__nodes.npy",
+      "dtype": "i64",
+      "shape": [
+        18
+      ],
+      "axes": [
+        "entry"
+      ],
+      "layout": "table",
+      "sha256": "c9db528668702d80a59d8b23a790a17973ead701824fde288a3222ca0bde6848",
+      "description": "node group (local ids, group order)",
+      "tolerance_class": "exact"
+    },
+    {
+      "name": "frag/s4/groups/fragment_1/elements/_triangle_3/not_ghost",
+      "file": "data/frag__s4__groups__fragment_1__elements___triangle_3__not_ghost.npy",
+      "dtype": "i64",
+      "shape": [
+        16
+      ],
+      "axes": [
+        "entry"
+      ],
+      "layout": "table",
+      "sha256": "dc1be87d88bb0bb4a961f21e9c87105ff46ee860f18aed6e595e30bc50a9538c",
+      "description": "group elements (group order)",
+      "tolerance_class": "exact"
+    },
+    {
+      "name": "frag/s4/groups/fragment_1/elements/_triangle_3/ghost",
+      "file": "data/frag__s4__groups__fragment_1__elements___triangle_3__ghost.npy",
+      "dtype": "i64",
+      "shape": [
+        4
+      ],
+      "axes": [
+        "entry"
+      ],
+      "layout": "table",
+      "sha256": "7bc3e613862b7a0cc5d5cc7f20545f8a0c312644206b2bba154af398a2d8afe3",
+      "description": "group elements (group order)",
+      "tolerance_class": "exact"
+    },
+    {
+      "name": "frag/s4/groups/fragment_1/nodes",
+      "file": "data/frag__s4__groups__fragment_1__nodes.npy",
+      "dtype": "i64",
+      "shape": [
+        18
+      ],
+      "axes": [
+        "entry"
+      ],
+      "layout": "table",
+      "sha256": "1f5529ca19d666d4649df0c0cbe4a9ed347707994285b6978e1c5c77e91da78f",
+      "description": "node group (local ids, group order)",
+      "tolerance_class": "exact"
+    },
+    {
+      "name": "frag/s4/groups/fragment_2/elements/_triangle_3/ghost",
+      "file": "data/frag__s4__groups__fragment_2__elements___triangle_3__ghost.npy",
+      "dtype": "i64",
+      "shape": [
+        9
+      ],
+      "axes": [
+        "entry"
+      ],
+      "layout": "table",
+      "sha256": "f06efdaf1fc0570cdfd544df176a224fa532aacf43dc6b437a841e7415c3de1e",
+      "description": "group elements (group order)",
+      "tolerance_class": "exact"
+    },
+    {
+      "name": "frag/s4/groups/fragment_2/nodes",
+      "file": "data/frag__s4__groups__fragment_2__nodes.npy",
+      "dtype": "i64",
+      "shape": [
+        11
+      ],
+      "axes": [
+        "entry"
+      ],
+      "layout": "table",
+      "sha256": "17eed5ecb436c17a0d69410f427c3da6f2784aabb5888a4b5b96967e688cc742",
+      "description": "node group (local ids, group order)",
+      "tolerance_class": "exact"
+    },
+    {
+      "name": "frag/s4/groups/fragment_3/nodes",
+      "file": "data/frag__s4__groups__fragment_3__nodes.npy",
+      "dtype": "i64",
+      "shape": [
+        0
+      ],
+      "axes": [
+        "entry"
+      ],
+      "layout": "table",
+      "sha256": "e734dac55ea9fbbe782af2d8c02c3c5992131906228afb2aaaf137d6f3ed74db",
+      "description": "node group (local ids, group order)",
+      "tolerance_class": "exact"
+    },
+    {
+      "name": "frag/s4/damage/law1/damage/_cohesive_2d_4/not_ghost",
+      "file": "data/frag__s4__damage__law1__damage___cohesive_2d_4__not_ghost.npy",
+      "dtype": "f64",
+      "shape": [
+        12,
+        1
+      ],
+      "axes": [
+        "entry",
+        "component"
+      ],
+      "layout": "table",
+      "sha256": "defb5084697b5a5a3d33c63b3af0f8af025e2e4e054bebe9f71069f8a2f06a8b",
+      "description": "cohesive damage",
+      "tolerance_class": "exact"
+    },
+    {
+      "name": "frag/s4/damage/law1/damage/_cohesive_2d_4/ghost",
+      "file": "data/frag__s4__damage__law1__damage___cohesive_2d_4__ghost.npy",
+      "dtype": "f64",
+      "shape": [
+        8,
+        1
+      ],
+      "axes": [
+        "entry",
+        "component"
+      ],
+      "layout": "table",
+      "sha256": "250e4708b1adb9108c9036211946623cf657d28ac8edd491afc4781e017abb2e",
+      "description": "cohesive damage",
+      "tolerance_class": "exact"
+    },
+    {
+      "name": "frag/s4/local/mass",
+      "file": "data/frag__s4__local__mass.npy",
+      "dtype": "f64",
+      "shape": [
+        4,
+        2
+      ],
+      "axes": [
+        "entry",
+        "component"
+      ],
+      "layout": "table",
+      "sha256": "651e6a4e4f4bb6eb4d33891efe90ac61f0c064f777a1a0e79a16737a86b2c27f",
+      "description": "this rank's integral of rho (before the allReduce)",
+      "tolerance_class": "exact"
+    },
+    {
+      "name": "frag/s4/local/mass_center",
+      "file": "data/frag__s4__local__mass_center.npy",
+      "dtype": "f64",
+      "shape": [
+        4,
+        2
+      ],
+      "axes": [
+        "entry",
+        "component"
+      ],
+      "layout": "table",
+      "sha256": "d49281c179f99ee3ba0827f898edb53002f8e70fea907d0cff7caa05df3c85da",
+      "description": "this rank's integral of rho x (before the allReduce and the division)",
+      "tolerance_class": "exact"
+    },
+    {
+      "name": "frag/s4/local/velocity",
+      "file": "data/frag__s4__local__velocity.npy",
+      "dtype": "f64",
+      "shape": [
+        4,
+        2
+      ],
+      "axes": [
+        "entry",
+        "component"
+      ],
+      "layout": "table",
+      "sha256": "cfed8caf85d8871eab4d0eb3d2d9ed1343df471a2555ab2c13dc6cfafa5a6090",
+      "description": "this rank's integral of rho v (before the allReduce and the division)",
+      "tolerance_class": "exact"
+    },
+    {
+      "name": "frag/s4/local/inertia",
+      "file": "data/frag__s4__local__inertia.npy",
+      "dtype": "f64",
+      "shape": [
+        4,
+        4
+      ],
+      "axes": [
+        "entry",
+        "component"
+      ],
+      "layout": "table",
+      "sha256": "9fa31a917da64b037633755abfee48c8ceecd5ed9685a3ae1fcd12cd6c83204b",
+      "description": "this rank's integral of rho (tr(r r^T) I - r r^T) (before the allReduce)",
+      "tolerance_class": "exact"
+    },
+    {
+      "name": "frag/s4/local/nb_elements",
+      "file": "data/frag__s4__local__nb_elements.npy",
+      "dtype": "i64",
+      "shape": [
+        4
+      ],
+      "axes": [
+        "entry"
+      ],
+      "layout": "table",
+      "sha256": "62f06be19b379a74526203ccc855967bdc6e4af6a28e245b0e505e4c51a156cd",
+      "description": "this rank's not-ghost bulk elements per fragment",
+      "tolerance_class": "exact"
+    }
+  ],
+  "tags": [
+    "parallel",
+    "cohesive"
+  ]
+}

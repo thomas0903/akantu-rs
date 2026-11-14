@@ -1,0 +1,1681 @@
+{
+  "format_version": 1,
+  "case_id": "model/couplers/pf_deviatoric",
+  "description": "test_phase_field_deviatoric_split.cc: vol/dev split, load / unload into compression / reload, savePreviousState",
+  "status": "golden",
+  "generator": {
+    "probe": "couplers_probe",
+    "probe_version": "1",
+    "command": "oracle/probes/couplers/generate.sh "
+  },
+  "reference": {
+    "sha": "35a851780d0b9471d258ed53a003ae98aaa95ea0",
+    "describe": "v5.0.7-post1-554-g35a851780",
+    "patches": [
+      "modified:cmake/AkantuTestsMacros.cmake sha256=c280165a84912eab4bcc081b9eaaaa06aafdd83d4f48d982e11b0859abf9672f (reference sha256=36290de2ec8b111028138fe82029efa16501512241a5bc264fa30ff3e3239b9e)"
+    ]
+  },
+  "build": {
+  "config": "strict",
+  "compiler": "g++ (Debian 14.2.0-19) 14.2.0",
+  "cxx_flags": "-ffp-contract=off -DEIGEN_DONT_VECTORIZE -O2 -g -DNDEBUG -g3 -ggdb3 -flarge-source-files -std=c++20 -flto=auto -fno-fat-lto-objects -fPIC -frounding-math (actual flags of src/model/solid_mechanics/solid_mechanics_model.cc; warnings and non-FP -D defines omitted)",
+  "build_type": "RelWithDebInfo",
+  "arch": "x86_64",
+  "os": "Debian GNU/Linux 13 (trixie)",
+  "libraries": {
+    "eigen3": "3.4.0-5",
+    "boost": "1.83.0.2+b2",
+    "openmpi": "5.0.7-1",
+    "mumps": "5.7.3-3+b1",
+    "petsc": "3.22.5+dfsg1-2",
+    "scotch": "7.0.7-1",
+    "openblas": "0.3.29+ds-3",
+    "scalapack": "2.2.2-1",
+    "hdf5": "1.14.5+repack-3",
+    "gmsh": "4.13.1+ds1-6",
+    "pybind11": "2.13.6-2",
+    "numpy": "1:2.2.4+ds-1",
+    "scipy": "1.15.3-1",
+    "gcc": "4:14.2.0-1",
+    "gfortran": "4:14.2.0-1",
+    "oracle_image": "sha256:45122c213e9fa194b6b58dcc31fc23b5fa4f7c0f64d0a452e40ae072c51c5cdb",
+    "oracle_build_scripts": "e168f393291494c869fa759b3ad9ae4a371a0369",
+    "oracle_install_reference_sha": "35a851780d0b9471d258ed53a003ae98aaa95ea0",
+    "oracle_install_image": "sha256:45122c213e9fa194b6b58dcc31fc23b5fa4f7c0f64d0a452e40ae072c51c5cdb",
+    "sha256:libakantu.so.5.0.7": "5491d902b6f363e11b47d2dc1d0aff0597374e8ff785bbfe2bff534f38509e81",
+    "probe_tree_sha256": "7c6e107e38aa587223ccc5c0a1cebf94c1d3ba8171458bd33ecdbb7618c12869",
+    "probe_sources_commit": "bfd186024da3b9fea83a552f78b2b202e206620c",
+    "cmake_cxx_flags": "-ffp-contract=off -DEIGEN_DONT_VECTORIZE -O2 -g -DNDEBUG -g3 -ggdb3 -flarge-source-files",
+    "probe": "couplers_probe"
+  },
+  "probe_compile_command": "/usr/bin/c++ '-DAKANTU_PROBE_BUILD_TYPE=\"RelWithDebInfo\"' '-DAKANTU_PROBE_CONFIG=\"strict\"' '-DAKANTU_PROBE_CXX_FLAGS=\"-ffp-contract=off -DEIGEN_DONT_VECTORIZE  -O2 -g -DNDEBUG\"' -DBOOST_GRAPH_DYN_LINK -DBOOST_GRAPH_NO_LIB -DBOOST_REGEX_DYN_LINK -DBOOST_REGEX_NO_LIB -DCGAL_USE_GMPXX=1 -I/probes/couplers/../include -isystem /build/install-strict/include/akantu -isystem /opt/CGAL-5.6.2/include -isystem /usr/lib/x86_64-linux-gnu/openmpi/include -isystem /usr/lib/x86_64-linux-gnu/openmpi/include/openmpi -isystem /usr/lib/petscdir/petsc3.22/x86_64-linux-gnu-real/include -isystem /usr/include/scotch -isystem /build/install-strict/include/akantu_iterators -isystem /usr/include/eigen3 -isystem /build/install-strict/include/iohelper -O2 -g -DNDEBUG -std=gnu++20 -ffp-contract=off -DEIGEN_DONT_VECTORIZE -Wall -Wextra -pedantic -Wno-array-bounds -Wno-use-after-free -Wno-stringop-overread -DOMPI_SKIP_MPICXX -Wno-literal-suffix -frounding-math -o CMakeFiles/couplers_probe.dir/couplers_probe.cc.o -c /probes/couplers/couplers_probe.cc",
+  "probe_cxx_flags": "-DAKANTU_PROBE_BUILD_TYPE=\"RelWithDebInfo\" -DAKANTU_PROBE_CONFIG=\"strict\" -DAKANTU_PROBE_CXX_FLAGS=\"-ffp-contract=off -DEIGEN_DONT_VECTORIZE  -O2 -g -DNDEBUG\" -DBOOST_GRAPH_DYN_LINK -DBOOST_GRAPH_NO_LIB -DBOOST_REGEX_DYN_LINK -DBOOST_REGEX_NO_LIB -DCGAL_USE_GMPXX=1 -O2 -g -DNDEBUG -std=gnu++20 -ffp-contract=off -DEIGEN_DONT_VECTORIZE -Wall -Wextra -pedantic -Wno-array-bounds -Wno-use-after-free -Wno-stringop-overread -DOMPI_SKIP_MPICXX -Wno-literal-suffix -frounding-math"
+},
+  "created": "2026-11-11T04:38:08Z",
+  "inputs": [
+    {
+      "role": "mesh",
+      "path": "inputs/test_one_element.msh",
+      "source": "upstream:test/test_model/test_phase_field_model/test_one_element.msh",
+      "sha256": "c89c1971f67d34244ddc4caacd983b899b5277e1862b1110d215446629aa8540"
+    },
+    {
+      "role": "material",
+      "path": "inputs/material_deviatoric.dat",
+      "source": "upstream:test/test_model/test_phase_field_model/material_deviatoric.dat",
+      "sha256": "79d5a485346603c0a55cd1cb3c58e86931a70fb0ba882237cf30bbc0cc795370"
+    },
+    {
+      "role": "digests",
+      "path": "inputs/couplers_probe_pf_deviatoric_digests.txt",
+      "sha256": "dbc940670018a19c5e0a1a82b2556baf536761b313be9b1cb2af0f1397d62b0e"
+    }
+  ],
+  "parameters": {
+    "explicit_solid": false,
+    "material_selector_physical_names": false,
+    "phase_field_selector_physical_names": true,
+    "steps": 1500,
+    "save_previous_state": true,
+    "solid_solver_id": "static",
+    "phase_solver_id": "static",
+    "bottom": -0.5,
+    "top": 0.5,
+    "sparse_solver_type": "eigen",
+    "eigen_cache_sizes": "16384,524288,524288",
+    "nb_materials": 1,
+    "nb_phase_fields": 1,
+    "solid_newton_set": true,
+    "solid_newton_max_iterations": 1000,
+    "solid_newton_threshold": 9.9999999999999995e-07,
+    "solid_newton_convergence_type": "residual",
+    "phase_newton_set": true,
+    "phase_newton_max_iterations": 1000,
+    "phase_newton_threshold": 9.9999999999999995e-07,
+    "phase_newton_convergence_type": "solution",
+    "failed": false
+  },
+  "storage": {
+    "mode": "committed",
+    "bytes": 104552
+  },
+  "quantities": [
+    {
+      "name": "step_0/displacement",
+      "file": "data/step_0__displacement.npy",
+      "dtype": "f64",
+      "shape": [
+        4,
+        2
+      ],
+      "axes": [
+        "entry",
+        "component"
+      ],
+      "layout": "table",
+      "sha256": "5615e4818b399b77639b3a50e62de2c8120a7b4716b52c395af2f1ea5b027a45",
+      "description": "solid displacement"
+    },
+    {
+      "name": "step_0/damage",
+      "file": "data/step_0__damage.npy",
+      "dtype": "f64",
+      "shape": [
+        4,
+        1
+      ],
+      "axes": [
+        "entry",
+        "component"
+      ],
+      "layout": "table",
+      "sha256": "6d5e3abe20116a8920dbbec7ef69313e52241e1db35b590d207f8323d825cba1",
+      "description": "nodal damage"
+    },
+    {
+      "name": "step_0/internal_force",
+      "file": "data/step_0__internal_force.npy",
+      "dtype": "f64",
+      "shape": [
+        4,
+        2
+      ],
+      "axes": [
+        "entry",
+        "component"
+      ],
+      "layout": "table",
+      "sha256": "5615e4818b399b77639b3a50e62de2c8120a7b4716b52c395af2f1ea5b027a45",
+      "description": "solid internal force"
+    },
+    {
+      "name": "step_0/material/0/damage",
+      "file": "data/step_0__material__0__damage.npy",
+      "dtype": "f64",
+      "shape": [
+        4
+      ],
+      "axes": [
+        "entry"
+      ],
+      "layout": "table",
+      "sha256": "f6de3c44d9a68b92f177301b329900aa282b977016e2b09ddb298e62d86c6f8c",
+      "description": "material damage (filter-size prefix)"
+    },
+    {
+      "name": "step_0/material/0/stress",
+      "file": "data/step_0__material__0__stress.npy",
+      "dtype": "f64",
+      "shape": [
+        16
+      ],
+      "axes": [
+        "entry"
+      ],
+      "layout": "table",
+      "sha256": "69bb26b5e54d5008943cce204f24392a5d4e7c9d0ffd668529b6f74264d4f6bf",
+      "description": "material stress"
+    },
+    {
+      "name": "step_0/material/0/grad_u",
+      "file": "data/step_0__material__0__grad_u.npy",
+      "dtype": "f64",
+      "shape": [
+        16
+      ],
+      "axes": [
+        "entry"
+      ],
+      "layout": "table",
+      "sha256": "69bb26b5e54d5008943cce204f24392a5d4e7c9d0ffd668529b6f74264d4f6bf",
+      "description": "material grad_u"
+    },
+    {
+      "name": "step_0/law/0/damage",
+      "file": "data/step_0__law__0__damage.npy",
+      "dtype": "f64",
+      "shape": [
+        4
+      ],
+      "axes": [
+        "entry"
+      ],
+      "layout": "table",
+      "sha256": "f6de3c44d9a68b92f177301b329900aa282b977016e2b09ddb298e62d86c6f8c",
+      "description": "phase-field damage internal"
+    },
+    {
+      "name": "step_0/law/0/previous_damage",
+      "file": "data/step_0__law__0__previous_damage.npy",
+      "dtype": "f64",
+      "shape": [
+        4
+      ],
+      "axes": [
+        "entry"
+      ],
+      "layout": "table",
+      "sha256": "f6de3c44d9a68b92f177301b329900aa282b977016e2b09ddb298e62d86c6f8c",
+      "description": "history of the damage internal"
+    },
+    {
+      "name": "step_0/law/0/strain",
+      "file": "data/step_0__law__0__strain.npy",
+      "dtype": "f64",
+      "shape": [
+        16
+      ],
+      "axes": [
+        "entry"
+      ],
+      "layout": "table",
+      "sha256": "69bb26b5e54d5008943cce204f24392a5d4e7c9d0ffd668529b6f74264d4f6bf",
+      "description": "strain internal"
+    },
+    {
+      "name": "step_0/law/0/phi",
+      "file": "data/step_0__law__0__phi.npy",
+      "dtype": "f64",
+      "shape": [
+        4
+      ],
+      "axes": [
+        "entry"
+      ],
+      "layout": "table",
+      "sha256": "f6de3c44d9a68b92f177301b329900aa282b977016e2b09ddb298e62d86c6f8c",
+      "description": "phi internal"
+    },
+    {
+      "name": "step_1/displacement",
+      "file": "data/step_1__displacement.npy",
+      "dtype": "f64",
+      "shape": [
+        4,
+        2
+      ],
+      "axes": [
+        "entry",
+        "component"
+      ],
+      "layout": "table",
+      "sha256": "fcd2c257fcee2ab2d3d5ebcd69ec14989f4d7505dc078de50246bf776d4779ce",
+      "description": "solid displacement"
+    },
+    {
+      "name": "step_1/damage",
+      "file": "data/step_1__damage.npy",
+      "dtype": "f64",
+      "shape": [
+        4,
+        1
+      ],
+      "axes": [
+        "entry",
+        "component"
+      ],
+      "layout": "table",
+      "sha256": "bde040873a4cb87d8ccb0fd22eb5dfbbb99d8a2ce80dba1fa19ff1bbe809a6aa",
+      "description": "nodal damage"
+    },
+    {
+      "name": "step_1/internal_force",
+      "file": "data/step_1__internal_force.npy",
+      "dtype": "f64",
+      "shape": [
+        4,
+        2
+      ],
+      "axes": [
+        "entry",
+        "component"
+      ],
+      "layout": "table",
+      "sha256": "0aacb347671ab19d314e134d755e46f1921366e742350dd5c1ed1e255d52e0d2",
+      "description": "solid internal force"
+    },
+    {
+      "name": "step_1/material/0/damage",
+      "file": "data/step_1__material__0__damage.npy",
+      "dtype": "f64",
+      "shape": [
+        4
+      ],
+      "axes": [
+        "entry"
+      ],
+      "layout": "table",
+      "sha256": "7e58766fe7152038e9ebb6b5f85ea040b7a3899db8b225319871e131b2707037",
+      "description": "material damage (filter-size prefix)"
+    },
+    {
+      "name": "step_1/material/0/stress",
+      "file": "data/step_1__material__0__stress.npy",
+      "dtype": "f64",
+      "shape": [
+        16
+      ],
+      "axes": [
+        "entry"
+      ],
+      "layout": "table",
+      "sha256": "418880490b21beb96ab0ee204841e779fa3a406601c706024aa2f1de72ec0fa5",
+      "description": "material stress"
+    },
+    {
+      "name": "step_1/material/0/grad_u",
+      "file": "data/step_1__material__0__grad_u.npy",
+      "dtype": "f64",
+      "shape": [
+        16
+      ],
+      "axes": [
+        "entry"
+      ],
+      "layout": "table",
+      "sha256": "dfb354c41e365bf1634b159d94934045070ba76ee71eb599032bf369fd74f6da",
+      "description": "material grad_u"
+    },
+    {
+      "name": "step_1/law/0/damage",
+      "file": "data/step_1__law__0__damage.npy",
+      "dtype": "f64",
+      "shape": [
+        4
+      ],
+      "axes": [
+        "entry"
+      ],
+      "layout": "table",
+      "sha256": "7e58766fe7152038e9ebb6b5f85ea040b7a3899db8b225319871e131b2707037",
+      "description": "phase-field damage internal"
+    },
+    {
+      "name": "step_1/law/0/previous_damage",
+      "file": "data/step_1__law__0__previous_damage.npy",
+      "dtype": "f64",
+      "shape": [
+        4
+      ],
+      "axes": [
+        "entry"
+      ],
+      "layout": "table",
+      "sha256": "7e58766fe7152038e9ebb6b5f85ea040b7a3899db8b225319871e131b2707037",
+      "description": "history of the damage internal"
+    },
+    {
+      "name": "step_1/law/0/strain",
+      "file": "data/step_1__law__0__strain.npy",
+      "dtype": "f64",
+      "shape": [
+        16
+      ],
+      "axes": [
+        "entry"
+      ],
+      "layout": "table",
+      "sha256": "dfb354c41e365bf1634b159d94934045070ba76ee71eb599032bf369fd74f6da",
+      "description": "strain internal"
+    },
+    {
+      "name": "step_1/law/0/phi",
+      "file": "data/step_1__law__0__phi.npy",
+      "dtype": "f64",
+      "shape": [
+        4
+      ],
+      "axes": [
+        "entry"
+      ],
+      "layout": "table",
+      "sha256": "8838abc23ec318f8068db87cfaaf98f494d1397c824d9633dbef7af80feb2568",
+      "description": "phi internal"
+    },
+    {
+      "name": "step_10/displacement",
+      "file": "data/step_10__displacement.npy",
+      "dtype": "f64",
+      "shape": [
+        4,
+        2
+      ],
+      "axes": [
+        "entry",
+        "component"
+      ],
+      "layout": "table",
+      "sha256": "8a93c04fdfa349fa69d3eb3150e3ca4b9d6be22776f8ffc5a51d8ed14aec0b70",
+      "description": "solid displacement"
+    },
+    {
+      "name": "step_10/damage",
+      "file": "data/step_10__damage.npy",
+      "dtype": "f64",
+      "shape": [
+        4,
+        1
+      ],
+      "axes": [
+        "entry",
+        "component"
+      ],
+      "layout": "table",
+      "sha256": "d93c92dffea5eb2379a1809b4499b226b1e74a352c15d644c6054224acfabfc8",
+      "description": "nodal damage"
+    },
+    {
+      "name": "step_10/internal_force",
+      "file": "data/step_10__internal_force.npy",
+      "dtype": "f64",
+      "shape": [
+        4,
+        2
+      ],
+      "axes": [
+        "entry",
+        "component"
+      ],
+      "layout": "table",
+      "sha256": "8680cda4918b3092f036f9257bdd0aaafcda73d6bc8d747b3c7b12c4665b35a8",
+      "description": "solid internal force"
+    },
+    {
+      "name": "step_10/material/0/damage",
+      "file": "data/step_10__material__0__damage.npy",
+      "dtype": "f64",
+      "shape": [
+        4
+      ],
+      "axes": [
+        "entry"
+      ],
+      "layout": "table",
+      "sha256": "bffd0f80d483d1549fbcdead9de9e70391447fcbc0fd92be82aa6ee828cb5fde",
+      "description": "material damage (filter-size prefix)"
+    },
+    {
+      "name": "step_10/material/0/stress",
+      "file": "data/step_10__material__0__stress.npy",
+      "dtype": "f64",
+      "shape": [
+        16
+      ],
+      "axes": [
+        "entry"
+      ],
+      "layout": "table",
+      "sha256": "db63e2614b98d91d549eb22c532a61d55299c625e6ac84e7c0be24bdb4085b8c",
+      "description": "material stress"
+    },
+    {
+      "name": "step_10/material/0/grad_u",
+      "file": "data/step_10__material__0__grad_u.npy",
+      "dtype": "f64",
+      "shape": [
+        16
+      ],
+      "axes": [
+        "entry"
+      ],
+      "layout": "table",
+      "sha256": "27e019ef7bedb8c8e409a7279550707ef3ce8ba900a9c54844979753cd379fa8",
+      "description": "material grad_u"
+    },
+    {
+      "name": "step_10/law/0/damage",
+      "file": "data/step_10__law__0__damage.npy",
+      "dtype": "f64",
+      "shape": [
+        4
+      ],
+      "axes": [
+        "entry"
+      ],
+      "layout": "table",
+      "sha256": "bffd0f80d483d1549fbcdead9de9e70391447fcbc0fd92be82aa6ee828cb5fde",
+      "description": "phase-field damage internal"
+    },
+    {
+      "name": "step_10/law/0/previous_damage",
+      "file": "data/step_10__law__0__previous_damage.npy",
+      "dtype": "f64",
+      "shape": [
+        4
+      ],
+      "axes": [
+        "entry"
+      ],
+      "layout": "table",
+      "sha256": "bffd0f80d483d1549fbcdead9de9e70391447fcbc0fd92be82aa6ee828cb5fde",
+      "description": "history of the damage internal"
+    },
+    {
+      "name": "step_10/law/0/strain",
+      "file": "data/step_10__law__0__strain.npy",
+      "dtype": "f64",
+      "shape": [
+        16
+      ],
+      "axes": [
+        "entry"
+      ],
+      "layout": "table",
+      "sha256": "27e019ef7bedb8c8e409a7279550707ef3ce8ba900a9c54844979753cd379fa8",
+      "description": "strain internal"
+    },
+    {
+      "name": "step_10/law/0/phi",
+      "file": "data/step_10__law__0__phi.npy",
+      "dtype": "f64",
+      "shape": [
+        4
+      ],
+      "axes": [
+        "entry"
+      ],
+      "layout": "table",
+      "sha256": "8afcd8530c8fd3170f9aa68741ef7daeb83334f0351e07c854fcadc710beb76f",
+      "description": "phi internal"
+    },
+    {
+      "name": "step_499/displacement",
+      "file": "data/step_499__displacement.npy",
+      "dtype": "f64",
+      "shape": [
+        4,
+        2
+      ],
+      "axes": [
+        "entry",
+        "component"
+      ],
+      "layout": "table",
+      "sha256": "d1c60b75488ac6e6dde2ec3b430ff91d7267324c6b01ee02d5d1e5bf718c25a6",
+      "description": "solid displacement"
+    },
+    {
+      "name": "step_499/damage",
+      "file": "data/step_499__damage.npy",
+      "dtype": "f64",
+      "shape": [
+        4,
+        1
+      ],
+      "axes": [
+        "entry",
+        "component"
+      ],
+      "layout": "table",
+      "sha256": "fc50a2003c4ee25d08286ba7045d5185b209e279a85f8f6dd4128b08d78cb8e8",
+      "description": "nodal damage"
+    },
+    {
+      "name": "step_499/internal_force",
+      "file": "data/step_499__internal_force.npy",
+      "dtype": "f64",
+      "shape": [
+        4,
+        2
+      ],
+      "axes": [
+        "entry",
+        "component"
+      ],
+      "layout": "table",
+      "sha256": "fedaabbf7915acc13e065d14ffab4fcef0aa0f33b8b44d59ae0e9417f165a65e",
+      "description": "solid internal force"
+    },
+    {
+      "name": "step_499/material/0/damage",
+      "file": "data/step_499__material__0__damage.npy",
+      "dtype": "f64",
+      "shape": [
+        4
+      ],
+      "axes": [
+        "entry"
+      ],
+      "layout": "table",
+      "sha256": "c47d69889bb4dfd7ebf6e15a5389989d6a2aed0eeb7a45d9bd8dc143059fa4a9",
+      "description": "material damage (filter-size prefix)"
+    },
+    {
+      "name": "step_499/material/0/stress",
+      "file": "data/step_499__material__0__stress.npy",
+      "dtype": "f64",
+      "shape": [
+        16
+      ],
+      "axes": [
+        "entry"
+      ],
+      "layout": "table",
+      "sha256": "b5e081d6d0d3fadf012c80540c16fd07fee3b4c2bc6bd7cce4223453918e9830",
+      "description": "material stress"
+    },
+    {
+      "name": "step_499/material/0/grad_u",
+      "file": "data/step_499__material__0__grad_u.npy",
+      "dtype": "f64",
+      "shape": [
+        16
+      ],
+      "axes": [
+        "entry"
+      ],
+      "layout": "table",
+      "sha256": "10e0ab3afef1f14ebc0ae01896d45b764717e63fa9756ebcae64b9fd1850fad5",
+      "description": "material grad_u"
+    },
+    {
+      "name": "step_499/law/0/damage",
+      "file": "data/step_499__law__0__damage.npy",
+      "dtype": "f64",
+      "shape": [
+        4
+      ],
+      "axes": [
+        "entry"
+      ],
+      "layout": "table",
+      "sha256": "c47d69889bb4dfd7ebf6e15a5389989d6a2aed0eeb7a45d9bd8dc143059fa4a9",
+      "description": "phase-field damage internal"
+    },
+    {
+      "name": "step_499/law/0/previous_damage",
+      "file": "data/step_499__law__0__previous_damage.npy",
+      "dtype": "f64",
+      "shape": [
+        4
+      ],
+      "axes": [
+        "entry"
+      ],
+      "layout": "table",
+      "sha256": "c47d69889bb4dfd7ebf6e15a5389989d6a2aed0eeb7a45d9bd8dc143059fa4a9",
+      "description": "history of the damage internal"
+    },
+    {
+      "name": "step_499/law/0/strain",
+      "file": "data/step_499__law__0__strain.npy",
+      "dtype": "f64",
+      "shape": [
+        16
+      ],
+      "axes": [
+        "entry"
+      ],
+      "layout": "table",
+      "sha256": "10e0ab3afef1f14ebc0ae01896d45b764717e63fa9756ebcae64b9fd1850fad5",
+      "description": "strain internal"
+    },
+    {
+      "name": "step_499/law/0/phi",
+      "file": "data/step_499__law__0__phi.npy",
+      "dtype": "f64",
+      "shape": [
+        4
+      ],
+      "axes": [
+        "entry"
+      ],
+      "layout": "table",
+      "sha256": "7160d75a46621f8a329dc1596790baafd112a9a57c1a1ef4e5935099548c1f31",
+      "description": "phi internal"
+    },
+    {
+      "name": "step_500/displacement",
+      "file": "data/step_500__displacement.npy",
+      "dtype": "f64",
+      "shape": [
+        4,
+        2
+      ],
+      "axes": [
+        "entry",
+        "component"
+      ],
+      "layout": "table",
+      "sha256": "22e65e444184324847cc43e4fbedc0718a0cbb1eece84636033e161dc9843a19",
+      "description": "solid displacement"
+    },
+    {
+      "name": "step_500/damage",
+      "file": "data/step_500__damage.npy",
+      "dtype": "f64",
+      "shape": [
+        4,
+        1
+      ],
+      "axes": [
+        "entry",
+        "component"
+      ],
+      "layout": "table",
+      "sha256": "9a7832e52508962fd582781c2b62efcec9636cbf23041671a14b0348f5e3a4b7",
+      "description": "nodal damage"
+    },
+    {
+      "name": "step_500/internal_force",
+      "file": "data/step_500__internal_force.npy",
+      "dtype": "f64",
+      "shape": [
+        4,
+        2
+      ],
+      "axes": [
+        "entry",
+        "component"
+      ],
+      "layout": "table",
+      "sha256": "e6dc9b919cc579e285d5678d7304ddffe888071e2bf911e706013e4b4a00932a",
+      "description": "solid internal force"
+    },
+    {
+      "name": "step_500/material/0/damage",
+      "file": "data/step_500__material__0__damage.npy",
+      "dtype": "f64",
+      "shape": [
+        4
+      ],
+      "axes": [
+        "entry"
+      ],
+      "layout": "table",
+      "sha256": "d2702c5d8c0945be4752bc60f658501d24168dac53d551692ebf6b88a9fe63dc",
+      "description": "material damage (filter-size prefix)"
+    },
+    {
+      "name": "step_500/material/0/stress",
+      "file": "data/step_500__material__0__stress.npy",
+      "dtype": "f64",
+      "shape": [
+        16
+      ],
+      "axes": [
+        "entry"
+      ],
+      "layout": "table",
+      "sha256": "6832f7f38505c996cedc857e1c0f6437444d0046fbcb1118e527d7afdf213971",
+      "description": "material stress"
+    },
+    {
+      "name": "step_500/material/0/grad_u",
+      "file": "data/step_500__material__0__grad_u.npy",
+      "dtype": "f64",
+      "shape": [
+        16
+      ],
+      "axes": [
+        "entry"
+      ],
+      "layout": "table",
+      "sha256": "298797578ead9dafaea9092c2097950d1b537f56653ce1d8ecc70aff1f7be538",
+      "description": "material grad_u"
+    },
+    {
+      "name": "step_500/law/0/damage",
+      "file": "data/step_500__law__0__damage.npy",
+      "dtype": "f64",
+      "shape": [
+        4
+      ],
+      "axes": [
+        "entry"
+      ],
+      "layout": "table",
+      "sha256": "d2702c5d8c0945be4752bc60f658501d24168dac53d551692ebf6b88a9fe63dc",
+      "description": "phase-field damage internal"
+    },
+    {
+      "name": "step_500/law/0/previous_damage",
+      "file": "data/step_500__law__0__previous_damage.npy",
+      "dtype": "f64",
+      "shape": [
+        4
+      ],
+      "axes": [
+        "entry"
+      ],
+      "layout": "table",
+      "sha256": "d2702c5d8c0945be4752bc60f658501d24168dac53d551692ebf6b88a9fe63dc",
+      "description": "history of the damage internal"
+    },
+    {
+      "name": "step_500/law/0/strain",
+      "file": "data/step_500__law__0__strain.npy",
+      "dtype": "f64",
+      "shape": [
+        16
+      ],
+      "axes": [
+        "entry"
+      ],
+      "layout": "table",
+      "sha256": "298797578ead9dafaea9092c2097950d1b537f56653ce1d8ecc70aff1f7be538",
+      "description": "strain internal"
+    },
+    {
+      "name": "step_500/law/0/phi",
+      "file": "data/step_500__law__0__phi.npy",
+      "dtype": "f64",
+      "shape": [
+        4
+      ],
+      "axes": [
+        "entry"
+      ],
+      "layout": "table",
+      "sha256": "640ba93e83fc8502f776a7418843b1c5522daf7f5c3348b21fd9585c168c502e",
+      "description": "phi internal"
+    },
+    {
+      "name": "step_750/displacement",
+      "file": "data/step_750__displacement.npy",
+      "dtype": "f64",
+      "shape": [
+        4,
+        2
+      ],
+      "axes": [
+        "entry",
+        "component"
+      ],
+      "layout": "table",
+      "sha256": "5615e4818b399b77639b3a50e62de2c8120a7b4716b52c395af2f1ea5b027a45",
+      "description": "solid displacement"
+    },
+    {
+      "name": "step_750/damage",
+      "file": "data/step_750__damage.npy",
+      "dtype": "f64",
+      "shape": [
+        4,
+        1
+      ],
+      "axes": [
+        "entry",
+        "component"
+      ],
+      "layout": "table",
+      "sha256": "70b94236491042ef691fa5850b0b82aead76292f4822ae7ab20ae28ff420c15e",
+      "description": "nodal damage"
+    },
+    {
+      "name": "step_750/internal_force",
+      "file": "data/step_750__internal_force.npy",
+      "dtype": "f64",
+      "shape": [
+        4,
+        2
+      ],
+      "axes": [
+        "entry",
+        "component"
+      ],
+      "layout": "table",
+      "sha256": "5615e4818b399b77639b3a50e62de2c8120a7b4716b52c395af2f1ea5b027a45",
+      "description": "solid internal force"
+    },
+    {
+      "name": "step_750/material/0/damage",
+      "file": "data/step_750__material__0__damage.npy",
+      "dtype": "f64",
+      "shape": [
+        4
+      ],
+      "axes": [
+        "entry"
+      ],
+      "layout": "table",
+      "sha256": "3d714f95c201bc615c8cee47eb2a6fe8985df18a476992725bedaaa7b449551c",
+      "description": "material damage (filter-size prefix)"
+    },
+    {
+      "name": "step_750/material/0/stress",
+      "file": "data/step_750__material__0__stress.npy",
+      "dtype": "f64",
+      "shape": [
+        16
+      ],
+      "axes": [
+        "entry"
+      ],
+      "layout": "table",
+      "sha256": "69bb26b5e54d5008943cce204f24392a5d4e7c9d0ffd668529b6f74264d4f6bf",
+      "description": "material stress"
+    },
+    {
+      "name": "step_750/material/0/grad_u",
+      "file": "data/step_750__material__0__grad_u.npy",
+      "dtype": "f64",
+      "shape": [
+        16
+      ],
+      "axes": [
+        "entry"
+      ],
+      "layout": "table",
+      "sha256": "69bb26b5e54d5008943cce204f24392a5d4e7c9d0ffd668529b6f74264d4f6bf",
+      "description": "material grad_u"
+    },
+    {
+      "name": "step_750/law/0/damage",
+      "file": "data/step_750__law__0__damage.npy",
+      "dtype": "f64",
+      "shape": [
+        4
+      ],
+      "axes": [
+        "entry"
+      ],
+      "layout": "table",
+      "sha256": "3d714f95c201bc615c8cee47eb2a6fe8985df18a476992725bedaaa7b449551c",
+      "description": "phase-field damage internal"
+    },
+    {
+      "name": "step_750/law/0/previous_damage",
+      "file": "data/step_750__law__0__previous_damage.npy",
+      "dtype": "f64",
+      "shape": [
+        4
+      ],
+      "axes": [
+        "entry"
+      ],
+      "layout": "table",
+      "sha256": "3d714f95c201bc615c8cee47eb2a6fe8985df18a476992725bedaaa7b449551c",
+      "description": "history of the damage internal"
+    },
+    {
+      "name": "step_750/law/0/strain",
+      "file": "data/step_750__law__0__strain.npy",
+      "dtype": "f64",
+      "shape": [
+        16
+      ],
+      "axes": [
+        "entry"
+      ],
+      "layout": "table",
+      "sha256": "69bb26b5e54d5008943cce204f24392a5d4e7c9d0ffd668529b6f74264d4f6bf",
+      "description": "strain internal"
+    },
+    {
+      "name": "step_750/law/0/phi",
+      "file": "data/step_750__law__0__phi.npy",
+      "dtype": "f64",
+      "shape": [
+        4
+      ],
+      "axes": [
+        "entry"
+      ],
+      "layout": "table",
+      "sha256": "640ba93e83fc8502f776a7418843b1c5522daf7f5c3348b21fd9585c168c502e",
+      "description": "phi internal"
+    },
+    {
+      "name": "step_999/displacement",
+      "file": "data/step_999__displacement.npy",
+      "dtype": "f64",
+      "shape": [
+        4,
+        2
+      ],
+      "axes": [
+        "entry",
+        "component"
+      ],
+      "layout": "table",
+      "sha256": "7c4e722da58b6259ecf72f440e1da63a07670b04631691e02493007828200cf4",
+      "description": "solid displacement"
+    },
+    {
+      "name": "step_999/damage",
+      "file": "data/step_999__damage.npy",
+      "dtype": "f64",
+      "shape": [
+        4,
+        1
+      ],
+      "axes": [
+        "entry",
+        "component"
+      ],
+      "layout": "table",
+      "sha256": "b88b18f0fb3066a4c30205b54c6542236d19cd9bab9c0895552e71a309ba110e",
+      "description": "nodal damage"
+    },
+    {
+      "name": "step_999/internal_force",
+      "file": "data/step_999__internal_force.npy",
+      "dtype": "f64",
+      "shape": [
+        4,
+        2
+      ],
+      "axes": [
+        "entry",
+        "component"
+      ],
+      "layout": "table",
+      "sha256": "cb56dfcc6bb5d560aadb541a75e8123abb78886995f0cf77cb0eb5319d1f8c83",
+      "description": "solid internal force"
+    },
+    {
+      "name": "step_999/material/0/damage",
+      "file": "data/step_999__material__0__damage.npy",
+      "dtype": "f64",
+      "shape": [
+        4
+      ],
+      "axes": [
+        "entry"
+      ],
+      "layout": "table",
+      "sha256": "7b8c22f19a7cd7b4942a88c557472bb86f8075d7c43e2d341fcdfa071089159b",
+      "description": "material damage (filter-size prefix)"
+    },
+    {
+      "name": "step_999/material/0/stress",
+      "file": "data/step_999__material__0__stress.npy",
+      "dtype": "f64",
+      "shape": [
+        16
+      ],
+      "axes": [
+        "entry"
+      ],
+      "layout": "table",
+      "sha256": "a7eab4b40301e7f1cccafdbf2cf339fafaf847a0cd0dcf8a23c21eeb29f3923f",
+      "description": "material stress"
+    },
+    {
+      "name": "step_999/material/0/grad_u",
+      "file": "data/step_999__material__0__grad_u.npy",
+      "dtype": "f64",
+      "shape": [
+        16
+      ],
+      "axes": [
+        "entry"
+      ],
+      "layout": "table",
+      "sha256": "507cce4dc9a96f1f4c13f294b35e9d85b32d9f4332c0163398564a5f3115150f",
+      "description": "material grad_u"
+    },
+    {
+      "name": "step_999/law/0/damage",
+      "file": "data/step_999__law__0__damage.npy",
+      "dtype": "f64",
+      "shape": [
+        4
+      ],
+      "axes": [
+        "entry"
+      ],
+      "layout": "table",
+      "sha256": "7b8c22f19a7cd7b4942a88c557472bb86f8075d7c43e2d341fcdfa071089159b",
+      "description": "phase-field damage internal"
+    },
+    {
+      "name": "step_999/law/0/previous_damage",
+      "file": "data/step_999__law__0__previous_damage.npy",
+      "dtype": "f64",
+      "shape": [
+        4
+      ],
+      "axes": [
+        "entry"
+      ],
+      "layout": "table",
+      "sha256": "7b8c22f19a7cd7b4942a88c557472bb86f8075d7c43e2d341fcdfa071089159b",
+      "description": "history of the damage internal"
+    },
+    {
+      "name": "step_999/law/0/strain",
+      "file": "data/step_999__law__0__strain.npy",
+      "dtype": "f64",
+      "shape": [
+        16
+      ],
+      "axes": [
+        "entry"
+      ],
+      "layout": "table",
+      "sha256": "507cce4dc9a96f1f4c13f294b35e9d85b32d9f4332c0163398564a5f3115150f",
+      "description": "strain internal"
+    },
+    {
+      "name": "step_999/law/0/phi",
+      "file": "data/step_999__law__0__phi.npy",
+      "dtype": "f64",
+      "shape": [
+        4
+      ],
+      "axes": [
+        "entry"
+      ],
+      "layout": "table",
+      "sha256": "640ba93e83fc8502f776a7418843b1c5522daf7f5c3348b21fd9585c168c502e",
+      "description": "phi internal"
+    },
+    {
+      "name": "step_1000/displacement",
+      "file": "data/step_1000__displacement.npy",
+      "dtype": "f64",
+      "shape": [
+        4,
+        2
+      ],
+      "axes": [
+        "entry",
+        "component"
+      ],
+      "layout": "table",
+      "sha256": "0b5b259125ce04c22f8058cb3ee2a5b1d07ef377caede3099426f37c53d61090",
+      "description": "solid displacement"
+    },
+    {
+      "name": "step_1000/damage",
+      "file": "data/step_1000__damage.npy",
+      "dtype": "f64",
+      "shape": [
+        4,
+        1
+      ],
+      "axes": [
+        "entry",
+        "component"
+      ],
+      "layout": "table",
+      "sha256": "70b94236491042ef691fa5850b0b82aead76292f4822ae7ab20ae28ff420c15e",
+      "description": "nodal damage"
+    },
+    {
+      "name": "step_1000/internal_force",
+      "file": "data/step_1000__internal_force.npy",
+      "dtype": "f64",
+      "shape": [
+        4,
+        2
+      ],
+      "axes": [
+        "entry",
+        "component"
+      ],
+      "layout": "table",
+      "sha256": "695cd345f61fce3f9d9ee09924831b7d890b514bd389114bfc5f7169adb6dfa6",
+      "description": "solid internal force"
+    },
+    {
+      "name": "step_1000/material/0/damage",
+      "file": "data/step_1000__material__0__damage.npy",
+      "dtype": "f64",
+      "shape": [
+        4
+      ],
+      "axes": [
+        "entry"
+      ],
+      "layout": "table",
+      "sha256": "3d714f95c201bc615c8cee47eb2a6fe8985df18a476992725bedaaa7b449551c",
+      "description": "material damage (filter-size prefix)"
+    },
+    {
+      "name": "step_1000/material/0/stress",
+      "file": "data/step_1000__material__0__stress.npy",
+      "dtype": "f64",
+      "shape": [
+        16
+      ],
+      "axes": [
+        "entry"
+      ],
+      "layout": "table",
+      "sha256": "86bb8eb65bf14d54f85e41d2a555cd6735af3545b7910e34a5122102a826626c",
+      "description": "material stress"
+    },
+    {
+      "name": "step_1000/material/0/grad_u",
+      "file": "data/step_1000__material__0__grad_u.npy",
+      "dtype": "f64",
+      "shape": [
+        16
+      ],
+      "axes": [
+        "entry"
+      ],
+      "layout": "table",
+      "sha256": "6b7452d771fa4e917a9faffbcc67178629a6d637ddc9651222c6b23ca222e638",
+      "description": "material grad_u"
+    },
+    {
+      "name": "step_1000/law/0/damage",
+      "file": "data/step_1000__law__0__damage.npy",
+      "dtype": "f64",
+      "shape": [
+        4
+      ],
+      "axes": [
+        "entry"
+      ],
+      "layout": "table",
+      "sha256": "3d714f95c201bc615c8cee47eb2a6fe8985df18a476992725bedaaa7b449551c",
+      "description": "phase-field damage internal"
+    },
+    {
+      "name": "step_1000/law/0/previous_damage",
+      "file": "data/step_1000__law__0__previous_damage.npy",
+      "dtype": "f64",
+      "shape": [
+        4
+      ],
+      "axes": [
+        "entry"
+      ],
+      "layout": "table",
+      "sha256": "3d714f95c201bc615c8cee47eb2a6fe8985df18a476992725bedaaa7b449551c",
+      "description": "history of the damage internal"
+    },
+    {
+      "name": "step_1000/law/0/strain",
+      "file": "data/step_1000__law__0__strain.npy",
+      "dtype": "f64",
+      "shape": [
+        16
+      ],
+      "axes": [
+        "entry"
+      ],
+      "layout": "table",
+      "sha256": "6b7452d771fa4e917a9faffbcc67178629a6d637ddc9651222c6b23ca222e638",
+      "description": "strain internal"
+    },
+    {
+      "name": "step_1000/law/0/phi",
+      "file": "data/step_1000__law__0__phi.npy",
+      "dtype": "f64",
+      "shape": [
+        4
+      ],
+      "axes": [
+        "entry"
+      ],
+      "layout": "table",
+      "sha256": "640ba93e83fc8502f776a7418843b1c5522daf7f5c3348b21fd9585c168c502e",
+      "description": "phi internal"
+    },
+    {
+      "name": "step_1499/displacement",
+      "file": "data/step_1499__displacement.npy",
+      "dtype": "f64",
+      "shape": [
+        4,
+        2
+      ],
+      "axes": [
+        "entry",
+        "component"
+      ],
+      "layout": "table",
+      "sha256": "00a6fff4004cbe05a78a3eabcdd5dcfa13cf3c576471325c53a31b8262c8dfe1",
+      "description": "solid displacement"
+    },
+    {
+      "name": "step_1499/damage",
+      "file": "data/step_1499__damage.npy",
+      "dtype": "f64",
+      "shape": [
+        4,
+        1
+      ],
+      "axes": [
+        "entry",
+        "component"
+      ],
+      "layout": "table",
+      "sha256": "7869ea69f73db682b9d72b3f633da3c1ef4ddde6827b63c5add8af347c9905d8",
+      "description": "nodal damage"
+    },
+    {
+      "name": "step_1499/internal_force",
+      "file": "data/step_1499__internal_force.npy",
+      "dtype": "f64",
+      "shape": [
+        4,
+        2
+      ],
+      "axes": [
+        "entry",
+        "component"
+      ],
+      "layout": "table",
+      "sha256": "69042ae4dbbc4e3c9d49636f4298db3c13eb66b017a76d79c6bd685a6e4e6408",
+      "description": "solid internal force"
+    },
+    {
+      "name": "step_1499/material/0/damage",
+      "file": "data/step_1499__material__0__damage.npy",
+      "dtype": "f64",
+      "shape": [
+        4
+      ],
+      "axes": [
+        "entry"
+      ],
+      "layout": "table",
+      "sha256": "e4183d24d86f4f92a8556d3b53d8bba0cffe404ee23a3edad9830964324830f6",
+      "description": "material damage (filter-size prefix)"
+    },
+    {
+      "name": "step_1499/material/0/stress",
+      "file": "data/step_1499__material__0__stress.npy",
+      "dtype": "f64",
+      "shape": [
+        16
+      ],
+      "axes": [
+        "entry"
+      ],
+      "layout": "table",
+      "sha256": "59a813b7521faf7514b192b680bb745458a6dd556b8f5c09e98090dfc25005f3",
+      "description": "material stress"
+    },
+    {
+      "name": "step_1499/material/0/grad_u",
+      "file": "data/step_1499__material__0__grad_u.npy",
+      "dtype": "f64",
+      "shape": [
+        16
+      ],
+      "axes": [
+        "entry"
+      ],
+      "layout": "table",
+      "sha256": "b986e6e252b65f598303fd4bc2611d25ba38d3d3fc7be52a0ba8f2d59e539180",
+      "description": "material grad_u"
+    },
+    {
+      "name": "step_1499/law/0/damage",
+      "file": "data/step_1499__law__0__damage.npy",
+      "dtype": "f64",
+      "shape": [
+        4
+      ],
+      "axes": [
+        "entry"
+      ],
+      "layout": "table",
+      "sha256": "e4183d24d86f4f92a8556d3b53d8bba0cffe404ee23a3edad9830964324830f6",
+      "description": "phase-field damage internal"
+    },
+    {
+      "name": "step_1499/law/0/previous_damage",
+      "file": "data/step_1499__law__0__previous_damage.npy",
+      "dtype": "f64",
+      "shape": [
+        4
+      ],
+      "axes": [
+        "entry"
+      ],
+      "layout": "table",
+      "sha256": "e4183d24d86f4f92a8556d3b53d8bba0cffe404ee23a3edad9830964324830f6",
+      "description": "history of the damage internal"
+    },
+    {
+      "name": "step_1499/law/0/strain",
+      "file": "data/step_1499__law__0__strain.npy",
+      "dtype": "f64",
+      "shape": [
+        16
+      ],
+      "axes": [
+        "entry"
+      ],
+      "layout": "table",
+      "sha256": "b986e6e252b65f598303fd4bc2611d25ba38d3d3fc7be52a0ba8f2d59e539180",
+      "description": "strain internal"
+    },
+    {
+      "name": "step_1499/law/0/phi",
+      "file": "data/step_1499__law__0__phi.npy",
+      "dtype": "f64",
+      "shape": [
+        4
+      ],
+      "axes": [
+        "entry"
+      ],
+      "layout": "table",
+      "sha256": "556f25a8be55cb17e1c5bb7e0b8c1839ab0065529cf84bed1817e8ee98cd8fa6",
+      "description": "phi internal"
+    },
+    {
+      "name": "schedule/strain",
+      "file": "data/schedule__strain.npy",
+      "dtype": "f64",
+      "shape": [
+        1500
+      ],
+      "axes": [
+        "entry"
+      ],
+      "layout": "table",
+      "sha256": "b05038f734c9c868517c020dced354cb81bf3a99ff3626403f039c9b74357486",
+      "description": "prescribed eps_yy per step"
+    },
+    {
+      "name": "newton/solid_iterations",
+      "file": "data/newton__solid_iterations.npy",
+      "dtype": "i64",
+      "shape": [
+        1500
+      ],
+      "axes": [
+        "entry"
+      ],
+      "layout": "table",
+      "sha256": "513b70d8493cb22fd9b8a75b2fcf96a366f629c805e4e7af319b6f16e0d4c820",
+      "description": "solid nb_iterations per step"
+    },
+    {
+      "name": "newton/solid_error",
+      "file": "data/newton__solid_error.npy",
+      "dtype": "f64",
+      "shape": [
+        1500
+      ],
+      "axes": [
+        "entry"
+      ],
+      "layout": "table",
+      "sha256": "c97ca5e2c0302b35b2d5cc9a2586dc652717326ba5d76713773303ca27ad7659",
+      "description": "solid error per step"
+    },
+    {
+      "name": "newton/phase_iterations",
+      "file": "data/newton__phase_iterations.npy",
+      "dtype": "i64",
+      "shape": [
+        1500
+      ],
+      "axes": [
+        "entry"
+      ],
+      "layout": "table",
+      "sha256": "3a4b43fb2ad63c605fe7440296b85f3a8e09ec2dd9f21f2ab79e33a81517cf99",
+      "description": "phase-field nb_iterations per step"
+    },
+    {
+      "name": "newton/phase_error",
+      "file": "data/newton__phase_error.npy",
+      "dtype": "f64",
+      "shape": [
+        1500
+      ],
+      "axes": [
+        "entry"
+      ],
+      "layout": "table",
+      "sha256": "aebffddd9fb852b2e29b57ee3b251396418432be31a43be86584a84a1fe86594",
+      "description": "phase-field error per step"
+    },
+    {
+      "name": "energy/dissipated",
+      "file": "data/energy__dissipated.npy",
+      "dtype": "f64",
+      "shape": [
+        1500
+      ],
+      "axes": [
+        "entry"
+      ],
+      "layout": "table",
+      "sha256": "b2c38b998212386f7e405b285cefb0bcf3c9bd7198ec7a1d9ab86e9fb9e602a2",
+      "description": "phase.getEnergy(\"dissipated\") after each solve"
+    },
+    {
+      "name": "energy/potential",
+      "file": "data/energy__potential.npy",
+      "dtype": "f64",
+      "shape": [
+        1500
+      ],
+      "axes": [
+        "entry"
+      ],
+      "layout": "table",
+      "sha256": "cfdc62443dde3ee0d49358eaa4d8e87c129367a652f9e45c11f24b17fbb37b55",
+      "description": "solid.getEnergy(\"potential\") after each solve"
+    },
+    {
+      "name": "final/material_damage_stored_sizes",
+      "file": "data/final__material_damage_stored_sizes.npy",
+      "dtype": "i64",
+      "shape": [
+        1
+      ],
+      "axes": [
+        "entry"
+      ],
+      "layout": "table",
+      "sha256": "060d6c3223cfe286cbf0c25b0ce5a4f877096219e064cfe401ebb8658501387c",
+      "description": "stored size of each material's damage block (per material, per type)"
+    },
+    {
+      "name": "final/displacement",
+      "file": "data/final__displacement.npy",
+      "dtype": "f64",
+      "shape": [
+        4,
+        2
+      ],
+      "axes": [
+        "entry",
+        "component"
+      ],
+      "layout": "table",
+      "sha256": "00a6fff4004cbe05a78a3eabcdd5dcfa13cf3c576471325c53a31b8262c8dfe1",
+      "description": "solid displacement"
+    },
+    {
+      "name": "final/damage",
+      "file": "data/final__damage.npy",
+      "dtype": "f64",
+      "shape": [
+        4,
+        1
+      ],
+      "axes": [
+        "entry",
+        "component"
+      ],
+      "layout": "table",
+      "sha256": "7869ea69f73db682b9d72b3f633da3c1ef4ddde6827b63c5add8af347c9905d8",
+      "description": "nodal damage"
+    },
+    {
+      "name": "final/internal_force",
+      "file": "data/final__internal_force.npy",
+      "dtype": "f64",
+      "shape": [
+        4,
+        2
+      ],
+      "axes": [
+        "entry",
+        "component"
+      ],
+      "layout": "table",
+      "sha256": "69042ae4dbbc4e3c9d49636f4298db3c13eb66b017a76d79c6bd685a6e4e6408",
+      "description": "solid internal force"
+    },
+    {
+      "name": "final/material/0/damage",
+      "file": "data/final__material__0__damage.npy",
+      "dtype": "f64",
+      "shape": [
+        4
+      ],
+      "axes": [
+        "entry"
+      ],
+      "layout": "table",
+      "sha256": "e4183d24d86f4f92a8556d3b53d8bba0cffe404ee23a3edad9830964324830f6",
+      "description": "material damage (filter-size prefix)"
+    },
+    {
+      "name": "final/material/0/stress",
+      "file": "data/final__material__0__stress.npy",
+      "dtype": "f64",
+      "shape": [
+        16
+      ],
+      "axes": [
+        "entry"
+      ],
+      "layout": "table",
+      "sha256": "59a813b7521faf7514b192b680bb745458a6dd556b8f5c09e98090dfc25005f3",
+      "description": "material stress"
+    },
+    {
+      "name": "final/material/0/grad_u",
+      "file": "data/final__material__0__grad_u.npy",
+      "dtype": "f64",
+      "shape": [
+        16
+      ],
+      "axes": [
+        "entry"
+      ],
+      "layout": "table",
+      "sha256": "b986e6e252b65f598303fd4bc2611d25ba38d3d3fc7be52a0ba8f2d59e539180",
+      "description": "material grad_u"
+    },
+    {
+      "name": "final/law/0/damage",
+      "file": "data/final__law__0__damage.npy",
+      "dtype": "f64",
+      "shape": [
+        4
+      ],
+      "axes": [
+        "entry"
+      ],
+      "layout": "table",
+      "sha256": "e4183d24d86f4f92a8556d3b53d8bba0cffe404ee23a3edad9830964324830f6",
+      "description": "phase-field damage internal"
+    },
+    {
+      "name": "final/law/0/previous_damage",
+      "file": "data/final__law__0__previous_damage.npy",
+      "dtype": "f64",
+      "shape": [
+        4
+      ],
+      "axes": [
+        "entry"
+      ],
+      "layout": "table",
+      "sha256": "e4183d24d86f4f92a8556d3b53d8bba0cffe404ee23a3edad9830964324830f6",
+      "description": "history of the damage internal"
+    },
+    {
+      "name": "final/law/0/strain",
+      "file": "data/final__law__0__strain.npy",
+      "dtype": "f64",
+      "shape": [
+        16
+      ],
+      "axes": [
+        "entry"
+      ],
+      "layout": "table",
+      "sha256": "b986e6e252b65f598303fd4bc2611d25ba38d3d3fc7be52a0ba8f2d59e539180",
+      "description": "strain internal"
+    },
+    {
+      "name": "final/law/0/phi",
+      "file": "data/final__law__0__phi.npy",
+      "dtype": "f64",
+      "shape": [
+        4
+      ],
+      "axes": [
+        "entry"
+      ],
+      "layout": "table",
+      "sha256": "556f25a8be55cb17e1c5bb7e0b8c1839ab0065529cf84bed1817e8ee98cd8fa6",
+      "description": "phi internal"
+    }
+  ],
+  "tags": [
+    "model",
+    "couplers",
+    "phase_field"
+  ]
+}

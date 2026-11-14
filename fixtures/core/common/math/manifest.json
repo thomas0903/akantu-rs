@@ -1,0 +1,277 @@
+{
+  "format_version": 1,
+  "case_id": "core/common/math",
+  "description": "Math::reduce (sort + pairwise sum), NewtonRaphson, pow<p>, pow(x, p), are_float_equal, intersects, is_in_range",
+  "status": "golden",
+  "generator": {
+    "probe": "core_probe",
+    "probe_version": "1",
+    "command": "oracle/probes/core/generate.sh "
+  },
+  "reference": {
+    "sha": "35a851780d0b9471d258ed53a003ae98aaa95ea0",
+    "describe": "v5.0.7-post1-554-g35a851780",
+    "patches": [
+      "modified:cmake/AkantuTestsMacros.cmake sha256=c280165a84912eab4bcc081b9eaaaa06aafdd83d4f48d982e11b0859abf9672f (reference sha256=36290de2ec8b111028138fe82029efa16501512241a5bc264fa30ff3e3239b9e)"
+    ]
+  },
+  "build": {
+  "config": "strict",
+  "compiler": "g++ (Debian 14.2.0-19) 14.2.0",
+  "cxx_flags": "-ffp-contract=off -DEIGEN_DONT_VECTORIZE -O2 -g -DNDEBUG -g3 -ggdb3 -flarge-source-files -std=c++20 -flto=auto -fno-fat-lto-objects -fPIC -frounding-math (actual flags of src/model/solid_mechanics/solid_mechanics_model.cc; warnings and non-FP -D defines omitted)",
+  "build_type": "RelWithDebInfo",
+  "arch": "aarch64",
+  "os": "Debian GNU/Linux 13 (trixie)",
+  "libraries": {
+    "eigen3": "3.4.0-5",
+    "boost": "1.83.0.2+b2",
+    "openmpi": "5.0.7-1",
+    "mumps": "5.7.3-3+b1",
+    "petsc": "3.22.5+dfsg1-2",
+    "scotch": "7.0.7-1",
+    "openblas": "0.3.29+ds-3",
+    "scalapack": "2.2.2-1",
+    "hdf5": "1.14.5+repack-3",
+    "gmsh": "4.13.1+ds1-6",
+    "pybind11": "2.13.6-2",
+    "numpy": "1:2.2.4+ds-1",
+    "scipy": "1.15.3-1",
+    "gcc": "4:14.2.0-1",
+    "gfortran": "4:14.2.0-1",
+    "oracle_image": "sha256:6683233d0a3b9341eb5cedf5879bc9ccb76ddf3d91e9aa0fd35b99dc7866d7a6",
+    "oracle_build_scripts": "45b473da9cbfb356a039d94609fe39f6f36a1a9a",
+    "oracle_install_reference_sha": "35a851780d0b9471d258ed53a003ae98aaa95ea0",
+    "oracle_install_image": "sha256:6683233d0a3b9341eb5cedf5879bc9ccb76ddf3d91e9aa0fd35b99dc7866d7a6",
+    "sha256:libakantu.so.5.0.7": "9768e51184f0423c49abfd67535e6f3bc371522045b0b634223cce0ee07f0b0b",
+    "probe_tree_sha256": "129d27bcd03466467e3c326ed02045f2b2844471ff44b7854a8c73b8c5c22854",
+    "probe_sources_commit": "0e651a105f91a3f376d9a15e26cc607f0f3eb133",
+    "cmake_cxx_flags": "-ffp-contract=off -DEIGEN_DONT_VECTORIZE -O2 -g -DNDEBUG -g3 -ggdb3 -flarge-source-files",
+    "probe": "core_probe"
+  },
+  "probe_compile_command": "/usr/bin/c++ '-DAKANTU_PROBE_BUILD_TYPE=\"RelWithDebInfo\"' '-DAKANTU_PROBE_CONFIG=\"strict\"' '-DAKANTU_PROBE_CXX_FLAGS=\"-ffp-contract=off -DEIGEN_DONT_VECTORIZE  -O2 -g -DNDEBUG\"' -DBOOST_GRAPH_DYN_LINK -DBOOST_GRAPH_NO_LIB -DBOOST_REGEX_DYN_LINK -DBOOST_REGEX_NO_LIB -DCGAL_USE_GMPXX=1 -I/probes/core/../include -isystem /build/install-strict/include/akantu -isystem /opt/CGAL-5.6.2/include -isystem /usr/lib/aarch64-linux-gnu/openmpi/include -isystem /usr/lib/aarch64-linux-gnu/openmpi/include/openmpi -isystem /usr/lib/petscdir/petsc3.22/aarch64-linux-gnu-real/include -isystem /usr/include/scotch -isystem /build/install-strict/include/akantu_iterators -isystem /usr/include/eigen3 -isystem /build/install-strict/include/iohelper -O2 -g -DNDEBUG -std=gnu++20 -ffp-contract=off -DEIGEN_DONT_VECTORIZE -Wall -Wextra -pedantic -Wno-array-bounds -Wno-use-after-free -Wno-stringop-overread -DOMPI_SKIP_MPICXX -Wno-literal-suffix -frounding-math -o CMakeFiles/core_probe.dir/core_probe.cc.o -c /probes/core/core_probe.cc",
+  "probe_cxx_flags": "-DAKANTU_PROBE_BUILD_TYPE=\"RelWithDebInfo\" -DAKANTU_PROBE_CONFIG=\"strict\" -DAKANTU_PROBE_CXX_FLAGS=\"-ffp-contract=off -DEIGEN_DONT_VECTORIZE  -O2 -g -DNDEBUG\" -DBOOST_GRAPH_DYN_LINK -DBOOST_GRAPH_NO_LIB -DBOOST_REGEX_DYN_LINK -DBOOST_REGEX_NO_LIB -DCGAL_USE_GMPXX=1 -O2 -g -DNDEBUG -std=gnu++20 -ffp-contract=off -DEIGEN_DONT_VECTORIZE -Wall -Wextra -pedantic -Wno-array-bounds -Wno-use-after-free -Wno-stringop-overread -DOMPI_SKIP_MPICXX -Wno-literal-suffix -frounding-math"
+},
+  "created": "2026-11-10T23:20:36Z",
+  "parameters": {
+    "default_tolerance": 2.2204460492503131e-14
+  },
+  "storage": {
+    "mode": "committed",
+    "bytes": 12976
+  },
+  "quantities": [
+    {
+      "name": "reduce/offsets",
+      "file": "data/reduce__offsets.npy",
+      "dtype": "i64",
+      "shape": [
+        16
+      ],
+      "axes": [
+        "sample"
+      ],
+      "layout": "ragged_offsets",
+      "sha256": "e41226cb87bc869919c48ddc980492dc9d3ff1313ee0b6d6168948919992478d"
+    },
+    {
+      "name": "reduce/inputs",
+      "file": "data/reduce__inputs.npy",
+      "dtype": "f64",
+      "shape": [
+        1225
+      ],
+      "axes": [
+        "entry"
+      ],
+      "layout": "ragged_values",
+      "sha256": "219992cec58a66f28981751a45468c402be40c8c05a9dce3ca4c0c28696807e9",
+      "ragged": {
+        "offsets": "reduce/offsets",
+        "row_axis": "sample"
+      }
+    },
+    {
+      "name": "reduce/results",
+      "file": "data/reduce__results.npy",
+      "dtype": "f64",
+      "shape": [
+        15
+      ],
+      "axes": [
+        "sample"
+      ],
+      "layout": "table",
+      "sha256": "17695d9146b9a2df35544d7264cdbf75c3561c196e12a8d229e3e1d71f8b895a"
+    },
+    {
+      "name": "newton/sqrt_a",
+      "file": "data/newton__sqrt_a.npy",
+      "dtype": "f64",
+      "shape": [
+        6
+      ],
+      "axes": [
+        "sample"
+      ],
+      "layout": "table",
+      "sha256": "d62b45c2024f7e220bb70cd4472855d679a60c709dde5d4940303c9642cb8536"
+    },
+    {
+      "name": "newton/cubic_b",
+      "file": "data/newton__cubic_b.npy",
+      "dtype": "f64",
+      "shape": [
+        3
+      ],
+      "axes": [
+        "sample"
+      ],
+      "layout": "table",
+      "sha256": "66f5d8086de954c160e307089a23b23f542e12eed7f22e447e707d9657e4d077"
+    },
+    {
+      "name": "newton/x",
+      "file": "data/newton__x.npy",
+      "dtype": "f64",
+      "shape": [
+        10
+      ],
+      "axes": [
+        "sample"
+      ],
+      "layout": "table",
+      "sha256": "f0dca1c50046f052ae5bb03414795e0f30950c6ff616d5f6718abefa14fdd0ca",
+      "description": "6 sqrt solves (tol 1e-12, 100 its, x0 1), 3 cubic solves x^3-2x-b (tol 1e-5, 100 its, x0 2), 1 solve limited to 3 iterations with tol 0 (NaN when it threw)"
+    },
+    {
+      "name": "newton/threw",
+      "file": "data/newton__threw.npy",
+      "dtype": "i64",
+      "shape": [
+        10
+      ],
+      "axes": [
+        "sample"
+      ],
+      "layout": "table",
+      "sha256": "1c524ebb59d6ac74827e1fd16a31e62b78def24935d09b83d9fad0b122e01a01"
+    },
+    {
+      "name": "pow/x",
+      "file": "data/pow__x.npy",
+      "dtype": "f64",
+      "shape": [
+        5
+      ],
+      "axes": [
+        "sample"
+      ],
+      "layout": "table",
+      "sha256": "d917d7332bf57c37dd282545918c6c8ea496b83bfb4bef94696ad370b71ba175"
+    },
+    {
+      "name": "pow/values",
+      "file": "data/pow__values.npy",
+      "dtype": "f64",
+      "shape": [
+        5,
+        8
+      ],
+      "axes": [
+        "sample",
+        "component"
+      ],
+      "layout": "table",
+      "sha256": "3807cdec74b6eb48e6a14815a4a5cb345fdf4ab3ace049c349bfd6bf51b40d58",
+      "components": [
+        "p0",
+        "p1",
+        "p2",
+        "p3",
+        "p4",
+        "p7",
+        "rt5",
+        "rt9"
+      ]
+    },
+    {
+      "name": "float_equal/pairs",
+      "file": "data/float_equal__pairs.npy",
+      "dtype": "f64",
+      "shape": [
+        8,
+        2
+      ],
+      "axes": [
+        "sample",
+        "component"
+      ],
+      "layout": "table",
+      "sha256": "1b8b45c5fa6d1f95a6421411a474a45f26e688b01a7cfc526d799570bdbdd4b7"
+    },
+    {
+      "name": "float_equal/result",
+      "file": "data/float_equal__result.npy",
+      "dtype": "i64",
+      "shape": [
+        2,
+        8
+      ],
+      "axes": [
+        "entry",
+        "sample"
+      ],
+      "layout": "table",
+      "sha256": "de3b1f6fc51741644d4cb642f375623c08f60373c952b39214b06c71836da547",
+      "description": "row 0: default tolerance 1e2*eps, row 1: tolerance 1e-15"
+    },
+    {
+      "name": "intervals/values",
+      "file": "data/intervals__values.npy",
+      "dtype": "f64",
+      "shape": [
+        6,
+        4
+      ],
+      "axes": [
+        "sample",
+        "component"
+      ],
+      "layout": "table",
+      "sha256": "ed02fb2adb6a48f8ee4654f99586a1dbee7618809323d705977cb7c6cbcf1cbd",
+      "components": [
+        "x_min",
+        "x_max",
+        "y_min",
+        "y_max"
+      ]
+    },
+    {
+      "name": "intervals/intersects",
+      "file": "data/intervals__intersects.npy",
+      "dtype": "i64",
+      "shape": [
+        6
+      ],
+      "axes": [
+        "sample"
+      ],
+      "layout": "table",
+      "sha256": "9917397d70464e960b4561f059bd9cb300271eea417fb07df9844173247f50bf"
+    },
+    {
+      "name": "intervals/is_in_range",
+      "file": "data/intervals__is_in_range.npy",
+      "dtype": "i64",
+      "shape": [
+        6
+      ],
+      "axes": [
+        "sample"
+      ],
+      "layout": "table",
+      "sha256": "6ae7bf0e9590edffa647c143eaccfd2a05884d2ce54fc942a16eb3a2f9f31957",
+      "description": "is_in_range(x_min, y_min, y_max)"
+    }
+  ]
+}

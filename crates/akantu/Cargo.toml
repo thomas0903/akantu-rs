@@ -1,0 +1,143 @@
+# SPDX-License-Identifier: LGPL-3.0-or-later
+[package]
+name = "akantu"
+description = "akantu-rs facade: a Rust port of the Akantu finite-element library (re-exports of the member crates, feature selection, global runtime)"
+version.workspace = true
+edition.workspace = true
+rust-version.workspace = true
+license.workspace = true
+repository.workspace = true
+authors.workspace = true
+homepage.workspace = true
+keywords.workspace = true
+categories.workspace = true
+readme = "../../README.md"
+publish = false
+
+[features]
+# Mirrors upstream CMake packages (docs/ARCHITECTURE.md). Every pure-Rust
+# package is on by default (upstream preset `common`); native back-ends are
+# opt-in and live in the crates that use them.
+default = ["solid", "cohesive", "contact", "diffusion", "phase-field", "couplers", "structural", "embedded"]
+solid = ["dep:akantu-solid"]
+cohesive = ["solid", "dep:akantu-cohesive"]
+contact = ["dep:akantu-contact"]
+diffusion = ["dep:akantu-diffusion"]
+phase-field = ["dep:akantu-phase-field"]
+couplers = ["solid", "cohesive", "contact", "phase-field", "dep:akantu-couplers"]
+structural = ["dep:akantu-structural"]
+embedded = ["solid", "dep:akantu-embedded"]
+extra-materials = ["solid", "dep:akantu-extra-materials"]
+# the non-local extra laws (upstream package `extra_materials_non_local`,
+# DEPENDS `damage_non_local`)
+extra-materials-non-local = ["extra-materials", "akantu-extra-materials/damage-non-local"]
+# IGFEM needs the GPL sphere intersector (crates/akantu-geometry-cgal), so it
+# implies `cgal`, enables `akantu-igfem/cgal` (mesh generation) and stays out
+# of `default` (D-042). `embedded`
+# never implies `cgal`: it uses the LGPL `LinearScan` search structure;
+# upstream's AABB ordering is opt-in through `cgal`.
+igfem = ["solid", "cgal", "dep:akantu-igfem", "akantu-igfem/cgal"]
+ntn-contact = ["solid", "dep:akantu-ntn-contact"]
+# Native back-end used by the examples (Docker images only, never
+# in the default build): Scotch partitioning. (The `mpi` feature is below.)
+scotch = ["akantu-mesh/scotch"]
+
+# GPL-3.0-or-later geometry (D-042): CGAL AABB tree (upstream traversal
+# order) and spherical kernel / sphere intersector. OFF by default like
+# upstream's `CGAL` option; enabling it makes the build GPL-3.0-or-later as
+# a whole (crates/akantu-geometry-cgal/README.md).
+cgal = ["dep:akantu-geometry-cgal"]
+# Real MPI (upstream CMake option `MPI`): `runtime::initialize` installs the
+# MPI world as upstream's static communicator. Needs an
+# MPI implementation (`mpicc`), see akantu-comm. rsmpi (already a dependency
+# of akantu-comm under this feature) is named here for the rsmpi-host
+# scenario of tests/exit_hook_mpi.rs (D-067). The examples also
+# need the distributed mesh layer under real MPI, hence `akantu-mesh/mpi`
+# (one `mpi` feature).
+mpi = ["akantu-comm/mpi", "akantu-mesh/mpi", "dep:mpi"]
+# Embedded CPython (EX-012): the `python_user_defined_bc` example
+# (upstream `pybind11::embed`) through `akantu-python` (a dev-dependency:
+# `akantu-python` depends on this crate). Links libpython; off by default
+# like upstream's `AKANTU_PYTHON_INTERFACE` examples.
+python = ["akantu-python/python"]
+
+[dependencies]
+akantu-core.workspace = true
+akantu-parser.workspace = true
+akantu-comm.workspace = true
+akantu-mesh.workspace = true
+akantu-geometry.workspace = true
+akantu-fe.workspace = true
+akantu-linalg.workspace = true
+akantu-solver.workspace = true
+akantu-io.workspace = true
+akantu-model.workspace = true
+akantu-solid = { workspace = true, optional = true }
+akantu-cohesive = { workspace = true, optional = true }
+akantu-contact = { workspace = true, optional = true }
+akantu-diffusion = { workspace = true, optional = true }
+akantu-phase-field = { workspace = true, optional = true }
+akantu-couplers = { workspace = true, optional = true }
+akantu-structural = { workspace = true, optional = true }
+akantu-embedded = { workspace = true, optional = true }
+akantu-extra-materials = { workspace = true, optional = true }
+akantu-igfem = { workspace = true, optional = true }
+akantu-ntn-contact = { workspace = true, optional = true }
+akantu-geometry-cgal = { workspace = true, optional = true }  # GPL-3.0-or-later (feature `cgal`)
+mpi = { workspace = true, optional = true }  # feature `mpi` only (rsmpi, MIT OR Apache-2.0)
+
+[dev-dependencies]
+# EX-012 example `python_user_defined_bc` (feature `python`); without the
+# feature `akantu-python` compiles to its pure-Rust view protocol only.
+akantu-python = { path = "../akantu-python" }
+# Differential test of `runtime::initialize` against fixtures/core/initialize
+# (row CORE-031).
+akantu-validation.workspace = true
+serde_json.workspace = true
+# tests/initialize_debug.rs: `log` records reach the debugger after initialize
+log.workspace = true
+
+# The user manual's split-node contact chapter
+# (docs/manual/src/models/ntn-contact.md) and its claim tests run as tests of
+# this crate although the facade feature `ntn-contact` is off by default
+# (upstream package `traction_at_split_node_contact` is an extra package, off
+# by default). LGPL-3.0-or-later; never add `akantu-geometry-cgal` here (D-042).
+akantu-ntn-contact.workspace = true
+
+# The upstream example `embedded` is built with the package CGAL
+# (`USE_PACKAGES CGAL`); its port and its test follow the facade feature.
+[[example]]
+name = "embedded"
+required-features = ["cgal"]
+
+[[test]]
+name = "examples_embedded"
+required-features = ["cgal"]
+
+# Real-MPI test of `runtime::initialize` (harness = false): run under
+# mpirun inside the MPI image (docs/TESTING.md).
+[[test]]
+name = "initialize_mpi"
+harness = false
+required-features = ["mpi"]
+
+# Process-exit scenarios of the MPI finalisation hook (D-067; harness =
+# false): run under mpirun by scripts/mpi/run-mpi-tier.sh and
+# scripts/mpi/run-exit-hook-campaign.sh.
+[[test]]
+name = "exit_hook_mpi"
+harness = false
+required-features = ["mpi"]
+
+[[example]]
+name = "python_user_defined_bc"
+path = "examples/python_user_defined_bc/main.rs"
+required-features = ["python"]
+
+[[test]]
+name = "examples_python_user_defined_bc"
+path = "tests/examples_python_user_defined_bc.rs"
+required-features = ["python"]
+
+[lints]
+workspace = true

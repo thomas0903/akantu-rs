@@ -1,0 +1,93 @@
+# SPDX-License-Identifier: LGPL-3.0-or-later
+[workspace]
+resolver = "3"
+members = ["crates/*"]
+
+[workspace.package]
+version = "0.1.0"
+edition = "2024"
+rust-version = "1.90"
+license = "LGPL-3.0-or-later"
+repository = "https://github.com/thomas0903/akantu-rs"
+homepage = "https://github.com/thomas0903/akantu-rs"
+# The copyright of the original C++ library stays with its authors (NOTICE.md).
+authors = ["The akantu-rs contributors", "Akantu authors (EPFL/LSMS) for the original C++ implementation"]
+keywords = ["finite-element", "fem", "mechanics", "fracture", "akantu"]
+categories = ["science", "simulation", "mathematics"]
+
+[workspace.dependencies]
+# Shared versions of the workspace's dependencies (docs/DEPENDENCIES.md).
+# Rules: only well-established crates with LGPL-3.0-compatible licenses; every
+# entry records version + license; native-library bindings are always optional
+# and gated behind non-default features.
+
+# --- internal crates -------------------------------------------------------
+akantu-core = { path = "crates/akantu-core", version = "0.1.0" }
+akantu-parser = { path = "crates/akantu-parser", version = "0.1.0" }
+akantu-comm = { path = "crates/akantu-comm", version = "0.1.0" }
+akantu-mesh = { path = "crates/akantu-mesh", version = "0.1.0" }
+akantu-geometry = { path = "crates/akantu-geometry", version = "0.1.0" }
+akantu-geometry-cgal = { path = "crates/akantu-geometry-cgal", version = "0.1.0" }  # GPL-3.0-or-later, opt-in (D-042)
+akantu-fe = { path = "crates/akantu-fe", version = "0.1.0" }
+akantu-linalg = { path = "crates/akantu-linalg", version = "0.1.0" }
+akantu-solver = { path = "crates/akantu-solver", version = "0.1.0" }
+akantu-io = { path = "crates/akantu-io", version = "0.1.0" }
+akantu-model = { path = "crates/akantu-model", version = "0.1.0" }
+akantu-solid = { path = "crates/akantu-solid", version = "0.1.0" }
+akantu-cohesive = { path = "crates/akantu-cohesive", version = "0.1.0" }
+akantu-embedded = { path = "crates/akantu-embedded", version = "0.1.0" }
+akantu-diffusion = { path = "crates/akantu-diffusion", version = "0.1.0" }
+akantu-phase-field = { path = "crates/akantu-phase-field", version = "0.1.0" }
+akantu-contact = { path = "crates/akantu-contact", version = "0.1.0" }
+akantu-structural = { path = "crates/akantu-structural", version = "0.1.0" }
+akantu-couplers = { path = "crates/akantu-couplers", version = "0.1.0" }
+akantu-extra-materials = { path = "crates/akantu-extra-materials", version = "0.1.0" }
+akantu-igfem = { path = "crates/akantu-igfem", version = "0.1.0" }
+akantu-ntn-contact = { path = "crates/akantu-ntn-contact", version = "0.1.0" }
+akantu = { path = "crates/akantu", version = "0.1.0" }
+akantu-validation = { path = "crates/akantu-validation", version = "0.1.0" }
+
+# --- pure-Rust third-party crates (default build) -------------------------
+thiserror = "2.0.21"            # MIT OR Apache-2.0 — error derive (akantu-core::Error)
+faer = { version = "0.24.4", default-features = false, features = ["std", "sparse-linalg"] } # MIT — pure-Rust sparse LU/Cholesky + dense decompositions (D-014)
+# float_roundtrip: correctly rounded float parsing (the default parser can be
+# 1 ULP off for 17-digit values, docs/DEPENDENCIES.md)
+serde_json = { version = "1.0.149", features = ["float_roundtrip"] }  # MIT OR Apache-2.0
+log = "0.4.29"                  # MIT OR Apache-2.0 — logging facade (replaces AKANTU_DEBUG_* streams)
+
+# --- dev / test / bench -----------------------------------------------------
+proptest = "1.11.0"             # MIT OR Apache-2.0 — property-based tests
+
+# --- optional native bindings (never in the default build) ----------------
+mpi = { version = "0.8.2", default-features = false }   # MIT OR Apache-2.0 — rsmpi; needs MPI + libclang (feature `mpi`)
+pyo3 = { version = "0.30.1", features = ["abi3-py39"] }  # MIT OR Apache-2.0 (feature `python`)
+numpy = "0.30.0"                # BSD-2-Clause — PyO3 numpy views (feature `python`)
+cc = "1.2.66"                   # MIT OR Apache-2.0 — builds the small C shims for MUMPS / PETSc (features `mumps`, `petsc`)
+pkg-config = "0.3.33"           # MIT OR Apache-2.0 — locate native libs in build scripts
+
+[workspace.lints.rust]
+unsafe_op_in_unsafe_fn = "deny"
+missing_debug_implementations = "warn"
+
+[workspace.lints.clippy]
+all = { level = "warn", priority = -1 }
+
+# Documentation warnings fail the merge gate: `cargo doc --workspace --no-deps
+# --locked` and the feature variants in ci/tools/feature-gates.txt build with
+# these denied.
+# (`missing_docs` stays a `#![warn]` of the crates, caught by clippy -D warnings.)
+[workspace.lints.rustdoc]
+broken_intra_doc_links = "deny"
+private_intra_doc_links = "deny"
+invalid_html_tags = "deny"
+invalid_codeblock_attributes = "deny"
+invalid_rust_codeblocks = "deny"
+bare_urls = "deny"
+redundant_explicit_links = "deny"
+
+[profile.release]
+debug = 1
+# No fast-math-like settings anywhere. Floating-point semantics must stay IEEE-754 strict.
+
+[profile.bench]
+inherits = "release"

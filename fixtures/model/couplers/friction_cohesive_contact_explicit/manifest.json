@@ -1,0 +1,1089 @@
+{
+  "format_version": 1,
+  "case_id": "model/couplers/friction_cohesive_contact_explicit",
+  "description": "examples/c++/contact_mechanics_model/hertz/cohesive_contact_explicit_dynamic.cc with Coulomb friction on the crack faces (mu = 0.3, epsilon_n = epsilon_t = 1e3), the bottom blocked in x instead of the sides, 2500 loading then unloading steps (+-1e-3/2500 per step in y), 7500 steps, from step 5000 a shear increment of 1e-3/2500 per step in x on loading; coupler.solveStep(), checkCohesiveStress after each step; UD-001 variant oracle",
+  "status": "golden",
+  "generator": {
+    "probe": "couplers_probe",
+    "probe_version": "4",
+    "command": "CPL_PROBE_CASES=friction_cohesive_contact_explicit CPL_PROBE_VARIANT=ud001 oracle/probes/couplers/generate.sh "
+  },
+  "reference": {
+    "sha": "35a851780d0b9471d258ed53a003ae98aaa95ea0",
+    "describe": "v5.0.7-post1-554-g35a851780",
+    "patches": [
+      "modified:cmake/AkantuTestsMacros.cmake sha256=c280165a84912eab4bcc081b9eaaaa06aafdd83d4f48d982e11b0859abf9672f (reference sha256=36290de2ec8b111028138fe82029efa16501512241a5bc264fa30ff3e3239b9e)",
+      "modified:src/model/contact_mechanics/contact_detector_inline_impl.hh sha256=e3f1c264ba047243dec4baf61a8da974e6a008860143f9f5be8241ed017d195b (reference sha256=439e0854359e7ed6519a37bb0cd1ed75569eeb99aada91ae1dd886319504f0d3)",
+      "modified:src/model/contact_mechanics/resolutions/resolution_penalty.cc sha256=3ec8b9eea307e4b0d3b12196bd6ae24ce621e2012beddf586d64a8e3e516d840 (reference sha256=bbb8ffbe847a97b7436f9fab04b6f33733fbae2e855cbf48bff7e5b9797043ba)"
+    ]
+  },
+  "build": {
+  "config": "strict",
+  "compiler": "g++ (Debian 14.2.0-19) 14.2.0",
+  "cxx_flags": "-ffp-contract=off -DEIGEN_DONT_VECTORIZE -DEIGEN_NO_CPUID -DEIGEN_DEFAULT_L1_CACHE_SIZE=16384 -DEIGEN_DEFAULT_L2_CACHE_SIZE=524288 -DEIGEN_DEFAULT_L3_CACHE_SIZE=524288 -O2 -g -DNDEBUG -g3 -ggdb3 -flarge-source-files -std=c++20 -flto=auto -fno-fat-lto-objects -fPIC -frounding-math (actual flags of src/model/solid_mechanics/solid_mechanics_model.cc; warnings and non-FP -D defines omitted)",
+  "build_type": "RelWithDebInfo",
+  "arch": "x86_64",
+  "os": "Debian GNU/Linux 13 (trixie)",
+  "libraries": {"eigen_cache_sizes_measured": "16384,524288,524288 (Eigen::l1/l2/l3CacheSize() read at run time in the probe process, D-050)", 
+    "eigen3": "3.4.0-5",
+    "boost": "1.83.0.2+b2",
+    "openmpi": "5.0.7-1",
+    "mumps": "5.7.3-3+b1",
+    "petsc": "3.22.5+dfsg1-2",
+    "scotch": "7.0.7-1",
+    "openblas": "0.3.29+ds-3",
+    "scalapack": "2.2.2-1",
+    "hdf5": "1.14.5+repack-3",
+    "gmsh": "4.13.1+ds1-6",
+    "pybind11": "2.13.6-2",
+    "numpy": "1:2.2.4+ds-1",
+    "scipy": "1.15.3-1",
+    "gcc": "4:14.2.0-1",
+    "gfortran": "4:14.2.0-1",
+    "oracle_image": "sha256:2da26d87e063f3c88264f589cf73381feff583eeaa7770d2e01ae034651d59f5",
+    "oracle_build_scripts": "cca6e460cd3430bf0180262e7ebe26be762112e9",
+    "oracle_install_reference_sha": "35a851780d0b9471d258ed53a003ae98aaa95ea0",
+    "oracle_install_image": "sha256:2da26d87e063f3c88264f589cf73381feff583eeaa7770d2e01ae034651d59f5",
+    "openblas_coretype": "Haswell",
+    "openblas_num_threads": "1",
+    "eigen_cache_sizes": "16384,524288,524288 (compile-time pin of the library and of the probe translation unit: EIGEN_NO_CPUID + defaults, D-050)",
+    "host_cpu": "AMD EPYC 9455 48-Core Processor",
+    "x86_64_level": "v3",
+    "sha256:libakantu.so.5.0.7": "26e7be934eaea0055bbf409b4b623cf2be1503a2a5b0ceecdccb295eed5cc5a8",
+    "probe_tree_sha256": "2fb611d9b6567a2feb02308b39fb8b3d99a2931639b2708daa7f9e3fafca864f",
+    "probe_sources_commit": "1e8f03f627a13a1917e34ae9bf38d624126d8728",
+    "cmake_cxx_flags": "-ffp-contract=off -DEIGEN_DONT_VECTORIZE -DEIGEN_NO_CPUID -DEIGEN_DEFAULT_L1_CACHE_SIZE=16384 -DEIGEN_DEFAULT_L2_CACHE_SIZE=524288 -DEIGEN_DEFAULT_L3_CACHE_SIZE=524288 -O2 -g -DNDEBUG -g3 -ggdb3 -flarge-source-files",
+    "probe": "couplers_probe"
+  },
+  "probe_compile_command": "/usr/bin/c++ '-DAKANTU_PROBE_BUILD_TYPE=\"RelWithDebInfo\"' '-DAKANTU_PROBE_CONFIG=\"strict\"' '-DAKANTU_PROBE_CXX_FLAGS=\"-ffp-contract=off -DEIGEN_DONT_VECTORIZE -DEIGEN_NO_CPUID -DEIGEN_DEFAULT_L1_CACHE_SIZE=16384 -DEIGEN_DEFAULT_L2_CACHE_SIZE=524288 -DEIGEN_DEFAULT_L3_CACHE_SIZE=524288  -O2 -g -DNDEBUG\"' -DBOOST_GRAPH_DYN_LINK -DBOOST_GRAPH_NO_LIB -DBOOST_REGEX_DYN_LINK -DBOOST_REGEX_NO_LIB -DCGAL_USE_GMPXX=1 -I/probes/couplers/../include -isystem /build/install-strict/include/akantu -isystem /opt/CGAL-5.6.2/include -isystem /usr/lib/x86_64-linux-gnu/openmpi/include -isystem /usr/lib/x86_64-linux-gnu/openmpi/include/openmpi -isystem /usr/lib/petscdir/petsc3.22/x86_64-linux-gnu-real/include -isystem /usr/include/scotch -isystem /build/install-strict/include/akantu_iterators -isystem /usr/include/eigen3 -isystem /build/install-strict/include/iohelper -O2 -g -DNDEBUG -std=gnu++20 -ffp-contract=off -DEIGEN_DONT_VECTORIZE -DEIGEN_NO_CPUID -DEIGEN_DEFAULT_L1_CACHE_SIZE=16384 -DEIGEN_DEFAULT_L2_CACHE_SIZE=524288 -DEIGEN_DEFAULT_L3_CACHE_SIZE=524288 -Wall -Wextra -pedantic -Wno-array-bounds -Wno-use-after-free -Wno-stringop-overread -DOMPI_SKIP_MPICXX -Wno-literal-suffix -frounding-math -o CMakeFiles/couplers_probe.dir/couplers_probe.cc.o -c /probes/couplers/couplers_probe.cc",
+  "probe_cxx_flags": "-DAKANTU_PROBE_BUILD_TYPE=\"RelWithDebInfo\" -DAKANTU_PROBE_CONFIG=\"strict\" -DAKANTU_PROBE_CXX_FLAGS=\"-ffp-contract=off -DEIGEN_DONT_VECTORIZE -DEIGEN_NO_CPUID -DEIGEN_DEFAULT_L1_CACHE_SIZE=16384 -DEIGEN_DEFAULT_L2_CACHE_SIZE=524288 -DEIGEN_DEFAULT_L3_CACHE_SIZE=524288  -O2 -g -DNDEBUG\" -DBOOST_GRAPH_DYN_LINK -DBOOST_GRAPH_NO_LIB -DBOOST_REGEX_DYN_LINK -DBOOST_REGEX_NO_LIB -DCGAL_USE_GMPXX=1 -O2 -g -DNDEBUG -std=gnu++20 -ffp-contract=off -DEIGEN_DONT_VECTORIZE -DEIGEN_NO_CPUID -DEIGEN_DEFAULT_L1_CACHE_SIZE=16384 -DEIGEN_DEFAULT_L2_CACHE_SIZE=524288 -DEIGEN_DEFAULT_L3_CACHE_SIZE=524288 -Wall -Wextra -pedantic -Wno-array-bounds -Wno-use-after-free -Wno-stringop-overread -DOMPI_SKIP_MPICXX -Wno-literal-suffix -frounding-math"
+},
+  "created": "2026-11-12T17:07:38Z",
+  "inputs": [
+    {
+      "role": "mesh",
+      "path": "inputs/cohesive-contact.msh",
+      "source": "examples/c++/contact_mechanics_model/hertz/cohesive-contact.geo",
+      "sha256": "4825e738b8e78f5d16bc34c72e618eb4c22c45574ce2e3604d28c27a54c9d8dd"
+    },
+    {
+      "role": "material",
+      "path": "inputs/couplers_probe_friction_cohesive_contact_explicit_material.dat",
+      "source": "examples/c++/contact_mechanics_model/hertz/material-cohesive.dat (mu = 0.3, epsilon_n = epsilon_t = 1e+03)",
+      "sha256": "b5c3f588d3529d54cdd6982c92c68a56f8e35588b11d79219cff6049697ec4c7"
+    },
+    {
+      "role": "digests",
+      "path": "inputs/couplers_probe_friction_cohesive_contact_explicit_digests.txt",
+      "sha256": "d6617d235e1aa349e36782880a3c00aba364047007dab153904fa50ab70c20f8"
+    }
+  ],
+  "parameters": {
+    "oracle_variant": {
+      "patch": "oracle/patches/variants/ud001-contact-zero-init.patch",
+      "sha256": "143546021ac16611e8dd884f6203cc688b8ec2b7ca4b45bdd0461014529f31fa",
+      "defect": "UD-001"
+    },
+    "steps": 7500,
+    "loading_steps": 2500,
+    "shear_from": 5000,
+    "increment": 3.9999999999999998e-07,
+    "shear_increment": 3.9999999999999998e-07,
+    "mu": 0.29999999999999999,
+    "epsilon_n": 1000.0,
+    "epsilon_t": 1000.0
+  },
+  "storage": {
+    "mode": "committed",
+    "bytes": 271896
+  },
+  "quantities": [
+    {
+      "name": "time_step",
+      "file": "data/time_step.npy",
+      "dtype": "f64",
+      "shape": [
+        1
+      ],
+      "axes": [
+        "entry"
+      ],
+      "layout": "table",
+      "sha256": "defada4c2812d85fb1fc948849a6905e14839bdba0f85a0f5eaa064f9e5ccb25",
+      "description": "0.1 x stable time step"
+    },
+    {
+      "name": "step_0/displacement",
+      "file": "data/step_0__displacement.npy",
+      "dtype": "f64",
+      "shape": [
+        15,
+        2
+      ],
+      "axes": [
+        "entry",
+        "component"
+      ],
+      "layout": "table",
+      "sha256": "b5ea4d4321daab3960bbe95f7b4c0cba2995d357d62c135069046c5b21839b3b",
+      "description": "displacement"
+    },
+    {
+      "name": "step_0/velocity",
+      "file": "data/step_0__velocity.npy",
+      "dtype": "f64",
+      "shape": [
+        15,
+        2
+      ],
+      "axes": [
+        "entry",
+        "component"
+      ],
+      "layout": "table",
+      "sha256": "515e1717601abd0182ae7c8abbaf1d6006b6814a4d8a3c0200c816e6b7018c9d",
+      "description": "velocity"
+    },
+    {
+      "name": "step_0/contact_force",
+      "file": "data/step_0__contact_force.npy",
+      "dtype": "f64",
+      "shape": [
+        15,
+        2
+      ],
+      "axes": [
+        "entry",
+        "component"
+      ],
+      "layout": "table",
+      "sha256": "7b6ad4fdee015864513a43181fe10ac02ac45170670980c3ea3008254aef8c64",
+      "description": "contact force"
+    },
+    {
+      "name": "step_0/tangential_force",
+      "file": "data/step_0__tangential_force.npy",
+      "dtype": "f64",
+      "shape": [
+        15,
+        2
+      ],
+      "axes": [
+        "entry",
+        "component"
+      ],
+      "layout": "table",
+      "sha256": "7b6ad4fdee015864513a43181fe10ac02ac45170670980c3ea3008254aef8c64",
+      "description": "tangential force"
+    },
+    {
+      "name": "step_0/gaps",
+      "file": "data/step_0__gaps.npy",
+      "dtype": "f64",
+      "shape": [
+        15,
+        1
+      ],
+      "axes": [
+        "entry",
+        "component"
+      ],
+      "layout": "table",
+      "sha256": "7316ac9c510768593817ec24381b73ca946a28e6c49006a37e4ad634c5445ccb",
+      "description": "gaps"
+    },
+    {
+      "name": "step_0/areas",
+      "file": "data/step_0__areas.npy",
+      "dtype": "f64",
+      "shape": [
+        15,
+        1
+      ],
+      "axes": [
+        "entry",
+        "component"
+      ],
+      "layout": "table",
+      "sha256": "0dae7dcc16cfde00f9449c13798b9dcec86146dd090c7d9f12e4087986772a1a",
+      "description": "nodal areas"
+    },
+    {
+      "name": "step_0/tangential_tractions",
+      "file": "data/step_0__tangential_tractions.npy",
+      "dtype": "f64",
+      "shape": [
+        15,
+        1
+      ],
+      "axes": [
+        "entry",
+        "component"
+      ],
+      "layout": "table",
+      "sha256": "0dae7dcc16cfde00f9449c13798b9dcec86146dd090c7d9f12e4087986772a1a",
+      "description": "tangential tractions"
+    },
+    {
+      "name": "step_0/contact_state",
+      "file": "data/step_0__contact_state.npy",
+      "dtype": "i64",
+      "shape": [
+        15
+      ],
+      "axes": [
+        "entry"
+      ],
+      "layout": "table",
+      "sha256": "74a9bbdbbb1f09fb65ede0f6c80cf5828974196c1a04790fdceed32ea2b457fa",
+      "description": "contact state per node (0 no contact, 1 stick, 2 slip)"
+    },
+    {
+      "name": "step_2499/displacement",
+      "file": "data/step_2499__displacement.npy",
+      "dtype": "f64",
+      "shape": [
+        18,
+        2
+      ],
+      "axes": [
+        "entry",
+        "component"
+      ],
+      "layout": "table",
+      "sha256": "b12f6f0d3ea50b7e16ca908e2adc59b795d3c12da5e9e04ccbc8d943c7db3361",
+      "description": "displacement"
+    },
+    {
+      "name": "step_2499/velocity",
+      "file": "data/step_2499__velocity.npy",
+      "dtype": "f64",
+      "shape": [
+        18,
+        2
+      ],
+      "axes": [
+        "entry",
+        "component"
+      ],
+      "layout": "table",
+      "sha256": "90d922a0d5fcc1fc476421b94b8640b8045c1f631f95d2f9e2cb4a3e1f916a86",
+      "description": "velocity"
+    },
+    {
+      "name": "step_2499/contact_force",
+      "file": "data/step_2499__contact_force.npy",
+      "dtype": "f64",
+      "shape": [
+        18,
+        2
+      ],
+      "axes": [
+        "entry",
+        "component"
+      ],
+      "layout": "table",
+      "sha256": "bd112e99cd54c97e05c9483779ba380a317e10fe6d0e466783780af55395e190",
+      "description": "contact force"
+    },
+    {
+      "name": "step_2499/tangential_force",
+      "file": "data/step_2499__tangential_force.npy",
+      "dtype": "f64",
+      "shape": [
+        18,
+        2
+      ],
+      "axes": [
+        "entry",
+        "component"
+      ],
+      "layout": "table",
+      "sha256": "bd112e99cd54c97e05c9483779ba380a317e10fe6d0e466783780af55395e190",
+      "description": "tangential force"
+    },
+    {
+      "name": "step_2499/gaps",
+      "file": "data/step_2499__gaps.npy",
+      "dtype": "f64",
+      "shape": [
+        18,
+        1
+      ],
+      "axes": [
+        "entry",
+        "component"
+      ],
+      "layout": "table",
+      "sha256": "4c00eb11168b507e70849911fcd9dbb0cac64437bc3353773a6eb8fbfb096e74",
+      "description": "gaps"
+    },
+    {
+      "name": "step_2499/areas",
+      "file": "data/step_2499__areas.npy",
+      "dtype": "f64",
+      "shape": [
+        18,
+        1
+      ],
+      "axes": [
+        "entry",
+        "component"
+      ],
+      "layout": "table",
+      "sha256": "d6e47cebb5dd38b6d74a08e9465a67b3ead413d2d16131eb730dd07192522079",
+      "description": "nodal areas"
+    },
+    {
+      "name": "step_2499/tangential_tractions",
+      "file": "data/step_2499__tangential_tractions.npy",
+      "dtype": "f64",
+      "shape": [
+        18,
+        1
+      ],
+      "axes": [
+        "entry",
+        "component"
+      ],
+      "layout": "table",
+      "sha256": "d6e47cebb5dd38b6d74a08e9465a67b3ead413d2d16131eb730dd07192522079",
+      "description": "tangential tractions"
+    },
+    {
+      "name": "step_2499/contact_state",
+      "file": "data/step_2499__contact_state.npy",
+      "dtype": "i64",
+      "shape": [
+        18
+      ],
+      "axes": [
+        "entry"
+      ],
+      "layout": "table",
+      "sha256": "5de0e2ea8cd52d87d51f12b2aa12d1a9dc63291bbe7d89001be852df0b02e485",
+      "description": "contact state per node (0 no contact, 1 stick, 2 slip)"
+    },
+    {
+      "name": "step_4999/displacement",
+      "file": "data/step_4999__displacement.npy",
+      "dtype": "f64",
+      "shape": [
+        18,
+        2
+      ],
+      "axes": [
+        "entry",
+        "component"
+      ],
+      "layout": "table",
+      "sha256": "04c20f7a87b78fc7147c2cd9f1aa8e75e188a43711349419396d4687a14c3af9",
+      "description": "displacement"
+    },
+    {
+      "name": "step_4999/velocity",
+      "file": "data/step_4999__velocity.npy",
+      "dtype": "f64",
+      "shape": [
+        18,
+        2
+      ],
+      "axes": [
+        "entry",
+        "component"
+      ],
+      "layout": "table",
+      "sha256": "7734cb869e545e907d01cb39484a4cc39aecd973933eb0695cf1df17cc702e99",
+      "description": "velocity"
+    },
+    {
+      "name": "step_4999/contact_force",
+      "file": "data/step_4999__contact_force.npy",
+      "dtype": "f64",
+      "shape": [
+        18,
+        2
+      ],
+      "axes": [
+        "entry",
+        "component"
+      ],
+      "layout": "table",
+      "sha256": "ae91c8404e72c20c7141f055735c38aacc1a15478bc934806b36f9872e78deac",
+      "description": "contact force"
+    },
+    {
+      "name": "step_4999/tangential_force",
+      "file": "data/step_4999__tangential_force.npy",
+      "dtype": "f64",
+      "shape": [
+        18,
+        2
+      ],
+      "axes": [
+        "entry",
+        "component"
+      ],
+      "layout": "table",
+      "sha256": "a1fbb6b19295401b946597310dfe658b4553fc1389634cd7dc8539c6537f9ff1",
+      "description": "tangential force"
+    },
+    {
+      "name": "step_4999/gaps",
+      "file": "data/step_4999__gaps.npy",
+      "dtype": "f64",
+      "shape": [
+        18,
+        1
+      ],
+      "axes": [
+        "entry",
+        "component"
+      ],
+      "layout": "table",
+      "sha256": "1f1d45539905038c418747307e1e8b3069334f58cd02f28738ccaa9994e2650e",
+      "description": "gaps"
+    },
+    {
+      "name": "step_4999/areas",
+      "file": "data/step_4999__areas.npy",
+      "dtype": "f64",
+      "shape": [
+        18,
+        1
+      ],
+      "axes": [
+        "entry",
+        "component"
+      ],
+      "layout": "table",
+      "sha256": "91621ca4cff3324b55613ce452a11e341a9a105d106b6cf7e9af7176485aff79",
+      "description": "nodal areas"
+    },
+    {
+      "name": "step_4999/tangential_tractions",
+      "file": "data/step_4999__tangential_tractions.npy",
+      "dtype": "f64",
+      "shape": [
+        18,
+        1
+      ],
+      "axes": [
+        "entry",
+        "component"
+      ],
+      "layout": "table",
+      "sha256": "d8d2b71b055931499a101a353079b803b8aa2a32fe6f32a2b0c14f667096f3de",
+      "description": "tangential tractions"
+    },
+    {
+      "name": "step_4999/contact_state",
+      "file": "data/step_4999__contact_state.npy",
+      "dtype": "i64",
+      "shape": [
+        18
+      ],
+      "axes": [
+        "entry"
+      ],
+      "layout": "table",
+      "sha256": "8f28b170d71c70ce4388b9ebcbaf6365745fbfa559e1835b730615a188a564e1",
+      "description": "contact state per node (0 no contact, 1 stick, 2 slip)"
+    },
+    {
+      "name": "step_5000/displacement",
+      "file": "data/step_5000__displacement.npy",
+      "dtype": "f64",
+      "shape": [
+        18,
+        2
+      ],
+      "axes": [
+        "entry",
+        "component"
+      ],
+      "layout": "table",
+      "sha256": "9887f8ddf9afb0293b76d74723da671bccc670ad433c6400ef8593ef1f26077c",
+      "description": "displacement"
+    },
+    {
+      "name": "step_5000/velocity",
+      "file": "data/step_5000__velocity.npy",
+      "dtype": "f64",
+      "shape": [
+        18,
+        2
+      ],
+      "axes": [
+        "entry",
+        "component"
+      ],
+      "layout": "table",
+      "sha256": "ab2b2aad8a4f70dec0a7413fbc60733809be40e25b3996cbf2023b25005039ff",
+      "description": "velocity"
+    },
+    {
+      "name": "step_5000/contact_force",
+      "file": "data/step_5000__contact_force.npy",
+      "dtype": "f64",
+      "shape": [
+        18,
+        2
+      ],
+      "axes": [
+        "entry",
+        "component"
+      ],
+      "layout": "table",
+      "sha256": "2359ca0279309f2f4ae1c86c455b350174a40db1716c56136ad0b832cc0f5d23",
+      "description": "contact force"
+    },
+    {
+      "name": "step_5000/tangential_force",
+      "file": "data/step_5000__tangential_force.npy",
+      "dtype": "f64",
+      "shape": [
+        18,
+        2
+      ],
+      "axes": [
+        "entry",
+        "component"
+      ],
+      "layout": "table",
+      "sha256": "1b0538371a1b3b5088ab29223747a893a43a87ff4921fe3268b643eb5ce5a747",
+      "description": "tangential force"
+    },
+    {
+      "name": "step_5000/gaps",
+      "file": "data/step_5000__gaps.npy",
+      "dtype": "f64",
+      "shape": [
+        18,
+        1
+      ],
+      "axes": [
+        "entry",
+        "component"
+      ],
+      "layout": "table",
+      "sha256": "7168dec92086c23dac1f5e2a2552115739c05c753ab00825d78a7d0119297179",
+      "description": "gaps"
+    },
+    {
+      "name": "step_5000/areas",
+      "file": "data/step_5000__areas.npy",
+      "dtype": "f64",
+      "shape": [
+        18,
+        1
+      ],
+      "axes": [
+        "entry",
+        "component"
+      ],
+      "layout": "table",
+      "sha256": "f0f30bd3c153415eafa7a6df135e6f78c5cf7f301b0e551b3f2dfea10b42525f",
+      "description": "nodal areas"
+    },
+    {
+      "name": "step_5000/tangential_tractions",
+      "file": "data/step_5000__tangential_tractions.npy",
+      "dtype": "f64",
+      "shape": [
+        18,
+        1
+      ],
+      "axes": [
+        "entry",
+        "component"
+      ],
+      "layout": "table",
+      "sha256": "afdfd572bc12c348ed58db485f4796815dc363ab85edfe81497308754ae0a8de",
+      "description": "tangential tractions"
+    },
+    {
+      "name": "step_5000/contact_state",
+      "file": "data/step_5000__contact_state.npy",
+      "dtype": "i64",
+      "shape": [
+        18
+      ],
+      "axes": [
+        "entry"
+      ],
+      "layout": "table",
+      "sha256": "8f28b170d71c70ce4388b9ebcbaf6365745fbfa559e1835b730615a188a564e1",
+      "description": "contact state per node (0 no contact, 1 stick, 2 slip)"
+    },
+    {
+      "name": "step_5500/displacement",
+      "file": "data/step_5500__displacement.npy",
+      "dtype": "f64",
+      "shape": [
+        18,
+        2
+      ],
+      "axes": [
+        "entry",
+        "component"
+      ],
+      "layout": "table",
+      "sha256": "0679315adbc03ac4345d02af68ee83d06795fb78970caa2e3da7f1532c499962",
+      "description": "displacement"
+    },
+    {
+      "name": "step_5500/velocity",
+      "file": "data/step_5500__velocity.npy",
+      "dtype": "f64",
+      "shape": [
+        18,
+        2
+      ],
+      "axes": [
+        "entry",
+        "component"
+      ],
+      "layout": "table",
+      "sha256": "46bb0e94ca8fe775793503fdab66424c235cf1b62e3e41915ca191cceba65cb4",
+      "description": "velocity"
+    },
+    {
+      "name": "step_5500/contact_force",
+      "file": "data/step_5500__contact_force.npy",
+      "dtype": "f64",
+      "shape": [
+        18,
+        2
+      ],
+      "axes": [
+        "entry",
+        "component"
+      ],
+      "layout": "table",
+      "sha256": "b7ee801bb8f3e83bd2d4a89a5c28a5873487b6cf9205614d6ed46dc22d241d32",
+      "description": "contact force"
+    },
+    {
+      "name": "step_5500/tangential_force",
+      "file": "data/step_5500__tangential_force.npy",
+      "dtype": "f64",
+      "shape": [
+        18,
+        2
+      ],
+      "axes": [
+        "entry",
+        "component"
+      ],
+      "layout": "table",
+      "sha256": "2159501d486bf53d4c0c2c350bda26575a825c7081f6b71bae73ef54ae8a36b0",
+      "description": "tangential force"
+    },
+    {
+      "name": "step_5500/gaps",
+      "file": "data/step_5500__gaps.npy",
+      "dtype": "f64",
+      "shape": [
+        18,
+        1
+      ],
+      "axes": [
+        "entry",
+        "component"
+      ],
+      "layout": "table",
+      "sha256": "c0a8c96b7d20979712dd38f843d15fcdddd06c170e832f2933c0dfcde5c4ffc6",
+      "description": "gaps"
+    },
+    {
+      "name": "step_5500/areas",
+      "file": "data/step_5500__areas.npy",
+      "dtype": "f64",
+      "shape": [
+        18,
+        1
+      ],
+      "axes": [
+        "entry",
+        "component"
+      ],
+      "layout": "table",
+      "sha256": "7f590e1baaad5ade3f34e9a92932f2c40c7ae982c557cf14ec50a82704312f72",
+      "description": "nodal areas"
+    },
+    {
+      "name": "step_5500/tangential_tractions",
+      "file": "data/step_5500__tangential_tractions.npy",
+      "dtype": "f64",
+      "shape": [
+        18,
+        1
+      ],
+      "axes": [
+        "entry",
+        "component"
+      ],
+      "layout": "table",
+      "sha256": "f63580bfbcf219456459a9f9ef3aa6eb1edf25d8331db6cd2c09febdfd36b432",
+      "description": "tangential tractions"
+    },
+    {
+      "name": "step_5500/contact_state",
+      "file": "data/step_5500__contact_state.npy",
+      "dtype": "i64",
+      "shape": [
+        18
+      ],
+      "axes": [
+        "entry"
+      ],
+      "layout": "table",
+      "sha256": "93e1e7ece1f5a7d8b3b65ecf9ad7bdc81faaeb13ef9d501e00e5e1e49fd40890",
+      "description": "contact state per node (0 no contact, 1 stick, 2 slip)"
+    },
+    {
+      "name": "step_6000/displacement",
+      "file": "data/step_6000__displacement.npy",
+      "dtype": "f64",
+      "shape": [
+        18,
+        2
+      ],
+      "axes": [
+        "entry",
+        "component"
+      ],
+      "layout": "table",
+      "sha256": "8a3cbb6a18821a202d012d3435f8a3246cca9f648b3ddc9762d42670d6aee2f4",
+      "description": "displacement"
+    },
+    {
+      "name": "step_6000/velocity",
+      "file": "data/step_6000__velocity.npy",
+      "dtype": "f64",
+      "shape": [
+        18,
+        2
+      ],
+      "axes": [
+        "entry",
+        "component"
+      ],
+      "layout": "table",
+      "sha256": "57ac608b16de94926544bcb1d5a17dd3f1bb218d2eb2e66920be21ca85afbb46",
+      "description": "velocity"
+    },
+    {
+      "name": "step_6000/contact_force",
+      "file": "data/step_6000__contact_force.npy",
+      "dtype": "f64",
+      "shape": [
+        18,
+        2
+      ],
+      "axes": [
+        "entry",
+        "component"
+      ],
+      "layout": "table",
+      "sha256": "c3b6209ea147aec397109e89e946bb506dec2c9cb45d51c3c7377b84000ea8df",
+      "description": "contact force"
+    },
+    {
+      "name": "step_6000/tangential_force",
+      "file": "data/step_6000__tangential_force.npy",
+      "dtype": "f64",
+      "shape": [
+        18,
+        2
+      ],
+      "axes": [
+        "entry",
+        "component"
+      ],
+      "layout": "table",
+      "sha256": "8e99faad7a4561b8f22df59a7786fdbfa8d5764d0b8654f041c50d0e01168795",
+      "description": "tangential force"
+    },
+    {
+      "name": "step_6000/gaps",
+      "file": "data/step_6000__gaps.npy",
+      "dtype": "f64",
+      "shape": [
+        18,
+        1
+      ],
+      "axes": [
+        "entry",
+        "component"
+      ],
+      "layout": "table",
+      "sha256": "56b2b4d103cce91cef9dccbfb8e45719464e6da50cdcf3792c051bb24a565848",
+      "description": "gaps"
+    },
+    {
+      "name": "step_6000/areas",
+      "file": "data/step_6000__areas.npy",
+      "dtype": "f64",
+      "shape": [
+        18,
+        1
+      ],
+      "axes": [
+        "entry",
+        "component"
+      ],
+      "layout": "table",
+      "sha256": "c4d0d130003167cde4aaeb895eaba2f62c188a9d37dbb9f9767b2ee275ac260d",
+      "description": "nodal areas"
+    },
+    {
+      "name": "step_6000/tangential_tractions",
+      "file": "data/step_6000__tangential_tractions.npy",
+      "dtype": "f64",
+      "shape": [
+        18,
+        1
+      ],
+      "axes": [
+        "entry",
+        "component"
+      ],
+      "layout": "table",
+      "sha256": "455c95290d49cbd9ad1c611c786a61527cfebd7ea8ae0fd883614d253a16fdc6",
+      "description": "tangential tractions"
+    },
+    {
+      "name": "step_6000/contact_state",
+      "file": "data/step_6000__contact_state.npy",
+      "dtype": "i64",
+      "shape": [
+        18
+      ],
+      "axes": [
+        "entry"
+      ],
+      "layout": "table",
+      "sha256": "93e1e7ece1f5a7d8b3b65ecf9ad7bdc81faaeb13ef9d501e00e5e1e49fd40890",
+      "description": "contact state per node (0 no contact, 1 stick, 2 slip)"
+    },
+    {
+      "name": "step_7499/displacement",
+      "file": "data/step_7499__displacement.npy",
+      "dtype": "f64",
+      "shape": [
+        18,
+        2
+      ],
+      "axes": [
+        "entry",
+        "component"
+      ],
+      "layout": "table",
+      "sha256": "84ff293ee00983c76ddc94511f0130170f4820e191c54b9c30639715a69afb68",
+      "description": "displacement"
+    },
+    {
+      "name": "step_7499/velocity",
+      "file": "data/step_7499__velocity.npy",
+      "dtype": "f64",
+      "shape": [
+        18,
+        2
+      ],
+      "axes": [
+        "entry",
+        "component"
+      ],
+      "layout": "table",
+      "sha256": "56df0b98c91a44ae6ce6441c335a215b9e1e9f35c8d3f525ed2b9377b44b21b5",
+      "description": "velocity"
+    },
+    {
+      "name": "step_7499/contact_force",
+      "file": "data/step_7499__contact_force.npy",
+      "dtype": "f64",
+      "shape": [
+        18,
+        2
+      ],
+      "axes": [
+        "entry",
+        "component"
+      ],
+      "layout": "table",
+      "sha256": "902b5a79c6b33ad7a06b7ac42991d484c2c0d9c0764ffcd30cec19585a3caa24",
+      "description": "contact force"
+    },
+    {
+      "name": "step_7499/tangential_force",
+      "file": "data/step_7499__tangential_force.npy",
+      "dtype": "f64",
+      "shape": [
+        18,
+        2
+      ],
+      "axes": [
+        "entry",
+        "component"
+      ],
+      "layout": "table",
+      "sha256": "8a85e0a88e2235472d9c3a4198039bff2ca29f0be4865ec5b8336fd7023ebff3",
+      "description": "tangential force"
+    },
+    {
+      "name": "step_7499/gaps",
+      "file": "data/step_7499__gaps.npy",
+      "dtype": "f64",
+      "shape": [
+        18,
+        1
+      ],
+      "axes": [
+        "entry",
+        "component"
+      ],
+      "layout": "table",
+      "sha256": "40828c707254a58060ce08e6b546b4e4a07612847a36aaf5daa08a2287ecc5ee",
+      "description": "gaps"
+    },
+    {
+      "name": "step_7499/areas",
+      "file": "data/step_7499__areas.npy",
+      "dtype": "f64",
+      "shape": [
+        18,
+        1
+      ],
+      "axes": [
+        "entry",
+        "component"
+      ],
+      "layout": "table",
+      "sha256": "402b335a1cb84b7bbf560e7981debe7fc93e2975b03817cac30a3f55cf0a31d5",
+      "description": "nodal areas"
+    },
+    {
+      "name": "step_7499/tangential_tractions",
+      "file": "data/step_7499__tangential_tractions.npy",
+      "dtype": "f64",
+      "shape": [
+        18,
+        1
+      ],
+      "axes": [
+        "entry",
+        "component"
+      ],
+      "layout": "table",
+      "sha256": "f68ac9c8155d7f2634f05008b4d074d7db0014d7f920bcb317af273cf17952cb",
+      "description": "tangential tractions"
+    },
+    {
+      "name": "step_7499/contact_state",
+      "file": "data/step_7499__contact_state.npy",
+      "dtype": "i64",
+      "shape": [
+        18
+      ],
+      "axes": [
+        "entry"
+      ],
+      "layout": "table",
+      "sha256": "93e1e7ece1f5a7d8b3b65ecf9ad7bdc81faaeb13ef9d501e00e5e1e49fd40890",
+      "description": "contact state per node (0 no contact, 1 stick, 2 slip)"
+    },
+    {
+      "name": "nb_contact_elements",
+      "file": "data/nb_contact_elements.npy",
+      "dtype": "i64",
+      "shape": [
+        7500
+      ],
+      "axes": [
+        "entry"
+      ],
+      "layout": "table",
+      "sha256": "d722c236772be1a6736021323102ec8d3b7ded30152c2edcdbe66416c47f6681",
+      "description": "contact elements after each step"
+    },
+    {
+      "name": "inserted",
+      "file": "data/inserted.npy",
+      "dtype": "i64",
+      "shape": [
+        7500
+      ],
+      "axes": [
+        "entry"
+      ],
+      "layout": "table",
+      "sha256": "e8e070549e0e526806b122f673e74db8d6bf21c37edad5578b029d1b03a008e8",
+      "description": "cumulative inserted cohesive elements after each step"
+    },
+    {
+      "name": "nb_stick",
+      "file": "data/nb_stick.npy",
+      "dtype": "i64",
+      "shape": [
+        7500
+      ],
+      "axes": [
+        "entry"
+      ],
+      "layout": "table",
+      "sha256": "4bf7630b16c06d1f5ac4946c9f2c743833a791239612c0384ab38dd0d013efaa",
+      "description": "contact elements whose slave sticks, after each step"
+    },
+    {
+      "name": "nb_slip",
+      "file": "data/nb_slip.npy",
+      "dtype": "i64",
+      "shape": [
+        7500
+      ],
+      "axes": [
+        "entry"
+      ],
+      "layout": "table",
+      "sha256": "b1a2b7dfd010a3381c4a7f402f1920b0a3df467f55906152009a2cbbe95b97af",
+      "description": "contact elements whose slave slips, after each step"
+    },
+    {
+      "name": "energy/potential",
+      "file": "data/energy__potential.npy",
+      "dtype": "f64",
+      "shape": [
+        751
+      ],
+      "axes": [
+        "entry"
+      ],
+      "layout": "table",
+      "sha256": "ceaeb84cf22e345c9994f39f49064cfe7d34de998e8fa50b6dd98e331c750ead",
+      "description": "solid potential energy every 10 steps (and the last)"
+    },
+    {
+      "name": "energy/kinetic",
+      "file": "data/energy__kinetic.npy",
+      "dtype": "f64",
+      "shape": [
+        751
+      ],
+      "axes": [
+        "entry"
+      ],
+      "layout": "table",
+      "sha256": "df1085c1a548d5c2a0b5066c36f190ede53bcbc1c3609687eda30ea87ee69ad2",
+      "description": "solid kinetic energy every 10 steps (and the last)"
+    }
+  ],
+  "tags": [
+    "model",
+    "couplers",
+    "cohesive",
+    "contact",
+    "friction"
+  ]
+}

@@ -1,0 +1,50 @@
+akantu-rs oracle VARIANT patch ud031 — anisotropic damage: zero-initialise A_diag
+
+NOT applied to the regular oracle builds (oracle/patches/variants/ is outside
+the oracle/patches/*.patch glob of oracle/scripts/in-container/build.sh).
+Upstream: akantu 35a851780d0b9471d258ed53a003ae98aaa95ea0
+Defect: UD-031 (docs/UPSTREAM_DEFECTS.md, category A for this part: undefined
+behaviour is compared against a patched oracle, D-003). In the anonymous
+helper tensorPlusOp of material_anisotropic_damage_tmpl.hh the diagonal
+matrix `Matrix<Real, dim, dim> A_diag;` is not initialised and only its
+diagonal is written before `A_directions * A_diag * A_directions.transpose()`,
+so every tensorPlus / tensorSqrt result (the damage increment, sqrt(1 - D))
+reads stack contents through the off-diagonal entries. The material-wide
+E / nu rewrite of the broken (tension) branch then propagates it to the
+elastic tangent (review V64 MX2-08, blocker B-015: three identical x86_64
+runs gave two tangents). The patch only adds the missing zero-initialisation
+(one line, no other change), so a build with it is the defined-behaviour
+reference of the akantu-rs port (which zero-initialises unconditionally) for
+the cases fixtures/material/anisotropic_damage_mazars/variant_ud031/*.
+This patch alone does NOT remove every uninitialised read of the law
+(correction after review V100 MX3-01): once UD-763 has made D NaN, the 3-D
+`tensorSqrt(1 - D)` hands a NaN 3 x 3 matrix to Eigen's EigenSolver, which
+returns NoConvergence without writing its eigenpairs, and Akantu's
+MatrixBase::eig ignores the status and returns them uninitialised (UD-814;
+valgrind: 686 reads in variant_ud031/3d_uniaxial on a build with this patch
+only). That read is masked in every recorded quantity (it only enters
+sqrt(1 - D), which multiplies the never-written elastic stress; the stress is
+NaN through (1 - D):sigma_el whatever the eigenpairs are, unless they hold a
+NaN with a payload) and is defined by the companion patch
+ud814-eig-noconvergence-zero-init.patch, which the variant build applies
+after this one. Apart from that: Dtmp is written before every use,
+TrD_n_1_tmp, the threshold and equivalent-strain parameters have in-class
+initialisers, and the eigen outputs are written whenever the solver
+converges (1-D/2-D solves of a NaN matrix end with NumericalIssue after
+writing every eigenvalue and the Schur vectors).
+How to build the variant on boat: oracle/scripts/build-ud031-variant.sh
+(patches the sandbox copy of /build/src-strict with both patches, rebuilds
+the strict library and installs it with its install RUNPATH; the probe
+environment then records the patched files in each manifest's
+reference.patches). Documented in docs/ORACLE_BUILD.md section 12.1.
+
+--- a/src/model/solid_mechanics/materials/material_damage/material_anisotropic_damage_tmpl.hh
++++ b/src/model/solid_mechanics/materials/material_damage/material_anisotropic_damage_tmpl.hh
+@@ -98,6 +98,7 @@
+                     Eigen::MatrixBase<D2> & A_directions, Op && oper) {
+     Vector<Real, dim> A_eigs;
+     Matrix<Real, dim, dim> A_diag;
++    A_diag.zero(); // akantu-rs UD-031 variant: zero-initialise
+     A.eig(A_eigs, A_directions);
+ 
+     for (auto && [i, eig] : enumerate(A_eigs)) {

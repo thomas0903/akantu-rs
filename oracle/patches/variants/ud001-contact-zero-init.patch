@@ -1,0 +1,59 @@
+akantu-rs oracle VARIANT patch ud001 — contact: zero-initialise the friction / self-contact workspaces
+
+NOT applied to the regular oracle builds (oracle/patches/variants/ is outside
+the oracle/patches/*.patch glob of oracle/scripts/in-container/build.sh).
+Upstream: akantu 35a851780d0b9471d258ed53a003ae98aaa95ea0
+Defect: UD-001 (docs/UPSTREAM_DEFECTS.md, category A, review V1 handling:
+"explicit zero initialization, with a zero-initialization-only oracle
+patch"). Dynamic Eigen vectors/matrices are not zero-initialised, but
+upstream accumulates into them:
+  * ContactDetector::isValidSelfContact: slave_normal (sum of facet normals);
+  * ResolutionPenalty::computeTangentialTraction: traction_trial (accumulated
+    by computeTrialTangentialTraction);
+  * ResolutionPenalty::computeTrialTangentialTraction: increment_xi;
+  * ResolutionPenalty::computeSlipModuli: k_third (k_first is zeroed twice).
+The patch only adds the missing zero-initialisations (no other change), so
+a build with it is the defined-behaviour reference for the friction cases of
+oracle/probes/contact (case explicit_friction). How to build the variant on
+boat: oracle/probes/contact/build-ud001-variant.sh (patches the sandbox copy
+of /build/src-strict and rebuilds the strict tree incrementally; the probe
+environment then records the patched files in each manifest's
+reference.patches). The akantu-rs port zero-initialises unconditionally.
+
+--- a/src/model/contact_mechanics/contact_detector_inline_impl.hh
++++ b/src/model/contact_mechanics/contact_detector_inline_impl.hh
+@@ -248,6 +248,7 @@
+   // Check 1 : master node is not connected to elements connected to
+   // slave node
+   Vector<Real> slave_normal(spatial_dimension);
++  slave_normal.zero(); // akantu-rs UD-001 variant: zero-initialise
+ 
+   auto predicate = [](auto && element) {
+     return element.kind() == _ek_regular;
+--- a/src/model/contact_mechanics/resolutions/resolution_penalty.cc
++++ b/src/model/contact_mechanics/resolutions/resolution_penalty.cc
+@@ -139,6 +139,7 @@
+   // Return map algorithm is employed
+   // compute trial traction
+   Vector<Real> traction_trial(surface_dimension);
++  traction_trial.zero(); // akantu-rs UD-001 variant: zero-initialise
+   this->computeTrialTangentialTraction(element, covariant_basis,
+                                        traction_trial);
+ 
+@@ -240,6 +241,7 @@
+ 
+   auto increment_real = current_real_projection - previous_real_projection;
+   Vector<Real> increment_xi(surface_dimension);
++  increment_xi.zero(); // akantu-rs UD-001 variant: zero-initialise
+ 
+   auto contravariant_metric_tensor =
+       GeometryUtils::contravariantMetricTensor(current_tangent);
+@@ -534,7 +536,7 @@
+ 
+   k_first.zero();
+   k_second.zero();
+-  k_first.zero();
++  k_third.zero(); // akantu-rs UD-001 variant (upstream zeroes k_first twice)
+   k_fourth.zero();
+ 
+   Matrix<Real> t_outer_n(spatial_dimension, spatial_dimension);

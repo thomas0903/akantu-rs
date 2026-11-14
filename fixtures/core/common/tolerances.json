@@ -1,0 +1,155 @@
+{
+  "format_version": 1,
+  "rules": [
+    {
+      "quantity": "points",
+      "justification": "Input positions written by the probe and read back unchanged (no arithmetic).",
+      "evidence": "2026-11-11: crates/akantu-core/tests/core_oracle.rs and crates/akantu-geometry/tests/test_grid.rs reproduce every value of fixtures/core/common/* bit for bit (macOS arm64); 2026-11-11: x86_64 regeneration on the x86_64 oracle (probe version 2, three identical runs, D-035) identical bit for bit to the committed aarch64 data and parameters of the 8 version-1 cases (17,628 values); the version-2 cases grid_extent_2d, grid_extent_3d, grid_signed_zero_2d and bbox_emptiness (x86_64) reproduced bit for bit on macOS arm64; an independent review (2026-11-11): independent x86_64 regeneration, 13 cases, three identical runs, all 145 data files byte-identical to the committed fixtures; an independent review (2026-11-11): the D-050-pinned regeneration of the 13 cases is byte-identical (158 files)",
+      "reviewed_by": "independent review during the port, November 2026"
+    },
+    {
+      "quantity": "spacing",
+      "justification": "Input grid spacing read back unchanged.",
+      "evidence": "2026-11-11: crates/akantu-core/tests/core_oracle.rs and crates/akantu-geometry/tests/test_grid.rs reproduce every value of fixtures/core/common/* bit for bit (macOS arm64); 2026-11-11: x86_64 regeneration on the x86_64 oracle (probe version 2, three identical runs, D-035) identical bit for bit to the committed aarch64 data and parameters of the 8 version-1 cases (17,628 values); the version-2 cases grid_extent_2d, grid_extent_3d, grid_signed_zero_2d and bbox_emptiness (x86_64) reproduced bit for bit on macOS arm64; an independent review (2026-11-11): independent x86_64 regeneration, 13 cases, three identical runs, all 145 data files byte-identical to the committed fixtures; an independent review (2026-11-11): the D-050-pinned regeneration of the 13 cases is byte-identical (158 files)",
+      "reviewed_by": "independent review during the port, November 2026"
+    },
+    {
+      "quantity": "center",
+      "justification": "grid_points: input read back; grid_circle: (u + l) / 2 of the mesh's local bounding box, one addition and one division by 2 per component, the same IEEE operations in the port (bounds are min/max selections of the exactly read node coordinates).",
+      "evidence": "2026-11-11: crates/akantu-core/tests/core_oracle.rs and crates/akantu-geometry/tests/test_grid.rs reproduce every value of fixtures/core/common/* bit for bit (macOS arm64); 2026-11-11: x86_64 regeneration on the x86_64 oracle (probe version 2, three identical runs, D-035) identical bit for bit to the committed aarch64 data and parameters of the 8 version-1 cases (17,628 values); the version-2 cases grid_extent_2d, grid_extent_3d, grid_signed_zero_2d and bbox_emptiness (x86_64) reproduced bit for bit on macOS arm64; an independent review (2026-11-11): independent x86_64 regeneration, 13 cases, three identical runs, all 145 data files byte-identical to the committed fixtures; an independent review (2026-11-11): the D-050-pinned regeneration of the 13 cases is byte-identical (158 files)",
+      "reviewed_by": "independent review during the port, November 2026"
+    },
+    {
+      "quantity": "barycenters",
+      "justification": "Mesh::getBarycenter: mean of the element's node columns (sequential sum of 3 coordinates, divided by the node count); akantu-mesh reproduces the operation order, so the inserted positions are identical.",
+      "evidence": "2026-11-11: crates/akantu-core/tests/core_oracle.rs and crates/akantu-geometry/tests/test_grid.rs reproduce every value of fixtures/core/common/* bit for bit (macOS arm64); 2026-11-11: x86_64 regeneration on the x86_64 oracle (probe version 2, three identical runs, D-035) identical bit for bit to the committed aarch64 data and parameters of the 8 version-1 cases (17,628 values); the version-2 cases grid_extent_2d, grid_extent_3d, grid_signed_zero_2d and bbox_emptiness (x86_64) reproduced bit for bit on macOS arm64; an independent review (2026-11-11): independent x86_64 regeneration, 13 cases, three identical runs, all 145 data files byte-identical to the committed fixtures; an independent review (2026-11-11): the D-050-pinned regeneration of the 13 cases is byte-identical (158 files)",
+      "reviewed_by": "independent review during the port, November 2026"
+    },
+    {
+      "quantity": "lower_bounds",
+      "justification": "SpatialGrid bounds: std::min/std::max selections of center + id*spacing (and + spacing), one multiplication and one or two additions per component without contraction (strict oracle: -ffp-contract=off); the port evaluates the same expression in the same order.",
+      "evidence": "2026-11-11: crates/akantu-core/tests/core_oracle.rs and crates/akantu-geometry/tests/test_grid.rs reproduce every value of fixtures/core/common/* bit for bit (macOS arm64); 2026-11-11: x86_64 regeneration on the x86_64 oracle (probe version 2, three identical runs, D-035) identical bit for bit to the committed aarch64 data and parameters of the 8 version-1 cases (17,628 values); the version-2 cases grid_extent_2d, grid_extent_3d, grid_signed_zero_2d and bbox_emptiness (x86_64) reproduced bit for bit on macOS arm64; an independent review (2026-11-11): independent x86_64 regeneration, 13 cases, three identical runs, all 145 data files byte-identical to the committed fixtures; an independent review (2026-11-11): the D-050-pinned regeneration of the 13 cases is byte-identical (158 files)",
+      "reviewed_by": "independent review during the port, November 2026"
+    },
+    {
+      "quantity": "upper_bounds",
+      "justification": "Same as lower_bounds.",
+      "evidence": "2026-11-11: crates/akantu-core/tests/core_oracle.rs and crates/akantu-geometry/tests/test_grid.rs reproduce every value of fixtures/core/common/* bit for bit (macOS arm64); 2026-11-11: x86_64 regeneration on the x86_64 oracle (probe version 2, three identical runs, D-035) identical bit for bit to the committed aarch64 data and parameters of the 8 version-1 cases (17,628 values); the version-2 cases grid_extent_2d, grid_extent_3d, grid_signed_zero_2d and bbox_emptiness (x86_64) reproduced bit for bit on macOS arm64; an independent review (2026-11-11): independent x86_64 regeneration, 13 cases, three identical runs, all 145 data files byte-identical to the committed fixtures; an independent review (2026-11-11): the D-050-pinned regeneration of the 13 cases is byte-identical (158 files)",
+      "reviewed_by": "independent review during the port, November 2026"
+    },
+    {
+      "quantity": "mesh/nodes",
+      "justification": "SpatialGrid::saveAsMesh node coordinates: center + id*spacing followed by the upstream sequence of += / -= spacing updates (e.g. (x + s) - s, which may differ from x); the port replays the identical sequence, so every coordinate is the same double.",
+      "evidence": "2026-11-11: crates/akantu-core/tests/core_oracle.rs and crates/akantu-geometry/tests/test_grid.rs reproduce every value of fixtures/core/common/* bit for bit (macOS arm64); 2026-11-11: x86_64 regeneration on the x86_64 oracle (probe version 2, three identical runs, D-035) identical bit for bit to the committed aarch64 data and parameters of the 8 version-1 cases (17,628 values); the version-2 cases grid_extent_2d, grid_extent_3d, grid_signed_zero_2d and bbox_emptiness (x86_64) reproduced bit for bit on macOS arm64; an independent review (2026-11-11): independent x86_64 regeneration, 13 cases, three identical runs, all 145 data files byte-identical to the committed fixtures; an independent review (2026-11-11): the D-050-pinned regeneration of the 13 cases is byte-identical (158 files)",
+      "reviewed_by": "independent review during the port, November 2026"
+    },
+    {
+      "quantity": "sets/points",
+      "justification": "Input points of the BBox cases read back unchanged.",
+      "evidence": "2026-11-11: crates/akantu-core/tests/core_oracle.rs and crates/akantu-geometry/tests/test_grid.rs reproduce every value of fixtures/core/common/* bit for bit (macOS arm64); 2026-11-11: x86_64 regeneration on the x86_64 oracle (probe version 2, three identical runs, D-035) identical bit for bit to the committed aarch64 data and parameters of the 8 version-1 cases (17,628 values); the version-2 cases grid_extent_2d, grid_extent_3d, grid_signed_zero_2d and bbox_emptiness (x86_64) reproduced bit for bit on macOS arm64; an independent review (2026-11-11): independent x86_64 regeneration, 13 cases, three identical runs, all 145 data files byte-identical to the committed fixtures; an independent review (2026-11-11): the D-050-pinned regeneration of the 13 cases is byte-identical (158 files)",
+      "reviewed_by": "independent review during the port, November 2026"
+    },
+    {
+      "quantity": "boxes/lower",
+      "justification": "BBox bounds: std::min/std::max selections of input coordinates (no rounding); the port uses the same comparison-based selection (v < l ? v : l), so even signed zeros agree (checked bitwise in the test).",
+      "evidence": "2026-11-11: crates/akantu-core/tests/core_oracle.rs and crates/akantu-geometry/tests/test_grid.rs reproduce every value of fixtures/core/common/* bit for bit (macOS arm64); 2026-11-11: x86_64 regeneration on the x86_64 oracle (probe version 2, three identical runs, D-035) identical bit for bit to the committed aarch64 data and parameters of the 8 version-1 cases (17,628 values); the version-2 cases grid_extent_2d, grid_extent_3d, grid_signed_zero_2d and bbox_emptiness (x86_64) reproduced bit for bit on macOS arm64; an independent review (2026-11-11): independent x86_64 regeneration, 13 cases, three identical runs, all 145 data files byte-identical to the committed fixtures; an independent review (2026-11-11): the D-050-pinned regeneration of the 13 cases is byte-identical (158 files)",
+      "reviewed_by": "independent review during the port, November 2026"
+    },
+    {
+      "quantity": "boxes/upper",
+      "justification": "Same as boxes/lower.",
+      "evidence": "2026-11-11: crates/akantu-core/tests/core_oracle.rs and crates/akantu-geometry/tests/test_grid.rs reproduce every value of fixtures/core/common/* bit for bit (macOS arm64); 2026-11-11: x86_64 regeneration on the x86_64 oracle (probe version 2, three identical runs, D-035) identical bit for bit to the committed aarch64 data and parameters of the 8 version-1 cases (17,628 values); the version-2 cases grid_extent_2d, grid_extent_3d, grid_signed_zero_2d and bbox_emptiness (x86_64) reproduced bit for bit on macOS arm64; an independent review (2026-11-11): independent x86_64 regeneration, 13 cases, three identical runs, all 145 data files byte-identical to the committed fixtures; an independent review (2026-11-11): the D-050-pinned regeneration of the 13 cases is byte-identical (158 files)",
+      "reviewed_by": "independent review during the port, November 2026"
+    },
+    {
+      "quantity": "boxes/size",
+      "justification": "upper - lower, one subtraction per component (−inf for the empty box: −DBL_MAX − DBL_MAX overflows identically).",
+      "evidence": "2026-11-11: crates/akantu-core/tests/core_oracle.rs and crates/akantu-geometry/tests/test_grid.rs reproduce every value of fixtures/core/common/* bit for bit (macOS arm64); 2026-11-11: x86_64 regeneration on the x86_64 oracle (probe version 2, three identical runs, D-035) identical bit for bit to the committed aarch64 data and parameters of the 8 version-1 cases (17,628 values); the version-2 cases grid_extent_2d, grid_extent_3d, grid_signed_zero_2d and bbox_emptiness (x86_64) reproduced bit for bit on macOS arm64; an independent review (2026-11-11): independent x86_64 regeneration, 13 cases, three identical runs, all 145 data files byte-identical to the committed fixtures; an independent review (2026-11-11): the D-050-pinned regeneration of the 13 cases is byte-identical (158 files)",
+      "reviewed_by": "independent review during the port, November 2026"
+    },
+    {
+      "quantity": "boxes/center",
+      "justification": "(upper + lower) / 2, one addition and one division per component (0 for the empty box).",
+      "evidence": "2026-11-11: crates/akantu-core/tests/core_oracle.rs and crates/akantu-geometry/tests/test_grid.rs reproduce every value of fixtures/core/common/* bit for bit (macOS arm64); 2026-11-11: x86_64 regeneration on the x86_64 oracle (probe version 2, three identical runs, D-035) identical bit for bit to the committed aarch64 data and parameters of the 8 version-1 cases (17,628 values); the version-2 cases grid_extent_2d, grid_extent_3d, grid_signed_zero_2d and bbox_emptiness (x86_64) reproduced bit for bit on macOS arm64; an independent review (2026-11-11): independent x86_64 regeneration, 13 cases, three identical runs, all 145 data files byte-identical to the committed fixtures; an independent review (2026-11-11): the D-050-pinned regeneration of the 13 cases is byte-identical (158 files)",
+      "reviewed_by": "independent review during the port, November 2026"
+    },
+    {
+      "quantity": "pairs/intersection_lower",
+      "justification": "BBox::intersection: std::clamp selections of input bounds (no rounding); empty results carry the ±DBL_MAX bounds of an empty box.",
+      "evidence": "2026-11-11: crates/akantu-core/tests/core_oracle.rs and crates/akantu-geometry/tests/test_grid.rs reproduce every value of fixtures/core/common/* bit for bit (macOS arm64); 2026-11-11: x86_64 regeneration on the x86_64 oracle (probe version 2, three identical runs, D-035) identical bit for bit to the committed aarch64 data and parameters of the 8 version-1 cases (17,628 values); the version-2 cases grid_extent_2d, grid_extent_3d, grid_signed_zero_2d and bbox_emptiness (x86_64) reproduced bit for bit on macOS arm64; an independent review (2026-11-11): independent x86_64 regeneration, 13 cases, three identical runs, all 145 data files byte-identical to the committed fixtures; an independent review (2026-11-11): the D-050-pinned regeneration of the 13 cases is byte-identical (158 files)",
+      "reviewed_by": "independent review during the port, November 2026"
+    },
+    {
+      "quantity": "pairs/intersection_upper",
+      "justification": "Same as pairs/intersection_lower (upper bound obtained as -clamp(-u, -su, -sl): negations are exact).",
+      "evidence": "2026-11-11: crates/akantu-core/tests/core_oracle.rs and crates/akantu-geometry/tests/test_grid.rs reproduce every value of fixtures/core/common/* bit for bit (macOS arm64); 2026-11-11: x86_64 regeneration on the x86_64 oracle (probe version 2, three identical runs, D-035) identical bit for bit to the committed aarch64 data and parameters of the 8 version-1 cases (17,628 values); the version-2 cases grid_extent_2d, grid_extent_3d, grid_signed_zero_2d and bbox_emptiness (x86_64) reproduced bit for bit on macOS arm64; an independent review (2026-11-11): independent x86_64 regeneration, 13 cases, three identical runs, all 145 data files byte-identical to the committed fixtures; an independent review (2026-11-11): the D-050-pinned regeneration of the 13 cases is byte-identical (158 files)",
+      "reviewed_by": "independent review during the port, November 2026"
+    },
+    {
+      "quantity": "contains/points",
+      "justification": "Input points read back unchanged.",
+      "evidence": "2026-11-11: crates/akantu-core/tests/core_oracle.rs and crates/akantu-geometry/tests/test_grid.rs reproduce every value of fixtures/core/common/* bit for bit (macOS arm64); 2026-11-11: x86_64 regeneration on the x86_64 oracle (probe version 2, three identical runs, D-035) identical bit for bit to the committed aarch64 data and parameters of the 8 version-1 cases (17,628 values); the version-2 cases grid_extent_2d, grid_extent_3d, grid_signed_zero_2d and bbox_emptiness (x86_64) reproduced bit for bit on macOS arm64; an independent review (2026-11-11): independent x86_64 regeneration, 13 cases, three identical runs, all 145 data files byte-identical to the committed fixtures; an independent review (2026-11-11): the D-050-pinned regeneration of the 13 cases is byte-identical (158 files)",
+      "reviewed_by": "independent review during the port, November 2026"
+    },
+    {
+      "quantity": "reduce/inputs",
+      "justification": "Input values read back unchanged.",
+      "evidence": "2026-11-11: crates/akantu-core/tests/core_oracle.rs and crates/akantu-geometry/tests/test_grid.rs reproduce every value of fixtures/core/common/* bit for bit (macOS arm64); 2026-11-11: x86_64 regeneration on the x86_64 oracle (probe version 2, three identical runs, D-035) identical bit for bit to the committed aarch64 data and parameters of the 8 version-1 cases (17,628 values); the version-2 cases grid_extent_2d, grid_extent_3d, grid_signed_zero_2d and bbox_emptiness (x86_64) reproduced bit for bit on macOS arm64; an independent review (2026-11-11): independent x86_64 regeneration, 13 cases, three identical runs, all 145 data files byte-identical to the committed fixtures; an independent review (2026-11-11): the D-050-pinned regeneration of the 13 cases is byte-identical (158 files)",
+      "reviewed_by": "independent review during the port, November 2026"
+    },
+    {
+      "quantity": "reduce/results",
+      "justification": "Math::reduce: ascending sort (distinct values, so the order is unique) then the upstream pairwise folding; the port performs the identical additions in the identical order (D-008).",
+      "evidence": "2026-11-11: crates/akantu-core/tests/core_oracle.rs and crates/akantu-geometry/tests/test_grid.rs reproduce every value of fixtures/core/common/* bit for bit (macOS arm64); 2026-11-11: x86_64 regeneration on the x86_64 oracle (probe version 2, three identical runs, D-035) identical bit for bit to the committed aarch64 data and parameters of the 8 version-1 cases (17,628 values); the version-2 cases grid_extent_2d, grid_extent_3d, grid_signed_zero_2d and bbox_emptiness (x86_64) reproduced bit for bit on macOS arm64; an independent review (2026-11-11): independent x86_64 regeneration, 13 cases, three identical runs, all 145 data files byte-identical to the committed fixtures; an independent review (2026-11-11): the D-050-pinned regeneration of the 13 cases is byte-identical (158 files)",
+      "reviewed_by": "independent review during the port, November 2026"
+    },
+    {
+      "quantity": "newton/sqrt_a",
+      "justification": "Input read back unchanged.",
+      "evidence": "2026-11-11: crates/akantu-core/tests/core_oracle.rs and crates/akantu-geometry/tests/test_grid.rs reproduce every value of fixtures/core/common/* bit for bit (macOS arm64); 2026-11-11: x86_64 regeneration on the x86_64 oracle (probe version 2, three identical runs, D-035) identical bit for bit to the committed aarch64 data and parameters of the 8 version-1 cases (17,628 values); the version-2 cases grid_extent_2d, grid_extent_3d, grid_signed_zero_2d and bbox_emptiness (x86_64) reproduced bit for bit on macOS arm64; an independent review (2026-11-11): independent x86_64 regeneration, 13 cases, three identical runs, all 145 data files byte-identical to the committed fixtures; an independent review (2026-11-11): the D-050-pinned regeneration of the 13 cases is byte-identical (158 files)",
+      "reviewed_by": "independent review during the port, November 2026"
+    },
+    {
+      "quantity": "newton/cubic_b",
+      "justification": "Input read back unchanged.",
+      "evidence": "2026-11-11: crates/akantu-core/tests/core_oracle.rs and crates/akantu-geometry/tests/test_grid.rs reproduce every value of fixtures/core/common/* bit for bit (macOS arm64); 2026-11-11: x86_64 regeneration on the x86_64 oracle (probe version 2, three identical runs, D-035) identical bit for bit to the committed aarch64 data and parameters of the 8 version-1 cases (17,628 values); the version-2 cases grid_extent_2d, grid_extent_3d, grid_signed_zero_2d and bbox_emptiness (x86_64) reproduced bit for bit on macOS arm64; an independent review (2026-11-11): independent x86_64 regeneration, 13 cases, three identical runs, all 145 data files byte-identical to the committed fixtures; an independent review (2026-11-11): the D-050-pinned regeneration of the 13 cases is byte-identical (158 files)",
+      "reviewed_by": "independent review during the port, November 2026"
+    },
+    {
+      "quantity": "newton/x",
+      "justification": "Math::NewtonRaphson<Real>::solve: the same functor evaluations and x -= f/f' updates in the same order, no contraction; NaN where the oracle threw (iteration limit, AKANTU_DEBUG_ASSERT active in the strict build) and the port returns an error (NaN must match).",
+      "evidence": "2026-11-11: crates/akantu-core/tests/core_oracle.rs and crates/akantu-geometry/tests/test_grid.rs reproduce every value of fixtures/core/common/* bit for bit (macOS arm64); 2026-11-11: x86_64 regeneration on the x86_64 oracle (probe version 2, three identical runs, D-035) identical bit for bit to the committed aarch64 data and parameters of the 8 version-1 cases (17,628 values); the version-2 cases grid_extent_2d, grid_extent_3d, grid_signed_zero_2d and bbox_emptiness (x86_64) reproduced bit for bit on macOS arm64; an independent review (2026-11-11): independent x86_64 regeneration, 13 cases, three identical runs, all 145 data files byte-identical to the committed fixtures; an independent review (2026-11-11): the D-050-pinned regeneration of the 13 cases is byte-identical (158 files)",
+      "reviewed_by": "independent review during the port, November 2026"
+    },
+    {
+      "quantity": "pow/x",
+      "justification": "Input read back unchanged.",
+      "evidence": "2026-11-11: crates/akantu-core/tests/core_oracle.rs and crates/akantu-geometry/tests/test_grid.rs reproduce every value of fixtures/core/common/* bit for bit (macOS arm64); 2026-11-11: x86_64 regeneration on the x86_64 oracle (probe version 2, three identical runs, D-035) identical bit for bit to the committed aarch64 data and parameters of the 8 version-1 cases (17,628 values); the version-2 cases grid_extent_2d, grid_extent_3d, grid_signed_zero_2d and bbox_emptiness (x86_64) reproduced bit for bit on macOS arm64; an independent review (2026-11-11): independent x86_64 regeneration, 13 cases, three identical runs, all 145 data files byte-identical to the committed fixtures; an independent review (2026-11-11): the D-050-pinned regeneration of the 13 cases is byte-identical (158 files)",
+      "reviewed_by": "independent review during the port, November 2026"
+    },
+    {
+      "quantity": "pow/values",
+      "justification": "Math::pow<p>(x) and Math::pow(x, p) multiply from the left ((1*x)*x)...; the port's pow_n performs the same multiplications in the same order (not powi).",
+      "evidence": "2026-11-11: crates/akantu-core/tests/core_oracle.rs and crates/akantu-geometry/tests/test_grid.rs reproduce every value of fixtures/core/common/* bit for bit (macOS arm64); 2026-11-11: x86_64 regeneration on the x86_64 oracle (probe version 2, three identical runs, D-035) identical bit for bit to the committed aarch64 data and parameters of the 8 version-1 cases (17,628 values); the version-2 cases grid_extent_2d, grid_extent_3d, grid_signed_zero_2d and bbox_emptiness (x86_64) reproduced bit for bit on macOS arm64; an independent review (2026-11-11): independent x86_64 regeneration, 13 cases, three identical runs, all 145 data files byte-identical to the committed fixtures; an independent review (2026-11-11): the D-050-pinned regeneration of the 13 cases is byte-identical (158 files)",
+      "reviewed_by": "independent review during the port, November 2026"
+    },
+    {
+      "quantity": "float_equal/pairs",
+      "justification": "Input pairs read back unchanged.",
+      "evidence": "2026-11-11: crates/akantu-core/tests/core_oracle.rs and crates/akantu-geometry/tests/test_grid.rs reproduce every value of fixtures/core/common/* bit for bit (macOS arm64); 2026-11-11: x86_64 regeneration on the x86_64 oracle (probe version 2, three identical runs, D-035) identical bit for bit to the committed aarch64 data and parameters of the 8 version-1 cases (17,628 values); the version-2 cases grid_extent_2d, grid_extent_3d, grid_signed_zero_2d and bbox_emptiness (x86_64) reproduced bit for bit on macOS arm64; an independent review (2026-11-11): independent x86_64 regeneration, 13 cases, three identical runs, all 145 data files byte-identical to the committed fixtures; an independent review (2026-11-11): the D-050-pinned regeneration of the 13 cases is byte-identical (158 files)",
+      "reviewed_by": "independent review during the port, November 2026"
+    },
+    {
+      "quantity": "intervals/values",
+      "justification": "Input intervals read back unchanged.",
+      "evidence": "2026-11-11: crates/akantu-core/tests/core_oracle.rs and crates/akantu-geometry/tests/test_grid.rs reproduce every value of fixtures/core/common/* bit for bit (macOS arm64); 2026-11-11: x86_64 regeneration on the x86_64 oracle (probe version 2, three identical runs, D-035) identical bit for bit to the committed aarch64 data and parameters of the 8 version-1 cases (17,628 values); the version-2 cases grid_extent_2d, grid_extent_3d, grid_signed_zero_2d and bbox_emptiness (x86_64) reproduced bit for bit on macOS arm64; an independent review (2026-11-11): independent x86_64 regeneration, 13 cases, three identical runs, all 145 data files byte-identical to the committed fixtures; an independent review (2026-11-11): the D-050-pinned regeneration of the 13 cases is byte-identical (158 files)",
+      "reviewed_by": "independent review during the port, November 2026"
+    },
+    {
+      "quantity": "circular/values",
+      "justification": "CircularArray logical reads of stored values: pure index arithmetic, no floating-point operation.",
+      "evidence": "2026-11-11: crates/akantu-core/tests/core_oracle.rs and crates/akantu-geometry/tests/test_grid.rs reproduce every value of fixtures/core/common/* bit for bit (macOS arm64); 2026-11-11: x86_64 regeneration on the x86_64 oracle (probe version 2, three identical runs, D-035) identical bit for bit to the committed aarch64 data and parameters of the 8 version-1 cases (17,628 values); the version-2 cases grid_extent_2d, grid_extent_3d, grid_signed_zero_2d and bbox_emptiness (x86_64) reproduced bit for bit on macOS arm64; an independent review (2026-11-11): independent x86_64 regeneration, 13 cases, three identical runs, all 145 data files byte-identical to the committed fixtures; an independent review (2026-11-11): the D-050-pinned regeneration of the 13 cases is byte-identical (158 files)",
+      "reviewed_by": "independent review during the port, November 2026"
+    }
+  ]
+}

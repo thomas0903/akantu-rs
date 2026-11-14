@@ -1,0 +1,37 @@
+# SPDX-License-Identifier: LGPL-3.0-or-later
+# akantu-rs: adversarial cases for
+# oracle/probes/mesh2/mesh2_probe.cc (same spec syntax as its cases.txt).
+# Appended to cases.txt in a scratch clone and generated on the pinned
+# x86_64 oracle (install-strict):
+#   MESH2_PROBE_CASES=<ids> oracle/probes/mesh2/generate.sh
+# then replayed by the unchanged Rust tests (mesh2_oracle.rs,
+# mesh2_scotch_oracle.rs), which enumerate every case of an area.
+#
+# MUTIL-014 weighted partitions at 2 / 4 / 8 parts (fixtures: 3 and 4 only),
+# mixed element types (per-type element indices in the load callbacks),
+# quadratic elements, dblDump files.
+case=scotch/v88_weighted_cube_2;file=fz:test/test_fe_engine/cube.msh;dim=3;ops=weighted,dbldump;parts=2
+case=scotch/v88_weighted_cube_8;file=fz:test/test_fe_engine/cube.msh;dim=3;ops=weighted;parts=8
+case=scotch/v88_weighted_quad_2;file=fz:test/test_mesh_utils/test_mesh_partitionate/quad.msh;dim=2;ops=weighted;parts=2
+case=scotch/v88_weighted_quad_8;file=fz:test/test_mesh_utils/test_mesh_partitionate/quad.msh;dim=2;ops=weighted,dbldump;parts=8
+case=scotch/v88_weighted_triangle_8;file=fz:test/test_mesh_utils/test_mesh_partitionate/triangle.msh;dim=2;ops=weighted,dbldump;parts=8
+case=scotch/v88_weighted_hex_penta_4;file=up:test/test_mesh_utils/test_buildfacets/_hexahedron_8_pentahedron_6.msh;dim=3;ops=weighted,dbldump;parts=4
+case=scotch/v88_weighted_quad_tri_8;file=up:test/test_mesh_utils/test_buildfacets/_quadrangle_4_triangle_3.msh;dim=2;ops=weighted;parts=8
+# MUTIL-014 / UD-670 reordering: named groups (stale upstream), mixed 3-D
+# types, quadratic elements, cohesive and structural kinds, a mesh without
+# any element of the mesh dimension
+case=scotch/v88_reorder_test_dumper;file=up:test/test_io/test_dumper/test_dumper.msh;dim=3;ops=reorder,dbldump
+case=scotch/v88_reorder_hex_penta;file=up:test/test_mesh_utils/test_buildfacets/_hexahedron_8_pentahedron_6.msh;dim=3;ops=reorder
+case=scotch/v88_reorder_triangle_6;file=fz:test/test_mesh_utils/test_mesh_partitionate/triangle.msh;dim=2;ops=reorder,dbldump
+case=scotch/v88_reorder_cohesive_2d;file=gen:cohesive_2d;dim=2;ops=reorder
+case=scotch/v88_reorder_beams_2d;file=gen:beams_2d;dim=2;ops=reorder
+case=scotch/v88_reorder_segment_2_as_2d;file=up:test/test_fe_engine/_segment_2.msh;dim=2;ops=reorder
+# MESH-022 / 023 / 027 group dumpers on quadratic and mixed meshes
+case=groups_dump/v88_hexahedron_20;file=up:test/test_fe_engine/_hexahedron_20.msh;dim=3;ops=groups_dump
+case=groups_dump/v88_hex_penta;file=up:test/test_mesh_utils/test_buildfacets/_hexahedron_8_pentahedron_6.msh;dim=3;ops=groups_dump
+case=groups_dump/v88_triangle_6;file=up:test/test_fe_engine/_triangle_6.msh;dim=2;ops=groups_dump
+# MESH-001...004 / 019 / 020 on quadratic 3-D meshes
+case=queries/v88_hexahedron_20;file=up:test/test_fe_engine/_hexahedron_20.msh;dim=3;ops=queries,typemap,filter
+case=queries/v88_tetrahedron_10;file=up:test/test_fe_engine/_tetrahedron_10.msh;dim=3;ops=queries,typemap,filter
+# MUTIL-017 on a mixed 3-D mesh
+case=graphviz/v88_hex_penta;file=up:test/test_mesh_utils/test_buildfacets/_hexahedron_8_pentahedron_6.msh;dim=3;ops=graphviz

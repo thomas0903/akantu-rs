@@ -1,0 +1,12 @@
+# akantu-rs: input file parsed before upstream's structural
+# Python examples (examples/python/structural_mechanics_model/*.py of
+# Akantu, EPFL/LSMS, LGPL-3.0-or-later), which parse none. It pins the
+# sparse solver of the implicit dynamic solver: upstream's `_auto` sparse
+# solver resolves to MUMPS in the oracle build; the port's solve is
+# bitwise against Eigen's. Every line is added ("akantu-rs:").
+model structural_mechanics_model [  # akantu-rs: the model's section
+  time_step_solver dynamic [  # akantu-rs: pin the sparse solver
+    name = implicit  # akantu-rs:
+    sparse_solver_type = eigen  # akantu-rs:
+  ]  # akantu-rs:
+]  # akantu-rs:

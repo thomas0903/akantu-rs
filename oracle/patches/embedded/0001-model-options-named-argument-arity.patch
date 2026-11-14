@@ -1,0 +1,22 @@
+# SPDX-License-Identifier: LGPL-3.0-or-later
+# akantu-rs oracle variant `embedded` (D-060), patch 0001 — build fix.
+# Upstream: Akantu (EPFL/LSMS) 35a851780d0b9471d258ed53a003ae98aaa95ea0,
+# src/model/model_options.hh. Inside `#ifdef AKANTU_EMBEDDED` the
+# one-argument macro DECLARE_NAMED_ARGUMENT(name) is called with two
+# arguments (upstream ad98b0167, 2024-10-15), so no translation unit that
+# includes model_options.hh compiles with the embedded package (B-003,
+# UD-073). Declares the only named argument EmbeddedInterfaceModelOptions
+# uses. Same change as oracle/patches/unused/0002. No numerical effect.
+# Applied only to a COPY of the sources (docs/ORACLE_BUILD.md §12).
+
+--- a/src/model/model_options.hh
++++ b/src/model/model_options.hh
+@@ -101,7 +101,7 @@ using PhaseFieldModelOptions = ModelOptions;
+ #ifdef AKANTU_EMBEDDED
+ 
+ namespace {
+-  DECLARE_NAMED_ARGUMENT(init_intersections, non_linear_solver);
++  DECLARE_NAMED_ARGUMENT(init_intersections);
+ }
+ /* -------------------------------------------------------------------------- */
+ struct EmbeddedInterfaceModelOptions : SolidMechanicsModelOptions {

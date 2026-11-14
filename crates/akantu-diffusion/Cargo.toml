@@ -1,0 +1,45 @@
+# SPDX-License-Identifier: LGPL-3.0-or-later
+[package]
+name = "akantu-diffusion"
+description = "Heat transfer / diffusion model and diffusion laws (port of src/model/diffusion_model)"
+version.workspace = true
+edition.workspace = true
+rust-version.workspace = true
+license.workspace = true
+repository.workspace = true
+authors.workspace = true
+homepage.workspace = true
+keywords.workspace = true
+categories.workspace = true
+publish = false
+
+[features]
+# Real-MPI test binary: scripts/mpi/run-par-tests.sh (Docker).
+mpi = ["akantu-comm/mpi", "akantu-mesh/mpi"]
+# Scotch partitioner of akantu-mesh (Docker image docker/scotch).
+scotch = ["akantu-mesh/scotch"]
+
+[dependencies]
+akantu-core.workspace = true
+akantu-parser.workspace = true
+akantu-comm.workspace = true
+akantu-mesh.workspace = true
+akantu-fe.workspace = true
+akantu-linalg.workspace = true
+akantu-solver.workspace = true
+akantu-io.workspace = true
+akantu-model.workspace = true
+
+[dev-dependencies]
+# Differential tests against the golden fixtures fixtures/model/diffusion.
+akantu-validation.workspace = true
+serde_json.workspace = true
+sha2 = "0.10.9" # MIT OR Apache-2.0 (as akantu-solid dev): per-step state digests
+
+[lints]
+workspace = true
+
+[[test]]
+name = "mpi_diffusion"
+harness = false
+required-features = ["mpi"]

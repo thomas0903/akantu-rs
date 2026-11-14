@@ -1,0 +1,19 @@
+Generated for PY-095 with the oracle snippet
+  python/oracle/snippets/gmsh_convert.py (upstream module side)
+command: py3_snippet.sh akantu-oracle-gmsh:py3 3 gmsh_convert (scratch tooling, not kept:
+  docker run --rm -v akantu-oracle-build:/build:ro -v <work>:/work -w /work
+  -e OPENBLAS_NUM_THREADS=1 -e OPENBLAS_CORETYPE=Haswell akantu-oracle-gmsh:py3
+  bash -c ". /build/install-strict/share/akantu-oracle/env.sh && python3 gmsh_convert.py")
+repository commit: c7bc018098326a770c033410b77974d594ac1d43
+oracle: upstream module of /build/install-strict (strict, D-050 pinned build),
+  python/akantu/__init__.py of the reference (convertGmshToAkantuMesh)
+reference: 35a851780d0b9471d258ed53a003ae98aaa95ea0 (v5.0.7-post1-554-g35a851780)
+image: akantu-oracle-gmsh:py3 39f80cc8c31a = akantu-oracle:dev 2da26d87e063 (Debian trixie,
+  CPython 3.13.5, NumPy 2.2.4) + Debian python3-gmsh (gmsh 4.13.1, NumPy unchanged)
+platform: x86_64 Linux virtual machine, AMD EPYC 4585PX
+runs: 3 (byte-identical, sha256 63a43fa06a62061951499b11b656baa8c2bc901ff39c2b291160d766754ba5a1)
+port: the same snippet with the port's package (wheel of a62988fb) in the same image:
+  compare.py tolerance 0: every key equal (18/18 node coordinates bitwise)
+content: `single.*` (a hand-built single-type model: nodes and elements added through
+  the gmsh API, no meshing algorithm, so platform independent), the exceptions of the
+  cases pyramid, tri10, group_tag (UD-1173), multi, empty, meshed (UD-1172)

@@ -1,0 +1,355 @@
+{
+  "format_version": 1,
+  "case_id": "model/couplers/contact_static_friction",
+  "description": "examples/c++/contact_mechanics_model/hertz/contact_explicit_static.cc with mu = 0.3 (UD-374: the static coupler saves the friction history at every Newton iterate), increments of -1e-4 on loading until the first Newton failure (at most 5 steps, 100 iterations); UD-001 variant oracle",
+  "status": "golden",
+  "generator": {
+    "probe": "couplers_probe",
+    "probe_version": "1",
+    "command": "CPL_PROBE_CASES=contact_static_friction CPL_PROBE_VARIANT=ud001 oracle/probes/couplers/generate.sh "
+  },
+  "reference": {
+    "sha": "35a851780d0b9471d258ed53a003ae98aaa95ea0",
+    "describe": "v5.0.7-post1-554-g35a851780",
+    "patches": [
+      "modified:cmake/AkantuTestsMacros.cmake sha256=c280165a84912eab4bcc081b9eaaaa06aafdd83d4f48d982e11b0859abf9672f (reference sha256=36290de2ec8b111028138fe82029efa16501512241a5bc264fa30ff3e3239b9e)",
+      "modified:src/model/contact_mechanics/contact_detector_inline_impl.hh sha256=e3f1c264ba047243dec4baf61a8da974e6a008860143f9f5be8241ed017d195b (reference sha256=439e0854359e7ed6519a37bb0cd1ed75569eeb99aada91ae1dd886319504f0d3)",
+      "modified:src/model/contact_mechanics/resolutions/resolution_penalty.cc sha256=3ec8b9eea307e4b0d3b12196bd6ae24ce621e2012beddf586d64a8e3e516d840 (reference sha256=bbb8ffbe847a97b7436f9fab04b6f33733fbae2e855cbf48bff7e5b9797043ba)"
+    ]
+  },
+  "build": {
+  "config": "strict",
+  "compiler": "g++ (Debian 14.2.0-19) 14.2.0",
+  "cxx_flags": "-ffp-contract=off -DEIGEN_DONT_VECTORIZE -O2 -g -DNDEBUG -g3 -ggdb3 -flarge-source-files -std=c++20 -flto=auto -fno-fat-lto-objects -fPIC -frounding-math (actual flags of src/model/solid_mechanics/solid_mechanics_model.cc; warnings and non-FP -D defines omitted)",
+  "build_type": "RelWithDebInfo",
+  "arch": "x86_64",
+  "os": "Debian GNU/Linux 13 (trixie)",
+  "libraries": {
+    "eigen3": "3.4.0-5",
+    "boost": "1.83.0.2+b2",
+    "openmpi": "5.0.7-1",
+    "mumps": "5.7.3-3+b1",
+    "petsc": "3.22.5+dfsg1-2",
+    "scotch": "7.0.7-1",
+    "openblas": "0.3.29+ds-3",
+    "scalapack": "2.2.2-1",
+    "hdf5": "1.14.5+repack-3",
+    "gmsh": "4.13.1+ds1-6",
+    "pybind11": "2.13.6-2",
+    "numpy": "1:2.2.4+ds-1",
+    "scipy": "1.15.3-1",
+    "gcc": "4:14.2.0-1",
+    "gfortran": "4:14.2.0-1",
+    "oracle_image": "sha256:45122c213e9fa194b6b58dcc31fc23b5fa4f7c0f64d0a452e40ae072c51c5cdb",
+    "oracle_build_scripts": "e168f393291494c869fa759b3ad9ae4a371a0369",
+    "oracle_install_reference_sha": "35a851780d0b9471d258ed53a003ae98aaa95ea0",
+    "oracle_install_image": "sha256:45122c213e9fa194b6b58dcc31fc23b5fa4f7c0f64d0a452e40ae072c51c5cdb",
+    "sha256:libakantu.so.5.0.7": "4a5fb7238a6b749ba636ae6a968aff5a5073162a81cc47055b2b254a2a9237d3",
+    "probe_tree_sha256": "a358575554a4cc0b7bcfef4ef95849b70c6e0ef85e9c6fba0232c102f67563eb",
+    "probe_sources_commit": "dbdd3c1ab00c22717afcc9603780027d1ba6f310",
+    "cmake_cxx_flags": "-ffp-contract=off -DEIGEN_DONT_VECTORIZE -O2 -g -DNDEBUG -g3 -ggdb3 -flarge-source-files",
+    "probe": "couplers_probe"
+  },
+  "probe_compile_command": "/usr/bin/c++ '-DAKANTU_PROBE_BUILD_TYPE=\"RelWithDebInfo\"' '-DAKANTU_PROBE_CONFIG=\"strict\"' '-DAKANTU_PROBE_CXX_FLAGS=\"-ffp-contract=off -DEIGEN_DONT_VECTORIZE  -O2 -g -DNDEBUG\"' -DBOOST_GRAPH_DYN_LINK -DBOOST_GRAPH_NO_LIB -DBOOST_REGEX_DYN_LINK -DBOOST_REGEX_NO_LIB -DCGAL_USE_GMPXX=1 -I/probes/couplers/../include -isystem /build/install-strict/include/akantu -isystem /opt/CGAL-5.6.2/include -isystem /usr/lib/x86_64-linux-gnu/openmpi/include -isystem /usr/lib/x86_64-linux-gnu/openmpi/include/openmpi -isystem /usr/lib/petscdir/petsc3.22/x86_64-linux-gnu-real/include -isystem /usr/include/scotch -isystem /build/install-strict/include/akantu_iterators -isystem /usr/include/eigen3 -isystem /build/install-strict/include/iohelper -O2 -g -DNDEBUG -std=gnu++20 -ffp-contract=off -DEIGEN_DONT_VECTORIZE -Wall -Wextra -pedantic -Wno-array-bounds -Wno-use-after-free -Wno-stringop-overread -DOMPI_SKIP_MPICXX -Wno-literal-suffix -frounding-math -o CMakeFiles/couplers_probe.dir/couplers_probe.cc.o -c /probes/couplers/couplers_probe.cc",
+  "probe_cxx_flags": "-DAKANTU_PROBE_BUILD_TYPE=\"RelWithDebInfo\" -DAKANTU_PROBE_CONFIG=\"strict\" -DAKANTU_PROBE_CXX_FLAGS=\"-ffp-contract=off -DEIGEN_DONT_VECTORIZE  -O2 -g -DNDEBUG\" -DBOOST_GRAPH_DYN_LINK -DBOOST_GRAPH_NO_LIB -DBOOST_REGEX_DYN_LINK -DBOOST_REGEX_NO_LIB -DCGAL_USE_GMPXX=1 -O2 -g -DNDEBUG -std=gnu++20 -ffp-contract=off -DEIGEN_DONT_VECTORIZE -Wall -Wextra -pedantic -Wno-array-bounds -Wno-use-after-free -Wno-stringop-overread -DOMPI_SKIP_MPICXX -Wno-literal-suffix -frounding-math"
+},
+  "created": "2026-11-11T07:02:56Z",
+  "inputs": [
+    {
+      "role": "mesh",
+      "path": "inputs/hertz.msh",
+      "source": "examples/c++/contact_mechanics_model/hertz/hertz.geo",
+      "sha256": "a6a42c298c8810475f287a1ec878d36408940c7963fe8d9118cd7cf3f34173d4"
+    },
+    {
+      "role": "material",
+      "path": "inputs/couplers_probe_contact_static_friction_material.dat",
+      "source": "examples/c++/contact_mechanics_model/hertz/material.dat (mu = 0.3)",
+      "sha256": "2ff35b05fd6adfd4b5778512cf908d8797b8522e8fca0dce36cfed1223c87773"
+    },
+    {
+      "role": "digests",
+      "path": "inputs/couplers_probe_contact_static_friction_digests.txt",
+      "sha256": "48f159b4366947c264b7d490ed146c3e1ce72f8f03684d4e3f1161fcde1f5468"
+    },
+    {
+      "role": "events",
+      "path": "inputs/couplers_probe_contact_static_friction_events.txt",
+      "sha256": "34c2b8046f8e75b62d180ee9e106601f304857bb7198f3facc2f2e6542ba8d32"
+    }
+  ],
+  "parameters": {
+    "oracle_variant": {
+      "patch": "oracle/patches/variants/ud001-contact-zero-init.patch",
+      "sha256": "143546021ac16611e8dd884f6203cc688b8ec2b7ca4b45bdd0461014529f31fa",
+      "defect": "UD-001"
+    },
+    "max_steps": 5,
+    "increment": -0.0001,
+    "mu": 0.29999999999999999,
+    "max_iterations": 100,
+    "sparse_solver_type": "eigen",
+    "eigen_cache_sizes": "16384,524288,524288",
+    "steps_run": 2
+  },
+  "storage": {
+    "mode": "committed",
+    "bytes": 113792
+  },
+  "quantities": [
+    {
+      "name": "step_0/displacement",
+      "file": "data/step_0__displacement.npy",
+      "dtype": "f64",
+      "shape": [
+        698,
+        2
+      ],
+      "axes": [
+        "entry",
+        "component"
+      ],
+      "layout": "table",
+      "sha256": "f91ae2deb9b8fb583d8fc98bea690d7b95963c58d9582cfd7b91b4ea05915e1f",
+      "description": "displacement"
+    },
+    {
+      "name": "step_0/contact_force",
+      "file": "data/step_0__contact_force.npy",
+      "dtype": "f64",
+      "shape": [
+        698,
+        2
+      ],
+      "axes": [
+        "entry",
+        "component"
+      ],
+      "layout": "table",
+      "sha256": "19578c4b8929f359892637d8134ffa15e73e9148b907aa439631e3462700ae59",
+      "description": "contact force"
+    },
+    {
+      "name": "step_0/tangential_force",
+      "file": "data/step_0__tangential_force.npy",
+      "dtype": "f64",
+      "shape": [
+        698,
+        2
+      ],
+      "axes": [
+        "entry",
+        "component"
+      ],
+      "layout": "table",
+      "sha256": "d88ff3938b8ebea15176e38142f30b2627543a0dc8bf5c8c140e7fb48437a7cf",
+      "description": "tangential force"
+    },
+    {
+      "name": "step_0/gaps",
+      "file": "data/step_0__gaps.npy",
+      "dtype": "f64",
+      "shape": [
+        698,
+        1
+      ],
+      "axes": [
+        "entry",
+        "component"
+      ],
+      "layout": "table",
+      "sha256": "36fa65304d73e6481ac4361d5075a493ff5a65121f59dafcc6450772c371489b",
+      "description": "gaps"
+    },
+    {
+      "name": "step_0/tangential_tractions",
+      "file": "data/step_0__tangential_tractions.npy",
+      "dtype": "f64",
+      "shape": [
+        698,
+        1
+      ],
+      "axes": [
+        "entry",
+        "component"
+      ],
+      "layout": "table",
+      "sha256": "2f803bd7d4a533c5fd14b3696cf3a6b9f1bf7c142adad25f34ba1474b646493a",
+      "description": "tangential tractions"
+    },
+    {
+      "name": "step_0/positions",
+      "file": "data/step_0__positions.npy",
+      "dtype": "f64",
+      "shape": [
+        698,
+        2
+      ],
+      "axes": [
+        "entry",
+        "component"
+      ],
+      "layout": "table",
+      "sha256": "2b61988beeb96ed8979d180707240f83193fbf6cde2c8a3849b5570dc1c2c5d7",
+      "description": "contact detector positions"
+    },
+    {
+      "name": "step_1/displacement",
+      "file": "data/step_1__displacement.npy",
+      "dtype": "f64",
+      "shape": [
+        698,
+        2
+      ],
+      "axes": [
+        "entry",
+        "component"
+      ],
+      "layout": "table",
+      "sha256": "b01e82379a8b5abeafaa7021a02232b8f06fc650194850420c9d1f6ba29827e5",
+      "description": "displacement"
+    },
+    {
+      "name": "step_1/contact_force",
+      "file": "data/step_1__contact_force.npy",
+      "dtype": "f64",
+      "shape": [
+        698,
+        2
+      ],
+      "axes": [
+        "entry",
+        "component"
+      ],
+      "layout": "table",
+      "sha256": "8e29c7e77c02f71ce1d62b859d95fb65d0b7bbaa6211510268f3c1e0f0550185",
+      "description": "contact force"
+    },
+    {
+      "name": "step_1/tangential_force",
+      "file": "data/step_1__tangential_force.npy",
+      "dtype": "f64",
+      "shape": [
+        698,
+        2
+      ],
+      "axes": [
+        "entry",
+        "component"
+      ],
+      "layout": "table",
+      "sha256": "4c51f2b589d387c454f1dd6efe6cf2c53fc01586f6ce5c1f92b1b5e400a6685a",
+      "description": "tangential force"
+    },
+    {
+      "name": "step_1/gaps",
+      "file": "data/step_1__gaps.npy",
+      "dtype": "f64",
+      "shape": [
+        698,
+        1
+      ],
+      "axes": [
+        "entry",
+        "component"
+      ],
+      "layout": "table",
+      "sha256": "cbe8e8cdd263f97107f1904e061e1846a2900dccc8e65870cd8cdfa8832673a2",
+      "description": "gaps"
+    },
+    {
+      "name": "step_1/tangential_tractions",
+      "file": "data/step_1__tangential_tractions.npy",
+      "dtype": "f64",
+      "shape": [
+        698,
+        1
+      ],
+      "axes": [
+        "entry",
+        "component"
+      ],
+      "layout": "table",
+      "sha256": "363fc7d077945eadcb70c1294d1e8235c5c52c7d09219f979ab54bacf67fcf89",
+      "description": "tangential tractions"
+    },
+    {
+      "name": "step_1/positions",
+      "file": "data/step_1__positions.npy",
+      "dtype": "f64",
+      "shape": [
+        698,
+        2
+      ],
+      "axes": [
+        "entry",
+        "component"
+      ],
+      "layout": "table",
+      "sha256": "18bea0c7242b20a017dd88e7f8ff3bd05dde0fd3c4675990df9923ec9d06787f",
+      "description": "contact detector positions"
+    },
+    {
+      "name": "newton/converged",
+      "file": "data/newton__converged.npy",
+      "dtype": "i64",
+      "shape": [
+        2
+      ],
+      "axes": [
+        "entry"
+      ],
+      "layout": "table",
+      "sha256": "06a5e75b5c298e897a18975fc7df079bd9563f5345be6d6a3425b0042496bcf0",
+      "description": "1 = converged, 0 = Newton failure (run stops)"
+    },
+    {
+      "name": "newton/iterations",
+      "file": "data/newton__iterations.npy",
+      "dtype": "i64",
+      "shape": [
+        2
+      ],
+      "axes": [
+        "entry"
+      ],
+      "layout": "table",
+      "sha256": "8b1159b1492ba74d91cba8a9b89485b6ce3a1d90bbea9f4fe09c4d8a19ba2c15",
+      "description": "nb_iterations per step"
+    },
+    {
+      "name": "newton/error",
+      "file": "data/newton__error.npy",
+      "dtype": "f64",
+      "shape": [
+        2
+      ],
+      "axes": [
+        "entry"
+      ],
+      "layout": "table",
+      "sha256": "9994975ee0a535a4b99fa7b76ff3f053984a504763780460c88b00cd6daea470",
+      "description": "error per step"
+    },
+    {
+      "name": "nb_contact_elements",
+      "file": "data/nb_contact_elements.npy",
+      "dtype": "i64",
+      "shape": [
+        2
+      ],
+      "axes": [
+        "entry"
+      ],
+      "layout": "table",
+      "sha256": "824c4b7b87be0e815247414f68db42bebbcbe6de6574e4427f194083ef8da969",
+      "description": "contact elements after each step"
+    }
+  ],
+  "tags": [
+    "model",
+    "couplers",
+    "contact",
+    "friction"
+  ]
+}

@@ -1,0 +1,81 @@
+fixtures/mesh_utils/periodic_order — UD-654 evidence (periodic summation order)
+
+Purpose: oracle golden of the regression tests
+  crates/akantu-mesh/tests/periodic_order_oracle.rs
+  crates/akantu-model/tests/periodic_order_oracle.rs
+(shared code crates/akantu-mesh/tests/periodic_order_common/mod.rs) and the
+black-box evidence of UD-654 (docs/UPSTREAM_DEFECTS.md; decision D-061 (2)).
+Written by an independent review of the periodic-summation work and
+committed with its fix round.
+
+Files
+  cases.txt           67 cases "<name> <mesh> <dim> <directions>", written by
+                      v90_make_meshes.py
+  meshes/*.msh        structured MSH 2.2 grids written by v90_make_meshes.py
+                      (line n=6, quadrangle n=3/10/25, hexahedron n=2/5/9;
+                      natural, reversed and seeded-shuffled node numbering)
+                      and frozen_{line,square,cube}.msh, byte-identical copies
+                      of fixtures/meshes/gmsh-4.13.1/test/test_mesh_utils/
+                      test_mesh_periodic/{line,square,cube}.msh
+  oracle_output.txt   stdout of v90_periodic_order_probe (per case: every
+                      master's getPeriodicSlaves iteration order, then the
+                      bits of a 3-component nodal array after
+                      makeConsistentForPeriodicity(_sum)); verbatim, sha256
+                      6c6744646ecf1aaae31355438f8e0573206ef753e132af81a3b9ac506d2ee225
+                      (identical to the review's own run)
+  multimap_blackbox/  output of v90_multimap_blackbox (178 patterns of
+                      std::unordered_multimap<akantu::Idx, akantu::Idx>, every
+                      key's equal_range against the "reverse insertion order"
+                      model after every operation) built four ways: O2
+                      (-O2 -std=c++20 -ffp-contract=off -DEIGEN_DONT_VECTORIZE),
+                      O0 (-O0 -std=c++20), O3_cxx17 (-O3 -std=c++17),
+                      O2_glibcxx_debug (-O2 -std=c++20 -D_GLIBCXX_DEBUG);
+                      all "SUMMARY pass=178 fail=0", byte-identical to each
+                      other and to the review's O2 output, sha256
+                      67ee20ab50a4c2983cdfbde54cb94709df0a74d073bb66596de07cf28673e91d
+
+Sources
+  oracle/probes/periodic_order/
+    v90_periodic_order_probe.cc, v90_multimap_blackbox.cc, v90_make_meshes.py,
+    CMakeLists.txt, v90_run_in_container.sh
+  D-030: the black-box program was written from the C++ standard and black-box
+  observation only; no standard-library source was read.
+
+Generating commands
+  python3 -I oracle/probes/periodic_order/v90_make_meshes.py \
+      <dir> fixtures/meshes/gmsh-4.13.1/test/test_mesh_utils/test_mesh_periodic
+  (reproduces meshes/ and cases.txt byte for byte; checked 2026-11-11)
+  in akantu-oracle:dev, build volume read-only:
+    bash v90_run_in_container.sh v90_periodic_order_probe v90_multimap_blackbox
+    ./build/v90_periodic_order_probe <dir>/cases.txt <dir> > oracle_output.txt
+    g++ <flags> -I/build/install-strict/include/akantu \
+        -I/build/install-strict/include/akantu_iterators -isystem /usr/include/eigen3 \
+        v90_multimap_blackbox.cc -o bb && ./bb
+  container options: --memory=4g, OPENBLAS_CORETYPE=Haswell,
+  OPENBLAS_NUM_THREADS=1; the probe calls Eigen::setCpuCacheSizes(16384,
+  524288, 524288) in main (D-050 run-time pin; no solve is involved).
+
+Oracle (both runs below)
+  platform        x86_64, Debian GNU/Linux 13 (trixie) 13.7 container
+  image           akantu-oracle:dev
+                  sha256:45122c213e9fa194b6b58dcc31fc23b5fa4f7c0f64d0a452e40ae072c51c5cdb
+  install         /build/install-strict (strict config), libakantu.so.5.0.7
+                  sha256 5491d902b6f363e11b47d2dc1d0aff0597374e8ff785bbfe2bff534f38509e81
+                  (the install of the x86_64 goldens' manifests),
+                  CMAKE_CXX_FLAGS = -ffp-contract=off -DEIGEN_DONT_VECTORIZE,
+                  no EIGEN_NO_CPUID: unpinned compile, D-050 run-time pins
+  reference       35a851780d0b9471d258ed53a003ae98aaa95ea0
+  compiler        g++ (Debian 14.2.0-19) 14.2.0
+
+Runs (D-035: >= 3 identical runs)
+  1. the review, on an x86_64 Linux virtual machine, 2026-11-11 05:34–06:20 UTC:
+     probe three runs identical; black-box 178/178 in the four builds.
+  2. the fix round, on a second x86_64 Linux virtual machine,
+     2026-11-11 06:36 UTC: probe three runs, each byte-identical to
+     oracle_output.txt; black-box three runs per build (and the CMake
+     RelWithDebInfo build), all byte-identical (sha256 above).
+
+Totals (asserted by the tests): 67 cases, 2,640 masters (374 with 2–7
+slaves), 42,465 values; the port's periodic sums equal the oracle's bits;
+summing the slaves in insertion order or in sorted (master, slave) order
+changes 1,624 resp. 1,164 values.

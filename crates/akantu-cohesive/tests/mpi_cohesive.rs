@@ -1,0 +1,246 @@
+// SPDX-License-Identifier: LGPL-3.0-or-later
+// Part of akantu-rs, a Rust port of Akantu (EPFL/LSMS). real-MPI
+// scenarios (ported intent: test/test_model/test_solid_mechanics_model/
+// test_cohesive/test_parallel_cohesive, unregistered upstream): the
+// SolidMechanicsModelCohesive on a distributed mesh under mpirun.
+
+//! `mpirun -np N mpi_cohesive` (harness = false;
+//! scripts/mpi/run-par-tests.sh): `PASS`/`FAIL` lines for the scenarios
+//! that ran, `NOT RUN <name>: <why>` for those that do not run at this
+//! rank count and a `SUMMARY … not_run=K` on rank 0
+//! (`scenarios=` counts the scenarios that ran); exit 1 on failure.
+//! Independent checks at every rank count (RCB
+//! partitions; 8 ranks in the expensive tier); oracle replays at every rank
+//! count the probe recorded (1, 2 and 4; 8 for the 2-D intrinsic and
+//! extrinsic scenarios) with the rank-ordered and the
+//! NativeMpi reduction policies (the
+//! latter compares the globally reduced energies with upstream's
+//! `MPI_Allreduce` bitwise), including the scenarios
+//! (facets-only insertion, clustering, fragments; under NativeMpi every
+//! fragment sum is compared with upstream's bitwise). At every rank count:
+//! UD-1141's refusal of a distributed 1-D facet mesh.
+
+mod common;
+mod par_coh;
+
+use std::time::Duration;
+
+use akantu_cohesive::par_scenarios;
+use akantu_comm::lifecycle::ThreadLevel;
+use akantu_comm::{Communicator, MpiOptions, ReduceOp, ReductionPolicy, SendMode};
+
+fn world_with(reduction: ReductionPolicy) -> Communicator {
+    let s = std::env::var("AKANTU_MPI_TEST_TIMEOUT_S")
+        .ok()
+        .and_then(|v| v.parse::<u64>().ok())
+        .unwrap_or(60);
+    Communicator::mpi_world(MpiOptions {
+        thread_level: ThreadLevel::Funneled,
+        timeout: Some(Duration::from_secs(s)),
+        send_mode: SendMode::Eager,
+        reduction,
+    })
+    .expect("MPI world communicator")
+}
+
+type S = Box<dyn Fn(Communicator) -> par_coh::Outcome>;
+
+fn main() {
+    std::thread::spawn(|| {
+        std::thread::sleep(Duration::from_secs(900));
+        eprintln!("WATCHDOG: no completion after 900 s, aborting");
+        std::process::abort();
+    });
+    let control = world_with(ReductionPolicy::RankOrdered);
+    let native = world_with(ReductionPolicy::NativeMpi);
+    let size = control.size();
+    let mut scenarios: Vec<(String, S, bool)> = Vec::new();
+    // A scenario that does not run at this rank count is
+    // not listed (no PASS, not counted) and says why
+    let mut not_run: Vec<(String, String)> = Vec::new();
+    let not_recorded = |name: &str| {
+        format!(
+            "no oracle fixture at {size} ranks (fixtures/parallel_cohesive/{name}: np{:?})",
+            par_coh::oracle_rank_counts(name)
+        )
+    };
+    // Every replayed fixture is recorded at some count
+    // (an unreadable fixtures root would otherwise drop every replay)
+    let missing: Vec<&str> = par_scenarios::specs()
+        .iter()
+        .map(|s| s.name)
+        .chain([
+            "facets_only_tri",
+            "facets_only_tet",
+            "facets_only_pg_tri",
+            "facets_only_bnd_tri",
+            "clusters_tri",
+            "clusters_chk_tri",
+            "fragments_tri",
+        ])
+        .filter(|n| par_coh::oracle_rank_counts(n).is_empty())
+        .collect();
+    if !missing.is_empty() {
+        println!(
+            "FAIL start-up (rank {}): no recorded rank count under fixtures/parallel_cohesive \
+             for {missing:?}",
+            control.rank()
+        );
+        drop(native);
+        drop(control);
+        std::process::exit(1);
+    }
+    // UD-1141: a distributed 1-D facet mesh is refused
+    // on every rank (built on one rank), the mesh and the communicator
+    // usable afterwards
+    scenarios.push((
+        "distributed_1d_facet_mesh_refused".into(),
+        Box::new(|c| common::distributed_1d_refusal(&c).map(|_| ())),
+        false,
+    ));
+    for spec in par_scenarios::specs() {
+        let s = spec.clone();
+        scenarios.push((
+            format!("invariants_rcb_{}", spec.name),
+            Box::new(move |c| par_coh::invariants(&s, &c, par_coh::PartKind::Rcb)),
+            false,
+        ));
+    }
+    // the oracle replays run at every rank count the probe recorded
+    // (fixtures/parallel_cohesive/<scenario>/np<P>: 1, 2 and 4 ranks, and 8
+    // ranks for the 2-D scenarios)
+    let recorded = |name: &str| par_coh::oracle_rank_counts(name).contains(&size);
+    for spec in par_scenarios::specs() {
+        let name = spec.name;
+        if recorded(name) {
+            scenarios.push((
+                format!("{name}_matches_oracle"),
+                Box::new(move |c| par_coh::matches_oracle(name, &c)),
+                false,
+            ));
+            scenarios.push((
+                format!("{name}_matches_oracle_native_mpi"),
+                Box::new(move |c| par_coh::matches_oracle(name, &c)),
+                true,
+            ));
+        } else {
+            for sfx in ["", "_native_mpi"] {
+                not_run.push((format!("{name}_matches_oracle{sfx}"), not_recorded(name)));
+            }
+        }
+        // the probe's partition rules: 2 and 4 ranks (library), 8 ranks in
+        // 2-D (par_coh::part_2d_8)
+        if matches!(size, 2 | 4) || (size == 8 && spec.dim == 2) {
+            let s = spec.clone();
+            scenarios.push((
+                format!("invariants_rule_{name}"),
+                Box::new(move |c| par_coh::invariants(&s, &c, par_coh::PartKind::Rule)),
+                false,
+            ));
+        } else {
+            not_run.push((
+                format!("invariants_rule_{name}"),
+                format!(
+                    "the probe's partition rule exists for 2 and 4 ranks (8 in 2-D), not for \
+                     {size} ranks in {}-D",
+                    spec.dim
+                ),
+            ));
+        }
+    }
+    // Facets-only insertion, clustering and fragments
+    for with_native in [false, true] {
+        let sfx = if with_native { "_native_mpi" } else { "" };
+        for name in [
+            "facets_only_tri",
+            "facets_only_tet",
+            // adversarial cases (bnd)
+            "facets_only_pg_tri",
+            "facets_only_bnd_tri",
+        ] {
+            if recorded(name) {
+                scenarios.push((
+                    format!("{name}_matches_oracle{sfx}"),
+                    Box::new(move |c| par_coh::coh2::facets_only_matches_oracle(name, &c)),
+                    with_native,
+                ));
+            } else {
+                not_run.push((format!("{name}_matches_oracle{sfx}"), not_recorded(name)));
+            }
+        }
+        if recorded("clusters_tri") {
+            scenarios.push((
+                format!("clusters_tri_matches_oracle{sfx}"),
+                Box::new(|c| par_coh::coh2::clusters_matches_oracle(&c)),
+                with_native,
+            ));
+        } else {
+            not_run.push((
+                format!("clusters_tri_matches_oracle{sfx}"),
+                not_recorded("clusters_tri"),
+            ));
+        }
+        if recorded("clusters_chk_tri") {
+            scenarios.push((
+                format!("clusters_chk_tri_matches_oracle{sfx}"),
+                Box::new(|c| par_coh::coh2::clusters_chk_matches_oracle(&c)),
+                with_native,
+            ));
+        } else {
+            not_run.push((
+                format!("clusters_chk_tri_matches_oracle{sfx}"),
+                not_recorded("clusters_chk_tri"),
+            ));
+        }
+        if recorded("fragments_tri") {
+            scenarios.push((
+                format!("fragments_tri_matches_oracle{sfx}"),
+                Box::new(|c| par_coh::coh2::fragments_matches_oracle(&c).map(|_| ())),
+                with_native,
+            ));
+        } else {
+            not_run.push((
+                format!("fragments_tri_matches_oracle{sfx}"),
+                not_recorded("fragments_tri"),
+            ));
+        }
+    }
+    if control.rank() == 0 {
+        for (name, why) in &not_run {
+            println!("NOT RUN {name}: {why}");
+        }
+    }
+    let mut failed = 0u64;
+    let count = scenarios.len();
+    for (name, f, nat) in &scenarios {
+        let comm = if *nat {
+            native.duplicate()
+        } else {
+            control.duplicate()
+        }
+        .expect("duplicate");
+        let t0 = std::time::Instant::now();
+        let r = f(comm);
+        let mut bad = [u64::from(r.is_err())];
+        control
+            .all_reduce(&mut bad, ReduceOp::Sum)
+            .expect("all_reduce");
+        if let Err(e) = &r {
+            println!("FAIL {name} (rank {}): {e}", control.rank());
+        }
+        if bad[0] > 0 {
+            failed += 1;
+        } else if control.rank() == 0 {
+            println!("PASS {name} ({:.2} s)", t0.elapsed().as_secs_f64());
+        }
+    }
+    if control.rank() == 0 {
+        println!(
+            "SUMMARY ranks={size} scenarios={count} failed={failed} not_run={}",
+            not_run.len()
+        );
+    }
+    drop(native);
+    drop(control);
+    std::process::exit(i32::from(failed > 0));
+}

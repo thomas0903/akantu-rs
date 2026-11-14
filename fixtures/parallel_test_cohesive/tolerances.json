@@ -1,0 +1,11 @@
+{
+  "format_version": 1,
+  "rules": [
+    {
+      "quantity": "*",
+      "justification": "TestSMMCFixture at 2 ranks (oracle/probes/parallel_test_cohesive): upstream's test_cohesive 2-D and 3-D cases run on 2 ranks with the partition the port's test uses (the port's RcbPartitioner rule computed by the probe and given to upstream through MeshPartitionMeshData, recorded on rank 0). Explicit dynamics only (lumped mass, no linear solve); with 2 ranks each rank has one neighbour, so every ghost exchange and every reduction has one order and the runs are deterministic (3 identical runs). The port replicates the operation order of the distributed cohesive path (facet synchronizer, ghost-facet flip, insertion order, global ids, rank-ordered sums of 2 contributions = upstream's MPI_Allreduce of 2 values). Every recorded quantity is compared exactly / bitwise by crates/akantu-cohesive/tests/upstream_cohesive.rs (two_ranks::*: the partition, time steps, surface, per-step inserted and local cohesive counts and the five global energies, the final connectivities in node global ids, the node global ids and the final displacement and velocity of every node, pure ghosts included, by global id).",
+      "evidence": "2026-11-12: crates/akantu-cohesive/tests/upstream_cohesive.rs two_ranks::* (2-D cases in every build, 3-D cases in the release tier); an independent review accepted the rule with the amendment that pure-ghost nodes are compared like every other node, applied in the second round after UD-1250 was fixed (40 / 40 bitwise on them)",
+      "reviewed_by": "independent review during the port, November 2026"
+    }
+  ]
+}

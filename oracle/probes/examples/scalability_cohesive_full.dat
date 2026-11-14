@@ -1,0 +1,44 @@
+# akantu-rs oracle variant of examples/c++/scalability_test/material-cohesive.dat
+# (reference 35a85178): identical except the lines marked akantu-rs:
+# output_energy = true (energies.csv) and Eigen's sparse solver pinned in the
+# static solver section (upstream _auto resolves to MUMPS in the oracle).
+user section [
+  compression = -1e5
+  shear = -6e7
+  inc_shear = -1e6
+  max_steps = 5000
+  output_energy = true # akantu-rs: energies.csv
+  output_paraview = false
+  cohesive_insertion = true
+  mesh = cube.msh
+]
+
+model solid_mechanics_model_cohesive [
+  material elastic [
+    name = body
+    rho = 2500   # density
+    E   = 70e9   # young's modulus
+    nu  = 0.22   # poisson's ratio
+    finite_deformation = true
+  ]
+
+  material cohesive_linear [
+    name = insertion
+    beta = 3
+    G_c = 7.6
+    sigma_c = 70e6
+    delta_c = 0.217e-6
+  ]
+
+  cohesive_inserter [
+    bounding_box = [[-1., 1.], [-1., 1.], [-1., 1.]]
+  ]
+
+  time_step_solver static [
+    name = static
+    sparse_solver_type = eigen # akantu-rs: pinned Eigen sparse solver
+    non_linear_solver linear [
+      type = linear
+    ]
+  ]
+]

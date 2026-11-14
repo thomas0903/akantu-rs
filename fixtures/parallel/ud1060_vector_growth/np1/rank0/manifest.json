@@ -1,0 +1,558 @@
+{
+  "format_version": 1,
+  "case_id": "parallel/ud1060_vector_growth/np1/rank0",
+  "description": "UD-1060 / PP-01 (b): relocations of a std::vector filled by n emplace_back calls (noexcept moves), observed on the oracle's toolchain for n = 1 .. 16, and the formula of ud1060_relocated_ranks",
+  "status": "golden",
+  "generator": {
+    "probe": "parallel_probe",
+    "probe_version": "7",
+    "command": "oracle/probes/parallel/generate.sh "
+  },
+  "reference": {
+    "sha": "35a851780d0b9471d258ed53a003ae98aaa95ea0",
+    "describe": "v5.0.7-post1-554-g35a851780",
+    "patches": [
+      "modified:cmake/AkantuTestsMacros.cmake sha256=c280165a84912eab4bcc081b9eaaaa06aafdd83d4f48d982e11b0859abf9672f (reference sha256=36290de2ec8b111028138fe82029efa16501512241a5bc264fa30ff3e3239b9e)"
+    ]
+  },
+  "build": {
+  "config": "strict",
+  "compiler": "g++ (Debian 14.2.0-19) 14.2.0",
+  "cxx_flags": "-ffp-contract=off -DEIGEN_DONT_VECTORIZE -DEIGEN_NO_CPUID -DEIGEN_DEFAULT_L1_CACHE_SIZE=16384 -DEIGEN_DEFAULT_L2_CACHE_SIZE=524288 -DEIGEN_DEFAULT_L3_CACHE_SIZE=524288 -O2 -g -DNDEBUG -g3 -ggdb3 -flarge-source-files -std=c++20 -flto=auto -fno-fat-lto-objects -fPIC -frounding-math (actual flags of src/model/solid_mechanics/solid_mechanics_model.cc; warnings and non-FP -D defines omitted)",
+  "build_type": "RelWithDebInfo",
+  "arch": "x86_64",
+  "os": "Debian GNU/Linux 13 (trixie)",
+  "libraries": {"eigen_cache_sizes_measured": "16384,524288,524288 (Eigen::l1/l2/l3CacheSize() read at run time in the probe process, D-050)", 
+    "eigen3": "3.4.0-5",
+    "boost": "1.83.0.2+b2",
+    "openmpi": "5.0.7-1",
+    "mumps": "5.7.3-3+b1",
+    "petsc": "3.22.5+dfsg1-2",
+    "scotch": "7.0.7-1",
+    "openblas": "0.3.29+ds-3",
+    "scalapack": "2.2.2-1",
+    "hdf5": "1.14.5+repack-3",
+    "gmsh": "4.13.1+ds1-6",
+    "pybind11": "2.13.6-2",
+    "numpy": "1:2.2.4+ds-1",
+    "scipy": "1.15.3-1",
+    "gcc": "4:14.2.0-1",
+    "gfortran": "4:14.2.0-1",
+    "oracle_image": "sha256:2da26d87e063f3c88264f589cf73381feff583eeaa7770d2e01ae034651d59f5",
+    "oracle_build_scripts": "cca6e460cd3430bf0180262e7ebe26be762112e9",
+    "oracle_install_reference_sha": "35a851780d0b9471d258ed53a003ae98aaa95ea0",
+    "oracle_install_image": "sha256:2da26d87e063f3c88264f589cf73381feff583eeaa7770d2e01ae034651d59f5",
+    "openblas_coretype": "Haswell",
+    "openblas_num_threads": "1",
+    "eigen_cache_sizes": "16384,524288,524288 (compile-time pin of the library and of the probe translation unit: EIGEN_NO_CPUID + defaults, D-050)",
+    "host_cpu": "AMD EPYC 9455 48-Core Processor",
+    "x86_64_level": "v3",
+    "sha256:libakantu.so.5.0.7": "554ecfc7838d8c8aa3955f37f2efb556a7f09426083b74af262ffdcccff657ff",
+    "probe_tree_sha256": "bca3f3066f53b9f445d80b8326a712f5e1bc7668c2dec5105806b716a60d08a4",
+    "probe_sources_commit": "d480884091adbcd5f8f2b426cb3aab5663f3994e",
+    "cmake_cxx_flags": "-ffp-contract=off -DEIGEN_DONT_VECTORIZE -DEIGEN_NO_CPUID -DEIGEN_DEFAULT_L1_CACHE_SIZE=16384 -DEIGEN_DEFAULT_L2_CACHE_SIZE=524288 -DEIGEN_DEFAULT_L3_CACHE_SIZE=524288 -O2 -g -DNDEBUG -g3 -ggdb3 -flarge-source-files",
+    "probe": "parallel_probe"
+  },
+  "probe_compile_command": "/usr/bin/c++ '-DAKANTU_PROBE_BUILD_TYPE=\"RelWithDebInfo\"' '-DAKANTU_PROBE_CONFIG=\"strict\"' '-DAKANTU_PROBE_CXX_FLAGS=\"-ffp-contract=off -DEIGEN_DONT_VECTORIZE -DEIGEN_NO_CPUID -DEIGEN_DEFAULT_L1_CACHE_SIZE=16384 -DEIGEN_DEFAULT_L2_CACHE_SIZE=524288 -DEIGEN_DEFAULT_L3_CACHE_SIZE=524288  -O2 -g -DNDEBUG\"' -DBOOST_GRAPH_DYN_LINK -DBOOST_GRAPH_NO_LIB -DBOOST_REGEX_DYN_LINK -DBOOST_REGEX_NO_LIB -DCGAL_USE_GMPXX=1 -I/probes/parallel/../include -isystem /build/install-strict/include/akantu -isystem /opt/CGAL-5.6.2/include -isystem /usr/lib/x86_64-linux-gnu/openmpi/include -isystem /usr/lib/x86_64-linux-gnu/openmpi/include/openmpi -isystem /usr/lib/petscdir/petsc3.22/x86_64-linux-gnu-real/include -isystem /usr/include/scotch -isystem /build/install-strict/include/akantu_iterators -isystem /usr/include/eigen3 -isystem /build/install-strict/include/iohelper -O2 -g -DNDEBUG -std=gnu++20 -ffp-contract=off -DEIGEN_DONT_VECTORIZE -DEIGEN_NO_CPUID -DEIGEN_DEFAULT_L1_CACHE_SIZE=16384 -DEIGEN_DEFAULT_L2_CACHE_SIZE=524288 -DEIGEN_DEFAULT_L3_CACHE_SIZE=524288 -Wall -Wextra -pedantic -Wno-array-bounds -Wno-use-after-free -Wno-stringop-overread -DOMPI_SKIP_MPICXX -Wno-literal-suffix -frounding-math -o CMakeFiles/parallel_probe.dir/parallel_probe.cc.o -c /probes/parallel/parallel_probe.cc",
+  "probe_cxx_flags": "-DAKANTU_PROBE_BUILD_TYPE=\"RelWithDebInfo\" -DAKANTU_PROBE_CONFIG=\"strict\" -DAKANTU_PROBE_CXX_FLAGS=\"-ffp-contract=off -DEIGEN_DONT_VECTORIZE -DEIGEN_NO_CPUID -DEIGEN_DEFAULT_L1_CACHE_SIZE=16384 -DEIGEN_DEFAULT_L2_CACHE_SIZE=524288 -DEIGEN_DEFAULT_L3_CACHE_SIZE=524288  -O2 -g -DNDEBUG\" -DBOOST_GRAPH_DYN_LINK -DBOOST_GRAPH_NO_LIB -DBOOST_REGEX_DYN_LINK -DBOOST_REGEX_NO_LIB -DCGAL_USE_GMPXX=1 -O2 -g -DNDEBUG -std=gnu++20 -ffp-contract=off -DEIGEN_DONT_VECTORIZE -DEIGEN_NO_CPUID -DEIGEN_DEFAULT_L1_CACHE_SIZE=16384 -DEIGEN_DEFAULT_L2_CACHE_SIZE=524288 -DEIGEN_DEFAULT_L3_CACHE_SIZE=524288 -Wall -Wextra -pedantic -Wno-array-bounds -Wno-use-after-free -Wno-stringop-overread -DOMPI_SKIP_MPICXX -Wno-literal-suffix -frounding-math"
+},
+  "created": "2026-11-12T16:55:32Z",
+  "parameters": {
+    "oracle_pins": {
+      "eigen_cpu_cache_sizes": "setCpuCacheSizes(16384, 524288, 524288) at the start of main",
+      "OPENBLAS_CORETYPE": "Haswell",
+      "OPENBLAS_NUM_THREADS": "1"
+    },
+    "compiler": "14.2.0",
+    "libstdcxx_date": 20250315
+  },
+  "storage": {
+    "mode": "committed",
+    "bytes": 6272
+  },
+  "quantities": [
+    {
+      "name": "observed/relocations_n1",
+      "file": "data/observed__relocations_n1.npy",
+      "dtype": "i64",
+      "shape": [
+        1
+      ],
+      "axes": [
+        "entry"
+      ],
+      "layout": "table",
+      "sha256": "f6df0000bed676f0a4b777e2a1d915b6608dab452e11737f82c685cebf0e8ba7",
+      "description": "times each entry was moved by a later emplace_back (n entries)",
+      "tolerance_class": "exact"
+    },
+    {
+      "name": "formula/relocated_n1",
+      "file": "data/formula__relocated_n1.npy",
+      "dtype": "i64",
+      "shape": [
+        1
+      ],
+      "axes": [
+        "entry"
+      ],
+      "layout": "table",
+      "sha256": "f6df0000bed676f0a4b777e2a1d915b6608dab452e11737f82c685cebf0e8ba7",
+      "description": "1 for the entries ud1060_relocated_ranks(n) names, else 0",
+      "tolerance_class": "exact"
+    },
+    {
+      "name": "observed/relocations_n2",
+      "file": "data/observed__relocations_n2.npy",
+      "dtype": "i64",
+      "shape": [
+        2
+      ],
+      "axes": [
+        "entry"
+      ],
+      "layout": "table",
+      "sha256": "06a5e75b5c298e897a18975fc7df079bd9563f5345be6d6a3425b0042496bcf0",
+      "description": "times each entry was moved by a later emplace_back (n entries)",
+      "tolerance_class": "exact"
+    },
+    {
+      "name": "formula/relocated_n2",
+      "file": "data/formula__relocated_n2.npy",
+      "dtype": "i64",
+      "shape": [
+        2
+      ],
+      "axes": [
+        "entry"
+      ],
+      "layout": "table",
+      "sha256": "06a5e75b5c298e897a18975fc7df079bd9563f5345be6d6a3425b0042496bcf0",
+      "description": "1 for the entries ud1060_relocated_ranks(n) names, else 0",
+      "tolerance_class": "exact"
+    },
+    {
+      "name": "observed/relocations_n3",
+      "file": "data/observed__relocations_n3.npy",
+      "dtype": "i64",
+      "shape": [
+        3
+      ],
+      "axes": [
+        "entry"
+      ],
+      "layout": "table",
+      "sha256": "67413bffc97e77ee7f9e585a89ca32b5954f421b7d2c864e5c7ba7fc46878318",
+      "description": "times each entry was moved by a later emplace_back (n entries)",
+      "tolerance_class": "exact"
+    },
+    {
+      "name": "formula/relocated_n3",
+      "file": "data/formula__relocated_n3.npy",
+      "dtype": "i64",
+      "shape": [
+        3
+      ],
+      "axes": [
+        "entry"
+      ],
+      "layout": "table",
+      "sha256": "7f038b5b9cd7ca2f785c561072ea540fd38edae677abdbcd3897fab03a5fb877",
+      "description": "1 for the entries ud1060_relocated_ranks(n) names, else 0",
+      "tolerance_class": "exact"
+    },
+    {
+      "name": "observed/relocations_n4",
+      "file": "data/observed__relocations_n4.npy",
+      "dtype": "i64",
+      "shape": [
+        4
+      ],
+      "axes": [
+        "entry"
+      ],
+      "layout": "table",
+      "sha256": "0016b0813ff851134362c80a900bf8c22a6d48c6d5fcd93c7f5e3c26dd09acb0",
+      "description": "times each entry was moved by a later emplace_back (n entries)",
+      "tolerance_class": "exact"
+    },
+    {
+      "name": "formula/relocated_n4",
+      "file": "data/formula__relocated_n4.npy",
+      "dtype": "i64",
+      "shape": [
+        4
+      ],
+      "axes": [
+        "entry"
+      ],
+      "layout": "table",
+      "sha256": "c805d648ad9d6437ea9c7ec32c8ee6db3d53a030224a6a83b0e395712699fb4f",
+      "description": "1 for the entries ud1060_relocated_ranks(n) names, else 0",
+      "tolerance_class": "exact"
+    },
+    {
+      "name": "observed/relocations_n5",
+      "file": "data/observed__relocations_n5.npy",
+      "dtype": "i64",
+      "shape": [
+        5
+      ],
+      "axes": [
+        "entry"
+      ],
+      "layout": "table",
+      "sha256": "c0099abd8a3e6bbfeac9a268a95a3ee4749e3032a59a85534b2e5234c00f1dc6",
+      "description": "times each entry was moved by a later emplace_back (n entries)",
+      "tolerance_class": "exact"
+    },
+    {
+      "name": "formula/relocated_n5",
+      "file": "data/formula__relocated_n5.npy",
+      "dtype": "i64",
+      "shape": [
+        5
+      ],
+      "axes": [
+        "entry"
+      ],
+      "layout": "table",
+      "sha256": "e34f5abe249270a0e7079d5e645bc16cd19a94e129933e0dc770264817ea728c",
+      "description": "1 for the entries ud1060_relocated_ranks(n) names, else 0",
+      "tolerance_class": "exact"
+    },
+    {
+      "name": "observed/relocations_n6",
+      "file": "data/observed__relocations_n6.npy",
+      "dtype": "i64",
+      "shape": [
+        6
+      ],
+      "axes": [
+        "entry"
+      ],
+      "layout": "table",
+      "sha256": "fe9a40907fb5ccba4b3cfa2a8f3a7fe9e602f9d39ccbdeee220dc06a7dbec63c",
+      "description": "times each entry was moved by a later emplace_back (n entries)",
+      "tolerance_class": "exact"
+    },
+    {
+      "name": "formula/relocated_n6",
+      "file": "data/formula__relocated_n6.npy",
+      "dtype": "i64",
+      "shape": [
+        6
+      ],
+      "axes": [
+        "entry"
+      ],
+      "layout": "table",
+      "sha256": "90e3af7a0986ac00b8adab8c6efe76c4f4a0c060f9be9b205b1d61cb84430b34",
+      "description": "1 for the entries ud1060_relocated_ranks(n) names, else 0",
+      "tolerance_class": "exact"
+    },
+    {
+      "name": "observed/relocations_n7",
+      "file": "data/observed__relocations_n7.npy",
+      "dtype": "i64",
+      "shape": [
+        7
+      ],
+      "axes": [
+        "entry"
+      ],
+      "layout": "table",
+      "sha256": "e2c17c81ab8e2b0354d1c96fa0378188b17742f86c8bd99e8af953d0844e887a",
+      "description": "times each entry was moved by a later emplace_back (n entries)",
+      "tolerance_class": "exact"
+    },
+    {
+      "name": "formula/relocated_n7",
+      "file": "data/formula__relocated_n7.npy",
+      "dtype": "i64",
+      "shape": [
+        7
+      ],
+      "axes": [
+        "entry"
+      ],
+      "layout": "table",
+      "sha256": "2e1ac5224bc85e45830f4c6acdb1ab0982c49ac0dda31abec191947c5fde99f9",
+      "description": "1 for the entries ud1060_relocated_ranks(n) names, else 0",
+      "tolerance_class": "exact"
+    },
+    {
+      "name": "observed/relocations_n8",
+      "file": "data/observed__relocations_n8.npy",
+      "dtype": "i64",
+      "shape": [
+        8
+      ],
+      "axes": [
+        "entry"
+      ],
+      "layout": "table",
+      "sha256": "30bf5ae2502330b6a75a772359d5556ae9c59d446a89138aa668467605a353bc",
+      "description": "times each entry was moved by a later emplace_back (n entries)",
+      "tolerance_class": "exact"
+    },
+    {
+      "name": "formula/relocated_n8",
+      "file": "data/formula__relocated_n8.npy",
+      "dtype": "i64",
+      "shape": [
+        8
+      ],
+      "axes": [
+        "entry"
+      ],
+      "layout": "table",
+      "sha256": "ce3b9229c34abec785a2c0213459f64d608f0a1b40ff195d997f1e54bd7d3655",
+      "description": "1 for the entries ud1060_relocated_ranks(n) names, else 0",
+      "tolerance_class": "exact"
+    },
+    {
+      "name": "observed/relocations_n9",
+      "file": "data/observed__relocations_n9.npy",
+      "dtype": "i64",
+      "shape": [
+        9
+      ],
+      "axes": [
+        "entry"
+      ],
+      "layout": "table",
+      "sha256": "97839a19d1607b5997706b5f80939a4fcc52938b6ec39fe14115e03070377053",
+      "description": "times each entry was moved by a later emplace_back (n entries)",
+      "tolerance_class": "exact"
+    },
+    {
+      "name": "formula/relocated_n9",
+      "file": "data/formula__relocated_n9.npy",
+      "dtype": "i64",
+      "shape": [
+        9
+      ],
+      "axes": [
+        "entry"
+      ],
+      "layout": "table",
+      "sha256": "27d02a670bc390b329fc1044c17ebef2cee362db603900c1650fb118826bafd6",
+      "description": "1 for the entries ud1060_relocated_ranks(n) names, else 0",
+      "tolerance_class": "exact"
+    },
+    {
+      "name": "observed/relocations_n10",
+      "file": "data/observed__relocations_n10.npy",
+      "dtype": "i64",
+      "shape": [
+        10
+      ],
+      "axes": [
+        "entry"
+      ],
+      "layout": "table",
+      "sha256": "23eb8800c2522a0cd905497948410e0dde8321f1601855bfe9b4c5769744a79f",
+      "description": "times each entry was moved by a later emplace_back (n entries)",
+      "tolerance_class": "exact"
+    },
+    {
+      "name": "formula/relocated_n10",
+      "file": "data/formula__relocated_n10.npy",
+      "dtype": "i64",
+      "shape": [
+        10
+      ],
+      "axes": [
+        "entry"
+      ],
+      "layout": "table",
+      "sha256": "8c0b25f94f9b4e02240b3f0a8568a2291e1b401d9643f4e27886f0e75ad538b3",
+      "description": "1 for the entries ud1060_relocated_ranks(n) names, else 0",
+      "tolerance_class": "exact"
+    },
+    {
+      "name": "observed/relocations_n11",
+      "file": "data/observed__relocations_n11.npy",
+      "dtype": "i64",
+      "shape": [
+        11
+      ],
+      "axes": [
+        "entry"
+      ],
+      "layout": "table",
+      "sha256": "9b5c53c51690f58b93896b9aacca4dfb2cfe9989874a646028940ef3ecb79d39",
+      "description": "times each entry was moved by a later emplace_back (n entries)",
+      "tolerance_class": "exact"
+    },
+    {
+      "name": "formula/relocated_n11",
+      "file": "data/formula__relocated_n11.npy",
+      "dtype": "i64",
+      "shape": [
+        11
+      ],
+      "axes": [
+        "entry"
+      ],
+      "layout": "table",
+      "sha256": "56a92240d0c898558e8f858fdf0878f28eb614b2a7e42775a99dcb45770c3290",
+      "description": "1 for the entries ud1060_relocated_ranks(n) names, else 0",
+      "tolerance_class": "exact"
+    },
+    {
+      "name": "observed/relocations_n12",
+      "file": "data/observed__relocations_n12.npy",
+      "dtype": "i64",
+      "shape": [
+        12
+      ],
+      "axes": [
+        "entry"
+      ],
+      "layout": "table",
+      "sha256": "90b7efe2700583296d61d11b027197f067660f3fbc3797c86fb697f4d2fc373f",
+      "description": "times each entry was moved by a later emplace_back (n entries)",
+      "tolerance_class": "exact"
+    },
+    {
+      "name": "formula/relocated_n12",
+      "file": "data/formula__relocated_n12.npy",
+      "dtype": "i64",
+      "shape": [
+        12
+      ],
+      "axes": [
+        "entry"
+      ],
+      "layout": "table",
+      "sha256": "06218bf3bd10f0593023ca8859fc44d38cbd614977e178e22fad561b756e5eba",
+      "description": "1 for the entries ud1060_relocated_ranks(n) names, else 0",
+      "tolerance_class": "exact"
+    },
+    {
+      "name": "observed/relocations_n13",
+      "file": "data/observed__relocations_n13.npy",
+      "dtype": "i64",
+      "shape": [
+        13
+      ],
+      "axes": [
+        "entry"
+      ],
+      "layout": "table",
+      "sha256": "846f5d121c03017057a70a103b64568cfaa3947755c94191a0cebccb1c2319e3",
+      "description": "times each entry was moved by a later emplace_back (n entries)",
+      "tolerance_class": "exact"
+    },
+    {
+      "name": "formula/relocated_n13",
+      "file": "data/formula__relocated_n13.npy",
+      "dtype": "i64",
+      "shape": [
+        13
+      ],
+      "axes": [
+        "entry"
+      ],
+      "layout": "table",
+      "sha256": "7e23c9cfae6f6cb711a27458098f058a2183a8a466337c24952c91fcc28650bb",
+      "description": "1 for the entries ud1060_relocated_ranks(n) names, else 0",
+      "tolerance_class": "exact"
+    },
+    {
+      "name": "observed/relocations_n14",
+      "file": "data/observed__relocations_n14.npy",
+      "dtype": "i64",
+      "shape": [
+        14
+      ],
+      "axes": [
+        "entry"
+      ],
+      "layout": "table",
+      "sha256": "b6d95ffae6c731fae1b0bda5c17a187a632c5b3d79d7cadb5a31175842087627",
+      "description": "times each entry was moved by a later emplace_back (n entries)",
+      "tolerance_class": "exact"
+    },
+    {
+      "name": "formula/relocated_n14",
+      "file": "data/formula__relocated_n14.npy",
+      "dtype": "i64",
+      "shape": [
+        14
+      ],
+      "axes": [
+        "entry"
+      ],
+      "layout": "table",
+      "sha256": "e5b7967299ff05b977eb5160fedcba4ab64dafa7103b539c1148d868a256774f",
+      "description": "1 for the entries ud1060_relocated_ranks(n) names, else 0",
+      "tolerance_class": "exact"
+    },
+    {
+      "name": "observed/relocations_n15",
+      "file": "data/observed__relocations_n15.npy",
+      "dtype": "i64",
+      "shape": [
+        15
+      ],
+      "axes": [
+        "entry"
+      ],
+      "layout": "table",
+      "sha256": "90fc717c3df015bdb508f8717df376cccb4588d365b2c69509fdae51f064fc81",
+      "description": "times each entry was moved by a later emplace_back (n entries)",
+      "tolerance_class": "exact"
+    },
+    {
+      "name": "formula/relocated_n15",
+      "file": "data/formula__relocated_n15.npy",
+      "dtype": "i64",
+      "shape": [
+        15
+      ],
+      "axes": [
+        "entry"
+      ],
+      "layout": "table",
+      "sha256": "c3da0c55d71b5c7a25bd52953248e69184f63248d4fa449f7feaae46dfa7273e",
+      "description": "1 for the entries ud1060_relocated_ranks(n) names, else 0",
+      "tolerance_class": "exact"
+    },
+    {
+      "name": "observed/relocations_n16",
+      "file": "data/observed__relocations_n16.npy",
+      "dtype": "i64",
+      "shape": [
+        16
+      ],
+      "axes": [
+        "entry"
+      ],
+      "layout": "table",
+      "sha256": "a6e1ba9c5e548e4077608db4086669d37dcb1f0dcd0e14879af768247caeb410",
+      "description": "times each entry was moved by a later emplace_back (n entries)",
+      "tolerance_class": "exact"
+    },
+    {
+      "name": "formula/relocated_n16",
+      "file": "data/formula__relocated_n16.npy",
+      "dtype": "i64",
+      "shape": [
+        16
+      ],
+      "axes": [
+        "entry"
+      ],
+      "layout": "table",
+      "sha256": "95627c0759ec545796b22251dd01e78d5dd31284c355c902f29019219066e8fb",
+      "description": "1 for the entries ud1060_relocated_ranks(n) names, else 0",
+      "tolerance_class": "exact"
+    }
+  ],
+  "tags": [
+    "parallel"
+  ]
+}

@@ -1,0 +1,205 @@
+## The full-size rerun: 64 ranks (A) against 32 ranks (B), one node each
+A = docs/benchmarks/c1-rerun-2026-11-13/rust-np64-a1/run
+B = docs/benchmarks/c1-rerun-2026-11-13/rust-np32-a1/run
+1 (a) A: rust_cohesive_compat = upstream, rust_doubled_node_load = follows_elements  [as required]
+1 (a) B: rust_cohesive_compat = upstream, rust_doubled_node_load = follows_elements  [as required]
+steps compared: 0 ... 5000
+1 (c) cumulative counts equal through step 3,176: 152,520 elements in 2,290 insertion steps (count at step 1,122: 783 / 783)
+first count difference: step 3,177 (cumulative 152,660 / 152,659; inserted in that step 140 / 139; in step 3,178: 135 / 136; cumulative at 3,178: 152,795 / 152,795)
+after it: largest |c_A - c_B| 24, at the last step -4
+1 (b) magnitude: r_ew first exceeds 1e-10 at step 2716; largest r_ew in the window 1.64e-08 (step 3176)
+1 (b) jump: largest one-step growth of r_ew above the floor 63.3 at step 2788 (d_ew -1.335e-07 -> -8.451e-06 J; last sign change of d_ew between steps 2786 and 2787)
+envelope ratio J_ew in the window: at most 0.28 (step 2521)
+  J_ep at most 0.61 (step 2221; d_ep +1.630e-09 -> +3.644e-08 J, the change 6.1e-14 of L, |ep_A| / L 1.0e+00); J_ep > 1 at 0 steps
+  J_ek at most 1.32 (step 2519; d_ek +1.625e-07 -> -7.118e-07 J, the change 1.5e-12 of L, |ek_A| / L 3.1e-02); J_ek > 1 at 11 steps: 2229, 2240, 2243, 2262, 2518, 2519, 2520, 2528, 2529, 2532, 2533
+  J_ed at most 2.58 (step 3146; d_ed -8.830e-06 -> +6.661e-05 J, the change 1.2e-10 of L, |ed_A| / L 1.1e-04); J_ed > 1 at 7 steps: 2385, 2643, 2719, 2732, 3071, 3121, 3146
+  J_et at most 1.93 (step 2505; d_et -3.101e-07 -> +2.882e-07 J, the change 1.0e-12 of L, |et_A| / L 8.6e-01); J_et > 1 at 34 steps: 2132, 2138, 2169, 2175, 2287, 2293, 2306, 2312, 2331, 2362, 2381, 2384 …
+largest r over the five energies in the window: 6.4e-08 (potential, step 3176)
+largest r over steps 0 ... 2,000: 2.2e-13 (potential, step 1998)
+first step with max_k r_k > 1e-13: 1973 (kinetic largest there; cumulative count A 26,644 at that step)
+first step with max_k r_k > 1e-12: 2423 (potential largest there; cumulative count A 62,654 at that step)
+first step with max_k r_k > 1e-11: 2630 (potential largest there; cumulative count A 84,131 at that step)
+first step with max_k r_k > 1e-10: 2653 (potential largest there; cumulative count A 86,600 at that step)
+first step with max_k r_k > 1e-09: 2767 (potential largest there; cumulative count A 99,787 at that step)
+first step with max_k r_k > 1e-08: 2847 (potential largest there; cumulative count A 109,315 at that step)
+cumulative count A at step 2422 (the last step below 1e-12): 62,559
+energies first exceeding 1e-10, in order: potential at step 2653 (sign of d +), kinetic at step 2660 (sign of d -), external work at step 2716 (sign of d +), dissipated at step 2779 (sign of d +), total at step 2781 (sign of d +)
+first count difference minus the first step above 1e-10: 524 steps
+steps 2423 ... 3176: |d_ew| / max(|d_ep|, |d_ek|) median 0.239; d_ep and d_ek of opposite sign at 722 of 754 steps
+steps 2653 ... 3176: |d_ew| / max(|d_ep|, |d_ek|) median 0.106; d_ep and d_ek of opposite sign at 516 of 524 steps
+mean growth of max_k r_k: 1e-12 -> 1e-10 in 230 steps (2.0 % per step); 1e-10 -> 1e-8 in 194 steps (2.4 % per step)
+final (step 5,000): cohesive elements 471,932 / 471,936 (relative 8.5e-06); insertion steps 4,114 / 4,114; energies relative to their own values: dissipated 3.5e-05, potential 3.1e-06, kinetic 1.9e-05, external work 1.4e-05, total 3.4e-07; largest 3.5e-05
+static solves (step 0): r(E_p) 3.2e-14; stable time step relative difference 7.0e-13
+same binary, same 64-rank partition, same host (test-np64 against rust-np64-a1): r(E_p(0)) 3.6e-14, stable time step 1.4e-13
+injection test (onsets 700 ... 3157): detected at every onset up to 2293 by D-108's growth > 100 (cumulative count A there 50,690), up to 2689 by J_ew > 1 (90,527), up to 2645 by J_ew > 2
+12 November (upstream's placement), 64 against 32 ranks at step 5,000: cohesive elements 476,343 / 476,020 (relative 6.8e-04); kinetic 1.4e-02, potential 3.6e-06, dissipated 2.0e-03
+insertion steps of the rerun's and 12 November's 64-rank runs: first difference of the ordered lists at entry step 946; smallest step in only one of the two lists: 945
+
+## 64 ranks: one node (A, the rerun) against eight hosts (B, joss64x8)
+A = docs/benchmarks/c1-rerun-2026-11-13/rust-np64-a1/run
+B = docs/benchmarks/c1-rerun-2026-11-13/joss64x8-control
+1 (a) A: rust_cohesive_compat = upstream, rust_doubled_node_load = follows_elements  [as required]
+1 (a) B: rust_cohesive_compat = upstream, rust_doubled_node_load = follows_elements  [as required]
+steps compared: 0 ... 5000
+1 (c) cumulative counts equal through step 3,052: 135,442 elements in 2,166 insertion steps (count at step 1,122: 783 / 783)
+first count difference: step 3,053 (cumulative 135,576 / 135,577; inserted in that step 134 / 135; in step 3,054: 125 / 124; cumulative at 3,054: 135,701 / 135,701)
+after it: largest |c_A - c_B| 32, at the last step -8
+1 (b) magnitude: r_ew first exceeds 1e-10 at step 2846; largest r_ew in the window 3.65e-09 (step 3052)
+1 (b) jump: largest one-step growth of r_ew above the floor 34.6 at step 2928 (d_ew +1.086e-07 -> -3.753e-06 J; last sign change of d_ew between steps 2927 and 2928)
+envelope ratio J_ew in the window: at most 0.38 (step 2627)
+  J_ep at most 0.34 (step 2542; d_ep +1.298e-06 -> +2.474e-06 J, the change 2.0e-12 of L, |ep_A| / L 1.0e+00); J_ep > 1 at 0 steps
+  J_ek at most 0.61 (step 2385; d_ek +6.447e-07 -> +1.402e-06 J, the change 1.3e-12 of L, |ek_A| / L 2.6e-02); J_ek > 1 at 0 steps
+  J_ed at most 12.40 (step 2385; d_ed +2.916e-08 -> -6.877e-07 J, the change 1.2e-12 of L, |ed_A| / L 2.8e-05); J_ed > 1 at 5 steps: 2155, 2385, 2719, 2732, 2782
+  J_et at most 6.34 (step 2384; d_et +2.404e-08 -> +7.422e-07 J, the change 1.2e-12 of L, |et_A| / L 8.7e-01); J_et > 1 at 15 steps: 2155, 2206, 2212, 2287, 2293, 2306, 2312, 2331, 2337, 2350, 2362, 2373 …
+largest r over the five energies in the window: 5.5e-08 (potential, step 2962)
+largest r over steps 0 ... 2,000: 1.7e-13 (potential, step 1998)
+first step with max_k r_k > 1e-13: 1979 (kinetic largest there; cumulative count A 27,014 at that step)
+first step with max_k r_k > 1e-12: 2166 (kinetic largest there; cumulative count A 40,078 at that step)
+first step with max_k r_k > 1e-11: 2546 (potential largest there; cumulative count A 74,970 at that step)
+first step with max_k r_k > 1e-10: 2656 (potential largest there; cumulative count A 86,932 at that step)
+first step with max_k r_k > 1e-09: 2828 (potential largest there; cumulative count A 106,883 at that step)
+first step with max_k r_k > 1e-08: 2868 (potential largest there; cumulative count A 111,885 at that step)
+cumulative count A at step 2165 (the last step below 1e-12): 40,002
+energies first exceeding 1e-10, in order: potential at step 2656 (sign of d -), kinetic at step 2662 (sign of d +), dissipated at step 2801 (sign of d +), total at step 2809 (sign of d +), external work at step 2846 (sign of d +)
+first count difference minus the first step above 1e-10: 397 steps
+steps 2166 ... 3052: |d_ew| / max(|d_ep|, |d_ek|) median 0.165; d_ep and d_ek of opposite sign at 858 of 887 steps
+steps 2656 ... 3052: |d_ew| / max(|d_ep|, |d_ek|) median 0.045; d_ep and d_ek of opposite sign at 397 of 397 steps
+mean growth of max_k r_k: 1e-12 -> 1e-10 in 490 steps (0.9 % per step); 1e-10 -> 1e-8 in 212 steps (2.2 % per step)
+final (step 5,000): cohesive elements 471,932 / 471,940 (relative 1.7e-05); insertion steps 4,114 / 4,114; energies relative to their own values: dissipated 6.0e-05, potential 1.6e-05, kinetic 5.4e-05, external work 1.6e-05, total 1.4e-08; largest 6.0e-05
+static solves (step 0): r(E_p) 5.5e-15; stable time step relative difference 4.2e-13
+
+recorded in both summaries and equal: psize, max_steps, nb_global_nodes_start, nb_regular_elements_dim3, rust_static_matrix, rust_static_sparse_solver, rust_cohesive_compat, rust_doubled_node_load
+MUMPS (A, B): nb_proc 64 / 64, sym 2 / 2, infog7_ordering 4 / 4
+binary.sha256 equal: True (b321054d…)
+
+## 32 ranks: one node (A, the rerun) against eight hosts (B, joss32x8)
+A = docs/benchmarks/c1-rerun-2026-11-13/rust-np32-a1/run
+B = docs/benchmarks/mn-2026-11-13/main/joss32x8-a1
+1 (a) A: rust_cohesive_compat = upstream, rust_doubled_node_load = follows_elements  [as required]
+1 (a) B: rust_cohesive_compat = upstream, rust_doubled_node_load = follows_elements  [as required]
+steps compared: 0 ... 5000
+1 (c) cumulative counts equal through step 3,176: 152,520 elements in 2,290 insertion steps (count at step 1,122: 783 / 783)
+first count difference: step 3,177 (cumulative 152,659 / 152,660; inserted in that step 139 / 140; in step 3,178: 136 / 135; cumulative at 3,178: 152,795 / 152,795)
+after it: largest |c_A - c_B| 22, at the last step +2
+1 (b) magnitude: r_ew first exceeds 1e-10 at step 2686; largest r_ew in the window 1.86e-08 (step 3176)
+1 (b) jump: largest one-step growth of r_ew above the floor 5.7 at step 2790 (d_ew +1.920e-06 -> +1.095e-05 J; last sign change of d_ew between steps 2788 and 2789)
+envelope ratio J_ew in the window: at most 0.30 (step 2521)
+  J_ep at most 0.46 (step 2522; d_ep +1.173e-06 -> +1.910e-06 J, the change 1.3e-12 of L, |ep_A| / L 1.0e+00); J_ep > 1 at 0 steps
+  J_ek at most 0.46 (step 2638; d_ek +4.647e-06 -> +7.051e-06 J, the change 4.0e-12 of L, |ek_A| / L 3.7e-02); J_ek > 1 at 0 steps
+  J_ed at most 3.27 (step 3072; d_ed +9.949e-05 -> -3.081e-04 J, the change 6.4e-10 of L, |ed_A| / L 9.9e-05); J_ed > 1 at 5 steps: 2385, 2643, 2719, 2732, 3072
+  J_et at most 2.32 (step 2515; d_et +3.586e-08 -> +7.108e-07 J, the change 1.1e-12 of L, |et_A| / L 8.5e-01); J_et > 1 at 16 steps: 2384, 2505, 2509, 2510, 2512, 2515, 2516, 2520, 2526, 2527, 2531, 2532 …
+largest r over the five energies in the window: 6.0e-08 (potential, step 3176)
+largest r over steps 0 ... 2,000: 2.4e-14 (external work, step 2000)
+first step with max_k r_k > 1e-13: 2163 (potential largest there; cumulative count A 39,852 at that step)
+first step with max_k r_k > 1e-12: 2357 (kinetic largest there; cumulative count A 56,369 at that step)
+first step with max_k r_k > 1e-11: 2557 (kinetic largest there; cumulative count A 76,133 at that step)
+first step with max_k r_k > 1e-10: 2648 (potential largest there; cumulative count A 86,037 at that step)
+first step with max_k r_k > 1e-09: 2742 (potential largest there; cumulative count A 96,803 at that step)
+first step with max_k r_k > 1e-08: 2844 (potential largest there; cumulative count A 108,913 at that step)
+cumulative count A at step 2356 (the last step below 1e-12): 56,285
+energies first exceeding 1e-10, in order: potential at step 2648 (sign of d -), kinetic at step 2652 (sign of d +), external work at step 2686 (sign of d -), dissipated at step 2778 (sign of d -), total at step 2781 (sign of d -)
+first count difference minus the first step above 1e-10: 529 steps
+steps 2357 ... 3176: |d_ew| / max(|d_ep|, |d_ek|) median 0.215; d_ep and d_ek of opposite sign at 796 of 820 steps
+steps 2648 ... 3176: |d_ew| / max(|d_ep|, |d_ek|) median 0.111; d_ep and d_ek of opposite sign at 517 of 529 steps
+mean growth of max_k r_k: 1e-12 -> 1e-10 in 291 steps (1.6 % per step); 1e-10 -> 1e-8 in 196 steps (2.4 % per step)
+final (step 5,000): cohesive elements 471,936 / 471,934 (relative 4.2e-06); insertion steps 4,114 / 4,114; energies relative to their own values: dissipated 5.4e-05, potential 1.6e-05, kinetic 6.8e-05, external work 2.4e-05, total 9.3e-07; largest 6.8e-05
+static solves (step 0): r(E_p) 4.1e-15; stable time step relative difference 2.8e-13
+
+recorded in both summaries and equal: psize, max_steps, nb_global_nodes_start, nb_regular_elements_dim3, rust_static_matrix, rust_static_sparse_solver, rust_cohesive_compat, rust_doubled_node_load
+MUMPS (A, B): nb_proc 32 / 32, sym 2 / 2, infog7_ordering 4 / 4
+binary.sha256 equal: True (b321054d…)
+B's partition: file:/mn/work/partitions/partition-np32.csv, sha256 4c5cf70d…, matches the replayed file: True; ranks per host 4, bind core
+
+dissipated energy of step 2385 (the 64-rank control's largest J_ed) in the four runs: rust-np64-a1 4.1968021899e-02 J, rust-np32-a1 4.1967927706e-02 J, joss64x8 4.1968738759e-02 J, joss32x8 4.1968006163e-02 J; spread 8.1e-07 J
+
+## Summary of the three pairs
+| Pair | First step > 1e-12 of L | First step > 1e-10 of L | First count difference | Largest r before it | Cohesive elements at 5,000 | Largest relative energy difference at 5,000 |
+|---|---|---|---|---|---|---|
+| 64 against 32 ranks, one node each | 2,423 | 2,653 | 3,177 | 6.4e-08 | 471,932 / 471,936 | 3.5e-05 |
+| 64 ranks | 2,166 | 2,656 | 3,053 | 5.5e-08 | 471,932 / 471,940 | 6.0e-05 |
+| 32 ranks | 2,357 | 2,648 | 3,177 | 6.0e-08 | 471,936 / 471,934 | 6.8e-05 |
+
+## The per-copy check at full size (percopy-joss64x8, percopy-joss32x8)
+### percopy-joss64x8-a1: 64 ranks on 8 hosts (8 per host), outcome ok, exit 0
+1 provenance: rust_cohesive_compat = upstream, rust_doubled_node_load = follows_elements, rust_load_check_every = 1, max_steps = 3200, psize = 64; partition sha256 6f8dbbac… (matches the replayed file: True); binary d6d03541…
+2 completeness: summary checks 3201, last_step 3200; load_check.csv 3201 rows, steps 0 ... 3200, contiguous: True
+3 verdict: failed_checks 0, verdict pass, rows not 'pass': 0; largest max_rel_diff 2.57e-15 at step 3141 (summary: 2.57e-15 at step 3141); bound 1e-12
+4 not vacuous: first doubled loaded node at step 829 (summary 829); at the last step doubled loaded nodes 12,174 (summary 12,174), moved contributions 32,630 (summary 32,630); doubled_loaded never decreasing: True
+5 D-108's rule never exercised: moved_from_written_nodes_sum max 0, foreign_writes_sum max 0, reset_nodes_sum max 0, forgotten_entries_sum max 0 (summary: moved_from_written_nodes 0, foreign_writes 0)
+6 consistency: ranks_with_store min 64 (P = 64); applications_min = applications_max = 6 + 4 floor(step / 100) in every row: True (134 at step 3200); largest total_rel_diff 4.4e-12
+cohesive elements at step 3200: 155,909; chrono load_check 99.1 s of a wall 1762 s
+### percopy-joss32x8-a1: 32 ranks on 8 hosts (4 per host), outcome ok, exit 0
+1 provenance: rust_cohesive_compat = upstream, rust_doubled_node_load = follows_elements, rust_load_check_every = 1, max_steps = 3200, psize = 32; partition sha256 4c5cf70d… (matches the replayed file: True); binary d6d03541…
+2 completeness: summary checks 3201, last_step 3200; load_check.csv 3201 rows, steps 0 ... 3200, contiguous: True
+3 verdict: failed_checks 0, verdict pass, rows not 'pass': 0; largest max_rel_diff 2.57e-15 at step 3141 (summary: 2.57e-15 at step 3141); bound 1e-12
+4 not vacuous: first doubled loaded node at step 829 (summary 829); at the last step doubled loaded nodes 12,172 (summary 12,172), moved contributions 32,462 (summary 32,462); doubled_loaded never decreasing: True
+5 D-108's rule never exercised: moved_from_written_nodes_sum max 0, foreign_writes_sum max 0, reset_nodes_sum max 0, forgotten_entries_sum max 0 (summary: moved_from_written_nodes 0, foreign_writes 0)
+6 consistency: ranks_with_store min 32 (P = 32); applications_min = applications_max = 6 + 4 floor(step / 100) in every row: True (134 at step 3200); largest total_rel_diff 4.8e-12
+cohesive elements at step 3200: 155,909; chrono load_check 84.3 s of a wall 1961 s
+7 between the two runs: cumulative insertion counts equal through step 3106 (first difference at step 3107); first doubled loaded node 829 / 829; through step 3106: fmax relative difference at most 2.2e-16, owned totals |Σf_64 - Σf_32| / fmax at most 1.6e-11
+the 5,000-step rerun at 64 ranks holds 155,909 cohesive elements at step 3,200 (33.0 % of its 471,932)
+
+## The smoke session (mn-2026-11-13/smoke)
+s-eig-h1-a1: outcome ok, 8 ranks on 1 hosts (8 per host), solver eigen, static eigen, settings as required: True, cohesive 416, wall 21 s
+s-eig-h8-a1: outcome ok, 8 ranks on 8 hosts (1 per host), solver eigen, static eigen, settings as required: True, cohesive 416, wall 29 s
+s-mumps-h1-a1: outcome ok, 8 ranks on 1 hosts (8 per host), solver auto, static mumps (MUMPS nb_proc 8), settings as required: True, cohesive 416, wall 12 s
+s-mumps-h8-a1: outcome ok, 8 ranks on 8 hosts (1 per host), solver auto, static mumps (MUMPS nb_proc 8), settings as required: True, cohesive 416, wall 21 s
+s-p64-a1: outcome ok, 64 ranks on 8 hosts (8 per host), solver auto, static mumps (MUMPS nb_proc 64), settings as required: True, cohesive 1146, wall 169 s
+binary.sha256: 1 distinct value(s) (b321054d…)
+Eigen, 8 ranks, 1 host against 8 hosts: energies.csv byte-identical True, insertions.csv byte-identical True, summary physics keys identical True
+MUMPS, 8 ranks, 1 host against 8 hosts: insertions.csv byte-identical True; cohesive 416 / 416; largest relative difference per energy over the run (own value): dissipated 2.2e-10, potential 7.6e-15, kinetic 2.8e-13, external work 4.0e-12, total 3.0e-15; largest r (of the step's largest energy) 1.0e-14
+s-p64: ranks per host [8] on 8 hosts, mesh /mn/work/meshes/cube-h0.06.msh
+
+## The multi-node runs: rank 0's Chrono totals (s), one run per point
+### (a) The JOSS mesh, 5,000 steps: the single-node rerun against the eight-host run (same binary, same partition)
+| ranks | hosts | wall s | init s | read_mesh | dist_mesh | init_full | static solve | before_step | solve_step | check | energies | loop s |
+|---|---|---|---|---|---|---|---|---|---|---|---|---|
+| 64 | 1 (r7a.16xlarge) | 2,415 | 484 | 5.49 | 149.4 | 1.86 | 324.5 | 2.99 | 553.4 | 1,271.0 | 101.5 | 1,926 |
+| 64 | 8 (8 per host) | 2,679 | 467 | 6.75 | 196.9 | 2.09 | 258.9 | 2.24 | 565.7 | 1,455.8 | 188.9 | 2,210 |
+| 64 | ratio 8 / 1 | 1.11 | 0.96 | 1.23 | 1.32 | 1.12 | 0.80 | 0.75 | 1.02 | 1.15 | 1.86 | 1.15 |
+| 32 | 1 (r7a.16xlarge) | 3,107 | 434 | 5.41 | 83.5 | 3.12 | 337.6 | 4.51 | 549.4 | 2,011.0 | 108.4 | 2,669 |
+| 32 | 8 (4 per host) | 3,072 | 380 | 5.33 | 82.1 | 3.07 | 285.8 | 4.07 | 512.6 | 2,038.7 | 138.9 | 2,690 |
+| 32 | ratio 8 / 1 | 0.99 | 0.88 | 0.99 | 0.98 | 0.99 | 0.85 | 0.90 | 0.93 | 1.01 | 1.28 | 1.01 |
+
+static solve of the same binary on the same 64-rank partition and host: test-np64 (20 steps) 350.2 s against rust-np64-a1 324.5 s (ratio 1.08); dist_mesh 149.5 s against 149.4 s
+
+per step (ms): 
+| ranks | where | solve_step | check | energies | loop | cohesive elements |
+|---|---|---|---|---|---|---|
+| 64 | 1 node | 110.7 | 254.2 | 20.3 | 385.2 | 471,932 |
+| 64 | 8 hosts | 113.1 | 291.2 | 37.8 | 442.1 | 471,940 |
+| 32 | 1 node | 109.9 | 402.2 | 21.7 | 533.8 | 471,936 |
+| 32 | 8 hosts | 102.5 | 407.7 | 27.8 | 538.0 | 471,934 |
+
+### (b) h = 0.04, 8 ranks on 1 / 2 / 4 / 8 hosts (one partition, replayed)
+| hosts | ranks per host | wall s | init s | read_mesh | dist_mesh | init_full | static solve | before_step | solve_step | check | energies | loop s | cohesive | wall / 1 host | loop / 1 host | solve_step / 1 host | check / 1 host | static / 1 host | peak GiB per host |
+|---|---|---|---|---|---|---|---|---|---|---|---|---|---|---|---|---|---|---|---|
+| 1 | 8 | 266 | 31 | 0.47 | 6.0 | 1.45 | 21.1 | 1.91 | 64.5 | 153.3 | 17.2 | 235 | 2,402 | 1.00 | 1.00 | 1.00 | 1.00 | 1.00 | 12.9 |
+| 2 | 4 | 205 | 25 | 0.46 | 2.0 | 1.42 | 18.9 | 1.69 | 42.9 | 119.9 | 16.7 | 180 | 2,402 | 0.77 | 0.76 | 0.67 | 0.78 | 0.90 | 6.0 |
+| 4 | 2 | 178 | 24 | 0.47 | 2.0 | 1.41 | 18.7 | 1.46 | 34.7 | 103.1 | 15.8 | 154 | 2,402 | 0.67 | 0.65 | 0.54 | 0.67 | 0.89 | 3.8 |
+| 8 | 1 | 169 | 23 | 0.46 | 2.1 | 1.41 | 17.5 | 1.26 | 31.5 | 100.6 | 14.1 | 146 | 2,402 | 0.64 | 0.62 | 0.49 | 0.66 | 0.83 | 2.3 |
+partition sha256 of the four runs: 1 distinct value(s); insertions.csv committed: {False}
+
+### (c) h = 0.04, 8 / 16 / 32 / 64 ranks on 1 / 2 / 4 / 8 hosts (8 per host): strong scaling
+| ranks | hosts | tets / rank | cohesive (insertion steps, first) | loop s | loop S (eff.) | solve_step S (eff.) | check S (eff.) | static solve S (eff.) | wall S (eff.) | dist_mesh s | init_full s |
+|---|---|---|---|---|---|---|---|---|---|---|---|
+| 8 | 1 | 69,859 | 2,402 (590, 705) | 235.0 | 1.00 (100 %) | 1.00 (100 %) | 1.00 (100 %) | 1.00 (100 %) | 1.00 (100 %) | 6.0 | 1.45 |
+| 16 | 2 | 34,929 | 2,402 (590, 705) | 150.6 | 1.56 (78 %) | 1.40 (70 %) | 1.71 (86 %) | 1.81 (91 %) | 1.55 (77 %) | 7.5 | 0.77 |
+| 32 | 4 | 17,464 | 2,402 (590, 705) | 130.2 | 1.80 (45 %) | 1.48 (37 %) | 2.29 (57 %) | 1.69 (42 %) | 1.73 (43 %) | 9.9 | 0.44 |
+| 64 | 8 | 8,732 | 2,402 (590, 705) | 182.9 | 1.28 (16 %) | 1.03 (13 %) | 1.86 (23 %) | 1.55 (19 %) | 1.25 (16 %) | 14.5 | 0.29 |
+
+### (d) weak scaling, about 70 k tetrahedra per rank, 8 ranks per host, 1,500 steps
+| ranks | hosts | mesh | tets | tets / rank | cohesive | first insertion | solve_step ms/step | check ms/step | loop ms/step | E_w (loop, 8 ranks / P) | core-µs/el/step | static solve s | wall s | peak GiB per host |
+|---|---|---|---|---|---|---|---|---|---|---|---|---|---|---|
+| 8 | 1 | cube-h0.04.msh | 558,875 | 69,859 | 2,402 | 705 | 43.0 | 102.2 | 156.6 | 1.00 | 2.08 | 21.1 | 266 | 12.9 |
+| 16 | 2 | cube-h0.032.msh | 1,118,239 | 69,890 | 3,137 | 678 | 54.9 | 114.1 | 184.9 | 0.85 | 2.42 | 47.5 | 347 | 17.1 |
+| 32 | 4 | cube-h0.025.msh | 2,256,352 | 70,511 | 3,855 | 746 | 70.6 | 138.7 | 232.4 | 0.67 | 2.97 | 101.5 | 513 | 26.9 |
+| 64 | 8 | cube-joss.msh | 4,392,183 | 68,628 | 6,350 | 683 | 94.2 | 166.5 | 298.3 | 0.53 | 3.80 | 230.8 | 836 | 28.6 |
+
+smoke-h012 (8 ranks, 1 per host on 8 hosts, h = 0.12): outcome ok, wall 21 s
+
+## The JOSS page's full-size table: the rerun's rows (port, corrected placement, one node)
+| Processes | Code | Wall s | init_full s | Static solve s | solve_step ms/step | Check ms/step | core-µs/el/step | Cohesive elements inserted | Insertion steps (first) | Peak memory GiB | Energies at the end: dissipated / potential / kinetic J |
+|---|---|---|---|---|---|---|---|---|---|---|---|
+| 64 | port, corrected placement | 2,415 | 1.86 | 324 | 111 | 254 | 5.32 | 471,932 | 4,114 (683) | 198.2 | 480.73 / 913,421.1 / 567,193.4 |
+| 32 | port, corrected placement | 3,107 | 3.12 | 338 | 110 | 402 | 3.73 | 471,936 | 4,114 (683) | 190.7 | 480.75 / 913,418.3 / 567,182.7 |

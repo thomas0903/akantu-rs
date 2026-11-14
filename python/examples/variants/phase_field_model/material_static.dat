@@ -1,0 +1,35 @@
+# akantu-rs: marked variant of upstream's
+# examples/python/phase_field_model/material_static.dat
+# (Akantu, EPFL/LSMS, LGPL-3.0-or-later). The solid's material and the phase-field law move into the
+# `model solid_mechanics_model` and `model phase_field_model` sections of the
+# coupler's two models (upstream reads the laws from them when they exist),
+# each with its static solver pinned.
+# Upstream's `_auto` sparse solver resolves to MUMPS in the oracle build;
+# the port's solve is bitwise against Eigen's. Every line marked
+# "akantu-rs:" is added; the other lines are upstream's.
+model solid_mechanics_model [  # akantu-rs: the laws move into the model section
+  material phasefield [
+  name = plate
+  	 rho = 1.
+  	 E = 210.0
+  	 nu = 0.3
+     eta = 1e-8
+  	 Plane_Stress = false
+  ]
+  time_step_solver static [  # akantu-rs: pin the sparse solver
+    sparse_solver_type = eigen  # akantu-rs:
+  ]  # akantu-rs:
+]  # akantu-rs:
+
+model phase_field_model [  # akantu-rs: the laws move into the model section
+  phasefield quadratic [
+        name = plate
+        l0 = 0.2
+        gc = 2.7e-3
+        E  = 210.0
+        nu = 0.3
+  ]
+  time_step_solver static [  # akantu-rs: pin the sparse solver
+    sparse_solver_type = eigen  # akantu-rs:
+  ]  # akantu-rs:
+]  # akantu-rs:

@@ -1,0 +1,59 @@
+# SPDX-License-Identifier: LGPL-3.0-or-later
+# akantu-rs CI tooling: floors on the number of tests a tier
+# must have executed, checked by ci/tools/count_tests.py. A run below a floor
+# fails: a vanished test binary, an empty workspace and a test filter that
+# matches nothing all exit 0 for cargo. Format: `<key>.result_lines = N` and
+# `<key>.passed = N`; the built-in minimum is 1 of each. Lowering a floor is
+# a reviewed change (tests removed on purpose); raising it after tests were
+# added is encouraged. The values are counts measured in the x86_64 project
+# images (November 2026). A floor equal to the measured count means any
+# vanished test fails the tier until the floor is lowered on purpose.
+# the `test` tier: 487 result lines / 3,704 passed (the `fast` preset).
+test.result_lines = 487
+test.passed = 3704
+miri-python.result_lines = 4
+miri-python.passed = 21
+miri-core-array-storage.result_lines = 1
+miri-core-array-storage.passed = 8
+release-cohesive.result_lines = 14
+release-cohesive.passed = 76
+release-linalg.result_lines = 14
+release-linalg.passed = 107
+release-solid-ported.result_lines = 1
+release-solid-ported.passed = 14
+release-core-parser.result_lines = 35
+release-core-parser.passed = 440
+release-dumpers.result_lines = 5
+release-dumpers.passed = 32
+# measured in the x86_64 image akantu-rs-mpi:dev, 2026-11-12:
+# the facade crate in release (`CI_RELEASE_ONLY=facade ci/run-all.sh --tiers release`)
+release-facade.result_lines = 36
+release-facade.passed = 263
+# the `exportall` tier (`akantu-core/export-all`)
+exportall.result_lines = 478
+exportall.passed = 3612
+# the `gates` tier (ci/tiers/gates.sh): one key per `cargo test` line of
+# ci/tools/feature-gates.txt (the line's position); line 10 is the whole
+# akantu-solid release run.
+# Line 6 is the release tier's facade run (release-facade above).
+gates-2.result_lines = 17
+gates-2.passed = 65
+gates-4.result_lines = 37
+gates-4.passed = 244
+gates-5.result_lines = 24
+gates-5.passed = 260
+gates-8.result_lines = 6
+gates-8.passed = 46
+gates-10.result_lines = 81
+gates-10.passed = 673
+# the three spatial convergence lines (one test binary each: --test selections run no other binary and no doc tests)
+gates-11.result_lines = 1
+gates-11.passed = 27
+gates-12.result_lines = 1
+gates-12.passed = 27
+gates-13.result_lines = 1
+gates-13.passed = 5
+# the `akantu-bench` release replays, line 23 of ci/tools/feature-gates.txt : measured on a
+# `features:gates` replay (6 result lines, 18 passed; the line runs in 33 s on a warm release target)
+gates-23.result_lines = 6
+gates-23.passed = 18

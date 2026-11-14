@@ -1,0 +1,803 @@
+{
+  "format_version": 1,
+  "case_id": "model/couplers/cohesive_contact_callback",
+  "description": "examples/c++/contact_mechanics_model/hertz/cohesive_contact_explicit_dynamic.cc with epsilon_n = 1e3, 2500 loading steps then unloading (+-1e-3/2500 per step), 3000 steps, solved with solid.solveStep(CohesiveContactSolverCallback)",
+  "status": "golden",
+  "generator": {
+    "probe": "couplers_probe",
+    "probe_version": "1",
+    "command": "oracle/probes/couplers/generate.sh "
+  },
+  "reference": {
+    "sha": "35a851780d0b9471d258ed53a003ae98aaa95ea0",
+    "describe": "v5.0.7-post1-554-g35a851780",
+    "patches": [
+      "modified:cmake/AkantuTestsMacros.cmake sha256=c280165a84912eab4bcc081b9eaaaa06aafdd83d4f48d982e11b0859abf9672f (reference sha256=36290de2ec8b111028138fe82029efa16501512241a5bc264fa30ff3e3239b9e)"
+    ]
+  },
+  "build": {
+  "config": "strict",
+  "compiler": "g++ (Debian 14.2.0-19) 14.2.0",
+  "cxx_flags": "-ffp-contract=off -DEIGEN_DONT_VECTORIZE -O2 -g -DNDEBUG -g3 -ggdb3 -flarge-source-files -std=c++20 -flto=auto -fno-fat-lto-objects -fPIC -frounding-math (actual flags of src/model/solid_mechanics/solid_mechanics_model.cc; warnings and non-FP -D defines omitted)",
+  "build_type": "RelWithDebInfo",
+  "arch": "x86_64",
+  "os": "Debian GNU/Linux 13 (trixie)",
+  "libraries": {
+    "eigen3": "3.4.0-5",
+    "boost": "1.83.0.2+b2",
+    "openmpi": "5.0.7-1",
+    "mumps": "5.7.3-3+b1",
+    "petsc": "3.22.5+dfsg1-2",
+    "scotch": "7.0.7-1",
+    "openblas": "0.3.29+ds-3",
+    "scalapack": "2.2.2-1",
+    "hdf5": "1.14.5+repack-3",
+    "gmsh": "4.13.1+ds1-6",
+    "pybind11": "2.13.6-2",
+    "numpy": "1:2.2.4+ds-1",
+    "scipy": "1.15.3-1",
+    "gcc": "4:14.2.0-1",
+    "gfortran": "4:14.2.0-1",
+    "oracle_image": "sha256:45122c213e9fa194b6b58dcc31fc23b5fa4f7c0f64d0a452e40ae072c51c5cdb",
+    "oracle_build_scripts": "e168f393291494c869fa759b3ad9ae4a371a0369",
+    "oracle_install_reference_sha": "35a851780d0b9471d258ed53a003ae98aaa95ea0",
+    "oracle_install_image": "sha256:45122c213e9fa194b6b58dcc31fc23b5fa4f7c0f64d0a452e40ae072c51c5cdb",
+    "sha256:libakantu.so.5.0.7": "5491d902b6f363e11b47d2dc1d0aff0597374e8ff785bbfe2bff534f38509e81",
+    "probe_tree_sha256": "7c6e107e38aa587223ccc5c0a1cebf94c1d3ba8171458bd33ecdbb7618c12869",
+    "probe_sources_commit": "bfd186024da3b9fea83a552f78b2b202e206620c",
+    "cmake_cxx_flags": "-ffp-contract=off -DEIGEN_DONT_VECTORIZE -O2 -g -DNDEBUG -g3 -ggdb3 -flarge-source-files",
+    "probe": "couplers_probe"
+  },
+  "probe_compile_command": "/usr/bin/c++ '-DAKANTU_PROBE_BUILD_TYPE=\"RelWithDebInfo\"' '-DAKANTU_PROBE_CONFIG=\"strict\"' '-DAKANTU_PROBE_CXX_FLAGS=\"-ffp-contract=off -DEIGEN_DONT_VECTORIZE  -O2 -g -DNDEBUG\"' -DBOOST_GRAPH_DYN_LINK -DBOOST_GRAPH_NO_LIB -DBOOST_REGEX_DYN_LINK -DBOOST_REGEX_NO_LIB -DCGAL_USE_GMPXX=1 -I/probes/couplers/../include -isystem /build/install-strict/include/akantu -isystem /opt/CGAL-5.6.2/include -isystem /usr/lib/x86_64-linux-gnu/openmpi/include -isystem /usr/lib/x86_64-linux-gnu/openmpi/include/openmpi -isystem /usr/lib/petscdir/petsc3.22/x86_64-linux-gnu-real/include -isystem /usr/include/scotch -isystem /build/install-strict/include/akantu_iterators -isystem /usr/include/eigen3 -isystem /build/install-strict/include/iohelper -O2 -g -DNDEBUG -std=gnu++20 -ffp-contract=off -DEIGEN_DONT_VECTORIZE -Wall -Wextra -pedantic -Wno-array-bounds -Wno-use-after-free -Wno-stringop-overread -DOMPI_SKIP_MPICXX -Wno-literal-suffix -frounding-math -o CMakeFiles/couplers_probe.dir/couplers_probe.cc.o -c /probes/couplers/couplers_probe.cc",
+  "probe_cxx_flags": "-DAKANTU_PROBE_BUILD_TYPE=\"RelWithDebInfo\" -DAKANTU_PROBE_CONFIG=\"strict\" -DAKANTU_PROBE_CXX_FLAGS=\"-ffp-contract=off -DEIGEN_DONT_VECTORIZE  -O2 -g -DNDEBUG\" -DBOOST_GRAPH_DYN_LINK -DBOOST_GRAPH_NO_LIB -DBOOST_REGEX_DYN_LINK -DBOOST_REGEX_NO_LIB -DCGAL_USE_GMPXX=1 -O2 -g -DNDEBUG -std=gnu++20 -ffp-contract=off -DEIGEN_DONT_VECTORIZE -Wall -Wextra -pedantic -Wno-array-bounds -Wno-use-after-free -Wno-stringop-overread -DOMPI_SKIP_MPICXX -Wno-literal-suffix -frounding-math"
+},
+  "created": "2026-11-11T04:38:08Z",
+  "inputs": [
+    {
+      "role": "mesh",
+      "path": "inputs/cohesive-contact.msh",
+      "source": "examples/c++/contact_mechanics_model/hertz/cohesive-contact.geo",
+      "sha256": "4825e738b8e78f5d16bc34c72e618eb4c22c45574ce2e3604d28c27a54c9d8dd"
+    },
+    {
+      "role": "material",
+      "path": "inputs/couplers_probe_cohesive_contact_callback_material.dat",
+      "source": "examples/c++/contact_mechanics_model/hertz/material-cohesive.dat (epsilon_n = 1e+03)",
+      "sha256": "44cbaff1aee4cf3190c3e76d3853ea1eb12c864070e830b92f6d1d32cb90acde"
+    },
+    {
+      "role": "digests",
+      "path": "inputs/couplers_probe_cohesive_contact_callback_digests.txt",
+      "sha256": "c1fcd15458b17333afd3655e9f9c4be6e610fcc7d5f5a9d630dd671a03149d85"
+    }
+  ],
+  "parameters": {
+    "steps": 3000,
+    "loading_steps": 2500,
+    "increment": 3.9999999999999998e-07,
+    "epsilon_n": 1000.0,
+    "callback": true
+  },
+  "storage": {
+    "mode": "committed",
+    "bytes": 67224
+  },
+  "quantities": [
+    {
+      "name": "time_step",
+      "file": "data/time_step.npy",
+      "dtype": "f64",
+      "shape": [
+        1
+      ],
+      "axes": [
+        "entry"
+      ],
+      "layout": "table",
+      "sha256": "defada4c2812d85fb1fc948849a6905e14839bdba0f85a0f5eaa064f9e5ccb25",
+      "description": "0.1 x stable time step"
+    },
+    {
+      "name": "step_0/displacement",
+      "file": "data/step_0__displacement.npy",
+      "dtype": "f64",
+      "shape": [
+        15,
+        2
+      ],
+      "axes": [
+        "entry",
+        "component"
+      ],
+      "layout": "table",
+      "sha256": "b5ea4d4321daab3960bbe95f7b4c0cba2995d357d62c135069046c5b21839b3b",
+      "description": "displacement"
+    },
+    {
+      "name": "step_0/velocity",
+      "file": "data/step_0__velocity.npy",
+      "dtype": "f64",
+      "shape": [
+        15,
+        2
+      ],
+      "axes": [
+        "entry",
+        "component"
+      ],
+      "layout": "table",
+      "sha256": "c1457d7bd226abe3c210eab0f3f570de7fc5df6ed25afa61790927ba7bc93949",
+      "description": "velocity"
+    },
+    {
+      "name": "step_0/contact_force",
+      "file": "data/step_0__contact_force.npy",
+      "dtype": "f64",
+      "shape": [
+        15,
+        2
+      ],
+      "axes": [
+        "entry",
+        "component"
+      ],
+      "layout": "table",
+      "sha256": "7b6ad4fdee015864513a43181fe10ac02ac45170670980c3ea3008254aef8c64",
+      "description": "contact force"
+    },
+    {
+      "name": "step_0/gaps",
+      "file": "data/step_0__gaps.npy",
+      "dtype": "f64",
+      "shape": [
+        15,
+        1
+      ],
+      "axes": [
+        "entry",
+        "component"
+      ],
+      "layout": "table",
+      "sha256": "7316ac9c510768593817ec24381b73ca946a28e6c49006a37e4ad634c5445ccb",
+      "description": "gaps"
+    },
+    {
+      "name": "step_0/areas",
+      "file": "data/step_0__areas.npy",
+      "dtype": "f64",
+      "shape": [
+        15,
+        1
+      ],
+      "axes": [
+        "entry",
+        "component"
+      ],
+      "layout": "table",
+      "sha256": "0dae7dcc16cfde00f9449c13798b9dcec86146dd090c7d9f12e4087986772a1a",
+      "description": "nodal areas"
+    },
+    {
+      "name": "step_1/displacement",
+      "file": "data/step_1__displacement.npy",
+      "dtype": "f64",
+      "shape": [
+        15,
+        2
+      ],
+      "axes": [
+        "entry",
+        "component"
+      ],
+      "layout": "table",
+      "sha256": "2da78b29eae1dfb81111047c3d189eb5a66b9a4a477cdad6b89b850bc385e6f1",
+      "description": "displacement"
+    },
+    {
+      "name": "step_1/velocity",
+      "file": "data/step_1__velocity.npy",
+      "dtype": "f64",
+      "shape": [
+        15,
+        2
+      ],
+      "axes": [
+        "entry",
+        "component"
+      ],
+      "layout": "table",
+      "sha256": "7b599d4d03dabc7ca5ed81bf3ee48cd237f6afa2e00b1167cbfba714dc76ac9a",
+      "description": "velocity"
+    },
+    {
+      "name": "step_1/contact_force",
+      "file": "data/step_1__contact_force.npy",
+      "dtype": "f64",
+      "shape": [
+        15,
+        2
+      ],
+      "axes": [
+        "entry",
+        "component"
+      ],
+      "layout": "table",
+      "sha256": "7b6ad4fdee015864513a43181fe10ac02ac45170670980c3ea3008254aef8c64",
+      "description": "contact force"
+    },
+    {
+      "name": "step_1/gaps",
+      "file": "data/step_1__gaps.npy",
+      "dtype": "f64",
+      "shape": [
+        15,
+        1
+      ],
+      "axes": [
+        "entry",
+        "component"
+      ],
+      "layout": "table",
+      "sha256": "7316ac9c510768593817ec24381b73ca946a28e6c49006a37e4ad634c5445ccb",
+      "description": "gaps"
+    },
+    {
+      "name": "step_1/areas",
+      "file": "data/step_1__areas.npy",
+      "dtype": "f64",
+      "shape": [
+        15,
+        1
+      ],
+      "axes": [
+        "entry",
+        "component"
+      ],
+      "layout": "table",
+      "sha256": "0dae7dcc16cfde00f9449c13798b9dcec86146dd090c7d9f12e4087986772a1a",
+      "description": "nodal areas"
+    },
+    {
+      "name": "step_1000/displacement",
+      "file": "data/step_1000__displacement.npy",
+      "dtype": "f64",
+      "shape": [
+        15,
+        2
+      ],
+      "axes": [
+        "entry",
+        "component"
+      ],
+      "layout": "table",
+      "sha256": "6993d8bb3533c5c5893455eba3c9b896e15221bb08faeabdb686c80a164dc23b",
+      "description": "displacement"
+    },
+    {
+      "name": "step_1000/velocity",
+      "file": "data/step_1000__velocity.npy",
+      "dtype": "f64",
+      "shape": [
+        15,
+        2
+      ],
+      "axes": [
+        "entry",
+        "component"
+      ],
+      "layout": "table",
+      "sha256": "7e3e81c1fc2e2af6d624e446d9db43ed72d7f61b42aae58bf933b029cd04ffb9",
+      "description": "velocity"
+    },
+    {
+      "name": "step_1000/contact_force",
+      "file": "data/step_1000__contact_force.npy",
+      "dtype": "f64",
+      "shape": [
+        15,
+        2
+      ],
+      "axes": [
+        "entry",
+        "component"
+      ],
+      "layout": "table",
+      "sha256": "7b6ad4fdee015864513a43181fe10ac02ac45170670980c3ea3008254aef8c64",
+      "description": "contact force"
+    },
+    {
+      "name": "step_1000/gaps",
+      "file": "data/step_1000__gaps.npy",
+      "dtype": "f64",
+      "shape": [
+        15,
+        1
+      ],
+      "axes": [
+        "entry",
+        "component"
+      ],
+      "layout": "table",
+      "sha256": "7316ac9c510768593817ec24381b73ca946a28e6c49006a37e4ad634c5445ccb",
+      "description": "gaps"
+    },
+    {
+      "name": "step_1000/areas",
+      "file": "data/step_1000__areas.npy",
+      "dtype": "f64",
+      "shape": [
+        15,
+        1
+      ],
+      "axes": [
+        "entry",
+        "component"
+      ],
+      "layout": "table",
+      "sha256": "0dae7dcc16cfde00f9449c13798b9dcec86146dd090c7d9f12e4087986772a1a",
+      "description": "nodal areas"
+    },
+    {
+      "name": "step_1999/displacement",
+      "file": "data/step_1999__displacement.npy",
+      "dtype": "f64",
+      "shape": [
+        18,
+        2
+      ],
+      "axes": [
+        "entry",
+        "component"
+      ],
+      "layout": "table",
+      "sha256": "da7f0f203b20503e722fd3fe4e4f4099056a68127e0c7b1de8a48f4863b57b36",
+      "description": "displacement"
+    },
+    {
+      "name": "step_1999/velocity",
+      "file": "data/step_1999__velocity.npy",
+      "dtype": "f64",
+      "shape": [
+        18,
+        2
+      ],
+      "axes": [
+        "entry",
+        "component"
+      ],
+      "layout": "table",
+      "sha256": "f79f0a2d226efd7da2ae9d2b68b85cbc08aea24b5080fd0bc77d87e11c6c9983",
+      "description": "velocity"
+    },
+    {
+      "name": "step_1999/contact_force",
+      "file": "data/step_1999__contact_force.npy",
+      "dtype": "f64",
+      "shape": [
+        18,
+        2
+      ],
+      "axes": [
+        "entry",
+        "component"
+      ],
+      "layout": "table",
+      "sha256": "bd112e99cd54c97e05c9483779ba380a317e10fe6d0e466783780af55395e190",
+      "description": "contact force"
+    },
+    {
+      "name": "step_1999/gaps",
+      "file": "data/step_1999__gaps.npy",
+      "dtype": "f64",
+      "shape": [
+        18,
+        1
+      ],
+      "axes": [
+        "entry",
+        "component"
+      ],
+      "layout": "table",
+      "sha256": "4c00eb11168b507e70849911fcd9dbb0cac64437bc3353773a6eb8fbfb096e74",
+      "description": "gaps"
+    },
+    {
+      "name": "step_1999/areas",
+      "file": "data/step_1999__areas.npy",
+      "dtype": "f64",
+      "shape": [
+        18,
+        1
+      ],
+      "axes": [
+        "entry",
+        "component"
+      ],
+      "layout": "table",
+      "sha256": "d6e47cebb5dd38b6d74a08e9465a67b3ead413d2d16131eb730dd07192522079",
+      "description": "nodal areas"
+    },
+    {
+      "name": "step_2000/displacement",
+      "file": "data/step_2000__displacement.npy",
+      "dtype": "f64",
+      "shape": [
+        18,
+        2
+      ],
+      "axes": [
+        "entry",
+        "component"
+      ],
+      "layout": "table",
+      "sha256": "86e71e7dcff155bb3217d6fbfe35df4590b831a86f3da18ee5e572750f9cc6d6",
+      "description": "displacement"
+    },
+    {
+      "name": "step_2000/velocity",
+      "file": "data/step_2000__velocity.npy",
+      "dtype": "f64",
+      "shape": [
+        18,
+        2
+      ],
+      "axes": [
+        "entry",
+        "component"
+      ],
+      "layout": "table",
+      "sha256": "fb93279460c980bf90c442414678dff5d58720b6816b301cedf90b5ae6f605c3",
+      "description": "velocity"
+    },
+    {
+      "name": "step_2000/contact_force",
+      "file": "data/step_2000__contact_force.npy",
+      "dtype": "f64",
+      "shape": [
+        18,
+        2
+      ],
+      "axes": [
+        "entry",
+        "component"
+      ],
+      "layout": "table",
+      "sha256": "bd112e99cd54c97e05c9483779ba380a317e10fe6d0e466783780af55395e190",
+      "description": "contact force"
+    },
+    {
+      "name": "step_2000/gaps",
+      "file": "data/step_2000__gaps.npy",
+      "dtype": "f64",
+      "shape": [
+        18,
+        1
+      ],
+      "axes": [
+        "entry",
+        "component"
+      ],
+      "layout": "table",
+      "sha256": "4c00eb11168b507e70849911fcd9dbb0cac64437bc3353773a6eb8fbfb096e74",
+      "description": "gaps"
+    },
+    {
+      "name": "step_2000/areas",
+      "file": "data/step_2000__areas.npy",
+      "dtype": "f64",
+      "shape": [
+        18,
+        1
+      ],
+      "axes": [
+        "entry",
+        "component"
+      ],
+      "layout": "table",
+      "sha256": "d6e47cebb5dd38b6d74a08e9465a67b3ead413d2d16131eb730dd07192522079",
+      "description": "nodal areas"
+    },
+    {
+      "name": "step_2499/displacement",
+      "file": "data/step_2499__displacement.npy",
+      "dtype": "f64",
+      "shape": [
+        18,
+        2
+      ],
+      "axes": [
+        "entry",
+        "component"
+      ],
+      "layout": "table",
+      "sha256": "d57876e2698e3816014be81fdd96368333f2d5bab73c8120048ddb135f41d103",
+      "description": "displacement"
+    },
+    {
+      "name": "step_2499/velocity",
+      "file": "data/step_2499__velocity.npy",
+      "dtype": "f64",
+      "shape": [
+        18,
+        2
+      ],
+      "axes": [
+        "entry",
+        "component"
+      ],
+      "layout": "table",
+      "sha256": "7e06a82b16874db35c05d40e46a5dcb35358f90230861ec9718ede324634a642",
+      "description": "velocity"
+    },
+    {
+      "name": "step_2499/contact_force",
+      "file": "data/step_2499__contact_force.npy",
+      "dtype": "f64",
+      "shape": [
+        18,
+        2
+      ],
+      "axes": [
+        "entry",
+        "component"
+      ],
+      "layout": "table",
+      "sha256": "bd112e99cd54c97e05c9483779ba380a317e10fe6d0e466783780af55395e190",
+      "description": "contact force"
+    },
+    {
+      "name": "step_2499/gaps",
+      "file": "data/step_2499__gaps.npy",
+      "dtype": "f64",
+      "shape": [
+        18,
+        1
+      ],
+      "axes": [
+        "entry",
+        "component"
+      ],
+      "layout": "table",
+      "sha256": "4c00eb11168b507e70849911fcd9dbb0cac64437bc3353773a6eb8fbfb096e74",
+      "description": "gaps"
+    },
+    {
+      "name": "step_2499/areas",
+      "file": "data/step_2499__areas.npy",
+      "dtype": "f64",
+      "shape": [
+        18,
+        1
+      ],
+      "axes": [
+        "entry",
+        "component"
+      ],
+      "layout": "table",
+      "sha256": "d6e47cebb5dd38b6d74a08e9465a67b3ead413d2d16131eb730dd07192522079",
+      "description": "nodal areas"
+    },
+    {
+      "name": "step_2500/displacement",
+      "file": "data/step_2500__displacement.npy",
+      "dtype": "f64",
+      "shape": [
+        18,
+        2
+      ],
+      "axes": [
+        "entry",
+        "component"
+      ],
+      "layout": "table",
+      "sha256": "f8a0d9bdae1fe44a104541b93a2db708118491ec22743103a76dcc76ee24813d",
+      "description": "displacement"
+    },
+    {
+      "name": "step_2500/velocity",
+      "file": "data/step_2500__velocity.npy",
+      "dtype": "f64",
+      "shape": [
+        18,
+        2
+      ],
+      "axes": [
+        "entry",
+        "component"
+      ],
+      "layout": "table",
+      "sha256": "e9f429e947fc3353383e546755e97be9bb831a2f4265de0077396e578f29600f",
+      "description": "velocity"
+    },
+    {
+      "name": "step_2500/contact_force",
+      "file": "data/step_2500__contact_force.npy",
+      "dtype": "f64",
+      "shape": [
+        18,
+        2
+      ],
+      "axes": [
+        "entry",
+        "component"
+      ],
+      "layout": "table",
+      "sha256": "bd112e99cd54c97e05c9483779ba380a317e10fe6d0e466783780af55395e190",
+      "description": "contact force"
+    },
+    {
+      "name": "step_2500/gaps",
+      "file": "data/step_2500__gaps.npy",
+      "dtype": "f64",
+      "shape": [
+        18,
+        1
+      ],
+      "axes": [
+        "entry",
+        "component"
+      ],
+      "layout": "table",
+      "sha256": "4c00eb11168b507e70849911fcd9dbb0cac64437bc3353773a6eb8fbfb096e74",
+      "description": "gaps"
+    },
+    {
+      "name": "step_2500/areas",
+      "file": "data/step_2500__areas.npy",
+      "dtype": "f64",
+      "shape": [
+        18,
+        1
+      ],
+      "axes": [
+        "entry",
+        "component"
+      ],
+      "layout": "table",
+      "sha256": "d6e47cebb5dd38b6d74a08e9465a67b3ead413d2d16131eb730dd07192522079",
+      "description": "nodal areas"
+    },
+    {
+      "name": "step_2999/displacement",
+      "file": "data/step_2999__displacement.npy",
+      "dtype": "f64",
+      "shape": [
+        18,
+        2
+      ],
+      "axes": [
+        "entry",
+        "component"
+      ],
+      "layout": "table",
+      "sha256": "e61238d5a16c1f10285fda15919a60b36854e4718d8f48273831bb8d327ca4fd",
+      "description": "displacement"
+    },
+    {
+      "name": "step_2999/velocity",
+      "file": "data/step_2999__velocity.npy",
+      "dtype": "f64",
+      "shape": [
+        18,
+        2
+      ],
+      "axes": [
+        "entry",
+        "component"
+      ],
+      "layout": "table",
+      "sha256": "b80d9470af1f10e36b1896996b30b193692dddc6b03267dde378dd161e99253f",
+      "description": "velocity"
+    },
+    {
+      "name": "step_2999/contact_force",
+      "file": "data/step_2999__contact_force.npy",
+      "dtype": "f64",
+      "shape": [
+        18,
+        2
+      ],
+      "axes": [
+        "entry",
+        "component"
+      ],
+      "layout": "table",
+      "sha256": "bd112e99cd54c97e05c9483779ba380a317e10fe6d0e466783780af55395e190",
+      "description": "contact force"
+    },
+    {
+      "name": "step_2999/gaps",
+      "file": "data/step_2999__gaps.npy",
+      "dtype": "f64",
+      "shape": [
+        18,
+        1
+      ],
+      "axes": [
+        "entry",
+        "component"
+      ],
+      "layout": "table",
+      "sha256": "4c00eb11168b507e70849911fcd9dbb0cac64437bc3353773a6eb8fbfb096e74",
+      "description": "gaps"
+    },
+    {
+      "name": "step_2999/areas",
+      "file": "data/step_2999__areas.npy",
+      "dtype": "f64",
+      "shape": [
+        18,
+        1
+      ],
+      "axes": [
+        "entry",
+        "component"
+      ],
+      "layout": "table",
+      "sha256": "d6e47cebb5dd38b6d74a08e9465a67b3ead413d2d16131eb730dd07192522079",
+      "description": "nodal areas"
+    },
+    {
+      "name": "nb_contact_elements",
+      "file": "data/nb_contact_elements.npy",
+      "dtype": "i64",
+      "shape": [
+        3000
+      ],
+      "axes": [
+        "entry"
+      ],
+      "layout": "table",
+      "sha256": "d25a4f158749bd9bbeaae2e511e5ee13a24046919170166fb85807c30c3e735d",
+      "description": "contact elements after each step"
+    },
+    {
+      "name": "inserted",
+      "file": "data/inserted.npy",
+      "dtype": "i64",
+      "shape": [
+        3000
+      ],
+      "axes": [
+        "entry"
+      ],
+      "layout": "table",
+      "sha256": "0a69da22634e0a98f5124b68c90a7029fc92deaf618f0675684b7ae16734d822",
+      "description": "cumulative inserted cohesive elements after each step"
+    },
+    {
+      "name": "energy/potential",
+      "file": "data/energy__potential.npy",
+      "dtype": "f64",
+      "shape": [
+        301
+      ],
+      "axes": [
+        "entry"
+      ],
+      "layout": "table",
+      "sha256": "3cc9c51a900c0057ec8f9f1ab8ac8f48fe438065f51061aeb684251586f1343d",
+      "description": "solid potential energy every 10 steps (and the last)"
+    },
+    {
+      "name": "energy/kinetic",
+      "file": "data/energy__kinetic.npy",
+      "dtype": "f64",
+      "shape": [
+        301
+      ],
+      "axes": [
+        "entry"
+      ],
+      "layout": "table",
+      "sha256": "ad5658b4040b42847dc223bb1d1e8081c5dfa6876963e1d02850e3804bfbbc36",
+      "description": "solid kinetic energy every 10 steps (and the last)"
+    }
+  ],
+  "tags": [
+    "model",
+    "couplers",
+    "cohesive",
+    "contact"
+  ]
+}

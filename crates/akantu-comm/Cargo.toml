@@ -1,0 +1,86 @@
+# SPDX-License-Identifier: LGPL-3.0-or-later
+[package]
+name = "akantu-comm"
+description = "Communicator abstraction (serial / MPI), communication buffers, generic synchronizers and data accessors (port of src/synchronizer, generic part)"
+version.workspace = true
+edition.workspace = true
+rust-version.workspace = true
+license.workspace = true
+repository.workspace = true
+authors.workspace = true
+homepage.workspace = true
+keywords.workspace = true
+categories.workspace = true
+publish = false
+
+[features]
+# Real MPI backend (rsmpi raw bindings). Needs an MPI implementation
+# (OpenMPI 5 in the Linux test image) and libclang at build time; see
+# docs/TESTING.md. Never part of the default build.
+mpi = ["dep:mpi", "dep:cc"]
+
+[dependencies]
+akantu-core.workspace = true
+mpi = { workspace = true, optional = true }
+
+# Feature `mpi` only: compiles src/mpi_shim.c with mpicc (build.rs).
+[build-dependencies]
+cc = { workspace = true, optional = true }
+
+# Real-MPI acceptance binaries (harness = false): run under mpirun by
+# scripts/mpi/run-tests.sh, or as MPI singletons by `cargo test --features mpi`.
+[[test]]
+name = "mpi_acceptance"
+harness = false
+required-features = ["mpi"]
+
+[[test]]
+name = "mpi_abort_paths"
+harness = false
+required-features = ["mpi"]
+
+[[test]]
+name = "mpi_lifecycle"
+harness = false
+required-features = ["mpi"]
+
+[[test]]
+name = "mpi_progress"
+harness = false
+required-features = ["mpi"]
+
+[[test]]
+name = "mpi_self_messages"
+harness = false
+required-features = ["mpi"]
+
+# Native-collective regressions: MPI_Comm_c2f under the Serialized lock
+# (the binary interposes MPI_Comm_c2f) and the native job identity in the
+# header. harness = false, MPI_THREAD_SERIALIZED.
+[[test]]
+name = "review_v54_native"
+harness = false
+required-features = ["mpi"]
+
+# Native library entries:
+# native tickets and regions, nested entries, NativeMpi reductions of the
+# region thread. harness = false, run by scripts/mpi/run-mpi-tier.sh.
+[[test]]
+name = "native_regions"
+harness = false
+required-features = ["mpi"]
+
+# Point-to-point latency benchmark against raw MPI
+# (release build, run by scripts/mpi/run-mpi-tier.sh, docs/BENCHMARKS.md).
+[[example]]
+name = "mpi_bench"
+required-features = ["mpi"]
+
+# mpi4py-first probe: a cdylib loaded by scripts/mpi/mpi4py_first.py.
+[[example]]
+name = "mpi4py_probe"
+crate-type = ["cdylib"]
+required-features = ["mpi"]
+
+[lints]
+workspace = true

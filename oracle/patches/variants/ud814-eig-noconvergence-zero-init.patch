@@ -1,0 +1,54 @@
+akantu-rs oracle VARIANT patch ud814 — MatrixBase::eig: zero eigenpairs after NoConvergence
+
+NOT applied to the regular oracle builds (oracle/patches/variants/ is outside
+the oracle/patches/*.patch glob of oracle/scripts/in-container/build.sh).
+Applied on top of ud031-anisotropic-damage-zero-init.patch by
+oracle/scripts/build-ud031-variant.sh (the "UD-031 variant" of
+docs/ORACLE_BUILD.md section 12.1 carries both patches since WP-MAT-FIX5).
+Upstream: akantu 35a851780d0b9471d258ed53a003ae98aaa95ea0
+Defect: UD-814 (docs/UPSTREAM_DEFECTS.md, category A: undefined behaviour is
+compared against a patched oracle, D-003). Akantu's
+`MatrixBase::eig(values, vectors, sort)` (src/common/aka_types.hh) never
+checks `EigenSolver::info()`. After `NoConvergence` (Eigen's RealSchur does
+not deflate, e.g. on a 3 x 3 matrix holding NaN) `EigenSolver::compute`
+writes neither `m_eivalues` nor `m_eivec` but leaves `m_eigenvectorsOk` set,
+so `eig()` copies, sorts and returns the solver's uninitialised members
+(fixed-size Eigen matrices on the stack). Reached by the anisotropic damage
+law in 3-D once UD-763 has made the damage NaN (`tensorSqrt(1 - D)`), review
+V100 MX3-01: valgrind finds 686 uninitialised reads in
+variant_ud031/3d_uniaxial on a build with the UD-031 patch alone. Masked in
+every recorded quantity as long as the garbage is not a NaN with a payload
+(the stress is NaN through `(1 - D):sigma_el`), so the hunk changes no
+recorded value; it makes the goldens independent of stack contents.
+The hunk is a status check that returns zero eigenpairs, exactly what the
+following code returns if the two members had been zero-initialised
+(eigenvectors() of a zero `m_eivec` is zero, `normalize()` leaves a zero
+column alone, the complex-eigenvector check passes, the sort of equal
+values keeps the identity permutation). It only acts on NoConvergence: after
+NumericalIssue the solver has written the Schur vectors and, for N <= 2,
+every eigenvalue, so those defined values are left as upstream computes
+them. No formula is added or changed; every converged solve is untouched.
+The values-only overloads `eig()` / `eig(values)` share the defect but no
+variant case reaches them with a non-converging matrix (they see the strain
+and the never-written elastic stress, both finite), so they are not patched
+(minimal change).
+How to build: oracle/scripts/build-ud031-variant.sh (rebuilds the whole
+strict library: every translation unit includes aka_types.hh). Documented
+in docs/ORACLE_BUILD.md section 12.1.
+
+--- a/src/common/aka_types.hh
++++ b/src/common/aka_types.hh
+@@ -473,6 +473,13 @@
+   EigenSolver<akantu::details::MapPlainObjectType_t<std::decay_t<Derived>>>
+       solver(*this, true);
+ 
++  // akantu-rs UD-814 variant: zero eigenpairs after NoConvergence
++  if (solver.info() == Eigen::NoConvergence) {
++    values.setZero();
++    vectors.setZero();
++    return;
++  }
++
+   // as advised by the Eigen developers even though this is a UB
+   // auto & values = const_cast<MatrixBase<D1> &>(values_);
+   // auto & vectors = const_cast<MatrixBase<D2> &>(vectors_);

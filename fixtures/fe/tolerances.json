@@ -1,0 +1,130 @@
+{
+  "format_version": 1,
+  "rules": [
+    {
+      "quantity": "quad_points/*",
+      "justification": "Gauss tables are literals or short expressions of correctly rounded IEEE operations (sqrt, +, -, *, /) and tensor products of them; a faithful port evaluates the same expressions in the same order, so results are bit-identical (strict oracle build: no FMA contraction).",
+      "evidence": "strict-vs-default baseline not yet measured",
+      "reviewed_by": "independent review during the port, November 2026"
+    },
+    {
+      "quantity": "quad_weights/*",
+      "justification": "As quad_points: literal/closed-form constants and products thereof, bit-identical when evaluated in the same order.",
+      "evidence": "",
+      "reviewed_by": "independent review during the port, November 2026"
+    },
+    {
+      "quantity": "*connectivity*",
+      "justification": "Integer topology tables: exact.",
+      "reviewed_by": "independent review during the port, November 2026"
+    },
+    {
+      "quantity": "contains/*",
+      "justification": "Boolean predicate results and the exactly representable input points: exact.",
+      "reviewed_by": "independent review during the port, November 2026"
+    },
+    {
+      "quantity": "node_natural_coords",
+      "justification": "Reference node positions are exactly representable (0, +-1, 1/2).",
+      "reviewed_by": "independent review during the port, November 2026"
+    },
+    {
+      "quantity": "physical/*/nodes",
+      "justification": "Inputs echoed by the probe: exact.",
+      "reviewed_by": "independent review during the port, November 2026"
+    },
+    {
+      "quantity": "physical/*/monomials",
+      "justification": "Integer exponents: exact.",
+      "reviewed_by": "independent review during the port, November 2026"
+    },
+    {
+      "quantity": "physical/*/inverse_map/x",
+      "justification": "Inputs (images of Gauss points) computed by the probe; the Rust test must use them as given.",
+      "reviewed_by": "independent review during the port, November 2026"
+    },
+    {
+      "quantity": "shapes/*",
+      "justification": "Bitwise: akantu-fe transcribes every shape-function expression verbatim from element_classes/*_inline_impl.hh (same constants, parenthesisation and left-to-right evaluation; no FMA in Rust or in the strict oracle), so the IEEE results are identical. Tightened from 4 ulp / 2e-16.",
+      "evidence": "akantu-fe tests/element_class_matches_oracle.rs reproduces every value of the 20 Lagrange element-class fixtures bit for bit (macOS arm64 debug and release)",
+      "reviewed_by": "independent review during the port, November 2026"
+    },
+    {
+      "quantity": "dnds/*",
+      "justification": "Bitwise: natural derivatives transcribed verbatim from computeDNDS (same expression trees, no FMA). Tightened from 4 ulp / 1e-15.",
+      "evidence": "akantu-fe tests/element_class_matches_oracle.rs reproduces every value of the 20 Lagrange element-class fixtures bit for bit (macOS arm64 debug and release)",
+      "reviewed_by": "independent review during the port, November 2026"
+    },
+    {
+      "quantity": "d2nds2/*",
+      "justification": "Bitwise: second natural derivatives transcribed verbatim from computeD2NDS2 (element_classes/element_class_{segment_2,triangle_3,quadrangle_4}_inline_impl.hh: zero() then the constant entries ±1./4.), recorded only for the interpolations upstream implements.",
+      "evidence": "akantu-fe tests/element_class_matches_oracle.rs reproduces every d2nds2 value of the segment_2, triangle_3, quadrangle_4, cohesive_2d_4, cohesive_3d_6 and cohesive_3d_8 element-class fixtures bit for bit",
+      "reviewed_by": "independent review during the port, November 2026"
+    },
+    {
+      "quantity": "physical/*/inverse_map/xi",
+      "justification": "Bitwise (akantu-fe crate::eigen evaluates every product with akantu_core::eigen_gebp, reproducing the operand-type-dependent order: halving tree for compile-time lhs inner sizes, sequential otherwise, from +0 for GEMV, Eigen's gebp order for blocked GEMM) and partial-pivot LU determinants/inverses for the dynamic Jacobians. inverseMap: same Gauss-Newton iteration with upstream's operand types (dynamic X, Jt, G, F; fixed shape vector), so every iterate and the final point are identical. This includes hexahedron_20 / pentahedron_15, whose products Eigen sends to gebp (former GEMM-class case rules removed).",
+      "evidence": "akantu-fe tests/element_class_matches_oracle.rs reproduces every value of the 20 Lagrange element-class fixtures bit for bit (macOS arm64 debug and release)",
+      "reviewed_by": "independent review during the port, November 2026"
+    },
+    {
+      "quantity": "physical/*/inverse_map/xi_exact",
+      "justification": "Inputs (Gauss point coordinates): exact.",
+      "reviewed_by": "independent review during the port, November 2026"
+    },
+    {
+      "quantity": "physical/*/jmat",
+      "justification": "Bitwise (akantu-fe crate::eigen evaluates every product with akantu_core::eigen_gebp, reproducing the operand-type-dependent order: halving tree for compile-time lhs inner sizes, sequential otherwise, from +0 for GEMV, Eigen's gebp order for blocked GEMM) and partial-pivot LU determinants/inverses for the dynamic Jacobians. J = dnds * X^T with dynamic dnds and X (probe types): lazy sequential product when nd + sdim + nn < 20. This includes hexahedron_20 / pentahedron_15, whose products Eigen sends to gebp (former GEMM-class case rules removed).",
+      "evidence": "akantu-fe tests/element_class_matches_oracle.rs reproduces every value of the 20 Lagrange element-class fixtures bit for bit (macOS arm64 debug and release)",
+      "reviewed_by": "independent review during the port, November 2026"
+    },
+    {
+      "quantity": "physical/*/dndx",
+      "justification": "Bitwise (akantu-fe crate::eigen evaluates every product with akantu_core::eigen_gebp, reproducing the operand-type-dependent order: halving tree for compile-time lhs inner sizes, sequential otherwise, from +0 for GEMV, Eigen's gebp order for blocked GEMM) and partial-pivot LU determinants/inverses for the dynamic Jacobians. dN/dx = J.inverse() * dnds with dynamic operands (LU inverse, lazy sequential product). This includes hexahedron_20 / pentahedron_15, whose products Eigen sends to gebp (former GEMM-class case rules removed).",
+      "evidence": "akantu-fe tests/element_class_matches_oracle.rs reproduces every value of the 20 Lagrange element-class fixtures bit for bit (macOS arm64 debug and release)",
+      "reviewed_by": "independent review during the port, November 2026"
+    },
+    {
+      "quantity": "physical/*/quad_coords",
+      "justification": "Bitwise (akantu-fe crate::eigen evaluates every product with akantu_core::eigen_gebp, reproducing the operand-type-dependent order: halving tree for compile-time lhs inner sizes, sequential otherwise, from +0 for GEMV, Eigen's gebp order for blocked GEMM) and partial-pivot LU determinants/inverses for the dynamic Jacobians. x_q = X * N with a dynamic vector N: GEMV, sequential from +0.",
+      "evidence": "akantu-fe tests/element_class_matches_oracle.rs reproduces every value of the 20 Lagrange element-class fixtures bit for bit (macOS arm64 debug and release)",
+      "reviewed_by": "independent review during the port, November 2026"
+    },
+    {
+      "quantity": "physical/*/normals",
+      "justification": "Bitwise (akantu-fe crate::eigen evaluates every product with akantu_core::eigen_gebp, reproducing the operand-type-dependent order: halving tree for compile-time lhs inner sizes, sequential otherwise, from +0 for GEMV, Eigen's gebp order for blocked GEMM) and partial-pivot LU determinants/inverses for the dynamic Jacobians. Normals: X * dnds^T (dynamic X, dnds Matrix<Real, nd, Dynamic>), Math::normal (2-D dynamic normalisation, 3-D fixed cross product + normalized()).",
+      "evidence": "akantu-fe tests/element_class_matches_oracle.rs reproduces every value of the 20 Lagrange element-class fixtures bit for bit (macOS arm64 debug and release)",
+      "reviewed_by": "independent review during the port, November 2026"
+    },
+    {
+      "quantity": "physical/*/jacobians",
+      "justification": "Bitwise (akantu-fe crate::eigen evaluates every product with akantu_core::eigen_gebp, reproducing the operand-type-dependent order: halving tree for compile-time lhs inner sizes, sequential otherwise, from +0 for GEMV, Eigen's gebp order for blocked GEMM) and partial-pivot LU determinants/inverses for the dynamic Jacobians. det J by the dynamic partial-pivot LU (n <= 3), |J| (sequential) or |J0 x J1| (fixed 3-vector) for embedded elements. This includes hexahedron_20 / pentahedron_15, whose products Eigen sends to gebp (former GEMM-class case rules removed).",
+      "evidence": "akantu-fe tests/element_class_matches_oracle.rs reproduces every value of the 20 Lagrange element-class fixtures bit for bit (macOS arm64 debug and release)",
+      "reviewed_by": "independent review during the port, November 2026"
+    },
+    {
+      "quantity": "physical/*/integrals/*",
+      "justification": "Bitwise (akantu-fe crate::eigen evaluates every product with akantu_core::eigen_gebp, reproducing the operand-type-dependent order: halving tree for compile-time lhs inner sizes, sequential otherwise, from +0 for GEMV, Eigen's gebp order for blocked GEMM) and partial-pivot LU determinants/inverses for the dynamic Jacobians. The Rust test replays the probe's loop (res_k += w_q * detJ_q * m_k(x_q), m_k by repeated multiplication) with identical kernels. This includes hexahedron_20 / pentahedron_15, whose products Eigen sends to gebp (former GEMM-class case rules removed).",
+      "evidence": "akantu-fe tests/element_class_matches_oracle.rs reproduces every value of the 20 Lagrange element-class fixtures bit for bit (macOS arm64 debug and release)",
+      "reviewed_by": "independent review during the port, November 2026"
+    },
+    {
+      "quantity": "physical/*/inradius",
+      "justification": "Bitwise: getInradius formulas (Math::triangle_inradius, tetrahedron_inradius with Eigen closed-form 3x3 determinants, run-time-size distances, std::min semantics) transcribed verbatim.",
+      "evidence": "akantu-fe tests/element_class_matches_oracle.rs reproduces every value of the 20 Lagrange element-class fixtures bit for bit (macOS arm64 debug and release)",
+      "reviewed_by": "independent review during the port, November 2026"
+    },
+    {
+      "quantity": "structural/nodes",
+      "justification": "Inputs echoed by the probe: exact.",
+      "evidence": "Input echo, not compared: crates/akantu-fe/tests/structural_element_class_records.rs reads it as the coordinates fed to the kernels (reference_f64(\"structural/nodes\")); the rule settles the resolution check of crates/akantu-validation/tests/oracle_fixtures.rs for the three structural element-class cases.",
+      "reviewed_by": "independent review during the port, November 2026"
+    },
+    {
+      "quantity": "structural/*",
+      "justification": "Exact: computeDNDS and the beams' computeShapes are short closed forms in the element length and geometry, evaluated by akantu_fe::structural::StructuralElement in upstream's order (the same kernels replay fixtures/fe/structural bitwise); bit identity with the oracle is expected and measured.",
+      "evidence": "Replaces the rejected relative 2e-14 (no consumer, wrong class): crates/akantu-fe/tests/structural_element_class_records.rs replays structural/dnds and structural/shapes of _bernoulli_beam_2, _bernoulli_beam_3 (UD-293's upstream theta-y row) and _discrete_kirchhoff_triangle_18 at the recorded nodes, x_local = [0, 1.7] and the oracle's points of the default order: 330 of 330 values bit-identical (aarch64-generated fixture, macOS aarch64 run; the x86_64 check gate runs the same test).",
+      "reviewed_by": "independent review during the port, November 2026"
+    }
+  ]
+}

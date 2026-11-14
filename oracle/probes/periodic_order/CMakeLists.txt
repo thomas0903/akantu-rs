@@ -1,0 +1,26 @@
+# SPDX-License-Identifier: LGPL-3.0-or-later
+# akantu-rs: periodic-order oracle probes (UD-654), built
+# against the installed strict oracle like oracle/probes/smm/CMakeLists.txt
+# (same floating-point flags). Not ported from Akantu.
+cmake_minimum_required(VERSION 3.20)
+project(v90_probes LANGUAGES C CXX)
+if(POLICY CMP0167)
+  cmake_policy(SET CMP0167 NEW)
+endif()
+find_package(Boost CONFIG REQUIRED COMPONENTS graph regex)
+find_package(Eigen3 CONFIG REQUIRED)
+find_package(CGAL CONFIG QUIET)
+find_package(Akantu REQUIRED)
+set(CMAKE_EXPORT_COMPILE_COMMANDS ON)
+set(CMAKE_CXX_STANDARD 20)
+set(CMAKE_CXX_STANDARD_REQUIRED ON)
+if(NOT CMAKE_BUILD_TYPE)
+  set(CMAKE_BUILD_TYPE RelWithDebInfo CACHE STRING "" FORCE)
+endif()
+set(AKANTU_PROBE_CXX_FLAGS "" CACHE STRING "Floating-point flags of the oracle")
+separate_arguments(_probe_fp_flags UNIX_COMMAND "${AKANTU_PROBE_CXX_FLAGS}")
+foreach(_probe ${V90_PROBES})
+  add_executable(${_probe} ${_probe}.cc)
+  target_link_libraries(${_probe} PRIVATE akantu)
+  target_compile_options(${_probe} PRIVATE ${_probe_fp_flags})
+endforeach()

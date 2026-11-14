@@ -1,0 +1,26 @@
+akantu-rs oracle patch 0002 — embedded: fix DECLARE_NAMED_ARGUMENT arity
+
+Upstream: akantu 35a851780d0b9471d258ed53a003ae98aaa95ea0, src/model/model_options.hh
+Bug: introduced by upstream commit ad98b0167 (2024-10-15, "allows
+solver_options in initFull"): inside `#ifdef AKANTU_EMBEDDED` the one-argument
+macro DECLARE_NAMED_ARGUMENT(name) is called with two arguments, so every
+translation unit that includes model_options.hh fails to compile whenever the
+`embedded` package is enabled (upstream CI never enables it).
+Fix: declare the named argument `init_intersections` (the only name used by
+EmbeddedInterfaceModelOptions' named-argument constructor). No behaviour
+change for builds without `embedded`.
+NOT APPLIED: embedded stays OFF (material_reinforcement is unfinished
+upstream WIP); kept as a documented candidate fix. See docs/DECISIONS.md
+(D-032), docs/BLOCKERS.md (B-003).
+
+--- a/src/model/model_options.hh	2026-11-09 16:57:03
++++ b/src/model/model_options.hh	2026-11-09 16:57:03
+@@ -101,7 +101,7 @@
+ #ifdef AKANTU_EMBEDDED
+ 
+ namespace {
+-  DECLARE_NAMED_ARGUMENT(init_intersections, non_linear_solver);
++  DECLARE_NAMED_ARGUMENT(init_intersections);
+ }
+ /* -------------------------------------------------------------------------- */
+ struct EmbeddedInterfaceModelOptions : SolidMechanicsModelOptions {

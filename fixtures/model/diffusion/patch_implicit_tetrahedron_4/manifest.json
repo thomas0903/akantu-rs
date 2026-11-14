@@ -1,0 +1,666 @@
+{
+  "format_version": 1,
+  "case_id": "model/diffusion/patch_implicit_tetrahedron_4",
+  "description": "heat-transfer patch test (implicit, _tetrahedron_4) of test/test_model/patch_tests (intent; Eigen sparse solver)",
+  "status": "golden",
+  "generator": {
+    "probe": "diffusion_probe",
+    "probe_version": "1",
+    "command": "oracle/probes/diffusion/generate.sh "
+  },
+  "reference": {
+    "sha": "35a851780d0b9471d258ed53a003ae98aaa95ea0",
+    "describe": "v5.0.7-post1-554-g35a851780",
+    "patches": [
+      "modified:cmake/AkantuTestsMacros.cmake sha256=c280165a84912eab4bcc081b9eaaaa06aafdd83d4f48d982e11b0859abf9672f (reference sha256=36290de2ec8b111028138fe82029efa16501512241a5bc264fa30ff3e3239b9e)"
+    ]
+  },
+  "build": {
+  "config": "strict",
+  "compiler": "g++ (Debian 14.2.0-19) 14.2.0",
+  "cxx_flags": "-ffp-contract=off -DEIGEN_DONT_VECTORIZE -O2 -g -DNDEBUG -g3 -ggdb3 -flarge-source-files -std=c++20 -flto=auto -fno-fat-lto-objects -fPIC -frounding-math (actual flags of src/model/solid_mechanics/solid_mechanics_model.cc; warnings and non-FP -D defines omitted)",
+  "build_type": "RelWithDebInfo",
+  "arch": "aarch64",
+  "os": "Debian GNU/Linux 13 (trixie)",
+  "libraries": {
+    "eigen3": "3.4.0-5",
+    "boost": "1.83.0.2+b2",
+    "openmpi": "5.0.7-1",
+    "mumps": "5.7.3-3+b1",
+    "petsc": "3.22.5+dfsg1-2",
+    "scotch": "7.0.7-1",
+    "openblas": "0.3.29+ds-3",
+    "scalapack": "2.2.2-1",
+    "hdf5": "1.14.5+repack-3",
+    "gmsh": "4.13.1+ds1-6",
+    "pybind11": "2.13.6-2",
+    "numpy": "1:2.2.4+ds-1",
+    "scipy": "1.15.3-1",
+    "gcc": "4:14.2.0-1",
+    "gfortran": "4:14.2.0-1",
+    "oracle_image": "sha256:6683233d0a3b9341eb5cedf5879bc9ccb76ddf3d91e9aa0fd35b99dc7866d7a6",
+    "oracle_build_scripts": "45b473da9cbfb356a039d94609fe39f6f36a1a9a",
+    "oracle_install_reference_sha": "35a851780d0b9471d258ed53a003ae98aaa95ea0",
+    "oracle_install_image": "sha256:6683233d0a3b9341eb5cedf5879bc9ccb76ddf3d91e9aa0fd35b99dc7866d7a6",
+    "sha256:libakantu.so.5.0.7": "9768e51184f0423c49abfd67535e6f3bc371522045b0b634223cce0ee07f0b0b",
+    "probe_tree_sha256": "c2fab900b686580aed80eaee9f2c342b797659f27057da0732f58a6b719d1f8b",
+    "probe_sources_commit": "5098a5badfeffed432f6bf9444a6c0f615116c5a",
+    "cmake_cxx_flags": "-ffp-contract=off -DEIGEN_DONT_VECTORIZE -O2 -g -DNDEBUG -g3 -ggdb3 -flarge-source-files",
+    "probe": "diffusion_probe"
+  },
+  "probe_compile_command": "/usr/bin/c++ '-DAKANTU_PROBE_BUILD_TYPE=\"RelWithDebInfo\"' '-DAKANTU_PROBE_CONFIG=\"strict\"' '-DAKANTU_PROBE_CXX_FLAGS=\"-ffp-contract=off -DEIGEN_DONT_VECTORIZE  -O2 -g -DNDEBUG\"' -DBOOST_GRAPH_DYN_LINK -DBOOST_GRAPH_NO_LIB -DBOOST_REGEX_DYN_LINK -DBOOST_REGEX_NO_LIB -DCGAL_USE_GMPXX=1 -I/probes/diffusion/../include -isystem /build/install-strict/include/akantu -isystem /opt/CGAL-5.6.2/include -isystem /usr/lib/aarch64-linux-gnu/openmpi/include -isystem /usr/lib/aarch64-linux-gnu/openmpi/include/openmpi -isystem /usr/lib/petscdir/petsc3.22/aarch64-linux-gnu-real/include -isystem /usr/include/scotch -isystem /build/install-strict/include/akantu_iterators -isystem /usr/include/eigen3 -isystem /build/install-strict/include/iohelper -O2 -g -DNDEBUG -std=gnu++20 -ffp-contract=off -DEIGEN_DONT_VECTORIZE -Wall -Wextra -pedantic -Wno-array-bounds -Wno-use-after-free -Wno-stringop-overread -DOMPI_SKIP_MPICXX -Wno-literal-suffix -frounding-math -o CMakeFiles/diffusion_probe.dir/diffusion_probe.cc.o -c /probes/diffusion/diffusion_probe.cc",
+  "probe_cxx_flags": "-DAKANTU_PROBE_BUILD_TYPE=\"RelWithDebInfo\" -DAKANTU_PROBE_CONFIG=\"strict\" -DAKANTU_PROBE_CXX_FLAGS=\"-ffp-contract=off -DEIGEN_DONT_VECTORIZE  -O2 -g -DNDEBUG\" -DBOOST_GRAPH_DYN_LINK -DBOOST_GRAPH_NO_LIB -DBOOST_REGEX_DYN_LINK -DBOOST_REGEX_NO_LIB -DCGAL_USE_GMPXX=1 -O2 -g -DNDEBUG -std=gnu++20 -ffp-contract=off -DEIGEN_DONT_VECTORIZE -Wall -Wextra -pedantic -Wno-array-bounds -Wno-use-after-free -Wno-stringop-overread -DOMPI_SKIP_MPICXX -Wno-literal-suffix -frounding-math"
+},
+  "created": "2026-11-10T23:08:54Z",
+  "inputs": [
+    {
+      "role": "mesh",
+      "path": "inputs/_tetrahedron_4.msh",
+      "source": "upstream:test/test_model/patch_tests/data/_tetrahedron_4.msh",
+      "sha256": "12d221689e56c7f8d27e736229b2d8a6ef03eaf4e3f26c432e5ce193f3b5336a"
+    },
+    {
+      "role": "material",
+      "path": "inputs/heat_transfer_input.dat",
+      "source": "upstream:test/test_model/patch_tests/data/heat_transfer_input.dat",
+      "sha256": "0410dd2b3bb71080407ef6b898ad6bee40ed36772144581834685789403def4a"
+    }
+  ],
+  "parameters": {
+    "spatial_dimension": 3,
+    "element_type": "_tetrahedron_4",
+    "model_id": "_tetrahedron_4",
+    "analysis": "implicit",
+    "sparse_solver_type": "eigen",
+    "newton": true,
+    "newton_max_iterations": 3,
+    "newton_threshold": 9.9999999999999995e-07,
+    "newton_convergence_type": "solution",
+    "stable_time_step": 40.057545543346365,
+    "time_step": 20.028772771673182,
+    "step_digests": [
+      "57718db29bf2083d1019e30607f96cf269152af2af3dea42377f758993e1786f",
+      "27e119490ece2a01ab281a24cc16df523d064d2fc5bc097071a17954a65c2ea4",
+      "0de9b82edcde7273623455c48ee6aaa025f0e1822f45a7374461fc07f13190e7",
+      "6d4341e5e10f225bbdb766f299cbe67b08c50c4b0f73fd904117a307a9017a64",
+      "dd83179034b23ded497c438e2bca9c2fde33ae9f0d5a7e3fd09ce9cea0db1d37",
+      "d60993fc7013a13afacff261e24ae1b356b95116dde973c11baf8ba03623a6ec",
+      "62916d8d41c55f929877ed00cf4dea4af1757462f351a6845fd35fd86fe1bcdc",
+      "0458ab2440196a716f486579b2269b8a3747273a48c9590825944577687a75c1",
+      "4910961d37a241fa2b23e2226fdfb28818b5a6dabc88a532b01ce8174ca05935",
+      "10768cab84e79c3cf6d7859ae37a0930ef6bbd6ba12d05b55e5a2ad18c3c7d68",
+      "c9fcc0309b961b56eaf9567d5fce80122605b3fa98d505b9a65d286af8060298",
+      "71e9e0c195b01341168c5900f1d431cc7ca22c377ca84194fe7025613bcf759d",
+      "a760c7a317885ef2e3454ac2f270d8b56bd35f441d14cb314412b139b4b48835",
+      "2ea864c1c8aeb6ab1427fb9bb6d4afd2e895f6714a85c7e4cf42178ba4932d6b",
+      "53b78c8efe863904b54c1bc221642f3d078a9c3700ef0c0804fb40f8c21ab6fc",
+      "148096e91e5dc0ffa144fdd7362c64d6edb7886aa0a9c8fbc1210cda6834ed6c",
+      "b360d5ce1b496a05129ef46b921412d2ea5e32218cc9c58a0807bb67206c751a",
+      "59018a8d5883f450540b0882ee1268e7daea8996d226efefb7b4edb6a9a19adc",
+      "e930fe12ffe05787f7483c3fa554f1cfbe69879b15fc628818b51010f66d835c",
+      "1a69182543ef8b7a68caa96090bc3ae884adcd2e288759e1891ed3f325cc880a",
+      "e43c34a818660fd4724dbe2294dac914113d01843c395313db50346060218b8c",
+      "48c6e4706f5b908115835b222ceab9988ecc52e9425bd099ef489e7076657bcf",
+      "a2dd1fb102b5b08c62782717311fbb50211af5ac2fa87c1ca95915ff91a4bf04",
+      "40a262d7bccfe3f8d912ab894cd3c25dc6e2fc8a22c3eab661f085c164eec535",
+      "d1329b1043198f437cea42d4d4470353254c4e0d2f08f9820519062cd614e9e5",
+      "995b85928b4778b4912e69be8fe490421b13bdcab7b3d7e46c83528f05682786",
+      "2bfa8d6c58a654b842d9bc55cdfe25a50634969fe78e5e9a72942471352c66fa",
+      "700ddfbfc70d9cecc3c9fa7d90d7a4d8a1d627a5cb499904439e6401386a6e26",
+      "ba39b0007a99fc46c75cdffecf39844058ed79294883f380ddbf9fcda755c013",
+      "d794bd4e40b12bab0abf040a60696ebce1a33d0b011ac585882069a3a2038cb6",
+      "6291eca8bc24581ca0d43c7f1900ba54e3af0214b86d814c0444fe9fa1b19934",
+      "bf1b022f68075c11b46b6654d992d94af58708d743db509d6b2feb7988077f22",
+      "7d926a4c7c6977698edcbc310d9fa824b96443a364533e01311e640044f639a5",
+      "29336dfac02435c35b14a3eefa505b60e9c0b4de4098bb4830a002f468001293",
+      "29336dfac02435c35b14a3eefa505b60e9c0b4de4098bb4830a002f468001293",
+      "29336dfac02435c35b14a3eefa505b60e9c0b4de4098bb4830a002f468001293",
+      "29336dfac02435c35b14a3eefa505b60e9c0b4de4098bb4830a002f468001293",
+      "29336dfac02435c35b14a3eefa505b60e9c0b4de4098bb4830a002f468001293",
+      "29336dfac02435c35b14a3eefa505b60e9c0b4de4098bb4830a002f468001293",
+      "29336dfac02435c35b14a3eefa505b60e9c0b4de4098bb4830a002f468001293",
+      "29336dfac02435c35b14a3eefa505b60e9c0b4de4098bb4830a002f468001293",
+      "29336dfac02435c35b14a3eefa505b60e9c0b4de4098bb4830a002f468001293",
+      "29336dfac02435c35b14a3eefa505b60e9c0b4de4098bb4830a002f468001293",
+      "29336dfac02435c35b14a3eefa505b60e9c0b4de4098bb4830a002f468001293",
+      "29336dfac02435c35b14a3eefa505b60e9c0b4de4098bb4830a002f468001293",
+      "29336dfac02435c35b14a3eefa505b60e9c0b4de4098bb4830a002f468001293",
+      "29336dfac02435c35b14a3eefa505b60e9c0b4de4098bb4830a002f468001293",
+      "29336dfac02435c35b14a3eefa505b60e9c0b4de4098bb4830a002f468001293",
+      "29336dfac02435c35b14a3eefa505b60e9c0b4de4098bb4830a002f468001293",
+      "29336dfac02435c35b14a3eefa505b60e9c0b4de4098bb4830a002f468001293",
+      "29336dfac02435c35b14a3eefa505b60e9c0b4de4098bb4830a002f468001293",
+      "29336dfac02435c35b14a3eefa505b60e9c0b4de4098bb4830a002f468001293",
+      "29336dfac02435c35b14a3eefa505b60e9c0b4de4098bb4830a002f468001293",
+      "29336dfac02435c35b14a3eefa505b60e9c0b4de4098bb4830a002f468001293",
+      "29336dfac02435c35b14a3eefa505b60e9c0b4de4098bb4830a002f468001293",
+      "29336dfac02435c35b14a3eefa505b60e9c0b4de4098bb4830a002f468001293",
+      "29336dfac02435c35b14a3eefa505b60e9c0b4de4098bb4830a002f468001293",
+      "29336dfac02435c35b14a3eefa505b60e9c0b4de4098bb4830a002f468001293",
+      "29336dfac02435c35b14a3eefa505b60e9c0b4de4098bb4830a002f468001293",
+      "29336dfac02435c35b14a3eefa505b60e9c0b4de4098bb4830a002f468001293",
+      "29336dfac02435c35b14a3eefa505b60e9c0b4de4098bb4830a002f468001293",
+      "29336dfac02435c35b14a3eefa505b60e9c0b4de4098bb4830a002f468001293",
+      "29336dfac02435c35b14a3eefa505b60e9c0b4de4098bb4830a002f468001293",
+      "29336dfac02435c35b14a3eefa505b60e9c0b4de4098bb4830a002f468001293",
+      "29336dfac02435c35b14a3eefa505b60e9c0b4de4098bb4830a002f468001293",
+      "29336dfac02435c35b14a3eefa505b60e9c0b4de4098bb4830a002f468001293",
+      "29336dfac02435c35b14a3eefa505b60e9c0b4de4098bb4830a002f468001293",
+      "29336dfac02435c35b14a3eefa505b60e9c0b4de4098bb4830a002f468001293",
+      "29336dfac02435c35b14a3eefa505b60e9c0b4de4098bb4830a002f468001293",
+      "29336dfac02435c35b14a3eefa505b60e9c0b4de4098bb4830a002f468001293",
+      "29336dfac02435c35b14a3eefa505b60e9c0b4de4098bb4830a002f468001293",
+      "29336dfac02435c35b14a3eefa505b60e9c0b4de4098bb4830a002f468001293",
+      "29336dfac02435c35b14a3eefa505b60e9c0b4de4098bb4830a002f468001293",
+      "29336dfac02435c35b14a3eefa505b60e9c0b4de4098bb4830a002f468001293",
+      "29336dfac02435c35b14a3eefa505b60e9c0b4de4098bb4830a002f468001293",
+      "29336dfac02435c35b14a3eefa505b60e9c0b4de4098bb4830a002f468001293",
+      "29336dfac02435c35b14a3eefa505b60e9c0b4de4098bb4830a002f468001293",
+      "29336dfac02435c35b14a3eefa505b60e9c0b4de4098bb4830a002f468001293",
+      "29336dfac02435c35b14a3eefa505b60e9c0b4de4098bb4830a002f468001293",
+      "29336dfac02435c35b14a3eefa505b60e9c0b4de4098bb4830a002f468001293",
+      "29336dfac02435c35b14a3eefa505b60e9c0b4de4098bb4830a002f468001293",
+      "29336dfac02435c35b14a3eefa505b60e9c0b4de4098bb4830a002f468001293",
+      "29336dfac02435c35b14a3eefa505b60e9c0b4de4098bb4830a002f468001293",
+      "29336dfac02435c35b14a3eefa505b60e9c0b4de4098bb4830a002f468001293",
+      "29336dfac02435c35b14a3eefa505b60e9c0b4de4098bb4830a002f468001293",
+      "29336dfac02435c35b14a3eefa505b60e9c0b4de4098bb4830a002f468001293",
+      "29336dfac02435c35b14a3eefa505b60e9c0b4de4098bb4830a002f468001293",
+      "29336dfac02435c35b14a3eefa505b60e9c0b4de4098bb4830a002f468001293",
+      "29336dfac02435c35b14a3eefa505b60e9c0b4de4098bb4830a002f468001293",
+      "29336dfac02435c35b14a3eefa505b60e9c0b4de4098bb4830a002f468001293",
+      "29336dfac02435c35b14a3eefa505b60e9c0b4de4098bb4830a002f468001293",
+      "29336dfac02435c35b14a3eefa505b60e9c0b4de4098bb4830a002f468001293",
+      "29336dfac02435c35b14a3eefa505b60e9c0b4de4098bb4830a002f468001293",
+      "29336dfac02435c35b14a3eefa505b60e9c0b4de4098bb4830a002f468001293",
+      "29336dfac02435c35b14a3eefa505b60e9c0b4de4098bb4830a002f468001293",
+      "29336dfac02435c35b14a3eefa505b60e9c0b4de4098bb4830a002f468001293",
+      "29336dfac02435c35b14a3eefa505b60e9c0b4de4098bb4830a002f468001293",
+      "29336dfac02435c35b14a3eefa505b60e9c0b4de4098bb4830a002f468001293",
+      "29336dfac02435c35b14a3eefa505b60e9c0b4de4098bb4830a002f468001293",
+      "29336dfac02435c35b14a3eefa505b60e9c0b4de4098bb4830a002f468001293"
+    ],
+    "step_digests_definition": "SHA-256 of temperature || temperature_rate || internal_heat_rate (binary64 LE) after each solveStep",
+    "K/exists": true,
+    "K/symmetric": true,
+    "K/size": 42,
+    "K/nnz": 222,
+    "K/coords_sha256": "ef8e3efece8dda1c1eae44f5864ef60dd8a5a9e42db4f13ac220dfdfc633deee",
+    "K/values_sha256": "0be511a86a4cf0071789485d27c4333037e03236fc2aea852c4bf712e5df336a",
+    "M/exists": true,
+    "M/symmetric": true,
+    "M/size": 42,
+    "M/nnz": 222,
+    "M/coords_sha256": "ef8e3efece8dda1c1eae44f5864ef60dd8a5a9e42db4f13ac220dfdfc633deee",
+    "M/values_sha256": "1962f1da12fa2cf7b26e4a51256af633897b2ad6d67bfed8bf668fb4991a5c79",
+    "J/exists": true,
+    "J/symmetric": true,
+    "J/size": 42,
+    "J/nnz": 222,
+    "J/coords_sha256": "ef8e3efece8dda1c1eae44f5864ef60dd8a5a9e42db4f13ac220dfdfc633deee",
+    "J/values_sha256": "ddfe9cf7878d19b54d81405db40cf88b38d728fb7b5dcaa82cfef2c8c75cdace",
+    "lumped_M/exists": false,
+    "law0/conductivity_rows": 3,
+    "mesh_types": [
+      "_point_1",
+      "_segment_2",
+      "_triangle_3",
+      "_tetrahedron_4"
+    ],
+    "groups": [
+      {
+        "name": "boundary_0",
+        "dimension": 2,
+        "types": [
+          "_triangle_3"
+        ]
+      }
+    ]
+  },
+  "storage": {
+    "mode": "committed",
+    "bytes": 38226
+  },
+  "quantities": [
+    {
+      "name": "blocked_dofs",
+      "file": "data/blocked_dofs.npy",
+      "dtype": "u8",
+      "shape": [
+        42,
+        1
+      ],
+      "axes": [
+        "entry",
+        "component"
+      ],
+      "layout": "table",
+      "sha256": "799cf2f32364140239ed235bf4d9a51393d48bd9c285c17e6823f74f1673994c",
+      "description": "blocked flags after applyBC"
+    },
+    {
+      "name": "initial_temperature",
+      "file": "data/initial_temperature.npy",
+      "dtype": "f64",
+      "shape": [
+        42,
+        1
+      ],
+      "axes": [
+        "entry",
+        "component"
+      ],
+      "layout": "table",
+      "sha256": "f315c232f14a8a235d16caf0032dcf5a1f85f611e120aa70b6bcfdae44f3270e",
+      "description": "temperature after applyBC (affine on boundary)"
+    },
+    {
+      "name": "time_step",
+      "file": "data/time_step.npy",
+      "dtype": "f64",
+      "shape": [
+        2
+      ],
+      "axes": [
+        "entry"
+      ],
+      "layout": "table",
+      "sha256": "dbc598af32898a8ac38db8f511587016f0a9e92ed81038092701232b68cf6ab2",
+      "description": "getStableTimeStep(), 0.5 * getStableTimeStep()"
+    },
+    {
+      "name": "initial_temperature_all",
+      "file": "data/initial_temperature_all.npy",
+      "dtype": "f64",
+      "shape": [
+        42,
+        1
+      ],
+      "axes": [
+        "entry",
+        "component"
+      ],
+      "layout": "table",
+      "sha256": "69fa5f0ee5f0b875cee2e61500756eb4bd58845941d929c59a37362b682a82e6",
+      "description": "temperature after setLinearDOF on every node"
+    },
+    {
+      "name": "energy/thermal_every_10",
+      "file": "data/energy__thermal_every_10.npy",
+      "dtype": "f64",
+      "shape": [
+        10
+      ],
+      "axes": [
+        "entry"
+      ],
+      "layout": "table",
+      "sha256": "cba7451628c893a6ed632a4c6fbc91dc1ba53571bb4c5984f09416d7b879f9b2",
+      "description": "getEnergy(\"thermal\") after steps 10, 20, ..."
+    },
+    {
+      "name": "newton/nb_iterations",
+      "file": "data/newton__nb_iterations.npy",
+      "dtype": "i64",
+      "shape": [
+        100
+      ],
+      "axes": [
+        "entry"
+      ],
+      "layout": "table",
+      "sha256": "cb975a00ef6a847145eb153d665f831f9ae1167981b60534de789b3420d583f1",
+      "description": "nb_iterations per solveStep"
+    },
+    {
+      "name": "newton/error",
+      "file": "data/newton__error.npy",
+      "dtype": "f64",
+      "shape": [
+        100
+      ],
+      "axes": [
+        "entry"
+      ],
+      "layout": "table",
+      "sha256": "8f29a40e3312550479ca27b0b400b925493bc56c511572d2cfe7485b89e44933",
+      "description": "error per solveStep"
+    },
+    {
+      "name": "temperature",
+      "file": "data/temperature.npy",
+      "dtype": "f64",
+      "shape": [
+        42,
+        1
+      ],
+      "axes": [
+        "entry",
+        "component"
+      ],
+      "layout": "table",
+      "sha256": "69fa5f0ee5f0b875cee2e61500756eb4bd58845941d929c59a37362b682a82e6",
+      "description": "final temperature"
+    },
+    {
+      "name": "temperature_rate",
+      "file": "data/temperature_rate.npy",
+      "dtype": "f64",
+      "shape": [
+        42,
+        1
+      ],
+      "axes": [
+        "entry",
+        "component"
+      ],
+      "layout": "table",
+      "sha256": "250bf36f5a32ff60e0952943cbf4bdcb028dad48f23913ee9237af5ecc9130b0",
+      "description": "final temperature rate"
+    },
+    {
+      "name": "internal_heat_rate",
+      "file": "data/internal_heat_rate.npy",
+      "dtype": "f64",
+      "shape": [
+        42,
+        1
+      ],
+      "axes": [
+        "entry",
+        "component"
+      ],
+      "layout": "table",
+      "sha256": "71aef451c564dee26059ce938ad52636191566a7c45b17804da20943fbe7c7b6",
+      "description": "final internal flow"
+    },
+    {
+      "name": "energy/thermal",
+      "file": "data/energy__thermal.npy",
+      "dtype": "f64",
+      "shape": [
+        1
+      ],
+      "axes": [
+        "entry"
+      ],
+      "layout": "table",
+      "sha256": "9f12c7005e6f3fdfce64d06cc8676d658f5aeb0df69528d45b154d6e92018735",
+      "description": "getEnergy(\"thermal\")"
+    },
+    {
+      "name": "law0/∇u/_tetrahedron_4",
+      "file": "data/law0_____u___tetrahedron_4.npy",
+      "dtype": "f64",
+      "shape": [
+        103,
+        3
+      ],
+      "axes": [
+        "entry",
+        "component"
+      ],
+      "layout": "table",
+      "sha256": "efba3bf7b2604da13af5f29d05ac71d11aefdb5f602e3cc855b1cc9c644aa8c1",
+      "description": "law internal ∇u per quadrature point (raw tuples; diffusivity column-major dim x dim)"
+    },
+    {
+      "name": "law0/D∇u/_tetrahedron_4",
+      "file": "data/law0__D___u___tetrahedron_4.npy",
+      "dtype": "f64",
+      "shape": [
+        103,
+        3
+      ],
+      "axes": [
+        "entry",
+        "component"
+      ],
+      "layout": "table",
+      "sha256": "b4533560fc09d0300d854d9a90a505af0e07de80339f3c85615e436c8eaa9263",
+      "description": "law internal D∇u per quadrature point (raw tuples; diffusivity column-major dim x dim)"
+    },
+    {
+      "name": "law0/diffusivity/_tetrahedron_4",
+      "file": "data/law0__diffusivity___tetrahedron_4.npy",
+      "dtype": "f64",
+      "shape": [
+        103,
+        9
+      ],
+      "axes": [
+        "entry",
+        "component"
+      ],
+      "layout": "table",
+      "sha256": "bc9bf153add060ae5308d7dad2a6f69512caa35647e84bc20d196b0cad767109",
+      "description": "law internal diffusivity per quadrature point (raw tuples; diffusivity column-major dim x dim)"
+    },
+    {
+      "name": "law0/filter/_tetrahedron_4",
+      "file": "data/law0__filter___tetrahedron_4.npy",
+      "dtype": "i64",
+      "shape": [
+        103
+      ],
+      "axes": [
+        "entry"
+      ],
+      "layout": "table",
+      "sha256": "295e0e053e3a4024e52a78ed921f9fe9c9f5032af71da86dc45691bc059efbde",
+      "description": "element filter of the law"
+    },
+    {
+      "name": "K/rows",
+      "file": "data/K__rows.npy",
+      "dtype": "i64",
+      "shape": [
+        222
+      ],
+      "axes": [
+        "entry"
+      ],
+      "layout": "table",
+      "sha256": "73382638877aef8d8969674259c503068f1f6242f2b102ca09910b82a2368dc3",
+      "description": "SparseMatrixAIJ::getIRN - 1 (storage order)"
+    },
+    {
+      "name": "K/cols",
+      "file": "data/K__cols.npy",
+      "dtype": "i64",
+      "shape": [
+        222
+      ],
+      "axes": [
+        "entry"
+      ],
+      "layout": "table",
+      "sha256": "4ec34706520b0ea26ac995333f8e8b7eafb1447366f52a17ca87ddf3b9cfd60a",
+      "description": "SparseMatrixAIJ::getJCN - 1 (storage order)"
+    },
+    {
+      "name": "K/values",
+      "file": "data/K__values.npy",
+      "dtype": "f64",
+      "shape": [
+        222
+      ],
+      "axes": [
+        "entry"
+      ],
+      "layout": "table",
+      "sha256": "b9cdf4aee1e2487b35686fb8c3b82a364d84432d1dc5a3da2958f44777cecd05",
+      "description": "SparseMatrixAIJ::getA (storage order)"
+    },
+    {
+      "name": "M/rows",
+      "file": "data/M__rows.npy",
+      "dtype": "i64",
+      "shape": [
+        222
+      ],
+      "axes": [
+        "entry"
+      ],
+      "layout": "table",
+      "sha256": "73382638877aef8d8969674259c503068f1f6242f2b102ca09910b82a2368dc3",
+      "description": "SparseMatrixAIJ::getIRN - 1 (storage order)"
+    },
+    {
+      "name": "M/cols",
+      "file": "data/M__cols.npy",
+      "dtype": "i64",
+      "shape": [
+        222
+      ],
+      "axes": [
+        "entry"
+      ],
+      "layout": "table",
+      "sha256": "4ec34706520b0ea26ac995333f8e8b7eafb1447366f52a17ca87ddf3b9cfd60a",
+      "description": "SparseMatrixAIJ::getJCN - 1 (storage order)"
+    },
+    {
+      "name": "M/values",
+      "file": "data/M__values.npy",
+      "dtype": "f64",
+      "shape": [
+        222
+      ],
+      "axes": [
+        "entry"
+      ],
+      "layout": "table",
+      "sha256": "2f2ddbb9e18cd063967da03dcf86eae92bd1420198eb759bb856f716814520c7",
+      "description": "SparseMatrixAIJ::getA (storage order)"
+    },
+    {
+      "name": "energy/thermal_by_element/_tetrahedron_4",
+      "file": "data/energy__thermal_by_element___tetrahedron_4.npy",
+      "dtype": "f64",
+      "shape": [
+        103
+      ],
+      "axes": [
+        "entry"
+      ],
+      "layout": "table",
+      "sha256": "1da19e120da5429fa86695ba4add070d97023ed9dc35c4d699b26513a13c8658",
+      "description": "getEnergy(\"thermal\", element) for every element (nb_quadrature_points == 1)"
+    },
+    {
+      "name": "law0/conductivity",
+      "file": "data/law0__conductivity.npy",
+      "dtype": "f64",
+      "shape": [
+        9
+      ],
+      "axes": [
+        "entry"
+      ],
+      "layout": "table",
+      "sha256": "07e1f10c2905b6e5b444fe39f89b377fb5ba63b6d9a3cf13aca9664f64cef009",
+      "description": "getConstitutiveLaw(0).get(\"conductivity\") (column-major)"
+    },
+    {
+      "name": "mesh/connectivity/_point_1",
+      "file": "data/mesh__connectivity___point_1.npy",
+      "dtype": "i64",
+      "shape": [
+        8,
+        1
+      ],
+      "axes": [
+        "element",
+        "node_local"
+      ],
+      "layout": "elemental",
+      "sha256": "7bbab16cdf01247392b2fc1aaabb260ded121cf5702c3306244498c052683bbb",
+      "element_type": "_point_1",
+      "description": "connectivity after buildFacets (facets appended by upstream)"
+    },
+    {
+      "name": "mesh/connectivity/_segment_2",
+      "file": "data/mesh__connectivity___segment_2.npy",
+      "dtype": "i64",
+      "shape": [
+        24,
+        2
+      ],
+      "axes": [
+        "element",
+        "node_local"
+      ],
+      "layout": "elemental",
+      "sha256": "42e17544afd79265dcc7f270c214a9e0cabbde2a5adf59be81c83f58c4f9b233",
+      "element_type": "_segment_2",
+      "description": "connectivity after buildFacets (facets appended by upstream)"
+    },
+    {
+      "name": "mesh/connectivity/_triangle_3",
+      "file": "data/mesh__connectivity___triangle_3.npy",
+      "dtype": "i64",
+      "shape": [
+        72,
+        3
+      ],
+      "axes": [
+        "element",
+        "node_local"
+      ],
+      "layout": "elemental",
+      "sha256": "daa940e63dabddcda42750eff838fc8f16e38ed55d7d7ea43700e36e9a99b585",
+      "element_type": "_triangle_3",
+      "description": "connectivity after buildFacets (facets appended by upstream)"
+    },
+    {
+      "name": "mesh/connectivity/_tetrahedron_4",
+      "file": "data/mesh__connectivity___tetrahedron_4.npy",
+      "dtype": "i64",
+      "shape": [
+        103,
+        4
+      ],
+      "axes": [
+        "element",
+        "node_local"
+      ],
+      "layout": "elemental",
+      "sha256": "2b0c76fd045641afa1b928fbb9b505978561cf0b3355ba18b34de607b0e8cb38",
+      "element_type": "_tetrahedron_4",
+      "description": "connectivity after buildFacets (facets appended by upstream)"
+    },
+    {
+      "name": "group/boundary_0/elements/_triangle_3",
+      "file": "data/group__boundary_0__elements___triangle_3.npy",
+      "dtype": "i64",
+      "shape": [
+        72
+      ],
+      "axes": [
+        "entry"
+      ],
+      "layout": "table",
+      "sha256": "47bef7425cb8338776cf014da7478c910da8849010c760834e4595aa92df935a",
+      "description": "element group elements"
+    },
+    {
+      "name": "group/boundary_0/nodes",
+      "file": "data/group__boundary_0__nodes.npy",
+      "dtype": "i64",
+      "shape": [
+        38
+      ],
+      "axes": [
+        "entry"
+      ],
+      "layout": "table",
+      "sha256": "58fb48a804c92235407b2184362ab1d5259df51288cf7d16f5fe21060612a677",
+      "description": "node group (iteration order)"
+    }
+  ],
+  "tags": [
+    "model",
+    "diffusion"
+  ]
+}

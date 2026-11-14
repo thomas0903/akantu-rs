@@ -1,0 +1,133 @@
+# SPDX-License-Identifier: LGPL-3.0-or-later
+# akantu-rs CI: the feature-gated checks, weekly and on manual dispatch.
+# `features`: the feature matrix (rows CI-018, CI-026, CI-027) in the MUMPS
+# image (MPI, libclang, Scotch, MUMPS, Python headers), with the 13 checks
+# that need PETSc as a second leg in the PETSc image (ci/tiers/features.sh).
+# `gates`: every command of ci/tools/feature-gates.txt, the cargo commands
+# behind features that no workspace member enables by default (D-080).
+# `facade-release`: line 6 of that list, the facade crate's release run.
+# `exportall`: the workspace tests with the test-only feature
+# akantu-core/export-all. Dispatch it on the branch of a pull request that
+# changes features, `unsafe` code, the release-only tests or the convergence
+# studies, and before a release (docs/MAINTAINING.md).
+name: features
+on:
+  schedule:
+    - cron: "17 1 * * 6"
+  workflow_dispatch:
+permissions:
+  contents: read
+env:
+  # Container caps of scripts/mpi/in-docker.sh. The defaults (4 CPUs / 6g) fit
+  # the standard runner of a public repository (4 vCPU / 16 GB); on a
+  # private repository's 2-vCPU runner set the repository variable
+  # AKANTU_RS_DOCKER_CPUS=2 (ci/github/README.md, "Runners and their limits").
+  AKANTU_RS_DOCKER_CPUS: ${{ vars.AKANTU_RS_DOCKER_CPUS || '4' }}
+  AKANTU_RS_DOCKER_MEMORY: ${{ vars.AKANTU_RS_DOCKER_MEMORY || '6g' }}
+concurrency:
+  group: features-${{ github.ref }}
+  cancel-in-progress: false
+jobs:
+  features:
+    runs-on: ubuntu-24.04
+    timeout-minutes: 90
+    steps:
+      - uses: actions/checkout@de0fac2e4500dabe0009e67214ff5f5447ce83dd # v6.0.2
+        with:
+          persist-credentials: false
+      - name: Free disk space on the runner (project images and the cargo target volume are large)
+        run: ci/github/free-disk.sh
+      - uses: actions/cache@668228422ae6a00e4ad889ee87cd7109ec5666a7 # v5.0.4
+        with:
+          path: ~/akantu-images
+          key: images-v3-mpi-mumps-petsc-${{ hashFiles('docker/mpi/Dockerfile', 'docker/mumps/Dockerfile', 'docker/petsc/Dockerfile') }}
+      - run: ci/github/images.sh ~/akantu-images mpi mumps petsc
+      - name: Feature matrix (cargo check per feature alone / none / default / all, -D warnings)
+        run: ci/run-all.sh --backend docker --tiers features --out "$RUNNER_TEMP/ci-out"
+      - if: always()
+        uses: actions/upload-artifact@bbbca2ddaa5d8feaa63e36b76fdaad77386f024f # v7.0.0
+        with:
+          name: ci-features
+          path: ${{ runner.temp }}/ci-out
+          retention-days: 14
+  gates:
+    # Every command of ci/tools/feature-gates.txt (clippy, test, check and doc
+    # lines with cgal, igfem, python, extra-materials-non-local, the
+    # release-only tests, the convergence studies) in the MPI image (CPython
+    # headers, MPI). The facade's release run is the job `facade-release`.
+    runs-on: ubuntu-24.04
+    timeout-minutes: 180
+    steps:
+      - uses: actions/checkout@de0fac2e4500dabe0009e67214ff5f5447ce83dd # v6.0.2
+        with:
+          persist-credentials: false
+      - name: Free disk space on the runner (project images and the cargo target volume are large)
+        run: ci/github/free-disk.sh
+      - uses: actions/cache@668228422ae6a00e4ad889ee87cd7109ec5666a7 # v5.0.4
+        with:
+          path: ~/akantu-images
+          key: images-v3-mpi-${{ hashFiles('docker/mpi/Dockerfile') }}
+      - run: ci/github/images.sh ~/akantu-images mpi
+      - name: Feature-gated cargo commands
+        run: ci/run-all.sh --backend docker --tiers gates --out "$RUNNER_TEMP/ci-out"
+      - if: always()
+        uses: actions/upload-artifact@bbbca2ddaa5d8feaa63e36b76fdaad77386f024f # v7.0.0
+        with:
+          name: ci-gates
+          path: ${{ runner.temp }}/ci-out
+          retention-days: 14
+  facade-release:
+    # Line 6 of ci/tools/feature-gates.txt, `cargo test --release -p akantu
+    # --locked --no-fail-fast` (the examples' whole-run oracle comparisons), as
+    # the `facade` run of the `release` tier: its own --no-run build, the
+    # analyser and the floor `release-facade` (CI_RELEASE_ONLY=facade; the
+    # other runs of the tier are in medium.yml). The `gates` tier skips the
+    # line because this job runs it (ci/tiers/gates.sh).
+    runs-on: ubuntu-24.04
+    timeout-minutes: 120
+    steps:
+      - uses: actions/checkout@de0fac2e4500dabe0009e67214ff5f5447ce83dd # v6.0.2
+        with:
+          persist-credentials: false
+      - name: Free disk space on the runner (project images and the cargo target volume are large)
+        run: ci/github/free-disk.sh
+      - uses: actions/cache@668228422ae6a00e4ad889ee87cd7109ec5666a7 # v5.0.4
+        with:
+          path: ~/akantu-images
+          key: images-v3-mpi-${{ hashFiles('docker/mpi/Dockerfile') }}
+      - run: ci/github/images.sh ~/akantu-images mpi
+      - name: Facade crate in release (gate line 6)
+        env:
+          CI_RELEASE_ONLY: facade
+        run: ci/run-all.sh --backend docker --tiers release --out "$RUNNER_TEMP/ci-out"
+      - if: always()
+        uses: actions/upload-artifact@bbbca2ddaa5d8feaa63e36b76fdaad77386f024f # v7.0.0
+        with:
+          name: ci-release-facade
+          path: ${{ runner.temp }}/ci-out
+          retention-days: 14
+  exportall:
+    # The workspace tests with the test-only feature akantu-core/export-all,
+    # judged by the analyser and the `exportall` floor. medium.yml runs the
+    # same tier as one of its legs.
+    runs-on: ubuntu-24.04
+    timeout-minutes: 120
+    steps:
+      - uses: actions/checkout@de0fac2e4500dabe0009e67214ff5f5447ce83dd # v6.0.2
+        with:
+          persist-credentials: false
+      - name: Free disk space on the runner (project images and the cargo target volume are large)
+        run: ci/github/free-disk.sh
+      - uses: actions/cache@668228422ae6a00e4ad889ee87cd7109ec5666a7 # v5.0.4
+        with:
+          path: ~/akantu-images
+          key: images-v3-mpi-${{ hashFiles('docker/mpi/Dockerfile') }}
+      - run: ci/github/images.sh ~/akantu-images mpi
+      - name: Workspace tests with akantu-core/export-all
+        run: ci/run-all.sh --backend docker --tiers exportall --out "$RUNNER_TEMP/ci-out"
+      - if: always()
+        uses: actions/upload-artifact@bbbca2ddaa5d8feaa63e36b76fdaad77386f024f # v7.0.0
+        with:
+          name: ci-exportall
+          path: ${{ runner.temp }}/ci-out
+          retention-days: 14

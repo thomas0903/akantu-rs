@@ -1,0 +1,43 @@
+# SPDX-License-Identifier: LGPL-3.0-or-later
+# akantu-rs project tooling: the examples of the ParaView visual check.
+# Columns (tab separated): id (names the output directories) | port example binary (crates/akantu/examples/<name>; python:<name> = run by
+# run-ex012.sh, both sides) | oracle case of
+# oracle/probes/examples/cases.tsv (- = none) | port arguments (- = none; {oracle} = the oracle run
+# directory of the case, {pview} = scripts/paraview) | what the example simulates.
+predefined_bc	predefined_bc	predefined_bc	-	A square plate whose boundary nodes are moved by predefined fixed-value displacement conditions (static solve of a linear elastic solid).
+user_defined_bc	user_defined_bc	user_defined_bc	-	A plate loaded by a user-written boundary condition (a displacement functor) and by a traction computed from a stress.
+python_user_defined_bc	python:python_user_defined_bc	python_user_defined_bc	-	A plate whose Dirichlet condition is computed by a Python object called from the compiled program (embedded CPython; no solve).
+static	static	static_eigen	--solver eigen	A square plate under a static load, solved with Newton-Raphson.
+explicit_dynamic	explicit_dynamic	explicit_dynamic	-	A bar given an initial velocity and left free: explicit dynamics, energy conservation.
+implicit_dynamic	implicit_dynamic	implicit_dynamic_eigen	--solver eigen	A beam in implicit (Newmark) dynamics, compared with its modal solution.
+example_parser	example_parser	example_parser_eigen	--solver eigen	A plate with holes (swiss cheese) whose material parameters come from the input file.
+new_local_material	new_local_material	new_local_material	-	A bar with a hole and a user-written damage material (a new material law).
+dumper_low_level	dumper_low_level	dumper_low_level	-	Low-level ParaView dumpers on a train mesh: filtered meshes, element groups.
+dumper_low_level_compat	dumper_low_level	dumper_low_level	--upstream-compat	The same run with the port's upstream-compatibility switch.
+dumpable_interface	dumpable_interface	dumpable_interface	-	The same train mesh dumped through the Dumpable interface.
+dumpable_interface_compat	dumpable_interface	dumpable_interface	--upstream-compat	The same run with the port's upstream-compatibility switch.
+parallel_2d	parallel_2d	parallel_2d_partition	--local-ranks 2 --partition {oracle}/partition.txt	Explicit dynamics of a square split over two processes (the partition of the upstream run is replayed).
+parallel_2d_compat	parallel_2d	parallel_2d_partition	--local-ranks 2 --partition {oracle}/partition.txt --upstream-compat	The same two-process run with the upstream-compatibility switch (writes the padded stress in upstream's layout, UD-110).
+cohesive_extrinsic	cohesive_extrinsic	cohesive_extrinsic	-	A triangle-meshed plate that cracks: extrinsic cohesive elements are inserted where the stress exceeds the strength.
+cohesive_intrinsic	cohesive_intrinsic	cohesive_intrinsic	-	The same kind of plate with intrinsic cohesive elements already present at every interface.
+cohesive_extrinsic_ig_tg	cohesive_extrinsic_ig_tg	cohesive_extrinsic_ig_tg	-	A square of grains with different cohesive laws on the grain boundaries (intergranular) and inside the grains (transgranular).
+scalability_test	scalability_test	scalability_test_paraview	--aka_input_file {oracle}/scalability_elastic_paraview.dat --solver eigen	A small cube under compression and shear, elastic material (the scalability benchmark, tiny mesh; dumps switched on).
+scalability_test_compat	scalability_test	scalability_test_paraview	--aka_input_file {oracle}/scalability_elastic_paraview.dat --solver eigen --upstream-compat	The same elastic run with the upstream-compatibility switch (upstream's invalid base64 of the empty cohesive pieces, UD-114).
+scalability_test_cohesive	scalability_test	scalability_test_cohesive_paraview	--aka_input_file {oracle}/scalability_cohesive_paraview.dat --solver eigen	The same cube with cohesive elements inserted on the fly (explicit; dumps switched on).
+scalability_test_cohesive_compat	scalability_test	scalability_test_cohesive_paraview	--aka_input_file {oracle}/scalability_cohesive_paraview.dat --solver eigen --upstream-compat	The same cohesive run with the upstream-compatibility switch (upstream's 3-D facet tangents, UD-217).
+heat_diffusion_dynamics_2d	heat_diffusion_dynamics_2d	heat_diffusion_dynamics_2d	-	Heat spreading in a square plate from a hot point (explicit time stepping).
+heat_diffusion_dynamics_3d	heat_diffusion_dynamics_3d	heat_diffusion_dynamics_3d	-	Heat spreading in a cube from a hot sphere (explicit time stepping).
+heat_diffusion_static_2d	heat_diffusion_static_2d	heat_diffusion_static_2d_eigen	--solver eigen	Steady-state temperature of a square plate with a hot point.
+bernoulli_beam_2_example	bernoulli_beam_2_example	bernoulli_beam_2_example_static	--solver eigen	A small frame of Bernoulli beams under loads (structural mechanics, static).
+material_viscoelastic_maxwell_energies	material_viscoelastic_maxwell_energies	material_viscoelastic_maxwell_energies_eigen	--solver eigen	A viscoelastic (Maxwell) block under a time-dependent load, with its energies.
+material_viscoelastic_maxwell_energies_compat	material_viscoelastic_maxwell_energies	material_viscoelastic_maxwell_energies_eigen	--upstream-compat --solver eigen	The same viscoelastic run with the upstream-compatibility switch.
+phase_field_notch	phase_field_notch	phase_field_notch_eigen	--solver eigen	A notched square plate pulled at its top: the phase-field fracture grows from the notch.
+phase_field_parallel	phase_field_parallel	phase_field_parallel_eigen_np1	--solver eigen	The same notched plate through the parallel example, run on one process.
+contact_explicit_dynamic	contact_explicit_dynamic	contact_explicit_dynamic	-	A Hertz contact problem (an elastic disc pressed on a block) with explicit dynamics.
+contact_explicit_static	contact_explicit_static	contact_explicit_static_eigen	--solver eigen	The Hertz contact problem solved statically.
+cohesive_contact_explicit_dynamic	cohesive_contact_explicit_dynamic	cohesive_contact_explicit_dynamic	-	The Hertz contact problem with cohesive elements in the block.
+cohesive_contact_explicit_dynamic_compat	cohesive_contact_explicit_dynamic	cohesive_contact_explicit_dynamic	--upstream-compat	The same run with the port's upstream-compatibility switch.
+bloc_friction	bloc_friction	bloc_friction	-	A block pressed against a wall and pushed sideways: friction with stick-slip.
+bloc_friction_compat	bloc_friction	bloc_friction	--upstream-compat	The same friction run with the port's upstream-compatibility switch (reproduces upstream's contact-friction behaviour, UD-365).
+steady_state	steady_state	steady_state	-	Node-to-node contact with friction under a constant sliding velocity.
+embedded	embedded	-	-	A concrete block reinforced by an embedded steel bar (port only: upstream's embedded package does not compile at this commit; built with the project's minimal compile patches (D-060), the example stops with a segmentation fault in `initFull` (UD-851; cause: UD-1140)).

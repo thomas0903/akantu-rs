@@ -1,0 +1,759 @@
+{
+  "format_version": 1,
+  "case_id": "cl/random_internal/smm_2d_mixed",
+  "description": "Random internal fields of a probe Material in a SolidMechanicsModel: one addElements of interleaved not-ghost and ghost elements into an empty material (a single resize growing both ghost types)",
+  "status": "golden",
+  "generator": {
+    "probe": "law_random_probe",
+    "probe_version": "1",
+    "command": "oracle/scripts/generate-fixtures.sh --config strict --out /home/user/stage1 cl_random"
+  },
+  "reference": {
+    "sha": "35a851780d0b9471d258ed53a003ae98aaa95ea0",
+    "describe": "v5.0.7-post1-554-g35a851780",
+    "patches": [
+      "modified:cmake/AkantuTestsMacros.cmake sha256=c280165a84912eab4bcc081b9eaaaa06aafdd83d4f48d982e11b0859abf9672f (reference sha256=36290de2ec8b111028138fe82029efa16501512241a5bc264fa30ff3e3239b9e)"
+    ]
+  },
+  "build": {
+  "config": "strict",
+  "compiler": "g++ (Debian 14.2.0-19) 14.2.0",
+  "cxx_flags": "-ffp-contract=off -DEIGEN_DONT_VECTORIZE -O2 -g -DNDEBUG -g3 -ggdb3 -flarge-source-files -std=c++20 -flto=auto -fno-fat-lto-objects -fPIC -frounding-math (actual flags of src/model/solid_mechanics/solid_mechanics_model.cc; warnings and non-FP -D defines omitted)",
+  "build_type": "RelWithDebInfo",
+  "arch": "x86_64",
+  "os": "Debian GNU/Linux 13 (trixie)",
+  "libraries": {
+    "eigen3": "3.4.0-5",
+    "boost": "1.83.0.2+b2",
+    "openmpi": "5.0.7-1",
+    "mumps": "5.7.3-3+b1",
+    "petsc": "3.22.5+dfsg1-2",
+    "scotch": "7.0.7-1",
+    "openblas": "0.3.29+ds-3",
+    "scalapack": "2.2.2-1",
+    "hdf5": "1.14.5+repack-3",
+    "gmsh": "4.13.1+ds1-6",
+    "pybind11": "2.13.6-2",
+    "numpy": "1:2.2.4+ds-1",
+    "scipy": "1.15.3-1",
+    "gcc": "4:14.2.0-1",
+    "gfortran": "4:14.2.0-1",
+    "oracle_image": "sha256:45122c213e9fa194b6b58dcc31fc23b5fa4f7c0f64d0a452e40ae072c51c5cdb",
+    "oracle_build_scripts": "e168f393291494c869fa759b3ad9ae4a371a0369",
+    "oracle_install_reference_sha": "35a851780d0b9471d258ed53a003ae98aaa95ea0",
+    "oracle_install_image": "sha256:45122c213e9fa194b6b58dcc31fc23b5fa4f7c0f64d0a452e40ae072c51c5cdb",
+    "sha256:libakantu.so.5.0.7": "5491d902b6f363e11b47d2dc1d0aff0597374e8ff785bbfe2bff534f38509e81",
+    "probe_tree_sha256": "8ed12899d0e319a1c7dbf8ba796c9e9d2df49c3f9f0358a59dda0b0c7f9c68aa",
+    "probe_sources_commit": "bd448fb611d780e77faf1d32f494468f04670da1",
+    "cmake_cxx_flags": "-ffp-contract=off -DEIGEN_DONT_VECTORIZE -O2 -g -DNDEBUG -g3 -ggdb3 -flarge-source-files",
+    "probe": "law_random_probe"
+  },
+  "probe_compile_command": "/usr/bin/c++ '-DAKANTU_PROBE_BUILD_TYPE=\"RelWithDebInfo\"' '-DAKANTU_PROBE_CONFIG=\"strict\"' '-DAKANTU_PROBE_CXX_FLAGS=\"-ffp-contract=off -DEIGEN_DONT_VECTORIZE  -O2 -g -DNDEBUG\"' -DBOOST_GRAPH_DYN_LINK -DBOOST_GRAPH_NO_LIB -DBOOST_REGEX_DYN_LINK -DBOOST_REGEX_NO_LIB -DCGAL_USE_GMPXX=1 -I/probes/include -isystem /build/install-strict/include/akantu -isystem /opt/CGAL-5.6.2/include -isystem /usr/lib/x86_64-linux-gnu/openmpi/include -isystem /usr/lib/x86_64-linux-gnu/openmpi/include/openmpi -isystem /usr/lib/petscdir/petsc3.22/x86_64-linux-gnu-real/include -isystem /usr/include/scotch -isystem /build/install-strict/include/akantu_iterators -isystem /usr/include/eigen3 -isystem /build/install-strict/include/iohelper -O2 -g -DNDEBUG -std=gnu++20 -ffp-contract=off -DEIGEN_DONT_VECTORIZE -Wall -Wextra -pedantic -Wno-array-bounds -Wno-use-after-free -Wno-stringop-overread -DOMPI_SKIP_MPICXX -Wno-literal-suffix -frounding-math -o CMakeFiles/law_random_probe.dir/cpp/law_random_probe.cc.o -c /probes/cpp/law_random_probe.cc",
+  "probe_cxx_flags": "-DAKANTU_PROBE_BUILD_TYPE=\"RelWithDebInfo\" -DAKANTU_PROBE_CONFIG=\"strict\" -DAKANTU_PROBE_CXX_FLAGS=\"-ffp-contract=off -DEIGEN_DONT_VECTORIZE  -O2 -g -DNDEBUG\" -DBOOST_GRAPH_DYN_LINK -DBOOST_GRAPH_NO_LIB -DBOOST_REGEX_DYN_LINK -DBOOST_REGEX_NO_LIB -DCGAL_USE_GMPXX=1 -O2 -g -DNDEBUG -std=gnu++20 -ffp-contract=off -DEIGEN_DONT_VECTORIZE -Wall -Wextra -pedantic -Wno-array-bounds -Wno-use-after-free -Wno-stringop-overread -DOMPI_SKIP_MPICXX -Wno-literal-suffix -frounding-math"
+},
+  "created": "2026-11-11T03:12:03Z",
+  "inputs": [
+    {
+      "role": "material",
+      "path": "inputs/law_random_probe_mixed.dat",
+      "sha256": "8b2b9058187092f90f2c5f3309a061006c3ef269a8249b11d04f845316593649"
+    }
+  ],
+  "parameters": {
+    "seed": 1234,
+    "material_index": 1,
+    "added": [
+      {
+        "type": "_triangle_3",
+        "element": 1,
+        "ghost": "ghost"
+      },
+      {
+        "type": "_triangle_3",
+        "element": 0,
+        "ghost": "not_ghost"
+      },
+      {
+        "type": "_quadrangle_4",
+        "element": 0,
+        "ghost": "ghost"
+      },
+      {
+        "type": "_triangle_3",
+        "element": 1,
+        "ghost": "not_ghost"
+      },
+      {
+        "type": "_quadrangle_4",
+        "element": 0,
+        "ghost": "not_ghost"
+      },
+      {
+        "type": "_triangle_3",
+        "element": 0,
+        "ghost": "ghost"
+      },
+      {
+        "type": "_triangle_3",
+        "element": 2,
+        "ghost": "not_ghost"
+      },
+      {
+        "type": "_quadrangle_4",
+        "element": 1,
+        "ghost": "not_ghost"
+      },
+      {
+        "type": "_triangle_3",
+        "element": 3,
+        "ghost": "not_ghost"
+      }
+    ],
+    "steps": [
+      {
+        "step": "s1",
+        "filter": [
+          {
+            "type": "_triangle_3",
+            "ghost": "not_ghost",
+            "elements": []
+          },
+          {
+            "type": "_quadrangle_4",
+            "ghost": "not_ghost",
+            "elements": []
+          },
+          {
+            "type": "_triangle_3",
+            "ghost": "ghost",
+            "elements": []
+          },
+          {
+            "type": "_quadrangle_4",
+            "ghost": "ghost",
+            "elements": []
+          }
+        ],
+        "layout": [
+          {
+            "field": "a_rand",
+            "type": "_triangle_3",
+            "ghost": "not_ghost",
+            "size": 0,
+            "nb_component": 2
+          },
+          {
+            "field": "a_rand",
+            "type": "_quadrangle_4",
+            "ghost": "not_ghost",
+            "size": 0,
+            "nb_component": 2
+          },
+          {
+            "field": "a_rand",
+            "type": "_triangle_3",
+            "ghost": "ghost",
+            "size": 0,
+            "nb_component": 2
+          },
+          {
+            "field": "a_rand",
+            "type": "_quadrangle_4",
+            "ghost": "ghost",
+            "size": 0,
+            "nb_component": 2
+          },
+          {
+            "field": "k_coh",
+            "type": "_triangle_3",
+            "ghost": "not_ghost",
+            "size": 0,
+            "nb_component": 1
+          },
+          {
+            "field": "k_coh",
+            "type": "_quadrangle_4",
+            "ghost": "not_ghost",
+            "size": 0,
+            "nb_component": 1
+          },
+          {
+            "field": "k_coh",
+            "type": "_triangle_3",
+            "ghost": "ghost",
+            "size": 0,
+            "nb_component": 1
+          },
+          {
+            "field": "k_coh",
+            "type": "_quadrangle_4",
+            "ghost": "ghost",
+            "size": 0,
+            "nb_component": 1
+          },
+          {
+            "field": "m_rand",
+            "type": "_triangle_3",
+            "ghost": "not_ghost",
+            "size": 0,
+            "nb_component": 1
+          },
+          {
+            "field": "m_rand",
+            "type": "_quadrangle_4",
+            "ghost": "not_ghost",
+            "size": 0,
+            "nb_component": 1
+          },
+          {
+            "field": "m_rand",
+            "type": "_triangle_3",
+            "ghost": "ghost",
+            "size": 0,
+            "nb_component": 1
+          },
+          {
+            "field": "m_rand",
+            "type": "_quadrangle_4",
+            "ghost": "ghost",
+            "size": 0,
+            "nb_component": 1
+          },
+          {
+            "field": "previous_m_rand",
+            "type": "_triangle_3",
+            "ghost": "not_ghost",
+            "size": 0,
+            "nb_component": 1
+          },
+          {
+            "field": "previous_m_rand",
+            "type": "_quadrangle_4",
+            "ghost": "not_ghost",
+            "size": 0,
+            "nb_component": 1
+          },
+          {
+            "field": "previous_m_rand",
+            "type": "_triangle_3",
+            "ghost": "ghost",
+            "size": 0,
+            "nb_component": 1
+          },
+          {
+            "field": "previous_m_rand",
+            "type": "_quadrangle_4",
+            "ghost": "ghost",
+            "size": 0,
+            "nb_component": 1
+          },
+          {
+            "field": "p_plain",
+            "type": "_triangle_3",
+            "ghost": "not_ghost",
+            "size": 0,
+            "nb_component": 1
+          },
+          {
+            "field": "p_plain",
+            "type": "_quadrangle_4",
+            "ghost": "not_ghost",
+            "size": 0,
+            "nb_component": 1
+          },
+          {
+            "field": "p_plain",
+            "type": "_triangle_3",
+            "ghost": "ghost",
+            "size": 0,
+            "nb_component": 1
+          },
+          {
+            "field": "p_plain",
+            "type": "_quadrangle_4",
+            "ghost": "ghost",
+            "size": 0,
+            "nb_component": 1
+          },
+          {
+            "field": "z_rand",
+            "type": "_triangle_3",
+            "ghost": "not_ghost",
+            "size": 0,
+            "nb_component": 1
+          },
+          {
+            "field": "z_rand",
+            "type": "_quadrangle_4",
+            "ghost": "not_ghost",
+            "size": 0,
+            "nb_component": 1
+          },
+          {
+            "field": "z_rand",
+            "type": "_triangle_3",
+            "ghost": "ghost",
+            "size": 0,
+            "nb_component": 1
+          },
+          {
+            "field": "z_rand",
+            "type": "_quadrangle_4",
+            "ghost": "ghost",
+            "size": 0,
+            "nb_component": 1
+          }
+        ]
+      },
+      {
+        "step": "s2",
+        "filter": [
+          {
+            "type": "_triangle_3",
+            "ghost": "not_ghost",
+            "elements": [
+              0,
+              1,
+              2,
+              3
+            ]
+          },
+          {
+            "type": "_quadrangle_4",
+            "ghost": "not_ghost",
+            "elements": [
+              0,
+              1
+            ]
+          },
+          {
+            "type": "_triangle_3",
+            "ghost": "ghost",
+            "elements": [
+              1,
+              0
+            ]
+          },
+          {
+            "type": "_quadrangle_4",
+            "ghost": "ghost",
+            "elements": [
+              0
+            ]
+          }
+        ],
+        "layout": [
+          {
+            "field": "a_rand",
+            "type": "_triangle_3",
+            "ghost": "not_ghost",
+            "size": 4,
+            "nb_component": 2
+          },
+          {
+            "field": "a_rand",
+            "type": "_quadrangle_4",
+            "ghost": "not_ghost",
+            "size": 8,
+            "nb_component": 2
+          },
+          {
+            "field": "a_rand",
+            "type": "_triangle_3",
+            "ghost": "ghost",
+            "size": 2,
+            "nb_component": 2
+          },
+          {
+            "field": "a_rand",
+            "type": "_quadrangle_4",
+            "ghost": "ghost",
+            "size": 4,
+            "nb_component": 2
+          },
+          {
+            "field": "k_coh",
+            "type": "_triangle_3",
+            "ghost": "not_ghost",
+            "size": 0,
+            "nb_component": 1
+          },
+          {
+            "field": "k_coh",
+            "type": "_quadrangle_4",
+            "ghost": "not_ghost",
+            "size": 0,
+            "nb_component": 1
+          },
+          {
+            "field": "k_coh",
+            "type": "_triangle_3",
+            "ghost": "ghost",
+            "size": 0,
+            "nb_component": 1
+          },
+          {
+            "field": "k_coh",
+            "type": "_quadrangle_4",
+            "ghost": "ghost",
+            "size": 0,
+            "nb_component": 1
+          },
+          {
+            "field": "m_rand",
+            "type": "_triangle_3",
+            "ghost": "not_ghost",
+            "size": 4,
+            "nb_component": 1
+          },
+          {
+            "field": "m_rand",
+            "type": "_quadrangle_4",
+            "ghost": "not_ghost",
+            "size": 8,
+            "nb_component": 1
+          },
+          {
+            "field": "m_rand",
+            "type": "_triangle_3",
+            "ghost": "ghost",
+            "size": 2,
+            "nb_component": 1
+          },
+          {
+            "field": "m_rand",
+            "type": "_quadrangle_4",
+            "ghost": "ghost",
+            "size": 4,
+            "nb_component": 1
+          },
+          {
+            "field": "previous_m_rand",
+            "type": "_triangle_3",
+            "ghost": "not_ghost",
+            "size": 4,
+            "nb_component": 1
+          },
+          {
+            "field": "previous_m_rand",
+            "type": "_quadrangle_4",
+            "ghost": "not_ghost",
+            "size": 8,
+            "nb_component": 1
+          },
+          {
+            "field": "previous_m_rand",
+            "type": "_triangle_3",
+            "ghost": "ghost",
+            "size": 2,
+            "nb_component": 1
+          },
+          {
+            "field": "previous_m_rand",
+            "type": "_quadrangle_4",
+            "ghost": "ghost",
+            "size": 4,
+            "nb_component": 1
+          },
+          {
+            "field": "p_plain",
+            "type": "_triangle_3",
+            "ghost": "not_ghost",
+            "size": 4,
+            "nb_component": 1
+          },
+          {
+            "field": "p_plain",
+            "type": "_quadrangle_4",
+            "ghost": "not_ghost",
+            "size": 8,
+            "nb_component": 1
+          },
+          {
+            "field": "p_plain",
+            "type": "_triangle_3",
+            "ghost": "ghost",
+            "size": 2,
+            "nb_component": 1
+          },
+          {
+            "field": "p_plain",
+            "type": "_quadrangle_4",
+            "ghost": "ghost",
+            "size": 4,
+            "nb_component": 1
+          },
+          {
+            "field": "z_rand",
+            "type": "_triangle_3",
+            "ghost": "not_ghost",
+            "size": 4,
+            "nb_component": 1
+          },
+          {
+            "field": "z_rand",
+            "type": "_quadrangle_4",
+            "ghost": "not_ghost",
+            "size": 8,
+            "nb_component": 1
+          },
+          {
+            "field": "z_rand",
+            "type": "_triangle_3",
+            "ghost": "ghost",
+            "size": 2,
+            "nb_component": 1
+          },
+          {
+            "field": "z_rand",
+            "type": "_quadrangle_4",
+            "ghost": "ghost",
+            "size": 4,
+            "nb_component": 1
+          }
+        ]
+      }
+    ]
+  },
+  "storage": {
+    "mode": "committed",
+    "bytes": 2272
+  },
+  "quantities": [
+    {
+      "name": "s2/a_rand/_triangle_3/not_ghost",
+      "file": "data/s2__a_rand___triangle_3__not_ghost.npy",
+      "dtype": "f64",
+      "shape": [
+        4,
+        2
+      ],
+      "axes": [
+        "quad",
+        "component"
+      ],
+      "layout": "quadrature",
+      "sha256": "0c063eae694402abff5abeee22fa273a1f8829057353a5ee8bd9fb84d65f8e2e",
+      "element_type": "_triangle_3",
+      "ghost_type": "not_ghost",
+      "tolerance_class": "exact"
+    },
+    {
+      "name": "s2/a_rand/_quadrangle_4/not_ghost",
+      "file": "data/s2__a_rand___quadrangle_4__not_ghost.npy",
+      "dtype": "f64",
+      "shape": [
+        8,
+        2
+      ],
+      "axes": [
+        "quad",
+        "component"
+      ],
+      "layout": "quadrature",
+      "sha256": "3936e27d37c63116cac69444d4dbad99a1f811c34aafc3fc6a73eb078741b34a",
+      "element_type": "_quadrangle_4",
+      "ghost_type": "not_ghost",
+      "tolerance_class": "exact"
+    },
+    {
+      "name": "s2/a_rand/_triangle_3/ghost",
+      "file": "data/s2__a_rand___triangle_3__ghost.npy",
+      "dtype": "f64",
+      "shape": [
+        2,
+        2
+      ],
+      "axes": [
+        "quad",
+        "component"
+      ],
+      "layout": "quadrature",
+      "sha256": "8c6110ae06ce3c6de7eb2362e76c14251f2df25d246e9c88903959fb2726cf76",
+      "element_type": "_triangle_3",
+      "ghost_type": "ghost",
+      "tolerance_class": "exact"
+    },
+    {
+      "name": "s2/a_rand/_quadrangle_4/ghost",
+      "file": "data/s2__a_rand___quadrangle_4__ghost.npy",
+      "dtype": "f64",
+      "shape": [
+        4,
+        2
+      ],
+      "axes": [
+        "quad",
+        "component"
+      ],
+      "layout": "quadrature",
+      "sha256": "685d0900e354f510496f50b2f1eec577d9e04679062d43429893ca43d3399c4f",
+      "element_type": "_quadrangle_4",
+      "ghost_type": "ghost",
+      "tolerance_class": "exact"
+    },
+    {
+      "name": "s2/m_rand/_triangle_3/not_ghost",
+      "file": "data/s2__m_rand___triangle_3__not_ghost.npy",
+      "dtype": "f64",
+      "shape": [
+        4,
+        1
+      ],
+      "axes": [
+        "quad",
+        "component"
+      ],
+      "layout": "quadrature",
+      "sha256": "1b8fe2d8b9df501109ca27277a2eed7e9de341c69ce376d58d1bc66771227a5f",
+      "element_type": "_triangle_3",
+      "ghost_type": "not_ghost",
+      "tolerance_class": "exact"
+    },
+    {
+      "name": "s2/m_rand/_quadrangle_4/not_ghost",
+      "file": "data/s2__m_rand___quadrangle_4__not_ghost.npy",
+      "dtype": "f64",
+      "shape": [
+        8,
+        1
+      ],
+      "axes": [
+        "quad",
+        "component"
+      ],
+      "layout": "quadrature",
+      "sha256": "46c32eb5870c7b8e8977b4b85396e5f908812d1309fb7a475b6db455332aea04",
+      "element_type": "_quadrangle_4",
+      "ghost_type": "not_ghost",
+      "tolerance_class": "exact"
+    },
+    {
+      "name": "s2/m_rand/_triangle_3/ghost",
+      "file": "data/s2__m_rand___triangle_3__ghost.npy",
+      "dtype": "f64",
+      "shape": [
+        2,
+        1
+      ],
+      "axes": [
+        "quad",
+        "component"
+      ],
+      "layout": "quadrature",
+      "sha256": "0d00da9a27c039b896c58176700f47c0891f004dfa04fff27257703488c54fb8",
+      "element_type": "_triangle_3",
+      "ghost_type": "ghost",
+      "tolerance_class": "exact"
+    },
+    {
+      "name": "s2/m_rand/_quadrangle_4/ghost",
+      "file": "data/s2__m_rand___quadrangle_4__ghost.npy",
+      "dtype": "f64",
+      "shape": [
+        4,
+        1
+      ],
+      "axes": [
+        "quad",
+        "component"
+      ],
+      "layout": "quadrature",
+      "sha256": "c202711242dffcc692c6153e11c594d5fffe07458062e69bb8e9095736c777be",
+      "element_type": "_quadrangle_4",
+      "ghost_type": "ghost",
+      "tolerance_class": "exact"
+    },
+    {
+      "name": "s2/z_rand/_triangle_3/not_ghost",
+      "file": "data/s2__z_rand___triangle_3__not_ghost.npy",
+      "dtype": "f64",
+      "shape": [
+        4,
+        1
+      ],
+      "axes": [
+        "quad",
+        "component"
+      ],
+      "layout": "quadrature",
+      "sha256": "0e61a146584ba1355c1ce36ef3de66c77b8df8e4035bd1a6128e745e33322ff8",
+      "element_type": "_triangle_3",
+      "ghost_type": "not_ghost",
+      "tolerance_class": "exact"
+    },
+    {
+      "name": "s2/z_rand/_quadrangle_4/not_ghost",
+      "file": "data/s2__z_rand___quadrangle_4__not_ghost.npy",
+      "dtype": "f64",
+      "shape": [
+        8,
+        1
+      ],
+      "axes": [
+        "quad",
+        "component"
+      ],
+      "layout": "quadrature",
+      "sha256": "979dbc3e7e3b74c86ff7f7d86662db2c0f470a5da8a0345151847120d9560d34",
+      "element_type": "_quadrangle_4",
+      "ghost_type": "not_ghost",
+      "tolerance_class": "exact"
+    },
+    {
+      "name": "s2/z_rand/_triangle_3/ghost",
+      "file": "data/s2__z_rand___triangle_3__ghost.npy",
+      "dtype": "f64",
+      "shape": [
+        2,
+        1
+      ],
+      "axes": [
+        "quad",
+        "component"
+      ],
+      "layout": "quadrature",
+      "sha256": "d3aedc7a91692ec78b96e4f619221a321eef6ffecd2269d463b28d096b62f69c",
+      "element_type": "_triangle_3",
+      "ghost_type": "ghost",
+      "tolerance_class": "exact"
+    },
+    {
+      "name": "s2/z_rand/_quadrangle_4/ghost",
+      "file": "data/s2__z_rand___quadrangle_4__ghost.npy",
+      "dtype": "f64",
+      "shape": [
+        4,
+        1
+      ],
+      "axes": [
+        "quad",
+        "component"
+      ],
+      "layout": "quadrature",
+      "sha256": "8f43663c13683dacef24ca3861ad456d7e34ea117d956869a71ea56e6f1c717f",
+      "element_type": "_quadrangle_4",
+      "ghost_type": "ghost",
+      "tolerance_class": "exact"
+    },
+    {
+      "name": "next_draws",
+      "file": "data/next_draws.npy",
+      "dtype": "i64",
+      "shape": [
+        4
+      ],
+      "axes": [
+        "entry"
+      ],
+      "layout": "table",
+      "sha256": "3cb4ed4e44234f45dcf460ad253835fd18f1fdb6200649c572399c375ba79b1c",
+      "description": "next raw values of RandomGenerator<Idx> after s2",
+      "tolerance_class": "exact"
+    }
+  ],
+  "tags": [
+    "cl",
+    "wp-verify-1"
+  ]
+}

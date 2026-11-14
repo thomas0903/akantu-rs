@@ -1,0 +1,11 @@
+{
+  "format_version": 1,
+  "rules": [
+    {
+      "quantity": "*",
+      "justification": "DOF manager and solvers (docs/NUMERICAL_VALIDATION.md, 'DOF manager, non-linear solvers and time integration'): every floating-point quantity of fixtures/solver_model is either an input echoed by the probe (sinusoidal initial and border values computed with glibc sin/cos, the matmul operand) and fed unchanged to the port, or an output of a computation whose operation order the port replicates statement by statement: the upstream toy model (MyModel, test_model_solver_my_model.hh) and the probe's cubic bar in the same expression order, DOFManagerDefault assemblies (assembleToGlobalArray, assembleElementalArrayLocalArray, assembleLumpedMatMulVectToResidual, assembleMatMulVectToArray / matVecMul in storage order), the integration-scheme predictors/correctors and J = copyProfile + add(B, alpha) in upstream order, the Newton-Raphson convergence norm (sequential sum from 0, square root), the lumped solve alpha*(b/A), and the linear solves with the MPL-2.0 translation of Eigen 3.4.0 SparseLU (bit-identical on the strict oracle). Bit identity is therefore the expected result by construction; any difference is a defect, not rounding noise.",
+      "evidence": "2026-11-10: crates/akantu-solver/tests/{test_model_solver,test_dof_manager}.rs observe every compared value of all 30 cases bit-identical (histories, per-step SHA-256 digests of u||v||a over every step, snapshots, matrices with releases, residuals, energies, iteration counts and errors). The 30th case, solver_switch_shared_j (probe v2; UD-193), is bit-identical as well. An independent review regenerated the corpus byte-identically and ran 5 adversarial oracle scenarios bitwise.",
+      "reviewed_by": "independent review during the port, November 2026"
+    }
+  ]
+}

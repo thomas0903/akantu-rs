@@ -1,0 +1,11 @@
+{
+  "format_version": 1,
+  "rules": [
+    {
+      "quantity": "*",
+      "justification": "SMM-023, finite-deformation assembly (docs/NUMERICAL_VALIDATION.md, 'Solid mechanics model'): every case of fixtures/model/smm_fd is produced with the Eigen sparse solver, whose MPL-2.0 translation is bit-identical; every model quantity is either an input fed unchanged to the port (mesh, material file, affine / non-affine initial fields and loads computed with sequential sums, the oracle's rotation matrix) or the output of computations whose operation order the port replicates statement by statement: the total-Lagrangian kernels of material.cc (B-matrix transfers with upstream accumulation, stressToVoigt, setCauchyStressMatrix, B += B2, the products r = Bᵀ S_voigt, (Bᵀ Ŝ) B and (Bᵀ D) B through Eigen's product routes for their compile-time-sized operands, integration, assembly order NL then L2), StoCauchy on dump, plus the model pipeline already covered by fixtures/model/smm. Bit identity is the expected result; any difference is a defect. Exception documented under D-046: the oracle run of explicit_patch_hexahedron_20 diverges (explicit time step beyond the stability limit of the finite-deformation tangent, omega_max dt = 2.204 > 2) and its state is NaN from step 49 (2,036 recorded NaN values in 9 quantities, listed in the case manifest's notes); those values are the platform's default quiet NaN and match under the D-046 exact comparison (sign of a default NaN ignored, payloads bitwise); every finite value stays bitwise.",
+      "reviewed_by": "independent review during the port, November 2026",
+      "evidence": "crates/akantu-solid/tests/model_smm_fd_fixtures.rs observes every compared value of the 79 cases bit-identical (per-step SHA-256 digests of u || v || a for the 100-step patch and 50/10-step dynamic runs, Newton histories, K COO, internals incl. piola_kirchhoff_2 and Cauchy stress, energies). x86_64: every finite value identical; the NaN sign of explicit_patch_hexahedron_20 is covered by D-046 (the digests canonicalise default NaNs; fd_explicit_patch_hexahedron_20_diverges_from_step_49, fd_explicit_patch_time_step_against_the_stability_limit; NUMERICAL_VALIDATION 'Default-NaN convention (D-046)')."
+    }
+  ]
+}

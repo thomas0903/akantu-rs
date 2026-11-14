@@ -1,0 +1,907 @@
+{
+  "format_version": 1,
+  "case_id": "model/ntn_contact/adv_restart_continue",
+  "description": "review V72: restart mid-run (contact/friction restart files + manual displacement restart) and continue vs uninterrupted",
+  "status": "golden",
+  "generator": {
+    "probe": "ntn_adv_probe",
+    "probe_version": "1",
+    "command": "oracle/probes/ntn_contact_adv/generate.sh "
+  },
+  "reference": {
+    "sha": "35a851780d0b9471d258ed53a003ae98aaa95ea0",
+    "describe": "v5.0.7-post1-554-g35a851780",
+    "patches": [
+      "modified:cmake/AkantuTestsMacros.cmake sha256=c280165a84912eab4bcc081b9eaaaa06aafdd83d4f48d982e11b0859abf9672f (reference sha256=36290de2ec8b111028138fe82029efa16501512241a5bc264fa30ff3e3239b9e)"
+    ]
+  },
+  "build": {
+  "config": "strict",
+  "compiler": "g++ (Debian 14.2.0-19) 14.2.0",
+  "cxx_flags": "-ffp-contract=off -DEIGEN_DONT_VECTORIZE -O2 -g -DNDEBUG -g3 -ggdb3 -flarge-source-files -std=c++20 -flto=auto -fno-fat-lto-objects -fPIC -frounding-math (actual flags of src/model/solid_mechanics/solid_mechanics_model.cc; warnings and non-FP -D defines omitted)",
+  "build_type": "RelWithDebInfo",
+  "arch": "x86_64",
+  "os": "Debian GNU/Linux 13 (trixie)",
+  "libraries": {
+    "eigen3": "3.4.0-5",
+    "boost": "1.83.0.2+b2",
+    "openmpi": "5.0.7-1",
+    "mumps": "5.7.3-3+b1",
+    "petsc": "3.22.5+dfsg1-2",
+    "scotch": "7.0.7-1",
+    "openblas": "0.3.29+ds-3",
+    "scalapack": "2.2.2-1",
+    "hdf5": "1.14.5+repack-3",
+    "gmsh": "4.13.1+ds1-6",
+    "pybind11": "2.13.6-2",
+    "numpy": "1:2.2.4+ds-1",
+    "scipy": "1.15.3-1",
+    "gcc": "4:14.2.0-1",
+    "gfortran": "4:14.2.0-1",
+    "oracle_image": "sha256:45122c213e9fa194b6b58dcc31fc23b5fa4f7c0f64d0a452e40ae072c51c5cdb",
+    "oracle_build_scripts": "e168f393291494c869fa759b3ad9ae4a371a0369",
+    "oracle_install_reference_sha": "35a851780d0b9471d258ed53a003ae98aaa95ea0",
+    "oracle_install_image": "sha256:45122c213e9fa194b6b58dcc31fc23b5fa4f7c0f64d0a452e40ae072c51c5cdb",
+    "sha256:libakantu.so.5.0.7": "5491d902b6f363e11b47d2dc1d0aff0597374e8ff785bbfe2bff534f38509e81",
+    "probe_tree_sha256": "d35ce45e43d90f993d5c3e369b47ecb8f74078eb215363a6ce5e4439228717a7",
+    "probe_sources_commit": "fd0981b3b0f3a13e80c0266461d13e64e7bd3ecb",
+    "cmake_cxx_flags": "-ffp-contract=off -DEIGEN_DONT_VECTORIZE -O2 -g -DNDEBUG -g3 -ggdb3 -flarge-source-files",
+    "probe": "ntn_adv_probe"
+  },
+  "probe_compile_command": "/usr/bin/c++ '-DAKANTU_PROBE_BUILD_TYPE=\"RelWithDebInfo\"' '-DAKANTU_PROBE_CONFIG=\"strict\"' '-DAKANTU_PROBE_CXX_FLAGS=\"-ffp-contract=off -DEIGEN_DONT_VECTORIZE  -O2 -g -DNDEBUG\"' -DBOOST_GRAPH_DYN_LINK -DBOOST_GRAPH_NO_LIB -DBOOST_REGEX_DYN_LINK -DBOOST_REGEX_NO_LIB -DCGAL_USE_GMPXX=1 -I/probes/ntn_contact_adv/../include -isystem /build/install-strict/include/akantu -isystem /opt/CGAL-5.6.2/include -isystem /usr/lib/x86_64-linux-gnu/openmpi/include -isystem /usr/lib/x86_64-linux-gnu/openmpi/include/openmpi -isystem /usr/lib/petscdir/petsc3.22/x86_64-linux-gnu-real/include -isystem /usr/include/scotch -isystem /build/install-strict/include/akantu_iterators -isystem /usr/include/eigen3 -isystem /build/install-strict/include/iohelper -O2 -g -DNDEBUG -std=gnu++20 -ffp-contract=off -DEIGEN_DONT_VECTORIZE -Wall -Wextra -pedantic -Wno-array-bounds -Wno-use-after-free -Wno-stringop-overread -DOMPI_SKIP_MPICXX -Wno-literal-suffix -frounding-math -o CMakeFiles/ntn_adv_probe.dir/ntn_adv_probe.cc.o -c /probes/ntn_contact_adv/ntn_adv_probe.cc",
+  "probe_cxx_flags": "-DAKANTU_PROBE_BUILD_TYPE=\"RelWithDebInfo\" -DAKANTU_PROBE_CONFIG=\"strict\" -DAKANTU_PROBE_CXX_FLAGS=\"-ffp-contract=off -DEIGEN_DONT_VECTORIZE  -O2 -g -DNDEBUG\" -DBOOST_GRAPH_DYN_LINK -DBOOST_GRAPH_NO_LIB -DBOOST_REGEX_DYN_LINK -DBOOST_REGEX_NO_LIB -DCGAL_USE_GMPXX=1 -O2 -g -DNDEBUG -std=gnu++20 -ffp-contract=off -DEIGEN_DONT_VECTORIZE -Wall -Wextra -pedantic -Wno-array-bounds -Wno-use-after-free -Wno-stringop-overread -DOMPI_SKIP_MPICXX -Wno-literal-suffix -frounding-math"
+},
+  "created": "2026-11-11T04:34:51Z",
+  "inputs": [
+    {
+      "role": "mesh",
+      "path": "inputs/ntn_test_compression.msh",
+      "source": "upstream test mesh ntn_test_compression.msh",
+      "sha256": "7112cbfe95cba9c63e41088dbdd3e5281facd5c4994cddf5e131ab50bb10f645"
+    },
+    {
+      "role": "material",
+      "path": "inputs/adv_restart_continue.dat",
+      "source": "probe-generated",
+      "sha256": "2ba2ae10f2d2b885020976def7bec865200e1b89859f156923237b0b7f167402"
+    },
+    {
+      "role": "restart/acceleration.restart",
+      "path": "inputs/acceleration.restart",
+      "source": "probe output",
+      "sha256": "8014eb5050d47ed7c429a0d4236b9920c257b4485db404a5800b5584b0f41c8d"
+    },
+    {
+      "role": "restart/displacement.restart",
+      "path": "inputs/displacement.restart",
+      "source": "probe output",
+      "sha256": "249d58f7cb8793e723ad80d97a2316910a96e169eefec24f18feff2e93a1b544"
+    },
+    {
+      "role": "restart/ntn-contact_pressure.rs",
+      "path": "inputs/ntn-contact_pressure.rs",
+      "source": "probe output",
+      "sha256": "5e1efda353ba516327c7cdc32d6616595cdc2649be63e658e74272e61b1e4148"
+    },
+    {
+      "role": "restart/ntn-cumulative_slip.rs",
+      "path": "inputs/ntn-cumulative_slip.rs",
+      "source": "probe output",
+      "sha256": "7da620c6d5d532fef04cd991847b6e5d4010df90f3821166b2e18ce00524143d"
+    },
+    {
+      "role": "restart/ntn-d_c.rs",
+      "path": "inputs/ntn-d_c.rs",
+      "source": "probe output",
+      "sha256": "f679ae545c96d40512bd07d9931ac7540899468043dfb7468d9851e25587da9e"
+    },
+    {
+      "role": "restart/ntn-friction_traction.rs",
+      "path": "inputs/ntn-friction_traction.rs",
+      "source": "probe output",
+      "sha256": "1986fab0463eb035db25d95d90724d747de8f9400d7ab8e91ff5d548251d6ad6"
+    },
+    {
+      "role": "restart/ntn-friction_traction_old.rs",
+      "path": "inputs/ntn-friction_traction_old.rs",
+      "source": "probe output",
+      "sha256": "c00777e122317d82b5dce8dbc81734f148837354215ffc91db1b9a461e2a3905"
+    },
+    {
+      "role": "restart/ntn-frictional_contact_pressure.rs",
+      "path": "inputs/ntn-frictional_contact_pressure.rs",
+      "source": "probe output",
+      "sha256": "98f37a295c84525cf24693e526ec3052f8f5af2986b93ffbb66e1bf3eb437deb"
+    },
+    {
+      "role": "restart/ntn-frictional_strength.rs",
+      "path": "inputs/ntn-frictional_strength.rs",
+      "source": "probe output",
+      "sha256": "4314061777ce9d988a712dcfb1ef03514c1d3caf84a4f651dc33975f622d1049"
+    },
+    {
+      "role": "restart/ntn-impedance.rs",
+      "path": "inputs/ntn-impedance.rs",
+      "source": "probe output",
+      "sha256": "d06515af401795fc106a903c2ce626b6b46d841c30a950123e7bcf43698ca03e"
+    },
+    {
+      "role": "restart/ntn-is_in_contact.rs",
+      "path": "inputs/ntn-is_in_contact.rs",
+      "source": "probe output",
+      "sha256": "4c04eb0f16f88aa7fb6b55ca300190881a009d999d8cbf5be18d9ddb66387d10"
+    },
+    {
+      "role": "restart/ntn-is_sticking.rs",
+      "path": "inputs/ntn-is_sticking.rs",
+      "source": "probe output",
+      "sha256": "8de60cb478fa13aae9a2e8d616bbf301299439663d82fd4f764164852772a3dc"
+    },
+    {
+      "role": "restart/ntn-lumped_boundary_masters.rs",
+      "path": "inputs/ntn-lumped_boundary_masters.rs",
+      "source": "probe output",
+      "sha256": "4b1c42c1101c8ea72b852b8a68cef850e664224583941d8b85ea08831006b920"
+    },
+    {
+      "role": "restart/ntn-lumped_boundary_slaves.rs",
+      "path": "inputs/ntn-lumped_boundary_slaves.rs",
+      "source": "probe output",
+      "sha256": "6eadfc2291b6ebcd8caf1d0f1163b40c3ed24ffb487c2407b29f6b969f4fb9fe"
+    },
+    {
+      "role": "restart/ntn-masters.rs",
+      "path": "inputs/ntn-masters.rs",
+      "source": "probe output",
+      "sha256": "c371daa7d68bebd4ccd9cffeb92774777b9546997f969791a69ce263d5526496"
+    },
+    {
+      "role": "restart/ntn-mu.rs",
+      "path": "inputs/ntn-mu.rs",
+      "source": "probe output",
+      "sha256": "e088b65d3469f0204541311db10e0b54815348e946a335a1d2ea07b16aaa8561"
+    },
+    {
+      "role": "restart/ntn-mu_k.rs",
+      "path": "inputs/ntn-mu_k.rs",
+      "source": "probe output",
+      "sha256": "15a7975f99d74c7ab69ead72a6280ce66b686410cbc66c8bd4591a667e0a4c20"
+    },
+    {
+      "role": "restart/ntn-mu_s.rs",
+      "path": "inputs/ntn-mu_s.rs",
+      "source": "probe output",
+      "sha256": "2644470969f60cb0ebeb0810167e5d78f2928354f91225f979322314b2ec0c6e"
+    },
+    {
+      "role": "restart/ntn-normals.rs",
+      "path": "inputs/ntn-normals.rs",
+      "source": "probe output",
+      "sha256": "264a47c0e6c6e31002e07e8c75bc9b402d42e401cbb066ba9f72890ca0bd789f"
+    },
+    {
+      "role": "restart/ntn-slaves.rs",
+      "path": "inputs/ntn-slaves.rs",
+      "source": "probe output",
+      "sha256": "d8f69796a0c644fec949e6acbe303c0162f7b7e98c956ee4b0828572a5f2d79f"
+    },
+    {
+      "role": "restart/ntn-slip.rs",
+      "path": "inputs/ntn-slip.rs",
+      "source": "probe output",
+      "sha256": "c340546df9987a6c11c96ee40e4d7c205812f11ccfa4c3e631e34448106c6a04"
+    },
+    {
+      "role": "restart/ntn-slip_velocity.rs",
+      "path": "inputs/ntn-slip_velocity.rs",
+      "source": "probe output",
+      "sha256": "e4e14328196e4a541e6fdcdfb3ce9fddb0897899c18171819d8552704285876e"
+    },
+    {
+      "role": "restart/ntn-t_star.rs",
+      "path": "inputs/ntn-t_star.rs",
+      "source": "probe output",
+      "sha256": "b5a70d413172271a446a0d0bd54cac8b15d2f66b677bee9e75a66feec646c84e"
+    },
+    {
+      "role": "restart/velocity.restart",
+      "path": "inputs/velocity.restart",
+      "source": "probe output",
+      "sha256": "d5eb7e7415cda74518870b8864ce610f390895f95c91cb340f3b8b39a2b50d77"
+    }
+  ],
+  "parameters": {
+    "eigen_cache_sizes": [
+      16384,
+      524288,
+      524288
+    ]
+  },
+  "storage": {
+    "mode": "committed",
+    "bytes": 93520
+  },
+  "quantities": [
+    {
+      "name": "a/contact_pressure",
+      "file": "data/a__contact_pressure.npy",
+      "dtype": "f64",
+      "shape": [
+        40,
+        11,
+        2
+      ],
+      "axes": [
+        "row",
+        "entry",
+        "component"
+      ],
+      "layout": "table",
+      "sha256": "b9f9a7c27fae18609c2f36deb01e01e39417884f79362d8ef21abd43ebcb2bdc"
+    },
+    {
+      "name": "a/cumulative_slip",
+      "file": "data/a__cumulative_slip.npy",
+      "dtype": "f64",
+      "shape": [
+        40,
+        11,
+        1
+      ],
+      "axes": [
+        "row",
+        "entry",
+        "component"
+      ],
+      "layout": "table",
+      "sha256": "0d6b708b427925b0c1ce6d1be61a2d00921c69651cba3e22af2f16180ba4cae9"
+    },
+    {
+      "name": "a/external_work",
+      "file": "data/a__external_work.npy",
+      "dtype": "f64",
+      "shape": [
+        40,
+        2
+      ],
+      "axes": [
+        "row",
+        "component"
+      ],
+      "layout": "table",
+      "sha256": "2660b3a9b23390a4636cdba828fdb5e86c8db85adff58cde4270b4252266caab"
+    },
+    {
+      "name": "a/final_displacement",
+      "file": "data/a__final_displacement.npy",
+      "dtype": "f64",
+      "shape": [
+        1,
+        242,
+        2
+      ],
+      "axes": [
+        "row",
+        "entry",
+        "component"
+      ],
+      "layout": "table",
+      "sha256": "aebe6f5aba8615d4fd6e2d3794c14aea0c11e795a852230900aba58d41b6acea"
+    },
+    {
+      "name": "a/friction_state",
+      "file": "data/a__friction_state.npy",
+      "dtype": "f64",
+      "shape": [
+        40,
+        11,
+        1
+      ],
+      "axes": [
+        "row",
+        "entry",
+        "component"
+      ],
+      "layout": "table",
+      "sha256": "1b94156d12e19fb1140ab6e897da03bee15b8e0147a6e25057baf206ac354358"
+    },
+    {
+      "name": "a/friction_traction",
+      "file": "data/a__friction_traction.npy",
+      "dtype": "f64",
+      "shape": [
+        40,
+        11,
+        2
+      ],
+      "axes": [
+        "row",
+        "entry",
+        "component"
+      ],
+      "layout": "table",
+      "sha256": "8fdf52ff844be952c06c801d6a7317328e15b7ddbfab0dfc28871b04e7e3fea2"
+    },
+    {
+      "name": "a/frictional_strength",
+      "file": "data/a__frictional_strength.npy",
+      "dtype": "f64",
+      "shape": [
+        40,
+        11,
+        1
+      ],
+      "axes": [
+        "row",
+        "entry",
+        "component"
+      ],
+      "layout": "table",
+      "sha256": "9748690fb94f816caaf213d189702512c14f10419c5802c0204ba54ccf89709c"
+    },
+    {
+      "name": "a/is_in_contact",
+      "file": "data/a__is_in_contact.npy",
+      "dtype": "f64",
+      "shape": [
+        40,
+        11,
+        1
+      ],
+      "axes": [
+        "row",
+        "entry",
+        "component"
+      ],
+      "layout": "table",
+      "sha256": "4e6c9ca2038c9beaae216157ec96320ec652c3a991f8b01f94eba38a6dc34f6d"
+    },
+    {
+      "name": "a/is_sticking",
+      "file": "data/a__is_sticking.npy",
+      "dtype": "f64",
+      "shape": [
+        40,
+        11,
+        1
+      ],
+      "axes": [
+        "row",
+        "entry",
+        "component"
+      ],
+      "layout": "table",
+      "sha256": "2c44b2b3e89bd7ee1340d5d67fe2d6db0090dde0ffaf0442beba306d77d82f9a"
+    },
+    {
+      "name": "a/slip",
+      "file": "data/a__slip.npy",
+      "dtype": "f64",
+      "shape": [
+        40,
+        11,
+        1
+      ],
+      "axes": [
+        "row",
+        "entry",
+        "component"
+      ],
+      "layout": "table",
+      "sha256": "93ac0f26bd5d2fa19fe7f0b3da8312be18bd96898b54b6818b5c9595cce44341"
+    },
+    {
+      "name": "a/slip_velocity_norm",
+      "file": "data/a__slip_velocity_norm.npy",
+      "dtype": "f64",
+      "shape": [
+        40,
+        11,
+        1
+      ],
+      "axes": [
+        "row",
+        "entry",
+        "component"
+      ],
+      "layout": "table",
+      "sha256": "b1d052f38e5ca889a828d0f4bb7bce9c547dbc1e18faf9c0061ead8694932104"
+    },
+    {
+      "name": "a_at_restart/contact_pressure",
+      "file": "data/a_at_restart__contact_pressure.npy",
+      "dtype": "f64",
+      "shape": [
+        1,
+        11,
+        2
+      ],
+      "axes": [
+        "row",
+        "entry",
+        "component"
+      ],
+      "layout": "table",
+      "sha256": "5c95c96833b337f17185ea4766861a765b527576cc8ff72ae63584e1ebeea827"
+    },
+    {
+      "name": "a_at_restart/cumulative_slip",
+      "file": "data/a_at_restart__cumulative_slip.npy",
+      "dtype": "f64",
+      "shape": [
+        1,
+        11,
+        1
+      ],
+      "axes": [
+        "row",
+        "entry",
+        "component"
+      ],
+      "layout": "table",
+      "sha256": "5147e52e9efcce418c7a0a618951ea0824ed094bb4fd9a4ce3d8eb0c89a748d7"
+    },
+    {
+      "name": "a_at_restart/friction_state",
+      "file": "data/a_at_restart__friction_state.npy",
+      "dtype": "f64",
+      "shape": [
+        1,
+        11,
+        1
+      ],
+      "axes": [
+        "row",
+        "entry",
+        "component"
+      ],
+      "layout": "table",
+      "sha256": "cd2145db83f597c5081058a8d6083b671e27436823b6944447ee89143d6d0688"
+    },
+    {
+      "name": "a_at_restart/friction_traction",
+      "file": "data/a_at_restart__friction_traction.npy",
+      "dtype": "f64",
+      "shape": [
+        1,
+        11,
+        2
+      ],
+      "axes": [
+        "row",
+        "entry",
+        "component"
+      ],
+      "layout": "table",
+      "sha256": "c9c3577b4b49042a42eb5e57daec0a2989089c2ec697d7ed3fe1bbeb0436e48f"
+    },
+    {
+      "name": "a_at_restart/frictional_strength",
+      "file": "data/a_at_restart__frictional_strength.npy",
+      "dtype": "f64",
+      "shape": [
+        1,
+        11,
+        1
+      ],
+      "axes": [
+        "row",
+        "entry",
+        "component"
+      ],
+      "layout": "table",
+      "sha256": "00555185d30ed8110741882c104398d6599fb0a95a66cb4f4a567af59f899edb"
+    },
+    {
+      "name": "a_at_restart/is_in_contact",
+      "file": "data/a_at_restart__is_in_contact.npy",
+      "dtype": "f64",
+      "shape": [
+        1,
+        11,
+        1
+      ],
+      "axes": [
+        "row",
+        "entry",
+        "component"
+      ],
+      "layout": "table",
+      "sha256": "f6926aaf35340d77ee71617f71b5b957ecb70a2e78d465ea0e8cb9f9c94a5335"
+    },
+    {
+      "name": "a_at_restart/is_sticking",
+      "file": "data/a_at_restart__is_sticking.npy",
+      "dtype": "f64",
+      "shape": [
+        1,
+        11,
+        1
+      ],
+      "axes": [
+        "row",
+        "entry",
+        "component"
+      ],
+      "layout": "table",
+      "sha256": "fde864d21ff01035f3389b46547a5477a1b27aadec045fc6017d1839362e4ba7"
+    },
+    {
+      "name": "a_at_restart/slip",
+      "file": "data/a_at_restart__slip.npy",
+      "dtype": "f64",
+      "shape": [
+        1,
+        11,
+        1
+      ],
+      "axes": [
+        "row",
+        "entry",
+        "component"
+      ],
+      "layout": "table",
+      "sha256": "5ee2e959c278019e80081d55c7c8754340e351b9f1f348d2beba9ef0b0a85c19"
+    },
+    {
+      "name": "a_at_restart/slip_velocity_norm",
+      "file": "data/a_at_restart__slip_velocity_norm.npy",
+      "dtype": "f64",
+      "shape": [
+        1,
+        11,
+        1
+      ],
+      "axes": [
+        "row",
+        "entry",
+        "component"
+      ],
+      "layout": "table",
+      "sha256": "e52b42174ee05f5d6236f49a78607d2d61f69f074cc11f9a468b75f03b6ad8d6"
+    },
+    {
+      "name": "b/contact_pressure",
+      "file": "data/b__contact_pressure.npy",
+      "dtype": "f64",
+      "shape": [
+        40,
+        11,
+        2
+      ],
+      "axes": [
+        "row",
+        "entry",
+        "component"
+      ],
+      "layout": "table",
+      "sha256": "ac66ec00fe4d8e23e3f4be4e39a0fd8d64eb94451a279eebfb4d0638d1ceaec3"
+    },
+    {
+      "name": "b/cumulative_slip",
+      "file": "data/b__cumulative_slip.npy",
+      "dtype": "f64",
+      "shape": [
+        40,
+        11,
+        1
+      ],
+      "axes": [
+        "row",
+        "entry",
+        "component"
+      ],
+      "layout": "table",
+      "sha256": "8aa57290bc6bb51ac513b30728bc2ef9f13c4910831f576dde75f7e3836fd634"
+    },
+    {
+      "name": "b/external_work",
+      "file": "data/b__external_work.npy",
+      "dtype": "f64",
+      "shape": [
+        40,
+        2
+      ],
+      "axes": [
+        "row",
+        "component"
+      ],
+      "layout": "table",
+      "sha256": "0ae5a4bcfcf62470c1e9628d93a4813b8d453530277312466140db78d6290dd5"
+    },
+    {
+      "name": "b/final_displacement",
+      "file": "data/b__final_displacement.npy",
+      "dtype": "f64",
+      "shape": [
+        1,
+        242,
+        2
+      ],
+      "axes": [
+        "row",
+        "entry",
+        "component"
+      ],
+      "layout": "table",
+      "sha256": "3c53d56b7f9c2bb061cd0dcc8e765f6b7544b048c91b5ec07b2f2e63f46dc8aa"
+    },
+    {
+      "name": "b/friction_state",
+      "file": "data/b__friction_state.npy",
+      "dtype": "f64",
+      "shape": [
+        40,
+        11,
+        1
+      ],
+      "axes": [
+        "row",
+        "entry",
+        "component"
+      ],
+      "layout": "table",
+      "sha256": "1b94156d12e19fb1140ab6e897da03bee15b8e0147a6e25057baf206ac354358"
+    },
+    {
+      "name": "b/friction_traction",
+      "file": "data/b__friction_traction.npy",
+      "dtype": "f64",
+      "shape": [
+        40,
+        11,
+        2
+      ],
+      "axes": [
+        "row",
+        "entry",
+        "component"
+      ],
+      "layout": "table",
+      "sha256": "4ece8bcec2e5eaeaa67d785633a8dfeefa5e5ea98bdd880d92db1296c979afc5"
+    },
+    {
+      "name": "b/frictional_strength",
+      "file": "data/b__frictional_strength.npy",
+      "dtype": "f64",
+      "shape": [
+        40,
+        11,
+        1
+      ],
+      "axes": [
+        "row",
+        "entry",
+        "component"
+      ],
+      "layout": "table",
+      "sha256": "4eb8ff6a2b07adc140ac762e96994b869b89fb3c16058391eb6e1e6b49730a72"
+    },
+    {
+      "name": "b/is_in_contact",
+      "file": "data/b__is_in_contact.npy",
+      "dtype": "f64",
+      "shape": [
+        40,
+        11,
+        1
+      ],
+      "axes": [
+        "row",
+        "entry",
+        "component"
+      ],
+      "layout": "table",
+      "sha256": "4e6c9ca2038c9beaae216157ec96320ec652c3a991f8b01f94eba38a6dc34f6d"
+    },
+    {
+      "name": "b/is_sticking",
+      "file": "data/b__is_sticking.npy",
+      "dtype": "f64",
+      "shape": [
+        40,
+        11,
+        1
+      ],
+      "axes": [
+        "row",
+        "entry",
+        "component"
+      ],
+      "layout": "table",
+      "sha256": "c16624a3f9f129b7aff98ee447e79f0cdf9b35b3dacab6306aa294e9502c6288"
+    },
+    {
+      "name": "b/slip",
+      "file": "data/b__slip.npy",
+      "dtype": "f64",
+      "shape": [
+        40,
+        11,
+        1
+      ],
+      "axes": [
+        "row",
+        "entry",
+        "component"
+      ],
+      "layout": "table",
+      "sha256": "9f2cdf749ba1428bfbe2c9ef970443487e146f39fa71648318eb62c79bfebaaa"
+    },
+    {
+      "name": "b/slip_velocity_norm",
+      "file": "data/b__slip_velocity_norm.npy",
+      "dtype": "f64",
+      "shape": [
+        40,
+        11,
+        1
+      ],
+      "axes": [
+        "row",
+        "entry",
+        "component"
+      ],
+      "layout": "table",
+      "sha256": "edb9821ed91be8a8687fb847c9830d5a9e36bef20993fc2788168959229e8224"
+    },
+    {
+      "name": "b_after_read/contact_pressure",
+      "file": "data/b_after_read__contact_pressure.npy",
+      "dtype": "f64",
+      "shape": [
+        1,
+        11,
+        2
+      ],
+      "axes": [
+        "row",
+        "entry",
+        "component"
+      ],
+      "layout": "table",
+      "sha256": "f7f48d10e1e7e842fe561fe73f24713918b3f7151c83bbf24be6cca69ffaec5a"
+    },
+    {
+      "name": "b_after_read/cumulative_slip",
+      "file": "data/b_after_read__cumulative_slip.npy",
+      "dtype": "f64",
+      "shape": [
+        1,
+        11,
+        1
+      ],
+      "axes": [
+        "row",
+        "entry",
+        "component"
+      ],
+      "layout": "table",
+      "sha256": "cd2145db83f597c5081058a8d6083b671e27436823b6944447ee89143d6d0688"
+    },
+    {
+      "name": "b_after_read/friction_state",
+      "file": "data/b_after_read__friction_state.npy",
+      "dtype": "f64",
+      "shape": [
+        1,
+        11,
+        1
+      ],
+      "axes": [
+        "row",
+        "entry",
+        "component"
+      ],
+      "layout": "table",
+      "sha256": "cd2145db83f597c5081058a8d6083b671e27436823b6944447ee89143d6d0688"
+    },
+    {
+      "name": "b_after_read/friction_traction",
+      "file": "data/b_after_read__friction_traction.npy",
+      "dtype": "f64",
+      "shape": [
+        1,
+        11,
+        2
+      ],
+      "axes": [
+        "row",
+        "entry",
+        "component"
+      ],
+      "layout": "table",
+      "sha256": "7f76306ca9b831ad52d1215bbd7f181c53855abb797427c8bbb6479fb8686cd5"
+    },
+    {
+      "name": "b_after_read/frictional_strength",
+      "file": "data/b_after_read__frictional_strength.npy",
+      "dtype": "f64",
+      "shape": [
+        1,
+        11,
+        1
+      ],
+      "axes": [
+        "row",
+        "entry",
+        "component"
+      ],
+      "layout": "table",
+      "sha256": "cd2145db83f597c5081058a8d6083b671e27436823b6944447ee89143d6d0688"
+    },
+    {
+      "name": "b_after_read/is_in_contact",
+      "file": "data/b_after_read__is_in_contact.npy",
+      "dtype": "f64",
+      "shape": [
+        1,
+        11,
+        1
+      ],
+      "axes": [
+        "row",
+        "entry",
+        "component"
+      ],
+      "layout": "table",
+      "sha256": "cd2145db83f597c5081058a8d6083b671e27436823b6944447ee89143d6d0688"
+    },
+    {
+      "name": "b_after_read/is_sticking",
+      "file": "data/b_after_read__is_sticking.npy",
+      "dtype": "f64",
+      "shape": [
+        1,
+        11,
+        1
+      ],
+      "axes": [
+        "row",
+        "entry",
+        "component"
+      ],
+      "layout": "table",
+      "sha256": "f6926aaf35340d77ee71617f71b5b957ecb70a2e78d465ea0e8cb9f9c94a5335"
+    },
+    {
+      "name": "b_after_read/slip",
+      "file": "data/b_after_read__slip.npy",
+      "dtype": "f64",
+      "shape": [
+        1,
+        11,
+        1
+      ],
+      "axes": [
+        "row",
+        "entry",
+        "component"
+      ],
+      "layout": "table",
+      "sha256": "cd2145db83f597c5081058a8d6083b671e27436823b6944447ee89143d6d0688"
+    },
+    {
+      "name": "b_after_read/slip_velocity_norm",
+      "file": "data/b_after_read__slip_velocity_norm.npy",
+      "dtype": "f64",
+      "shape": [
+        1,
+        11,
+        1
+      ],
+      "axes": [
+        "row",
+        "entry",
+        "component"
+      ],
+      "layout": "table",
+      "sha256": "cd2145db83f597c5081058a8d6083b671e27436823b6944447ee89143d6d0688"
+    }
+  ],
+  "tags": [
+    "model",
+    "ntn_contact"
+  ],
+  "notes": "NaN (D-046): b_after_read/contact_pressure holds 22 values 0x7ff8000000000000, std::numeric_limits<Real>::quiet_NaN() (a constant: the same bits on every platform): the fresh contact of run B still has the contact pressure that NTNBaseContact::addSplitNode initialises with quiet_NaN, because readRestart restores no value upstream (UD-394) and no step has run yet. The port's corrected default restores the values."
+}

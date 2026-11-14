@@ -1,0 +1,46 @@
+# SPDX-License-Identifier: LGPL-3.0-or-later
+# akantu-rs oracle variant `embedded` (D-060), patch 0005 — UD-588, restores
+# the released v5.0.0 behaviour. Upstream: Akantu (EPFL/LSMS) 35a851780d0b,
+# material_reinforcement_tmpl.hh. `pre_stress` is registered both as a
+# parsable parameter (registerParam on a std::shared_ptr<InternalField>, for
+# which no ParameterTyped exists: does not compile) and, in initMaterial, as
+# an internal. As in v5.0.0, the internal is registered in the constructor
+# (after the element filter is re-initialised on the interface mesh, so it
+# lives on the 1-D interface elements) and the parameter is registered on
+# that internal (ParameterTyped<InternalField<Real>> still exists: the
+# parsed value becomes the internal's default, set on every point). No
+# formula changes. Applied only to a COPY of the sources.
+
+--- a/src/model/solid_mechanics/materials/material_embedded/material_reinforcement_tmpl.hh
++++ b/src/model/solid_mechanics/materials/material_embedded/material_reinforcement_tmpl.hh
+@@ -31,14 +31,16 @@ template <class Mat, Int dim>
+ MaterialReinforcement<Mat, dim>::MaterialReinforcement(
+     EmbeddedInterfaceModel & model, const ID & id)
+     : Mat(model, id, "EmbeddedInterfaceFEEngine"), emodel(model), area(1.0) {
+-  this->registerParam("area", area, _pat_parsable | _pat_modifiable,
+-                      "Reinforcement cross-sectional area");
+-  this->registerParam("pre_stress", pre_stress, _pat_parsable | _pat_modifiable,
+-                      "Uniform pre-stress");
+-
+   // Reallocate the element filter
+   this->getElementFilter().initialize(this->emodel.getInterfaceMesh(),
+                                       _spatial_dimension = 1);
++
++  pre_stress =
++      &this->registerInternal("pre_stress", 1, "EmbeddedInterfaceFEEngine");
++  this->registerParam("area", area, _pat_parsable | _pat_modifiable,
++                      "Reinforcement cross-sectional area");
++  this->registerParam("pre_stress", *pre_stress,
++                      _pat_parsable | _pat_modifiable, "Uniform pre-stress");
+ }
+ 
+ /* -------------------------------------------------------------------------- */
+@@ -49,8 +51,6 @@ void MaterialReinforcement<Mat, dim>::initMaterial() {
+ 
+   gradu_embedded = &this->registerInternal("gradu_embedded", dim * dim,
+                                            "EmbeddedInterfaceFEEngine");
+-  pre_stress =
+-      &this->registerInternal("pre_stress", 1, "EmbeddedInterfaceFEEngine");
+ 
+   /// We initialise the stuff that is not going to change during the simulation
+   this->initFilters();

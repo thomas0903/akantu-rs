@@ -1,0 +1,11 @@
+{
+  "format_version": 1,
+  "rules": [
+    {
+      "quantity": "*",
+      "justification": "Couplers (docs/NUMERICAL_VALIDATION.md, 'Model couplers'): every case of fixtures/model/couplers is either an input fed unchanged to the port (mesh, material file, prescribed-strain schedule, time step, increments) or the output of the upstream couplers driving models whose strict-build evaluation order the port already replicates bit for bit (SolidMechanicsModel incl. the phasefield material, PhaseFieldModel, ContactMechanicsModel, SolidMechanicsModelCohesive; Eigen sparse solver pinned, Eigen cache sizes pinned, D-050); the couplers themselves only move data (flatten/inflate, interpolation, copies), add residual parts in upstream order and form (g + g^T)/2 - eps_th*delta coefficient-wise. Bit identity is the expected result; any difference is a defect.",
+      "evidence": "crates/akantu-couplers/tests/coupler_fixtures.rs observes every compared value bit-identical on aarch64 macOS against these x86_64 strict-oracle fixtures (11 cases, about 150,000 values: per-step SHA-256 digests, Newton iteration counts and errors, energies, checkpoint and final arrays; including upstream's NotConverged failure of pf_multi_material at step 1 and the 300-iteration Newton runs of pf_multi_material_converging). Accepted by an independent review. Added on 2026-11-11: case cohesive_static (static CouplerSolidCohesiveContact, 236 quantities incl. a per-callback-event trace of K, J, residual, solution and contact search over 47 events, and upstream's Newton failure after 100 iterations at step 4) replayed bit-identically in compat mode by crates/akantu-couplers/tests/cohesive_static.rs (UD-772, UD-374, UD-034 compat); contact_static_friction (UD-001 variant oracle) by tests/friction_history.rs (contact_static_friction_fixture_upstream_compat).",
+      "reviewed_by": "independent review during the port, November 2026"
+    }
+  ]
+}

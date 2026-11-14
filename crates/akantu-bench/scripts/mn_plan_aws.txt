@@ -1,0 +1,52 @@
+# SPDX-License-Identifier: LGPL-3.0-or-later
+# Part of akantu-rs, a Rust port of Akantu (EPFL/LSMS). No upstream
+# counterpart: the plan of the main multi-node
+# session on AWS (8 hosts r7a.2xlarge, 8 cores / 64 GiB each, one cluster
+# placement group), for mn_session.py (format there). It starts only
+# after the smoke session (mn_plan_aws_smoke.txt) has been judged
+# `SMOKE: PASS` (mn_compare.py --smoke). The order is the
+# order of importance: the budget rule skips a run whose scaled estimate no
+# longer fits, so the last lines are dropped first. Estimates (hours, +30 %):
+# the earlier C1 session's runs on one r7a.16xlarge; the session rescales them after each `ok` run.
+#
+# Every line sets the full-size rerun's settings (D-105 / D-108): upstream's cohesive laws and the corrected doubled-node load
+# placement, `rust_cohesive_compat=upstream rust_doubled_node_load=follows_elements`
+# (driver keys of the load fix, UD-1280). The driver is the one of the
+# export-both build (c1_images.sh), the same binary as the rerun's.
+#
+# Meshes: h0.12 (frozen, repository subset), h0.04 / h0.032 / h0.025
+# (akantu-mn-meshes-scaling.tar.gz: x86_64 Gmsh 4.13.1 of the oracle image,
+# 558,875 / 1,118,239 / 2,256,352 tetrahedra), joss (akantu-c1-mesh-joss.tar.gz:
+# 4,392,183 tetrahedra). Partitions: partition-np64.csv (6f8dbbac…) and
+# partition-np32.csv (4c5cf70d…) are C1's exported 64- and 32-rank C++
+# partitions; joss64x8 and joss32x8 replay them and are compared with the
+# full-size rerun's single-node 64- and 32-rank runs of the same binary on the
+# same files: `mn_compare.py --pair <rerun run dir> <run dir> --d108` (A exact,
+# J: D-108's statement; the rest printed, not judged).
+#
+# name           mesh   np hosts steps solver partition              estimate_h  settings
+# 1. smoke: placement and MUMPS over the network (the smoke session judged the rest)
+smoke-h012       h0.12   8  8  1500  auto   scotch                   0.03  rust_cohesive_compat=upstream rust_doubled_node_load=follows_elements @required
+# 2. the benchmark at full size across 8 nodes; compared with the rerun's 64-rank
+#    single-node run (pre-fix C1 for the estimate: 0.663 h, static solve 305 s, loop 1,916 s)
+joss64x8         joss   64  8  5000  auto   file:partition-np64.csv  1.10  rust_cohesive_compat=upstream rust_doubled_node_load=follows_elements
+# 3. strong scaling across nodes at a fixed size and rank count: h = 0.04 at
+#    8 ranks on 1, 2, 4, 8 hosts (8 / 4 / 2 / 1 ranks per host), one partition
+h004-p8-h1       h0.04   8  1  1500  auto   scotch                   0.10  rust_cohesive_compat=upstream rust_doubled_node_load=follows_elements
+h004-p8-h2       h0.04   8  2  1500  auto   run:h004-p8-h1           0.10  rust_cohesive_compat=upstream rust_doubled_node_load=follows_elements
+h004-p8-h4       h0.04   8  4  1500  auto   run:h004-p8-h1           0.10  rust_cohesive_compat=upstream rust_doubled_node_load=follows_elements
+h004-p8-h8       h0.04   8  8  1500  auto   run:h004-p8-h1           0.10  rust_cohesive_compat=upstream rust_doubled_node_load=follows_elements
+# 4. strong scaling with growing rank counts: h = 0.04 at 16 / 32 / 64 ranks
+#    on 2 / 4 / 8 hosts (8 per host; 8 on 1 host is h004-p8-h1)
+h004-p16-h2      h0.04  16  2  1500  auto   scotch                   0.08  rust_cohesive_compat=upstream rust_doubled_node_load=follows_elements
+h004-p32-h4      h0.04  32  4  1500  auto   scotch                   0.06  rust_cohesive_compat=upstream rust_doubled_node_load=follows_elements
+h004-p64-h8      h0.04  64  8  1500  auto   scotch                   0.05  rust_cohesive_compat=upstream rust_doubled_node_load=follows_elements
+# 5. weak scaling, ~70,000 tetrahedra per rank, 8 ranks per host:
+#    h004-p8-h1 (69,859), h0.032 at 16 (69,890), h0.025 at 32 (70,511),
+#    joss at 64 (68,628)
+h0032-p16-h2     h0.032 16  2  1500  auto   scotch                   0.12  rust_cohesive_compat=upstream rust_doubled_node_load=follows_elements
+h0025-p32-h4     h0.025 32  4  1500  auto   scotch                   0.15  rust_cohesive_compat=upstream rust_doubled_node_load=follows_elements
+joss-p64-h8-1500 joss   64  8  1500  auto   file:partition-np64.csv  0.40  rust_cohesive_compat=upstream rust_doubled_node_load=follows_elements
+# 6. dropped first: the full size at 32 ranks on 8 hosts (4 per host), compared
+#    with the rerun's 32-rank single-node run (pre-fix C1 for the estimate: 0.896 h)
+joss32x8         joss   32  8  5000  auto   file:partition-np32.csv  1.45  rust_cohesive_compat=upstream rust_doubled_node_load=follows_elements

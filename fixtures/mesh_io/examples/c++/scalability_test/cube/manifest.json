@@ -1,0 +1,843 @@
+{
+  "format_version": 1,
+  "case_id": "mesh_io/examples/c++/scalability_test/cube",
+  "description": "Mesh::read of upstream mesh examples/c++/scalability_test/cube.msh (spatial dimension 3)",
+  "status": "golden",
+  "generator": {
+    "probe": "mesh_probe",
+    "probe_version": "1",
+    "command": "oracle/scripts/generate-fixtures.sh mesh"
+  },
+  "reference": {
+    "sha": "35a851780d0b9471d258ed53a003ae98aaa95ea0",
+    "describe": "v5.0.7-post1-554-g35a851780",
+    "patches": [
+      "modified:cmake/AkantuTestsMacros.cmake sha256=c280165a84912eab4bcc081b9eaaaa06aafdd83d4f48d982e11b0859abf9672f (reference sha256=36290de2ec8b111028138fe82029efa16501512241a5bc264fa30ff3e3239b9e)"
+    ]
+  },
+  "build": {
+  "config": "strict",
+  "compiler": "g++ (Debian 14.2.0-19) 14.2.0",
+  "cxx_flags": "-ffp-contract=off -DEIGEN_DONT_VECTORIZE -O2 -g -DNDEBUG -g3 -ggdb3 -flarge-source-files -std=c++20 -flto=auto -fno-fat-lto-objects -fPIC -frounding-math (actual flags of src/model/solid_mechanics/solid_mechanics_model.cc; warnings and non-FP -D defines omitted)",
+  "build_type": "RelWithDebInfo",
+  "arch": "aarch64",
+  "os": "Debian GNU/Linux 13 (trixie)",
+  "libraries": {
+    "eigen3": "3.4.0-5",
+    "boost": "1.83.0.2+b2",
+    "openmpi": "5.0.7-1",
+    "mumps": "5.7.3-3+b1",
+    "petsc": "3.22.5+dfsg1-2",
+    "scotch": "7.0.7-1",
+    "openblas": "0.3.29+ds-3",
+    "scalapack": "2.2.2-1",
+    "hdf5": "1.14.5+repack-3",
+    "gmsh": "4.13.1+ds1-6",
+    "pybind11": "2.13.6-2",
+    "numpy": "1:2.2.4+ds-1",
+    "scipy": "1.15.3-1",
+    "gcc": "4:14.2.0-1",
+    "gfortran": "4:14.2.0-1",
+    "oracle_image": "sha256:6683233d0a3b9341eb5cedf5879bc9ccb76ddf3d91e9aa0fd35b99dc7866d7a6",
+    "oracle_build_scripts": "45b473da9cbfb356a039d94609fe39f6f36a1a9a",
+    "oracle_install_reference_sha": "35a851780d0b9471d258ed53a003ae98aaa95ea0",
+    "oracle_install_image": "sha256:6683233d0a3b9341eb5cedf5879bc9ccb76ddf3d91e9aa0fd35b99dc7866d7a6",
+    "sha256:libakantu.so.5.0.7": "9768e51184f0423c49abfd67535e6f3bc371522045b0b634223cce0ee07f0b0b",
+    "probe_tree_sha256": "62a9bdfbdc0c790cadba2f6e5832f0e879fb34a8238f5a0fd3cb56f29ba1808f",
+    "probe_sources_commit": "f18b727ab2605131eb23225b05771c0863d7f022",
+    "cmake_cxx_flags": "-ffp-contract=off -DEIGEN_DONT_VECTORIZE -O2 -g -DNDEBUG -g3 -ggdb3 -flarge-source-files",
+    "probe": "mesh_probe"
+  },
+  "probe_compile_command": "/usr/bin/c++ '-DAKANTU_PROBE_BUILD_TYPE=\"RelWithDebInfo\"' '-DAKANTU_PROBE_CONFIG=\"strict\"' '-DAKANTU_PROBE_CXX_FLAGS=\"-ffp-contract=off -DEIGEN_DONT_VECTORIZE  -O2 -g -DNDEBUG\"' -DBOOST_GRAPH_DYN_LINK -DBOOST_GRAPH_NO_LIB -DBOOST_REGEX_DYN_LINK -DBOOST_REGEX_NO_LIB -DCGAL_USE_GMPXX=1 -I/probes/include -isystem /build/install-strict/include/akantu -isystem /opt/CGAL-5.6.2/include -isystem /usr/lib/aarch64-linux-gnu/openmpi/include -isystem /usr/lib/aarch64-linux-gnu/openmpi/include/openmpi -isystem /usr/lib/petscdir/petsc3.22/aarch64-linux-gnu-real/include -isystem /usr/include/scotch -isystem /build/install-strict/include/akantu_iterators -isystem /usr/include/eigen3 -isystem /build/install-strict/include/iohelper -O2 -g -DNDEBUG -std=gnu++20 -ffp-contract=off -DEIGEN_DONT_VECTORIZE -Wall -Wextra -pedantic -Wno-array-bounds -Wno-use-after-free -Wno-stringop-overread -DOMPI_SKIP_MPICXX -Wno-literal-suffix -frounding-math -o CMakeFiles/mesh_probe.dir/cpp/mesh_probe.cc.o -c /probes/cpp/mesh_probe.cc",
+  "probe_cxx_flags": "-DAKANTU_PROBE_BUILD_TYPE=\"RelWithDebInfo\" -DAKANTU_PROBE_CONFIG=\"strict\" -DAKANTU_PROBE_CXX_FLAGS=\"-ffp-contract=off -DEIGEN_DONT_VECTORIZE  -O2 -g -DNDEBUG\" -DBOOST_GRAPH_DYN_LINK -DBOOST_GRAPH_NO_LIB -DBOOST_REGEX_DYN_LINK -DBOOST_REGEX_NO_LIB -DCGAL_USE_GMPXX=1 -O2 -g -DNDEBUG -std=gnu++20 -ffp-contract=off -DEIGEN_DONT_VECTORIZE -Wall -Wextra -pedantic -Wno-array-bounds -Wno-use-after-free -Wno-stringop-overread -DOMPI_SKIP_MPICXX -Wno-literal-suffix -frounding-math"
+},
+  "created": "2026-11-09T16:13:33Z",
+  "inputs": [
+    {
+      "role": "mesh",
+      "path": "inputs/cube.msh",
+      "source": "upstream:examples/c++/scalability_test/cube.msh",
+      "sha256": "4c37707eea5f132c445645d26f271c7742ad7ae65366f816de5b4cd91d21c31e"
+    }
+  ],
+  "parameters": {
+    "source": "examples/c++/scalability_test/cube.msh",
+    "spatial_dimension": 3,
+    "spatial_dimension_from": "largest element dimension",
+    "nb_nodes": 141,
+    "element_types": [
+      {
+        "type": "_segment_2",
+        "ghost_type": "not_ghost",
+        "nb_elements": 8
+      },
+      {
+        "type": "_triangle_3",
+        "ghost_type": "not_ghost",
+        "nb_elements": 174
+      },
+      {
+        "type": "_tetrahedron_4",
+        "ghost_type": "not_ghost",
+        "nb_elements": 373
+      }
+    ],
+    "string_tables": {
+      "physical_names/_segment_2": [
+        "right line",
+        "mid line"
+      ],
+      "physical_names/_triangle_3": [
+        "bottom",
+        "top",
+        "side left",
+        "side right"
+      ],
+      "physical_names/_tetrahedron_4": [
+        "Body"
+      ]
+    },
+    "skipped_mesh_data": [
+      "element_to_subelement/_segment_2",
+      "subelement_to_element/_segment_2",
+      "element_to_subelement/_triangle_3",
+      "subelement_to_element/_triangle_3",
+      "subelement_to_element/_tetrahedron_4"
+    ],
+    "node_groups": [
+      {
+        "name": "Body_nodes",
+        "quantity": "node_groups/Body_nodes"
+      },
+      {
+        "name": "bottom_nodes",
+        "quantity": "node_groups/bottom_nodes"
+      },
+      {
+        "name": "mid line_nodes",
+        "quantity": "node_groups/mid_line_nodes"
+      },
+      {
+        "name": "right line_nodes",
+        "quantity": "node_groups/right_line_nodes"
+      },
+      {
+        "name": "side left_nodes",
+        "quantity": "node_groups/side_left_nodes"
+      },
+      {
+        "name": "side right_nodes",
+        "quantity": "node_groups/side_right_nodes"
+      },
+      {
+        "name": "top_nodes",
+        "quantity": "node_groups/top_nodes"
+      }
+    ],
+    "element_groups": [
+      {
+        "name": "Body",
+        "quantity_prefix": "element_groups/Body",
+        "dimension": 3,
+        "types": [
+          "_tetrahedron_4"
+        ]
+      },
+      {
+        "name": "bottom",
+        "quantity_prefix": "element_groups/bottom",
+        "dimension": 2,
+        "types": [
+          "_triangle_3"
+        ]
+      },
+      {
+        "name": "mid line",
+        "quantity_prefix": "element_groups/mid_line",
+        "dimension": 1,
+        "types": [
+          "_segment_2"
+        ]
+      },
+      {
+        "name": "right line",
+        "quantity_prefix": "element_groups/right_line",
+        "dimension": 1,
+        "types": [
+          "_segment_2"
+        ]
+      },
+      {
+        "name": "side left",
+        "quantity_prefix": "element_groups/side_left",
+        "dimension": 2,
+        "types": [
+          "_triangle_3"
+        ]
+      },
+      {
+        "name": "side right",
+        "quantity_prefix": "element_groups/side_right",
+        "dimension": 2,
+        "types": [
+          "_triangle_3"
+        ]
+      },
+      {
+        "name": "top",
+        "quantity_prefix": "element_groups/top",
+        "dimension": 2,
+        "types": [
+          "_triangle_3"
+        ]
+      }
+    ]
+  },
+  "storage": {
+    "mode": "committed",
+    "bytes": 41600
+  },
+  "quantities": [
+    {
+      "name": "nodes",
+      "file": "data/nodes.npy",
+      "dtype": "f64",
+      "shape": [
+        141,
+        3
+      ],
+      "axes": [
+        "node",
+        "spatial_dim"
+      ],
+      "layout": "nodal",
+      "sha256": "472a698d7470657fa6d88bd5b3c51eb4726808fbcd743920b86992000c728ee5",
+      "description": "node coordinates in file order",
+      "tolerance_class": "exact"
+    },
+    {
+      "name": "bounds/lower",
+      "file": "data/bounds__lower.npy",
+      "dtype": "f64",
+      "shape": [
+        3
+      ],
+      "axes": [
+        "spatial_dim"
+      ],
+      "layout": "table",
+      "sha256": "2a4e3630648cbffd71e9ccbfc2cf6df69611bb97c68542396ab2424469787d69",
+      "tolerance_class": "exact"
+    },
+    {
+      "name": "bounds/upper",
+      "file": "data/bounds__upper.npy",
+      "dtype": "f64",
+      "shape": [
+        3
+      ],
+      "axes": [
+        "spatial_dim"
+      ],
+      "layout": "table",
+      "sha256": "a4b5995cc68939e5c04ccfd9fc710393dcadc64692e8d217e266952b262b4e58",
+      "tolerance_class": "exact"
+    },
+    {
+      "name": "connectivity/_segment_2",
+      "file": "data/connectivity___segment_2.npy",
+      "dtype": "i64",
+      "shape": [
+        8,
+        2
+      ],
+      "axes": [
+        "element",
+        "node_local"
+      ],
+      "layout": "elemental",
+      "sha256": "ad3eb354e431fe89c2073f794c18bd8f8afa5b31fb4cfc44024a0055f369b5ca",
+      "element_type": "_segment_2",
+      "ghost_type": "not_ghost",
+      "tolerance_class": "exact"
+    },
+    {
+      "name": "mesh_data/physical_names/_segment_2",
+      "file": "data/mesh_data__physical_names___segment_2.npy",
+      "dtype": "i64",
+      "shape": [
+        8
+      ],
+      "axes": [
+        "element"
+      ],
+      "layout": "elemental",
+      "sha256": "54a804a5ca999b2b0ac42d0159726c98e1023acf5ffaeb56f9c53228fbb60489",
+      "element_type": "_segment_2",
+      "ghost_type": "not_ghost",
+      "description": "codes into parameters.string_tables[\"physical_names/_segment_2\"]",
+      "tolerance_class": "exact"
+    },
+    {
+      "name": "mesh_data/tag_0/_segment_2",
+      "file": "data/mesh_data__tag_0___segment_2.npy",
+      "dtype": "i64",
+      "shape": [
+        8,
+        1
+      ],
+      "axes": [
+        "element",
+        "component"
+      ],
+      "layout": "elemental",
+      "sha256": "11a7e8284a7f48f84b48e98e1215eedca5d38834564b31918c7c9ed43bcb544e",
+      "element_type": "_segment_2",
+      "ghost_type": "not_ghost",
+      "tolerance_class": "exact"
+    },
+    {
+      "name": "connectivity/_triangle_3",
+      "file": "data/connectivity___triangle_3.npy",
+      "dtype": "i64",
+      "shape": [
+        174,
+        3
+      ],
+      "axes": [
+        "element",
+        "node_local"
+      ],
+      "layout": "elemental",
+      "sha256": "2beaea9d4a82c1bd30f85fb57fb0bbb78121e96a79677f1fdcafcdfe4121f008",
+      "element_type": "_triangle_3",
+      "ghost_type": "not_ghost",
+      "tolerance_class": "exact"
+    },
+    {
+      "name": "mesh_data/physical_names/_triangle_3",
+      "file": "data/mesh_data__physical_names___triangle_3.npy",
+      "dtype": "i64",
+      "shape": [
+        174
+      ],
+      "axes": [
+        "element"
+      ],
+      "layout": "elemental",
+      "sha256": "f3cb6a6bee58d33f7d92ace45b5233b0b26f92a7bfcd32eee7c529f3c1b830f1",
+      "element_type": "_triangle_3",
+      "ghost_type": "not_ghost",
+      "description": "codes into parameters.string_tables[\"physical_names/_triangle_3\"]",
+      "tolerance_class": "exact"
+    },
+    {
+      "name": "mesh_data/tag_0/_triangle_3",
+      "file": "data/mesh_data__tag_0___triangle_3.npy",
+      "dtype": "i64",
+      "shape": [
+        174,
+        1
+      ],
+      "axes": [
+        "element",
+        "component"
+      ],
+      "layout": "elemental",
+      "sha256": "717a34af3d84b99909be53dde55d14a3e23786cd036dc15f97ebd0cf5d0b138e",
+      "element_type": "_triangle_3",
+      "ghost_type": "not_ghost",
+      "tolerance_class": "exact"
+    },
+    {
+      "name": "connectivity/_tetrahedron_4",
+      "file": "data/connectivity___tetrahedron_4.npy",
+      "dtype": "i64",
+      "shape": [
+        373,
+        4
+      ],
+      "axes": [
+        "element",
+        "node_local"
+      ],
+      "layout": "elemental",
+      "sha256": "7c0b32414fae3eca6f4c9033282e4dfb516d21dfbf101068ef431372417e4283",
+      "element_type": "_tetrahedron_4",
+      "ghost_type": "not_ghost",
+      "tolerance_class": "exact"
+    },
+    {
+      "name": "mesh_data/physical_names/_tetrahedron_4",
+      "file": "data/mesh_data__physical_names___tetrahedron_4.npy",
+      "dtype": "i64",
+      "shape": [
+        373
+      ],
+      "axes": [
+        "element"
+      ],
+      "layout": "elemental",
+      "sha256": "b85820c004abf93a763cb3d18cf256f06b71bd8c05d2ab21f06d9529fc3ced00",
+      "element_type": "_tetrahedron_4",
+      "ghost_type": "not_ghost",
+      "description": "codes into parameters.string_tables[\"physical_names/_tetrahedron_4\"]",
+      "tolerance_class": "exact"
+    },
+    {
+      "name": "mesh_data/tag_0/_tetrahedron_4",
+      "file": "data/mesh_data__tag_0___tetrahedron_4.npy",
+      "dtype": "i64",
+      "shape": [
+        373,
+        1
+      ],
+      "axes": [
+        "element",
+        "component"
+      ],
+      "layout": "elemental",
+      "sha256": "f3edf15ea130df3746eba771cd7836a4e2579222c3b2b6109ffccb064e8c6921",
+      "element_type": "_tetrahedron_4",
+      "ghost_type": "not_ghost",
+      "tolerance_class": "exact"
+    },
+    {
+      "name": "node_groups/Body_nodes",
+      "file": "data/node_groups__Body_nodes.npy",
+      "dtype": "i64",
+      "shape": [
+        141
+      ],
+      "axes": [
+        "group_member"
+      ],
+      "layout": "table",
+      "sha256": "62f6ba9f8f25e6422f2e4f14b53121c487b692c8fa51ad4e63e2c284814a8dac",
+      "ordering": [
+        {
+          "axis": "group_member",
+          "kind": "unordered"
+        }
+      ],
+      "tolerance_class": "exact"
+    },
+    {
+      "name": "node_groups/bottom_nodes",
+      "file": "data/node_groups__bottom_nodes.npy",
+      "dtype": "i64",
+      "shape": [
+        31
+      ],
+      "axes": [
+        "group_member"
+      ],
+      "layout": "table",
+      "sha256": "40e8aa83ae1489cef014efeb54576f3355cc613546076771881b3f3f4f028c86",
+      "ordering": [
+        {
+          "axis": "group_member",
+          "kind": "unordered"
+        }
+      ],
+      "tolerance_class": "exact"
+    },
+    {
+      "name": "node_groups/mid_line_nodes",
+      "file": "data/node_groups__mid_line_nodes.npy",
+      "dtype": "i64",
+      "shape": [
+        5
+      ],
+      "axes": [
+        "group_member"
+      ],
+      "layout": "table",
+      "sha256": "14a15f20ec9ad1f829e42d9347adb4d055d8979c645902f49e8830d45f316636",
+      "ordering": [
+        {
+          "axis": "group_member",
+          "kind": "unordered"
+        }
+      ],
+      "tolerance_class": "exact"
+    },
+    {
+      "name": "node_groups/right_line_nodes",
+      "file": "data/node_groups__right_line_nodes.npy",
+      "dtype": "i64",
+      "shape": [
+        5
+      ],
+      "axes": [
+        "group_member"
+      ],
+      "layout": "table",
+      "sha256": "f3745a736e09aa6297c2a9de5811bfe73709a1b59ab41cb264348350e0ddf22a",
+      "ordering": [
+        {
+          "axis": "group_member",
+          "kind": "unordered"
+        }
+      ],
+      "tolerance_class": "exact"
+    },
+    {
+      "name": "node_groups/side_left_nodes",
+      "file": "data/node_groups__side_left_nodes.npy",
+      "dtype": "i64",
+      "shape": [
+        31
+      ],
+      "axes": [
+        "group_member"
+      ],
+      "layout": "table",
+      "sha256": "8998c7ee96dbfc8f2e1bd624acb870b8d17b252f12d4145cc88cdc6c9a32c3a3",
+      "ordering": [
+        {
+          "axis": "group_member",
+          "kind": "unordered"
+        }
+      ],
+      "tolerance_class": "exact"
+    },
+    {
+      "name": "node_groups/side_right_nodes",
+      "file": "data/node_groups__side_right_nodes.npy",
+      "dtype": "i64",
+      "shape": [
+        31
+      ],
+      "axes": [
+        "group_member"
+      ],
+      "layout": "table",
+      "sha256": "84babe7782d81a0ad312698f16d8bbb23ba0f736cc6c60ec6f54b7cb7e01af8d",
+      "ordering": [
+        {
+          "axis": "group_member",
+          "kind": "unordered"
+        }
+      ],
+      "tolerance_class": "exact"
+    },
+    {
+      "name": "node_groups/top_nodes",
+      "file": "data/node_groups__top_nodes.npy",
+      "dtype": "i64",
+      "shape": [
+        30
+      ],
+      "axes": [
+        "group_member"
+      ],
+      "layout": "table",
+      "sha256": "dc54def4d85cae6df5f0f11bc0bd3481e811f0d17c3a0a4a122fcb9ea56eb823",
+      "ordering": [
+        {
+          "axis": "group_member",
+          "kind": "unordered"
+        }
+      ],
+      "tolerance_class": "exact"
+    },
+    {
+      "name": "element_groups/Body/_tetrahedron_4",
+      "file": "data/element_groups__Body___tetrahedron_4.npy",
+      "dtype": "i64",
+      "shape": [
+        373
+      ],
+      "axes": [
+        "group_member"
+      ],
+      "layout": "table",
+      "sha256": "9adcc7637347d1c3b87c4b9e9b21d5d35ebe3159b388a17574ace6ac40bc073e",
+      "element_type": "_tetrahedron_4",
+      "ghost_type": "not_ghost",
+      "ordering": [
+        {
+          "axis": "group_member",
+          "kind": "unordered"
+        }
+      ],
+      "tolerance_class": "exact"
+    },
+    {
+      "name": "element_groups/Body/nodes",
+      "file": "data/element_groups__Body__nodes.npy",
+      "dtype": "i64",
+      "shape": [
+        141
+      ],
+      "axes": [
+        "group_member"
+      ],
+      "layout": "table",
+      "sha256": "62f6ba9f8f25e6422f2e4f14b53121c487b692c8fa51ad4e63e2c284814a8dac",
+      "ordering": [
+        {
+          "axis": "group_member",
+          "kind": "unordered"
+        }
+      ],
+      "tolerance_class": "exact"
+    },
+    {
+      "name": "element_groups/bottom/_triangle_3",
+      "file": "data/element_groups__bottom___triangle_3.npy",
+      "dtype": "i64",
+      "shape": [
+        44
+      ],
+      "axes": [
+        "group_member"
+      ],
+      "layout": "table",
+      "sha256": "a283194aff3164811586b57274bf1e217bc91bde3a5d66942a80f0a3c3b57e9c",
+      "element_type": "_triangle_3",
+      "ghost_type": "not_ghost",
+      "ordering": [
+        {
+          "axis": "group_member",
+          "kind": "unordered"
+        }
+      ],
+      "tolerance_class": "exact"
+    },
+    {
+      "name": "element_groups/bottom/nodes",
+      "file": "data/element_groups__bottom__nodes.npy",
+      "dtype": "i64",
+      "shape": [
+        31
+      ],
+      "axes": [
+        "group_member"
+      ],
+      "layout": "table",
+      "sha256": "40e8aa83ae1489cef014efeb54576f3355cc613546076771881b3f3f4f028c86",
+      "ordering": [
+        {
+          "axis": "group_member",
+          "kind": "unordered"
+        }
+      ],
+      "tolerance_class": "exact"
+    },
+    {
+      "name": "element_groups/mid_line/_segment_2",
+      "file": "data/element_groups__mid_line___segment_2.npy",
+      "dtype": "i64",
+      "shape": [
+        4
+      ],
+      "axes": [
+        "group_member"
+      ],
+      "layout": "table",
+      "sha256": "7bc3e613862b7a0cc5d5cc7f20545f8a0c312644206b2bba154af398a2d8afe3",
+      "element_type": "_segment_2",
+      "ghost_type": "not_ghost",
+      "ordering": [
+        {
+          "axis": "group_member",
+          "kind": "unordered"
+        }
+      ],
+      "tolerance_class": "exact"
+    },
+    {
+      "name": "element_groups/mid_line/nodes",
+      "file": "data/element_groups__mid_line__nodes.npy",
+      "dtype": "i64",
+      "shape": [
+        5
+      ],
+      "axes": [
+        "group_member"
+      ],
+      "layout": "table",
+      "sha256": "14a15f20ec9ad1f829e42d9347adb4d055d8979c645902f49e8830d45f316636",
+      "ordering": [
+        {
+          "axis": "group_member",
+          "kind": "unordered"
+        }
+      ],
+      "tolerance_class": "exact"
+    },
+    {
+      "name": "element_groups/right_line/_segment_2",
+      "file": "data/element_groups__right_line___segment_2.npy",
+      "dtype": "i64",
+      "shape": [
+        4
+      ],
+      "axes": [
+        "group_member"
+      ],
+      "layout": "table",
+      "sha256": "dc5de563b86c3210ee39b3adc9c39934ef72b87a5c20f475ccc78e336ea75a7e",
+      "element_type": "_segment_2",
+      "ghost_type": "not_ghost",
+      "ordering": [
+        {
+          "axis": "group_member",
+          "kind": "unordered"
+        }
+      ],
+      "tolerance_class": "exact"
+    },
+    {
+      "name": "element_groups/right_line/nodes",
+      "file": "data/element_groups__right_line__nodes.npy",
+      "dtype": "i64",
+      "shape": [
+        5
+      ],
+      "axes": [
+        "group_member"
+      ],
+      "layout": "table",
+      "sha256": "f3745a736e09aa6297c2a9de5811bfe73709a1b59ab41cb264348350e0ddf22a",
+      "ordering": [
+        {
+          "axis": "group_member",
+          "kind": "unordered"
+        }
+      ],
+      "tolerance_class": "exact"
+    },
+    {
+      "name": "element_groups/side_left/_triangle_3",
+      "file": "data/element_groups__side_left___triangle_3.npy",
+      "dtype": "i64",
+      "shape": [
+        44
+      ],
+      "axes": [
+        "group_member"
+      ],
+      "layout": "table",
+      "sha256": "652aa3d3b42de2b15592ae62c145f8104fb13242308c777c2575b4fcd95d6c34",
+      "element_type": "_triangle_3",
+      "ghost_type": "not_ghost",
+      "ordering": [
+        {
+          "axis": "group_member",
+          "kind": "unordered"
+        }
+      ],
+      "tolerance_class": "exact"
+    },
+    {
+      "name": "element_groups/side_left/nodes",
+      "file": "data/element_groups__side_left__nodes.npy",
+      "dtype": "i64",
+      "shape": [
+        31
+      ],
+      "axes": [
+        "group_member"
+      ],
+      "layout": "table",
+      "sha256": "8998c7ee96dbfc8f2e1bd624acb870b8d17b252f12d4145cc88cdc6c9a32c3a3",
+      "ordering": [
+        {
+          "axis": "group_member",
+          "kind": "unordered"
+        }
+      ],
+      "tolerance_class": "exact"
+    },
+    {
+      "name": "element_groups/side_right/_triangle_3",
+      "file": "data/element_groups__side_right___triangle_3.npy",
+      "dtype": "i64",
+      "shape": [
+        44
+      ],
+      "axes": [
+        "group_member"
+      ],
+      "layout": "table",
+      "sha256": "bd7ee42ec574651ec73302e7289f3c5e7e993fdd4f5723dbf9798335fed62c5f",
+      "element_type": "_triangle_3",
+      "ghost_type": "not_ghost",
+      "ordering": [
+        {
+          "axis": "group_member",
+          "kind": "unordered"
+        }
+      ],
+      "tolerance_class": "exact"
+    },
+    {
+      "name": "element_groups/side_right/nodes",
+      "file": "data/element_groups__side_right__nodes.npy",
+      "dtype": "i64",
+      "shape": [
+        31
+      ],
+      "axes": [
+        "group_member"
+      ],
+      "layout": "table",
+      "sha256": "84babe7782d81a0ad312698f16d8bbb23ba0f736cc6c60ec6f54b7cb7e01af8d",
+      "ordering": [
+        {
+          "axis": "group_member",
+          "kind": "unordered"
+        }
+      ],
+      "tolerance_class": "exact"
+    },
+    {
+      "name": "element_groups/top/_triangle_3",
+      "file": "data/element_groups__top___triangle_3.npy",
+      "dtype": "i64",
+      "shape": [
+        42
+      ],
+      "axes": [
+        "group_member"
+      ],
+      "layout": "table",
+      "sha256": "917a63b809462dabdc23e1643fc599c49857055f6c097ada484234f87adbccb2",
+      "element_type": "_triangle_3",
+      "ghost_type": "not_ghost",
+      "ordering": [
+        {
+          "axis": "group_member",
+          "kind": "unordered"
+        }
+      ],
+      "tolerance_class": "exact"
+    },
+    {
+      "name": "element_groups/top/nodes",
+      "file": "data/element_groups__top__nodes.npy",
+      "dtype": "i64",
+      "shape": [
+        30
+      ],
+      "axes": [
+        "group_member"
+      ],
+      "layout": "table",
+      "sha256": "dc54def4d85cae6df5f0f11bc0bd3481e811f0d17c3a0a4a122fcb9ea56eb823",
+      "ordering": [
+        {
+          "axis": "group_member",
+          "kind": "unordered"
+        }
+      ],
+      "tolerance_class": "exact"
+    }
+  ],
+  "tags": [
+    "mesh_io"
+  ]
+}

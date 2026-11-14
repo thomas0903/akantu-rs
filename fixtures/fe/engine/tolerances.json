@@ -1,0 +1,129 @@
+{
+  "format_version": 1,
+  "rules": [
+    {
+      "quantity": "integration_points",
+      "justification": "Bitwise: Gauss tables evaluated with the same expressions (QUAD rows).",
+      "evidence": "crates/akantu-fe/tests/fe_engine_matches_oracle.rs reproduces every value of the 12 regular fixtures bit for bit (macOS arm64, debug and release), including the hexahedron_20 / pentahedron_15 interpolations Eigen evaluates with gebp",
+      "reviewed_by": "independent review during the port, November 2026"
+    },
+    {
+      "quantity": "shapes",
+      "justification": "Bitwise: verbatim shape formulas at the rule points.",
+      "evidence": "crates/akantu-fe/tests/fe_engine_matches_oracle.rs reproduces every value of the 12 regular fixtures bit for bit (macOS arm64, debug and release), including the hexahedron_20 / pentahedron_15 interpolations Eigen evaluates with gebp",
+      "reviewed_by": "independent review during the port, November 2026"
+    },
+    {
+      "quantity": "shapes_derivatives",
+      "justification": "Bitwise: akantu-fe reproduces the Eigen operand types of the upstream call site (crate::eigen evaluates every product with akantu_core::eigen_gebp: tree for compile-time lhs inner sizes, sequential for run-time sizes, from +0 for GEMV, Eigen's gebp order for blocked GEMM; dynamic LU for J^-1 and det J), so the IEEE results are identical. dN/dx = J^-1 dnds with dynamic Tensor3 slices (ShapeLagrange::computeShapeDerivativesOnCPointsByElement).",
+      "evidence": "crates/akantu-fe/tests/fe_engine_matches_oracle.rs reproduces every value of the 12 regular fixtures bit for bit (macOS arm64, debug and release), including the hexahedron_20 / pentahedron_15 interpolations Eigen evaluates with gebp",
+      "reviewed_by": "independent review during the port, November 2026"
+    },
+    {
+      "quantity": "jacobians",
+      "justification": "Bitwise: akantu-fe reproduces the Eigen operand types of the upstream call site (crate::eigen evaluates every product with akantu_core::eigen_gebp: tree for compile-time lhs inner sizes, sequential for run-time sizes, from +0 for GEMV, Eigen's gebp order for blocked GEMM; dynamic LU for J^-1 and det J), so the IEEE results are identical. det J * w with fixed dnds and dynamic node coordinates (IntegratorGauss).",
+      "evidence": "crates/akantu-fe/tests/fe_engine_matches_oracle.rs reproduces every value of the 12 regular fixtures bit for bit (macOS arm64, debug and release), including the hexahedron_20 / pentahedron_15 interpolations Eigen evaluates with gebp",
+      "reviewed_by": "independent review during the port, November 2026"
+    },
+    {
+      "quantity": "field/nodal",
+      "justification": "Input written by the probe: exact.",
+      "reviewed_by": "independent review during the port, November 2026"
+    },
+    {
+      "quantity": "*/input",
+      "justification": "Inputs written by the probe: exact.",
+      "reviewed_by": "independent review during the port, November 2026"
+    },
+    {
+      "quantity": "field/interpolated*",
+      "justification": "Bitwise: akantu-fe reproduces the Eigen operand types of the upstream call site (crate::eigen evaluates every product with akantu_core::eigen_gebp: tree for compile-time lhs inner sizes, sequential for run-time sizes, from +0 for GEMV, Eigen's gebp order for blocked GEMM; dynamic LU for J^-1 and det J), so the IEEE results are identical. U_el * N with dynamic views: lazy sequential product when nb_dof + nq + nn < 20.",
+      "evidence": "crates/akantu-fe/tests/fe_engine_matches_oracle.rs reproduces every value of the 12 regular fixtures bit for bit (macOS arm64, debug and release), including the hexahedron_20 / pentahedron_15 interpolations Eigen evaluates with gebp",
+      "reviewed_by": "independent review during the port, November 2026"
+    },
+    {
+      "quantity": "field/gradient*",
+      "justification": "Bitwise: akantu-fe reproduces the Eigen operand types of the upstream call site (crate::eigen evaluates every product with akantu_core::eigen_gebp: tree for compile-time lhs inner sizes, sequential for run-time sizes, from +0 for GEMV, Eigen's gebp order for blocked GEMM; dynamic LU for J^-1 and det J), so the IEEE results are identical. U_el * B^T with U Map<Matrix<Dynamic, nn>> and B Map<Matrix<nd, nn>>: coefficient-based (tree).",
+      "evidence": "crates/akantu-fe/tests/fe_engine_matches_oracle.rs reproduces every value of the 12 regular fixtures bit for bit (macOS arm64, debug and release), including the hexahedron_20 / pentahedron_15 interpolations Eigen evaluates with gebp",
+      "reviewed_by": "independent review during the port, November 2026"
+    },
+    {
+      "quantity": "field/integrated*",
+      "justification": "Bitwise: GEMV f * J accumulated from +0 on the oracle's own quadrature fields (input-isolated).",
+      "evidence": "crates/akantu-fe/tests/fe_engine_matches_oracle.rs reproduces every value of the 12 regular fixtures bit for bit (macOS arm64, debug and release), including the hexahedron_20 / pentahedron_15 interpolations Eigen evaluates with gebp",
+      "reviewed_by": "independent review during the port, November 2026"
+    },
+    {
+      "quantity": "field/integral_scalar",
+      "justification": "Bitwise: per-element GEMV integrals combined by Math::reduce (sorted pairwise sum).",
+      "evidence": "crates/akantu-fe/tests/fe_engine_matches_oracle.rs reproduces every value of the 12 regular fixtures bit for bit (macOS arm64, debug and release), including the hexahedron_20 / pentahedron_15 interpolations Eigen evaluates with gebp",
+      "reviewed_by": "independent review during the port, November 2026"
+    },
+    {
+      "quantity": "quad_coords",
+      "justification": "Bitwise: akantu-fe reproduces the Eigen operand types of the upstream call site (crate::eigen evaluates every product with akantu_core::eigen_gebp: tree for compile-time lhs inner sizes, sequential for run-time sizes, from +0 for GEMV, Eigen's gebp order for blocked GEMM; dynamic LU for J^-1 and det J), so the IEEE results are identical. node coordinates interpolated like field/interpolated.",
+      "evidence": "crates/akantu-fe/tests/fe_engine_matches_oracle.rs reproduces every value of the 12 regular fixtures bit for bit (macOS arm64, debug and release), including the hexahedron_20 / pentahedron_15 interpolations Eigen evaluates with gebp",
+      "reviewed_by": "independent review during the port, November 2026"
+    },
+    {
+      "quantity": "btd",
+      "justification": "Bitwise: akantu-fe reproduces the Eigen operand types of the upstream call site (crate::eigen evaluates every product with akantu_core::eigen_gebp: tree for compile-time lhs inner sizes, sequential for run-time sizes, from +0 for GEMV, Eigen's gebp order for blocked GEMM; dynamic LU for J^-1 and det J), so the IEEE results are identical. D * B with dynamic views (lazy / GEMM fallback rules).",
+      "evidence": "crates/akantu-fe/tests/fe_engine_matches_oracle.rs reproduces every value of the 12 regular fixtures bit for bit (macOS arm64, debug and release), including the hexahedron_20 / pentahedron_15 interpolations Eigen evaluates with gebp",
+      "reviewed_by": "independent review during the port, November 2026"
+    },
+    {
+      "quantity": "btdb",
+      "justification": "Bitwise: akantu-fe reproduces the Eigen operand types of the upstream call site (crate::eigen evaluates every product with akantu_core::eigen_gebp: tree for compile-time lhs inner sizes, sequential for run-time sizes, from +0 for GEMV, Eigen's gebp order for blocked GEMM; dynamic LU for J^-1 and det J), so the IEEE results are identical. (B^T D) B with the symmetric Voigt B of VoigtHelper; the products are lazy sequential or GEMM (gebp) per element type, each evaluated with Eigen's order by akantu_core::eigen_gebp (formerly the GEMM ones only coincided on this fixture).",
+      "evidence": "crates/akantu-fe/tests/fe_engine_matches_oracle.rs reproduces every value of the 12 regular fixtures bit for bit (macOS arm64, debug and release), including the hexahedron_20 / pentahedron_15 interpolations Eigen evaluates with gebp",
+      "reviewed_by": "independent review during the port, November 2026"
+    },
+    {
+      "quantity": "btdb2",
+      "justification": "Bitwise: akantu-fe reproduces the Eigen operand types of the upstream call site (crate::eigen evaluates every product with akantu_core::eigen_gebp: tree for compile-time lhs inner sizes, sequential for run-time sizes, from +0 for GEMV, Eigen's gebp order for blocked GEMM; dynamic LU for J^-1 and det J), so the IEEE results are identical. (B^T D) B with dim x dim D.",
+      "evidence": "crates/akantu-fe/tests/fe_engine_matches_oracle.rs reproduces every value of the 12 regular fixtures bit for bit (macOS arm64, debug and release), including the hexahedron_20 / pentahedron_15 interpolations Eigen evaluates with gebp",
+      "reviewed_by": "independent review during the port, November 2026"
+    },
+    {
+      "quantity": "ntb",
+      "justification": "Bitwise: b * N: a single product per coefficient.",
+      "evidence": "crates/akantu-fe/tests/fe_engine_matches_oracle.rs reproduces every value of the 12 regular fixtures bit for bit (macOS arm64, debug and release), including the hexahedron_20 / pentahedron_15 interpolations Eigen evaluates with gebp",
+      "reviewed_by": "independent review during the port, November 2026"
+    },
+    {
+      "quantity": "ntbn",
+      "justification": "Bitwise: (N^T b) N: single products.",
+      "evidence": "crates/akantu-fe/tests/fe_engine_matches_oracle.rs reproduces every value of the 12 regular fixtures bit for bit (macOS arm64, debug and release), including the hexahedron_20 / pentahedron_15 interpolations Eigen evaluates with gebp",
+      "reviewed_by": "independent review during the port, November 2026"
+    },
+    {
+      "quantity": "inradius",
+      "justification": "Bitwise: getInradius formulas transcribed verbatim.",
+      "evidence": "crates/akantu-fe/tests/fe_engine_matches_oracle.rs reproduces every value of the 12 regular fixtures bit for bit (macOS arm64, debug and release), including the hexahedron_20 / pentahedron_15 interpolations Eigen evaluates with gebp",
+      "reviewed_by": "independent review during the port, November 2026"
+    },
+    {
+      "quantity": "inverse_map/xi",
+      "justification": "Bitwise: inverseMap Gauss-Newton with upstream's operand types, fed with the oracle's quadrature coordinates.",
+      "evidence": "crates/akantu-fe/tests/fe_engine_matches_oracle.rs reproduces every value of the 12 regular fixtures bit for bit (macOS arm64, debug and release), including the hexahedron_20 / pentahedron_15 interpolations Eigen evaluates with gebp",
+      "reviewed_by": "independent review during the port, November 2026"
+    },
+    {
+      "quantity": "lumped_mass",
+      "justification": "Bitwise: Ntb + GEMV integration (row sum) or GEMV integral times nodal factors (diagonal scaling), assembled in element order like DOFManager::assembleElementalArrayLocalArray (scale_factor 1).",
+      "evidence": "crates/akantu-fe/tests/fe_engine_matches_oracle.rs reproduces every value of the 12 regular fixtures bit for bit (macOS arm64, debug and release), including the hexahedron_20 / pentahedron_15 interpolations Eigen evaluates with gebp",
+      "reviewed_by": "independent review during the port, November 2026"
+    },
+    {
+      "quantity": "normals/*",
+      "justification": "Bitwise: akantu-fe reproduces the Eigen operand types of the upstream call site (crate::eigen evaluates every product with akantu_core::eigen_gebp: tree for compile-time lhs inner sizes, sequential for run-time sizes, from +0 for GEMV, Eigen's gebp order for blocked GEMM; dynamic LU for J^-1 and det J), so the IEEE results are identical. facet normals: X Map<Matrix<Dynamic, nn>> times fixed dnds^T, Math::normal.",
+      "evidence": "crates/akantu-fe/tests/fe_engine_matches_oracle.rs reproduces every value of the 12 regular fixtures bit for bit (macOS arm64, debug and release), including the hexahedron_20 / pentahedron_15 interpolations Eigen evaluates with gebp",
+      "reviewed_by": "independent review during the port, November 2026"
+    },
+    {
+      "quantity": "facet_jacobians/*",
+      "justification": "Bitwise: akantu-fe reproduces the Eigen operand types of the upstream call site (crate::eigen evaluates every product with akantu_core::eigen_gebp: tree for compile-time lhs inner sizes, sequential for run-time sizes, from +0 for GEMV, Eigen's gebp order for blocked GEMM; dynamic LU for J^-1 and det J), so the IEEE results are identical. facet det J * w: |J| or |J0 x J1|.",
+      "evidence": "crates/akantu-fe/tests/fe_engine_matches_oracle.rs reproduces every value of the 12 regular fixtures bit for bit (macOS arm64, debug and release), including the hexahedron_20 / pentahedron_15 interpolations Eigen evaluates with gebp",
+      "reviewed_by": "independent review during the port, November 2026"
+    }
+  ]
+}

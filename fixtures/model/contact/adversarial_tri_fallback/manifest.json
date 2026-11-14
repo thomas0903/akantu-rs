@@ -1,0 +1,289 @@
+{
+  "format_version": 1,
+  "case_id": "model/contact/adversarial_tri_fallback",
+  "description": "review V81 adversarial (UD-372 triangle projection validity), UD-001 zero-init oracle variant: two tetrahedral bodies whose master triangles have their right angle at their first node (upstream's UD-363 metric is exact on a flat master, its Newton converges); flat master, upper body shifted by (0.43, 0.007, -0.01): the slave column at x = 1.03 projects outside every triangle (inside upstream's box); mu = 0: search and forces",
+  "status": "golden",
+  "generator": {
+    "probe": "contact_probe",
+    "probe_version": "3",
+    "command": "CONTACT_PROBE_CASES=adversarial_tri_edges,adversarial_tri_valley,adversarial_tri_fallback CONTACT_PROBE_VARIANT=ud001 oracle/probes/contact/generate.sh "
+  },
+  "reference": {
+    "sha": "35a851780d0b9471d258ed53a003ae98aaa95ea0",
+    "describe": "v5.0.7-post1-554-g35a851780",
+    "patches": [
+      "modified:cmake/AkantuTestsMacros.cmake sha256=c280165a84912eab4bcc081b9eaaaa06aafdd83d4f48d982e11b0859abf9672f (reference sha256=36290de2ec8b111028138fe82029efa16501512241a5bc264fa30ff3e3239b9e)",
+      "modified:src/model/contact_mechanics/contact_detector_inline_impl.hh sha256=e3f1c264ba047243dec4baf61a8da974e6a008860143f9f5be8241ed017d195b (reference sha256=439e0854359e7ed6519a37bb0cd1ed75569eeb99aada91ae1dd886319504f0d3)",
+      "modified:src/model/contact_mechanics/resolutions/resolution_penalty.cc sha256=3ec8b9eea307e4b0d3b12196bd6ae24ce621e2012beddf586d64a8e3e516d840 (reference sha256=bbb8ffbe847a97b7436f9fab04b6f33733fbae2e855cbf48bff7e5b9797043ba)"
+    ]
+  },
+  "build": {
+  "config": "strict",
+  "compiler": "g++ (Debian 14.2.0-19) 14.2.0",
+  "cxx_flags": "-ffp-contract=off -DEIGEN_DONT_VECTORIZE -O2 -g -DNDEBUG -g3 -ggdb3 -flarge-source-files -std=c++20 -flto=auto -fno-fat-lto-objects -fPIC -frounding-math (actual flags of src/model/solid_mechanics/solid_mechanics_model.cc; warnings and non-FP -D defines omitted)",
+  "build_type": "RelWithDebInfo",
+  "arch": "x86_64",
+  "os": "Debian GNU/Linux 13 (trixie)",
+  "libraries": {
+    "eigen3": "3.4.0-5",
+    "boost": "1.83.0.2+b2",
+    "openmpi": "5.0.7-1",
+    "mumps": "5.7.3-3+b1",
+    "petsc": "3.22.5+dfsg1-2",
+    "scotch": "7.0.7-1",
+    "openblas": "0.3.29+ds-3",
+    "scalapack": "2.2.2-1",
+    "hdf5": "1.14.5+repack-3",
+    "gmsh": "4.13.1+ds1-6",
+    "pybind11": "2.13.6-2",
+    "numpy": "1:2.2.4+ds-1",
+    "scipy": "1.15.3-1",
+    "gcc": "4:14.2.0-1",
+    "gfortran": "4:14.2.0-1",
+    "oracle_image": "sha256:45122c213e9fa194b6b58dcc31fc23b5fa4f7c0f64d0a452e40ae072c51c5cdb",
+    "oracle_build_scripts": "e168f393291494c869fa759b3ad9ae4a371a0369",
+    "oracle_install_reference_sha": "35a851780d0b9471d258ed53a003ae98aaa95ea0",
+    "oracle_install_image": "sha256:45122c213e9fa194b6b58dcc31fc23b5fa4f7c0f64d0a452e40ae072c51c5cdb",
+    "sha256:libakantu.so.5.0.7": "4a5fb7238a6b749ba636ae6a968aff5a5073162a81cc47055b2b254a2a9237d3",
+    "probe_tree_sha256": "a358575554a4cc0b7bcfef4ef95849b70c6e0ef85e9c6fba0232c102f67563eb",
+    "probe_sources_commit": "dbdd3c1ab00c22717afcc9603780027d1ba6f310",
+    "cmake_cxx_flags": "-ffp-contract=off -DEIGEN_DONT_VECTORIZE -O2 -g -DNDEBUG -g3 -ggdb3 -flarge-source-files",
+    "probe": "contact_probe"
+  },
+  "probe_compile_command": "/usr/bin/c++ '-DAKANTU_PROBE_BUILD_TYPE=\"RelWithDebInfo\"' '-DAKANTU_PROBE_CONFIG=\"strict\"' '-DAKANTU_PROBE_CXX_FLAGS=\"-ffp-contract=off -DEIGEN_DONT_VECTORIZE  -O2 -g -DNDEBUG\"' -DBOOST_GRAPH_DYN_LINK -DBOOST_GRAPH_NO_LIB -DBOOST_REGEX_DYN_LINK -DBOOST_REGEX_NO_LIB -DCGAL_USE_GMPXX=1 -I/probes/contact/../include -isystem /build/install-strict/include/akantu -isystem /opt/CGAL-5.6.2/include -isystem /usr/lib/x86_64-linux-gnu/openmpi/include -isystem /usr/lib/x86_64-linux-gnu/openmpi/include/openmpi -isystem /usr/lib/petscdir/petsc3.22/x86_64-linux-gnu-real/include -isystem /usr/include/scotch -isystem /build/install-strict/include/akantu_iterators -isystem /usr/include/eigen3 -isystem /build/install-strict/include/iohelper -O2 -g -DNDEBUG -std=gnu++20 -ffp-contract=off -DEIGEN_DONT_VECTORIZE -Wall -Wextra -pedantic -Wno-array-bounds -Wno-use-after-free -Wno-stringop-overread -DOMPI_SKIP_MPICXX -Wno-literal-suffix -frounding-math -o CMakeFiles/contact_probe.dir/contact_probe.cc.o -c /probes/contact/contact_probe.cc",
+  "probe_cxx_flags": "-DAKANTU_PROBE_BUILD_TYPE=\"RelWithDebInfo\" -DAKANTU_PROBE_CONFIG=\"strict\" -DAKANTU_PROBE_CXX_FLAGS=\"-ffp-contract=off -DEIGEN_DONT_VECTORIZE  -O2 -g -DNDEBUG\" -DBOOST_GRAPH_DYN_LINK -DBOOST_GRAPH_NO_LIB -DBOOST_REGEX_DYN_LINK -DBOOST_REGEX_NO_LIB -DCGAL_USE_GMPXX=1 -O2 -g -DNDEBUG -std=gnu++20 -ffp-contract=off -DEIGEN_DONT_VECTORIZE -Wall -Wextra -pedantic -Wno-array-bounds -Wno-use-after-free -Wno-stringop-overread -DOMPI_SKIP_MPICXX -Wno-literal-suffix -frounding-math"
+},
+  "created": "2026-11-11T07:01:46Z",
+  "inputs": [
+    {
+      "role": "mesh",
+      "path": "inputs/contact_probe_v81_tri.msh",
+      "source": "written by the probe (write_tri_mesh: review V81 v81_probe.cc write_mesh)",
+      "sha256": "f69378eb03e5e461d22c11b00f098dd5310c96bc70e3d7cf052fd5dc1cba6bb0"
+    },
+    {
+      "role": "material",
+      "path": "inputs/contact_probe_adversarial_tri.dat",
+      "sha256": "558debbed55db0dbb3a78fbd88e06801b1d70d75dc7e0a897abc4bd96fa5b9bd"
+    }
+  ],
+  "parameters": {
+    "oracle_variant": {
+      "patch": "oracle/patches/variants/ud001-contact-zero-init.patch",
+      "sha256": "143546021ac16611e8dd884f6203cc688b8ec2b7ca4b45bdd0461014529f31fa",
+      "defect": "UD-001"
+    },
+    "eigen_cache_sizes": [
+      16384,
+      524288,
+      524288
+    ],
+    "master_types": "_triangle_3"
+  },
+  "storage": {
+    "mode": "committed",
+    "bytes": 19000
+  },
+  "quantities": [
+    {
+      "name": "positions",
+      "file": "data/positions.npy",
+      "dtype": "f64",
+      "shape": [
+        82,
+        3
+      ],
+      "axes": [
+        "node",
+        "component"
+      ],
+      "layout": "nodal",
+      "sha256": "6a67e994bc2f5f5e8c67e5d7c65c9125ea050945170ca5bce6cb1bec796a788f",
+      "description": "detector positions used for the search"
+    },
+    {
+      "name": "contact_elements/slave",
+      "file": "data/contact_elements__slave.npy",
+      "dtype": "i64",
+      "shape": [
+        16
+      ],
+      "axes": [
+        "entry"
+      ],
+      "layout": "table",
+      "sha256": "7429f0bc02bcd5a592fd6931d2637daaf66e5a0a31a23109936cc037f6f2ae32",
+      "description": "slave node of each contact element"
+    },
+    {
+      "name": "contact_elements/master",
+      "file": "data/contact_elements__master.npy",
+      "dtype": "i64",
+      "shape": [
+        16
+      ],
+      "axes": [
+        "entry"
+      ],
+      "layout": "table",
+      "sha256": "8cbd8b0c764ccbf79778b75123320400ede8cb1d496be9c7383d19b269f5ba97",
+      "description": "master facet index (type in master_type)"
+    },
+    {
+      "name": "gaps",
+      "file": "data/gaps.npy",
+      "dtype": "f64",
+      "shape": [
+        82,
+        1
+      ],
+      "axes": [
+        "node",
+        "component"
+      ],
+      "layout": "nodal",
+      "sha256": "5c3a66988e278ce3946b7727aad267770164598b4d3b7fac6fe0b41b2ea59ca5",
+      "description": "gaps after search (penetration > 0)"
+    },
+    {
+      "name": "normals",
+      "file": "data/normals.npy",
+      "dtype": "f64",
+      "shape": [
+        82,
+        3
+      ],
+      "axes": [
+        "node",
+        "component"
+      ],
+      "layout": "nodal",
+      "sha256": "5c7be8521a0f35ecde322f89d85e90c1a6f0b88c72244e52bb657aa31d79027f",
+      "description": "normals"
+    },
+    {
+      "name": "tangents",
+      "file": "data/tangents.npy",
+      "dtype": "f64",
+      "shape": [
+        82,
+        6
+      ],
+      "axes": [
+        "node",
+        "component"
+      ],
+      "layout": "nodal",
+      "sha256": "8d58a328f7bbd88a1859b2cc4f66632017a97cca8a3ca7e8d9970232e82ed46b",
+      "description": "tangents (dim x (dim-1) column-major)"
+    },
+    {
+      "name": "projections",
+      "file": "data/projections.npy",
+      "dtype": "f64",
+      "shape": [
+        82,
+        2
+      ],
+      "axes": [
+        "node",
+        "component"
+      ],
+      "layout": "nodal",
+      "sha256": "38b06b9efb378eca598618850a93cdd56b2afe2802f2f57195350e2490271ae5",
+      "description": "natural projections"
+    },
+    {
+      "name": "areas",
+      "file": "data/areas.npy",
+      "dtype": "f64",
+      "shape": [
+        82,
+        1
+      ],
+      "axes": [
+        "node",
+        "component"
+      ],
+      "layout": "nodal",
+      "sha256": "d2e39602b86c11d85ea10624876a7387d5c83e6e89baf2c68a318fd75f71dadd",
+      "description": "nodal areas"
+    },
+    {
+      "name": "detector/distances",
+      "file": "data/detector__distances.npy",
+      "dtype": "f64",
+      "shape": [
+        3
+      ],
+      "axes": [
+        "entry"
+      ],
+      "layout": "table",
+      "sha256": "947a90b6335a1d2409b07cd7571c779facfb2103f422fd92917faaf587c618bc",
+      "description": "max_dd, min_dd, max_bb"
+    },
+    {
+      "name": "contact_force",
+      "file": "data/contact_force.npy",
+      "dtype": "f64",
+      "shape": [
+        82,
+        3
+      ],
+      "axes": [
+        "node",
+        "component"
+      ],
+      "layout": "nodal",
+      "sha256": "0555f31b57a29af7b266de01bc0c6f2c94a56055fd8349dbe012dec57c7c5a06",
+      "description": "internal_force after search"
+    },
+    {
+      "name": "normal_force",
+      "file": "data/normal_force.npy",
+      "dtype": "f64",
+      "shape": [
+        82,
+        3
+      ],
+      "axes": [
+        "node",
+        "component"
+      ],
+      "layout": "nodal",
+      "sha256": "0555f31b57a29af7b266de01bc0c6f2c94a56055fd8349dbe012dec57c7c5a06",
+      "description": "normal_force"
+    },
+    {
+      "name": "tangential_force",
+      "file": "data/tangential_force.npy",
+      "dtype": "f64",
+      "shape": [
+        82,
+        3
+      ],
+      "axes": [
+        "node",
+        "component"
+      ],
+      "layout": "nodal",
+      "sha256": "5e2bb83f1c14c021150ccc4230c338724f7402a679a1e008ddb8284970452506",
+      "description": "tangential_force"
+    },
+    {
+      "name": "contact_state",
+      "file": "data/contact_state.npy",
+      "dtype": "i64",
+      "shape": [
+        82
+      ],
+      "axes": [
+        "node"
+      ],
+      "layout": "table",
+      "sha256": "c7c7416dfcbf2b3827187d57f0a7b9adce97fa6ea641ea7b1f653224d82d59c1",
+      "description": "contact state (0 no contact, 1 stick, 2 slip)"
+    }
+  ]
+}

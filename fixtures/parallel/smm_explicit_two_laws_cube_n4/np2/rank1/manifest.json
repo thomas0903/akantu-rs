@@ -1,0 +1,628 @@
+{
+  "format_version": 1,
+  "case_id": "parallel/smm_explicit_two_laws_cube_n4/np2/rank1",
+  "description": "Explicit SMM with two laws (one finite-deformation) on a distributed Tet4 cube (seeded Scotch), rank view",
+  "status": "golden",
+  "generator": {
+    "probe": "parallel_probe",
+    "probe_version": "5",
+    "command": "oracle/probes/parallel/generate.sh --out /home/user/stage-gaps2"
+  },
+  "reference": {
+    "sha": "35a851780d0b9471d258ed53a003ae98aaa95ea0",
+    "describe": "v5.0.7-post1-554-g35a851780",
+    "patches": [
+      "modified:cmake/AkantuTestsMacros.cmake sha256=c280165a84912eab4bcc081b9eaaaa06aafdd83d4f48d982e11b0859abf9672f (reference sha256=36290de2ec8b111028138fe82029efa16501512241a5bc264fa30ff3e3239b9e)"
+    ]
+  },
+  "build": {
+  "config": "strict",
+  "compiler": "g++ (Debian 14.2.0-19) 14.2.0",
+  "cxx_flags": "-ffp-contract=off -DEIGEN_DONT_VECTORIZE -DEIGEN_NO_CPUID -DEIGEN_DEFAULT_L1_CACHE_SIZE=16384 -DEIGEN_DEFAULT_L2_CACHE_SIZE=524288 -DEIGEN_DEFAULT_L3_CACHE_SIZE=524288 -O2 -g -DNDEBUG -g3 -ggdb3 -flarge-source-files -std=c++20 -flto=auto -fno-fat-lto-objects -fPIC -frounding-math (actual flags of src/model/solid_mechanics/solid_mechanics_model.cc; warnings and non-FP -D defines omitted)",
+  "build_type": "RelWithDebInfo",
+  "arch": "x86_64",
+  "os": "Debian GNU/Linux 13 (trixie)",
+  "libraries": {"eigen_cache_sizes_measured": "16384,524288,524288 (Eigen::l1/l2/l3CacheSize() read at run time in the probe process, D-050)", 
+    "eigen3": "3.4.0-5",
+    "boost": "1.83.0.2+b2",
+    "openmpi": "5.0.7-1",
+    "mumps": "5.7.3-3+b1",
+    "petsc": "3.22.5+dfsg1-2",
+    "scotch": "7.0.7-1",
+    "openblas": "0.3.29+ds-3",
+    "scalapack": "2.2.2-1",
+    "hdf5": "1.14.5+repack-3",
+    "gmsh": "4.13.1+ds1-6",
+    "pybind11": "2.13.6-2",
+    "numpy": "1:2.2.4+ds-1",
+    "scipy": "1.15.3-1",
+    "gcc": "4:14.2.0-1",
+    "gfortran": "4:14.2.0-1",
+    "oracle_image": "sha256:2da26d87e063f3c88264f589cf73381feff583eeaa7770d2e01ae034651d59f5",
+    "oracle_build_scripts": "cca6e460cd3430bf0180262e7ebe26be762112e9",
+    "oracle_install_reference_sha": "35a851780d0b9471d258ed53a003ae98aaa95ea0",
+    "oracle_install_image": "sha256:2da26d87e063f3c88264f589cf73381feff583eeaa7770d2e01ae034651d59f5",
+    "openblas_coretype": "Haswell",
+    "openblas_num_threads": "1",
+    "eigen_cache_sizes": "16384,524288,524288 (compile-time pin of the library and of the probe translation unit: EIGEN_NO_CPUID + defaults, D-050)",
+    "host_cpu": "AMD Ryzen 9 9950X 16-Core Processor",
+    "x86_64_level": "v3",
+    "sha256:libakantu.so.5.0.7": "554ecfc7838d8c8aa3955f37f2efb556a7f09426083b74af262ffdcccff657ff",
+    "probe_tree_sha256": "90de0219d916e37a65eced34b034b2aabdafb5a67d4b062206100e4f63bc94fa",
+    "probe_sources_commit": "bdba17d380ba7b888a0f333d259cd35649e2c34c",
+    "cmake_cxx_flags": "-ffp-contract=off -DEIGEN_DONT_VECTORIZE -DEIGEN_NO_CPUID -DEIGEN_DEFAULT_L1_CACHE_SIZE=16384 -DEIGEN_DEFAULT_L2_CACHE_SIZE=524288 -DEIGEN_DEFAULT_L3_CACHE_SIZE=524288 -O2 -g -DNDEBUG -g3 -ggdb3 -flarge-source-files",
+    "probe": "parallel_probe"
+  },
+  "probe_compile_command": "/usr/bin/c++ '-DAKANTU_PROBE_BUILD_TYPE=\"RelWithDebInfo\"' '-DAKANTU_PROBE_CONFIG=\"strict\"' '-DAKANTU_PROBE_CXX_FLAGS=\"-ffp-contract=off -DEIGEN_DONT_VECTORIZE -DEIGEN_NO_CPUID -DEIGEN_DEFAULT_L1_CACHE_SIZE=16384 -DEIGEN_DEFAULT_L2_CACHE_SIZE=524288 -DEIGEN_DEFAULT_L3_CACHE_SIZE=524288  -O2 -g -DNDEBUG\"' -DBOOST_GRAPH_DYN_LINK -DBOOST_GRAPH_NO_LIB -DBOOST_REGEX_DYN_LINK -DBOOST_REGEX_NO_LIB -DCGAL_USE_GMPXX=1 -I/probes/parallel/../include -isystem /build/install-strict/include/akantu -isystem /opt/CGAL-5.6.2/include -isystem /usr/lib/x86_64-linux-gnu/openmpi/include -isystem /usr/lib/x86_64-linux-gnu/openmpi/include/openmpi -isystem /usr/lib/petscdir/petsc3.22/x86_64-linux-gnu-real/include -isystem /usr/include/scotch -isystem /build/install-strict/include/akantu_iterators -isystem /usr/include/eigen3 -isystem /build/install-strict/include/iohelper -O2 -g -DNDEBUG -std=gnu++20 -ffp-contract=off -DEIGEN_DONT_VECTORIZE -DEIGEN_NO_CPUID -DEIGEN_DEFAULT_L1_CACHE_SIZE=16384 -DEIGEN_DEFAULT_L2_CACHE_SIZE=524288 -DEIGEN_DEFAULT_L3_CACHE_SIZE=524288 -Wall -Wextra -pedantic -Wno-array-bounds -Wno-use-after-free -Wno-stringop-overread -DOMPI_SKIP_MPICXX -Wno-literal-suffix -frounding-math -o CMakeFiles/parallel_probe.dir/parallel_probe.cc.o -c /probes/parallel/parallel_probe.cc",
+  "probe_cxx_flags": "-DAKANTU_PROBE_BUILD_TYPE=\"RelWithDebInfo\" -DAKANTU_PROBE_CONFIG=\"strict\" -DAKANTU_PROBE_CXX_FLAGS=\"-ffp-contract=off -DEIGEN_DONT_VECTORIZE -DEIGEN_NO_CPUID -DEIGEN_DEFAULT_L1_CACHE_SIZE=16384 -DEIGEN_DEFAULT_L2_CACHE_SIZE=524288 -DEIGEN_DEFAULT_L3_CACHE_SIZE=524288  -O2 -g -DNDEBUG\" -DBOOST_GRAPH_DYN_LINK -DBOOST_GRAPH_NO_LIB -DBOOST_REGEX_DYN_LINK -DBOOST_REGEX_NO_LIB -DCGAL_USE_GMPXX=1 -O2 -g -DNDEBUG -std=gnu++20 -ffp-contract=off -DEIGEN_DONT_VECTORIZE -DEIGEN_NO_CPUID -DEIGEN_DEFAULT_L1_CACHE_SIZE=16384 -DEIGEN_DEFAULT_L2_CACHE_SIZE=524288 -DEIGEN_DEFAULT_L3_CACHE_SIZE=524288 -Wall -Wextra -pedantic -Wno-array-bounds -Wno-use-after-free -Wno-stringop-overread -DOMPI_SKIP_MPICXX -Wno-literal-suffix -frounding-math"
+},
+  "created": "2026-11-11T21:23:13Z",
+  "parameters": {
+    "oracle_pin/eigen_cache_sizes": "16384 524288 524288",
+    "oracle_pin/openblas_coretype": "Haswell",
+    "oracle_pin/openblas_num_threads": "1",
+    "rank": 1,
+    "nb_ranks": 2,
+    "nb_global_nodes": 125,
+    "is_distributed": true,
+    "blocks": [
+      "_tetrahedron_4/not_ghost",
+      "_tetrahedron_4/ghost"
+    ],
+    "element_schemes": [
+      "send/0",
+      "recv/0"
+    ],
+    "node_schemes": [
+      "recv/0"
+    ],
+    "element_groups": [],
+    "node_groups": [],
+    "type_table": [
+      "_tetrahedron_4"
+    ],
+    "material_selector": "law (floor(2 x) + floor(2 y) + floor(2 z)) mod 2 of the barycentre",
+    "ghost_filter_order": "canonical rank order (probe patch)",
+    "ghost_filter_reorder_validity": "valid: every ghost value of the Real internals listed in ghost_internals_checked is at its default (0) before the rewrite, so the reorder moves no state (D-035, UD-232)",
+    "ghost_internals_checked": [
+      "delta_T",
+      "eigen_grad_u",
+      "epsilon_th",
+      "grad_u",
+      "green_strain",
+      "piola_kirchhoff_2",
+      "potential_energy",
+      "sigma_th",
+      "stress"
+    ]
+  },
+  "storage": {
+    "mode": "committed",
+    "bytes": 93872
+  },
+  "quantities": [
+    {
+      "name": "nodes/global_ids",
+      "file": "data/nodes__global_ids.npy",
+      "dtype": "i64",
+      "shape": [
+        103
+      ],
+      "axes": [
+        "entry"
+      ],
+      "layout": "table",
+      "sha256": "86f28e5a1006295d1bca4d43e3eddd8e8daf96b76114ade3fe6ed1831f7f8466",
+      "description": "getNodeGlobalId per local node",
+      "tolerance_class": "exact"
+    },
+    {
+      "name": "nodes/flags",
+      "file": "data/nodes__flags.npy",
+      "dtype": "i64",
+      "shape": [
+        103
+      ],
+      "axes": [
+        "entry"
+      ],
+      "layout": "table",
+      "sha256": "0407f606df6908996584dcd0b5f453724492694fcfca8f5657c00f4042b4c304",
+      "description": "getNodeFlag per local node (NodeFlag bits)",
+      "tolerance_class": "exact"
+    },
+    {
+      "name": "nodes/pranks",
+      "file": "data/nodes__pranks.npy",
+      "dtype": "i64",
+      "shape": [
+        103
+      ],
+      "axes": [
+        "entry"
+      ],
+      "layout": "table",
+      "sha256": "0c25aab0d41b55f708151adb1cf9fd174bb9329c3d72cf177ab17ad9cb4f3b01",
+      "description": "getNodePrank per local node (-1: none)",
+      "tolerance_class": "exact"
+    },
+    {
+      "name": "nodes/coordinates",
+      "file": "data/nodes__coordinates.npy",
+      "dtype": "f64",
+      "shape": [
+        103,
+        3
+      ],
+      "axes": [
+        "entry",
+        "component"
+      ],
+      "layout": "table",
+      "sha256": "cb0d13c1af0fa1c29ef88cf7b495e0ae3f46918da075667aa1c912f01b1deaec",
+      "description": "node coordinates",
+      "tolerance_class": "exact"
+    },
+    {
+      "name": "conn/_tetrahedron_4/not_ghost",
+      "file": "data/conn___tetrahedron_4__not_ghost.npy",
+      "dtype": "i64",
+      "shape": [
+        192,
+        4
+      ],
+      "axes": [
+        "entry",
+        "component"
+      ],
+      "layout": "table",
+      "sha256": "717d11027f9de2cad9b0d00007324cf5292c5e46e413e6872c9c39715f9e82a3",
+      "description": "connectivity (local node ids)",
+      "tolerance_class": "exact"
+    },
+    {
+      "name": "conn/_tetrahedron_4/ghost",
+      "file": "data/conn___tetrahedron_4__ghost.npy",
+      "dtype": "i64",
+      "shape": [
+        107,
+        4
+      ],
+      "axes": [
+        "entry",
+        "component"
+      ],
+      "layout": "table",
+      "sha256": "b2b37f757df993c2f8065c94af19148a244dd91498e073607bae76b71f923e79",
+      "description": "connectivity (local node ids)",
+      "tolerance_class": "exact"
+    },
+    {
+      "name": "ghosts_counters/_tetrahedron_4/ghost",
+      "file": "data/ghosts_counters___tetrahedron_4__ghost.npy",
+      "dtype": "i64",
+      "shape": [
+        107
+      ],
+      "axes": [
+        "entry"
+      ],
+      "layout": "table",
+      "sha256": "fd6c16bb15a1627d118d93aea22992e5e785a858bcd00544913a5872e4a62125",
+      "description": "ghost counters",
+      "tolerance_class": "exact"
+    },
+    {
+      "name": "element_scheme/send/0",
+      "file": "data/element_scheme__send__0.npy",
+      "dtype": "i64",
+      "shape": [
+        107,
+        3
+      ],
+      "axes": [
+        "entry",
+        "component"
+      ],
+      "layout": "table",
+      "sha256": "cf7a03dbc7725805f1a786d8fb32c32966a3c003b689cacdbf11a9d40ac04f00",
+      "description": "(type code, element, ghost) in scheme order",
+      "tolerance_class": "exact"
+    },
+    {
+      "name": "element_scheme/recv/0",
+      "file": "data/element_scheme__recv__0.npy",
+      "dtype": "i64",
+      "shape": [
+        107,
+        3
+      ],
+      "axes": [
+        "entry",
+        "component"
+      ],
+      "layout": "table",
+      "sha256": "53fbe10d3b5d99fc3ab5b92e7287d2a702e74bb1f87864a5b2121c33dd60ad15",
+      "description": "(type code, element, ghost) in scheme order",
+      "tolerance_class": "exact"
+    },
+    {
+      "name": "node_scheme/recv/0",
+      "file": "data/node_scheme__recv__0.npy",
+      "dtype": "i64",
+      "shape": [
+        28
+      ],
+      "axes": [
+        "entry"
+      ],
+      "layout": "table",
+      "sha256": "e9f5e33ca86a0e5f58ce3c29941d864228f8e1217fdc8a4b5ec752a0fe5b02cd",
+      "description": "local nodes in scheme order",
+      "tolerance_class": "exact"
+    },
+    {
+      "name": "law0/filter/_tetrahedron_4/not_ghost",
+      "file": "data/law0__filter___tetrahedron_4__not_ghost.npy",
+      "dtype": "i64",
+      "shape": [
+        121
+      ],
+      "axes": [
+        "entry"
+      ],
+      "layout": "table",
+      "sha256": "de3c0720ff3a916bf2b8bd5578aec057aed8ffc19f91d307b45bd292aeb46e60",
+      "description": "law element filter (ghost: canonical rank order)",
+      "tolerance_class": "exact"
+    },
+    {
+      "name": "law0/filter/_tetrahedron_4/ghost",
+      "file": "data/law0__filter___tetrahedron_4__ghost.npy",
+      "dtype": "i64",
+      "shape": [
+        31
+      ],
+      "axes": [
+        "entry"
+      ],
+      "layout": "table",
+      "sha256": "ec39b0068b39a58234e667434941a2980187d21fd004b63051dc1a65f74446a4",
+      "description": "law element filter (ghost: canonical rank order)",
+      "tolerance_class": "exact"
+    },
+    {
+      "name": "law1/filter/_tetrahedron_4/not_ghost",
+      "file": "data/law1__filter___tetrahedron_4__not_ghost.npy",
+      "dtype": "i64",
+      "shape": [
+        71
+      ],
+      "axes": [
+        "entry"
+      ],
+      "layout": "table",
+      "sha256": "acd5b47a85d94b54015801102c672779e26b7906f37b52e5ea74908f1aad0287",
+      "description": "law element filter (ghost: canonical rank order)",
+      "tolerance_class": "exact"
+    },
+    {
+      "name": "law1/filter/_tetrahedron_4/ghost",
+      "file": "data/law1__filter___tetrahedron_4__ghost.npy",
+      "dtype": "i64",
+      "shape": [
+        76
+      ],
+      "axes": [
+        "entry"
+      ],
+      "layout": "table",
+      "sha256": "507e626b8b48a72892ab2e018dd6e53d5e3a4bf2bdd932b108ab87fe8a006782",
+      "description": "law element filter (ghost: canonical rank order)",
+      "tolerance_class": "exact"
+    },
+    {
+      "name": "model/time_step",
+      "file": "data/model__time_step.npy",
+      "dtype": "f64",
+      "shape": [
+        2
+      ],
+      "axes": [
+        "entry"
+      ],
+      "layout": "table",
+      "sha256": "12c60a91ff88007ec2a01f94cbb8bb2e02e4ebf337719f2508bf76ab4cee6275",
+      "description": "getStableTimeStep, 0.8 * it",
+      "tolerance_class": "exact"
+    },
+    {
+      "name": "model/kinetic_energy",
+      "file": "data/model__kinetic_energy.npy",
+      "dtype": "f64",
+      "shape": [
+        40
+      ],
+      "axes": [
+        "step"
+      ],
+      "layout": "table",
+      "sha256": "021146a1a10a2441b21fa30c177aa9bd7e9089fd1a13f1223776f92a3b72cb27",
+      "description": "getEnergy(kinetic) after each step (MPI_Allreduce)",
+      "tolerance_class": "exact"
+    },
+    {
+      "name": "model/potential_energy",
+      "file": "data/model__potential_energy.npy",
+      "dtype": "f64",
+      "shape": [
+        40
+      ],
+      "axes": [
+        "step"
+      ],
+      "layout": "table",
+      "sha256": "aa26ff42aad2a02a264b7107c107756f4caa5afb5246c308c45cf6f22acaa822",
+      "description": "getEnergy(potential) after each step (MPI_Allreduce)",
+      "tolerance_class": "exact"
+    },
+    {
+      "name": "model/displacement",
+      "file": "data/model__displacement.npy",
+      "dtype": "f64",
+      "shape": [
+        103,
+        3
+      ],
+      "axes": [
+        "entry",
+        "component"
+      ],
+      "layout": "table",
+      "sha256": "544760ff027463f2215d9d3e46b133a0969812816f541ed0c589dcc8f1cdeac8",
+      "description": "displacement",
+      "tolerance_class": "exact"
+    },
+    {
+      "name": "model/velocity",
+      "file": "data/model__velocity.npy",
+      "dtype": "f64",
+      "shape": [
+        103,
+        3
+      ],
+      "axes": [
+        "entry",
+        "component"
+      ],
+      "layout": "table",
+      "sha256": "6b42b72f375a903510cdf4ba2582a48485b20c19f7ff056104da6b2c91bb4728",
+      "description": "velocity",
+      "tolerance_class": "exact"
+    },
+    {
+      "name": "model/acceleration",
+      "file": "data/model__acceleration.npy",
+      "dtype": "f64",
+      "shape": [
+        103,
+        3
+      ],
+      "axes": [
+        "entry",
+        "component"
+      ],
+      "layout": "table",
+      "sha256": "9f60d0d29dbd4e19696b7e3d1d4489536fb3508c2da49d41403f546c07fbce1f",
+      "description": "acceleration",
+      "tolerance_class": "exact"
+    },
+    {
+      "name": "model/mass",
+      "file": "data/model__mass.npy",
+      "dtype": "f64",
+      "shape": [
+        103,
+        3
+      ],
+      "axes": [
+        "entry",
+        "component"
+      ],
+      "layout": "table",
+      "sha256": "605efff27ae7f90e37f9fbf4ab4e1a244b8c054b58e9163776072845b2b29915",
+      "description": "lumped mass",
+      "tolerance_class": "exact"
+    },
+    {
+      "name": "model/internal_force",
+      "file": "data/model__internal_force.npy",
+      "dtype": "f64",
+      "shape": [
+        103,
+        3
+      ],
+      "axes": [
+        "entry",
+        "component"
+      ],
+      "layout": "table",
+      "sha256": "3c309485d551f71d361e07df28414a1f502c2097759788fab19be5d3b9fe16d1",
+      "description": "internal force",
+      "tolerance_class": "exact"
+    },
+    {
+      "name": "law0/stress/_tetrahedron_4/not_ghost",
+      "file": "data/law0__stress___tetrahedron_4__not_ghost.npy",
+      "dtype": "f64",
+      "shape": [
+        121,
+        9
+      ],
+      "axes": [
+        "entry",
+        "component"
+      ],
+      "layout": "table",
+      "sha256": "679ba58d1301ddb15363266930882f436a1f81a57f2a64f8519860f1021ffee4",
+      "description": "law 0 stress per quadrature point after the last step (ghost: canonical filter order)",
+      "tolerance_class": "exact"
+    },
+    {
+      "name": "law0/stress/_tetrahedron_4/ghost",
+      "file": "data/law0__stress___tetrahedron_4__ghost.npy",
+      "dtype": "f64",
+      "shape": [
+        31,
+        9
+      ],
+      "axes": [
+        "entry",
+        "component"
+      ],
+      "layout": "table",
+      "sha256": "59b5c3c5dadeb7b3d8efd09a212d22342d587c2a989be3ba64b9b31571e03d3f",
+      "description": "law 0 stress per quadrature point after the last step (ghost: canonical filter order)",
+      "tolerance_class": "exact"
+    },
+    {
+      "name": "law0/grad_u/_tetrahedron_4/not_ghost",
+      "file": "data/law0__grad_u___tetrahedron_4__not_ghost.npy",
+      "dtype": "f64",
+      "shape": [
+        121,
+        9
+      ],
+      "axes": [
+        "entry",
+        "component"
+      ],
+      "layout": "table",
+      "sha256": "a2d8696ab7a5498e92c605ff12e72e86779fc2beaa904fb520e11f6b3664b888",
+      "description": "law 0 grad_u per quadrature point after the last step (ghost: canonical filter order)",
+      "tolerance_class": "exact"
+    },
+    {
+      "name": "law0/grad_u/_tetrahedron_4/ghost",
+      "file": "data/law0__grad_u___tetrahedron_4__ghost.npy",
+      "dtype": "f64",
+      "shape": [
+        31,
+        9
+      ],
+      "axes": [
+        "entry",
+        "component"
+      ],
+      "layout": "table",
+      "sha256": "aa834c3f09771be53ca1937f78335f83980f26c2eb4a946cbd7bc4d079151164",
+      "description": "law 0 grad_u per quadrature point after the last step (ghost: canonical filter order)",
+      "tolerance_class": "exact"
+    },
+    {
+      "name": "law1/stress/_tetrahedron_4/not_ghost",
+      "file": "data/law1__stress___tetrahedron_4__not_ghost.npy",
+      "dtype": "f64",
+      "shape": [
+        71,
+        9
+      ],
+      "axes": [
+        "entry",
+        "component"
+      ],
+      "layout": "table",
+      "sha256": "2047bd53f3d555a1590fa8e1a79f18f964eba3235dd9d2f410f64bd31a371399",
+      "description": "law 1 stress per quadrature point after the last step (ghost: canonical filter order)",
+      "tolerance_class": "exact"
+    },
+    {
+      "name": "law1/stress/_tetrahedron_4/ghost",
+      "file": "data/law1__stress___tetrahedron_4__ghost.npy",
+      "dtype": "f64",
+      "shape": [
+        76,
+        9
+      ],
+      "axes": [
+        "entry",
+        "component"
+      ],
+      "layout": "table",
+      "sha256": "41d0fa6f9d4c18df7aa909548b91a9d6503d10c629a0fe272a031fa9e58bff63",
+      "description": "law 1 stress per quadrature point after the last step (ghost: canonical filter order)",
+      "tolerance_class": "exact"
+    },
+    {
+      "name": "law1/grad_u/_tetrahedron_4/not_ghost",
+      "file": "data/law1__grad_u___tetrahedron_4__not_ghost.npy",
+      "dtype": "f64",
+      "shape": [
+        71,
+        9
+      ],
+      "axes": [
+        "entry",
+        "component"
+      ],
+      "layout": "table",
+      "sha256": "ff83f4cd64178413805bbfc9c59547410bebf0f3ae3ad240eb2aaf05618a14e7",
+      "description": "law 1 grad_u per quadrature point after the last step (ghost: canonical filter order)",
+      "tolerance_class": "exact"
+    },
+    {
+      "name": "law1/grad_u/_tetrahedron_4/ghost",
+      "file": "data/law1__grad_u___tetrahedron_4__ghost.npy",
+      "dtype": "f64",
+      "shape": [
+        76,
+        9
+      ],
+      "axes": [
+        "entry",
+        "component"
+      ],
+      "layout": "table",
+      "sha256": "6c5985aa2c3a12786b8d013fdfa03db485d0dd9664db3e09e938e0af3c07c109",
+      "description": "law 1 grad_u per quadrature point after the last step (ghost: canonical filter order)",
+      "tolerance_class": "exact"
+    },
+    {
+      "name": "law1/piola_kirchhoff_2/_tetrahedron_4/not_ghost",
+      "file": "data/law1__piola_kirchhoff_2___tetrahedron_4__not_ghost.npy",
+      "dtype": "f64",
+      "shape": [
+        71,
+        9
+      ],
+      "axes": [
+        "entry",
+        "component"
+      ],
+      "layout": "table",
+      "sha256": "d52828a61439e2b841c9829e7fd2b61770dfec2e036b3b9a79ca504249e5123f",
+      "description": "law 1 piola_kirchhoff_2 per quadrature point after the last step (ghost: canonical filter order)",
+      "tolerance_class": "exact"
+    },
+    {
+      "name": "law1/piola_kirchhoff_2/_tetrahedron_4/ghost",
+      "file": "data/law1__piola_kirchhoff_2___tetrahedron_4__ghost.npy",
+      "dtype": "f64",
+      "shape": [
+        76,
+        9
+      ],
+      "axes": [
+        "entry",
+        "component"
+      ],
+      "layout": "table",
+      "sha256": "3bca779be868cbbe3321b151ed2c3ce29e3afb9298936b925bb0f2adbbb0b831",
+      "description": "law 1 piola_kirchhoff_2 per quadrature point after the last step (ghost: canonical filter order)",
+      "tolerance_class": "exact"
+    }
+  ],
+  "tags": [
+    "parallel"
+  ]
+}

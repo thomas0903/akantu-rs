@@ -1,0 +1,625 @@
+{
+  "format_version": 1,
+  "case_id": "model/smm_init_solver/orderings",
+  "description": "UD-352 (D-064): current position, stable time step, displacement and releases after nine orderings of solve / reader / initNewSolver / direct displacement writes (UD-352 in B1 and E1)",
+  "status": "golden",
+  "generator": {
+    "probe": "smm_init_solver_probe",
+    "probe_version": "1",
+    "command": "oracle/probes/smm_init_solver/generate.sh "
+  },
+  "reference": {
+    "sha": "35a851780d0b9471d258ed53a003ae98aaa95ea0",
+    "describe": "v5.0.7-post1-554-g35a851780",
+    "patches": [
+      "modified:cmake/AkantuTestsMacros.cmake sha256=c280165a84912eab4bcc081b9eaaaa06aafdd83d4f48d982e11b0859abf9672f (reference sha256=36290de2ec8b111028138fe82029efa16501512241a5bc264fa30ff3e3239b9e)"
+    ]
+  },
+  "build": {
+  "config": "strict",
+  "compiler": "g++ (Debian 14.2.0-19) 14.2.0",
+  "cxx_flags": "-ffp-contract=off -DEIGEN_DONT_VECTORIZE -O2 -g -DNDEBUG -g3 -ggdb3 -flarge-source-files -std=c++20 -flto=auto -fno-fat-lto-objects -fPIC -frounding-math (actual flags of src/model/solid_mechanics/solid_mechanics_model.cc; warnings and non-FP -D defines omitted)",
+  "build_type": "RelWithDebInfo",
+  "arch": "x86_64",
+  "os": "Debian GNU/Linux 13 (trixie)",
+  "libraries": {
+    "eigen3": "3.4.0-5",
+    "boost": "1.83.0.2+b2",
+    "openmpi": "5.0.7-1",
+    "mumps": "5.7.3-3+b1",
+    "petsc": "3.22.5+dfsg1-2",
+    "scotch": "7.0.7-1",
+    "openblas": "0.3.29+ds-3",
+    "scalapack": "2.2.2-1",
+    "hdf5": "1.14.5+repack-3",
+    "gmsh": "4.13.1+ds1-6",
+    "pybind11": "2.13.6-2",
+    "numpy": "1:2.2.4+ds-1",
+    "scipy": "1.15.3-1",
+    "gcc": "4:14.2.0-1",
+    "gfortran": "4:14.2.0-1",
+    "oracle_image": "sha256:45122c213e9fa194b6b58dcc31fc23b5fa4f7c0f64d0a452e40ae072c51c5cdb",
+    "oracle_build_scripts": "e168f393291494c869fa759b3ad9ae4a371a0369",
+    "oracle_install_reference_sha": "35a851780d0b9471d258ed53a003ae98aaa95ea0",
+    "oracle_install_image": "sha256:45122c213e9fa194b6b58dcc31fc23b5fa4f7c0f64d0a452e40ae072c51c5cdb",
+    "sha256:libakantu.so.5.0.7": "5491d902b6f363e11b47d2dc1d0aff0597374e8ff785bbfe2bff534f38509e81",
+    "probe_tree_sha256": "36069561bf20005da742b2e44cbc7ee2b6504d2432b2a13270fc564b0b6eeb41",
+    "probe_sources_commit": "1be4e3cd4dbaba744784d9b7ae29454b0d123179",
+    "cmake_cxx_flags": "-ffp-contract=off -DEIGEN_DONT_VECTORIZE -O2 -g -DNDEBUG -g3 -ggdb3 -flarge-source-files",
+    "probe": "smm_init_solver_probe"
+  },
+  "probe_compile_command": "/usr/bin/c++ '-DAKANTU_PROBE_BUILD_TYPE=\"RelWithDebInfo\"' '-DAKANTU_PROBE_CONFIG=\"strict\"' '-DAKANTU_PROBE_CXX_FLAGS=\"-ffp-contract=off -DEIGEN_DONT_VECTORIZE  -O2 -g -DNDEBUG\"' -DBOOST_GRAPH_DYN_LINK -DBOOST_GRAPH_NO_LIB -DBOOST_REGEX_DYN_LINK -DBOOST_REGEX_NO_LIB -DCGAL_USE_GMPXX=1 -I/probes/smm_init_solver/../include -isystem /build/install-strict/include/akantu -isystem /opt/CGAL-5.6.2/include -isystem /usr/lib/x86_64-linux-gnu/openmpi/include -isystem /usr/lib/x86_64-linux-gnu/openmpi/include/openmpi -isystem /usr/lib/petscdir/petsc3.22/x86_64-linux-gnu-real/include -isystem /usr/include/scotch -isystem /build/install-strict/include/akantu_iterators -isystem /usr/include/eigen3 -isystem /build/install-strict/include/iohelper -O2 -g -DNDEBUG -std=gnu++20 -ffp-contract=off -DEIGEN_DONT_VECTORIZE -Wall -Wextra -pedantic -Wno-array-bounds -Wno-use-after-free -Wno-stringop-overread -DOMPI_SKIP_MPICXX -Wno-literal-suffix -frounding-math -o CMakeFiles/smm_init_solver_probe.dir/smm_init_solver_probe.cc.o -c /probes/smm_init_solver/smm_init_solver_probe.cc",
+  "probe_cxx_flags": "-DAKANTU_PROBE_BUILD_TYPE=\"RelWithDebInfo\" -DAKANTU_PROBE_CONFIG=\"strict\" -DAKANTU_PROBE_CXX_FLAGS=\"-ffp-contract=off -DEIGEN_DONT_VECTORIZE  -O2 -g -DNDEBUG\" -DBOOST_GRAPH_DYN_LINK -DBOOST_GRAPH_NO_LIB -DBOOST_REGEX_DYN_LINK -DBOOST_REGEX_NO_LIB -DCGAL_USE_GMPXX=1 -O2 -g -DNDEBUG -std=gnu++20 -ffp-contract=off -DEIGEN_DONT_VECTORIZE -Wall -Wextra -pedantic -Wno-array-bounds -Wno-use-after-free -Wno-stringop-overread -DOMPI_SKIP_MPICXX -Wno-literal-suffix -frounding-math"
+},
+  "created": "2026-11-11T06:50:53Z",
+  "inputs": [
+    {
+      "role": "mesh",
+      "path": "inputs/square.msh",
+      "source": "frozen mesh of examples/c++/solid_mechanics_model/static/square.geo (D-009)",
+      "sha256": "a2475966e04d65cc1d0ba002839255540641fef2df0a0896ebe316ba5e099754"
+    },
+    {
+      "role": "material",
+      "path": "inputs/material.dat",
+      "source": "upstream examples/c++/solid_mechanics_model/static/material.dat",
+      "sha256": "3f416688d14f5dc8098a053a84b8bb70338f9308160c77dec226c281c415c649"
+    }
+  ],
+  "parameters": {
+    "eigen_cache_sizes": [
+      16384,
+      524288,
+      524288
+    ],
+    "spatial_dimension": 2,
+    "sparse_solver": "eigen",
+    "imposed_displacement": 0.0001,
+    "environment": {
+      "OPENBLAS_CORETYPE": "Haswell",
+      "OPENBLAS_NUM_THREADS": "1"
+    },
+    "orderings": [
+      "A",
+      "D",
+      "B0",
+      "B1",
+      "C",
+      "Dp",
+      "E0",
+      "E1",
+      "undeformed"
+    ]
+  },
+  "storage": {
+    "mode": "committed",
+    "bytes": 16200
+  },
+  "quantities": [
+    {
+      "name": "mesh/nodes",
+      "file": "data/mesh__nodes.npy",
+      "dtype": "f64",
+      "shape": [
+        37,
+        2
+      ],
+      "axes": [
+        "node",
+        "component"
+      ],
+      "layout": "nodal",
+      "sha256": "86deb82629933448dc22c01fd6686be91e4522fdc988cd941afab326c30bffe6"
+    },
+    {
+      "name": "A/dt",
+      "file": "data/A__dt.npy",
+      "dtype": "f64",
+      "shape": [
+        1
+      ],
+      "axes": [
+        "entry"
+      ],
+      "layout": "table",
+      "sha256": "32a133b9ed6549cfa2e2ee19e1feca1e202f09a1e987853366f3b1cb7f9a1c99"
+    },
+    {
+      "name": "A/current_position",
+      "file": "data/A__current_position.npy",
+      "dtype": "f64",
+      "shape": [
+        37,
+        2
+      ],
+      "axes": [
+        "node",
+        "component"
+      ],
+      "layout": "nodal",
+      "sha256": "86deb82629933448dc22c01fd6686be91e4522fdc988cd941afab326c30bffe6"
+    },
+    {
+      "name": "A/displacement",
+      "file": "data/A__displacement.npy",
+      "dtype": "f64",
+      "shape": [
+        37,
+        2
+      ],
+      "axes": [
+        "node",
+        "component"
+      ],
+      "layout": "nodal",
+      "sha256": "d55f6127f9e3ea8345d88b3a04165b6c9e478c48b79bedf02b0a3dbb730ab784"
+    },
+    {
+      "name": "A/releases",
+      "file": "data/A__releases.npy",
+      "dtype": "i64",
+      "shape": [
+        2
+      ],
+      "axes": [
+        "entry"
+      ],
+      "layout": "table",
+      "sha256": "7500f15e4319372a86620f1b865dac4901887634e69213f76e1df4927cbd5f51"
+    },
+    {
+      "name": "D/dt",
+      "file": "data/D__dt.npy",
+      "dtype": "f64",
+      "shape": [
+        1
+      ],
+      "axes": [
+        "entry"
+      ],
+      "layout": "table",
+      "sha256": "32a133b9ed6549cfa2e2ee19e1feca1e202f09a1e987853366f3b1cb7f9a1c99"
+    },
+    {
+      "name": "D/current_position",
+      "file": "data/D__current_position.npy",
+      "dtype": "f64",
+      "shape": [
+        37,
+        2
+      ],
+      "axes": [
+        "node",
+        "component"
+      ],
+      "layout": "nodal",
+      "sha256": "86deb82629933448dc22c01fd6686be91e4522fdc988cd941afab326c30bffe6"
+    },
+    {
+      "name": "D/displacement",
+      "file": "data/D__displacement.npy",
+      "dtype": "f64",
+      "shape": [
+        37,
+        2
+      ],
+      "axes": [
+        "node",
+        "component"
+      ],
+      "layout": "nodal",
+      "sha256": "d55f6127f9e3ea8345d88b3a04165b6c9e478c48b79bedf02b0a3dbb730ab784"
+    },
+    {
+      "name": "D/releases",
+      "file": "data/D__releases.npy",
+      "dtype": "i64",
+      "shape": [
+        2
+      ],
+      "axes": [
+        "entry"
+      ],
+      "layout": "table",
+      "sha256": "7500f15e4319372a86620f1b865dac4901887634e69213f76e1df4927cbd5f51"
+    },
+    {
+      "name": "B0/dt",
+      "file": "data/B0__dt.npy",
+      "dtype": "f64",
+      "shape": [
+        1
+      ],
+      "axes": [
+        "entry"
+      ],
+      "layout": "table",
+      "sha256": "d104d43d5328cde4e8012476d1a657e2e68ce2e65bf4bf0ee86b050e3d9209aa"
+    },
+    {
+      "name": "B0/current_position",
+      "file": "data/B0__current_position.npy",
+      "dtype": "f64",
+      "shape": [
+        37,
+        2
+      ],
+      "axes": [
+        "node",
+        "component"
+      ],
+      "layout": "nodal",
+      "sha256": "0b597112b851958c66f838bdff35fb4865fb8f238df0cdefd51dac8202836ffa"
+    },
+    {
+      "name": "B0/displacement",
+      "file": "data/B0__displacement.npy",
+      "dtype": "f64",
+      "shape": [
+        37,
+        2
+      ],
+      "axes": [
+        "node",
+        "component"
+      ],
+      "layout": "nodal",
+      "sha256": "1b82f4d3ca94b9f766888ee4c3d133780aeefc9ae1cfb2c69efedda256a54844"
+    },
+    {
+      "name": "B0/releases",
+      "file": "data/B0__releases.npy",
+      "dtype": "i64",
+      "shape": [
+        2
+      ],
+      "axes": [
+        "entry"
+      ],
+      "layout": "table",
+      "sha256": "6c7e42c115b4de16b712ffa5c79e4c181a2c7fb49297f071bfb1aff7f5c291a8"
+    },
+    {
+      "name": "B1/dt",
+      "file": "data/B1__dt.npy",
+      "dtype": "f64",
+      "shape": [
+        1
+      ],
+      "axes": [
+        "entry"
+      ],
+      "layout": "table",
+      "sha256": "32a133b9ed6549cfa2e2ee19e1feca1e202f09a1e987853366f3b1cb7f9a1c99"
+    },
+    {
+      "name": "B1/current_position",
+      "file": "data/B1__current_position.npy",
+      "dtype": "f64",
+      "shape": [
+        37,
+        2
+      ],
+      "axes": [
+        "node",
+        "component"
+      ],
+      "layout": "nodal",
+      "sha256": "86deb82629933448dc22c01fd6686be91e4522fdc988cd941afab326c30bffe6"
+    },
+    {
+      "name": "B1/displacement",
+      "file": "data/B1__displacement.npy",
+      "dtype": "f64",
+      "shape": [
+        37,
+        2
+      ],
+      "axes": [
+        "node",
+        "component"
+      ],
+      "layout": "nodal",
+      "sha256": "1b82f4d3ca94b9f766888ee4c3d133780aeefc9ae1cfb2c69efedda256a54844"
+    },
+    {
+      "name": "B1/releases",
+      "file": "data/B1__releases.npy",
+      "dtype": "i64",
+      "shape": [
+        2
+      ],
+      "axes": [
+        "entry"
+      ],
+      "layout": "table",
+      "sha256": "6c7e42c115b4de16b712ffa5c79e4c181a2c7fb49297f071bfb1aff7f5c291a8"
+    },
+    {
+      "name": "C/dt",
+      "file": "data/C__dt.npy",
+      "dtype": "f64",
+      "shape": [
+        1
+      ],
+      "axes": [
+        "entry"
+      ],
+      "layout": "table",
+      "sha256": "d104d43d5328cde4e8012476d1a657e2e68ce2e65bf4bf0ee86b050e3d9209aa"
+    },
+    {
+      "name": "C/current_position",
+      "file": "data/C__current_position.npy",
+      "dtype": "f64",
+      "shape": [
+        37,
+        2
+      ],
+      "axes": [
+        "node",
+        "component"
+      ],
+      "layout": "nodal",
+      "sha256": "0b597112b851958c66f838bdff35fb4865fb8f238df0cdefd51dac8202836ffa"
+    },
+    {
+      "name": "C/displacement",
+      "file": "data/C__displacement.npy",
+      "dtype": "f64",
+      "shape": [
+        37,
+        2
+      ],
+      "axes": [
+        "node",
+        "component"
+      ],
+      "layout": "nodal",
+      "sha256": "1b82f4d3ca94b9f766888ee4c3d133780aeefc9ae1cfb2c69efedda256a54844"
+    },
+    {
+      "name": "C/releases",
+      "file": "data/C__releases.npy",
+      "dtype": "i64",
+      "shape": [
+        2
+      ],
+      "axes": [
+        "entry"
+      ],
+      "layout": "table",
+      "sha256": "6c7e42c115b4de16b712ffa5c79e4c181a2c7fb49297f071bfb1aff7f5c291a8"
+    },
+    {
+      "name": "Dp/dt",
+      "file": "data/Dp__dt.npy",
+      "dtype": "f64",
+      "shape": [
+        1
+      ],
+      "axes": [
+        "entry"
+      ],
+      "layout": "table",
+      "sha256": "32a133b9ed6549cfa2e2ee19e1feca1e202f09a1e987853366f3b1cb7f9a1c99"
+    },
+    {
+      "name": "Dp/current_position",
+      "file": "data/Dp__current_position.npy",
+      "dtype": "f64",
+      "shape": [
+        37,
+        2
+      ],
+      "axes": [
+        "node",
+        "component"
+      ],
+      "layout": "nodal",
+      "sha256": "86deb82629933448dc22c01fd6686be91e4522fdc988cd941afab326c30bffe6"
+    },
+    {
+      "name": "Dp/displacement",
+      "file": "data/Dp__displacement.npy",
+      "dtype": "f64",
+      "shape": [
+        37,
+        2
+      ],
+      "axes": [
+        "node",
+        "component"
+      ],
+      "layout": "nodal",
+      "sha256": "d55f6127f9e3ea8345d88b3a04165b6c9e478c48b79bedf02b0a3dbb730ab784"
+    },
+    {
+      "name": "Dp/releases",
+      "file": "data/Dp__releases.npy",
+      "dtype": "i64",
+      "shape": [
+        2
+      ],
+      "axes": [
+        "entry"
+      ],
+      "layout": "table",
+      "sha256": "7500f15e4319372a86620f1b865dac4901887634e69213f76e1df4927cbd5f51"
+    },
+    {
+      "name": "E0/dt",
+      "file": "data/E0__dt.npy",
+      "dtype": "f64",
+      "shape": [
+        1
+      ],
+      "axes": [
+        "entry"
+      ],
+      "layout": "table",
+      "sha256": "d104d43d5328cde4e8012476d1a657e2e68ce2e65bf4bf0ee86b050e3d9209aa"
+    },
+    {
+      "name": "E0/current_position",
+      "file": "data/E0__current_position.npy",
+      "dtype": "f64",
+      "shape": [
+        37,
+        2
+      ],
+      "axes": [
+        "node",
+        "component"
+      ],
+      "layout": "nodal",
+      "sha256": "0b597112b851958c66f838bdff35fb4865fb8f238df0cdefd51dac8202836ffa"
+    },
+    {
+      "name": "E0/displacement",
+      "file": "data/E0__displacement.npy",
+      "dtype": "f64",
+      "shape": [
+        37,
+        2
+      ],
+      "axes": [
+        "node",
+        "component"
+      ],
+      "layout": "nodal",
+      "sha256": "1b82f4d3ca94b9f766888ee4c3d133780aeefc9ae1cfb2c69efedda256a54844"
+    },
+    {
+      "name": "E0/releases",
+      "file": "data/E0__releases.npy",
+      "dtype": "i64",
+      "shape": [
+        2
+      ],
+      "axes": [
+        "entry"
+      ],
+      "layout": "table",
+      "sha256": "6c7e42c115b4de16b712ffa5c79e4c181a2c7fb49297f071bfb1aff7f5c291a8"
+    },
+    {
+      "name": "E1/dt",
+      "file": "data/E1__dt.npy",
+      "dtype": "f64",
+      "shape": [
+        1
+      ],
+      "axes": [
+        "entry"
+      ],
+      "layout": "table",
+      "sha256": "32a133b9ed6549cfa2e2ee19e1feca1e202f09a1e987853366f3b1cb7f9a1c99"
+    },
+    {
+      "name": "E1/current_position",
+      "file": "data/E1__current_position.npy",
+      "dtype": "f64",
+      "shape": [
+        37,
+        2
+      ],
+      "axes": [
+        "node",
+        "component"
+      ],
+      "layout": "nodal",
+      "sha256": "86deb82629933448dc22c01fd6686be91e4522fdc988cd941afab326c30bffe6"
+    },
+    {
+      "name": "E1/displacement",
+      "file": "data/E1__displacement.npy",
+      "dtype": "f64",
+      "shape": [
+        37,
+        2
+      ],
+      "axes": [
+        "node",
+        "component"
+      ],
+      "layout": "nodal",
+      "sha256": "2584a92723237e34fd0bc6eacce57af89ec00b16c4e236d7e44c17fe740ec8fd"
+    },
+    {
+      "name": "E1/releases",
+      "file": "data/E1__releases.npy",
+      "dtype": "i64",
+      "shape": [
+        2
+      ],
+      "axes": [
+        "entry"
+      ],
+      "layout": "table",
+      "sha256": "6c7e42c115b4de16b712ffa5c79e4c181a2c7fb49297f071bfb1aff7f5c291a8"
+    },
+    {
+      "name": "undeformed/dt",
+      "file": "data/undeformed__dt.npy",
+      "dtype": "f64",
+      "shape": [
+        1
+      ],
+      "axes": [
+        "entry"
+      ],
+      "layout": "table",
+      "sha256": "32a133b9ed6549cfa2e2ee19e1feca1e202f09a1e987853366f3b1cb7f9a1c99"
+    },
+    {
+      "name": "undeformed/current_position",
+      "file": "data/undeformed__current_position.npy",
+      "dtype": "f64",
+      "shape": [
+        37,
+        2
+      ],
+      "axes": [
+        "node",
+        "component"
+      ],
+      "layout": "nodal",
+      "sha256": "86deb82629933448dc22c01fd6686be91e4522fdc988cd941afab326c30bffe6"
+    },
+    {
+      "name": "undeformed/displacement",
+      "file": "data/undeformed__displacement.npy",
+      "dtype": "f64",
+      "shape": [
+        37,
+        2
+      ],
+      "axes": [
+        "node",
+        "component"
+      ],
+      "layout": "nodal",
+      "sha256": "80f8ffea0659fb31c52ec869674bc3b8bb9be4eaa3248bde8028082d7b0b0dbc"
+    },
+    {
+      "name": "undeformed/releases",
+      "file": "data/undeformed__releases.npy",
+      "dtype": "i64",
+      "shape": [
+        2
+      ],
+      "axes": [
+        "entry"
+      ],
+      "layout": "table",
+      "sha256": "7500f15e4319372a86620f1b865dac4901887634e69213f76e1df4927cbd5f51"
+    }
+  ],
+  "tags": [
+    "model",
+    "smm",
+    "upstream_defect"
+  ],
+  "notes": "UD-352 (category B, D-064): in orderings B1 and E1 upstream's initSolver resets the release-cached current position to X after a reader refreshed it at the current displacement release, so getCurrentPosition() and getStableTimeStep() use the undeformed mesh; the port's corrected default keeps the cache (B1: X + u, E1: the last refresh X + u_old, the direct write being invisible, UD-800 C), its compat switch init_solver_resets_current_position reproduces every value. Orderings A, D, Dp: displacement imposed without a solver step stays invisible (UD-800, reproduced)."
+}

@@ -1,0 +1,27 @@
+# SPDX-License-Identifier: LGPL-3.0-or-later
+# sshd configuration of the akantu-rs multi-node node container
+# (docker/bench/Dockerfile.mn): Open MPI's remote launch
+# logs in as `akantu` with the session's key only. The port and the host key
+# are given on the command line by mn-entrypoint.sh (-p, -h).
+AuthorizedKeysFile /etc/akantu-mn/authorized_keys
+PubkeyAuthentication yes
+PasswordAuthentication no
+KbdInteractiveAuthentication no
+PermitEmptyPasswords no
+PermitRootLogin no
+AllowUsers akantu
+UsePAM no
+StrictModes yes
+X11Forwarding no
+AllowTcpForwarding no
+AllowAgentForwarding no
+AllowStreamLocalForwarding no
+PermitTunnel no
+PermitUserEnvironment no
+PrintMotd no
+PrintLastLog no
+MaxStartups 64:30:128
+ClientAliveInterval 15
+ClientAliveCountMax 4
+PidFile /run/sshd.pid
+LogLevel INFO

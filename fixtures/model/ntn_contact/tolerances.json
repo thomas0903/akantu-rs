@@ -1,0 +1,12 @@
+{
+  "format_version": 1,
+  "rules": [
+    {
+      "quantity": "*",
+      "case": "model/ntn_contact/*",
+      "justification": "Exact (rule NTN-BIT, docs/NUMERICAL_VALIDATION.md): the port replays the upstream operation order of the traction-at-split-node contact, friction laws and regularisations (sequential Eigen reductions, no contraction) on top of the bitwise explicit solid mechanics model, and the rate-and-state laws evaluate ln with the pure-Rust port of the oracle's glibc log, so no value depends on the host libm. NaN and signed zeros follow the harness's exact rule only (D-046: the one NaN equality is between default quiet NaNs that differ in the sign bit, the x86_64 vs aarch64 pattern of an invalid operation; D-051: +0 and -0 differ); the NaN-bearing cases document their NaNs in their manifest notes (D-046 (4)). crates/akantu-ntn-contact/tests/oracle_ntn_fixtures.rs and oracle_ntn_adversarial.rs compare every recorded value through akantu_validation.",
+      "evidence": "all 49 cases replayed bitwise on macOS/aarch64 and on x86_64 Linux (image akantu-rs-mpi:dev); an independent regeneration of the 43 original cases is bit-identical",
+      "reviewed_by": "independent review during the port, November 2026"
+    }
+  ]
+}

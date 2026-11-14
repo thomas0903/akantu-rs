@@ -1,0 +1,12 @@
+{
+  "format_version": 1,
+  "rules": [
+    {
+      "quantity": "*",
+      "justification": "fixtures/model/non_local/* (oracle/probes/non_local/non_local_probe.cc): the non-local toolbox and laws replicate upstream's operation order (grid pair order, two weights per pair accumulated into the volumes in pair order, reciprocal normalisation, componentwise pair-order averaging; distances summed in coordinate order; glibc log/pow ports in damage_wf; the existing bitwise Mazars/Marigo/J2 kernels with LawOptions::upstream()). Every recorded quantity is compared bitwise by crates/akantu-solid/tests/non_local_fixtures.rs (pairs and weights of every neighbourhood, volumes, jacobians, averages after two averaging calls, every law internal and the internal force over 14 steps); the mixed-mesh cases replay with PointIdentity::UpstreamGlobalNum (UD-037 compat). The adversarial cases (oracle/probes/non_local/adversarial/adversarial_probe.cc) are replayed by crates/akantu-solid/tests/non_local_adversarial.rs under the same exact rule (identical bits, or default quiet NaNs differing only in sign, D-046): the damage_wf band cases with NonLocalOptions::weight_arithmetic = WeightArithmetic::UpstreamX86_64 (UD-557 compat), law_ud558_two_mazars with VariableRegistration::UpstreamShared (UD-558 compat), the mixed meshes with PointIdentity::UpstreamGlobalNum (UD-037 compat).",
+      "evidence": "15 cases bitwise on aarch64 (Mac) and x86_64 (oracle image); an independent review accepted the rule after regenerating the 15 cases bit-identically on the pinned x86_64 oracle and replaying them on aarch64; 17 adversarial cases (oracle/probes/non_local/adversarial, data bit-identical to the reviewer's independent run) bitwise, damage_wf band cases with WeightArithmetic::UpstreamX86_64 and default NaNs compared under D-046; re-check pending",
+      "case": "model/non_local/*",
+      "reviewed_by": "independent review during the port, November 2026"
+    }
+  ]
+}

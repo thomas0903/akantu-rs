@@ -1,0 +1,101 @@
+# SPDX-License-Identifier: LGPL-3.0-or-later
+# akantu-rs CI: the checks of every pull request and every push to main.
+# `fast`: lint, workspace tests, fixture checksums, parity statistics and
+# licences in the project's Linux image (x86_64, D-043). `selftest`: the
+# offline self-test of ci/ (needs cargo for the fault-injection cases and
+# shellcheck, both installed on the ubuntu-24.04 runner image). `msrv`:
+# `cargo check` with the toolchain of workspace.package.rust-version (D-025).
+# The source of this file is ci/github/fast.yml; .github/workflows/ holds an
+# unchanged copy (ci/github/README.md).
+name: fast
+on:
+  # No path filter: README.md and docs/manual/src/*.md are doc-tests of the
+  # `akantu` crate and docs/FEATURE_PARITY.md is what the `parity` tier
+  # checks, so documentation changes need this workflow too. A path filter
+  # would also leave required checks pending on pull requests it skips.
+  pull_request:
+  push:
+    branches: [main]
+    tags: ["v*"]
+  workflow_dispatch:
+permissions:
+  contents: read
+env:
+  # Container caps of scripts/mpi/in-docker.sh. The defaults (4 CPUs / 6g) fit
+  # the standard runner of a public repository (4 vCPU / 16 GB); on a
+  # private repository's 2-vCPU runner set the repository variable
+  # AKANTU_RS_DOCKER_CPUS=2 (ci/github/README.md, "Runners and their limits").
+  AKANTU_RS_DOCKER_CPUS: ${{ vars.AKANTU_RS_DOCKER_CPUS || '4' }}
+  AKANTU_RS_DOCKER_MEMORY: ${{ vars.AKANTU_RS_DOCKER_MEMORY || '6g' }}
+concurrency:
+  # A newer push to the same pull request or branch cancels the older run.
+  group: fast-${{ github.ref }}
+  cancel-in-progress: true
+jobs:
+  fast:
+    runs-on: ubuntu-24.04
+    timeout-minutes: 75
+    steps:
+      - uses: actions/checkout@de0fac2e4500dabe0009e67214ff5f5447ce83dd # v6.0.2
+        with:
+          persist-credentials: false
+      - name: Free disk space on the runner (project images and the cargo target volume are large)
+        run: ci/github/free-disk.sh
+      - uses: actions/cache@668228422ae6a00e4ad889ee87cd7109ec5666a7 # v5.0.4
+        with:
+          path: ~/akantu-images
+          key: images-v3-mpi-${{ hashFiles('docker/mpi/Dockerfile') }}
+      - name: Project images (load from cache or build)
+        run: ci/github/images.sh ~/akantu-images mpi
+      - name: ruff 0.17.3 for the lint tier (PyPI, pinned; the image has no ruff)
+        run: |
+          python3 -m venv "$RUNNER_TEMP/ruff"
+          "$RUNNER_TEMP/ruff/bin/pip" install -q "ruff==0.17.3"
+          echo "$RUNNER_TEMP/ruff/bin" >> "$GITHUB_PATH"
+      - name: Fast tier in the image
+        run: ci/run-all.sh --backend docker --preset fast --out "$RUNNER_TEMP/ci-out" --label "github ${{ github.sha }}"
+      - name: Keep the summary and logs
+        if: always()
+        uses: actions/upload-artifact@bbbca2ddaa5d8feaa63e36b76fdaad77386f024f # v7.0.0
+        with:
+          name: ci-fast
+          path: ${{ runner.temp }}/ci-out
+          retention-days: 14
+  selftest:
+    runs-on: ubuntu-24.04
+    timeout-minutes: 15
+    steps:
+      - uses: actions/checkout@de0fac2e4500dabe0009e67214ff5f5447ce83dd # v6.0.2
+        with:
+          persist-credentials: false
+      - name: Tools of the self-test that the runner image may lack (PyYAML, jq)
+        run: sudo apt-get -qq update && sudo apt-get -qq -y --no-install-recommends install python3-yaml jq shellcheck
+      - name: CI self-test (no build; actionlint from its Docker Hub image, pinned by digest)
+        env:
+          CI_SELFTEST_PULL_ACTIONLINT: "1"
+        run: ci/selftest.sh
+  msrv:
+    runs-on: ubuntu-24.04
+    timeout-minutes: 45
+    steps:
+      - uses: actions/checkout@de0fac2e4500dabe0009e67214ff5f5447ce83dd # v6.0.2
+        with:
+          persist-credentials: false
+      - name: Cargo registry (crate archives and index, keyed by Cargo.lock)
+        uses: actions/cache@668228422ae6a00e4ad889ee87cd7109ec5666a7 # v5.0.4
+        with:
+          path: |
+            ~/.cargo/registry/index
+            ~/.cargo/registry/cache
+          key: cargo-registry-${{ runner.os }}-${{ hashFiles('Cargo.lock') }}
+          restore-keys: cargo-registry-${{ runner.os }}-
+      - name: MSRV check (installs the rust-version toolchain with rustup)
+        env:
+          CI_INSTALL_TOOLCHAINS: "1"
+        run: ci/run-all.sh --backend host --tiers msrv --out "$RUNNER_TEMP/ci-out"
+      - if: always()
+        uses: actions/upload-artifact@bbbca2ddaa5d8feaa63e36b76fdaad77386f024f # v7.0.0
+        with:
+          name: ci-msrv
+          path: ${{ runner.temp }}/ci-out
+          retention-days: 14

@@ -1,0 +1,253 @@
+{
+  "format_version": 1,
+  "case_id": "model/explicit/patch_hexahedron_8",
+  "description": "SolidMechanicsModel explicit run on test/test_model/patch_tests/data/_hexahedron_8.msh (3D)",
+  "status": "golden",
+  "generator": {
+    "probe": "model_probe",
+    "probe_version": "3",
+    "command": "oracle/scripts/generate-fixtures.sh model"
+  },
+  "reference": {
+    "sha": "35a851780d0b9471d258ed53a003ae98aaa95ea0",
+    "describe": "v5.0.7-post1-554-g35a851780",
+    "patches": [
+      "modified:cmake/AkantuTestsMacros.cmake sha256=c280165a84912eab4bcc081b9eaaaa06aafdd83d4f48d982e11b0859abf9672f (reference sha256=36290de2ec8b111028138fe82029efa16501512241a5bc264fa30ff3e3239b9e)"
+    ]
+  },
+  "build": {
+    "config": "strict",
+    "compiler": "g++ (Debian 14.2.0-19) 14.2.0",
+    "cxx_flags": "-ffp-contract=off -DEIGEN_DONT_VECTORIZE -O2 -g -DNDEBUG -g3 -ggdb3 -flarge-source-files -std=c++20 -flto=auto -fno-fat-lto-objects -fPIC -frounding-math (actual flags of src/model/solid_mechanics/solid_mechanics_model.cc; warnings and non-FP -D defines omitted)",
+    "build_type": "RelWithDebInfo",
+    "arch": "aarch64",
+    "os": "Debian GNU/Linux 13 (trixie)",
+    "libraries": {
+      "eigen3": "3.4.0-5",
+      "boost": "1.83.0.2+b2",
+      "openmpi": "5.0.7-1",
+      "mumps": "5.7.3-3+b1",
+      "petsc": "3.22.5+dfsg1-2",
+      "scotch": "7.0.7-1",
+      "openblas": "0.3.29+ds-3",
+      "scalapack": "2.2.2-1",
+      "hdf5": "1.14.5+repack-3",
+      "gmsh": "4.13.1+ds1-6",
+      "pybind11": "2.13.6-2",
+      "numpy": "1:2.2.4+ds-1",
+      "scipy": "1.15.3-1",
+      "gcc": "4:14.2.0-1",
+      "gfortran": "4:14.2.0-1",
+      "oracle_image": "sha256:6683233d0a3b9341eb5cedf5879bc9ccb76ddf3d91e9aa0fd35b99dc7866d7a6",
+      "oracle_build_scripts": "45b473da9cbfb356a039d94609fe39f6f36a1a9a",
+      "oracle_install_reference_sha": "35a851780d0b9471d258ed53a003ae98aaa95ea0",
+      "oracle_install_image": "sha256:6683233d0a3b9341eb5cedf5879bc9ccb76ddf3d91e9aa0fd35b99dc7866d7a6",
+      "sha256:libakantu.so.5.0.7": "9768e51184f0423c49abfd67535e6f3bc371522045b0b634223cce0ee07f0b0b",
+      "probe_tree_sha256": "143c75b5587251bef009294c08187254689d0953a523500b1bff8b9d6b444c5e",
+      "probe_sources_commit": "d7acf10a92889e68b31004156a2a8ecba1bc4011",
+      "cmake_cxx_flags": "-ffp-contract=off -DEIGEN_DONT_VECTORIZE -O2 -g -DNDEBUG -g3 -ggdb3 -flarge-source-files",
+      "python": "3.13.5",
+      "sha256:py11_akantu.cpython-313-aarch64-linux-gnu.so": "623ccb68555804584eed7e8aeb990b7c269dc767c7fa7993c286c3794c8410c5"
+    },
+    "probe_compile_command": "python3 /probes/python/model_probe.py (akantu module /build/install-strict/share/akantu-oracle/python/akantu)",
+    "probe_cxx_flags": "n/a: Python probe, no probe translation unit; the numerical kernels run inside libakantu compiled with cxx_flags"
+  },
+  "created": "2026-11-09T16:04:58Z",
+  "inputs": [
+    {
+      "role": "mesh",
+      "path": "inputs/_hexahedron_8.msh",
+      "sha256": "0f05fdc879784dbfb0c73783bab863d4d85a4192d23c3b342331e30bb99e010e",
+      "source": "upstream:test/test_model/patch_tests/data/_hexahedron_8.msh"
+    },
+    {
+      "role": "material",
+      "path": "inputs/material.dat",
+      "sha256": "839e1e80210c5add213ec98e4f8861505cd9c8fcd5ccc61cbb4382295d86f011",
+      "source": "generated:model_probe.py"
+    }
+  ],
+  "parameters": {
+    "probe_semantics": "tensors [..., row, col] = M(row, col) (per-tuple transpose of the column-major binding buffer); static residual = f_ext + f_int",
+    "spatial_dimension": 3,
+    "dt": 4.1526976724880833e-05,
+    "dt_rule": "0.5 * getStableTimeStep()",
+    "initial_conditions": "u = 1e-4 sin(pi (X-X0)/L), v_x = 1e-2 cos(pi (y-y0)/Ly)",
+    "step_0": "state before the first solveStep, as reported by the oracle: energy/potential is 0 there because stresses are only computed by the first solveStep"
+  },
+  "storage": {
+    "mode": "committed",
+    "bytes": 31088
+  },
+  "steps": {
+    "recorded": [
+      0,
+      1,
+      2,
+      3,
+      4,
+      5,
+      6,
+      7,
+      8,
+      9,
+      10
+    ],
+    "dt": 4.1526976724880833e-05,
+    "time_quantity": "time"
+  },
+  "quantities": [
+    {
+      "name": "time",
+      "file": "data/time.npy",
+      "dtype": "f64",
+      "shape": [
+        11
+      ],
+      "axes": [
+        "step"
+      ],
+      "layout": "scalar",
+      "sha256": "9f89cdac8c1f56575f24009d299d00688f7d3cc2ad525dee1b77d1f5182975e0",
+      "tolerance_class": "exact"
+    },
+    {
+      "name": "displacement",
+      "file": "data/displacement.npy",
+      "dtype": "f64",
+      "shape": [
+        11,
+        27,
+        3
+      ],
+      "axes": [
+        "step",
+        "node",
+        "component"
+      ],
+      "layout": "nodal",
+      "sha256": "6e64dffdcaf462b7d30606219ca24bb64658cda5d77de21757ed5e1f1d6eca80",
+      "tolerance_class": "time_integration"
+    },
+    {
+      "name": "velocity",
+      "file": "data/velocity.npy",
+      "dtype": "f64",
+      "shape": [
+        11,
+        27,
+        3
+      ],
+      "axes": [
+        "step",
+        "node",
+        "component"
+      ],
+      "layout": "nodal",
+      "sha256": "c42ce46ea576fde8b2f39e648ce52df2f1a7575eb39343f302572b8b7ffb0fd0",
+      "tolerance_class": "time_integration"
+    },
+    {
+      "name": "acceleration",
+      "file": "data/acceleration.npy",
+      "dtype": "f64",
+      "shape": [
+        11,
+        27,
+        3
+      ],
+      "axes": [
+        "step",
+        "node",
+        "component"
+      ],
+      "layout": "nodal",
+      "sha256": "ab30476b6bcb24d121245a7c14c10da2babe628a3b0b2204a1e85c5e5e0a8ff8",
+      "tolerance_class": "time_integration"
+    },
+    {
+      "name": "internal_force",
+      "file": "data/internal_force.npy",
+      "dtype": "f64",
+      "shape": [
+        11,
+        27,
+        3
+      ],
+      "axes": [
+        "step",
+        "node",
+        "component"
+      ],
+      "layout": "nodal",
+      "sha256": "6126fd1c2ad58facf6ef792b9a1972928735aece75769ef08e233670e13e8c43",
+      "tolerance_class": "time_integration"
+    },
+    {
+      "name": "energy/kinetic",
+      "file": "data/energy__kinetic.npy",
+      "dtype": "f64",
+      "shape": [
+        11
+      ],
+      "axes": [
+        "step"
+      ],
+      "layout": "scalar",
+      "sha256": "b819bcf6687cf940e8b3d1cb3ccb760a030bc82a6e0cffd7278dae63ed8c775d",
+      "tolerance_class": "time_integration"
+    },
+    {
+      "name": "energy/potential",
+      "file": "data/energy__potential.npy",
+      "dtype": "f64",
+      "shape": [
+        11
+      ],
+      "axes": [
+        "step"
+      ],
+      "layout": "scalar",
+      "sha256": "f8cfc0c72c9478b9cf02d9850fed17f4b6576a446c09d58c86020bfea9eaa4e9",
+      "tolerance_class": "time_integration"
+    },
+    {
+      "name": "mesh/nodes",
+      "file": "data/mesh__nodes.npy",
+      "dtype": "f64",
+      "shape": [
+        27,
+        3
+      ],
+      "axes": [
+        "node",
+        "spatial_dim"
+      ],
+      "layout": "nodal",
+      "sha256": "b4303001452b5323c020aba60a6d0f4bfdd151be9cfcc37196fbc9377780c808",
+      "tolerance_class": "exact",
+      "description": "node coordinates as read"
+    },
+    {
+      "name": "mesh/connectivity/_hexahedron_8",
+      "file": "data/mesh__connectivity___hexahedron_8.npy",
+      "dtype": "i64",
+      "shape": [
+        8,
+        8
+      ],
+      "axes": [
+        "element",
+        "node_local"
+      ],
+      "layout": "elemental",
+      "sha256": "41c7a936a5ecf66af4233df5f3c7f22fab3e759807856abeffa6f3098e3b8282",
+      "element_type": "_hexahedron_8",
+      "tolerance_class": "exact"
+    }
+  ],
+  "tags": [
+    "model",
+    "explicit"
+  ]
+}

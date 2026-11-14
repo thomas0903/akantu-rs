@@ -1,0 +1,212 @@
+/* Print style of the akantu-rs reports (pandoc HTML -> Chrome -> PDF). */
+@page {
+  size: A4;
+  margin: 22mm 20mm 20mm 20mm;
+  @bottom-center {
+    content: counter(page) " / " counter(pages);
+    font-family: "Helvetica Neue", Helvetica, Arial, sans-serif;
+    font-size: 8.5pt;
+    color: #6f6e69;
+  }
+  @top-right {
+    content: "akantu-rs";
+    font-family: "Helvetica Neue", Helvetica, Arial, sans-serif;
+    font-size: 8.5pt;
+    color: #6f6e69;
+  }
+}
+@page :first {
+  @top-right { content: ""; }
+}
+
+:root {
+  --ink: #1a1a19;
+  --ink-2: #52514e;
+  --ink-3: #6f6e69;
+  --rule: #d9d8d2;
+  --tint: #f5f4f0;
+  --accent: #1c5cab;
+}
+
+html { font-size: 10.5pt; }
+body {
+  /* The symbol fonts come last: Chrome takes a glyph the text fonts lack (∥, ‖, ∇)
+     from them instead of from an arbitrary system font. */
+  font-family: Charter, "Bitstream Charter", "Iowan Old Style", Georgia, "STIX Two Text",
+    "Apple Symbols", "DejaVu Serif", serif;
+  color: var(--ink);
+  line-height: 1.45;
+  margin: 0;
+  max-width: none;
+  padding: 0;
+  hyphens: auto;
+  text-rendering: optimizeLegibility;
+  font-variant-numeric: oldstyle-nums proportional-nums;
+}
+
+header#title-block-header { display: none; }
+
+h1, h2, h3, h4, th, figcaption, .report-meta, table {
+  font-family: "Helvetica Neue", Helvetica, Arial, "Apple Symbols", "DejaVu Sans", sans-serif;
+}
+h1 {
+  font-size: 22pt;
+  line-height: 1.15;
+  font-weight: 700;
+  letter-spacing: -0.01em;
+  margin: 0 0 3mm 0;
+  padding-top: 9mm;
+  border-top: 2.2pt solid var(--ink);
+}
+.report-meta {
+  font-size: 9pt;
+  color: var(--ink-3);
+  margin: 0 0 8mm 0;
+  padding-bottom: 4mm;
+  border-bottom: 0.5pt solid var(--rule);
+}
+h2 {
+  font-size: 13.5pt;
+  font-weight: 700;
+  margin: 8mm 0 2.5mm 0;
+  break-after: avoid;
+}
+h3 {
+  font-size: 10.8pt;
+  font-weight: 700;
+  margin: 5mm 0 1.5mm 0;
+  break-after: avoid;
+}
+h4 {
+  font-size: 9.8pt;
+  font-weight: 700;
+  color: var(--ink-2);
+  margin: 4mm 0 1mm 0;
+  break-after: avoid;
+}
+p { margin: 0 0 2.6mm 0; orphans: 3; widows: 3; }
+/* A paragraph that ends with a colon and introduces a list, table or code block
+   (marked by postprocess.py) stays on the page of what it introduces. */
+p.lead-in { break-after: avoid; }
+a { color: var(--accent); text-decoration: none; }
+strong { font-weight: 700; }
+
+ul, ol { margin: 0 0 2.6mm 0; padding-left: 5.5mm; }
+li { margin-bottom: 0.9mm; }
+li > p { margin-bottom: 0.9mm; }
+
+code {
+  font-family: "SF Mono", Menlo, Consolas, "DejaVu Sans Mono", "Apple Symbols",
+    "STIX Two Math", monospace;
+  font-size: 0.86em;
+  background: var(--tint);
+  padding: 0.2pt 1.2pt;
+  border-radius: 2pt;
+  hyphens: none;
+  overflow-wrap: anywhere;
+}
+pre {
+  background: var(--tint);
+  border-left: 2pt solid var(--rule);
+  padding: 2.5mm 3.5mm;
+  margin: 0 0 3.5mm 0;
+  font-size: 8.4pt;
+  line-height: 1.38;
+  white-space: pre-wrap;
+  overflow-wrap: anywhere;
+  break-inside: avoid;
+}
+pre code { background: none; padding: 0; font-size: inherit; }
+
+table {
+  border-collapse: collapse;
+  width: 100%;
+  margin: 1mm 0 4.5mm 0;
+  font-size: 8.6pt;
+  line-height: 1.32;
+  font-variant-numeric: tabular-nums lining-nums;
+  hyphens: manual;
+}
+thead { display: table-header-group; }
+tr { break-inside: avoid; }
+th {
+  text-align: left;
+  font-weight: 700;
+  color: var(--ink-2);
+  border-bottom: 0.9pt solid var(--ink);
+  padding: 1.2mm 2.2mm 1.2mm 0;
+  vertical-align: bottom;
+}
+td {
+  border-bottom: 0.4pt solid var(--rule);
+  padding: 1.1mm 2.2mm 1.1mm 0;
+  vertical-align: top;
+}
+td code, th code { font-size: 0.92em; background: none; padding: 0; overflow-wrap: break-word; }
+table caption {
+  caption-side: top;
+  text-align: left;
+  font-size: 8.6pt;
+  color: var(--ink-2);
+  padding-bottom: 1mm;
+}
+
+figure {
+  margin: 4mm 0 5mm 0;
+  break-inside: avoid;
+  text-align: center;
+}
+figure img { max-width: 100%; max-height: 200mm; height: auto; }
+figcaption {
+  font-size: 8.6pt;
+  color: var(--ink-2);
+  text-align: left;
+  margin-top: 1.5mm;
+  line-height: 1.35;
+}
+img { max-width: 100%; }
+
+blockquote {
+  margin: 0 0 3mm 0;
+  padding: 0.5mm 0 0.5mm 4mm;
+  border-left: 2pt solid var(--rule);
+  color: var(--ink-2);
+}
+/* Record tables (postprocess.py): one block per row. */
+.records { margin: 1mm 0 4.5mm 0; }
+/* A long record may break between its fields (the rows of its grid), so that a
+   tall record does not leave half a page empty. */
+.record {
+  break-inside: auto;
+  border-top: 0.9pt solid var(--ink);
+  padding: 1.6mm 0 2.2mm 0;
+  font-size: 9pt;
+  line-height: 1.38;
+}
+.record + .record { border-top: 0.4pt solid var(--rule); }
+.record-id {
+  font-family: "Helvetica Neue", Helvetica, Arial, sans-serif;
+  font-weight: 700;
+  font-size: 9.6pt;
+  margin: 0 0 1mm 0;
+}
+.record dl {
+  display: grid;
+  grid-template-columns: 30mm 1fr;
+  column-gap: 4mm;
+  row-gap: 1mm;
+  margin: 0;
+}
+.record dt {
+  font-family: "Helvetica Neue", Helvetica, Arial, sans-serif;
+  font-size: 8.4pt;
+  font-weight: 700;
+  color: var(--ink-2);
+  padding-top: 0.4mm;
+}
+.record dd { margin: 0; }
+.record-id { break-after: avoid; }
+.record code { font-size: 0.84em; }
+
+hr { border: 0; border-top: 0.5pt solid var(--rule); margin: 5mm 0; }
+.footnotes { font-size: 8.6pt; color: var(--ink-2); }

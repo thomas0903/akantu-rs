@@ -1,0 +1,85 @@
+# SPDX-License-Identifier: LGPL-3.0-or-later
+[package]
+name = "akantu-linalg"
+description = "Sparse matrices (AIJ), solver vectors, sparse direct solver backends (Eigen SparseLU translation, faer, MUMPS, PETSc) and dense helpers (port of src/solver)"
+version.workspace = true
+edition.workspace = true
+rust-version.workspace = true
+# dense/eigen/*.rs are MPL-2.0 (translated from Eigen 3.4.0, docs/DEPENDENCIES.md)
+license = "LGPL-3.0-or-later AND MPL-2.0"
+repository.workspace = true
+authors.workspace = true
+homepage.workspace = true
+keywords.workspace = true
+categories.workspace = true
+publish = false
+# Not part of a package: the oracle comparison data of the dense kernels
+# (8.9 MiB, files up to 3.9 MiB); the tests that read it run in the workspace.
+exclude = ["tests/fixtures/"]
+
+[features]
+# The MUMPS sparse direct solver (C shim + FFI, src/mumps/) over
+# the parallel MUMPS library (Debian libmumps-dev 5.7.3 in docker/mumps);
+# needs MPI (akantu-comm/mpi) and a C compiler. Never part of the default
+# build. docs/TESTING.md.
+mumps = ["akantu-comm/mpi", "dep:cc"]
+# PETSc backend: C shim over a system PETSc (Debian petsc-dev
+# 3.22.5 in docker/petsc, real scalars, 32-bit PetscInt) found with
+# pkg-config (`PETSc`, fallback `petsc`) and compiled with the MPI compiler
+# wrapper (`$MPICC`, default `mpicc`). Needs MPI (akantu-comm/mpi). Never
+# part of the default build. Licence: Debian's PETSc links GPL-2+ libraries
+# (SuiteSparse, FFTW), so a build with this feature is distributed under
+# GPL-3.0-or-later as a whole (D-076 option A, NOTICE.md "PETSc").
+petsc = ["akantu-comm/mpi", "dep:mpi", "dep:cc", "dep:pkg-config"]
+
+[dependencies]
+akantu-core.workspace = true
+akantu-comm.workspace = true
+faer.workspace = true
+log.workspace = true
+mpi = { workspace = true, optional = true }
+
+# Features `mumps` / `petsc` only: compile src/mumps/shim.c and
+# src/petsc/shim.c (build.rs; pkg-config locates PETSc).
+[build-dependencies]
+cc = { workspace = true, optional = true }
+pkg-config = { workspace = true, optional = true }
+
+[dev-dependencies]
+akantu-validation.workspace = true
+serde_json.workspace = true
+sha2 = "0.10.9" # MIT OR Apache-2.0 (already used by akantu-validation)
+
+# Real-MPI MUMPS acceptance binary (harness = false): run under mpirun by
+# scripts/mumps/run-mumps-tests.sh, or as an MPI singleton by
+# `cargo test --features mumps`.
+[[test]]
+name = "mumps_mpi"
+harness = false
+required-features = ["mumps"]
+
+# Regressions of the MUMPS backend (communicator binding, agreed options/decisions,
+# refused re-initialisation, Serialized admission interleavings);
+# harness = false, one mpirun per
+# scenario in scripts/mumps/run-mumps-tier.sh.
+[[test]]
+name = "review_v54_regressions"
+harness = false
+required-features = ["mumps"]
+
+# Regressions of the MUMPS backend (stale coordinates after a refused solve, matrix
+# identity of the re-use key, teardown on a broken communicator,
+# concurrent native jobs under MPI_THREAD_MULTIPLE); harness = false, one mpirun per scenario in
+# scripts/mumps/run-v66-regressions.sh.
+[[test]]
+name = "review_v66_regressions"
+harness = false
+required-features = ["mumps"]
+
+# Laplacian memory / time scaling probe (release; scripts/mumps).
+[[example]]
+name = "mumps_scaling"
+required-features = ["mumps"]
+
+[lints]
+workspace = true

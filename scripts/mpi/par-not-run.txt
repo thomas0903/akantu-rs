@@ -1,0 +1,51 @@
+# SPDX-License-Identifier: LGPL-3.0-or-later
+# akantu-rs: the scenarios of the par tier's real-MPI
+# binaries that print `NOT RUN <name>: <why>` at a rank count, one line per
+# scenario: `<ranks> <binary> <name>`. scripts/mpi/run-par-tier.sh compares
+# each binary's NOT RUN names at 1 / 2 / 4 ranks with these lines and fails
+# on any difference: a replay whose fixture is committed at that count must
+# run, and a fixture added at a count must come with its line removed here.
+# Rank counts without any line (8) are not compared. Regenerate from a par
+# run's not-run-observed.txt after a deliberate change (review the diff).
+# Recorded from a par tier run (1 / 2 / 4 ranks,
+# --scotch); reasons: rank-specific failure scenarios need a second rank (1);
+# oracle replays without a fixture at that count (nl_mazars_two_strips np3
+# only, nl_pair np1/np2, smm_static_cube_n3 np1/np2, invariants rules,
+# phase_field_square's result set at 1); the Scotch partition checks run on
+# one process; phase_field_square bitwise at one rank only (D-082).
+1 mpi_distribution ud235_distribution_preconditions_refused
+1 mpi_synchronizers grid_cells_failure_agreed
+1 mpi_synchronizers grid_synchronizer_failure_agreed
+1 mpi_smm clh_init_cl_failure_is_agreed_fatal
+1 mpi_smm nl_cycle_failure_is_agreed
+1 mpi_smm nl_init_failure_is_agreed
+1 mpi_smm nl_max_criterion_failure_is_agreed
+1 mpi_smm nl_mazars_two_strips_matches_oracle
+1 mpi_smm pa01_rank_specific_init_material_failure_is_agreed
+1 mpi_smm pa01_rank_specific_selector_failure_is_agreed
+1 mpi_smm pa2_01_law_id_exchange_failure_is_agreed_fatal
+1 mpi_smm pa2_02_instantiation_failure_is_agreed_fatal
+1 mpi_smm smm_density_failure_is_agreed
+1 mpi_diffusion diffusion_rank_specific_init_failure_is_agreed_fatal
+1 mpi_diffusion diffusion_rank_specific_selector_failure_is_agreed
+1 mpi_cohesive invariants_rule_extrinsic_igtg_tri
+1 mpi_cohesive invariants_rule_extrinsic_tet
+1 mpi_cohesive invariants_rule_extrinsic_tri
+1 mpi_cohesive invariants_rule_intrinsic_tet
+1 mpi_cohesive invariants_rule_intrinsic_tri
+1 mpi_phase_field pf_init_failures_are_agreed_fatal
+1 mpi_phase_field pf_selector_failure_is_agreed
+1 mpi_phase_field pfm_damage_failure_is_agreed
+1 mpi_phase_field phase_field_square_matches_result_set
+1 mpi_ntn contact_sums_failure_is_agreed
+1 mpi_ntn rank_specific_contact_step_failure_is_agreed
+2 mpi_distribution pbd_strip_scotch_partition_matches_oracle
+2 mpi_distribution scotch_partition_matches_oracle
+2 mpi_smm nl_mazars_two_strips_matches_oracle
+2 mpi_phase_field phase_field_square_matches_oracle
+4 mpi_distribution pbd_strip_scotch_partition_matches_oracle
+4 mpi_distribution scotch_partition_matches_oracle
+4 mpi_smm nl_mazars_two_strips_matches_oracle
+4 mpi_smm nl_pair_matches_oracle
+4 mpi_smm smm_static_matches_oracle
+4 mpi_phase_field phase_field_square_matches_oracle

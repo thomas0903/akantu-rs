@@ -1,0 +1,67 @@
+# SPDX-License-Identifier: LGPL-3.0-or-later
+[package]
+name = "akantu-couplers"
+description = "Model couplers: solid-contact, solid-cohesive-contact, solid-phase-field (port of src/model/model_couplers)"
+version.workspace = true
+edition.workspace = true
+rust-version.workspace = true
+license.workspace = true
+repository.workspace = true
+authors.workspace = true
+homepage.workspace = true
+keywords.workspace = true
+categories.workspace = true
+publish = false
+
+[features]
+# The models on the PETSc DOF manager and the phase-field TAO tests
+# (TEST-095, TEST-100, the `petsc_models` binary of the PETSc
+# tier). Off by default; needs MPI and a system PETSc (docker/petsc).
+# Licence: a build with this feature links PETSc and its GPL-2+
+# dependencies and is distributed under GPL-3.0-or-later as a whole (D-076
+# option A, NOTICE.md "PETSc").
+petsc = ["akantu-phase-field/petsc", "akantu-solid/petsc"]
+# Real-MPI test binary: scripts/mpi/run-par-tests.sh (Docker).
+mpi = ["akantu-comm/mpi", "akantu-mesh/mpi"]
+# Scotch partitioner of akantu-mesh (the par tier's --scotch run).
+scotch = ["akantu-mesh/scotch"]
+
+[dependencies]
+akantu-core.workspace = true
+akantu-comm.workspace = true
+akantu-parser.workspace = true
+akantu-mesh.workspace = true
+akantu-fe.workspace = true
+akantu-solver.workspace = true
+akantu-model.workspace = true
+akantu-solid.workspace = true
+akantu-cohesive.workspace = true
+akantu-contact.workspace = true
+akantu-phase-field.workspace = true
+akantu-io.workspace = true
+
+[dev-dependencies]
+# Ported upstream tests and differential tests against oracle fixtures.
+akantu-linalg.workspace = true # SymmetryPolicy (UD-034 compat of the static cohesive replays)
+akantu-validation.workspace = true
+# The PETSc tier's petsc_models scenario other_models_on_petsc:
+# the diffusion and structural models on the PETSc DOF manager.
+akantu-diffusion.workspace = true
+akantu-structural.workspace = true
+serde_json.workspace = true
+sha2 = "0.10.9" # MIT OR Apache-2.0 (as akantu-contact dev): per-step digests of fixtures/model/contact
+
+[lints]
+workspace = true
+
+# The models on the PETSc DOF manager (harness = false): run under mpirun by
+# scripts/petsc/run-petsc-tier.sh (image akantu-rs-petsc:dev).
+[[test]]
+name = "petsc_models"
+harness = false
+required-features = ["petsc"]
+
+[[test]]
+name = "mpi_phase_field"
+harness = false
+required-features = ["mpi"]

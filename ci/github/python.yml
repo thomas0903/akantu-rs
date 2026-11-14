@@ -1,0 +1,58 @@
+# SPDX-License-Identifier: LGPL-3.0-or-later
+# akantu-rs CI: the Python package (rows CI-013, CI-021), weekly and on
+# manual dispatch. maturin abi3 wheel, `import akantu`, the whole pytest
+# suite twice (with and without greenlet), then the HTML API documentation
+# (pdoc over the installed wheel, CI-024), kept 7 days as an artifact. The
+# same `python` preset runs in docs.yml's `site` job on every push to main.
+# The distributable manylinux_2_28 and macOS wheels are packaging.yml.
+name: python
+on:
+  schedule:
+    - cron: "17 3 * * 6"
+  workflow_dispatch:
+permissions:
+  contents: read
+env:
+  # Container caps of scripts/mpi/in-docker.sh. The defaults (4 CPUs / 6g) fit
+  # the standard runner of a public repository (4 vCPU / 16 GB); on a
+  # private repository's 2-vCPU runner set the repository variable
+  # AKANTU_RS_DOCKER_CPUS=2 (ci/github/README.md, "Runners and their limits").
+  AKANTU_RS_DOCKER_CPUS: ${{ vars.AKANTU_RS_DOCKER_CPUS || '4' }}
+  AKANTU_RS_DOCKER_MEMORY: ${{ vars.AKANTU_RS_DOCKER_MEMORY || '6g' }}
+concurrency:
+  group: python-${{ github.ref }}
+  cancel-in-progress: false
+jobs:
+  python:
+    runs-on: ubuntu-24.04
+    timeout-minutes: 90
+    steps:
+      - uses: actions/checkout@de0fac2e4500dabe0009e67214ff5f5447ce83dd # v6.0.2
+        with:
+          persist-credentials: false
+      - name: Cargo registry (crate archives and index, keyed by Cargo.lock)
+        uses: actions/cache@668228422ae6a00e4ad889ee87cd7109ec5666a7 # v5.0.4
+        with:
+          path: |
+            ~/.cargo/registry/index
+            ~/.cargo/registry/cache
+          key: cargo-registry-${{ runner.os }}-${{ hashFiles('Cargo.lock') }}
+          restore-keys: cargo-registry-${{ runner.os }}-
+      - name: wheel + import + pytest, then pdoc (host toolchain from rust-toolchain.toml; pip packages from PyPI)
+        # NumPy 2.2.4 is the oracle's: the oracle comparison `solver_callback*`
+        # needs it (it skips on NumPy >= 2.5) and runs instead of skipping.
+        # SciPy stays unpinned: the PyPI SciPy 1.15.3 is not bitwise the oracle
+        # image's (Debian) build, so `eigen_modes*` stay skipped (measured;
+        # docs/TESTING.md). pytest, greenlet and matplotlib are pinned by the
+        # tier (CI_WHEEL_PIP_TEST).
+        env:
+          CI_WHEEL_PIP_BASE: numpy==2.2.4
+        run: ci/run-all.sh --backend host --preset python --out "$RUNNER_TEMP/ci-out"
+      - if: always()
+        uses: actions/upload-artifact@bbbca2ddaa5d8feaa63e36b76fdaad77386f024f # v7.0.0
+        with:
+          name: ci-python
+          path: |
+            ${{ runner.temp }}/ci-out
+            !${{ runner.temp }}/ci-out/**/venv
+          retention-days: 7

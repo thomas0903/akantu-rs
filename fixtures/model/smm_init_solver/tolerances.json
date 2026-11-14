@@ -1,0 +1,12 @@
+{
+  "format_version": 1,
+  "rules": [
+    {
+      "quantity": "*",
+      "case": "model/smm_init_solver/*",
+      "justification": "Exact (rule SMM-INIT-BIT; docs/NUMERICAL_VALIDATION.md): the case reads the release-cached current position, the stable time step, the displacement and the releases after static solves with the Eigen sparse solver (bit-identical SparseLU translation, Eigen cache sizes pinned, D-050) and after Dirichlet functor writes; the port replicates the operation order (the rule of fixtures/model/smm). crates/akantu-solid/tests/smm_init_solver_ud352.rs compares every value bitwise: in upstream-compat mode (SmmUpstreamCompat::init_solver_resets_current_position) all nine orderings, in the default all except the current position and stable time step of B1 and E1 (UD-352, D-064), which are checked against independent values (X + u from the oracle's own X and u; E0's position and time step).",
+      "evidence": "pinned x86_64 oracle (strict, Eigen cache sizes 16384/524288/524288, OPENBLAS_CORETYPE=Haswell, sparse solver eigen, per the manifest), three identical runs; replay bitwise on x86_64 Linux (image akantu-rs-mpi:dev) and macOS/aarch64; re-run by an independent review: smm_init_solver_ud352.rs 6/6 pass, the oracle replay bitwise in both modes",
+      "reviewed_by": "independent review during the port, November 2026"
+    }
+  ]
+}

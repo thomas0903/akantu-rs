@@ -1,0 +1,48 @@
+# SPDX-License-Identifier: LGPL-3.0-or-later
+# akantu-rs CI tooling: valgrind suppressions of the memcheck tier
+# (ci/memcheck/run-in-image.sh). Every entry names the third-party library
+# that owns the reported memory and why the report is not a defect of
+# akantu-rs. Entries are added only from an observed report (quoted below);
+# each is anchored at the exact library function that performs the syscall, so
+# an uninitialised buffer of akantu-rs code (an MPI payload, a Rust value
+# handed to MUMPS / PETSc / Scotch) never matches: payloads leave through
+# other functions (mca_btl_tcp_frag_send, the shared-memory BTL, the
+# libraries' own kernels) or are read inside the Rust frames.
+# Observed on the Debian trixie images (Open MPI 5.0.7, PMIx 2.13.7 "pmix2",
+# libevent 2.1.7), valgrind 3.24.0, 2026-11-12.
+
+# PMIx's progress thread sends a message whose pack buffer has uninitialised
+# padding bytes (realloc'ed in pmix_bfrop_buffer_extend, written by
+# pmix_bfrops_base_pack*). The whole stack, allocation and use, is inside
+# libpmix / libevent / libc on the PMIx helper thread (valgrind compares the
+# parameter name literally, so the index is the one observed):
+#   Syscall param writev(vector[1]) points to uninitialised byte(s)
+#     at writev, by pmix_ptl_base_send_handler (libpmix.so.2.13.7),
+#     by libevent_core event_base_loop, by start_thread
+{
+   pmix-ptl-send-handler-uninitialised-pack-padding
+   Memcheck:Param
+   writev(vector[1])
+   ...
+   fun:writev
+   fun:pmix_ptl_base_send_handler
+   ...
+}
+
+# Open MPI's TCP BTL sends its connection handshake (a struct on the stack of
+# libopen-pal's frame, with padding) with a blocking send. The reported address
+# is on the calling thread's stack inside libopen-pal; the akantu frames in the
+# report are only the callers that entered MPI progress (PMPI_Test, MPI_Wait):
+#   Syscall param socketcall.sendto(msg) points to uninitialised byte(s)
+#     at send, by mca_btl_tcp_send_blocking (libopen-pal.so.80.0.5),
+#     by libevent_core event_base_loop, by opal_progress, by PMPI_Test, ...
+#     Address 0x... is on thread 1's stack
+{
+   ompi-btl-tcp-send-blocking-handshake-padding
+   Memcheck:Param
+   socketcall.sendto(msg)
+   ...
+   fun:send
+   fun:mca_btl_tcp_send_blocking
+   ...
+}

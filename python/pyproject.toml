@@ -1,0 +1,49 @@
+# SPDX-License-Identifier: LGPL-3.0-or-later
+# Packaging of the `akantu` Python module (akantu-rs port of upstream
+# setup.py/pyproject.toml, PY-001/PY-002): maturin builds the PyO3
+# extension `akantu.py11_akantu` (crate `akantu-python`, feature `python`,
+# abi3 for CPython >= 3.9) next to the pure-Python `akantu/__init__.py`.
+[build-system]
+requires = ["maturin>=1.9,<2"]
+build-backend = "maturin"
+
+[project]
+name = "akantu"
+description = "Python interface of akantu-rs, a Rust port of the Akantu finite-element library (solid mechanics, dynamic fracture, contact)"
+readme = "README.md"
+license = "LGPL-3.0-or-later"
+requires-python = ">=3.9"
+# As upstream (`install_requires=["numpy","scipy"]`).
+dependencies = ["numpy", "scipy"]
+dynamic = ["version"]
+classifiers = [
+    "Intended Audience :: Science/Research",
+    "Operating System :: MacOS",
+    "Operating System :: POSIX :: Linux",
+    "Programming Language :: Python :: 3",
+    "Programming Language :: Rust",
+    "Topic :: Scientific/Engineering :: Physics",
+]
+
+[project.optional-dependencies]
+test = ["pytest"]
+
+[tool.maturin]
+manifest-path = "../crates/akantu-python/Cargo.toml"
+module-name = "akantu.py11_akantu"
+features = ["python"]
+python-source = "."
+python-packages = ["akantu"]
+
+[tool.pytest.ini_options]
+testpaths = ["tests"]
+
+[tool.ruff]
+line-length = 79
+
+[tool.ruff.lint]
+# The rules upstream's ruff job checked (upstream's pyproject.toml sets only
+# the line length, so its job used ruff's default rule set of the time, which
+# was E4, E7, E9 and F from ruff 0.1 on; ruff 0.16 / 0.17 enable many more
+# by default, 262 findings in the files copied from upstream).
+select = ["E4", "E7", "E9", "F"]

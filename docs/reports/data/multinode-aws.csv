@@ -1,0 +1,19 @@
+series,ranks,hosts,ranks_per_host,mesh,tets_per_rank,wall_s,static_solve_s,solve_step_s,check_s,energies_s,loop_s,loop_ms_per_step,efficiency,peak_gib_per_host
+# source: docs/BENCHMARKS.md, "Multi-node runs", tables "h = 0.04, the same 8 ranks on 1, 2, 4 and 8 hosts", "h = 0.04, strong scaling", "Weak scaling" (docs/benchmarks/mn-2026-11-13/, printed by crates/akantu-bench/scripts/results_report.py); 8 x AWS r7a.2xlarge (8 cores, 64 GiB, AMD EPYC 9R14) in one cluster placement group, ranks bound to cores; 2026-11-13; the port only, 1,500 steps with insertion; one run per point; efficiency column: hosts series = loop time / loop time on 1 host (a time ratio, lower is faster), joss series = loop time / loop time on 1 host, strong = speed-up x 8 / ranks, weak = E_w (loop time per step at 8 ranks / at P); empty = not in the source table
+hosts,8,1,8,h0.04,69859,266,21.1,64.5,153.3,17.2,235,,1.00,12.9
+hosts,8,2,4,h0.04,69859,205,18.9,42.9,119.9,16.7,180,,0.76,6.0
+hosts,8,4,2,h0.04,69859,178,18.7,34.7,103.1,15.8,154,,0.65,3.8
+hosts,8,8,1,h0.04,69859,169,17.5,31.5,100.6,14.1,146,,0.62,2.3
+strong,8,1,8,h0.04,69859,,,,,,235.0,,1.00,
+strong,16,2,8,h0.04,34929,,,,,,150.6,,0.78,
+strong,32,4,8,h0.04,17464,,,,,,130.2,,0.45,
+strong,64,8,8,h0.04,8732,,,,,,182.9,,0.16,
+weak,8,1,8,h0.04,69859,,21.1,,,,,156.6,1.00,12.9
+weak,16,2,8,h0.032,69890,,47.5,,,,,184.9,0.85,17.1
+weak,32,4,8,h0.025,70511,,101.5,,,,,232.4,0.67,26.9
+weak,64,8,8,JOSS,68628,,230.8,,,,,298.3,0.53,28.6
+# source: docs/BENCHMARKS.md, "Multi-node runs", table "The JOSS mesh across eight hosts against one node"; 1 host = AWS r7a.16xlarge (64 cores), 8 hosts = 8 x r7a.2xlarge, all AMD EPYC 9R14; 2026-11-13; the port only, JOSS mesh, 5,000 steps, same binary and partition; tets_per_rank = median over the ranks (table "Elements per rank" printed by python3 -I crates/akantu-bench/scripts/c1_report.py tables docs/benchmarks/c1-2026-11-12)
+joss,64,1,64,JOSS,68650,2415,324.5,553.4,1271.0,101.5,1926,,1.00,
+joss,64,8,8,JOSS,68650,2679,258.9,565.7,1455.8,188.9,2210,,1.15,
+joss,32,1,32,JOSS,137139,3107,337.6,549.4,2011.0,108.4,2669,,1.00,
+joss,32,8,4,JOSS,137139,3072,285.8,512.6,2038.7,138.9,2690,,1.01,

@@ -1,0 +1,120 @@
+{
+ "comment": "Diagnosed failures of the oracle ctest suites (reference 35a851780d0b9471d258ed53a003ae98aaa95ea0), corrected after an independent review and decision D-035. 'pattern' is a full-match regex on the ctest name. 'origin': upstream-registered (1-rank name or explicit PARALLEL_LEVEL) or multirank-added (2/4/8-rank variant created by oracle patch 0001, never run upstream). 'category' (cause, kept separate on purpose): test-bug (the test itself is wrong; the library path it targets is not shown to be faulty), library-bug (a library code path fails), debug-check (a consistency assertion that fires because AKANTU_NDEBUG is undefined in RelWithDebInfo; test or library cause undetermined), numerical-discrepancy (an upstream UNSTABLE numerical test misses its tolerance/convergence criterion), unsupported-path (explicitly not supported in parallel by design), unfinished-path (explicitly unfinished upstream code path), sync-contract-unresolved (expected inter-rank synchronization contract unsettled), genuine-parallel-failure (reproducible parallel failure of the library or protocol, root cause open). 'golden_data' states the D-035 consequence. Evidence: docs/ORACLE_BUILD.md section 9, docs/reviews/2026-11-09-oracle-build-review.md, oracle/results/isolated-*.json, oracle/results/probe-mumps-gather-strict.json.",
+ "known_failures": [
+  {
+   "pattern": "test_material_mazars",
+   "origin": "upstream-registered (UNSTABLE)",
+   "category": "test-bug",
+   "ud": [],
+   "golden_data": "none (does not build)",
+   "diagnosis": "Does not compile: test_material_mazars.cc:45 binds Array<UInt>& to MeshAccessor::getConnectivity(), which returns Array<Idx> (Akantu 5 index types). ctest reports 'No such file or directory'."
+  },
+  {
+   "pattern": "test_solid_mechanics_model_material_large_rotation",
+   "origin": "upstream-registered (UNSTABLE)",
+   "category": "debug-check",
+   "ud": [
+    "UD-078"
+   ],
+   "golden_data": "excluded",
+   "diagnosis": "Aborts on AKANTU_DEBUG_ASSERT 'Couple (i,j) = (0,3) does not exist in the profile' (sparse matrix profile inconsistency between test and library). Assertions are active because RelWithDebInfo does not define AKANTU_NDEBUG; upstream CI builds Release/Coverage. Disabling the assertion would not be evidence of correctness; whether the test or the library is at fault is undetermined."
+  },
+  {
+   "pattern": "test_material_viscoelasti_maxwell_relaxation",
+   "origin": "upstream-registered (UNSTABLE)",
+   "category": "numerical-discrepancy",
+   "ud": [
+    "UD-029"
+   ],
+   "golden_data": "excluded",
+   "diagnosis": "Exit 1, 'Relative error: 0.194557' against the analytical relaxation curve. Compatible with UD-029 (Maxwell viscous variable never updated); not independently proved to be the only cause."
+  },
+  {
+   "pattern": "test_multi_material",
+   "origin": "upstream-registered (UNSTABLE)",
+   "category": "numerical-discrepancy",
+   "ud": [],
+   "golden_data": "excluded",
+   "diagnosis": "Phase-field coupler: NLSNewtonRaphsonNotConvergedException after 10 iterations (error 7.24661e-06 > 1e-10, solution criterion)."
+  },
+  {
+   "pattern": "test_linear_anisotropic_explicit_python",
+   "origin": "upstream-registered (UNSTABLE)",
+   "category": "test-bug",
+   "ud": [],
+   "golden_data": "none (does not run)",
+   "diagnosis": "Input-registration defect: material_anisotropic.dat is not copied to the build directory ('Could not open file material_anisotropic.dat'). Not a numerical or Python-binding failure."
+  },
+  {
+   "pattern": "test_segment_intersection_(triangle_3|tetrahedron_4)",
+   "origin": "upstream-registered (CGAL package, not built by upstream CI)",
+   "category": "library-bug",
+   "ud": [
+    "UD-072"
+   ],
+   "golden_data": "excluded",
+   "diagnosis": "src/geometry/mesh_segment_intersector_tmpl.hh:54 calls Mesh::getConnectivity(_segment_2) on the empty result mesh; Akantu 5 throws instead of creating the type ('No element of type (not_ghost:_segment_2) in ... interface_mesh:connectivities'). test_geometry_predicates and test_geometry_intersection pass."
+  },
+  {
+   "pattern": "test_sparse_solver_eigen_[248]",
+   "origin": "multirank-added",
+   "category": "unsupported-path",
+   "ud": [],
+   "golden_data": "excluded (backend is serial-only by design)",
+   "diagnosis": "Exit 134: SparseSolverEigen asserts 'This solver does not work in parallel'. Intentional: the Eigen backend is serial only."
+  },
+  {
+   "pattern": "test_sparse_solver_petsc_[248]",
+   "origin": "multirank-added",
+   "category": "unfinished-path",
+   "ud": [],
+   "golden_data": "excluded (D-035: PETSc parallel paths)",
+   "diagnosis": "Exit 134: std::runtime_error 'need to fix synchronizer for petsc case' — an explicitly unfinished upstream synchronization path in this test's code path. Not to be generalised to all Akantu PETSc parallel functionality."
+  },
+  {
+   "pattern": "test_sparse_solver_mumps_[248]",
+   "origin": "multirank-added",
+   "category": "test-bug",
+   "ud": [
+    "UD-075"
+   ],
+   "golden_data": "original test excluded; corrected probe usable for this small solve (D-035 per-workload qualification)",
+   "diagnosis": "Upstream test defect: x is initialised to -1 (test_sparse_solver_mumps.cc:72-73); rank 0 gathers the solution y while non-root ranks gather the unsolved input x (:126-131), so rank 0 checks -1 for every entry owned by another rank ('Error in the solution: -1 != 7' on 2 ranks). Corrected probe oracle/probes/mumps-gather (only non-root sync.gather(y)) built against the unchanged installed library passes on 1/2/4/8 ranks while the original variant fails on 2/4/8 (oracle/results/probe-mumps-gather-strict.json; also reproduced by an independent review). Establishes the test defect for this small distributed solve/gather; neither all MUMPS functionality nor the original test is thereby verified."
+  },
+  {
+   "pattern": "DOFManagerFixture\\.(AssembleVector|splitArrayPerDOFs)<1>_[248]",
+   "origin": "multirank-added",
+   "category": "sync-contract-unresolved",
+   "ud": [
+    "UD-074"
+   ],
+   "golden_data": "excluded until the contract is settled",
+   "diagnosis": "dof_manager_default_t in parallel: rank 0 passes; on non-root ranks AssembleVector reads 0 instead of 1 (test_dof_manager.cc:243) and splitArrayPerDOFs reads 0 instead of the global node id (:211). Review V10 (logging-only scratch build): all 25 failures per sampled rank-1 case are on unowned (slave) nodes (isLocalOrMasterNode == false, not pure ghost); no owned-node assertion fails. The tests expect slave-node values after local assembleToResidual/assembleToGlobalArray + getArrayPerDOFs, which perform no general inter-rank exchange. Synchronization-contract mismatch: whether the library should synchronize or the test is missing a synchronization step is unresolved; this is not evidence of wrong owned/global assembly. Variant <0> (dof_manager_petsc_t) and the other DOFManager tests pass on 2/4/8 ranks. Failures are only visible with per-rank gtest XML (non-root printers are removed by test_gtest_main.cc). Isolated repeats: always 25 failures on rank 1; with AKA_SEED unset the failing local nodes change between runs (partition), with AKA_SEED=1 the per-rank reports are identical."
+  },
+  {
+   "pattern": "TestSMMFixtureBarImplicit\\.Dynamics<[0-9]+>_[248]",
+   "origin": "multirank-added",
+   "category": "genuine-parallel-failure",
+   "ud": [
+    "UD-077",
+    "UD-003"
+   ],
+   "golden_data": "excluded (D-035: parallel implicit dynamics)",
+   "diagnosis": "Implicit dynamics bar test in parallel: Newton-Raphson (solution criterion) does not converge, e.g. 'error 5.30801e-08 > 1e-10' (strict, segment_2, 2 ranks; <1>_2 9.53377e-09; <8>_4 6.62647e-06 on all ranks); serial variants pass; corrected-layout runs finish promptly (independent review). Isolated repeats (oracle/results/isolated-strict-*.json): the failure is reproducible; with AKA_SEED=1 the residuals are identical in 3 repeats (<0>_2 5.30801e-08, <1>_2 9.53377e-09, <8>_4 1.08218e-06), with AKA_SEED unset <8>_4 varied (1.08219e-06 vs 1.08218e-06) because the Scotch partition is seeded from time(nullptr) (aka_common.cc:105-117, mesh_partition_scotch.cc:62). SparseMatrixAIJ::matVecMul accumulating into y but reducing a zero tmp (UD-003) is a credible mechanism; causality unproved. Dynamics<0>_4 and Dynamics<0>_8 'pass' only because the test returns SUCCEED() before solving for _segment_2 on >2 ranks (test_solid_mechanics_model_dynamics.cc:310-317): they are not passing dynamics solves. In the default full run Dynamics<8>_4 hung until the 3600 s ctest timeout. Reproduced in isolation (1 of 3 seed-unset repeats): all four ranks finished the failing test, wrote their gtest XML and exited, but prterun did not terminate: an Open MPI launcher hang after the test, not a long computation; not counted as evidence of another library defect."
+  },
+  {
+   "pattern": "Communicator\\.ReceiveAny_[248]",
+   "origin": "multirank-added",
+   "category": "genuine-parallel-failure",
+   "ud": [
+    "UD-076"
+   ],
+   "golden_data": "excluded (D-035)",
+   "diagnosis": "Intermittent but genuine: wrong message data (e.g. 6 received vs 9 expected) and inconsistent has_recv in per-rank XML, not a timeout (an independent review: 7 pass / 3 fail in 10 isolated 4-rank repeats; O1: 13/30 failed on 4 ranks, 0/20 on 2). The message pattern is drawn from std::random_device, so failing schedules are not captured. Shared tags across rounds and termination in receiveAnyNumber warrant investigation; root cause unassigned. Failed as _4 in the strict full run and as _4 and _8 in the default full run. Isolated repeats (oracle/results/isolated-strict-*.json): _4 failed 1 of 3 runs and _8 2 of 3 runs, in both the AKA_SEED-unset and AKA_SEED=1 passes."
+  }
+ ],
+ "not_run": {
+  "pattern": ".*",
+  "diagnosis": "ctest 'Not Run (Disabled)': gtest cases named DISABLED_* in the upstream sources (TestDKT18.PrecomputeRotations, TestFiniteDefMaterialFixture.*, TestDamageMaterialFixture.{EnergyDensity,ComputeTangentModuli,ComputeCelerity}, TestPlasticMaterialFixture.{EnergyDensity,ComputeTangentModuli,ComputeCelerity})."
+ }
+}

@@ -1,0 +1,1012 @@
+{
+  "format_version": 1,
+  "case_id": "solver/aij/bar_unsym_sym",
+  "description": "DOFManagerDefault assembly of bar (unsym matrix, sym elemental matrices), terms, matVecMul, copyProfile/add, applyBoundary, saveMatrix/saveProfile, SparseSolverEigen",
+  "status": "golden",
+  "generator": {
+    "probe": "solver_probe",
+    "probe_version": "1",
+    "command": "oracle/probes/solver/generate.sh "
+  },
+  "reference": {
+    "sha": "35a851780d0b9471d258ed53a003ae98aaa95ea0",
+    "describe": "v5.0.7-post1-554-g35a851780",
+    "patches": [
+      "modified:cmake/AkantuTestsMacros.cmake sha256=c280165a84912eab4bcc081b9eaaaa06aafdd83d4f48d982e11b0859abf9672f (reference sha256=36290de2ec8b111028138fe82029efa16501512241a5bc264fa30ff3e3239b9e)"
+    ]
+  },
+  "build": {
+  "config": "strict",
+  "compiler": "g++ (Debian 14.2.0-19) 14.2.0",
+  "cxx_flags": "-ffp-contract=off -DEIGEN_DONT_VECTORIZE -O2 -g -DNDEBUG -g3 -ggdb3 -flarge-source-files -std=c++20 -flto=auto -fno-fat-lto-objects -fPIC -frounding-math (actual flags of src/model/solid_mechanics/solid_mechanics_model.cc; warnings and non-FP -D defines omitted)",
+  "build_type": "RelWithDebInfo",
+  "arch": "aarch64",
+  "os": "Debian GNU/Linux 13 (trixie)",
+  "libraries": {
+    "eigen3": "3.4.0-5",
+    "boost": "1.83.0.2+b2",
+    "openmpi": "5.0.7-1",
+    "mumps": "5.7.3-3+b1",
+    "petsc": "3.22.5+dfsg1-2",
+    "scotch": "7.0.7-1",
+    "openblas": "0.3.29+ds-3",
+    "scalapack": "2.2.2-1",
+    "hdf5": "1.14.5+repack-3",
+    "gmsh": "4.13.1+ds1-6",
+    "pybind11": "2.13.6-2",
+    "numpy": "1:2.2.4+ds-1",
+    "scipy": "1.15.3-1",
+    "gcc": "4:14.2.0-1",
+    "gfortran": "4:14.2.0-1",
+    "oracle_image": "sha256:6683233d0a3b9341eb5cedf5879bc9ccb76ddf3d91e9aa0fd35b99dc7866d7a6",
+    "oracle_build_scripts": "45b473da9cbfb356a039d94609fe39f6f36a1a9a",
+    "oracle_install_reference_sha": "35a851780d0b9471d258ed53a003ae98aaa95ea0",
+    "oracle_install_image": "sha256:6683233d0a3b9341eb5cedf5879bc9ccb76ddf3d91e9aa0fd35b99dc7866d7a6",
+    "sha256:libakantu.so.5.0.7": "9768e51184f0423c49abfd67535e6f3bc371522045b0b634223cce0ee07f0b0b",
+    "probe_tree_sha256": "ff1c38e5813c6f47acccb1086f9c827aa8c70068f93112176b12ac1f071b4889",
+    "probe_sources_commit": "0f209a44b056c96f7ad26142c524d31c9eae708f+uncommitted-probe-changes",
+    "cmake_cxx_flags": "-ffp-contract=off -DEIGEN_DONT_VECTORIZE -O2 -g -DNDEBUG -g3 -ggdb3 -flarge-source-files",
+    "probe": "solver_probe"
+  },
+  "probe_compile_command": "/usr/bin/c++ '-DAKANTU_PROBE_BUILD_TYPE=\"RelWithDebInfo\"' '-DAKANTU_PROBE_CONFIG=\"strict\"' '-DAKANTU_PROBE_CXX_FLAGS=\"-ffp-contract=off -DEIGEN_DONT_VECTORIZE  -O2 -g -DNDEBUG\"' -DBOOST_GRAPH_DYN_LINK -DBOOST_GRAPH_NO_LIB -DBOOST_REGEX_DYN_LINK -DBOOST_REGEX_NO_LIB -DCGAL_USE_GMPXX=1 -I/probes/solver/../include -isystem /build/install-strict/include/akantu -isystem /opt/CGAL-5.6.2/include -isystem /usr/lib/aarch64-linux-gnu/openmpi/include -isystem /usr/lib/aarch64-linux-gnu/openmpi/include/openmpi -isystem /usr/lib/petscdir/petsc3.22/aarch64-linux-gnu-real/include -isystem /usr/include/scotch -isystem /build/install-strict/include/akantu_iterators -isystem /usr/include/eigen3 -isystem /build/install-strict/include/iohelper -O2 -g -DNDEBUG -std=gnu++20 -ffp-contract=off -DEIGEN_DONT_VECTORIZE -Wall -Wextra -pedantic -Wno-array-bounds -Wno-use-after-free -Wno-stringop-overread -DOMPI_SKIP_MPICXX -Wno-literal-suffix -frounding-math -o CMakeFiles/solver_probe.dir/solver_probe.cc.o -c /probes/solver/solver_probe.cc",
+  "probe_cxx_flags": "-DAKANTU_PROBE_BUILD_TYPE=\"RelWithDebInfo\" -DAKANTU_PROBE_CONFIG=\"strict\" -DAKANTU_PROBE_CXX_FLAGS=\"-ffp-contract=off -DEIGEN_DONT_VECTORIZE  -O2 -g -DNDEBUG\" -DBOOST_GRAPH_DYN_LINK -DBOOST_GRAPH_NO_LIB -DBOOST_REGEX_DYN_LINK -DBOOST_REGEX_NO_LIB -DCGAL_USE_GMPXX=1 -O2 -g -DNDEBUG -std=gnu++20 -ffp-contract=off -DEIGEN_DONT_VECTORIZE -Wall -Wextra -pedantic -Wno-array-bounds -Wno-use-after-free -Wno-stringop-overread -DOMPI_SKIP_MPICXX -Wno-literal-suffix -frounding-math"
+},
+  "created": "2026-11-10T03:35:10Z",
+  "inputs": [
+    {
+      "role": "mesh",
+      "path": "inputs/bar.msh",
+      "source": "upstream:test/test_solver/bar.msh",
+      "sha256": "dccebbf75967a035367a47a428d041354a8298fc9d123a3dd98e92fe91e802c8"
+    },
+    {
+      "role": "save_matrix",
+      "path": "inputs/K.mtx",
+      "source": "SparseMatrixAIJ::saveMatrix(\"K\") output",
+      "sha256": "01781de61b4f9028359f379895ca76144a480a80a5092207477a048156b8e8e0"
+    },
+    {
+      "role": "save_profile",
+      "path": "inputs/K_profile.mtx",
+      "source": "SparseMatrixAIJ::saveProfile output",
+      "sha256": "024d50d1c7584039396fedf0e5ef167196f6334f608ae99165fb40490adcfdc2"
+    },
+    {
+      "role": "save_vector",
+      "path": "inputs/b.mtx",
+      "source": "SolverVectorDefault::saveVector(\"b\") output",
+      "sha256": "02e8ad140bdddb93765d469ebf0c9b7df60070ad00c9b69d8a7bee944a1045e7"
+    }
+  ],
+  "parameters": {
+    "mesh": "bar",
+    "matrix_type": "unsym",
+    "elemental_matrix_type": "sym",
+    "nb_dof_per_node": 2,
+    "element_type": "_quadrangle_4",
+    "system_size": 242,
+    "K/nnz": 3844,
+    "K/coords_sha256": "666363d1fc7522251176cb45244d7d1c07e65a7bfaeb781a606cfffe783fc3aa",
+    "M/nnz": 2043,
+    "M/coords_sha256": "6a30f9b99d2cd899b2e29519d460533e28befc0bf58d065989ae6f729fc87b91",
+    "J_copy_profile/nnz": 2043,
+    "J_copy_profile/coords_sha256": "6a30f9b99d2cd899b2e29519d460533e28befc0bf58d065989ae6f729fc87b91",
+    "J_copy_profile/values_sha256": "e69fa065ceaac51d182db1029888c8bea88eb1b6c5348d03861f52614169ecfb",
+    "J/nnz": 3844,
+    "J/coords_sha256": "dfbf34d40c7cf43efc73d7e9c6ed290036cf30849424f6a569b7ec3d9471f169",
+    "j_coefficients": [
+      0.29999999999999999,
+      2.5
+    ],
+    "K_terms/nnz": 3855,
+    "K_terms/coords_sha256": "2cf4e7d06c05543a415f4a941a420ca90396eaa9a8009e767c2e3e4aa7fd5dbd",
+    "K_bc/nnz": 3855,
+    "K_bc/coords_sha256": "2cf4e7d06c05543a415f4a941a420ca90396eaa9a8009e767c2e3e4aa7fd5dbd",
+    "lu_info_success": true,
+    "lu_last_error": "",
+    "lu_nsuper": 93,
+    "spy_solution_equals_sparse_solver_eigen": true
+  },
+  "storage": {
+    "mode": "committed",
+    "bytes": 590048
+  },
+  "quantities": [
+    {
+      "name": "element_equations",
+      "file": "data/element_equations.npy",
+      "dtype": "i64",
+      "shape": [
+        100,
+        8
+      ],
+      "axes": [
+        "element",
+        "entry"
+      ],
+      "layout": "table",
+      "sha256": "f3279fa429cacecd5a3a5d9586b533b8992b4be566fe002dc796a859a123abc0",
+      "description": "global equation numbers of each element, node-major (n*nb_dof+d)"
+    },
+    {
+      "name": "element_matrices",
+      "file": "data/element_matrices.npy",
+      "dtype": "f64",
+      "shape": [
+        100,
+        8,
+        8
+      ],
+      "axes": [
+        "element",
+        "row",
+        "col"
+      ],
+      "layout": "matrix",
+      "sha256": "487583c747d2f67ff67f053a65e0603c4ba8ea673a60a6c97fce8177e205ebf1",
+      "description": "elemental matrices M(r, c), stored [element, row, col] row-major (input fed to assembleElementalMatricesToMatrix)"
+    },
+    {
+      "name": "element_mass_matrices",
+      "file": "data/element_mass_matrices.npy",
+      "dtype": "f64",
+      "shape": [
+        100,
+        8,
+        8
+      ],
+      "axes": [
+        "element",
+        "row",
+        "col"
+      ],
+      "layout": "matrix",
+      "sha256": "d097d7c9f3c3a6440c4edc2b6022593be6dc442411d14948780f8952fb121d75",
+      "description": "elemental matrices M(r, c), stored [element, row, col] row-major (input fed to assembleElementalMatricesToMatrix)"
+    },
+    {
+      "name": "K/rows",
+      "file": "data/K__rows.npy",
+      "dtype": "i64",
+      "shape": [
+        3844
+      ],
+      "axes": [
+        "nnz"
+      ],
+      "layout": "matrix",
+      "sha256": "490edaa8e9630e2b405b07fa8b168eb2dba939883754d4e7497f8c984ecc85c2",
+      "description": "SparseMatrixAIJ::getIRN (1-based global rows, storage order)"
+    },
+    {
+      "name": "K/cols",
+      "file": "data/K__cols.npy",
+      "dtype": "i64",
+      "shape": [
+        3844
+      ],
+      "axes": [
+        "nnz"
+      ],
+      "layout": "matrix",
+      "sha256": "5b7a0aa8128a35a8e596a537b10bde76c11ac52ff522d3f5a90020dcf04bda49",
+      "description": "SparseMatrixAIJ::getJCN (1-based global columns, storage order)"
+    },
+    {
+      "name": "K/values",
+      "file": "data/K__values.npy",
+      "dtype": "f64",
+      "shape": [
+        3844
+      ],
+      "axes": [
+        "nnz"
+      ],
+      "layout": "matrix",
+      "sha256": "411dc99315cd99318d2415e97e25b3c0c93e3cb4b6732ec2d2e5ad350e050e1c",
+      "description": "SparseMatrixAIJ::getA (storage order)"
+    },
+    {
+      "name": "K/profile_release",
+      "file": "data/K__profile_release.npy",
+      "dtype": "i64",
+      "shape": [
+        1
+      ],
+      "axes": [
+        "entry"
+      ],
+      "layout": "table",
+      "sha256": "26b858f9f3dd1233cdecb12eccee63052fbe2a439aeb4620fcffa3d31e7ae156",
+      "description": "getProfileRelease()"
+    },
+    {
+      "name": "K/value_release",
+      "file": "data/K__value_release.npy",
+      "dtype": "i64",
+      "shape": [
+        1
+      ],
+      "axes": [
+        "entry"
+      ],
+      "layout": "table",
+      "sha256": "d79d4fc425da9e2424d05de9e78ef47ce8c27756e2fe5c499a636a8e0c72c967",
+      "description": "getValueRelease()"
+    },
+    {
+      "name": "K/size",
+      "file": "data/K__size.npy",
+      "dtype": "i64",
+      "shape": [
+        1
+      ],
+      "axes": [
+        "entry"
+      ],
+      "layout": "table",
+      "sha256": "daca601a7a45920972a11a64b4533f846957dbda6032a9ce6eeb4eb585446f6d",
+      "description": "size()"
+    },
+    {
+      "name": "K/symmetric",
+      "file": "data/K__symmetric.npy",
+      "dtype": "i64",
+      "shape": [
+        1
+      ],
+      "axes": [
+        "entry"
+      ],
+      "layout": "table",
+      "sha256": "f6df0000bed676f0a4b777e2a1d915b6608dab452e11737f82c685cebf0e8ba7",
+      "description": "1 if getMatrixType() == _symmetric"
+    },
+    {
+      "name": "matvec/x",
+      "file": "data/matvec__x.npy",
+      "dtype": "f64",
+      "shape": [
+        242
+      ],
+      "axes": [
+        "dof"
+      ],
+      "layout": "dof",
+      "sha256": "45c7983934d0e4c9af8a1f8d6039ae5c36761b85f522dfa0fe1a1814d23b497a",
+      "description": "input x"
+    },
+    {
+      "name": "matvec/y0",
+      "file": "data/matvec__y0.npy",
+      "dtype": "f64",
+      "shape": [
+        242
+      ],
+      "axes": [
+        "dof"
+      ],
+      "layout": "dof",
+      "sha256": "65a9e104b7061bc36cb488bf10fa9b8bdad408ebb28d106652a6294df72c5785",
+      "description": "input y"
+    },
+    {
+      "name": "matvec/y_a0.75_b-1.25",
+      "file": "data/matvec__y_a0.75_b-1.25.npy",
+      "dtype": "f64",
+      "shape": [
+        242
+      ],
+      "axes": [
+        "dof"
+      ],
+      "layout": "dof",
+      "sha256": "d0e522aae89696fbfb440f953a2a5f2406bc4f6a73d5ff78f2e1347fe8168fb1",
+      "description": "K.matVecMul(x, y0, 0.75, -1.25)"
+    },
+    {
+      "name": "matvec/y_a1_b0",
+      "file": "data/matvec__y_a1_b0.npy",
+      "dtype": "f64",
+      "shape": [
+        242
+      ],
+      "axes": [
+        "dof"
+      ],
+      "layout": "dof",
+      "sha256": "71e680e578a72a5ef0cf51138f868f5059b32999ca6f73baff8d377d7a2bd5af",
+      "description": "then K.matVecMul(x, y, 1, 0)"
+    },
+    {
+      "name": "M/rows",
+      "file": "data/M__rows.npy",
+      "dtype": "i64",
+      "shape": [
+        2043
+      ],
+      "axes": [
+        "nnz"
+      ],
+      "layout": "matrix",
+      "sha256": "8c297f920bd4eab37ad80c5651d8f5769c6a80d6b430cb2a04895245429756e4",
+      "description": "SparseMatrixAIJ::getIRN (1-based global rows, storage order)"
+    },
+    {
+      "name": "M/cols",
+      "file": "data/M__cols.npy",
+      "dtype": "i64",
+      "shape": [
+        2043
+      ],
+      "axes": [
+        "nnz"
+      ],
+      "layout": "matrix",
+      "sha256": "89bd289c5a758a0c3450d5e76195762a46f94967531c98d4919085a537e871be",
+      "description": "SparseMatrixAIJ::getJCN (1-based global columns, storage order)"
+    },
+    {
+      "name": "M/values",
+      "file": "data/M__values.npy",
+      "dtype": "f64",
+      "shape": [
+        2043
+      ],
+      "axes": [
+        "nnz"
+      ],
+      "layout": "matrix",
+      "sha256": "306298588b5ad86e86c7eba8f31da787f349cbbef1d72acda00647b418707783",
+      "description": "SparseMatrixAIJ::getA (storage order)"
+    },
+    {
+      "name": "M/profile_release",
+      "file": "data/M__profile_release.npy",
+      "dtype": "i64",
+      "shape": [
+        1
+      ],
+      "axes": [
+        "entry"
+      ],
+      "layout": "table",
+      "sha256": "14ba7b0218af0705f83865a906923035a3f3b044f2442efce37ece78e784b0f8",
+      "description": "getProfileRelease()"
+    },
+    {
+      "name": "M/value_release",
+      "file": "data/M__value_release.npy",
+      "dtype": "i64",
+      "shape": [
+        1
+      ],
+      "axes": [
+        "entry"
+      ],
+      "layout": "table",
+      "sha256": "d6be178f85b4bfcb7becc66b15315ad38e35cae44bc43f1e74d402baa713e2ed",
+      "description": "getValueRelease()"
+    },
+    {
+      "name": "M/size",
+      "file": "data/M__size.npy",
+      "dtype": "i64",
+      "shape": [
+        1
+      ],
+      "axes": [
+        "entry"
+      ],
+      "layout": "table",
+      "sha256": "daca601a7a45920972a11a64b4533f846957dbda6032a9ce6eeb4eb585446f6d",
+      "description": "size()"
+    },
+    {
+      "name": "M/symmetric",
+      "file": "data/M__symmetric.npy",
+      "dtype": "i64",
+      "shape": [
+        1
+      ],
+      "axes": [
+        "entry"
+      ],
+      "layout": "table",
+      "sha256": "fc44e6cab97678b988677b1e24dc073c80b029ccf6566c7bc1bd9ec1061a6106",
+      "description": "1 if getMatrixType() == _symmetric"
+    },
+    {
+      "name": "J_copy_profile/profile_release",
+      "file": "data/J_copy_profile__profile_release.npy",
+      "dtype": "i64",
+      "shape": [
+        1
+      ],
+      "axes": [
+        "entry"
+      ],
+      "layout": "table",
+      "sha256": "14ba7b0218af0705f83865a906923035a3f3b044f2442efce37ece78e784b0f8",
+      "description": "getProfileRelease()"
+    },
+    {
+      "name": "J_copy_profile/value_release",
+      "file": "data/J_copy_profile__value_release.npy",
+      "dtype": "i64",
+      "shape": [
+        1
+      ],
+      "axes": [
+        "entry"
+      ],
+      "layout": "table",
+      "sha256": "79a3ec9e5013300721fe2cc296c3d7016af2098b51ea46190de859dc1de8fb8e",
+      "description": "getValueRelease()"
+    },
+    {
+      "name": "J_copy_profile/size",
+      "file": "data/J_copy_profile__size.npy",
+      "dtype": "i64",
+      "shape": [
+        1
+      ],
+      "axes": [
+        "entry"
+      ],
+      "layout": "table",
+      "sha256": "daca601a7a45920972a11a64b4533f846957dbda6032a9ce6eeb4eb585446f6d",
+      "description": "size()"
+    },
+    {
+      "name": "J_copy_profile/symmetric",
+      "file": "data/J_copy_profile__symmetric.npy",
+      "dtype": "i64",
+      "shape": [
+        1
+      ],
+      "axes": [
+        "entry"
+      ],
+      "layout": "table",
+      "sha256": "f6df0000bed676f0a4b777e2a1d915b6608dab452e11737f82c685cebf0e8ba7",
+      "description": "1 if getMatrixType() == _symmetric"
+    },
+    {
+      "name": "J/rows",
+      "file": "data/J__rows.npy",
+      "dtype": "i64",
+      "shape": [
+        3844
+      ],
+      "axes": [
+        "nnz"
+      ],
+      "layout": "matrix",
+      "sha256": "7e92df6f999857df0a806e3d5752b48aa020f06622c6385ac2034aa326961673",
+      "description": "SparseMatrixAIJ::getIRN (1-based global rows, storage order)"
+    },
+    {
+      "name": "J/cols",
+      "file": "data/J__cols.npy",
+      "dtype": "i64",
+      "shape": [
+        3844
+      ],
+      "axes": [
+        "nnz"
+      ],
+      "layout": "matrix",
+      "sha256": "6b514c7c496050f7834246085840e29b4180f0daeea955c6c216461167760237",
+      "description": "SparseMatrixAIJ::getJCN (1-based global columns, storage order)"
+    },
+    {
+      "name": "J/values",
+      "file": "data/J__values.npy",
+      "dtype": "f64",
+      "shape": [
+        3844
+      ],
+      "axes": [
+        "nnz"
+      ],
+      "layout": "matrix",
+      "sha256": "6c73078b8067c4a5eb90cc43daaa848c3b29fec03eff65ea1fe19a158e564689",
+      "description": "SparseMatrixAIJ::getA (storage order)"
+    },
+    {
+      "name": "J/profile_release",
+      "file": "data/J__profile_release.npy",
+      "dtype": "i64",
+      "shape": [
+        1
+      ],
+      "axes": [
+        "entry"
+      ],
+      "layout": "table",
+      "sha256": "26b858f9f3dd1233cdecb12eccee63052fbe2a439aeb4620fcffa3d31e7ae156",
+      "description": "getProfileRelease()"
+    },
+    {
+      "name": "J/value_release",
+      "file": "data/J__value_release.npy",
+      "dtype": "i64",
+      "shape": [
+        1
+      ],
+      "axes": [
+        "entry"
+      ],
+      "layout": "table",
+      "sha256": "0e9805be4e76585d4b72ac08865a9174ccdcece2d381e92ee710b15695657634",
+      "description": "getValueRelease()"
+    },
+    {
+      "name": "J/size",
+      "file": "data/J__size.npy",
+      "dtype": "i64",
+      "shape": [
+        1
+      ],
+      "axes": [
+        "entry"
+      ],
+      "layout": "table",
+      "sha256": "daca601a7a45920972a11a64b4533f846957dbda6032a9ce6eeb4eb585446f6d",
+      "description": "size()"
+    },
+    {
+      "name": "J/symmetric",
+      "file": "data/J__symmetric.npy",
+      "dtype": "i64",
+      "shape": [
+        1
+      ],
+      "axes": [
+        "entry"
+      ],
+      "layout": "table",
+      "sha256": "f6df0000bed676f0a4b777e2a1d915b6608dab452e11737f82c685cebf0e8ba7",
+      "description": "1 if getMatrixType() == _symmetric"
+    },
+    {
+      "name": "terms/i",
+      "file": "data/terms__i.npy",
+      "dtype": "i64",
+      "shape": [
+        12
+      ],
+      "axes": [
+        "entry"
+      ],
+      "layout": "table",
+      "sha256": "a46a9cf130f04df3cbdb11b09ac46a01caf2fcac3e4232e5f3dad2c3e31b5f7c",
+      "description": "TermsToAssemble rows (local DOF index node*2+d)"
+    },
+    {
+      "name": "terms/j",
+      "file": "data/terms__j.npy",
+      "dtype": "i64",
+      "shape": [
+        12
+      ],
+      "axes": [
+        "entry"
+      ],
+      "layout": "table",
+      "sha256": "974fe1da06a4b273b890bffb232c1c2bfc3dcc51393890671e6fb2669c6eb335",
+      "description": "TermsToAssemble columns"
+    },
+    {
+      "name": "terms/values",
+      "file": "data/terms__values.npy",
+      "dtype": "f64",
+      "shape": [
+        12
+      ],
+      "axes": [
+        "entry"
+      ],
+      "layout": "table",
+      "sha256": "57e70d1bbbe9ea49567596ca587ad8691384996e89cfbc4213a6d00a6ae0c911",
+      "description": "values added with terms(i, j) += v"
+    },
+    {
+      "name": "K_terms/values",
+      "file": "data/K_terms__values.npy",
+      "dtype": "f64",
+      "shape": [
+        3855
+      ],
+      "axes": [
+        "nnz"
+      ],
+      "layout": "matrix",
+      "sha256": "d33154ee19ccb6179a71d46722d6cb515ea009b80d00385db5d0c22254144eab",
+      "description": "SparseMatrixAIJ::getA (storage order)"
+    },
+    {
+      "name": "K_terms/profile_release",
+      "file": "data/K_terms__profile_release.npy",
+      "dtype": "i64",
+      "shape": [
+        1
+      ],
+      "axes": [
+        "entry"
+      ],
+      "layout": "table",
+      "sha256": "20ecee53b887f40d48bfec309a1748b705a0124d51ebfe5c8d063fbdcbc68770",
+      "description": "getProfileRelease()"
+    },
+    {
+      "name": "K_terms/value_release",
+      "file": "data/K_terms__value_release.npy",
+      "dtype": "i64",
+      "shape": [
+        1
+      ],
+      "axes": [
+        "entry"
+      ],
+      "layout": "table",
+      "sha256": "d2ec035473b3caa83fc2369a6dc186370c719111f2be1a510a02cd92360fe922",
+      "description": "getValueRelease()"
+    },
+    {
+      "name": "K_terms/size",
+      "file": "data/K_terms__size.npy",
+      "dtype": "i64",
+      "shape": [
+        1
+      ],
+      "axes": [
+        "entry"
+      ],
+      "layout": "table",
+      "sha256": "daca601a7a45920972a11a64b4533f846957dbda6032a9ce6eeb4eb585446f6d",
+      "description": "size()"
+    },
+    {
+      "name": "K_terms/symmetric",
+      "file": "data/K_terms__symmetric.npy",
+      "dtype": "i64",
+      "shape": [
+        1
+      ],
+      "axes": [
+        "entry"
+      ],
+      "layout": "table",
+      "sha256": "f6df0000bed676f0a4b777e2a1d915b6608dab452e11737f82c685cebf0e8ba7",
+      "description": "1 if getMatrixType() == _symmetric"
+    },
+    {
+      "name": "blocked",
+      "file": "data/blocked.npy",
+      "dtype": "i64",
+      "shape": [
+        242
+      ],
+      "axes": [
+        "dof"
+      ],
+      "layout": "table",
+      "sha256": "fd0cd95607932834ed7710517762b348c2cb79f1f5de218dc5d2d9af02769f1e",
+      "description": "blocked flag per local DOF (node*2+d)"
+    },
+    {
+      "name": "K_bc/values",
+      "file": "data/K_bc__values.npy",
+      "dtype": "f64",
+      "shape": [
+        3855
+      ],
+      "axes": [
+        "nnz"
+      ],
+      "layout": "matrix",
+      "sha256": "c4c6f5116c7099d19dc388b02208599a464548ac9beca6851b3dd0014aed093e",
+      "description": "SparseMatrixAIJ::getA (storage order)"
+    },
+    {
+      "name": "K_bc/profile_release",
+      "file": "data/K_bc__profile_release.npy",
+      "dtype": "i64",
+      "shape": [
+        1
+      ],
+      "axes": [
+        "entry"
+      ],
+      "layout": "table",
+      "sha256": "20ecee53b887f40d48bfec309a1748b705a0124d51ebfe5c8d063fbdcbc68770",
+      "description": "getProfileRelease()"
+    },
+    {
+      "name": "K_bc/value_release",
+      "file": "data/K_bc__value_release.npy",
+      "dtype": "i64",
+      "shape": [
+        1
+      ],
+      "axes": [
+        "entry"
+      ],
+      "layout": "table",
+      "sha256": "e7b88f2b99c3ca74a70858f9425002b547c6392ab4924ea7aec8f6a731fd0f5d",
+      "description": "getValueRelease()"
+    },
+    {
+      "name": "K_bc/size",
+      "file": "data/K_bc__size.npy",
+      "dtype": "i64",
+      "shape": [
+        1
+      ],
+      "axes": [
+        "entry"
+      ],
+      "layout": "table",
+      "sha256": "daca601a7a45920972a11a64b4533f846957dbda6032a9ce6eeb4eb585446f6d",
+      "description": "size()"
+    },
+    {
+      "name": "K_bc/symmetric",
+      "file": "data/K_bc__symmetric.npy",
+      "dtype": "i64",
+      "shape": [
+        1
+      ],
+      "axes": [
+        "entry"
+      ],
+      "layout": "table",
+      "sha256": "f6df0000bed676f0a4b777e2a1d915b6608dab452e11737f82c685cebf0e8ba7",
+      "description": "1 if getMatrixType() == _symmetric"
+    },
+    {
+      "name": "eigen/b",
+      "file": "data/eigen__b.npy",
+      "dtype": "f64",
+      "shape": [
+        242
+      ],
+      "axes": [
+        "dof"
+      ],
+      "layout": "dof",
+      "sha256": "6483b42e205f41893e1775a7532d1016ab9b6a5e3241161cdd2f31682adb649f",
+      "description": "residual (global equation order) passed to SparseSolverEigen"
+    },
+    {
+      "name": "eigen/x",
+      "file": "data/eigen__x.npy",
+      "dtype": "f64",
+      "shape": [
+        242
+      ],
+      "axes": [
+        "dof"
+      ],
+      "layout": "dof",
+      "sha256": "30ef653338304d4a68b848cc0cdb24aa8462241c8f6eebd96c585a0f75500acc",
+      "description": "SparseSolverEigen::solve() solution (global equation order)"
+    },
+    {
+      "name": "lu/perm_c",
+      "file": "data/lu__perm_c.npy",
+      "dtype": "i64",
+      "shape": [
+        242
+      ],
+      "axes": [
+        "entry"
+      ],
+      "layout": "table",
+      "sha256": "c37e70efd951ae29979cd93eeda249464d53d32c8b3157fb15bdddf611578dee",
+      "description": "colsPermutation().indices() after analyzePattern (COLAMD + etree postorder)"
+    },
+    {
+      "name": "lu/etree",
+      "file": "data/lu__etree.npy",
+      "dtype": "i64",
+      "shape": [
+        242
+      ],
+      "axes": [
+        "entry"
+      ],
+      "layout": "table",
+      "sha256": "c4ba1317d132368d0515e97ab69013097c32a69a7125134f27c761eaebbfcec8",
+      "description": "column elimination tree, renumbered in postorder"
+    },
+    {
+      "name": "lu/perm_r",
+      "file": "data/lu__perm_r.npy",
+      "dtype": "i64",
+      "shape": [
+        242
+      ],
+      "axes": [
+        "entry"
+      ],
+      "layout": "table",
+      "sha256": "c37e70efd951ae29979cd93eeda249464d53d32c8b3157fb15bdddf611578dee",
+      "description": "rowsPermutation().indices() after factorize"
+    },
+    {
+      "name": "lu/nnz_l",
+      "file": "data/lu__nnz_l.npy",
+      "dtype": "i64",
+      "shape": [
+        1
+      ],
+      "axes": [
+        "entry"
+      ],
+      "layout": "table",
+      "sha256": "3b385bfafe1696056aece6dc7f3c337f8fb2c41513de120b82f7b55bb8157eae",
+      "description": "nnzL()"
+    },
+    {
+      "name": "lu/nnz_u",
+      "file": "data/lu__nnz_u.npy",
+      "dtype": "i64",
+      "shape": [
+        1
+      ],
+      "axes": [
+        "entry"
+      ],
+      "layout": "table",
+      "sha256": "89d5c5513913bb56471fd41a45aae3840924123a9a84b53c632d40f0885ab76b",
+      "description": "nnzU()"
+    },
+    {
+      "name": "lu/xsup",
+      "file": "data/lu__xsup.npy",
+      "dtype": "i64",
+      "shape": [
+        95
+      ],
+      "axes": [
+        "entry"
+      ],
+      "layout": "table",
+      "sha256": "a94d14ceec7986113948b5336e33358fd1a90622fabb0e8cd18b2fa63d6d1d05",
+      "description": "glu.xsup[0..=nsuper+1]"
+    },
+    {
+      "name": "lu/supno",
+      "file": "data/lu__supno.npy",
+      "dtype": "i64",
+      "shape": [
+        243
+      ],
+      "axes": [
+        "entry"
+      ],
+      "layout": "table",
+      "sha256": "644304f1e98b9f9609f851c27c745c8428f27250a306ba617c0c2b5c7b133f1a",
+      "description": "glu.supno[0..=n]"
+    },
+    {
+      "name": "lu/xlsub",
+      "file": "data/lu__xlsub.npy",
+      "dtype": "i64",
+      "shape": [
+        243
+      ],
+      "axes": [
+        "entry"
+      ],
+      "layout": "table",
+      "sha256": "c7ebb529e2f588a343fcbd898edbcb4b6cbfbcac114b4245d13b1fa7bb80d7e4",
+      "description": "glu.xlsub (after fixupL)"
+    },
+    {
+      "name": "lu/lsub",
+      "file": "data/lu__lsub.npy",
+      "dtype": "i64",
+      "shape": [
+        2180
+      ],
+      "axes": [
+        "entry"
+      ],
+      "layout": "table",
+      "sha256": "80d28e6cd944c22f5f23cccd722d19234b69d912e7e647fd5e52293cc64741b9",
+      "description": "glu.lsub[0..xlsub[n]] (after fixupL: rows of P*A)"
+    },
+    {
+      "name": "lu/xlusup",
+      "file": "data/lu__xlusup.npy",
+      "dtype": "i64",
+      "shape": [
+        243
+      ],
+      "axes": [
+        "entry"
+      ],
+      "layout": "table",
+      "sha256": "481e68c14c4b3e3147856665fb92933bd73a8436567cc9aed5abdbb13af6aa3c",
+      "description": "glu.xlusup"
+    },
+    {
+      "name": "lu/lusup",
+      "file": "data/lu__lusup.npy",
+      "dtype": "f64",
+      "shape": [
+        6046
+      ],
+      "axes": [
+        "entry"
+      ],
+      "layout": "table",
+      "sha256": "0fbcdad497492fd9f1ad32fa7f5e5eb7a20426b2b17af8519bc02a880f9282d4",
+      "description": "glu.lusup[0..xlusup[n]] (supernodal L and U blocks)"
+    },
+    {
+      "name": "lu/xusub",
+      "file": "data/lu__xusub.npy",
+      "dtype": "i64",
+      "shape": [
+        243
+      ],
+      "axes": [
+        "entry"
+      ],
+      "layout": "table",
+      "sha256": "4c049869f1bfb50390f950d2cca6ea02e3187963a1e5b61bc954505a8fa4f9a9",
+      "description": "glu.xusub"
+    },
+    {
+      "name": "lu/usub",
+      "file": "data/lu__usub.npy",
+      "dtype": "i64",
+      "shape": [
+        5114
+      ],
+      "axes": [
+        "entry"
+      ],
+      "layout": "table",
+      "sha256": "50fe1c17a6afa61e755d29bcb6567a945bd52e22927dbb1d2129c79a921f3c15",
+      "description": "glu.usub[0..xusub[n]]"
+    },
+    {
+      "name": "lu/ucol",
+      "file": "data/lu__ucol.npy",
+      "dtype": "f64",
+      "shape": [
+        5114
+      ],
+      "axes": [
+        "entry"
+      ],
+      "layout": "table",
+      "sha256": "25227f23955317f13f714e4c2b263600a4c390cfe10192d34e4ab7c96ce9a485",
+      "description": "glu.ucol[0..xusub[n]]"
+    },
+    {
+      "name": "lu/x",
+      "file": "data/lu__x.npy",
+      "dtype": "f64",
+      "shape": [
+        242
+      ],
+      "axes": [
+        "entry"
+      ],
+      "layout": "table",
+      "sha256": "30ef653338304d4a68b848cc0cdb24aa8462241c8f6eebd96c585a0f75500acc",
+      "description": "x = SparseLU::solve(b) into a Map destination"
+    }
+  ],
+  "tags": [
+    "solver",
+    "aij"
+  ]
+}

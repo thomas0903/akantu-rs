@@ -1,0 +1,636 @@
+{
+  "format_version": 1,
+  "case_id": "parallel/phase_field_square_n8/np4/r1/rank3",
+  "description": "CouplerSolidPhaseField (material_notch.dat) on a distributed Tri3 square, 3 load steps x 2 staggered solves, rank view; distinct upstream result r1 of 2 in a 36-run variation study at 4 ranks (frequency 32/36; D-082 run-dependent result set)",
+  "status": "golden",
+  "generator": {
+    "probe": "parallel_probe",
+    "probe_version": "5",
+    "command": "oracle/probes/parallel/variation-study.sh --np 4 --scenarios phase_field_square_n8 (2 study/ies, 36 runs); oracle/probes/parallel/result_set.py stage --np 4 --scenario phase_field_square_n8"
+  },
+  "reference": {
+    "sha": "35a851780d0b9471d258ed53a003ae98aaa95ea0",
+    "describe": "v5.0.7-post1-554-g35a851780",
+    "patches": [
+      "modified:cmake/AkantuTestsMacros.cmake sha256=c280165a84912eab4bcc081b9eaaaa06aafdd83d4f48d982e11b0859abf9672f (reference sha256=36290de2ec8b111028138fe82029efa16501512241a5bc264fa30ff3e3239b9e)"
+    ]
+  },
+  "build": {
+    "config": "strict",
+    "compiler": "g++ (Debian 14.2.0-19) 14.2.0",
+    "cxx_flags": "-ffp-contract=off -DEIGEN_DONT_VECTORIZE -DEIGEN_NO_CPUID -DEIGEN_DEFAULT_L1_CACHE_SIZE=16384 -DEIGEN_DEFAULT_L2_CACHE_SIZE=524288 -DEIGEN_DEFAULT_L3_CACHE_SIZE=524288 -O2 -g -DNDEBUG -g3 -ggdb3 -flarge-source-files -std=c++20 -flto=auto -fno-fat-lto-objects -fPIC -frounding-math (actual flags of src/model/solid_mechanics/solid_mechanics_model.cc; warnings and non-FP -D defines omitted)",
+    "build_type": "RelWithDebInfo",
+    "arch": "x86_64",
+    "os": "Debian GNU/Linux 13 (trixie)",
+    "libraries": {
+      "eigen_cache_sizes_measured": "16384,524288,524288 (Eigen::l1/l2/l3CacheSize() read at run time in the probe process, D-050)",
+      "eigen3": "3.4.0-5",
+      "boost": "1.83.0.2+b2",
+      "openmpi": "5.0.7-1",
+      "mumps": "5.7.3-3+b1",
+      "petsc": "3.22.5+dfsg1-2",
+      "scotch": "7.0.7-1",
+      "openblas": "0.3.29+ds-3",
+      "scalapack": "2.2.2-1",
+      "hdf5": "1.14.5+repack-3",
+      "gmsh": "4.13.1+ds1-6",
+      "pybind11": "2.13.6-2",
+      "numpy": "1:2.2.4+ds-1",
+      "scipy": "1.15.3-1",
+      "gcc": "4:14.2.0-1",
+      "gfortran": "4:14.2.0-1",
+      "oracle_image": "sha256:2da26d87e063f3c88264f589cf73381feff583eeaa7770d2e01ae034651d59f5",
+      "oracle_build_scripts": "cca6e460cd3430bf0180262e7ebe26be762112e9",
+      "oracle_install_reference_sha": "35a851780d0b9471d258ed53a003ae98aaa95ea0",
+      "oracle_install_image": "sha256:2da26d87e063f3c88264f589cf73381feff583eeaa7770d2e01ae034651d59f5",
+      "openblas_coretype": "Haswell",
+      "openblas_num_threads": "1",
+      "eigen_cache_sizes": "16384,524288,524288 (compile-time pin of the library and of the probe translation unit: EIGEN_NO_CPUID + defaults, D-050)",
+      "host_cpu": "AMD EPYC 9455 48-Core Processor",
+      "x86_64_level": "v3",
+      "sha256:libakantu.so.5.0.7": "554ecfc7838d8c8aa3955f37f2efb556a7f09426083b74af262ffdcccff657ff",
+      "probe_tree_sha256": "38a373f25abdc2f6bb93845d0b2468efcece3f51108e3ca44a17137c2ba6bfa2",
+      "probe_sources_commit": "a6359649cfbb17ac6360ef6901c976d95399e7a9",
+      "cmake_cxx_flags": "-ffp-contract=off -DEIGEN_DONT_VECTORIZE -DEIGEN_NO_CPUID -DEIGEN_DEFAULT_L1_CACHE_SIZE=16384 -DEIGEN_DEFAULT_L2_CACHE_SIZE=524288 -DEIGEN_DEFAULT_L3_CACHE_SIZE=524288 -O2 -g -DNDEBUG -g3 -ggdb3 -flarge-source-files",
+      "probe": "parallel_probe"
+    },
+    "probe_compile_command": "/usr/bin/c++ '-DAKANTU_PROBE_BUILD_TYPE=\"RelWithDebInfo\"' '-DAKANTU_PROBE_CONFIG=\"strict\"' '-DAKANTU_PROBE_CXX_FLAGS=\"-ffp-contract=off -DEIGEN_DONT_VECTORIZE -DEIGEN_NO_CPUID -DEIGEN_DEFAULT_L1_CACHE_SIZE=16384 -DEIGEN_DEFAULT_L2_CACHE_SIZE=524288 -DEIGEN_DEFAULT_L3_CACHE_SIZE=524288  -O2 -g -DNDEBUG\"' -DBOOST_GRAPH_DYN_LINK -DBOOST_GRAPH_NO_LIB -DBOOST_REGEX_DYN_LINK -DBOOST_REGEX_NO_LIB -DCGAL_USE_GMPXX=1 -I/probes/parallel/../include -isystem /build/install-strict/include/akantu -isystem /opt/CGAL-5.6.2/include -isystem /usr/lib/x86_64-linux-gnu/openmpi/include -isystem /usr/lib/x86_64-linux-gnu/openmpi/include/openmpi -isystem /usr/lib/petscdir/petsc3.22/x86_64-linux-gnu-real/include -isystem /usr/include/scotch -isystem /build/install-strict/include/akantu_iterators -isystem /usr/include/eigen3 -isystem /build/install-strict/include/iohelper -O2 -g -DNDEBUG -std=gnu++20 -ffp-contract=off -DEIGEN_DONT_VECTORIZE -DEIGEN_NO_CPUID -DEIGEN_DEFAULT_L1_CACHE_SIZE=16384 -DEIGEN_DEFAULT_L2_CACHE_SIZE=524288 -DEIGEN_DEFAULT_L3_CACHE_SIZE=524288 -Wall -Wextra -pedantic -Wno-array-bounds -Wno-use-after-free -Wno-stringop-overread -DOMPI_SKIP_MPICXX -Wno-literal-suffix -frounding-math -o CMakeFiles/parallel_probe.dir/parallel_probe.cc.o -c /probes/parallel/parallel_probe.cc",
+    "probe_cxx_flags": "-DAKANTU_PROBE_BUILD_TYPE=\"RelWithDebInfo\" -DAKANTU_PROBE_CONFIG=\"strict\" -DAKANTU_PROBE_CXX_FLAGS=\"-ffp-contract=off -DEIGEN_DONT_VECTORIZE -DEIGEN_NO_CPUID -DEIGEN_DEFAULT_L1_CACHE_SIZE=16384 -DEIGEN_DEFAULT_L2_CACHE_SIZE=524288 -DEIGEN_DEFAULT_L3_CACHE_SIZE=524288  -O2 -g -DNDEBUG\" -DBOOST_GRAPH_DYN_LINK -DBOOST_GRAPH_NO_LIB -DBOOST_REGEX_DYN_LINK -DBOOST_REGEX_NO_LIB -DCGAL_USE_GMPXX=1 -O2 -g -DNDEBUG -std=gnu++20 -ffp-contract=off -DEIGEN_DONT_VECTORIZE -DEIGEN_NO_CPUID -DEIGEN_DEFAULT_L1_CACHE_SIZE=16384 -DEIGEN_DEFAULT_L2_CACHE_SIZE=524288 -DEIGEN_DEFAULT_L3_CACHE_SIZE=524288 -Wall -Wextra -pedantic -Wno-array-bounds -Wno-use-after-free -Wno-stringop-overread -DOMPI_SKIP_MPICXX -Wno-literal-suffix -frounding-math"
+  },
+  "created": "2026-11-12T00:31:55Z",
+  "parameters": {
+    "oracle_pin/eigen_cache_sizes": "16384 524288 524288",
+    "oracle_pin/openblas_coretype": "Haswell",
+    "oracle_pin/openblas_num_threads": "1",
+    "rank": 3,
+    "nb_ranks": 4,
+    "nb_global_nodes": 81,
+    "is_distributed": true,
+    "blocks": [
+      "_triangle_3/not_ghost",
+      "_triangle_3/ghost"
+    ],
+    "element_schemes": [
+      "send/0",
+      "send/1",
+      "send/2",
+      "recv/0",
+      "recv/1",
+      "recv/2"
+    ],
+    "node_schemes": [
+      "recv/0",
+      "recv/1",
+      "recv/2"
+    ],
+    "element_groups": [],
+    "node_groups": [],
+    "type_table": [
+      "_triangle_3"
+    ],
+    "sparse_solver_type": "default (MUMPS; _eigen is not distributed)",
+    "ghost_filter_order": "canonical rank order (probe patch)",
+    "ghost_filter_reorder_validity": "valid: every ghost block of the listed internals is position-independent (all values equal) before the rewrite (D-035, UD-232)",
+    "solid_ghost_internals_checked": [
+      "damage",
+      "delta_T",
+      "eigen_grad_u",
+      "epsilon_th",
+      "grad_u",
+      "potential_energy",
+      "sigma_th",
+      "stress"
+    ],
+    "phase_ghost_internals_checked": [
+      "damage",
+      "damage_energy",
+      "damage_energy_density",
+      "dissipated_energy",
+      "driving_energy",
+      "driving_force",
+      "g_c",
+      "grad_d",
+      "phi",
+      "strain"
+    ],
+    "result_set": {
+      "decision": "D-082",
+      "runs": 36,
+      "distinct_results": 2,
+      "frequencies": [
+        32,
+        4
+      ],
+      "this_result": 1,
+      "frequency": 32,
+      "runs_with_this_result": [
+        "var-np4/run1",
+        "var-np4/run2",
+        "var-np4/run3",
+        "var-np4/run5",
+        "var-np4/run6",
+        "var-np4/run7",
+        "var-np4/run8",
+        "var-np4/run9",
+        "var-np4/run10",
+        "var-np4/run11",
+        "var-np4/run12",
+        "var2-np4/run1",
+        "var2-np4/run2",
+        "var2-np4/run3",
+        "var2-np4/run4",
+        "var2-np4/run5",
+        "var2-np4/run6",
+        "var2-np4/run7",
+        "var2-np4/run8",
+        "var2-np4/run9",
+        "var2-np4/run10",
+        "var2-np4/run11",
+        "var2-np4/run12",
+        "var2-np4/run13",
+        "var2-np4/run14",
+        "var2-np4/run15",
+        "var2-np4/run16",
+        "var2-np4/run17",
+        "var2-np4/run18",
+        "var2-np4/run19",
+        "var2-np4/run20",
+        "var2-np4/run23"
+      ],
+      "digest_sha256": "0093d88a3b0b8f842e4261bfd13d6ac7001e5f808607b39322c366969ca84bca",
+      "digest_rule": "SHA-256 of rank<r>/<file name> and bytes of every data file, ranks in order, files sorted"
+    }
+  },
+  "storage": {
+    "mode": "committed",
+    "bytes": 9976
+  },
+  "quantities": [
+    {
+      "name": "nodes/global_ids",
+      "file": "data/nodes__global_ids.npy",
+      "dtype": "i64",
+      "shape": [
+        37
+      ],
+      "axes": [
+        "entry"
+      ],
+      "layout": "table",
+      "sha256": "4a69dd47fea863cc22b8461cfd912333f105d50248ba559f0b1febd248af94e9",
+      "description": "getNodeGlobalId per local node",
+      "tolerance_class": "exact"
+    },
+    {
+      "name": "nodes/flags",
+      "file": "data/nodes__flags.npy",
+      "dtype": "i64",
+      "shape": [
+        37
+      ],
+      "axes": [
+        "entry"
+      ],
+      "layout": "table",
+      "sha256": "dd53557a48901fac3c4181dd0b10e8e5fdcd28b8784e25664430af8ec5579d7d",
+      "description": "getNodeFlag per local node (NodeFlag bits)",
+      "tolerance_class": "exact"
+    },
+    {
+      "name": "nodes/pranks",
+      "file": "data/nodes__pranks.npy",
+      "dtype": "i64",
+      "shape": [
+        37
+      ],
+      "axes": [
+        "entry"
+      ],
+      "layout": "table",
+      "sha256": "0743c137ef7bf33952432bda0d6a174ed33ae8cff13ba9ac37345440480e04de",
+      "description": "getNodePrank per local node (-1: none)",
+      "tolerance_class": "exact"
+    },
+    {
+      "name": "nodes/coordinates",
+      "file": "data/nodes__coordinates.npy",
+      "dtype": "f64",
+      "shape": [
+        37,
+        2
+      ],
+      "axes": [
+        "entry",
+        "component"
+      ],
+      "layout": "table",
+      "sha256": "40edaa90e59563786ddfbfbfdd0d423e7a44cf50ee608dad394809cd27d07dfa",
+      "description": "node coordinates",
+      "tolerance_class": "exact"
+    },
+    {
+      "name": "conn/_triangle_3/not_ghost",
+      "file": "data/conn___triangle_3__not_ghost.npy",
+      "dtype": "i64",
+      "shape": [
+        32,
+        3
+      ],
+      "axes": [
+        "entry",
+        "component"
+      ],
+      "layout": "table",
+      "sha256": "4119355074c346f8d5173bdfe0f7c131e1cb2bfaab8e38c7d601cee36bcb8fdb",
+      "description": "connectivity (local node ids)",
+      "tolerance_class": "exact"
+    },
+    {
+      "name": "conn/_triangle_3/ghost",
+      "file": "data/conn___triangle_3__ghost.npy",
+      "dtype": "i64",
+      "shape": [
+        16,
+        3
+      ],
+      "axes": [
+        "entry",
+        "component"
+      ],
+      "layout": "table",
+      "sha256": "14a5069210ef91b4987aba95aa17dc584e26a5206506f5dc91de6af72a846061",
+      "description": "connectivity (local node ids)",
+      "tolerance_class": "exact"
+    },
+    {
+      "name": "ghosts_counters/_triangle_3/ghost",
+      "file": "data/ghosts_counters___triangle_3__ghost.npy",
+      "dtype": "i64",
+      "shape": [
+        16
+      ],
+      "axes": [
+        "entry"
+      ],
+      "layout": "table",
+      "sha256": "f690d6555996d5da43ee929a7dee9bf391f6998551718fa69341ed386947b86a",
+      "description": "ghost counters",
+      "tolerance_class": "exact"
+    },
+    {
+      "name": "element_scheme/send/0",
+      "file": "data/element_scheme__send__0.npy",
+      "dtype": "i64",
+      "shape": [
+        7,
+        3
+      ],
+      "axes": [
+        "entry",
+        "component"
+      ],
+      "layout": "table",
+      "sha256": "9638f4b971698e41911e5241747c6143ccace61b4705d56ed04f141d967be277",
+      "description": "(type code, element, ghost) in scheme order",
+      "tolerance_class": "exact"
+    },
+    {
+      "name": "element_scheme/send/1",
+      "file": "data/element_scheme__send__1.npy",
+      "dtype": "i64",
+      "shape": [
+        12,
+        3
+      ],
+      "axes": [
+        "entry",
+        "component"
+      ],
+      "layout": "table",
+      "sha256": "52594a525310c517b96ba239ddbc0076469461d5d05594524bbb099cda204c90",
+      "description": "(type code, element, ghost) in scheme order",
+      "tolerance_class": "exact"
+    },
+    {
+      "name": "element_scheme/send/2",
+      "file": "data/element_scheme__send__2.npy",
+      "dtype": "i64",
+      "shape": [
+        3,
+        3
+      ],
+      "axes": [
+        "entry",
+        "component"
+      ],
+      "layout": "table",
+      "sha256": "c6f3002741f021e101a04cb4840a289bbb32599f41b9dc9dec690dbe3a66c7cb",
+      "description": "(type code, element, ghost) in scheme order",
+      "tolerance_class": "exact"
+    },
+    {
+      "name": "element_scheme/recv/0",
+      "file": "data/element_scheme__recv__0.npy",
+      "dtype": "i64",
+      "shape": [
+        7,
+        3
+      ],
+      "axes": [
+        "entry",
+        "component"
+      ],
+      "layout": "table",
+      "sha256": "10ae6d2c3ca8b30bf851f1904438f0a401fc2f19a1f0cf01271eb10c71f879b2",
+      "description": "(type code, element, ghost) in scheme order",
+      "tolerance_class": "exact"
+    },
+    {
+      "name": "element_scheme/recv/1",
+      "file": "data/element_scheme__recv__1.npy",
+      "dtype": "i64",
+      "shape": [
+        7,
+        3
+      ],
+      "axes": [
+        "entry",
+        "component"
+      ],
+      "layout": "table",
+      "sha256": "4df4f5ecd0a85d7503df77f5092e2523b8e0a15d495c5a7669265c33c1ec9921",
+      "description": "(type code, element, ghost) in scheme order",
+      "tolerance_class": "exact"
+    },
+    {
+      "name": "element_scheme/recv/2",
+      "file": "data/element_scheme__recv__2.npy",
+      "dtype": "i64",
+      "shape": [
+        2,
+        3
+      ],
+      "axes": [
+        "entry",
+        "component"
+      ],
+      "layout": "table",
+      "sha256": "5057faead9f9c10bda49acda551569fb66f46c177b9a22bc6f2a605273407b14",
+      "description": "(type code, element, ghost) in scheme order",
+      "tolerance_class": "exact"
+    },
+    {
+      "name": "node_scheme/recv/0",
+      "file": "data/node_scheme__recv__0.npy",
+      "dtype": "i64",
+      "shape": [
+        4
+      ],
+      "axes": [
+        "entry"
+      ],
+      "layout": "table",
+      "sha256": "01918d004253841e253175a5fb105019fd4ca2bcbc2f768d56446a7be81838fc",
+      "description": "local nodes in scheme order",
+      "tolerance_class": "exact"
+    },
+    {
+      "name": "node_scheme/recv/1",
+      "file": "data/node_scheme__recv__1.npy",
+      "dtype": "i64",
+      "shape": [
+        4
+      ],
+      "axes": [
+        "entry"
+      ],
+      "layout": "table",
+      "sha256": "94b1910bee35d245c8ac3b35bc6fd8d7c8dab469be5bba786323accc1e10b5e6",
+      "description": "local nodes in scheme order",
+      "tolerance_class": "exact"
+    },
+    {
+      "name": "node_scheme/recv/2",
+      "file": "data/node_scheme__recv__2.npy",
+      "dtype": "i64",
+      "shape": [
+        1
+      ],
+      "axes": [
+        "entry"
+      ],
+      "layout": "table",
+      "sha256": "5bd6c697aa9beab24702e737e4748b43885706094cdc3c8bf1f9d6fd5e5a69a2",
+      "description": "local nodes in scheme order",
+      "tolerance_class": "exact"
+    },
+    {
+      "name": "solid_law0/filter/_triangle_3/not_ghost",
+      "file": "data/solid_law0__filter___triangle_3__not_ghost.npy",
+      "dtype": "i64",
+      "shape": [
+        32
+      ],
+      "axes": [
+        "entry"
+      ],
+      "layout": "table",
+      "sha256": "d7e613f1090f555b5641f2b446191b4b16b191e7a4ebfee85716049073143863",
+      "description": "law element filter (ghost: canonical rank order)",
+      "tolerance_class": "exact"
+    },
+    {
+      "name": "solid_law0/filter/_triangle_3/ghost",
+      "file": "data/solid_law0__filter___triangle_3__ghost.npy",
+      "dtype": "i64",
+      "shape": [
+        16
+      ],
+      "axes": [
+        "entry"
+      ],
+      "layout": "table",
+      "sha256": "a392adff516a109b6009ef45565dc6fdfcba10819c04ca1c5be006c5c1675f95",
+      "description": "law element filter (ghost: canonical rank order)",
+      "tolerance_class": "exact"
+    },
+    {
+      "name": "phase_law0/filter/_triangle_3/not_ghost",
+      "file": "data/phase_law0__filter___triangle_3__not_ghost.npy",
+      "dtype": "i64",
+      "shape": [
+        32
+      ],
+      "axes": [
+        "entry"
+      ],
+      "layout": "table",
+      "sha256": "d7e613f1090f555b5641f2b446191b4b16b191e7a4ebfee85716049073143863",
+      "description": "law element filter (ghost: canonical rank order)",
+      "tolerance_class": "exact"
+    },
+    {
+      "name": "phase_law0/filter/_triangle_3/ghost",
+      "file": "data/phase_law0__filter___triangle_3__ghost.npy",
+      "dtype": "i64",
+      "shape": [
+        16
+      ],
+      "axes": [
+        "entry"
+      ],
+      "layout": "table",
+      "sha256": "a392adff516a109b6009ef45565dc6fdfcba10819c04ca1c5be006c5c1675f95",
+      "description": "law element filter (ghost: canonical rank order)",
+      "tolerance_class": "exact"
+    },
+    {
+      "name": "energy/dissipated_local",
+      "file": "data/energy__dissipated_local.npy",
+      "dtype": "f64",
+      "shape": [
+        3
+      ],
+      "axes": [
+        "step"
+      ],
+      "layout": "table",
+      "sha256": "1501741909858d20a5f98f745a4e611033c0cc87576494424ee6b78ef76e4d6b",
+      "description": "sum over the phase-field laws of getEnergy(dissipated) on this rank (the rank's contribution, D-039 amendment)",
+      "tolerance_class": "solver"
+    },
+    {
+      "name": "energy/dissipated",
+      "file": "data/energy__dissipated.npy",
+      "dtype": "f64",
+      "shape": [
+        3
+      ],
+      "axes": [
+        "step"
+      ],
+      "layout": "table",
+      "sha256": "93935967bfc970ebc956e7da3595fe814972befcf8fe0495a19a063e10422033",
+      "description": "PhaseFieldModel::getEnergy(dissipated) (MPI_Allreduce)",
+      "tolerance_class": "solver"
+    },
+    {
+      "name": "energy/potential_local",
+      "file": "data/energy__potential_local.npy",
+      "dtype": "f64",
+      "shape": [
+        3
+      ],
+      "axes": [
+        "step"
+      ],
+      "layout": "table",
+      "sha256": "1639bc687da0587c0bfed0b0b4bb1313d880ddaefb52577f7eb4ebb4d76281d6",
+      "description": "sum over the materials of getEnergy(potential) on this rank",
+      "tolerance_class": "solver"
+    },
+    {
+      "name": "energy/potential",
+      "file": "data/energy__potential.npy",
+      "dtype": "f64",
+      "shape": [
+        3
+      ],
+      "axes": [
+        "step"
+      ],
+      "layout": "table",
+      "sha256": "a8d55a0b2ea6c19fe382b830f793be57cc48faea6ccfb27517a6edefcc207b9f",
+      "description": "SolidMechanicsModel::getEnergy(potential) (MPI_Allreduce)",
+      "tolerance_class": "solver"
+    },
+    {
+      "name": "solid/displacement",
+      "file": "data/solid__displacement.npy",
+      "dtype": "f64",
+      "shape": [
+        37,
+        2
+      ],
+      "axes": [
+        "entry",
+        "component"
+      ],
+      "layout": "table",
+      "sha256": "5fd3c31f041840705b515e93716ce400f3f0051ff0cf34cc87fb645a0f171f78",
+      "description": "displacement after 3 steps",
+      "tolerance_class": "solver"
+    },
+    {
+      "name": "phase/damage",
+      "file": "data/phase__damage.npy",
+      "dtype": "f64",
+      "shape": [
+        37,
+        1
+      ],
+      "axes": [
+        "entry",
+        "component"
+      ],
+      "layout": "table",
+      "sha256": "163be21c6f6792ba97a7cb1f65220253721f3405d2ba7cbac05acfb884c373a4",
+      "description": "nodal damage after 3 steps",
+      "tolerance_class": "solver"
+    },
+    {
+      "name": "phase_law0/damage/_triangle_3/not_ghost",
+      "file": "data/phase_law0__damage___triangle_3__not_ghost.npy",
+      "dtype": "f64",
+      "shape": [
+        32,
+        1
+      ],
+      "axes": [
+        "entry",
+        "component"
+      ],
+      "layout": "table",
+      "sha256": "f81ece1921a810b9b0ecd662ae5ada715669258d94e3ba9277f03629f8a794a7",
+      "description": "damage per law-local element and quadrature point",
+      "tolerance_class": "solver"
+    },
+    {
+      "name": "phase_law0/phi/_triangle_3/not_ghost",
+      "file": "data/phase_law0__phi___triangle_3__not_ghost.npy",
+      "dtype": "f64",
+      "shape": [
+        32,
+        1
+      ],
+      "axes": [
+        "entry",
+        "component"
+      ],
+      "layout": "table",
+      "sha256": "50623f31e32cd7ea1d68bbb5c95691d60c8ff6e4bc4736a9d3a38fefbc718dea",
+      "description": "phi per law-local element and quadrature point",
+      "tolerance_class": "solver"
+    },
+    {
+      "name": "phase_law0/driving_force/_triangle_3/not_ghost",
+      "file": "data/phase_law0__driving_force___triangle_3__not_ghost.npy",
+      "dtype": "f64",
+      "shape": [
+        32,
+        1
+      ],
+      "axes": [
+        "entry",
+        "component"
+      ],
+      "layout": "table",
+      "sha256": "2916059e457abcfc0bc6125560f9973d0e97749490aae555f33d0becf10d6cf1",
+      "description": "driving_force per law-local element and quadrature point",
+      "tolerance_class": "solver"
+    }
+  ],
+  "tags": [
+    "parallel"
+  ]
+}

@@ -1,0 +1,42 @@
+# SPDX-License-Identifier: LGPL-3.0-or-later
+[package]
+name = "akantu-core"
+description = "Fundamental types of akantu-rs: scalars, indices, element-type tables, Array, ElementTypeMap, small tensors, errors"
+version.workspace = true
+edition.workspace = true
+rust-version.workspace = true
+# src/eigen_gebp.rs is MPL-2.0 (translated from Eigen 3.4.0, docs/DEPENDENCIES.md)
+license = "LGPL-3.0-or-later AND MPL-2.0"
+repository.workspace = true
+authors.workspace = true
+homepage.workspace = true
+keywords.workspace = true
+categories.workspace = true
+publish = false
+# Not part of a package: the oracle comparison data of the random
+# distributions and of libm (3.8 MiB); the tests that read it run in the
+# workspace.
+exclude = ["tests/fixtures/"]
+
+[dependencies]
+thiserror.workspace = true
+# MIT OR Apache-2.0: bridge from the `log` facade into the debug output
+log.workspace = true
+
+[features]
+# Test-only export-all mode (docs/ARCHITECTURE.md,
+# docs/TESTING.md): every SharedArray behaves as if exported to an
+# always-native runtime. Never enabled by a product crate; the
+# `exportall` tier builds the workspace tests with
+# `--features akantu-core/export-all`.
+export-all = []
+
+[lints]
+workspace = true
+
+[dev-dependencies]
+proptest.workspace = true
+serde_json.workspace = true  # parse the oracle fixtures (tests/fixtures/random)
+# differential tests against fixtures/core (akantu-validation does not depend
+# on akantu-core: no cycle)
+akantu-validation.workspace = true

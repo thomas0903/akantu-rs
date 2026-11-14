@@ -1,0 +1,4 @@
+| material | h | head preload | regime | tets main / head | reps | main solve [ms/step] | head solve [ms/step] | solve ratio | main check [ms/step] | head check [ms/step] | check ratio | main core-µs/el/step | head core-µs/el/step | main init / static [s] | head init / static [s] | peak RSS main / head [MiB] | coh. el. main / head |
+|---|---|---|---|---|---|---|---|---|---|---|---|---|---|---|---|---|---|
+| cohesive | 0.12 | yes | same | 23,156 / 23,156 | 5/5 | 17.4 [16.8, 17.8] | 2.29 [2.22, 2.42] | 0.13 | 9.34 [8.99, 9.67] | 8.8 [8.5, 9.67] | 0.94 | 1.15 | 0.479 | 0.226 / 4.42 | 0.227 / 4.44 | 456 / 465 | 0 / 0 |
+| elastic | 0.12 | yes | same | 23,156 / 23,156 | 5/5 | 16.9 [16.9, 17.1] | 1.9 [1.83, 1.95] | 0.11 | — | — | nan | 0.732 | 0.0821 | 0.22 / 4.34 | 0.222 / 4.74 | 456 / 464 | 0 / 0 |

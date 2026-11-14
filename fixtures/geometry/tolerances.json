@@ -1,0 +1,11 @@
+{
+  "format_version": 1,
+  "rules": [
+    {
+      "quantity": "*",
+      "justification": "Geometry: every quantity is exact. Inputs (nodes, query segments, spheres, triangles, points) are echoed oracle inputs. Outputs are integers (intersection kinds, primitive ids in AABB traversal order, connectivities, associated elements, physical-name codes, counts, multiplicities, new_node_per_elem) or doubles produced by CGAL Simple_cartesian<double> formulas (intersection points, result-mesh node coordinates) and by to_double of exact Quotient<MP_Float>/Root_of_2 values (spherical kernel points): the port evaluates the same IEEE operations in the same order (strict oracle: -ffp-contract=off, no FMA) and reproduces CGAL's exact-number representations, so results must be bit-identical (f64::to_bits, signs of zero included; the replays check zero signs on top of the harness's exact rule). NaN: the only NaN of the corpus is in geometry/adversarial/kernel_adv `coords` (CGAL constructions overflowing on inputs of magnitude 2^+-500 / 1e+-150; documented in the case's manifest notes, D-046 (4)). Under this exact rule NaN follows decision D-046: identical bits, or two default quiet NaNs that differ only in the sign bit (x86_64 0xfff8000000000000 vs aarch64 0x7ff8000000000000); a NaN with a payload, a signalling NaN and NaN against a number stay mismatches. The fixtures are x86_64 (authoritative, D-043), where the port's NaN is bit-identical to the oracle's (strict replay). Scope: the fixtures/geometry corpus of geometry_probe v1 and geometry_adversarial_probe v1 (docs/NUMERICAL_VALIDATION.md, 'Geometry').",
+      "evidence": "10 cases generated twice identically on x86_64 (the x86_64 oracle host, strict); all compared bitwise by akantu-geometry oracle_kernel and akantu-geometry-cgal oracle_geometry (0 mismatches). 2026-11-11: 7 adversarial cases generated three times identically on x86_64 (strict), byte-identical to an independent run; replayed by oracle_adversarial_kernel and oracle_adversarial through the harness's exact rule (0 mismatches on aarch64 and x86_64).",
+      "reviewed_by": "independent review during the port, November 2026"
+    }
+  ]
+}

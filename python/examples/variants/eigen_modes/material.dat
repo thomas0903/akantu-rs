@@ -1,0 +1,19 @@
+# akantu-rs: marked variant of upstream's
+# examples/python/solid_mechanics_model/eigen_modes/material.dat
+# (Akantu, EPFL/LSMS, LGPL-3.0-or-later). The material moves into a `model solid_mechanics_model` section
+# (upstream reads the laws from it when it exists) with the implicit solver pinned.
+# Upstream's `_auto` sparse solver resolves to MUMPS in the oracle build;
+# the port's solve is bitwise against Eigen's. Every line marked
+# "akantu-rs:" is added; the other lines are upstream's.
+model solid_mechanics_model [  # akantu-rs: the laws move into the model section
+  material elastic [
+  	 name = steel
+  	 rho = 1      # density
+  	 E   = 1      # young's modulus
+  	 nu  = 0.3    # poisson's ratio
+  ]
+  time_step_solver dynamic [  # akantu-rs: pin the sparse solver
+    name = implicit  # akantu-rs:
+    sparse_solver_type = eigen  # akantu-rs:
+  ]  # akantu-rs:
+]  # akantu-rs:

@@ -1,0 +1,696 @@
+{
+  "format_version": 1,
+  "case_id": "model/cohesive/implicit_static_linear_triangle_6",
+  "description": "static implicit cohesive_linear (probe-defined from test_cohesive_intrinsic_impl), Eigen sparse solver",
+  "status": "golden",
+  "generator": {
+    "probe": "cohesive_probe",
+    "probe_version": "1",
+    "command": "oracle/probes/cohesive/generate.sh "
+  },
+  "reference": {
+    "sha": "35a851780d0b9471d258ed53a003ae98aaa95ea0",
+    "describe": "v5.0.7-post1-554-g35a851780",
+    "patches": [
+      "modified:cmake/AkantuTestsMacros.cmake sha256=c280165a84912eab4bcc081b9eaaaa06aafdd83d4f48d982e11b0859abf9672f (reference sha256=36290de2ec8b111028138fe82029efa16501512241a5bc264fa30ff3e3239b9e)"
+    ]
+  },
+  "build": {
+  "config": "strict",
+  "compiler": "g++ (Debian 14.2.0-19) 14.2.0",
+  "cxx_flags": "-ffp-contract=off -DEIGEN_DONT_VECTORIZE -O2 -g -DNDEBUG -g3 -ggdb3 -flarge-source-files -std=c++20 -flto=auto -fno-fat-lto-objects -fPIC -frounding-math (actual flags of src/model/solid_mechanics/solid_mechanics_model.cc; warnings and non-FP -D defines omitted)",
+  "build_type": "RelWithDebInfo",
+  "arch": "aarch64",
+  "os": "Debian GNU/Linux 13 (trixie)",
+  "libraries": {
+    "eigen3": "3.4.0-5",
+    "boost": "1.83.0.2+b2",
+    "openmpi": "5.0.7-1",
+    "mumps": "5.7.3-3+b1",
+    "petsc": "3.22.5+dfsg1-2",
+    "scotch": "7.0.7-1",
+    "openblas": "0.3.29+ds-3",
+    "scalapack": "2.2.2-1",
+    "hdf5": "1.14.5+repack-3",
+    "gmsh": "4.13.1+ds1-6",
+    "pybind11": "2.13.6-2",
+    "numpy": "1:2.2.4+ds-1",
+    "scipy": "1.15.3-1",
+    "gcc": "4:14.2.0-1",
+    "gfortran": "4:14.2.0-1",
+    "oracle_image": "sha256:6683233d0a3b9341eb5cedf5879bc9ccb76ddf3d91e9aa0fd35b99dc7866d7a6",
+    "oracle_build_scripts": "45b473da9cbfb356a039d94609fe39f6f36a1a9a",
+    "oracle_install_reference_sha": "35a851780d0b9471d258ed53a003ae98aaa95ea0",
+    "oracle_install_image": "sha256:6683233d0a3b9341eb5cedf5879bc9ccb76ddf3d91e9aa0fd35b99dc7866d7a6",
+    "sha256:libakantu.so.5.0.7": "9768e51184f0423c49abfd67535e6f3bc371522045b0b634223cce0ee07f0b0b",
+    "probe_tree_sha256": "3430c16cc7ea9ac69d61cf8d4e24cc9303b8127cd7b4d79b4c93cb65cfb54de6",
+    "probe_sources_commit": "3964641804f2e759babe7ecf353e9027312ed1cb",
+    "cmake_cxx_flags": "-ffp-contract=off -DEIGEN_DONT_VECTORIZE -O2 -g -DNDEBUG -g3 -ggdb3 -flarge-source-files",
+    "probe": "cohesive_probe"
+  },
+  "probe_compile_command": "/usr/bin/c++ '-DAKANTU_PROBE_BUILD_TYPE=\"RelWithDebInfo\"' '-DAKANTU_PROBE_CONFIG=\"strict\"' '-DAKANTU_PROBE_CXX_FLAGS=\"-ffp-contract=off -DEIGEN_DONT_VECTORIZE  -O2 -g -DNDEBUG\"' -DBOOST_GRAPH_DYN_LINK -DBOOST_GRAPH_NO_LIB -DBOOST_REGEX_DYN_LINK -DBOOST_REGEX_NO_LIB -DCGAL_USE_GMPXX=1 -I/probes/cohesive/../include -isystem /build/install-strict/include/akantu -isystem /opt/CGAL-5.6.2/include -isystem /usr/lib/aarch64-linux-gnu/openmpi/include -isystem /usr/lib/aarch64-linux-gnu/openmpi/include/openmpi -isystem /usr/lib/petscdir/petsc3.22/aarch64-linux-gnu-real/include -isystem /usr/include/scotch -isystem /build/install-strict/include/akantu_iterators -isystem /usr/include/eigen3 -isystem /build/install-strict/include/iohelper -O2 -g -DNDEBUG -std=gnu++20 -ffp-contract=off -DEIGEN_DONT_VECTORIZE -Wall -Wextra -pedantic -Wno-array-bounds -Wno-use-after-free -Wno-stringop-overread -DOMPI_SKIP_MPICXX -Wno-literal-suffix -frounding-math -o CMakeFiles/cohesive_probe.dir/cohesive_probe.cc.o -c /probes/cohesive/cohesive_probe.cc",
+  "probe_cxx_flags": "-DAKANTU_PROBE_BUILD_TYPE=\"RelWithDebInfo\" -DAKANTU_PROBE_CONFIG=\"strict\" -DAKANTU_PROBE_CXX_FLAGS=\"-ffp-contract=off -DEIGEN_DONT_VECTORIZE  -O2 -g -DNDEBUG\" -DBOOST_GRAPH_DYN_LINK -DBOOST_GRAPH_NO_LIB -DBOOST_REGEX_DYN_LINK -DBOOST_REGEX_NO_LIB -DCGAL_USE_GMPXX=1 -O2 -g -DNDEBUG -std=gnu++20 -ffp-contract=off -DEIGEN_DONT_VECTORIZE -Wall -Wextra -pedantic -Wno-array-bounds -Wno-use-after-free -Wno-stringop-overread -DOMPI_SKIP_MPICXX -Wno-literal-suffix -frounding-math"
+},
+  "created": "2026-11-10T17:28:29Z",
+  "inputs": [
+    {
+      "role": "mesh",
+      "path": "inputs/implicit.msh",
+      "source": "upstream:test/test_model/test_solid_mechanics_model/test_cohesive/test_cohesive_intrinsic_impl/implicit.msh",
+      "sha256": "2e8d55df46af57456c366c088fccd430969bfde852531ce262b31c3146dbaaca"
+    },
+    {
+      "role": "material",
+      "path": "inputs/cohesive_probe_implicit_static_linear_triangle_6.dat",
+      "source": "probe-defined",
+      "sha256": "d592e9e123d22cbec50a7ebc99b25434081ceb428cecde0d2022ce102cb887ef"
+    }
+  ],
+  "parameters": {
+    "law": "linear",
+    "max_step": 200,
+    "random_seed": 7,
+    "nb_cohesive": 1,
+    "step_digests": [
+      "b6270d190b360bd4a972915d3bce5040257614fe57f774d21bdc9c4885e17605",
+      "3b95526f1093acdca9d219ba93e88cc0220c17c19f671806e45ff302b455d301",
+      "81f5faefd80d6fae930917632a7405212c3a0544949fd335fe215d9252a90592",
+      "669c1664e300907abe435910fbcb790c63928ae116f942ae8fa414a2233f26fc",
+      "94f2aed5fe9969f3b828880eb99a4fcd5e7537cd0b3ab83632878979ccd1ad20",
+      "f3e654f8cd35d36427f3f0cb21962ac8f83c50ee0e427b68d046ca255bfb328e",
+      "803f564dc3f3ad84d7c9c96e2e6488d875a95bd78a9a61deb870f3f571532f91",
+      "abed6ad97863451dca68f4a2c781b9fef5574fe1239dfd50f88e7166bad2de2b",
+      "0b183c3a1c519483daf4c56f89e48b713441d964570152da8653c31c5bffbc46",
+      "b642b6e9be45f80d7c1d2cb7989112fd12ce7d12058ee6081b4a886f43929943",
+      "b6e49f69723c59785dc925faa40918fb04e8c440e2e6d975dbd8b354a65d35ff",
+      "223eeafb54c1a36882b04120ca93ac78a116487f3d118108a85cbf7691409f39",
+      "dfe314f24cdee0f9e38b7a8bd8c3434ca4dea6be9135628295285a3888122d55",
+      "3dfd3f6d1ba1e891f1bdaedfc31ed5d5ad0425a6ec005e86591ce2e41b151cd8",
+      "96e04b8ebb0f5f41732bebebfc6d198d3dabe740302aae4430ccf11daa66f0e8",
+      "50902e1db0c4b0687fda08926d45446ff82698a60f4a18e6ee880b027d4513e6",
+      "b464ac439dbf1c558cd4c36aaef6f48203cc306750c127197c6aae918c8a5278",
+      "bc6a9a558dfd90cf7781290262f042ad7b939171042fcc05c3b8faa214e890bf",
+      "650f0f0cff60890e6e2ef99d8d129ee0f25addf1407db3c78376320ceb68789c",
+      "0bc705230a2a10760dd915013f13b2c9257dd9f890aab682b259526959c03f2c",
+      "64175e4d692fba68de60c7691473f4bf19547bb28c51e415ddf71828504aa133",
+      "25a08d781bf0db03792a2b5e617df2229448ed547f344057bd5f36855e3c50d4",
+      "81da799860c35fce7c6f486c7204a1bc03f0020e29b84e71c0dc0d6cf7c45e88",
+      "ae9411d9b3f3461cc3064dd94cfa13d59432ddc234020c79e02253fc647a6c57",
+      "a01061ada89adab7afcb0b7063889afd75b56cd8ad0139df1fdd32814fdb6e04",
+      "71bed5a449fc10b65ca5a4049021a69cea208af41553534c8e9edc95f1478240",
+      "b217899701751b8f534acbacfeca6dbb1d9f7a1d89b83e4b91c3754988abfadd",
+      "20dc46a3471644a8171aea60c9dc3fa6b4007ba15327db4512b91dbd2a278acb",
+      "751e3c718b0a9e396c2d0d4f2839c28ac3aae6ae01bd9d2574eba7435f7c0b23",
+      "1b2bf8e518a424729fdce0614fd6252c91878d4a7ff57bfb0336185d5e952404",
+      "97b064f5957a2250b60e8092c625cb0df24ea620b452ca9a80fc1da825a9143a",
+      "db389ea0c19c25303b2f7e9c3ea8415e92bf2e4e7501ebe214b2a2052815661a",
+      "24c013a1154f9ac37ee39c814db09c9fc4bcebbe5d3ab3a7131b2b932b494f9c",
+      "7da9dfac50e118094b1979bb8d0677be132842dc388958389401ae9e049ada1b",
+      "1d58e1b31e86c7a4187f10129e23a8350d8b741bf8f7131928914ea84b3ba45d",
+      "2a5a184b3ca1b405147c0a67b8f282b84f6b5b38dbd3ad05c9f85d6feb702ecb",
+      "7f021c2bf9af2440dfde1e0e1228e0de96af2b75de6d2905b935c8437ae383f6",
+      "4de38ff3b5c4efbb7097743a031ed09bbbb1194889cfa2f7973c40e78fab86a6",
+      "fede91024a0e1cd0ddac930548b662e13e00d4aacea008b8137cebfd6f52831e",
+      "51da8cf093d63faf5063c4bf1058698108452a9760693d718746609a4b0899fe",
+      "36694e6ae300298952a5a08dbc59f84c4a7c51ad5b165795a35b1c3a1aeec486",
+      "9e5cb4c0d05a58e61354c896d2a08ce3f3f080ec23c2dc90c0fc4efccb60c897",
+      "1c06593c2191fbdc904aba7cbfc62f232a75a0b0ad4bd1c3629fd07241a84fba",
+      "4fe5da93896b2d3af7b84072102a4da7aef30deda7c72d4932ff7dc3a08a887c",
+      "79f09b721823a07ec5e875759813e8b67ec06b4e36b17b2b7f21cbccbec49604",
+      "22f786e8d375ee41b801dd3353d701bb4673feaae87080f6df4f03d292c5d03a",
+      "7c69e33be0785c5f77293fb9599459ab1fb86ca48e393cb43d77d880a2d252da",
+      "9685e62d69d312d36211b563c0a0eba3c31346539dc25c4bc7386255ff704068",
+      "49d6d5aee1395e38248b55a58d09a1882047eb0bb2f886471c9f6c2c5eb2b9b5",
+      "c893cd20194510f6fec1903a8fa0e872240b68335c5559f404a07712dc2db3c5",
+      "7e48b5099f12fd5d31ff53b359a46733d3dc9dde16ab4d52d77f430ae7249b26",
+      "fd68e88099f6c943733383b0c89bb315eb6a9ac8c196b21fed2b38a0d082c7fe",
+      "adaae37696d82601fc33711f31ca7734cd219b3a221469a4db8f5a504b28a07c",
+      "5ea698d53cab5f01d0bca1327dad4559ac76920c3273669490131a42cd4622fc",
+      "99cb211ca5163894cf094a88024b32051e9b23f7ab807cb64846c0f3399ca739",
+      "363257ea54a82bcd9b746645ac60cef15ecfb43772415c34287e1aea99c14140",
+      "0d4dde0ec2db6a7c7104108a5633e6e82e2262f6f47014806128ffce486fa79b",
+      "d3cde95e20e505b73eecef468fa637fba7676dfcc3a7ffd878733e46824798c0",
+      "08f36956bdfe298c7cfdc6ddbd438039fee4b8f5cc48869bfc30cbcd0906d4a7",
+      "ecdcc3ca83fcbdc9ffbc9a8c0f95db9f947a362d46e2ed62d1ec452801afa606",
+      "5246f5df2e40f61449efda1df346fe3e53a6d95b5fa07091c1708e7c8cea2c78",
+      "6015ede041300862ecf506926b3095529484b687fb356d574088208ecf833122",
+      "63113448aaef4ab00ff3cc97b0d3215bd04b205345d7d4ed2aad3498757f087e",
+      "d8b823421499edd2acd2de83bb94bb4b080f39318df49c9dfebe9470d488214d",
+      "70a3cc3a9247089a2e9605cdefe46dc12bbcf011114aee2b89e640e2cae7fb5f",
+      "98637b73a8d6a21a74a6990dcb28b14b4d9d7b69c682b32a38b1bd96cff1e6a9",
+      "4f9f186abc6d4b0974c89dc25bf4e20f0414a6d19b1326ac0efc4ee05b57a1e3",
+      "72df60b778880646c61a9738f3a1a1eb679184b2c511cbf2b3f4f53bd29190de",
+      "cb46ed244535704cf26b8233b28ba6a9045ce8551f79881ca1ce5c7ddec6c02d",
+      "dd3e44150b0b349e211634ad49450d9a27b64cdb8217d284ff142a2c4cfa5530",
+      "052d594a2620ecdaf5c9e074b8948f5442c6f89fa212f48d4dd5cf8bc767e299",
+      "a68a98928a0868e7087337ed7cf62c2789ada1e7ebc9b57b306aeac16f164c87",
+      "440fa692d3f810fe56441902d19d00b37a744dd877b042015518eecef395e24d",
+      "9a6b908c121d41d1cb32562f8e116d1c2fce9bff0f3f47b7c3ee021c57fadb08",
+      "fd39c1de825b09d191e5c3e35c6c4938342ef0df49cec38a64bccd6d4d63f2a8",
+      "25fbc22e1e26b7f7d9d25fa4532d3016b7b1377533b428e45ec828bd1805cae3",
+      "2fda92c12c2c13c64bd61edb6dd090d53cb359375944f79504202d12f1af4029",
+      "af9d37cbd26b2631a1913f68f54f2ef98378830683580c0408458a3aa8227964",
+      "0b90f3e94d0cece8bcd7a3ae430349852be08eeef469a764ad463ad67d4af1a8",
+      "f269c99ab5fb5d40f6e30ef7dcd829cfdb0b0be63fae84c1b371c095c0bd0b28",
+      "8f7a8a4b52b5fdf019caf55af9d64b7285d4c2d8e8a94047823f85888a2ec42a",
+      "614e4ba09caa89df941891adb286843397dfda381f03db0e5f35f7822f8f5584",
+      "c37a52a24ec74a83728ab8036aece5dc726a60b91587b97486d71f37daf4adbd",
+      "10d9ea4f218311ed6bdd25071d8fa0540d0b9152d4a0f48b2bb17bba4dffae18",
+      "a39e8794b16ba57c212e477bc566017e0f0756626f466e3c9ff9f9b4a52768ab",
+      "c62365d073a9c3069e1efca74ac911890617a71da6f53f2851d54d0092522120",
+      "9c72b4bc15d919c4f47dbb41a6edc406f2a09eca8e1f3e3f5746f262da59a2ec",
+      "2bad79f1e8c385b4b9134f9aff48ff9273b5eb36dfa47fd12fbce436590c4edc",
+      "64d24f3f483d45b636a2c49f92922e5ef9d5994c6f08d70fd9b566d731e5c56e",
+      "2b53975b60ee88d79be161dba3c9bc084e673d8548888015b4f8eac1e675c4d0",
+      "8004414709297f7c3739ab4842cb4ffaf62c06953bcd45b14fa5d9ceb8e43147",
+      "3d17653161ca0a18d84cd73fef0a5da4438cf87c00ce979b1fc02d71198bb893",
+      "e6fefb4df8926ff561528824a3c3d6b7bc4c32189b8e0f625fb75601b59fffae",
+      "ea77103c9015c084780f7805602c3e6c1bb51b86ed14be77dbbd738ea88cc6a0",
+      "8f2c21547bd74cb4458c0c2a196462564bd96141678175077cec393552fb46b3",
+      "31cba4e7ced6f2d16c58a36622dbe350f13dfd473ef664319d07fc7451025e96",
+      "20e777f51bef322056b8f3aee3835e016b046ea487270dd2af593e69465c8511",
+      "c7ee43582d9a80ebf7411d436e6e8b813a6ed571ab3c1e60945a18cc2382e54c",
+      "f2f0703d51938ffbb6eafc90a933c31ad5fe6a85b6d6352bc0cc1aead373dcf2",
+      "2a332e7bfc567cff2a90a76b1eba5449e574ea13e6d110bf2fc66759f39b9167",
+      "ce02f65eb452b6ee49260c2f0a0301d88e59b045b9ac817b037606b63ea2cef9",
+      "c779cef797b2c4bd2d1452dfe9ac3ca3f7686b019150909e96f994040b64e9e6",
+      "50bb29fcb34c0f04ded6e2b944c354d6de068d4d056cb59a73d8361b8c70e10d",
+      "9377986db3b28cc1995add184fa9c4293c4199b02d4a19d9570811988c14378c",
+      "6851b2b53bbe6dbe08b229a7518c4a38e3a18f684128ad2f8b2ebf73c011c421",
+      "ef834bd885b10907c72e4048307ae42bcc7f74520132c032e792f2076318845a",
+      "c275628d56cd3a62e44b8d7641c1254af98f428085a70df697ed50514a9e6f31",
+      "a2e3d570e226d648e00bb5106cd8ca68c4aa3cf3bfab954924eb46db17d474b0",
+      "ba0aa75bb3767920b626690c096ee7499623ce0244650ff42b310a7112c9c270",
+      "d7e4be08587665482f92787e3c93f0f3d8b9d25aff83657b486906d4dc381aac",
+      "20a4af67187eb05bf834dd6b2d0332e034e6b0f249e2a282a2267447130e14c5",
+      "e2b1c634525c2687fab1a3e380df90f8a1e8fccd22ab6386673ca4573f0ebbc8",
+      "1dfd3c80653dd807783892ea5fb2562f579b3e9e9a04b0f017b3d53db61b5abb",
+      "d4d6075440706169925f5c4fa61a990bf627cfdb279a4ed5b6c923d26f2b0299",
+      "767686628faa600ec37661019346be78f8056b8833ceb3339b89c7f4ef79ed0a",
+      "3b26c9787e83749baeb054e25836b159295fc2d2278f417bc5efc740f0f02870",
+      "5e05d621f21184df21047dfc95be924e87f4c7d4514ada0e84dccb4141819edb",
+      "f8952f5595c92d1856629d0e3b25295a3023f71a12f3b2085cd1a6878f5a0bab",
+      "1555ac513d5312c6acc7f8dcef7a383eb92a2595f6e79673613f2d59eea6aa94",
+      "fa85fd36c1290517b79462ef0446c5d28c37353597f240565d68e369103a3bd0",
+      "51d51e121adbcc9b651befd2422a0ee1a855798964615414bb9bf4fe6fbf5b3a",
+      "b9e722e6b181811ab5e31ef6b3add596186afee3c7b1951ba783454b34b6dbe4",
+      "fa8949d3c5a1f9363169744da6659319094d6091582d8bd9d68c5b91216b2b49",
+      "522d8b786bbe65bd2e78010fbcd75f3ae4f736958d600da02d832925c3729d73",
+      "47cac9bb18e8f431ebd99b7dd9951db1ea9cd866587bcecbd24b9ffabc46da14",
+      "a6ea0de478fb1a7e007ae764ecee5e8fd2799414cd0421e0779c879e2fd93b47",
+      "63b0ccd47f3a464bd4f057fd02d61d1dbad1816f551775a58c5e1a3588cd4b5e",
+      "21bc6e38ce55749f1a3be431bcf693309c315860c0ad058bd7bdf585806c698f",
+      "b0edfaecb17214b431390fb21b309e48cdb0de4f83a02e31d261290dd21bb2e6",
+      "f025b39e706ba374e4c5c9cd31464b063d1ddfca109b946363fddfa3ecc0454b",
+      "84ffd5f37bc78ed2e304bbd4c17e7f5b1138cd4674bbfdd8d7254a4ed150ff06",
+      "34d00e86339d72d22b68cb18d39373afbd1061e1420320a9fcd8ca06f7e054f2",
+      "dbab8b58f14c2069ab368e80ed581a5997e27ea32141f54ffe7c7add4b343b60",
+      "280c702df1104cb74ef7142e435c380f522954048291d520454e98f3d47a665b",
+      "fae2b46f5cb73e5ea0243b8709a8ce6f8ba049b9ec7410c4aa2fa62c70dd4d9f",
+      "6b059240161cef9b4c7a86029f6a68cb7dabc2921cadbcb31ffe5f591487bee4",
+      "ee7fbe1c1f3128481c063a1ff231de3c2445216048180e6e477399d3fb7c3391",
+      "6ee8d628238491941a5ebcdcef1603980b8ef99769034cec239aad0280fb506b",
+      "4667970f1dc83df1892715989e53a3f5e1e712738f381a19fb7663d6a1f64e04",
+      "77dc1d18ccfbe6a013b49ac8f06e50061b92e3bd07202feea0d91b82210e258e",
+      "dd6a42fba805b879b651a25a2f73faeae8551c3f3160b79bd901e3986128372a",
+      "1d4f1a6574aeda30b2cfa45bafeb4daec0e45c2f2a3dc941238b4cc8d17c2287",
+      "d5eed0e50f018f6103976d5d8bc93c9a509d11d8ae17e051c8f3cd69acc2cf7d",
+      "6f9cd1dfce932571c2cf4964e21381311d304f2c7dd5051499433aa8aa352ad5",
+      "22778f0ef479d63c44ad1e8246976f02231de8176fb8c156477439b0f7c67bf8",
+      "a6a7c81f644206774b889c644a165f9eecb2be89e9684039dd860665905a9c92",
+      "445676a2dcc07e80d3a732b2fee29f18c0c436f1c88be72467a2ecbd8048c22f",
+      "a5066c38b63039ec929e7c340a978065d799bc225c98a88cd2e3ebfdf29ea19e",
+      "f47c6832b33fddb9b557dde90d188f1792857c3df5c7b2ff3d039fdb285ede19",
+      "988d7db8bc354826c46fe79c34e3e54288d5390772bf92ef16da432b4a15c5f8",
+      "c575c53b56f6e4964e64f83e5a8cd46fccd24aa7a22e3a7ea3f11a581b940ba8",
+      "def76cead06ce94301d4661a16aeb0206979d782b518645e9044c451a7422eab",
+      "60d52c0b704932ac645ebfb3d76f4a9856908b4c3071efea61bb56c41d2ca844",
+      "4784a289d3c1190f20c24c90088f5ff75c50ee8d5ed429a7c25d0e63cbd65302",
+      "1bdb022bbef0cc3b4f1d5dfbb24188765fa4216c7f9332d11ead81399c01201c",
+      "42222ad817cd78d0b7e9a22c5143c916dc8106e25c087273613d94a23386eab9",
+      "ccae924be93c0b2d928a1647900fcbc7c4597a7780832810ae3c768054f1293a",
+      "bf0a277321c325abdfa829fc8d2c3db1fef71e81d370c6fffcf500eb3fb5b064",
+      "29c8eb0f8c3bd14faa963af491cb5d6831a4f9e77f2e64ba46973322f711ddec",
+      "3df4b68479c6203ecdbb46c1a3c1be95d4a5f0443068b7d9d75dc8f358ffd116",
+      "f71a5afe8ab5c8fe73450d4ae869de4f58b04892fc57d7e1e09f692b53bfc804",
+      "f5a80a7639dce2007069f4dabe7853aabf173483a53ef8b4a88212d50646b3b9",
+      "0a07f080294a8afe8e1948dafdbf04a64f7c9f376c1ed80f4d30c1b1f1d8b454",
+      "f9742fe776054f45a1cb1bbd6e3e639c369210bbecf068942466696b510e0594",
+      "bdaaa9733d438260768283a2b3cd8ecf1a049e4459617db052ca5ccd5e48b820",
+      "1a11288c4b02d08a10cbeea5c294490e2a842bfc6cc261891095603dd10269ab",
+      "c4af4a80186dab0eea7a5e940463e7d2cfda502b3561ce8a6f5d598ee099261c",
+      "75ffc853198a42c11a706c1c5eeb8863b7a8b1e21069b6aa16fda5ffe035a7d8",
+      "c544c4191e32b428e4706fdaa84614e541bfd9fdfcaf37311102eb6383c54e7c",
+      "138037dd5ad258df1136d8862dc696ff38e58a64d57ae2f989c2994498648956",
+      "070f5f804e48bdbaebbca239c88275bf75d9ba5b3438c1dfe561b0c21a0a9b30",
+      "ee2c0281f7bcd681504e9490efb2d910db8e6a49f3b1b26a051dbc78cccd5226",
+      "9aa27a730c189657a4d2952de386c694dbb7f2fe2d63bd92adb77443e98ffe05",
+      "9652f6540ddd45aa441d17cbb7de410461826fb405b3c07666281ea71369cf91",
+      "bbe3b598a359db81feeb8320a42e9fe07db267e7cb85049fb533bdad8bb3df17",
+      "4e8414af46625cb5cb29dbf2a126a20946377e0bcf33c82200af2b234f9d5a3e",
+      "a2c64f09ec33614631e0eba8379e239111823e9d3e7a906db0c78dc486f6dc52",
+      "c93cf1e4ccde598632a106fbd5b75f1d9f523a23a1064d33aef56fce72f34b70",
+      "905ab991fe9dd8f81131d0e4b1331760bbddd90ef65be9f3f6e4b0c6ade6bbf7",
+      "fe591e08cbbe3c9d1fe62e0b1b0260225cd03b31a101723ca3006260c6e80376",
+      "09994c93eedc060bc7a5d1a35313348d64e5d6de945caa0f91f222ee8db996ed",
+      "22fd1352239fc4717ea403e2a03f3028caa87722a8cf79813b18e6886219ded1",
+      "949acfa10c0811647397e4749caabbe2f9370aa025be3016bd582df5795db37a",
+      "15ebcd9b42e1072a191243eecafd4738b90100c81355948b7951ee2efbe33db9",
+      "aab216fa8b3a40be701740b158a241d46d5596792245dc45fc505f23e708edde",
+      "36f4a7bae2e236f7494bc3ba3772a671d3d38b9f600037021d35cc0dba5d7f4c",
+      "b5b08f592f78c527cd4cc45115d3970519f4ecd278cf35ef33264b4502d40492",
+      "66bd64ddf70216a5943116094e58bb49367786b184d6cf0f4b1b2ea7c3dc274e",
+      "7180c4d1e43fc21afaf5e3afd4e078b9cff96c4d4e06f31de6636faf2be9c873",
+      "a7ac51ac497c87dcefb64a8a8623ba68e4d9f2720426b5d81d20198dd3ed0449",
+      "9426f1d3a9db8ee9a5db8016bf6f47da6a5c261b3d2c56f142d6260f01f40e99",
+      "946e0f33163353d5f5ef55139c28c90dd93d7516ef6933f5a6443326dc6a9f4f",
+      "6a33fae8b6652650424cf23a9a0334bfa105b9cb75a957b01343f0917145345b",
+      "cbff09ef83768081f8e124873f8bdad0e7c6c9b44c1499542eef8c3d707829bd",
+      "467c2eb3d97436738e8441fa8e0b22dd0d9b5f0ef84b9985f605abaa19eb6a40",
+      "5aaf918f683a3542688de2ef2b9de24a9f2a43b789ddfc5275f2a155d4688d19",
+      "31929f0fca24829fc5201b37082bc2825bbdd0378ead97d07b123fd5f756c59c",
+      "d74f65d4398bfcb3709e2ff47ad2eb4701ba86b87af6b2f27dc67f75c4c73392",
+      "ec5ecdf266b1d720a3e9bf55dfeae28c75cdb696ca12e15ec5ab85b26e28fe39",
+      "c0fdf4014b0aa67073356e7f76dec05b5bf65f45e762b5e520d3616f1e6793b2"
+    ],
+    "step_digests_definition": "SHA-256 of the displacement after each solveStep",
+    "K/symmetric": true,
+    "mesh_types": [
+      "_triangle_6",
+      "_cohesive_2d_6"
+    ]
+  },
+  "storage": {
+    "mode": "committed",
+    "bytes": 18508
+  },
+  "quantities": [
+    {
+      "name": "steps/nb_iterations",
+      "file": "data/steps__nb_iterations.npy",
+      "dtype": "i64",
+      "shape": [
+        200
+      ],
+      "axes": [
+        "entry"
+      ],
+      "layout": "table",
+      "sha256": "58e097de5948d843cc4b3e67a78e71cd3ab5ac0a0eee0ca3cd6f5771aacdfaae",
+      "description": "Newton iterations per step"
+    },
+    {
+      "name": "steps/error",
+      "file": "data/steps__error.npy",
+      "dtype": "f64",
+      "shape": [
+        200
+      ],
+      "axes": [
+        "entry"
+      ],
+      "layout": "table",
+      "sha256": "c5ee2043b432c6ad0882308be225a2cc55232689e270ecf628ad3c9871b160fb",
+      "description": "Newton error per step"
+    },
+    {
+      "name": "steps/top_reaction",
+      "file": "data/steps__top_reaction.npy",
+      "dtype": "f64",
+      "shape": [
+        200
+      ],
+      "axes": [
+        "entry"
+      ],
+      "layout": "table",
+      "sha256": "4fc7fefaf1f605bbdb16aac0ff7c6fdbfb9d7f0c4ecbbaac29b898b2f1b01f7f",
+      "description": "sum of internal_force(n, 1) over the nodes at y = 2"
+    },
+    {
+      "name": "steps/opening_0_y",
+      "file": "data/steps__opening_0_y.npy",
+      "dtype": "f64",
+      "shape": [
+        200
+      ],
+      "axes": [
+        "entry"
+      ],
+      "layout": "table",
+      "sha256": "d6b3a19cef66a643f5a1da465cb06d332847ab50b1981c3b343822bea7178490",
+      "description": "opening(0, 1) of the cohesive material"
+    },
+    {
+      "name": "displacement",
+      "file": "data/displacement.npy",
+      "dtype": "f64",
+      "shape": [
+        18,
+        2
+      ],
+      "axes": [
+        "entry",
+        "component"
+      ],
+      "layout": "table",
+      "sha256": "8874fb1e1a9b0d0ce27497c7b1d01a8420d5b8678675545fcee221c5dc5c36b0",
+      "description": "final displacement"
+    },
+    {
+      "name": "internal_force",
+      "file": "data/internal_force.npy",
+      "dtype": "f64",
+      "shape": [
+        18,
+        2
+      ],
+      "axes": [
+        "entry",
+        "component"
+      ],
+      "layout": "table",
+      "sha256": "6e1ccc1e9906974eba82d568be1354bfa03d790271aad54bd8d549c069ae87cc",
+      "description": "final internal force"
+    },
+    {
+      "name": "blocked_dofs",
+      "file": "data/blocked_dofs.npy",
+      "dtype": "u8",
+      "shape": [
+        18,
+        2
+      ],
+      "axes": [
+        "entry",
+        "component"
+      ],
+      "layout": "table",
+      "sha256": "7f89cfe53e6aad30c261f35e17f96dd7ea12e814d7ed4edd7fdcbb072de7535a",
+      "description": "blocked flags"
+    },
+    {
+      "name": "K/rows",
+      "file": "data/K__rows.npy",
+      "dtype": "i64",
+      "shape": [
+        306
+      ],
+      "axes": [
+        "entry"
+      ],
+      "layout": "table",
+      "sha256": "501934c2bc561e2d81a429d373de32bc3956a3516d004918be9f48acb9f39aad",
+      "description": "SparseMatrixAIJ::getIRN - 1 (storage order)"
+    },
+    {
+      "name": "K/cols",
+      "file": "data/K__cols.npy",
+      "dtype": "i64",
+      "shape": [
+        306
+      ],
+      "axes": [
+        "entry"
+      ],
+      "layout": "table",
+      "sha256": "60061bf930d0c12d6de097659983bcbafe965f7919df3b1662c46a7d67d58264",
+      "description": "SparseMatrixAIJ::getJCN - 1 (storage order)"
+    },
+    {
+      "name": "K/values",
+      "file": "data/K__values.npy",
+      "dtype": "f64",
+      "shape": [
+        306
+      ],
+      "axes": [
+        "entry"
+      ],
+      "layout": "table",
+      "sha256": "a3b2771d946d349d3bb2e32494159deef1a4591aac4dd50bc093c0403c65fc44",
+      "description": "SparseMatrixAIJ::getA (storage order)"
+    },
+    {
+      "name": "material/cohesive/filter/_cohesive_2d_6",
+      "file": "data/material__cohesive__filter___cohesive_2d_6.npy",
+      "dtype": "i64",
+      "shape": [
+        1
+      ],
+      "axes": [
+        "entry"
+      ],
+      "layout": "table",
+      "sha256": "f6df0000bed676f0a4b777e2a1d915b6608dab452e11737f82c685cebf0e8ba7",
+      "description": "element filter"
+    },
+    {
+      "name": "material/cohesive/opening/_cohesive_2d_6",
+      "file": "data/material__cohesive__opening___cohesive_2d_6.npy",
+      "dtype": "f64",
+      "shape": [
+        2,
+        2
+      ],
+      "axes": [
+        "entry",
+        "component"
+      ],
+      "layout": "table",
+      "sha256": "389413fc75758eda157f292212410596c85f2587ec60e3fc4b5ed2a1eb1333d1",
+      "description": "internal opening"
+    },
+    {
+      "name": "material/cohesive/tractions/_cohesive_2d_6",
+      "file": "data/material__cohesive__tractions___cohesive_2d_6.npy",
+      "dtype": "f64",
+      "shape": [
+        2,
+        2
+      ],
+      "axes": [
+        "entry",
+        "component"
+      ],
+      "layout": "table",
+      "sha256": "7f23df45f96f5c4c013a1fd754eb49fe33ff5d113c6464ad649a1e15a79f0ab5",
+      "description": "internal tractions"
+    },
+    {
+      "name": "material/cohesive/contact_tractions/_cohesive_2d_6",
+      "file": "data/material__cohesive__contact_tractions___cohesive_2d_6.npy",
+      "dtype": "f64",
+      "shape": [
+        2,
+        2
+      ],
+      "axes": [
+        "entry",
+        "component"
+      ],
+      "layout": "table",
+      "sha256": "7f23df45f96f5c4c013a1fd754eb49fe33ff5d113c6464ad649a1e15a79f0ab5",
+      "description": "internal contact_tractions"
+    },
+    {
+      "name": "material/cohesive/contact_opening/_cohesive_2d_6",
+      "file": "data/material__cohesive__contact_opening___cohesive_2d_6.npy",
+      "dtype": "f64",
+      "shape": [
+        2,
+        2
+      ],
+      "axes": [
+        "entry",
+        "component"
+      ],
+      "layout": "table",
+      "sha256": "7f23df45f96f5c4c013a1fd754eb49fe33ff5d113c6464ad649a1e15a79f0ab5",
+      "description": "internal contact_opening"
+    },
+    {
+      "name": "material/cohesive/delta_max/_cohesive_2d_6",
+      "file": "data/material__cohesive__delta_max___cohesive_2d_6.npy",
+      "dtype": "f64",
+      "shape": [
+        2,
+        1
+      ],
+      "axes": [
+        "entry",
+        "component"
+      ],
+      "layout": "table",
+      "sha256": "c7c4cf6d56d405d0a87ffe08ae5a5a7551deb282fd493765db3de8c28892abe1",
+      "description": "internal delta max"
+    },
+    {
+      "name": "material/cohesive/damage/_cohesive_2d_6",
+      "file": "data/material__cohesive__damage___cohesive_2d_6.npy",
+      "dtype": "f64",
+      "shape": [
+        2,
+        1
+      ],
+      "axes": [
+        "entry",
+        "component"
+      ],
+      "layout": "table",
+      "sha256": "43e49631ece3248ff09e7aa1416c69a45b178e9cb73de9a8692aeebb55b31f2a",
+      "description": "internal damage"
+    },
+    {
+      "name": "material/cohesive/normal/_cohesive_2d_6",
+      "file": "data/material__cohesive__normal___cohesive_2d_6.npy",
+      "dtype": "f64",
+      "shape": [
+        2,
+        2
+      ],
+      "axes": [
+        "entry",
+        "component"
+      ],
+      "layout": "table",
+      "sha256": "3132ec6e8ba56c3e53c57f010258bdcdfab9e04ea89f183023c481bd38cd7c14",
+      "description": "internal normal"
+    },
+    {
+      "name": "material/cohesive/reversible_energy/_cohesive_2d_6",
+      "file": "data/material__cohesive__reversible_energy___cohesive_2d_6.npy",
+      "dtype": "f64",
+      "shape": [
+        2,
+        1
+      ],
+      "axes": [
+        "entry",
+        "component"
+      ],
+      "layout": "table",
+      "sha256": "8715558a765cefee32f7de88f3c2a4a9874705d156cb3324c8dc76c81b0b01f7",
+      "description": "internal reversible_energy"
+    },
+    {
+      "name": "material/cohesive/total_energy/_cohesive_2d_6",
+      "file": "data/material__cohesive__total_energy___cohesive_2d_6.npy",
+      "dtype": "f64",
+      "shape": [
+        2,
+        1
+      ],
+      "axes": [
+        "entry",
+        "component"
+      ],
+      "layout": "table",
+      "sha256": "8715558a765cefee32f7de88f3c2a4a9874705d156cb3324c8dc76c81b0b01f7",
+      "description": "internal total_energy"
+    },
+    {
+      "name": "material/cohesive/sigma_c_eff/_cohesive_2d_6",
+      "file": "data/material__cohesive__sigma_c_eff___cohesive_2d_6.npy",
+      "dtype": "f64",
+      "shape": [
+        2,
+        1
+      ],
+      "axes": [
+        "entry",
+        "component"
+      ],
+      "layout": "table",
+      "sha256": "8715558a765cefee32f7de88f3c2a4a9874705d156cb3324c8dc76c81b0b01f7",
+      "description": "internal sigma_c_eff"
+    },
+    {
+      "name": "material/cohesive/delta_c_eff/_cohesive_2d_6",
+      "file": "data/material__cohesive__delta_c_eff___cohesive_2d_6.npy",
+      "dtype": "f64",
+      "shape": [
+        2,
+        1
+      ],
+      "axes": [
+        "entry",
+        "component"
+      ],
+      "layout": "table",
+      "sha256": "2ae76f339d75bcce6df7a878ec10980c51297eb0edd72d8b3fe5b350a4875718",
+      "description": "internal delta_c_eff"
+    },
+    {
+      "name": "material/cohesive/insertion_stress/_cohesive_2d_6",
+      "file": "data/material__cohesive__insertion_stress___cohesive_2d_6.npy",
+      "dtype": "f64",
+      "shape": [
+        2,
+        2
+      ],
+      "axes": [
+        "entry",
+        "component"
+      ],
+      "layout": "table",
+      "sha256": "7f23df45f96f5c4c013a1fd754eb49fe33ff5d113c6464ad649a1e15a79f0ab5",
+      "description": "internal insertion_stress"
+    },
+    {
+      "name": "mesh/nodes",
+      "file": "data/mesh__nodes.npy",
+      "dtype": "f64",
+      "shape": [
+        18,
+        2
+      ],
+      "axes": [
+        "entry",
+        "component"
+      ],
+      "layout": "table",
+      "sha256": "2d746d53c8209d834d5e526b71916427a2c4c39656161ce40e0808f60484c51c",
+      "description": "final node coordinates"
+    },
+    {
+      "name": "mesh/connectivity/_triangle_6",
+      "file": "data/mesh__connectivity___triangle_6.npy",
+      "dtype": "i64",
+      "shape": [
+        4,
+        6
+      ],
+      "axes": [
+        "element",
+        "node_local"
+      ],
+      "layout": "elemental",
+      "sha256": "9520ad03ded26521b0ba03eb5b61ad6368b44cde8058a8dd9aa80205c0178eb7",
+      "element_type": "_triangle_6",
+      "description": "connectivity after the run (cohesive elements and doubled facets appended)"
+    },
+    {
+      "name": "mesh/connectivity/_cohesive_2d_6",
+      "file": "data/mesh__connectivity___cohesive_2d_6.npy",
+      "dtype": "i64",
+      "shape": [
+        1,
+        6
+      ],
+      "axes": [
+        "element",
+        "node_local"
+      ],
+      "layout": "elemental",
+      "sha256": "1b935ac22b653722919722d68d54a2019998185e6f42fe2e2455a3e3b84de6cc",
+      "element_type": "_cohesive_2d_6",
+      "description": "connectivity after the run (cohesive elements and doubled facets appended)"
+    }
+  ],
+  "tags": [
+    "model",
+    "cohesive",
+    "implicit"
+  ]
+}

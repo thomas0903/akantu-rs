@@ -1,0 +1,93 @@
+# SPDX-License-Identifier: LGPL-3.0-or-later
+# akantu-rs: example runs of oracle/probes/examples/run-in-container.sh.
+# Columns (tab separated):
+#   name      fixture directory fixtures/examples/<name>
+#   binary    up:<target> = upstream example binary of the oracle build tree
+#             (/build/<config>/examples/c++/<dir>/<target>), probe:<target> =
+#             oracle variant built from oracle/probes/examples/<target>.cc,
+#             emb:<target> = built against the patched embedded
+#             variant (oracle/probes/examples/embedded/CMakeLists.txt, D-060)
+#   dir       upstream directory below examples/c++ (inputs are copied from it)
+#   inputs    input files copied from the upstream directory (- for none)
+#   meshes    frozen Gmsh meshes copied from fixtures/meshes/gmsh-*/examples/c++/<dir>
+#   ranks     1, or N for `mpirun -np N` (AKA_SEED=1, SCOTCH_PTHREAD_NUMBER=1)
+#   keep      output files copied verbatim (all, none, or comma-separated globs);
+#             every output file is also listed with its SHA-256 in digests.txt
+#   arrays    yes: also write vtu_arrays.txt (per-array payload digests of every
+#             .vtu output; no for runs with ~1000 dumps, whose files are
+#             compared whole)
+#   args      (optional) command-line arguments of the binary
+# inputs `probe:<file>` come from oracle/probes/examples; meshes `-`:
+# none (the cohesive examples read upstream's committed meshes, copied as inputs).
+predefined_bc	up:predefined_bc	solid_mechanics_model/boundary_conditions/predefined_bc	material.dat	square.msh	1	all	yes
+user_defined_bc	up:user_defined_bc	solid_mechanics_model/boundary_conditions/user_defined_bc	material.dat	fine_mesh.msh	1	all	yes
+static	up:static	solid_mechanics_model/static	material.dat	square.msh	1	all	yes
+static_eigen	probe:static_eigen	solid_mechanics_model/static	material.dat	square.msh	1	all	yes
+explicit_dynamic	up:explicit_dynamic	solid_mechanics_model/explicit	material.dat	bar.msh	1	energy.csv	no
+explicit_dynamic_full	probe:explicit_dynamic_full	solid_mechanics_model/explicit	material.dat	bar.msh	1	energy_full.csv	no
+implicit_dynamic	up:implicit_dynamic	solid_mechanics_model/implicit	material_dynamic.dat	beam.msh	1	position.csv	yes
+implicit_dynamic_eigen	probe:implicit_dynamic_eigen	solid_mechanics_model/implicit	material_dynamic.dat	beam.msh	1	position_full.csv	yes
+implicit_dynamic_eigen_state	probe:implicit_dynamic_eigen_state	solid_mechanics_model/implicit	material_dynamic.dat	beam.msh	1	state_sha256.txt	yes
+example_parser	up:example_parser	solid_mechanics_model/io/parser	input_file.dat	swiss_cheese.msh	1	all	yes
+example_parser_eigen	probe:example_parser_eigen	solid_mechanics_model/io/parser	input_file.dat	swiss_cheese.msh	1	all	yes
+new_local_material	up:new_local_material	solid_mechanics_model/new_material	material.dat	barre_trou.msh	1	none	yes
+new_local_material_full	probe:new_local_material_full	solid_mechanics_model/new_material	material.dat	barre_trou.msh	1	energy_full.csv	yes
+dumper_low_level	up:dumper_low_level	solid_mechanics_model/io/dumper	-	swiss_train.msh	1	paraview/dumper/*_0001.pvtu,paraview/dumper/wheels-VTU/wheels_0001.vtu	yes
+dumpable_interface	up:dumpable_interface	solid_mechanics_model/io/dumper	-	swiss_train.msh	1	paraview/dumpable/*_0001.pvtu,paraview/dumpable/wheels-VTU/wheels_0001.vtu	yes
+parallel_2d	up:parallel_2d	solid_mechanics_model/parallel	material.dat	square_2d.msh	2	paraview/multi-VTU/multi_0050.proc*.vtu	no
+parallel_2d_partition	probe:parallel_2d_partition	solid_mechanics_model/parallel	material.dat	square_2d.msh	2	partition.txt,paraview/multi_0000.pvtu,paraview/multi_0001.pvtu,paraview/multi_0050.pvtu,paraview/multi-VTU/multi_0001.proc0.vtu	yes
+cohesive_extrinsic	up:cohesive_extrinsic	solid_mechanics_cohesive_model/cohesive_extrinsic	material.dat,triangle.msh	-	1	paraview/extrinsic-VTU/extrinsic_0100.vtu	yes
+cohesive_extrinsic_full	probe:cohesive_extrinsic_full	solid_mechanics_cohesive_model/cohesive_extrinsic	material.dat,triangle.msh	-	1	energy_full.csv	yes
+cohesive_intrinsic	up:cohesive_intrinsic	solid_mechanics_cohesive_model/cohesive_intrinsic	material.dat,triangle.msh	-	1	paraview/intrinsic-VTU/intrinsic_0350.vtu	yes
+cohesive_intrinsic_full	probe:cohesive_intrinsic_full	solid_mechanics_cohesive_model/cohesive_intrinsic	material.dat,triangle.msh	-	1	energy_full.csv	yes
+cohesive_extrinsic_ig_tg	up:cohesive_extrinsic_ig_tg	solid_mechanics_cohesive_model/cohesive_extrinsic_ig_tg	material.dat	square.msh	1	paraview/extrinsic-VTU/extrinsic_0101.vtu	yes
+cohesive_extrinsic_ig_tg_full	probe:cohesive_extrinsic_ig_tg_full	solid_mechanics_cohesive_model/cohesive_extrinsic_ig_tg	material.dat	square.msh	1	energy_full.csv	yes
+cohesive_extrinsic_ig_tg_vel	probe:cohesive_extrinsic_ig_tg_vel	solid_mechanics_cohesive_model/cohesive_extrinsic_ig_tg	material.dat	square.msh	1	energy_full.csv	yes
+scalability_test	up:scalability_test	scalability_test	material-elastic.dat,material-cohesive.dat,cube.msh	-	1	all	no
+scalability_test_cohesive	up:scalability_test	scalability_test	material-elastic.dat,material-cohesive.dat,cube.msh	-	1	all	no	--aka_input_file material-cohesive.dat
+scalability_test_full	probe:scalability_test_full	scalability_test	cube.msh,probe:scalability_elastic_full.dat,probe:scalability_cohesive_full.dat	-	1	all	no	--aka_input_file scalability_elastic_full.dat
+scalability_test_cohesive_full	probe:scalability_test_full	scalability_test	cube.msh,probe:scalability_elastic_full.dat,probe:scalability_cohesive_full.dat	-	1	all	no	--aka_input_file scalability_cohesive_full.dat
+# the same variant with output_paraview = true (both dumpers, 52 dumps each)
+scalability_test_paraview	probe:scalability_test_full	scalability_test	cube.msh,probe:scalability_elastic_paraview.dat	-	1	none	yes	--aka_input_file scalability_elastic_paraview.dat
+scalability_test_cohesive_paraview	probe:scalability_test_full	scalability_test	cube.msh,probe:scalability_cohesive_paraview.dat	-	1	none	yes	--aka_input_file scalability_cohesive_paraview.dat
+# diffusion, structural, viscoelastic, phase field, contact and
+# node-to-node examples (stderr.txt is kept: the contact examples print their
+# energies there)
+heat_diffusion_dynamics_2d	up:heat_diffusion_dynamics_2d	diffusion_model	material.dat	square.msh	1	none	yes
+heat_diffusion_dynamics_3d	up:heat_diffusion_dynamics_3d	diffusion_model	material.dat	cube.msh	1	none	yes
+heat_diffusion_static_2d	up:heat_diffusion_static_2d	diffusion_model	material.dat	square.msh	1	none	yes
+heat_diffusion_static_2d_eigen	probe:heat_diffusion_static_2d_eigen	diffusion_model	material.dat	square.msh	1	none	yes
+bernoulli_beam_2_example	up:bernoulli_beam_2_example	structural_mechanics_model	-	-	1	all	yes
+bernoulli_beam_2_example_static	probe:bernoulli_beam_2_example_static	structural_mechanics_model	-	-	1	all	yes
+material_viscoelastic_maxwell_energies	up:material_viscoelastic_maxwell_energies	solid_mechanics_model/new_material/viscoelastic_maxwell	material_viscoelastic_maxwell.dat	material_viscoelastic_maxwell_mesh.msh	1	material_viscoelastic_maxwell_output.out	no
+material_viscoelastic_maxwell_energies_eigen	probe:material_viscoelastic_maxwell_energies_eigen	solid_mechanics_model/new_material/viscoelastic_maxwell	material_viscoelastic_maxwell.dat	material_viscoelastic_maxwell_mesh.msh	1	material_viscoelastic_maxwell_output.out,output_full.out	no
+phase_field_notch	up:phase_field_notch	phase_field_model	material_notch.dat	square_notch.msh	1	none	yes
+phase_field_notch_eigen	probe:phase_field_notch_eigen	phase_field_model	material_notch.dat	square_notch.msh	1	state_sha256.txt	yes
+phase_field_parallel_np1	up:phase_field_parallel	phase_field_model	material_notch.dat	square_notch.msh	1	none	yes
+phase_field_parallel_eigen_np1	probe:phase_field_parallel_eigen	phase_field_model	material_notch.dat	square_notch.msh	1	none	yes
+phase_field_parallel	up:phase_field_parallel	phase_field_model	material_notch.dat	square_notch.msh	2	none	yes
+phase_field_parallel_np4	up:phase_field_parallel	phase_field_model	material_notch.dat	square_notch.msh	4	none	yes
+phase_field_parallel_partition	probe:phase_field_parallel_partition	phase_field_model	material_notch.dat	square_notch.msh	2	partition.txt,state_sha256.proc*.txt	yes
+phase_field_parallel_partition_np4	probe:phase_field_parallel_partition	phase_field_model	material_notch.dat	square_notch.msh	4	partition.txt,state_sha256.proc*.txt	yes
+contact_explicit_dynamic	up:contact_explicit_dynamic	contact_mechanics_model/hertz	material.dat	hertz.msh	1	none	yes
+contact_explicit_dynamic_full	probe:contact_explicit_dynamic_full	contact_mechanics_model/hertz	material.dat	hertz.msh	1	energy_full.csv	yes
+contact_explicit_static	up:contact_explicit_static	contact_mechanics_model/hertz	material.dat	hertz.msh	1	none	yes
+contact_explicit_static_eigen	probe:contact_explicit_static_eigen	contact_mechanics_model/hertz	material.dat	hertz.msh	1	newton_full.csv	yes
+cohesive_contact_explicit_dynamic	up:cohesive_contact_explicit_dynamic	contact_mechanics_model/hertz	material-cohesive.dat	cohesive-contact.msh	1	none	yes
+cohesive_contact_explicit_dynamic_full	probe:cohesive_contact_explicit_dynamic_full	contact_mechanics_model/hertz	material-cohesive.dat	cohesive-contact.msh	1	energy_full.csv	yes
+bloc_friction	up:bloc_friction	contact_mechanics_model/friction	material.dat	bloc.msh	1	none	no
+bloc_friction_full	probe:bloc_friction_full	contact_mechanics_model/friction	material.dat	bloc.msh	1	energy_full.csv	no
+steady_state	up:steady_state	node_to_node	ras_ss.in	ntn_test_ras.msh	1	friction-energies-steady_state.csv	yes
+steady_state_full	probe:steady_state_full	node_to_node	ras_ss.in	ntn_test_ras.msh	1	energies_full.csv	yes
+# the embedded example on the patched embedded variant (D-060) crashes
+# (signal 11 in MaterialReinforcement::initBackgroundShapeDerivatives: null
+# background filter; UD-851), so these cases cannot be promoted; kept commented
+# for a later round (the build support for `emb:` binaries stays):
+#embedded	emb:embedded	embedded_model	material.dat	concrete.msh,reinforcement.msh	1	all	yes
+#embedded_eigen	emb:embedded_eigen	embedded_model	material.dat	concrete.msh,reinforcement.msh	1	all	yes
+# the Eigen-pinned variant on the
+# first-order version of the example's concrete mesh
+# (oracle/probes/examples/embedded_p1/derive_first_order.py), the input on
+# which upstream is memory-safe (the variant computes the precondition and
+# refuses otherwise; recorded in stdout.txt)
+embedded_eigen_p1	emb:embedded_eigen	embedded_model	material.dat,probe:embedded_p1/concrete.msh	reinforcement.msh	1	all	yes

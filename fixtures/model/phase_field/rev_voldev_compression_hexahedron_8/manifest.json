@@ -1,0 +1,686 @@
+{
+  "format_version": 1,
+  "case_id": "model/phase_field/rev_voldev_compression_hexahedron_8",
+  "description": "V67 review: AT2 voldev history under compression then tension",
+  "status": "golden",
+  "generator": {
+    "probe": "phase_field_probe",
+    "probe_version": "1",
+    "command": "oracle/probes/phase_field/generate.sh "
+  },
+  "reference": {
+    "sha": "35a851780d0b9471d258ed53a003ae98aaa95ea0",
+    "describe": "v5.0.7-post1-554-g35a851780",
+    "patches": [
+      "modified:cmake/AkantuTestsMacros.cmake sha256=c280165a84912eab4bcc081b9eaaaa06aafdd83d4f48d982e11b0859abf9672f (reference sha256=36290de2ec8b111028138fe82029efa16501512241a5bc264fa30ff3e3239b9e)"
+    ]
+  },
+  "build": {
+  "config": "strict",
+  "compiler": "g++ (Debian 14.2.0-19) 14.2.0",
+  "cxx_flags": "-ffp-contract=off -DEIGEN_DONT_VECTORIZE -O2 -g -DNDEBUG -g3 -ggdb3 -flarge-source-files -std=c++20 -flto=auto -fno-fat-lto-objects -fPIC -frounding-math (actual flags of src/model/solid_mechanics/solid_mechanics_model.cc; warnings and non-FP -D defines omitted)",
+  "build_type": "RelWithDebInfo",
+  "arch": "x86_64",
+  "os": "Debian GNU/Linux 13 (trixie)",
+  "libraries": {
+    "eigen3": "3.4.0-5",
+    "boost": "1.83.0.2+b2",
+    "openmpi": "5.0.7-1",
+    "mumps": "5.7.3-3+b1",
+    "petsc": "3.22.5+dfsg1-2",
+    "scotch": "7.0.7-1",
+    "openblas": "0.3.29+ds-3",
+    "scalapack": "2.2.2-1",
+    "hdf5": "1.14.5+repack-3",
+    "gmsh": "4.13.1+ds1-6",
+    "pybind11": "2.13.6-2",
+    "numpy": "1:2.2.4+ds-1",
+    "scipy": "1.15.3-1",
+    "gcc": "4:14.2.0-1",
+    "gfortran": "4:14.2.0-1",
+    "oracle_image": "sha256:45122c213e9fa194b6b58dcc31fc23b5fa4f7c0f64d0a452e40ae072c51c5cdb",
+    "oracle_build_scripts": "e168f393291494c869fa759b3ad9ae4a371a0369",
+    "oracle_install_reference_sha": "35a851780d0b9471d258ed53a003ae98aaa95ea0",
+    "oracle_install_image": "sha256:45122c213e9fa194b6b58dcc31fc23b5fa4f7c0f64d0a452e40ae072c51c5cdb",
+    "sha256:libakantu.so.5.0.7": "5491d902b6f363e11b47d2dc1d0aff0597374e8ff785bbfe2bff534f38509e81",
+    "probe_tree_sha256": "8c7fcd51d2221bd924585be544c7a8de6743261be35555d8ed4376fd3ddd4fe8",
+    "probe_sources_commit": "45ff488c43305a6dc2a13476305f1328b7493dc9",
+    "cmake_cxx_flags": "-ffp-contract=off -DEIGEN_DONT_VECTORIZE -O2 -g -DNDEBUG -g3 -ggdb3 -flarge-source-files",
+    "probe": "phase_field_probe"
+  },
+  "probe_compile_command": "/usr/bin/c++ '-DAKANTU_PROBE_BUILD_TYPE=\"RelWithDebInfo\"' '-DAKANTU_PROBE_CONFIG=\"strict\"' '-DAKANTU_PROBE_CXX_FLAGS=\"-ffp-contract=off -DEIGEN_DONT_VECTORIZE  -O2 -g -DNDEBUG\"' -DBOOST_GRAPH_DYN_LINK -DBOOST_GRAPH_NO_LIB -DBOOST_REGEX_DYN_LINK -DBOOST_REGEX_NO_LIB -DCGAL_USE_GMPXX=1 -I/probes/phase_field/../include -isystem /build/install-strict/include/akantu -isystem /opt/CGAL-5.6.2/include -isystem /usr/lib/x86_64-linux-gnu/openmpi/include -isystem /usr/lib/x86_64-linux-gnu/openmpi/include/openmpi -isystem /usr/lib/petscdir/petsc3.22/x86_64-linux-gnu-real/include -isystem /usr/include/scotch -isystem /build/install-strict/include/akantu_iterators -isystem /usr/include/eigen3 -isystem /build/install-strict/include/iohelper -O2 -g -DNDEBUG -std=gnu++20 -ffp-contract=off -DEIGEN_DONT_VECTORIZE -Wall -Wextra -pedantic -Wno-array-bounds -Wno-use-after-free -Wno-stringop-overread -DOMPI_SKIP_MPICXX -Wno-literal-suffix -frounding-math -o CMakeFiles/phase_field_probe.dir/phase_field_probe.cc.o -c /probes/phase_field/phase_field_probe.cc",
+  "probe_cxx_flags": "-DAKANTU_PROBE_BUILD_TYPE=\"RelWithDebInfo\" -DAKANTU_PROBE_CONFIG=\"strict\" -DAKANTU_PROBE_CXX_FLAGS=\"-ffp-contract=off -DEIGEN_DONT_VECTORIZE  -O2 -g -DNDEBUG\" -DBOOST_GRAPH_DYN_LINK -DBOOST_GRAPH_NO_LIB -DBOOST_REGEX_DYN_LINK -DBOOST_REGEX_NO_LIB -DCGAL_USE_GMPXX=1 -O2 -g -DNDEBUG -std=gnu++20 -ffp-contract=off -DEIGEN_DONT_VECTORIZE -Wall -Wextra -pedantic -Wno-array-bounds -Wno-use-after-free -Wno-stringop-overread -DOMPI_SKIP_MPICXX -Wno-literal-suffix -frounding-math"
+},
+  "created": "2026-11-11T03:37:46Z",
+  "inputs": [
+    {
+      "role": "mesh",
+      "path": "inputs/_hexahedron_8.msh",
+      "source": "upstream:test/test_model/patch_tests/data/_hexahedron_8.msh",
+      "sha256": "0f05fdc879784dbfb0c73783bab863d4d85a4192d23c3b342331e30bb99e010e"
+    },
+    {
+      "role": "material",
+      "path": "inputs/rev_voldev_compression_hexahedron_8.dat",
+      "source": "probe:V67 rev_voldev_compression_hexahedron_8",
+      "sha256": "57a7126a20749040a730c01ca2f2da9b039449e81a78ea32b84b474be4460642"
+    }
+  ],
+  "parameters": {
+    "spatial_dimension": 3,
+    "selector_physical_names": false,
+    "seed": 1,
+    "steps": 5,
+    "save_previous_state": true,
+    "newton_max_iterations": 50,
+    "newton_threshold": 1e-10,
+    "newton_convergence_type": "solution",
+    "sparse_solver_type": "eigen",
+    "solve": true,
+    "nb_phase_fields": 1,
+    "bc_group": "",
+    "bc_value": 0.0,
+    "full_internals": true,
+    "K/symmetric": true,
+    "K/size": 27,
+    "energy_groups": []
+  },
+  "storage": {
+    "mode": "committed",
+    "bytes": 51275
+  },
+  "quantities": [
+    {
+      "name": "bc_nodes",
+      "file": "data/bc_nodes.npy",
+      "dtype": "i64",
+      "shape": [
+        9
+      ],
+      "axes": [
+        "entry"
+      ],
+      "layout": "table",
+      "sha256": "de5d36edaceeaa0dabb67de54d8b97931efb7aeaebf2fd6107770b3840726d7c",
+      "description": "nodes with prescribed damage (bc_value)"
+    },
+    {
+      "name": "step/0/strain/0/_hexahedron_8",
+      "file": "data/step__0__strain__0___hexahedron_8.npy",
+      "dtype": "f64",
+      "shape": [
+        64,
+        9
+      ],
+      "axes": [
+        "entry",
+        "component"
+      ],
+      "layout": "table",
+      "sha256": "de7bcbaeb89c07cfc53e12de680bcbd83f048a8f75c443d4198e1a45b6ec0fbe",
+      "description": "strain written into the law before the step (law-local order)"
+    },
+    {
+      "name": "step/0/damage",
+      "file": "data/step__0__damage.npy",
+      "dtype": "f64",
+      "shape": [
+        27,
+        1
+      ],
+      "axes": [
+        "entry",
+        "component"
+      ],
+      "layout": "table",
+      "sha256": "fa2acf1d07a0f4e07ccf8280093760f3ef338446802a2cde17cefa40eeeaefe1",
+      "description": "nodal damage after solveStep"
+    },
+    {
+      "name": "step/0/internal_force",
+      "file": "data/step__0__internal_force.npy",
+      "dtype": "f64",
+      "shape": [
+        27,
+        1
+      ],
+      "axes": [
+        "entry",
+        "component"
+      ],
+      "layout": "table",
+      "sha256": "8508bd96c0f102823da73739f0e4466c1951b416031e2f5153e0f4b5d54aec83",
+      "description": "internal force after solveStep"
+    },
+    {
+      "name": "step/1/strain/0/_hexahedron_8",
+      "file": "data/step__1__strain__0___hexahedron_8.npy",
+      "dtype": "f64",
+      "shape": [
+        64,
+        9
+      ],
+      "axes": [
+        "entry",
+        "component"
+      ],
+      "layout": "table",
+      "sha256": "8b7d47dae518d12840357da018af2dbfccbf99b2b7501055ba7b63132072baba",
+      "description": "strain written into the law before the step (law-local order)"
+    },
+    {
+      "name": "step/1/damage",
+      "file": "data/step__1__damage.npy",
+      "dtype": "f64",
+      "shape": [
+        27,
+        1
+      ],
+      "axes": [
+        "entry",
+        "component"
+      ],
+      "layout": "table",
+      "sha256": "1926d2195afb6c8e8ef18c0bdc89244f83ef26fcedad1ea38fda6a0b11ba70f2",
+      "description": "nodal damage after solveStep"
+    },
+    {
+      "name": "step/1/internal_force",
+      "file": "data/step__1__internal_force.npy",
+      "dtype": "f64",
+      "shape": [
+        27,
+        1
+      ],
+      "axes": [
+        "entry",
+        "component"
+      ],
+      "layout": "table",
+      "sha256": "93c6d52719508082580c8ae65e8a1cad961ec8aac8093892265e7338d50f80a5",
+      "description": "internal force after solveStep"
+    },
+    {
+      "name": "step/2/strain/0/_hexahedron_8",
+      "file": "data/step__2__strain__0___hexahedron_8.npy",
+      "dtype": "f64",
+      "shape": [
+        64,
+        9
+      ],
+      "axes": [
+        "entry",
+        "component"
+      ],
+      "layout": "table",
+      "sha256": "41c0f0396a1c4da8dc6338c239a14b361964ed2705ce0d2f60679bcecaf3a44d",
+      "description": "strain written into the law before the step (law-local order)"
+    },
+    {
+      "name": "step/2/damage",
+      "file": "data/step__2__damage.npy",
+      "dtype": "f64",
+      "shape": [
+        27,
+        1
+      ],
+      "axes": [
+        "entry",
+        "component"
+      ],
+      "layout": "table",
+      "sha256": "e9050afcd1973e433df7cf2b714481cdaaff584df98d470d65645036b2b187b8",
+      "description": "nodal damage after solveStep"
+    },
+    {
+      "name": "step/2/internal_force",
+      "file": "data/step__2__internal_force.npy",
+      "dtype": "f64",
+      "shape": [
+        27,
+        1
+      ],
+      "axes": [
+        "entry",
+        "component"
+      ],
+      "layout": "table",
+      "sha256": "4b3b866cd3dc000b7e1c8d5911abefe7af4e95e7ccca9178e17c782e6c271af4",
+      "description": "internal force after solveStep"
+    },
+    {
+      "name": "step/3/strain/0/_hexahedron_8",
+      "file": "data/step__3__strain__0___hexahedron_8.npy",
+      "dtype": "f64",
+      "shape": [
+        64,
+        9
+      ],
+      "axes": [
+        "entry",
+        "component"
+      ],
+      "layout": "table",
+      "sha256": "df07a218dd521237c7c8d798d4abd8a9be3a94df544f34073f7cb9796586e2b5",
+      "description": "strain written into the law before the step (law-local order)"
+    },
+    {
+      "name": "step/3/damage",
+      "file": "data/step__3__damage.npy",
+      "dtype": "f64",
+      "shape": [
+        27,
+        1
+      ],
+      "axes": [
+        "entry",
+        "component"
+      ],
+      "layout": "table",
+      "sha256": "34d647456a289741fe8faa4db881e7ae4db90f0c1bde7547ca25d7209d246b0e",
+      "description": "nodal damage after solveStep"
+    },
+    {
+      "name": "step/3/internal_force",
+      "file": "data/step__3__internal_force.npy",
+      "dtype": "f64",
+      "shape": [
+        27,
+        1
+      ],
+      "axes": [
+        "entry",
+        "component"
+      ],
+      "layout": "table",
+      "sha256": "1a2b3d74431546702643168342416101470bb2489d1f601e14ffe84891f70208",
+      "description": "internal force after solveStep"
+    },
+    {
+      "name": "step/4/strain/0/_hexahedron_8",
+      "file": "data/step__4__strain__0___hexahedron_8.npy",
+      "dtype": "f64",
+      "shape": [
+        64,
+        9
+      ],
+      "axes": [
+        "entry",
+        "component"
+      ],
+      "layout": "table",
+      "sha256": "5f477314c6b435387dddf63032694c55f4d4a4e4054680eac8a12bd3aebbd25c",
+      "description": "strain written into the law before the step (law-local order)"
+    },
+    {
+      "name": "step/4/damage",
+      "file": "data/step__4__damage.npy",
+      "dtype": "f64",
+      "shape": [
+        27,
+        1
+      ],
+      "axes": [
+        "entry",
+        "component"
+      ],
+      "layout": "table",
+      "sha256": "887775f9c58f230645532b646f053afe3ede0dd33bb84b9f4b653c61ef7ac9aa",
+      "description": "nodal damage after solveStep"
+    },
+    {
+      "name": "step/4/internal_force",
+      "file": "data/step__4__internal_force.npy",
+      "dtype": "f64",
+      "shape": [
+        27,
+        1
+      ],
+      "axes": [
+        "entry",
+        "component"
+      ],
+      "layout": "table",
+      "sha256": "30977b19d83227b1bfdc06ea0e4883e2aaee845371dfa932ca56c3dc91ffc231",
+      "description": "internal force after solveStep"
+    },
+    {
+      "name": "newton/nb_iterations",
+      "file": "data/newton__nb_iterations.npy",
+      "dtype": "i64",
+      "shape": [
+        5
+      ],
+      "axes": [
+        "entry"
+      ],
+      "layout": "table",
+      "sha256": "de8ed09f23d36905ff73994fb82c6d775a923ce43e63244caeab980b7f6b87af",
+      "description": "nb_iterations per solveStep"
+    },
+    {
+      "name": "newton/converged",
+      "file": "data/newton__converged.npy",
+      "dtype": "i64",
+      "shape": [
+        5
+      ],
+      "axes": [
+        "entry"
+      ],
+      "layout": "table",
+      "sha256": "7bc6ce034c6f92b5e7c43e8ea7d5597335702aa5003d244ab00203bc048cf234",
+      "description": "1 if solveStep converged (review probe)"
+    },
+    {
+      "name": "newton/error",
+      "file": "data/newton__error.npy",
+      "dtype": "f64",
+      "shape": [
+        5
+      ],
+      "axes": [
+        "entry"
+      ],
+      "layout": "table",
+      "sha256": "f40cf76f45e55b5275d310aa802b9a0986576c8877bc0992fb30e2218aba0c4f",
+      "description": "error per solveStep"
+    },
+    {
+      "name": "energy/dissipated",
+      "file": "data/energy__dissipated.npy",
+      "dtype": "f64",
+      "shape": [
+        5
+      ],
+      "axes": [
+        "entry"
+      ],
+      "layout": "table",
+      "sha256": "1a060e6c92e447398e94a1a5897f3507b040a65a8ef9e3251580f003a82c8fd4",
+      "description": "getEnergy(\"dissipated\") after each step (solveStep, or the assembly)"
+    },
+    {
+      "name": "blocked_dofs",
+      "file": "data/blocked_dofs.npy",
+      "dtype": "bool",
+      "shape": [
+        27,
+        1
+      ],
+      "axes": [
+        "entry",
+        "component"
+      ],
+      "layout": "table",
+      "sha256": "824234c6ff905b2a1a10e8bd5a1d17c4aae25ed475c662944845d09ff11d8c32",
+      "description": "blocked flags after the boundary conditions"
+    },
+    {
+      "name": "law/0/filter/_hexahedron_8",
+      "file": "data/law__0__filter___hexahedron_8.npy",
+      "dtype": "i64",
+      "shape": [
+        8
+      ],
+      "axes": [
+        "entry"
+      ],
+      "layout": "table",
+      "sha256": "13f00e7bb2cd8bd0bb6b10f7f544211f9e1fb916222f247790400a7c4af475ef",
+      "description": "element filter"
+    },
+    {
+      "name": "law/0/g_c/_hexahedron_8",
+      "file": "data/law__0__g_c___hexahedron_8.npy",
+      "dtype": "f64",
+      "shape": [
+        64,
+        1
+      ],
+      "axes": [
+        "entry",
+        "component"
+      ],
+      "layout": "table",
+      "sha256": "127429f1b5f3174ba602698db9daf96760804dc38f9faaf2e769b6818912c2ff",
+      "description": "internal g_c (law-local order)"
+    },
+    {
+      "name": "law/0/damage/_hexahedron_8",
+      "file": "data/law__0__damage___hexahedron_8.npy",
+      "dtype": "f64",
+      "shape": [
+        64,
+        1
+      ],
+      "axes": [
+        "entry",
+        "component"
+      ],
+      "layout": "table",
+      "sha256": "6f020665b8ba53d9ddee326fb5699d9b011a1f5ca1ff734d5aca6c81868a2f00",
+      "description": "internal damage (law-local order)"
+    },
+    {
+      "name": "law/0/previous_damage/_hexahedron_8",
+      "file": "data/law__0__previous_damage___hexahedron_8.npy",
+      "dtype": "f64",
+      "shape": [
+        64,
+        1
+      ],
+      "axes": [
+        "entry",
+        "component"
+      ],
+      "layout": "table",
+      "sha256": "6f020665b8ba53d9ddee326fb5699d9b011a1f5ca1ff734d5aca6c81868a2f00",
+      "description": "history of damage"
+    },
+    {
+      "name": "law/0/grad_d/_hexahedron_8",
+      "file": "data/law__0__grad_d___hexahedron_8.npy",
+      "dtype": "f64",
+      "shape": [
+        64,
+        3
+      ],
+      "axes": [
+        "entry",
+        "component"
+      ],
+      "layout": "table",
+      "sha256": "54a6ef7ccc0aac7fa5d9c6ae06e9ec0e73f77c1b97c68cc746cb418374baa1bf",
+      "description": "internal grad_d (law-local order)"
+    },
+    {
+      "name": "law/0/phi/_hexahedron_8",
+      "file": "data/law__0__phi___hexahedron_8.npy",
+      "dtype": "f64",
+      "shape": [
+        64,
+        1
+      ],
+      "axes": [
+        "entry",
+        "component"
+      ],
+      "layout": "table",
+      "sha256": "d8120863288b481d1e93723ca6376589f15dc2e1f117139f380d53b32c723304",
+      "description": "internal phi (law-local order)"
+    },
+    {
+      "name": "law/0/previous_phi/_hexahedron_8",
+      "file": "data/law__0__previous_phi___hexahedron_8.npy",
+      "dtype": "f64",
+      "shape": [
+        64,
+        1
+      ],
+      "axes": [
+        "entry",
+        "component"
+      ],
+      "layout": "table",
+      "sha256": "d8120863288b481d1e93723ca6376589f15dc2e1f117139f380d53b32c723304",
+      "description": "history of phi"
+    },
+    {
+      "name": "law/0/strain/_hexahedron_8",
+      "file": "data/law__0__strain___hexahedron_8.npy",
+      "dtype": "f64",
+      "shape": [
+        64,
+        9
+      ],
+      "axes": [
+        "entry",
+        "component"
+      ],
+      "layout": "table",
+      "sha256": "5f477314c6b435387dddf63032694c55f4d4a4e4054680eac8a12bd3aebbd25c",
+      "description": "internal strain (law-local order)"
+    },
+    {
+      "name": "law/0/driving_force/_hexahedron_8",
+      "file": "data/law__0__driving_force___hexahedron_8.npy",
+      "dtype": "f64",
+      "shape": [
+        64,
+        1
+      ],
+      "axes": [
+        "entry",
+        "component"
+      ],
+      "layout": "table",
+      "sha256": "4b9a1942071ab2b33c756fc836bcad1aacfb99dda5fbf3195f38cdbd6203cd1f",
+      "description": "internal driving_force (law-local order)"
+    },
+    {
+      "name": "law/0/driving_energy/_hexahedron_8",
+      "file": "data/law__0__driving_energy___hexahedron_8.npy",
+      "dtype": "f64",
+      "shape": [
+        64,
+        3
+      ],
+      "axes": [
+        "entry",
+        "component"
+      ],
+      "layout": "table",
+      "sha256": "82fe636de8000c120985939d7f6a6e684a6cfa1703d9d4e0960767f48816cb28",
+      "description": "internal driving_energy (law-local order)"
+    },
+    {
+      "name": "law/0/damage_energy/_hexahedron_8",
+      "file": "data/law__0__damage_energy___hexahedron_8.npy",
+      "dtype": "f64",
+      "shape": [
+        64,
+        9
+      ],
+      "axes": [
+        "entry",
+        "component"
+      ],
+      "layout": "table",
+      "sha256": "bb30a26023af7b517c974eaf3a0f2af63f84e35cc7a49be1b7e9821a947528da",
+      "description": "internal damage_energy (law-local order)"
+    },
+    {
+      "name": "law/0/damage_energy_density/_hexahedron_8",
+      "file": "data/law__0__damage_energy_density___hexahedron_8.npy",
+      "dtype": "f64",
+      "shape": [
+        64,
+        1
+      ],
+      "axes": [
+        "entry",
+        "component"
+      ],
+      "layout": "table",
+      "sha256": "7136c521ac082113bea674770758075971635f4360828d3a9d25ecfd4f012c85",
+      "description": "internal damage_energy_density (law-local order)"
+    },
+    {
+      "name": "law/0/dissipated_energy/_hexahedron_8",
+      "file": "data/law__0__dissipated_energy___hexahedron_8.npy",
+      "dtype": "f64",
+      "shape": [
+        64,
+        1
+      ],
+      "axes": [
+        "entry",
+        "component"
+      ],
+      "layout": "table",
+      "sha256": "26fb8ca5f2b88102c49c32aec48c670887189cdbe467ad7a9bde1b6548976299",
+      "description": "internal dissipated_energy (law-local order)"
+    },
+    {
+      "name": "K/rows",
+      "file": "data/K__rows.npy",
+      "dtype": "i64",
+      "shape": [
+        185
+      ],
+      "axes": [
+        "entry"
+      ],
+      "layout": "table",
+      "sha256": "3010b568d35234e23b89ebafc2a24f57abfd230f83b38627ad8a60afdfb73489",
+      "description": "SparseMatrixAIJ::getIRN - 1 (storage order)"
+    },
+    {
+      "name": "K/cols",
+      "file": "data/K__cols.npy",
+      "dtype": "i64",
+      "shape": [
+        185
+      ],
+      "axes": [
+        "entry"
+      ],
+      "layout": "table",
+      "sha256": "e63ce040863e519ebade52283ba4b95b29d2e810eb313613b18da55732df7ec9",
+      "description": "SparseMatrixAIJ::getJCN - 1 (storage order)"
+    },
+    {
+      "name": "K/values",
+      "file": "data/K__values.npy",
+      "dtype": "f64",
+      "shape": [
+        185
+      ],
+      "axes": [
+        "entry"
+      ],
+      "layout": "table",
+      "sha256": "0e4c4e8a2a9882536dbfa20d64046675ba55518929c2abfb6c2e8b50cc00fcb8",
+      "description": "SparseMatrixAIJ::getA (storage order)"
+    },
+    {
+      "name": "energy/element/_hexahedron_8",
+      "file": "data/energy__element___hexahedron_8.npy",
+      "dtype": "f64",
+      "shape": [
+        8
+      ],
+      "axes": [
+        "entry"
+      ],
+      "layout": "table",
+      "sha256": "24c208904096f9ca8c67687e50e19658ce9d6974911801f1583b7dca7f84e6ef",
+      "description": "getEnergy(\"dissipated\", element) of every element (mesh order)"
+    }
+  ],
+  "tags": [
+    "model",
+    "phase_field"
+  ]
+}

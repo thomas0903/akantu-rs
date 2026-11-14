@@ -1,0 +1,19 @@
+comparison,h,dofs,ranks,cpp_s,rust_s,rust_over_cpp,rust_over_cpp_min,rust_over_cpp_max,note
+# source: docs/BENCHMARKS.md, "The SparseLU translation against upstream's SparseLU"; boat.dev sandbox, AMD EPYC 9455; 2026-11-11; C++ = upstream's Eigen SparseLU (strict build), Rust = the port's translation of SparseLU; h = 0.12: medians of 3 runs; h = 0.06: one run each; the ratios are those of the medians as BENCHMARKS gives them (about 1.6 and 2.0)
+sparselu,0.12,14472,1,3.77,5.96,1.6,,,serial; C++ 535 MiB / Rust 564 MiB
+sparselu,0.06,97551,1,314.6,625.2,2.0,,,serial; C++ 7.5 GiB / Rust 6.7 GiB; one run each
+# source: docs/benchmarks/scaling-2026-11-13/ws-summary.md, table "Points" (medians), and docs/BENCHMARKS.md, "Small and mid sizes at 1 to 8 ranks", table "Port / upstream, series ws" (paired ratio); boat.dev large, AMD EPYC 9455, 8 vCPU; 2026-11-13; both codes MUMPS 5.7.3 on the same matrix; the port's time includes its assembly; 5 repetitions
+mumps_boat,0.12,14472,1,0.679,0.821,1.22,1.06,1.25,
+mumps_boat,0.0925,,1,2.19,2.28,1.1,0.886,1.28,
+mumps_boat,0.0925,,2,1.26,1.33,1.13,0.544,1.2,
+mumps_boat,0.0756,,2,3.31,3.74,1.09,0.884,1.17,
+mumps_boat,0.0756,,4,1.81,1.98,1.13,0.975,1.53,
+mumps_boat,0.06,97551,1,15.5,16.2,1.03,0.901,1.28,
+mumps_boat,0.06,97551,2,9.31,10.3,1.11,0.94,1.28,
+mumps_boat,0.06,97551,4,4.7,5.34,1.02,0.957,1.17,
+mumps_boat,0.06,97551,8,3.57,3.7,1.1,0.861,1.4,
+mumps_boat,0.0476,,8,16.8,12.1,0.65,0.449,2.91,upstream 9.3-21.6 s and port 9.7-26.9 s across repetitions
+# source: docs/BENCHMARKS.md, "The full-size run", tables "Port / upstream at the same rank count" and "Pre-insertion costs at 64 ranks"; AWS r7a.16xlarge, AMD EPYC 9R14; 2026-11-12; JOSS mesh, 2,203,782 DOFs; MUMPS on the same matrix; single runs (timed run, and the 20-step test run of the same binaries and partition)
+mumps_fullsize_timed,JOSS,2203782,64,228,305,1.34,,,one run each
+mumps_fullsize_test,JOSS,2203782,64,324,295,0.91,,,20-step test run
+mumps_fullsize_timed,JOSS,2203782,32,353,356,1.01,,,one run each

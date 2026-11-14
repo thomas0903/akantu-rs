@@ -1,0 +1,51 @@
+# SPDX-License-Identifier: LGPL-3.0-or-later
+# akantu-rs CI: the medium tier, weekly and on manual dispatch. Real MPI at
+# 1, 2 and 4 ranks (akantu-comm), distribution and parallel models with
+# Scotch, the MUMPS and PETSc back-ends (the PETSc image is built in the
+# job from docker/petsc), the optimised-build test runs (cohesive, linalg,
+# the facade crate with the examples' whole runs, ...), the parallel
+# examples at 2 ranks, and the workspace tests with akantu-core/export-all.
+name: medium
+on:
+  schedule:
+    - cron: "17 2 * * 6"
+  workflow_dispatch:
+permissions:
+  contents: read
+env:
+  # Container caps of scripts/mpi/in-docker.sh. The defaults (4 CPUs / 6g) fit
+  # the standard runner of a public repository (4 vCPU / 16 GB); on a
+  # private repository's 2-vCPU runner set the repository variable
+  # AKANTU_RS_DOCKER_CPUS=2 (ci/github/README.md, "Runners and their limits").
+  AKANTU_RS_DOCKER_CPUS: ${{ vars.AKANTU_RS_DOCKER_CPUS || '4' }}
+  AKANTU_RS_DOCKER_MEMORY: ${{ vars.AKANTU_RS_DOCKER_MEMORY || '6g' }}
+concurrency:
+  group: medium-${{ github.ref }}
+  cancel-in-progress: false
+jobs:
+  medium:
+    runs-on: ubuntu-24.04
+    timeout-minutes: 180
+    strategy:
+      fail-fast: false
+      matrix:
+        tier: [mpi, par, mumps, petsc, release, examples, exportall]
+    steps:
+      - uses: actions/checkout@de0fac2e4500dabe0009e67214ff5f5447ce83dd # v6.0.2
+        with:
+          persist-credentials: false
+      - name: Free disk space on the runner (project images and the cargo target volume are large)
+        run: ci/github/free-disk.sh
+      - uses: actions/cache@668228422ae6a00e4ad889ee87cd7109ec5666a7 # v5.0.4
+        with:
+          path: ~/akantu-images
+          key: images-v3-mpi-scotch-mumps-petsc-${{ hashFiles('docker/mpi/Dockerfile', 'docker/scotch/Dockerfile', 'docker/mumps/Dockerfile', 'docker/petsc/Dockerfile') }}
+      - run: ci/github/images.sh ~/akantu-images mpi scotch mumps petsc
+      - name: Tier ${{ matrix.tier }}
+        run: ci/run-all.sh --backend docker --tiers ${{ matrix.tier }} --out "$RUNNER_TEMP/ci-out"
+      - if: always()
+        uses: actions/upload-artifact@bbbca2ddaa5d8feaa63e36b76fdaad77386f024f # v7.0.0
+        with:
+          name: ci-medium-${{ matrix.tier }}
+          path: ${{ runner.temp }}/ci-out
+          retention-days: 14

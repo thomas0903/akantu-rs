@@ -1,0 +1,4458 @@
+{
+  "format_version": 1,
+  "case_id": "parallel_cohesive/facets_only_tri/np4/rank1",
+  "description": "insertElements(true) (facets only) on a distributed mesh after explicit steps, then more steps (rank view)",
+  "status": "golden",
+  "generator": {
+    "probe": "parallel_cohesive_probe",
+    "probe_version": "2",
+    "command": "oracle/probes/parallel_cohesive/generate.sh --out /home/user/stage2"
+  },
+  "reference": {
+    "sha": "35a851780d0b9471d258ed53a003ae98aaa95ea0",
+    "describe": "v5.0.7-post1-554-g35a851780",
+    "patches": [
+      "modified:cmake/AkantuTestsMacros.cmake sha256=c280165a84912eab4bcc081b9eaaaa06aafdd83d4f48d982e11b0859abf9672f (reference sha256=36290de2ec8b111028138fe82029efa16501512241a5bc264fa30ff3e3239b9e)"
+    ]
+  },
+  "build": {
+  "config": "strict",
+  "compiler": "g++ (Debian 14.2.0-19) 14.2.0",
+  "cxx_flags": "-ffp-contract=off -DEIGEN_DONT_VECTORIZE -DEIGEN_NO_CPUID -DEIGEN_DEFAULT_L1_CACHE_SIZE=16384 -DEIGEN_DEFAULT_L2_CACHE_SIZE=524288 -DEIGEN_DEFAULT_L3_CACHE_SIZE=524288 -O2 -g -DNDEBUG -g3 -ggdb3 -flarge-source-files -std=c++20 -flto=auto -fno-fat-lto-objects -fPIC -frounding-math (actual flags of src/model/solid_mechanics/solid_mechanics_model.cc; warnings and non-FP -D defines omitted)",
+  "build_type": "RelWithDebInfo",
+  "arch": "x86_64",
+  "os": "Debian GNU/Linux 13 (trixie)",
+  "libraries": {"eigen_cache_sizes_measured": "16384,524288,524288 (Eigen::l1/l2/l3CacheSize() read at run time in the probe process, D-050)", 
+    "eigen3": "3.4.0-5",
+    "boost": "1.83.0.2+b2",
+    "openmpi": "5.0.7-1",
+    "mumps": "5.7.3-3+b1",
+    "petsc": "3.22.5+dfsg1-2",
+    "scotch": "7.0.7-1",
+    "openblas": "0.3.29+ds-3",
+    "scalapack": "2.2.2-1",
+    "hdf5": "1.14.5+repack-3",
+    "gmsh": "4.13.1+ds1-6",
+    "pybind11": "2.13.6-2",
+    "numpy": "1:2.2.4+ds-1",
+    "scipy": "1.15.3-1",
+    "gcc": "4:14.2.0-1",
+    "gfortran": "4:14.2.0-1",
+    "oracle_image": "sha256:2da26d87e063f3c88264f589cf73381feff583eeaa7770d2e01ae034651d59f5",
+    "oracle_build_scripts": "cca6e460cd3430bf0180262e7ebe26be762112e9",
+    "oracle_install_reference_sha": "35a851780d0b9471d258ed53a003ae98aaa95ea0",
+    "oracle_install_image": "sha256:2da26d87e063f3c88264f589cf73381feff583eeaa7770d2e01ae034651d59f5",
+    "openblas_coretype": "Haswell",
+    "openblas_num_threads": "1",
+    "eigen_cache_sizes": "16384,524288,524288 (compile-time pin of the library and of the probe translation unit: EIGEN_NO_CPUID + defaults, D-050)",
+    "host_cpu": "AMD Ryzen 7 9700X 8-Core Processor",
+    "x86_64_level": "v3",
+    "sha256:libakantu.so.5.0.7": "554ecfc7838d8c8aa3955f37f2efb556a7f09426083b74af262ffdcccff657ff",
+    "probe_tree_sha256": "2b6fc2548c1468f16f744bb147998a85dd07ce91a3da11a57707f0b0d2dbe9d7",
+    "probe_sources_commit": "f65bdd7de806cf368f16cc9a4aa2729958acfe74",
+    "cmake_cxx_flags": "-ffp-contract=off -DEIGEN_DONT_VECTORIZE -DEIGEN_NO_CPUID -DEIGEN_DEFAULT_L1_CACHE_SIZE=16384 -DEIGEN_DEFAULT_L2_CACHE_SIZE=524288 -DEIGEN_DEFAULT_L3_CACHE_SIZE=524288 -O2 -g -DNDEBUG -g3 -ggdb3 -flarge-source-files",
+    "probe": "parallel_cohesive_probe"
+  },
+  "probe_compile_command": "/usr/bin/c++ '-DAKANTU_PROBE_BUILD_TYPE=\"RelWithDebInfo\"' '-DAKANTU_PROBE_CONFIG=\"strict\"' '-DAKANTU_PROBE_CXX_FLAGS=\"-ffp-contract=off -DEIGEN_DONT_VECTORIZE -DEIGEN_NO_CPUID -DEIGEN_DEFAULT_L1_CACHE_SIZE=16384 -DEIGEN_DEFAULT_L2_CACHE_SIZE=524288 -DEIGEN_DEFAULT_L3_CACHE_SIZE=524288  -O2 -g -DNDEBUG\"' -DBOOST_GRAPH_DYN_LINK -DBOOST_GRAPH_NO_LIB -DBOOST_REGEX_DYN_LINK -DBOOST_REGEX_NO_LIB -DCGAL_USE_GMPXX=1 -I/probes/parallel_cohesive/../include -isystem /build/install-strict/include/akantu -isystem /opt/CGAL-5.6.2/include -isystem /usr/lib/x86_64-linux-gnu/openmpi/include -isystem /usr/lib/x86_64-linux-gnu/openmpi/include/openmpi -isystem /usr/lib/petscdir/petsc3.22/x86_64-linux-gnu-real/include -isystem /usr/include/scotch -isystem /build/install-strict/include/akantu_iterators -isystem /usr/include/eigen3 -isystem /build/install-strict/include/iohelper -O2 -g -DNDEBUG -std=gnu++20 -ffp-contract=off -DEIGEN_DONT_VECTORIZE -DEIGEN_NO_CPUID -DEIGEN_DEFAULT_L1_CACHE_SIZE=16384 -DEIGEN_DEFAULT_L2_CACHE_SIZE=524288 -DEIGEN_DEFAULT_L3_CACHE_SIZE=524288 -Wall -Wextra -pedantic -Wno-array-bounds -Wno-use-after-free -Wno-stringop-overread -DOMPI_SKIP_MPICXX -Wno-literal-suffix -frounding-math -o CMakeFiles/parallel_cohesive_probe.dir/parallel_cohesive_probe.cc.o -c /probes/parallel_cohesive/parallel_cohesive_probe.cc",
+  "probe_cxx_flags": "-DAKANTU_PROBE_BUILD_TYPE=\"RelWithDebInfo\" -DAKANTU_PROBE_CONFIG=\"strict\" -DAKANTU_PROBE_CXX_FLAGS=\"-ffp-contract=off -DEIGEN_DONT_VECTORIZE -DEIGEN_NO_CPUID -DEIGEN_DEFAULT_L1_CACHE_SIZE=16384 -DEIGEN_DEFAULT_L2_CACHE_SIZE=524288 -DEIGEN_DEFAULT_L3_CACHE_SIZE=524288  -O2 -g -DNDEBUG\" -DBOOST_GRAPH_DYN_LINK -DBOOST_GRAPH_NO_LIB -DBOOST_REGEX_DYN_LINK -DBOOST_REGEX_NO_LIB -DCGAL_USE_GMPXX=1 -O2 -g -DNDEBUG -std=gnu++20 -ffp-contract=off -DEIGEN_DONT_VECTORIZE -DEIGEN_NO_CPUID -DEIGEN_DEFAULT_L1_CACHE_SIZE=16384 -DEIGEN_DEFAULT_L2_CACHE_SIZE=524288 -DEIGEN_DEFAULT_L3_CACHE_SIZE=524288 -Wall -Wextra -pedantic -Wno-array-bounds -Wno-use-after-free -Wno-stringop-overread -DOMPI_SKIP_MPICXX -Wno-literal-suffix -frounding-math"
+},
+  "created": "2026-11-12T03:51:30Z",
+  "parameters": {
+    "oracle_pin/eigen_cache_sizes": "16384 524288 524288",
+    "oracle_pin/openblas_coretype": "Haswell",
+    "oracle_pin/openblas_num_threads": "1",
+    "rank": 1,
+    "nb_ranks": 4,
+    "scenario": "facets_only_tri",
+    "material_dat": "model solid_mechanics_model_cohesive [\n  cohesive_inserter [\n    bounding_box = [[-0.1, 0.1], [-10, 10]]\n  ]\n  material elastic [\n    name = steel\n    rho = 1e3\n    E = 1e3\n    nu = 0.001\n  ]\n  material cohesive_linear [\n    name = cohesive\n    beta = 1\n    G_c = 100\n    sigma_c = 100\n  ]\n]\n",
+    "steps_before": 10,
+    "steps_after": 20,
+    "init/nb_global_nodes": 81,
+    "init/nb_nodes": 35,
+    "init/conn/blocks": [
+      "_triangle_3/not_ghost",
+      "_cohesive_2d_4/not_ghost",
+      "_triangle_3/ghost",
+      "_cohesive_2d_4/ghost"
+    ],
+    "init/facets/conn/blocks": [
+      "_point_1/not_ghost",
+      "_segment_2/not_ghost",
+      "_point_1/ghost",
+      "_segment_2/ghost"
+    ],
+    "init/element_scheme/keys": [
+      "send/0",
+      "send/2",
+      "send/3",
+      "recv/0",
+      "recv/2",
+      "recv/3"
+    ],
+    "init/node_scheme/keys": [
+      "send/3",
+      "recv/0"
+    ],
+    "init/facet_scheme/keys": [
+      "send/0",
+      "send/2",
+      "send/3",
+      "recv/0",
+      "recv/2",
+      "recv/3"
+    ],
+    "init/cohesive_scheme/keys": [
+      "send/0",
+      "send/2",
+      "send/3",
+      "recv/0",
+      "recv/2",
+      "recv/3"
+    ],
+    "init/facet_stress_scheme/keys": [
+      "send/0",
+      "send/2",
+      "send/3",
+      "recv/0",
+      "recv/2",
+      "recv/3"
+    ],
+    "init/check_facets/blocks": [
+      "_segment_2/not_ghost",
+      "_segment_2/ghost"
+    ],
+    "init/insertion_facets/blocks": [
+      "_segment_2/not_ghost",
+      "_segment_2/ghost"
+    ],
+    "init/law1/cohesive_internals": [
+      "opening",
+      "tractions",
+      "contact_tractions",
+      "contact_opening",
+      "delta max",
+      "damage",
+      "normal",
+      "reversible_energy",
+      "total_energy",
+      "sigma_c_eff",
+      "delta_c_eff",
+      "insertion_stress"
+    ],
+    "init/law_names": [
+      "steel",
+      "cohesive"
+    ],
+    "fo/nb_global_nodes": 88,
+    "fo/nb_nodes": 35,
+    "fo/conn/blocks": [
+      "_triangle_3/not_ghost",
+      "_cohesive_2d_4/not_ghost",
+      "_triangle_3/ghost",
+      "_cohesive_2d_4/ghost"
+    ],
+    "fo/facets/conn/blocks": [
+      "_point_1/not_ghost",
+      "_segment_2/not_ghost",
+      "_point_1/ghost",
+      "_segment_2/ghost"
+    ],
+    "fo/facets/subelement_to_element_components/_segment_2/not_ghost": 2,
+    "fo/facets/subelement_to_element_components/_triangle_3/not_ghost": 3,
+    "fo/facets/subelement_to_element_components/_segment_2/ghost": 2,
+    "fo/facets/subelement_to_element_components/_triangle_3/ghost": 3,
+    "fo/facets/element_to_subelement_blocks": [
+      "_point_1/not_ghost",
+      "_segment_2/not_ghost",
+      "_point_1/ghost",
+      "_segment_2/ghost"
+    ],
+    "fo/facets/subelement_to_element_blocks": [
+      "_segment_2/not_ghost",
+      "_triangle_3/not_ghost",
+      "_segment_2/ghost",
+      "_triangle_3/ghost"
+    ],
+    "fo/element_scheme/keys": [
+      "send/0",
+      "send/2",
+      "send/3",
+      "recv/0",
+      "recv/2",
+      "recv/3"
+    ],
+    "fo/node_scheme/keys": [
+      "send/3",
+      "recv/0"
+    ],
+    "fo/facet_scheme/keys": [
+      "send/0",
+      "send/2",
+      "send/3",
+      "recv/0",
+      "recv/2",
+      "recv/3"
+    ],
+    "fo/cohesive_scheme/keys": [
+      "send/0",
+      "send/2",
+      "send/3",
+      "recv/0",
+      "recv/2",
+      "recv/3"
+    ],
+    "fo/facet_stress_scheme/keys": [
+      "send/0",
+      "send/2",
+      "send/3",
+      "recv/0",
+      "recv/2",
+      "recv/3"
+    ],
+    "fo/check_facets/blocks": [
+      "_segment_2/not_ghost",
+      "_segment_2/ghost"
+    ],
+    "fo/insertion_facets/blocks": [
+      "_segment_2/not_ghost",
+      "_segment_2/ghost"
+    ],
+    "fo/law1/cohesive_internals": [
+      "opening",
+      "tractions",
+      "contact_tractions",
+      "contact_opening",
+      "delta max",
+      "damage",
+      "normal",
+      "reversible_energy",
+      "total_energy",
+      "sigma_c_eff",
+      "delta_c_eff",
+      "insertion_stress"
+    ],
+    "fo/law_names": [
+      "steel",
+      "cohesive"
+    ],
+    "s30/nb_global_nodes": 88,
+    "s30/nb_nodes": 35,
+    "s30/element_scheme/keys": [
+      "send/0",
+      "send/2",
+      "send/3",
+      "recv/0",
+      "recv/2",
+      "recv/3"
+    ],
+    "s30/node_scheme/keys": [
+      "send/3",
+      "recv/0"
+    ],
+    "s30/facet_scheme/keys": [
+      "send/0",
+      "send/2",
+      "send/3",
+      "recv/0",
+      "recv/2",
+      "recv/3"
+    ],
+    "s30/cohesive_scheme/keys": [
+      "send/0",
+      "send/2",
+      "send/3",
+      "recv/0",
+      "recv/2",
+      "recv/3"
+    ],
+    "s30/facet_stress_scheme/keys": [
+      "send/0",
+      "send/2",
+      "send/3",
+      "recv/0",
+      "recv/2",
+      "recv/3"
+    ],
+    "s30/check_facets/blocks": [
+      "_segment_2/not_ghost",
+      "_segment_2/ghost"
+    ],
+    "s30/insertion_facets/blocks": [
+      "_segment_2/not_ghost",
+      "_segment_2/ghost"
+    ],
+    "s30/law1/cohesive_internals": [
+      "opening",
+      "tractions",
+      "contact_tractions",
+      "contact_opening",
+      "delta max",
+      "damage",
+      "normal",
+      "reversible_energy",
+      "total_energy",
+      "sigma_c_eff",
+      "delta_c_eff",
+      "insertion_stress"
+    ],
+    "s30/law_names": [
+      "steel",
+      "cohesive"
+    ],
+    "checkpoints": [
+      30
+    ],
+    "type_table": [
+      "_triangle_3",
+      "_segment_2",
+      "_point_1"
+    ]
+  },
+  "storage": {
+    "mode": "committed",
+    "bytes": 79080
+  },
+  "quantities": [
+    {
+      "name": "model/time_step",
+      "file": "data/model__time_step.npy",
+      "dtype": "f64",
+      "shape": [
+        2,
+        1
+      ],
+      "axes": [
+        "entry",
+        "component"
+      ],
+      "layout": "table",
+      "sha256": "74db8b368da1bbdae7482823c3ae45b98957d944a120c96e260d5bde5162042d",
+      "description": "getStableTimeStep, 0.1 * it",
+      "tolerance_class": "exact"
+    },
+    {
+      "name": "init/nodes/global_ids",
+      "file": "data/init__nodes__global_ids.npy",
+      "dtype": "i64",
+      "shape": [
+        35
+      ],
+      "axes": [
+        "entry"
+      ],
+      "layout": "table",
+      "sha256": "77be6b6b98d160f910879f4f2910722026e2cc52ee86a4be7203ec7c0803ae12",
+      "description": "getNodeGlobalId per local node",
+      "tolerance_class": "exact"
+    },
+    {
+      "name": "init/nodes/flags",
+      "file": "data/init__nodes__flags.npy",
+      "dtype": "i64",
+      "shape": [
+        35
+      ],
+      "axes": [
+        "entry"
+      ],
+      "layout": "table",
+      "sha256": "910d786ff0b85fdd718f5eee85b4c8f83fa437b1176f545c4db1dcb95edab5b4",
+      "description": "getNodeFlag per local node (NodeFlag bits)",
+      "tolerance_class": "exact"
+    },
+    {
+      "name": "init/nodes/pranks",
+      "file": "data/init__nodes__pranks.npy",
+      "dtype": "i64",
+      "shape": [
+        35
+      ],
+      "axes": [
+        "entry"
+      ],
+      "layout": "table",
+      "sha256": "b3f93b6363fda59481d25653f44bb6fb47f57f6dd71e69aae997189eb15b27f0",
+      "description": "getNodePrank per local node (-1: none)",
+      "tolerance_class": "exact"
+    },
+    {
+      "name": "init/nodes/coordinates",
+      "file": "data/init__nodes__coordinates.npy",
+      "dtype": "f64",
+      "shape": [
+        35,
+        2
+      ],
+      "axes": [
+        "entry",
+        "component"
+      ],
+      "layout": "table",
+      "sha256": "696d9789de42ed1e6d2adf52c88638862aa1de4f2d3105200eb014c6481603e6",
+      "description": "node coordinates",
+      "tolerance_class": "exact"
+    },
+    {
+      "name": "init/conn/_triangle_3/not_ghost",
+      "file": "data/init__conn___triangle_3__not_ghost.npy",
+      "dtype": "i64",
+      "shape": [
+        32,
+        3
+      ],
+      "axes": [
+        "entry",
+        "component"
+      ],
+      "layout": "table",
+      "sha256": "1015ad197481ac1a43d5187ff40aa0d29aaecc2fbc105e5827fdc7c9bd6d6716",
+      "description": "connectivity (local node ids)",
+      "tolerance_class": "exact"
+    },
+    {
+      "name": "init/conn/_cohesive_2d_4/not_ghost",
+      "file": "data/init__conn___cohesive_2d_4__not_ghost.npy",
+      "dtype": "i64",
+      "shape": [
+        0,
+        4
+      ],
+      "axes": [
+        "entry",
+        "component"
+      ],
+      "layout": "table",
+      "sha256": "608d4efa1235f6bde0cbc16d1ab2cd4cef2a33b9a12e4947f51e198c314ea271",
+      "description": "connectivity (local node ids)",
+      "tolerance_class": "exact"
+    },
+    {
+      "name": "init/conn/_triangle_3/ghost",
+      "file": "data/init__conn___triangle_3__ghost.npy",
+      "dtype": "i64",
+      "shape": [
+        17,
+        3
+      ],
+      "axes": [
+        "entry",
+        "component"
+      ],
+      "layout": "table",
+      "sha256": "9df77d927bc8ba056844ed9f6dce0286ee847543e2d71a2079faa6248847818c",
+      "description": "connectivity (local node ids)",
+      "tolerance_class": "exact"
+    },
+    {
+      "name": "init/conn/_cohesive_2d_4/ghost",
+      "file": "data/init__conn___cohesive_2d_4__ghost.npy",
+      "dtype": "i64",
+      "shape": [
+        0,
+        4
+      ],
+      "axes": [
+        "entry",
+        "component"
+      ],
+      "layout": "table",
+      "sha256": "608d4efa1235f6bde0cbc16d1ab2cd4cef2a33b9a12e4947f51e198c314ea271",
+      "description": "connectivity (local node ids)",
+      "tolerance_class": "exact"
+    },
+    {
+      "name": "init/facets/conn/_point_1/not_ghost",
+      "file": "data/init__facets__conn___point_1__not_ghost.npy",
+      "dtype": "i64",
+      "shape": [
+        24
+      ],
+      "axes": [
+        "entry"
+      ],
+      "layout": "table",
+      "sha256": "93ab1e97adf20f30b474320706679dc0253a456ec5d014910ed8fa1d7f9a2e14",
+      "description": "connectivity (local node ids)",
+      "tolerance_class": "exact"
+    },
+    {
+      "name": "init/facets/conn/_segment_2/not_ghost",
+      "file": "data/init__facets__conn___segment_2__not_ghost.npy",
+      "dtype": "i64",
+      "shape": [
+        50,
+        2
+      ],
+      "axes": [
+        "entry",
+        "component"
+      ],
+      "layout": "table",
+      "sha256": "980ef6db89f3c552aeb5b37f1dcb91efd6223d148010a0c6d26df8c2bde5dfe6",
+      "description": "connectivity (local node ids)",
+      "tolerance_class": "exact"
+    },
+    {
+      "name": "init/facets/conn/_point_1/ghost",
+      "file": "data/init__facets__conn___point_1__ghost.npy",
+      "dtype": "i64",
+      "shape": [
+        1
+      ],
+      "axes": [
+        "entry"
+      ],
+      "layout": "table",
+      "sha256": "408b49736e5166b966c9487f06f101592677bc4b060e815613c3875149764183",
+      "description": "connectivity (local node ids)",
+      "tolerance_class": "exact"
+    },
+    {
+      "name": "init/facets/conn/_segment_2/ghost",
+      "file": "data/init__facets__conn___segment_2__ghost.npy",
+      "dtype": "i64",
+      "shape": [
+        24,
+        2
+      ],
+      "axes": [
+        "entry",
+        "component"
+      ],
+      "layout": "table",
+      "sha256": "d3148e278a1dd409a2c45b090360dfb1b6cdac9f86c6fe1d6030c0d292795b18",
+      "description": "connectivity (local node ids)",
+      "tolerance_class": "exact"
+    },
+    {
+      "name": "init/element_scheme/send/0",
+      "file": "data/init__element_scheme__send__0.npy",
+      "dtype": "i64",
+      "shape": [
+        13,
+        3
+      ],
+      "axes": [
+        "entry",
+        "component"
+      ],
+      "layout": "table",
+      "sha256": "6f3a8a3c995165c2b0631ceebc9a8817c3f6d598b72e21143ef75f66b1af0a5f",
+      "description": "(type code, element, ghost) in scheme order",
+      "tolerance_class": "exact"
+    },
+    {
+      "name": "init/element_scheme/send/2",
+      "file": "data/init__element_scheme__send__2.npy",
+      "dtype": "i64",
+      "shape": [
+        1,
+        3
+      ],
+      "axes": [
+        "entry",
+        "component"
+      ],
+      "layout": "table",
+      "sha256": "fee64fc2ef257c98c78237f0efa37b4274d837a41ce6c3781ec4a2cfd9b57215",
+      "description": "(type code, element, ghost) in scheme order",
+      "tolerance_class": "exact"
+    },
+    {
+      "name": "init/element_scheme/send/3",
+      "file": "data/init__element_scheme__send__3.npy",
+      "dtype": "i64",
+      "shape": [
+        8,
+        3
+      ],
+      "axes": [
+        "entry",
+        "component"
+      ],
+      "layout": "table",
+      "sha256": "15fc83d152c4b3151a3c13be6f34a93a12288173df4dc9a3a7ef5d8e2be3541e",
+      "description": "(type code, element, ghost) in scheme order",
+      "tolerance_class": "exact"
+    },
+    {
+      "name": "init/element_scheme/recv/0",
+      "file": "data/init__element_scheme__recv__0.npy",
+      "dtype": "i64",
+      "shape": [
+        12,
+        3
+      ],
+      "axes": [
+        "entry",
+        "component"
+      ],
+      "layout": "table",
+      "sha256": "8a11ddc9468efab66a659059f13c14e80dde61fbfea01db95bbbf820b7235506",
+      "description": "(type code, element, ghost) in scheme order",
+      "tolerance_class": "exact"
+    },
+    {
+      "name": "init/element_scheme/recv/2",
+      "file": "data/init__element_scheme__recv__2.npy",
+      "dtype": "i64",
+      "shape": [
+        1,
+        3
+      ],
+      "axes": [
+        "entry",
+        "component"
+      ],
+      "layout": "table",
+      "sha256": "e8582aca4f930a0bbd89fa9003fdde533633ac7dccb2501581c427c7f536a523",
+      "description": "(type code, element, ghost) in scheme order",
+      "tolerance_class": "exact"
+    },
+    {
+      "name": "init/element_scheme/recv/3",
+      "file": "data/init__element_scheme__recv__3.npy",
+      "dtype": "i64",
+      "shape": [
+        4,
+        3
+      ],
+      "axes": [
+        "entry",
+        "component"
+      ],
+      "layout": "table",
+      "sha256": "9426af41df132039d462a320b068b9cb97d42b3bf7513016de4a77b645c5fda5",
+      "description": "(type code, element, ghost) in scheme order",
+      "tolerance_class": "exact"
+    },
+    {
+      "name": "init/node_scheme/send/3",
+      "file": "data/init__node_scheme__send__3.npy",
+      "dtype": "i64",
+      "shape": [
+        1
+      ],
+      "axes": [
+        "entry"
+      ],
+      "layout": "table",
+      "sha256": "c0e56c15761fafc22d306b2a3b504e978a9f814ef4f38e43ab7099c298727a61",
+      "description": "local nodes in scheme order",
+      "tolerance_class": "exact"
+    },
+    {
+      "name": "init/node_scheme/recv/0",
+      "file": "data/init__node_scheme__recv__0.npy",
+      "dtype": "i64",
+      "shape": [
+        8
+      ],
+      "axes": [
+        "entry"
+      ],
+      "layout": "table",
+      "sha256": "8f9dee4d6a9aab08a52a028bcca0a0bf69c3febc898e7cd3cab1e3f5c127ebbb",
+      "description": "local nodes in scheme order",
+      "tolerance_class": "exact"
+    },
+    {
+      "name": "init/facet_scheme/send/0",
+      "file": "data/init__facet_scheme__send__0.npy",
+      "dtype": "i64",
+      "shape": [
+        15,
+        3
+      ],
+      "axes": [
+        "entry",
+        "component"
+      ],
+      "layout": "table",
+      "sha256": "3eb027b496f17e9594d7ab0ebd212ea3df030dfe98e5860979ed5d0fe02a58e1",
+      "description": "(type code, element, ghost) in scheme order",
+      "tolerance_class": "exact"
+    },
+    {
+      "name": "init/facet_scheme/send/2",
+      "file": "data/init__facet_scheme__send__2.npy",
+      "dtype": "i64",
+      "shape": [
+        0,
+        3
+      ],
+      "axes": [
+        "entry",
+        "component"
+      ],
+      "layout": "table",
+      "sha256": "09335c7d428a982a1579c2e4ed7b3c0906514ef4adc62fc1aa06cf7af47d2f32",
+      "description": "(type code, element, ghost) in scheme order",
+      "tolerance_class": "exact"
+    },
+    {
+      "name": "init/facet_scheme/send/3",
+      "file": "data/init__facet_scheme__send__3.npy",
+      "dtype": "i64",
+      "shape": [
+        10,
+        3
+      ],
+      "axes": [
+        "entry",
+        "component"
+      ],
+      "layout": "table",
+      "sha256": "110c7c58fa2f585d5bd957719baa201f74b600de9f03d642932ad397dcb8723f",
+      "description": "(type code, element, ghost) in scheme order",
+      "tolerance_class": "exact"
+    },
+    {
+      "name": "init/facet_scheme/recv/0",
+      "file": "data/init__facet_scheme__recv__0.npy",
+      "dtype": "i64",
+      "shape": [
+        21,
+        3
+      ],
+      "axes": [
+        "entry",
+        "component"
+      ],
+      "layout": "table",
+      "sha256": "f950168b52f5a782c0cfaa87a9592f7071ec9b829d78a453ed0c9aae41c9d97e",
+      "description": "(type code, element, ghost) in scheme order",
+      "tolerance_class": "exact"
+    },
+    {
+      "name": "init/facet_scheme/recv/2",
+      "file": "data/init__facet_scheme__recv__2.npy",
+      "dtype": "i64",
+      "shape": [
+        0,
+        3
+      ],
+      "axes": [
+        "entry",
+        "component"
+      ],
+      "layout": "table",
+      "sha256": "09335c7d428a982a1579c2e4ed7b3c0906514ef4adc62fc1aa06cf7af47d2f32",
+      "description": "(type code, element, ghost) in scheme order",
+      "tolerance_class": "exact"
+    },
+    {
+      "name": "init/facet_scheme/recv/3",
+      "file": "data/init__facet_scheme__recv__3.npy",
+      "dtype": "i64",
+      "shape": [
+        3,
+        3
+      ],
+      "axes": [
+        "entry",
+        "component"
+      ],
+      "layout": "table",
+      "sha256": "35b17682e86c6411c07e8928a455ea4d11f825f82d62d038c7661cfcf80ce7e2",
+      "description": "(type code, element, ghost) in scheme order",
+      "tolerance_class": "exact"
+    },
+    {
+      "name": "init/cohesive_scheme/send/0",
+      "file": "data/init__cohesive_scheme__send__0.npy",
+      "dtype": "i64",
+      "shape": [
+        0,
+        3
+      ],
+      "axes": [
+        "entry",
+        "component"
+      ],
+      "layout": "table",
+      "sha256": "09335c7d428a982a1579c2e4ed7b3c0906514ef4adc62fc1aa06cf7af47d2f32",
+      "description": "(type code, element, ghost) in scheme order",
+      "tolerance_class": "exact"
+    },
+    {
+      "name": "init/cohesive_scheme/send/2",
+      "file": "data/init__cohesive_scheme__send__2.npy",
+      "dtype": "i64",
+      "shape": [
+        0,
+        3
+      ],
+      "axes": [
+        "entry",
+        "component"
+      ],
+      "layout": "table",
+      "sha256": "09335c7d428a982a1579c2e4ed7b3c0906514ef4adc62fc1aa06cf7af47d2f32",
+      "description": "(type code, element, ghost) in scheme order",
+      "tolerance_class": "exact"
+    },
+    {
+      "name": "init/cohesive_scheme/send/3",
+      "file": "data/init__cohesive_scheme__send__3.npy",
+      "dtype": "i64",
+      "shape": [
+        0,
+        3
+      ],
+      "axes": [
+        "entry",
+        "component"
+      ],
+      "layout": "table",
+      "sha256": "09335c7d428a982a1579c2e4ed7b3c0906514ef4adc62fc1aa06cf7af47d2f32",
+      "description": "(type code, element, ghost) in scheme order",
+      "tolerance_class": "exact"
+    },
+    {
+      "name": "init/cohesive_scheme/recv/0",
+      "file": "data/init__cohesive_scheme__recv__0.npy",
+      "dtype": "i64",
+      "shape": [
+        0,
+        3
+      ],
+      "axes": [
+        "entry",
+        "component"
+      ],
+      "layout": "table",
+      "sha256": "09335c7d428a982a1579c2e4ed7b3c0906514ef4adc62fc1aa06cf7af47d2f32",
+      "description": "(type code, element, ghost) in scheme order",
+      "tolerance_class": "exact"
+    },
+    {
+      "name": "init/cohesive_scheme/recv/2",
+      "file": "data/init__cohesive_scheme__recv__2.npy",
+      "dtype": "i64",
+      "shape": [
+        0,
+        3
+      ],
+      "axes": [
+        "entry",
+        "component"
+      ],
+      "layout": "table",
+      "sha256": "09335c7d428a982a1579c2e4ed7b3c0906514ef4adc62fc1aa06cf7af47d2f32",
+      "description": "(type code, element, ghost) in scheme order",
+      "tolerance_class": "exact"
+    },
+    {
+      "name": "init/cohesive_scheme/recv/3",
+      "file": "data/init__cohesive_scheme__recv__3.npy",
+      "dtype": "i64",
+      "shape": [
+        0,
+        3
+      ],
+      "axes": [
+        "entry",
+        "component"
+      ],
+      "layout": "table",
+      "sha256": "09335c7d428a982a1579c2e4ed7b3c0906514ef4adc62fc1aa06cf7af47d2f32",
+      "description": "(type code, element, ghost) in scheme order",
+      "tolerance_class": "exact"
+    },
+    {
+      "name": "init/facet_stress_scheme/send/0",
+      "file": "data/init__facet_stress_scheme__send__0.npy",
+      "dtype": "i64",
+      "shape": [
+        2,
+        3
+      ],
+      "axes": [
+        "entry",
+        "component"
+      ],
+      "layout": "table",
+      "sha256": "f58f7e7ef1e0a49b6cef2ebe5364858a4f5c60754bcbed9c35ac094ee754c0a3",
+      "description": "(type code, element, ghost) in scheme order",
+      "tolerance_class": "exact"
+    },
+    {
+      "name": "init/facet_stress_scheme/send/2",
+      "file": "data/init__facet_stress_scheme__send__2.npy",
+      "dtype": "i64",
+      "shape": [
+        0,
+        3
+      ],
+      "axes": [
+        "entry",
+        "component"
+      ],
+      "layout": "table",
+      "sha256": "09335c7d428a982a1579c2e4ed7b3c0906514ef4adc62fc1aa06cf7af47d2f32",
+      "description": "(type code, element, ghost) in scheme order",
+      "tolerance_class": "exact"
+    },
+    {
+      "name": "init/facet_stress_scheme/send/3",
+      "file": "data/init__facet_stress_scheme__send__3.npy",
+      "dtype": "i64",
+      "shape": [
+        0,
+        3
+      ],
+      "axes": [
+        "entry",
+        "component"
+      ],
+      "layout": "table",
+      "sha256": "09335c7d428a982a1579c2e4ed7b3c0906514ef4adc62fc1aa06cf7af47d2f32",
+      "description": "(type code, element, ghost) in scheme order",
+      "tolerance_class": "exact"
+    },
+    {
+      "name": "init/facet_stress_scheme/recv/0",
+      "file": "data/init__facet_stress_scheme__recv__0.npy",
+      "dtype": "i64",
+      "shape": [
+        0,
+        3
+      ],
+      "axes": [
+        "entry",
+        "component"
+      ],
+      "layout": "table",
+      "sha256": "09335c7d428a982a1579c2e4ed7b3c0906514ef4adc62fc1aa06cf7af47d2f32",
+      "description": "(type code, element, ghost) in scheme order",
+      "tolerance_class": "exact"
+    },
+    {
+      "name": "init/facet_stress_scheme/recv/2",
+      "file": "data/init__facet_stress_scheme__recv__2.npy",
+      "dtype": "i64",
+      "shape": [
+        0,
+        3
+      ],
+      "axes": [
+        "entry",
+        "component"
+      ],
+      "layout": "table",
+      "sha256": "09335c7d428a982a1579c2e4ed7b3c0906514ef4adc62fc1aa06cf7af47d2f32",
+      "description": "(type code, element, ghost) in scheme order",
+      "tolerance_class": "exact"
+    },
+    {
+      "name": "init/facet_stress_scheme/recv/3",
+      "file": "data/init__facet_stress_scheme__recv__3.npy",
+      "dtype": "i64",
+      "shape": [
+        2,
+        3
+      ],
+      "axes": [
+        "entry",
+        "component"
+      ],
+      "layout": "table",
+      "sha256": "61849c2023bbe2d51aba76a5e328c23d46138fc3b43c9b5938d80f5335b2f01d",
+      "description": "(type code, element, ghost) in scheme order",
+      "tolerance_class": "exact"
+    },
+    {
+      "name": "init/check_facets/_segment_2/not_ghost",
+      "file": "data/init__check_facets___segment_2__not_ghost.npy",
+      "dtype": "i64",
+      "shape": [
+        50
+      ],
+      "axes": [
+        "entry"
+      ],
+      "layout": "table",
+      "sha256": "616d99f386e7641067c564fd5471f3b7f5f39b675a9e58bf4eeb61b728b62509",
+      "description": "per facet flag",
+      "tolerance_class": "exact"
+    },
+    {
+      "name": "init/check_facets/_segment_2/ghost",
+      "file": "data/init__check_facets___segment_2__ghost.npy",
+      "dtype": "i64",
+      "shape": [
+        24
+      ],
+      "axes": [
+        "entry"
+      ],
+      "layout": "table",
+      "sha256": "84663272b4424b05bf9cf90694c886861bbd6effefb46228c13edee776c6b184",
+      "description": "per facet flag",
+      "tolerance_class": "exact"
+    },
+    {
+      "name": "init/insertion_facets/_segment_2/not_ghost",
+      "file": "data/init__insertion_facets___segment_2__not_ghost.npy",
+      "dtype": "i64",
+      "shape": [
+        50
+      ],
+      "axes": [
+        "entry"
+      ],
+      "layout": "table",
+      "sha256": "d99c920afd0b9e4687a89b91c3822251a0bf7a12ae8aaec70c4fdc891959626f",
+      "description": "per facet flag",
+      "tolerance_class": "exact"
+    },
+    {
+      "name": "init/insertion_facets/_segment_2/ghost",
+      "file": "data/init__insertion_facets___segment_2__ghost.npy",
+      "dtype": "i64",
+      "shape": [
+        24
+      ],
+      "axes": [
+        "entry"
+      ],
+      "layout": "table",
+      "sha256": "03f5b6f1ac6db7bfc13e3c50bcf2da515c77cfe836922c99b864312b17f7b74e",
+      "description": "per facet flag",
+      "tolerance_class": "exact"
+    },
+    {
+      "name": "init/law0/filter/_triangle_3/not_ghost",
+      "file": "data/init__law0__filter___triangle_3__not_ghost.npy",
+      "dtype": "i64",
+      "shape": [
+        32
+      ],
+      "axes": [
+        "entry"
+      ],
+      "layout": "table",
+      "sha256": "d7e613f1090f555b5641f2b446191b4b16b191e7a4ebfee85716049073143863",
+      "description": "law element filter (ghost: canonical rank order, probe patch)",
+      "tolerance_class": "exact"
+    },
+    {
+      "name": "init/law0/filter/_triangle_3/ghost",
+      "file": "data/init__law0__filter___triangle_3__ghost.npy",
+      "dtype": "i64",
+      "shape": [
+        17
+      ],
+      "axes": [
+        "entry"
+      ],
+      "layout": "table",
+      "sha256": "994bf022a0c9a29422035b1e8c949c37a00e5708d855d5e6eabe8f6588384feb",
+      "description": "law element filter (ghost: canonical rank order, probe patch)",
+      "tolerance_class": "exact"
+    },
+    {
+      "name": "init/law1/filter/_triangle_3/not_ghost",
+      "file": "data/init__law1__filter___triangle_3__not_ghost.npy",
+      "dtype": "i64",
+      "shape": [
+        0
+      ],
+      "axes": [
+        "entry"
+      ],
+      "layout": "table",
+      "sha256": "e734dac55ea9fbbe782af2d8c02c3c5992131906228afb2aaaf137d6f3ed74db",
+      "description": "law element filter (ghost: canonical rank order, probe patch)",
+      "tolerance_class": "exact"
+    },
+    {
+      "name": "init/law1/filter/_cohesive_2d_4/not_ghost",
+      "file": "data/init__law1__filter___cohesive_2d_4__not_ghost.npy",
+      "dtype": "i64",
+      "shape": [
+        0
+      ],
+      "axes": [
+        "entry"
+      ],
+      "layout": "table",
+      "sha256": "e734dac55ea9fbbe782af2d8c02c3c5992131906228afb2aaaf137d6f3ed74db",
+      "description": "law element filter (ghost: canonical rank order, probe patch)",
+      "tolerance_class": "exact"
+    },
+    {
+      "name": "init/law1/filter/_triangle_3/ghost",
+      "file": "data/init__law1__filter___triangle_3__ghost.npy",
+      "dtype": "i64",
+      "shape": [
+        0
+      ],
+      "axes": [
+        "entry"
+      ],
+      "layout": "table",
+      "sha256": "e734dac55ea9fbbe782af2d8c02c3c5992131906228afb2aaaf137d6f3ed74db",
+      "description": "law element filter (ghost: canonical rank order, probe patch)",
+      "tolerance_class": "exact"
+    },
+    {
+      "name": "init/law1/filter/_cohesive_2d_4/ghost",
+      "file": "data/init__law1__filter___cohesive_2d_4__ghost.npy",
+      "dtype": "i64",
+      "shape": [
+        0
+      ],
+      "axes": [
+        "entry"
+      ],
+      "layout": "table",
+      "sha256": "e734dac55ea9fbbe782af2d8c02c3c5992131906228afb2aaaf137d6f3ed74db",
+      "description": "law element filter (ghost: canonical rank order, probe patch)",
+      "tolerance_class": "exact"
+    },
+    {
+      "name": "init/law1/opening/_cohesive_2d_4/not_ghost",
+      "file": "data/init__law1__opening___cohesive_2d_4__not_ghost.npy",
+      "dtype": "f64",
+      "shape": [
+        0,
+        2
+      ],
+      "axes": [
+        "entry",
+        "component"
+      ],
+      "layout": "table",
+      "sha256": "8465b982d07844d91218a2129afe27b20c2809a2de8727045d12fe515ef5c7e9",
+      "description": "cohesive internal opening",
+      "tolerance_class": "exact"
+    },
+    {
+      "name": "init/law1/opening/_cohesive_2d_4/ghost",
+      "file": "data/init__law1__opening___cohesive_2d_4__ghost.npy",
+      "dtype": "f64",
+      "shape": [
+        0,
+        2
+      ],
+      "axes": [
+        "entry",
+        "component"
+      ],
+      "layout": "table",
+      "sha256": "8465b982d07844d91218a2129afe27b20c2809a2de8727045d12fe515ef5c7e9",
+      "description": "cohesive internal opening",
+      "tolerance_class": "exact"
+    },
+    {
+      "name": "init/law1/tractions/_cohesive_2d_4/not_ghost",
+      "file": "data/init__law1__tractions___cohesive_2d_4__not_ghost.npy",
+      "dtype": "f64",
+      "shape": [
+        0,
+        2
+      ],
+      "axes": [
+        "entry",
+        "component"
+      ],
+      "layout": "table",
+      "sha256": "8465b982d07844d91218a2129afe27b20c2809a2de8727045d12fe515ef5c7e9",
+      "description": "cohesive internal tractions",
+      "tolerance_class": "exact"
+    },
+    {
+      "name": "init/law1/tractions/_cohesive_2d_4/ghost",
+      "file": "data/init__law1__tractions___cohesive_2d_4__ghost.npy",
+      "dtype": "f64",
+      "shape": [
+        0,
+        2
+      ],
+      "axes": [
+        "entry",
+        "component"
+      ],
+      "layout": "table",
+      "sha256": "8465b982d07844d91218a2129afe27b20c2809a2de8727045d12fe515ef5c7e9",
+      "description": "cohesive internal tractions",
+      "tolerance_class": "exact"
+    },
+    {
+      "name": "init/law1/contact_tractions/_cohesive_2d_4/not_ghost",
+      "file": "data/init__law1__contact_tractions___cohesive_2d_4__not_ghost.npy",
+      "dtype": "f64",
+      "shape": [
+        0,
+        2
+      ],
+      "axes": [
+        "entry",
+        "component"
+      ],
+      "layout": "table",
+      "sha256": "8465b982d07844d91218a2129afe27b20c2809a2de8727045d12fe515ef5c7e9",
+      "description": "cohesive internal contact_tractions",
+      "tolerance_class": "exact"
+    },
+    {
+      "name": "init/law1/contact_tractions/_cohesive_2d_4/ghost",
+      "file": "data/init__law1__contact_tractions___cohesive_2d_4__ghost.npy",
+      "dtype": "f64",
+      "shape": [
+        0,
+        2
+      ],
+      "axes": [
+        "entry",
+        "component"
+      ],
+      "layout": "table",
+      "sha256": "8465b982d07844d91218a2129afe27b20c2809a2de8727045d12fe515ef5c7e9",
+      "description": "cohesive internal contact_tractions",
+      "tolerance_class": "exact"
+    },
+    {
+      "name": "init/law1/contact_opening/_cohesive_2d_4/not_ghost",
+      "file": "data/init__law1__contact_opening___cohesive_2d_4__not_ghost.npy",
+      "dtype": "f64",
+      "shape": [
+        0,
+        2
+      ],
+      "axes": [
+        "entry",
+        "component"
+      ],
+      "layout": "table",
+      "sha256": "8465b982d07844d91218a2129afe27b20c2809a2de8727045d12fe515ef5c7e9",
+      "description": "cohesive internal contact_opening",
+      "tolerance_class": "exact"
+    },
+    {
+      "name": "init/law1/contact_opening/_cohesive_2d_4/ghost",
+      "file": "data/init__law1__contact_opening___cohesive_2d_4__ghost.npy",
+      "dtype": "f64",
+      "shape": [
+        0,
+        2
+      ],
+      "axes": [
+        "entry",
+        "component"
+      ],
+      "layout": "table",
+      "sha256": "8465b982d07844d91218a2129afe27b20c2809a2de8727045d12fe515ef5c7e9",
+      "description": "cohesive internal contact_opening",
+      "tolerance_class": "exact"
+    },
+    {
+      "name": "init/law1/delta_max/_cohesive_2d_4/not_ghost",
+      "file": "data/init__law1__delta_max___cohesive_2d_4__not_ghost.npy",
+      "dtype": "f64",
+      "shape": [
+        0,
+        1
+      ],
+      "axes": [
+        "entry",
+        "component"
+      ],
+      "layout": "table",
+      "sha256": "aa03397bf977ff4f544e8768afd91f3f4b876dc9732a7b9550ca82f5639b5ef4",
+      "description": "cohesive internal delta max",
+      "tolerance_class": "exact"
+    },
+    {
+      "name": "init/law1/delta_max/_cohesive_2d_4/ghost",
+      "file": "data/init__law1__delta_max___cohesive_2d_4__ghost.npy",
+      "dtype": "f64",
+      "shape": [
+        0,
+        1
+      ],
+      "axes": [
+        "entry",
+        "component"
+      ],
+      "layout": "table",
+      "sha256": "aa03397bf977ff4f544e8768afd91f3f4b876dc9732a7b9550ca82f5639b5ef4",
+      "description": "cohesive internal delta max",
+      "tolerance_class": "exact"
+    },
+    {
+      "name": "init/law1/damage/_cohesive_2d_4/not_ghost",
+      "file": "data/init__law1__damage___cohesive_2d_4__not_ghost.npy",
+      "dtype": "f64",
+      "shape": [
+        0,
+        1
+      ],
+      "axes": [
+        "entry",
+        "component"
+      ],
+      "layout": "table",
+      "sha256": "aa03397bf977ff4f544e8768afd91f3f4b876dc9732a7b9550ca82f5639b5ef4",
+      "description": "cohesive internal damage",
+      "tolerance_class": "exact"
+    },
+    {
+      "name": "init/law1/damage/_cohesive_2d_4/ghost",
+      "file": "data/init__law1__damage___cohesive_2d_4__ghost.npy",
+      "dtype": "f64",
+      "shape": [
+        0,
+        1
+      ],
+      "axes": [
+        "entry",
+        "component"
+      ],
+      "layout": "table",
+      "sha256": "aa03397bf977ff4f544e8768afd91f3f4b876dc9732a7b9550ca82f5639b5ef4",
+      "description": "cohesive internal damage",
+      "tolerance_class": "exact"
+    },
+    {
+      "name": "init/law1/normal/_cohesive_2d_4/not_ghost",
+      "file": "data/init__law1__normal___cohesive_2d_4__not_ghost.npy",
+      "dtype": "f64",
+      "shape": [
+        0,
+        2
+      ],
+      "axes": [
+        "entry",
+        "component"
+      ],
+      "layout": "table",
+      "sha256": "8465b982d07844d91218a2129afe27b20c2809a2de8727045d12fe515ef5c7e9",
+      "description": "cohesive internal normal",
+      "tolerance_class": "exact"
+    },
+    {
+      "name": "init/law1/normal/_cohesive_2d_4/ghost",
+      "file": "data/init__law1__normal___cohesive_2d_4__ghost.npy",
+      "dtype": "f64",
+      "shape": [
+        0,
+        2
+      ],
+      "axes": [
+        "entry",
+        "component"
+      ],
+      "layout": "table",
+      "sha256": "8465b982d07844d91218a2129afe27b20c2809a2de8727045d12fe515ef5c7e9",
+      "description": "cohesive internal normal",
+      "tolerance_class": "exact"
+    },
+    {
+      "name": "init/law1/reversible_energy/_cohesive_2d_4/not_ghost",
+      "file": "data/init__law1__reversible_energy___cohesive_2d_4__not_ghost.npy",
+      "dtype": "f64",
+      "shape": [
+        0,
+        1
+      ],
+      "axes": [
+        "entry",
+        "component"
+      ],
+      "layout": "table",
+      "sha256": "aa03397bf977ff4f544e8768afd91f3f4b876dc9732a7b9550ca82f5639b5ef4",
+      "description": "cohesive internal reversible_energy",
+      "tolerance_class": "exact"
+    },
+    {
+      "name": "init/law1/reversible_energy/_cohesive_2d_4/ghost",
+      "file": "data/init__law1__reversible_energy___cohesive_2d_4__ghost.npy",
+      "dtype": "f64",
+      "shape": [
+        0,
+        1
+      ],
+      "axes": [
+        "entry",
+        "component"
+      ],
+      "layout": "table",
+      "sha256": "aa03397bf977ff4f544e8768afd91f3f4b876dc9732a7b9550ca82f5639b5ef4",
+      "description": "cohesive internal reversible_energy",
+      "tolerance_class": "exact"
+    },
+    {
+      "name": "init/law1/total_energy/_cohesive_2d_4/not_ghost",
+      "file": "data/init__law1__total_energy___cohesive_2d_4__not_ghost.npy",
+      "dtype": "f64",
+      "shape": [
+        0,
+        1
+      ],
+      "axes": [
+        "entry",
+        "component"
+      ],
+      "layout": "table",
+      "sha256": "aa03397bf977ff4f544e8768afd91f3f4b876dc9732a7b9550ca82f5639b5ef4",
+      "description": "cohesive internal total_energy",
+      "tolerance_class": "exact"
+    },
+    {
+      "name": "init/law1/total_energy/_cohesive_2d_4/ghost",
+      "file": "data/init__law1__total_energy___cohesive_2d_4__ghost.npy",
+      "dtype": "f64",
+      "shape": [
+        0,
+        1
+      ],
+      "axes": [
+        "entry",
+        "component"
+      ],
+      "layout": "table",
+      "sha256": "aa03397bf977ff4f544e8768afd91f3f4b876dc9732a7b9550ca82f5639b5ef4",
+      "description": "cohesive internal total_energy",
+      "tolerance_class": "exact"
+    },
+    {
+      "name": "init/law1/sigma_c_eff/_cohesive_2d_4/not_ghost",
+      "file": "data/init__law1__sigma_c_eff___cohesive_2d_4__not_ghost.npy",
+      "dtype": "f64",
+      "shape": [
+        0,
+        1
+      ],
+      "axes": [
+        "entry",
+        "component"
+      ],
+      "layout": "table",
+      "sha256": "aa03397bf977ff4f544e8768afd91f3f4b876dc9732a7b9550ca82f5639b5ef4",
+      "description": "cohesive internal sigma_c_eff",
+      "tolerance_class": "exact"
+    },
+    {
+      "name": "init/law1/sigma_c_eff/_cohesive_2d_4/ghost",
+      "file": "data/init__law1__sigma_c_eff___cohesive_2d_4__ghost.npy",
+      "dtype": "f64",
+      "shape": [
+        0,
+        1
+      ],
+      "axes": [
+        "entry",
+        "component"
+      ],
+      "layout": "table",
+      "sha256": "aa03397bf977ff4f544e8768afd91f3f4b876dc9732a7b9550ca82f5639b5ef4",
+      "description": "cohesive internal sigma_c_eff",
+      "tolerance_class": "exact"
+    },
+    {
+      "name": "init/law1/delta_c_eff/_cohesive_2d_4/not_ghost",
+      "file": "data/init__law1__delta_c_eff___cohesive_2d_4__not_ghost.npy",
+      "dtype": "f64",
+      "shape": [
+        0,
+        1
+      ],
+      "axes": [
+        "entry",
+        "component"
+      ],
+      "layout": "table",
+      "sha256": "aa03397bf977ff4f544e8768afd91f3f4b876dc9732a7b9550ca82f5639b5ef4",
+      "description": "cohesive internal delta_c_eff",
+      "tolerance_class": "exact"
+    },
+    {
+      "name": "init/law1/delta_c_eff/_cohesive_2d_4/ghost",
+      "file": "data/init__law1__delta_c_eff___cohesive_2d_4__ghost.npy",
+      "dtype": "f64",
+      "shape": [
+        0,
+        1
+      ],
+      "axes": [
+        "entry",
+        "component"
+      ],
+      "layout": "table",
+      "sha256": "aa03397bf977ff4f544e8768afd91f3f4b876dc9732a7b9550ca82f5639b5ef4",
+      "description": "cohesive internal delta_c_eff",
+      "tolerance_class": "exact"
+    },
+    {
+      "name": "init/law1/insertion_stress/_cohesive_2d_4/not_ghost",
+      "file": "data/init__law1__insertion_stress___cohesive_2d_4__not_ghost.npy",
+      "dtype": "f64",
+      "shape": [
+        0,
+        2
+      ],
+      "axes": [
+        "entry",
+        "component"
+      ],
+      "layout": "table",
+      "sha256": "8465b982d07844d91218a2129afe27b20c2809a2de8727045d12fe515ef5c7e9",
+      "description": "cohesive internal insertion_stress",
+      "tolerance_class": "exact"
+    },
+    {
+      "name": "init/law1/insertion_stress/_cohesive_2d_4/ghost",
+      "file": "data/init__law1__insertion_stress___cohesive_2d_4__ghost.npy",
+      "dtype": "f64",
+      "shape": [
+        0,
+        2
+      ],
+      "axes": [
+        "entry",
+        "component"
+      ],
+      "layout": "table",
+      "sha256": "8465b982d07844d91218a2129afe27b20c2809a2de8727045d12fe515ef5c7e9",
+      "description": "cohesive internal insertion_stress",
+      "tolerance_class": "exact"
+    },
+    {
+      "name": "init/law1/facet_filter/_segment_2/not_ghost",
+      "file": "data/init__law1__facet_filter___segment_2__not_ghost.npy",
+      "dtype": "i64",
+      "shape": [
+        50
+      ],
+      "axes": [
+        "entry"
+      ],
+      "layout": "table",
+      "sha256": "7d2bbdee3bfe4aa21f28fa8d572d9bbd6cc5e6e9ad28fe2441f5a5596cdd0043",
+      "description": "facet filter (extrinsic)",
+      "tolerance_class": "exact"
+    },
+    {
+      "name": "init/law1/facet_filter/_segment_2/ghost",
+      "file": "data/init__law1__facet_filter___segment_2__ghost.npy",
+      "dtype": "i64",
+      "shape": [
+        0
+      ],
+      "axes": [
+        "entry"
+      ],
+      "layout": "table",
+      "sha256": "e734dac55ea9fbbe782af2d8c02c3c5992131906228afb2aaaf137d6f3ed74db",
+      "description": "facet filter (extrinsic)",
+      "tolerance_class": "exact"
+    },
+    {
+      "name": "init/law1/sigma_c/_segment_2/not_ghost",
+      "file": "data/init__law1__sigma_c___segment_2__not_ghost.npy",
+      "dtype": "f64",
+      "shape": [
+        100,
+        1
+      ],
+      "axes": [
+        "entry",
+        "component"
+      ],
+      "layout": "table",
+      "sha256": "433f42a40d709b377f72c8ab9dde0098145cb9088095a745b3f6c6f4fff86f1a",
+      "description": "facet strength sigma_c (per facet quadrature point of the facet filter)",
+      "tolerance_class": "exact"
+    },
+    {
+      "name": "init/law1/sigma_c/_segment_2/ghost",
+      "file": "data/init__law1__sigma_c___segment_2__ghost.npy",
+      "dtype": "f64",
+      "shape": [
+        0,
+        1
+      ],
+      "axes": [
+        "entry",
+        "component"
+      ],
+      "layout": "table",
+      "sha256": "aa03397bf977ff4f544e8768afd91f3f4b876dc9732a7b9550ca82f5639b5ef4",
+      "description": "facet strength sigma_c (per facet quadrature point of the facet filter)",
+      "tolerance_class": "exact"
+    },
+    {
+      "name": "fo/flagged_local",
+      "file": "data/fo__flagged_local.npy",
+      "dtype": "i64",
+      "shape": [
+        1
+      ],
+      "axes": [
+        "entry"
+      ],
+      "layout": "table",
+      "sha256": "f6df0000bed676f0a4b777e2a1d915b6608dab452e11737f82c685cebf0e8ba7",
+      "description": "not-ghost facets flagged on this rank",
+      "tolerance_class": "exact"
+    },
+    {
+      "name": "fo/returned",
+      "file": "data/fo__returned.npy",
+      "dtype": "i64",
+      "shape": [
+        1
+      ],
+      "axes": [
+        "entry"
+      ],
+      "layout": "table",
+      "sha256": "f6df0000bed676f0a4b777e2a1d915b6608dab452e11737f82c685cebf0e8ba7",
+      "description": "insertElements(true) return value",
+      "tolerance_class": "exact"
+    },
+    {
+      "name": "fo/nodes/global_ids",
+      "file": "data/fo__nodes__global_ids.npy",
+      "dtype": "i64",
+      "shape": [
+        35
+      ],
+      "axes": [
+        "entry"
+      ],
+      "layout": "table",
+      "sha256": "77be6b6b98d160f910879f4f2910722026e2cc52ee86a4be7203ec7c0803ae12",
+      "description": "getNodeGlobalId per local node",
+      "tolerance_class": "exact"
+    },
+    {
+      "name": "fo/nodes/flags",
+      "file": "data/fo__nodes__flags.npy",
+      "dtype": "i64",
+      "shape": [
+        35
+      ],
+      "axes": [
+        "entry"
+      ],
+      "layout": "table",
+      "sha256": "910d786ff0b85fdd718f5eee85b4c8f83fa437b1176f545c4db1dcb95edab5b4",
+      "description": "getNodeFlag per local node (NodeFlag bits)",
+      "tolerance_class": "exact"
+    },
+    {
+      "name": "fo/nodes/pranks",
+      "file": "data/fo__nodes__pranks.npy",
+      "dtype": "i64",
+      "shape": [
+        35
+      ],
+      "axes": [
+        "entry"
+      ],
+      "layout": "table",
+      "sha256": "b3f93b6363fda59481d25653f44bb6fb47f57f6dd71e69aae997189eb15b27f0",
+      "description": "getNodePrank per local node (-1: none)",
+      "tolerance_class": "exact"
+    },
+    {
+      "name": "fo/nodes/coordinates",
+      "file": "data/fo__nodes__coordinates.npy",
+      "dtype": "f64",
+      "shape": [
+        35,
+        2
+      ],
+      "axes": [
+        "entry",
+        "component"
+      ],
+      "layout": "table",
+      "sha256": "696d9789de42ed1e6d2adf52c88638862aa1de4f2d3105200eb014c6481603e6",
+      "description": "node coordinates",
+      "tolerance_class": "exact"
+    },
+    {
+      "name": "fo/conn/_triangle_3/not_ghost",
+      "file": "data/fo__conn___triangle_3__not_ghost.npy",
+      "dtype": "i64",
+      "shape": [
+        32,
+        3
+      ],
+      "axes": [
+        "entry",
+        "component"
+      ],
+      "layout": "table",
+      "sha256": "1015ad197481ac1a43d5187ff40aa0d29aaecc2fbc105e5827fdc7c9bd6d6716",
+      "description": "connectivity (local node ids)",
+      "tolerance_class": "exact"
+    },
+    {
+      "name": "fo/conn/_cohesive_2d_4/not_ghost",
+      "file": "data/fo__conn___cohesive_2d_4__not_ghost.npy",
+      "dtype": "i64",
+      "shape": [
+        0,
+        4
+      ],
+      "axes": [
+        "entry",
+        "component"
+      ],
+      "layout": "table",
+      "sha256": "608d4efa1235f6bde0cbc16d1ab2cd4cef2a33b9a12e4947f51e198c314ea271",
+      "description": "connectivity (local node ids)",
+      "tolerance_class": "exact"
+    },
+    {
+      "name": "fo/conn/_triangle_3/ghost",
+      "file": "data/fo__conn___triangle_3__ghost.npy",
+      "dtype": "i64",
+      "shape": [
+        17,
+        3
+      ],
+      "axes": [
+        "entry",
+        "component"
+      ],
+      "layout": "table",
+      "sha256": "9df77d927bc8ba056844ed9f6dce0286ee847543e2d71a2079faa6248847818c",
+      "description": "connectivity (local node ids)",
+      "tolerance_class": "exact"
+    },
+    {
+      "name": "fo/conn/_cohesive_2d_4/ghost",
+      "file": "data/fo__conn___cohesive_2d_4__ghost.npy",
+      "dtype": "i64",
+      "shape": [
+        0,
+        4
+      ],
+      "axes": [
+        "entry",
+        "component"
+      ],
+      "layout": "table",
+      "sha256": "608d4efa1235f6bde0cbc16d1ab2cd4cef2a33b9a12e4947f51e198c314ea271",
+      "description": "connectivity (local node ids)",
+      "tolerance_class": "exact"
+    },
+    {
+      "name": "fo/facets/conn/_point_1/not_ghost",
+      "file": "data/fo__facets__conn___point_1__not_ghost.npy",
+      "dtype": "i64",
+      "shape": [
+        24
+      ],
+      "axes": [
+        "entry"
+      ],
+      "layout": "table",
+      "sha256": "93ab1e97adf20f30b474320706679dc0253a456ec5d014910ed8fa1d7f9a2e14",
+      "description": "connectivity (local node ids)",
+      "tolerance_class": "exact"
+    },
+    {
+      "name": "fo/facets/conn/_segment_2/not_ghost",
+      "file": "data/fo__facets__conn___segment_2__not_ghost.npy",
+      "dtype": "i64",
+      "shape": [
+        50,
+        2
+      ],
+      "axes": [
+        "entry",
+        "component"
+      ],
+      "layout": "table",
+      "sha256": "980ef6db89f3c552aeb5b37f1dcb91efd6223d148010a0c6d26df8c2bde5dfe6",
+      "description": "connectivity (local node ids)",
+      "tolerance_class": "exact"
+    },
+    {
+      "name": "fo/facets/conn/_point_1/ghost",
+      "file": "data/fo__facets__conn___point_1__ghost.npy",
+      "dtype": "i64",
+      "shape": [
+        1
+      ],
+      "axes": [
+        "entry"
+      ],
+      "layout": "table",
+      "sha256": "408b49736e5166b966c9487f06f101592677bc4b060e815613c3875149764183",
+      "description": "connectivity (local node ids)",
+      "tolerance_class": "exact"
+    },
+    {
+      "name": "fo/facets/conn/_segment_2/ghost",
+      "file": "data/fo__facets__conn___segment_2__ghost.npy",
+      "dtype": "i64",
+      "shape": [
+        25,
+        2
+      ],
+      "axes": [
+        "entry",
+        "component"
+      ],
+      "layout": "table",
+      "sha256": "7cff68d8b55f46e042560c4e83728374e468c2a7374b71b5118682ca88693973",
+      "description": "connectivity (local node ids)",
+      "tolerance_class": "exact"
+    },
+    {
+      "name": "fo/facets/element_to_subelement/_point_1/not_ghost",
+      "file": "data/fo__facets__element_to_subelement___point_1__not_ghost.npy",
+      "dtype": "i64",
+      "shape": [
+        125,
+        3
+      ],
+      "axes": [
+        "entry",
+        "component"
+      ],
+      "layout": "table",
+      "sha256": "6da5861d57466368ac76b656f20f41a56f34b2b282c3131560ce82bd6b9cbbe8",
+      "description": "element_to_subelement rows, flattened (type code, element, ghost)",
+      "tolerance_class": "exact"
+    },
+    {
+      "name": "fo/facets/element_to_subelement_offsets/_point_1/not_ghost",
+      "file": "data/fo__facets__element_to_subelement_offsets___point_1__not_ghost.npy",
+      "dtype": "i64",
+      "shape": [
+        25
+      ],
+      "axes": [
+        "entry"
+      ],
+      "layout": "table",
+      "sha256": "82bbee863f238152ab8fab148a44a27a5e447b332503b7e81d79be630a51fc85",
+      "description": "row offsets (in triples) of element_to_subelement",
+      "tolerance_class": "exact"
+    },
+    {
+      "name": "fo/facets/element_to_subelement/_segment_2/not_ghost",
+      "file": "data/fo__facets__element_to_subelement___segment_2__not_ghost.npy",
+      "dtype": "i64",
+      "shape": [
+        100,
+        3
+      ],
+      "axes": [
+        "entry",
+        "component"
+      ],
+      "layout": "table",
+      "sha256": "40361b059a4f6124342b38b9907295362612486255f15ce2f31136d5c0f76d1e",
+      "description": "element_to_subelement rows, flattened (type code, element, ghost)",
+      "tolerance_class": "exact"
+    },
+    {
+      "name": "fo/facets/element_to_subelement_offsets/_segment_2/not_ghost",
+      "file": "data/fo__facets__element_to_subelement_offsets___segment_2__not_ghost.npy",
+      "dtype": "i64",
+      "shape": [
+        51
+      ],
+      "axes": [
+        "entry"
+      ],
+      "layout": "table",
+      "sha256": "29b5292b28211f15d632bf1998ff6aebc6013d37b49c54fe0f7166a0a5914ec1",
+      "description": "row offsets (in triples) of element_to_subelement",
+      "tolerance_class": "exact"
+    },
+    {
+      "name": "fo/facets/subelement_to_element/_segment_2/not_ghost",
+      "file": "data/fo__facets__subelement_to_element___segment_2__not_ghost.npy",
+      "dtype": "i64",
+      "shape": [
+        100,
+        3
+      ],
+      "axes": [
+        "entry",
+        "component"
+      ],
+      "layout": "table",
+      "sha256": "ac2dc57dda617add177bc6048815091a335c884f94a8f4fb28b1a0ab2ad329c4",
+      "description": "subelement_to_element (rows of nb_component triples)",
+      "tolerance_class": "exact"
+    },
+    {
+      "name": "fo/facets/subelement_to_element/_triangle_3/not_ghost",
+      "file": "data/fo__facets__subelement_to_element___triangle_3__not_ghost.npy",
+      "dtype": "i64",
+      "shape": [
+        96,
+        3
+      ],
+      "axes": [
+        "entry",
+        "component"
+      ],
+      "layout": "table",
+      "sha256": "7d28c48918b852ab295680d089ab99e16ffb300335e8ea11b1d6c02ddf651bee",
+      "description": "subelement_to_element (rows of nb_component triples)",
+      "tolerance_class": "exact"
+    },
+    {
+      "name": "fo/facets/element_to_subelement/_point_1/ghost",
+      "file": "data/fo__facets__element_to_subelement___point_1__ghost.npy",
+      "dtype": "i64",
+      "shape": [
+        6,
+        3
+      ],
+      "axes": [
+        "entry",
+        "component"
+      ],
+      "layout": "table",
+      "sha256": "a3dbcc92b35d9d0a5261c6ff86b632a3d123fedb9b567e4ea8f4593e93d81ebe",
+      "description": "element_to_subelement rows, flattened (type code, element, ghost)",
+      "tolerance_class": "exact"
+    },
+    {
+      "name": "fo/facets/element_to_subelement_offsets/_point_1/ghost",
+      "file": "data/fo__facets__element_to_subelement_offsets___point_1__ghost.npy",
+      "dtype": "i64",
+      "shape": [
+        2
+      ],
+      "axes": [
+        "entry"
+      ],
+      "layout": "table",
+      "sha256": "3f9cd1ec89eaa02fcae390e3d9f9d5ba970236a3d097084f0c3af6f8b5c3a792",
+      "description": "row offsets (in triples) of element_to_subelement",
+      "tolerance_class": "exact"
+    },
+    {
+      "name": "fo/facets/element_to_subelement/_segment_2/ghost",
+      "file": "data/fo__facets__element_to_subelement___segment_2__ghost.npy",
+      "dtype": "i64",
+      "shape": [
+        50,
+        3
+      ],
+      "axes": [
+        "entry",
+        "component"
+      ],
+      "layout": "table",
+      "sha256": "ea88779145168e1ae6a7296a9a2ac41368c54634a63b37d9f72c18555a98784d",
+      "description": "element_to_subelement rows, flattened (type code, element, ghost)",
+      "tolerance_class": "exact"
+    },
+    {
+      "name": "fo/facets/element_to_subelement_offsets/_segment_2/ghost",
+      "file": "data/fo__facets__element_to_subelement_offsets___segment_2__ghost.npy",
+      "dtype": "i64",
+      "shape": [
+        26
+      ],
+      "axes": [
+        "entry"
+      ],
+      "layout": "table",
+      "sha256": "61df3888243d9012d710e1c56e56f3643959b11f86fe6d84a887e9817a3ab8e2",
+      "description": "row offsets (in triples) of element_to_subelement",
+      "tolerance_class": "exact"
+    },
+    {
+      "name": "fo/facets/subelement_to_element/_segment_2/ghost",
+      "file": "data/fo__facets__subelement_to_element___segment_2__ghost.npy",
+      "dtype": "i64",
+      "shape": [
+        50,
+        3
+      ],
+      "axes": [
+        "entry",
+        "component"
+      ],
+      "layout": "table",
+      "sha256": "3d7c7003b57944a356bddad76bf43772e70105319777422327be5d90dd4e81fd",
+      "description": "subelement_to_element (rows of nb_component triples)",
+      "tolerance_class": "exact"
+    },
+    {
+      "name": "fo/facets/subelement_to_element/_triangle_3/ghost",
+      "file": "data/fo__facets__subelement_to_element___triangle_3__ghost.npy",
+      "dtype": "i64",
+      "shape": [
+        51,
+        3
+      ],
+      "axes": [
+        "entry",
+        "component"
+      ],
+      "layout": "table",
+      "sha256": "583b836ea420d5ccd2c667852efc0cce7e5bd271e53f4cf27cfa01fd8910a482",
+      "description": "subelement_to_element (rows of nb_component triples)",
+      "tolerance_class": "exact"
+    },
+    {
+      "name": "fo/element_scheme/send/0",
+      "file": "data/fo__element_scheme__send__0.npy",
+      "dtype": "i64",
+      "shape": [
+        13,
+        3
+      ],
+      "axes": [
+        "entry",
+        "component"
+      ],
+      "layout": "table",
+      "sha256": "6f3a8a3c995165c2b0631ceebc9a8817c3f6d598b72e21143ef75f66b1af0a5f",
+      "description": "(type code, element, ghost) in scheme order",
+      "tolerance_class": "exact"
+    },
+    {
+      "name": "fo/element_scheme/send/2",
+      "file": "data/fo__element_scheme__send__2.npy",
+      "dtype": "i64",
+      "shape": [
+        1,
+        3
+      ],
+      "axes": [
+        "entry",
+        "component"
+      ],
+      "layout": "table",
+      "sha256": "fee64fc2ef257c98c78237f0efa37b4274d837a41ce6c3781ec4a2cfd9b57215",
+      "description": "(type code, element, ghost) in scheme order",
+      "tolerance_class": "exact"
+    },
+    {
+      "name": "fo/element_scheme/send/3",
+      "file": "data/fo__element_scheme__send__3.npy",
+      "dtype": "i64",
+      "shape": [
+        8,
+        3
+      ],
+      "axes": [
+        "entry",
+        "component"
+      ],
+      "layout": "table",
+      "sha256": "15fc83d152c4b3151a3c13be6f34a93a12288173df4dc9a3a7ef5d8e2be3541e",
+      "description": "(type code, element, ghost) in scheme order",
+      "tolerance_class": "exact"
+    },
+    {
+      "name": "fo/element_scheme/recv/0",
+      "file": "data/fo__element_scheme__recv__0.npy",
+      "dtype": "i64",
+      "shape": [
+        12,
+        3
+      ],
+      "axes": [
+        "entry",
+        "component"
+      ],
+      "layout": "table",
+      "sha256": "8a11ddc9468efab66a659059f13c14e80dde61fbfea01db95bbbf820b7235506",
+      "description": "(type code, element, ghost) in scheme order",
+      "tolerance_class": "exact"
+    },
+    {
+      "name": "fo/element_scheme/recv/2",
+      "file": "data/fo__element_scheme__recv__2.npy",
+      "dtype": "i64",
+      "shape": [
+        1,
+        3
+      ],
+      "axes": [
+        "entry",
+        "component"
+      ],
+      "layout": "table",
+      "sha256": "e8582aca4f930a0bbd89fa9003fdde533633ac7dccb2501581c427c7f536a523",
+      "description": "(type code, element, ghost) in scheme order",
+      "tolerance_class": "exact"
+    },
+    {
+      "name": "fo/element_scheme/recv/3",
+      "file": "data/fo__element_scheme__recv__3.npy",
+      "dtype": "i64",
+      "shape": [
+        4,
+        3
+      ],
+      "axes": [
+        "entry",
+        "component"
+      ],
+      "layout": "table",
+      "sha256": "9426af41df132039d462a320b068b9cb97d42b3bf7513016de4a77b645c5fda5",
+      "description": "(type code, element, ghost) in scheme order",
+      "tolerance_class": "exact"
+    },
+    {
+      "name": "fo/node_scheme/send/3",
+      "file": "data/fo__node_scheme__send__3.npy",
+      "dtype": "i64",
+      "shape": [
+        1
+      ],
+      "axes": [
+        "entry"
+      ],
+      "layout": "table",
+      "sha256": "c0e56c15761fafc22d306b2a3b504e978a9f814ef4f38e43ab7099c298727a61",
+      "description": "local nodes in scheme order",
+      "tolerance_class": "exact"
+    },
+    {
+      "name": "fo/node_scheme/recv/0",
+      "file": "data/fo__node_scheme__recv__0.npy",
+      "dtype": "i64",
+      "shape": [
+        8
+      ],
+      "axes": [
+        "entry"
+      ],
+      "layout": "table",
+      "sha256": "8f9dee4d6a9aab08a52a028bcca0a0bf69c3febc898e7cd3cab1e3f5c127ebbb",
+      "description": "local nodes in scheme order",
+      "tolerance_class": "exact"
+    },
+    {
+      "name": "fo/facet_scheme/send/0",
+      "file": "data/fo__facet_scheme__send__0.npy",
+      "dtype": "i64",
+      "shape": [
+        15,
+        3
+      ],
+      "axes": [
+        "entry",
+        "component"
+      ],
+      "layout": "table",
+      "sha256": "3eb027b496f17e9594d7ab0ebd212ea3df030dfe98e5860979ed5d0fe02a58e1",
+      "description": "(type code, element, ghost) in scheme order",
+      "tolerance_class": "exact"
+    },
+    {
+      "name": "fo/facet_scheme/send/2",
+      "file": "data/fo__facet_scheme__send__2.npy",
+      "dtype": "i64",
+      "shape": [
+        0,
+        3
+      ],
+      "axes": [
+        "entry",
+        "component"
+      ],
+      "layout": "table",
+      "sha256": "09335c7d428a982a1579c2e4ed7b3c0906514ef4adc62fc1aa06cf7af47d2f32",
+      "description": "(type code, element, ghost) in scheme order",
+      "tolerance_class": "exact"
+    },
+    {
+      "name": "fo/facet_scheme/send/3",
+      "file": "data/fo__facet_scheme__send__3.npy",
+      "dtype": "i64",
+      "shape": [
+        10,
+        3
+      ],
+      "axes": [
+        "entry",
+        "component"
+      ],
+      "layout": "table",
+      "sha256": "110c7c58fa2f585d5bd957719baa201f74b600de9f03d642932ad397dcb8723f",
+      "description": "(type code, element, ghost) in scheme order",
+      "tolerance_class": "exact"
+    },
+    {
+      "name": "fo/facet_scheme/recv/0",
+      "file": "data/fo__facet_scheme__recv__0.npy",
+      "dtype": "i64",
+      "shape": [
+        21,
+        3
+      ],
+      "axes": [
+        "entry",
+        "component"
+      ],
+      "layout": "table",
+      "sha256": "f950168b52f5a782c0cfaa87a9592f7071ec9b829d78a453ed0c9aae41c9d97e",
+      "description": "(type code, element, ghost) in scheme order",
+      "tolerance_class": "exact"
+    },
+    {
+      "name": "fo/facet_scheme/recv/2",
+      "file": "data/fo__facet_scheme__recv__2.npy",
+      "dtype": "i64",
+      "shape": [
+        0,
+        3
+      ],
+      "axes": [
+        "entry",
+        "component"
+      ],
+      "layout": "table",
+      "sha256": "09335c7d428a982a1579c2e4ed7b3c0906514ef4adc62fc1aa06cf7af47d2f32",
+      "description": "(type code, element, ghost) in scheme order",
+      "tolerance_class": "exact"
+    },
+    {
+      "name": "fo/facet_scheme/recv/3",
+      "file": "data/fo__facet_scheme__recv__3.npy",
+      "dtype": "i64",
+      "shape": [
+        3,
+        3
+      ],
+      "axes": [
+        "entry",
+        "component"
+      ],
+      "layout": "table",
+      "sha256": "35b17682e86c6411c07e8928a455ea4d11f825f82d62d038c7661cfcf80ce7e2",
+      "description": "(type code, element, ghost) in scheme order",
+      "tolerance_class": "exact"
+    },
+    {
+      "name": "fo/cohesive_scheme/send/0",
+      "file": "data/fo__cohesive_scheme__send__0.npy",
+      "dtype": "i64",
+      "shape": [
+        0,
+        3
+      ],
+      "axes": [
+        "entry",
+        "component"
+      ],
+      "layout": "table",
+      "sha256": "09335c7d428a982a1579c2e4ed7b3c0906514ef4adc62fc1aa06cf7af47d2f32",
+      "description": "(type code, element, ghost) in scheme order",
+      "tolerance_class": "exact"
+    },
+    {
+      "name": "fo/cohesive_scheme/send/2",
+      "file": "data/fo__cohesive_scheme__send__2.npy",
+      "dtype": "i64",
+      "shape": [
+        0,
+        3
+      ],
+      "axes": [
+        "entry",
+        "component"
+      ],
+      "layout": "table",
+      "sha256": "09335c7d428a982a1579c2e4ed7b3c0906514ef4adc62fc1aa06cf7af47d2f32",
+      "description": "(type code, element, ghost) in scheme order",
+      "tolerance_class": "exact"
+    },
+    {
+      "name": "fo/cohesive_scheme/send/3",
+      "file": "data/fo__cohesive_scheme__send__3.npy",
+      "dtype": "i64",
+      "shape": [
+        0,
+        3
+      ],
+      "axes": [
+        "entry",
+        "component"
+      ],
+      "layout": "table",
+      "sha256": "09335c7d428a982a1579c2e4ed7b3c0906514ef4adc62fc1aa06cf7af47d2f32",
+      "description": "(type code, element, ghost) in scheme order",
+      "tolerance_class": "exact"
+    },
+    {
+      "name": "fo/cohesive_scheme/recv/0",
+      "file": "data/fo__cohesive_scheme__recv__0.npy",
+      "dtype": "i64",
+      "shape": [
+        0,
+        3
+      ],
+      "axes": [
+        "entry",
+        "component"
+      ],
+      "layout": "table",
+      "sha256": "09335c7d428a982a1579c2e4ed7b3c0906514ef4adc62fc1aa06cf7af47d2f32",
+      "description": "(type code, element, ghost) in scheme order",
+      "tolerance_class": "exact"
+    },
+    {
+      "name": "fo/cohesive_scheme/recv/2",
+      "file": "data/fo__cohesive_scheme__recv__2.npy",
+      "dtype": "i64",
+      "shape": [
+        0,
+        3
+      ],
+      "axes": [
+        "entry",
+        "component"
+      ],
+      "layout": "table",
+      "sha256": "09335c7d428a982a1579c2e4ed7b3c0906514ef4adc62fc1aa06cf7af47d2f32",
+      "description": "(type code, element, ghost) in scheme order",
+      "tolerance_class": "exact"
+    },
+    {
+      "name": "fo/cohesive_scheme/recv/3",
+      "file": "data/fo__cohesive_scheme__recv__3.npy",
+      "dtype": "i64",
+      "shape": [
+        0,
+        3
+      ],
+      "axes": [
+        "entry",
+        "component"
+      ],
+      "layout": "table",
+      "sha256": "09335c7d428a982a1579c2e4ed7b3c0906514ef4adc62fc1aa06cf7af47d2f32",
+      "description": "(type code, element, ghost) in scheme order",
+      "tolerance_class": "exact"
+    },
+    {
+      "name": "fo/facet_stress_scheme/send/0",
+      "file": "data/fo__facet_stress_scheme__send__0.npy",
+      "dtype": "i64",
+      "shape": [
+        2,
+        3
+      ],
+      "axes": [
+        "entry",
+        "component"
+      ],
+      "layout": "table",
+      "sha256": "f58f7e7ef1e0a49b6cef2ebe5364858a4f5c60754bcbed9c35ac094ee754c0a3",
+      "description": "(type code, element, ghost) in scheme order",
+      "tolerance_class": "exact"
+    },
+    {
+      "name": "fo/facet_stress_scheme/send/2",
+      "file": "data/fo__facet_stress_scheme__send__2.npy",
+      "dtype": "i64",
+      "shape": [
+        0,
+        3
+      ],
+      "axes": [
+        "entry",
+        "component"
+      ],
+      "layout": "table",
+      "sha256": "09335c7d428a982a1579c2e4ed7b3c0906514ef4adc62fc1aa06cf7af47d2f32",
+      "description": "(type code, element, ghost) in scheme order",
+      "tolerance_class": "exact"
+    },
+    {
+      "name": "fo/facet_stress_scheme/send/3",
+      "file": "data/fo__facet_stress_scheme__send__3.npy",
+      "dtype": "i64",
+      "shape": [
+        0,
+        3
+      ],
+      "axes": [
+        "entry",
+        "component"
+      ],
+      "layout": "table",
+      "sha256": "09335c7d428a982a1579c2e4ed7b3c0906514ef4adc62fc1aa06cf7af47d2f32",
+      "description": "(type code, element, ghost) in scheme order",
+      "tolerance_class": "exact"
+    },
+    {
+      "name": "fo/facet_stress_scheme/recv/0",
+      "file": "data/fo__facet_stress_scheme__recv__0.npy",
+      "dtype": "i64",
+      "shape": [
+        0,
+        3
+      ],
+      "axes": [
+        "entry",
+        "component"
+      ],
+      "layout": "table",
+      "sha256": "09335c7d428a982a1579c2e4ed7b3c0906514ef4adc62fc1aa06cf7af47d2f32",
+      "description": "(type code, element, ghost) in scheme order",
+      "tolerance_class": "exact"
+    },
+    {
+      "name": "fo/facet_stress_scheme/recv/2",
+      "file": "data/fo__facet_stress_scheme__recv__2.npy",
+      "dtype": "i64",
+      "shape": [
+        0,
+        3
+      ],
+      "axes": [
+        "entry",
+        "component"
+      ],
+      "layout": "table",
+      "sha256": "09335c7d428a982a1579c2e4ed7b3c0906514ef4adc62fc1aa06cf7af47d2f32",
+      "description": "(type code, element, ghost) in scheme order",
+      "tolerance_class": "exact"
+    },
+    {
+      "name": "fo/facet_stress_scheme/recv/3",
+      "file": "data/fo__facet_stress_scheme__recv__3.npy",
+      "dtype": "i64",
+      "shape": [
+        2,
+        3
+      ],
+      "axes": [
+        "entry",
+        "component"
+      ],
+      "layout": "table",
+      "sha256": "61849c2023bbe2d51aba76a5e328c23d46138fc3b43c9b5938d80f5335b2f01d",
+      "description": "(type code, element, ghost) in scheme order",
+      "tolerance_class": "exact"
+    },
+    {
+      "name": "fo/check_facets/_segment_2/not_ghost",
+      "file": "data/fo__check_facets___segment_2__not_ghost.npy",
+      "dtype": "i64",
+      "shape": [
+        50
+      ],
+      "axes": [
+        "entry"
+      ],
+      "layout": "table",
+      "sha256": "616d99f386e7641067c564fd5471f3b7f5f39b675a9e58bf4eeb61b728b62509",
+      "description": "per facet flag",
+      "tolerance_class": "exact"
+    },
+    {
+      "name": "fo/check_facets/_segment_2/ghost",
+      "file": "data/fo__check_facets___segment_2__ghost.npy",
+      "dtype": "i64",
+      "shape": [
+        25
+      ],
+      "axes": [
+        "entry"
+      ],
+      "layout": "table",
+      "sha256": "8d42a4e466979f2d1c2099328d1a0e758e9117b7e13d6ffd5c3f81f008c7d43e",
+      "description": "per facet flag",
+      "tolerance_class": "exact"
+    },
+    {
+      "name": "fo/insertion_facets/_segment_2/not_ghost",
+      "file": "data/fo__insertion_facets___segment_2__not_ghost.npy",
+      "dtype": "i64",
+      "shape": [
+        50
+      ],
+      "axes": [
+        "entry"
+      ],
+      "layout": "table",
+      "sha256": "d99c920afd0b9e4687a89b91c3822251a0bf7a12ae8aaec70c4fdc891959626f",
+      "description": "per facet flag",
+      "tolerance_class": "exact"
+    },
+    {
+      "name": "fo/insertion_facets/_segment_2/ghost",
+      "file": "data/fo__insertion_facets___segment_2__ghost.npy",
+      "dtype": "i64",
+      "shape": [
+        25
+      ],
+      "axes": [
+        "entry"
+      ],
+      "layout": "table",
+      "sha256": "8f772c63488159d1a3252099018a0c135fd77944144fae6d007fcdaaae4e275f",
+      "description": "per facet flag",
+      "tolerance_class": "exact"
+    },
+    {
+      "name": "fo/law0/filter/_triangle_3/not_ghost",
+      "file": "data/fo__law0__filter___triangle_3__not_ghost.npy",
+      "dtype": "i64",
+      "shape": [
+        32
+      ],
+      "axes": [
+        "entry"
+      ],
+      "layout": "table",
+      "sha256": "d7e613f1090f555b5641f2b446191b4b16b191e7a4ebfee85716049073143863",
+      "description": "law element filter (ghost: canonical rank order, probe patch)",
+      "tolerance_class": "exact"
+    },
+    {
+      "name": "fo/law0/filter/_triangle_3/ghost",
+      "file": "data/fo__law0__filter___triangle_3__ghost.npy",
+      "dtype": "i64",
+      "shape": [
+        17
+      ],
+      "axes": [
+        "entry"
+      ],
+      "layout": "table",
+      "sha256": "994bf022a0c9a29422035b1e8c949c37a00e5708d855d5e6eabe8f6588384feb",
+      "description": "law element filter (ghost: canonical rank order, probe patch)",
+      "tolerance_class": "exact"
+    },
+    {
+      "name": "fo/law1/filter/_triangle_3/not_ghost",
+      "file": "data/fo__law1__filter___triangle_3__not_ghost.npy",
+      "dtype": "i64",
+      "shape": [
+        0
+      ],
+      "axes": [
+        "entry"
+      ],
+      "layout": "table",
+      "sha256": "e734dac55ea9fbbe782af2d8c02c3c5992131906228afb2aaaf137d6f3ed74db",
+      "description": "law element filter (ghost: canonical rank order, probe patch)",
+      "tolerance_class": "exact"
+    },
+    {
+      "name": "fo/law1/filter/_cohesive_2d_4/not_ghost",
+      "file": "data/fo__law1__filter___cohesive_2d_4__not_ghost.npy",
+      "dtype": "i64",
+      "shape": [
+        0
+      ],
+      "axes": [
+        "entry"
+      ],
+      "layout": "table",
+      "sha256": "e734dac55ea9fbbe782af2d8c02c3c5992131906228afb2aaaf137d6f3ed74db",
+      "description": "law element filter (ghost: canonical rank order, probe patch)",
+      "tolerance_class": "exact"
+    },
+    {
+      "name": "fo/law1/filter/_triangle_3/ghost",
+      "file": "data/fo__law1__filter___triangle_3__ghost.npy",
+      "dtype": "i64",
+      "shape": [
+        0
+      ],
+      "axes": [
+        "entry"
+      ],
+      "layout": "table",
+      "sha256": "e734dac55ea9fbbe782af2d8c02c3c5992131906228afb2aaaf137d6f3ed74db",
+      "description": "law element filter (ghost: canonical rank order, probe patch)",
+      "tolerance_class": "exact"
+    },
+    {
+      "name": "fo/law1/filter/_cohesive_2d_4/ghost",
+      "file": "data/fo__law1__filter___cohesive_2d_4__ghost.npy",
+      "dtype": "i64",
+      "shape": [
+        0
+      ],
+      "axes": [
+        "entry"
+      ],
+      "layout": "table",
+      "sha256": "e734dac55ea9fbbe782af2d8c02c3c5992131906228afb2aaaf137d6f3ed74db",
+      "description": "law element filter (ghost: canonical rank order, probe patch)",
+      "tolerance_class": "exact"
+    },
+    {
+      "name": "fo/law1/opening/_cohesive_2d_4/not_ghost",
+      "file": "data/fo__law1__opening___cohesive_2d_4__not_ghost.npy",
+      "dtype": "f64",
+      "shape": [
+        0,
+        2
+      ],
+      "axes": [
+        "entry",
+        "component"
+      ],
+      "layout": "table",
+      "sha256": "8465b982d07844d91218a2129afe27b20c2809a2de8727045d12fe515ef5c7e9",
+      "description": "cohesive internal opening",
+      "tolerance_class": "exact"
+    },
+    {
+      "name": "fo/law1/opening/_cohesive_2d_4/ghost",
+      "file": "data/fo__law1__opening___cohesive_2d_4__ghost.npy",
+      "dtype": "f64",
+      "shape": [
+        0,
+        2
+      ],
+      "axes": [
+        "entry",
+        "component"
+      ],
+      "layout": "table",
+      "sha256": "8465b982d07844d91218a2129afe27b20c2809a2de8727045d12fe515ef5c7e9",
+      "description": "cohesive internal opening",
+      "tolerance_class": "exact"
+    },
+    {
+      "name": "fo/law1/tractions/_cohesive_2d_4/not_ghost",
+      "file": "data/fo__law1__tractions___cohesive_2d_4__not_ghost.npy",
+      "dtype": "f64",
+      "shape": [
+        0,
+        2
+      ],
+      "axes": [
+        "entry",
+        "component"
+      ],
+      "layout": "table",
+      "sha256": "8465b982d07844d91218a2129afe27b20c2809a2de8727045d12fe515ef5c7e9",
+      "description": "cohesive internal tractions",
+      "tolerance_class": "exact"
+    },
+    {
+      "name": "fo/law1/tractions/_cohesive_2d_4/ghost",
+      "file": "data/fo__law1__tractions___cohesive_2d_4__ghost.npy",
+      "dtype": "f64",
+      "shape": [
+        0,
+        2
+      ],
+      "axes": [
+        "entry",
+        "component"
+      ],
+      "layout": "table",
+      "sha256": "8465b982d07844d91218a2129afe27b20c2809a2de8727045d12fe515ef5c7e9",
+      "description": "cohesive internal tractions",
+      "tolerance_class": "exact"
+    },
+    {
+      "name": "fo/law1/contact_tractions/_cohesive_2d_4/not_ghost",
+      "file": "data/fo__law1__contact_tractions___cohesive_2d_4__not_ghost.npy",
+      "dtype": "f64",
+      "shape": [
+        0,
+        2
+      ],
+      "axes": [
+        "entry",
+        "component"
+      ],
+      "layout": "table",
+      "sha256": "8465b982d07844d91218a2129afe27b20c2809a2de8727045d12fe515ef5c7e9",
+      "description": "cohesive internal contact_tractions",
+      "tolerance_class": "exact"
+    },
+    {
+      "name": "fo/law1/contact_tractions/_cohesive_2d_4/ghost",
+      "file": "data/fo__law1__contact_tractions___cohesive_2d_4__ghost.npy",
+      "dtype": "f64",
+      "shape": [
+        0,
+        2
+      ],
+      "axes": [
+        "entry",
+        "component"
+      ],
+      "layout": "table",
+      "sha256": "8465b982d07844d91218a2129afe27b20c2809a2de8727045d12fe515ef5c7e9",
+      "description": "cohesive internal contact_tractions",
+      "tolerance_class": "exact"
+    },
+    {
+      "name": "fo/law1/contact_opening/_cohesive_2d_4/not_ghost",
+      "file": "data/fo__law1__contact_opening___cohesive_2d_4__not_ghost.npy",
+      "dtype": "f64",
+      "shape": [
+        0,
+        2
+      ],
+      "axes": [
+        "entry",
+        "component"
+      ],
+      "layout": "table",
+      "sha256": "8465b982d07844d91218a2129afe27b20c2809a2de8727045d12fe515ef5c7e9",
+      "description": "cohesive internal contact_opening",
+      "tolerance_class": "exact"
+    },
+    {
+      "name": "fo/law1/contact_opening/_cohesive_2d_4/ghost",
+      "file": "data/fo__law1__contact_opening___cohesive_2d_4__ghost.npy",
+      "dtype": "f64",
+      "shape": [
+        0,
+        2
+      ],
+      "axes": [
+        "entry",
+        "component"
+      ],
+      "layout": "table",
+      "sha256": "8465b982d07844d91218a2129afe27b20c2809a2de8727045d12fe515ef5c7e9",
+      "description": "cohesive internal contact_opening",
+      "tolerance_class": "exact"
+    },
+    {
+      "name": "fo/law1/delta_max/_cohesive_2d_4/not_ghost",
+      "file": "data/fo__law1__delta_max___cohesive_2d_4__not_ghost.npy",
+      "dtype": "f64",
+      "shape": [
+        0,
+        1
+      ],
+      "axes": [
+        "entry",
+        "component"
+      ],
+      "layout": "table",
+      "sha256": "aa03397bf977ff4f544e8768afd91f3f4b876dc9732a7b9550ca82f5639b5ef4",
+      "description": "cohesive internal delta max",
+      "tolerance_class": "exact"
+    },
+    {
+      "name": "fo/law1/delta_max/_cohesive_2d_4/ghost",
+      "file": "data/fo__law1__delta_max___cohesive_2d_4__ghost.npy",
+      "dtype": "f64",
+      "shape": [
+        0,
+        1
+      ],
+      "axes": [
+        "entry",
+        "component"
+      ],
+      "layout": "table",
+      "sha256": "aa03397bf977ff4f544e8768afd91f3f4b876dc9732a7b9550ca82f5639b5ef4",
+      "description": "cohesive internal delta max",
+      "tolerance_class": "exact"
+    },
+    {
+      "name": "fo/law1/damage/_cohesive_2d_4/not_ghost",
+      "file": "data/fo__law1__damage___cohesive_2d_4__not_ghost.npy",
+      "dtype": "f64",
+      "shape": [
+        0,
+        1
+      ],
+      "axes": [
+        "entry",
+        "component"
+      ],
+      "layout": "table",
+      "sha256": "aa03397bf977ff4f544e8768afd91f3f4b876dc9732a7b9550ca82f5639b5ef4",
+      "description": "cohesive internal damage",
+      "tolerance_class": "exact"
+    },
+    {
+      "name": "fo/law1/damage/_cohesive_2d_4/ghost",
+      "file": "data/fo__law1__damage___cohesive_2d_4__ghost.npy",
+      "dtype": "f64",
+      "shape": [
+        0,
+        1
+      ],
+      "axes": [
+        "entry",
+        "component"
+      ],
+      "layout": "table",
+      "sha256": "aa03397bf977ff4f544e8768afd91f3f4b876dc9732a7b9550ca82f5639b5ef4",
+      "description": "cohesive internal damage",
+      "tolerance_class": "exact"
+    },
+    {
+      "name": "fo/law1/normal/_cohesive_2d_4/not_ghost",
+      "file": "data/fo__law1__normal___cohesive_2d_4__not_ghost.npy",
+      "dtype": "f64",
+      "shape": [
+        0,
+        2
+      ],
+      "axes": [
+        "entry",
+        "component"
+      ],
+      "layout": "table",
+      "sha256": "8465b982d07844d91218a2129afe27b20c2809a2de8727045d12fe515ef5c7e9",
+      "description": "cohesive internal normal",
+      "tolerance_class": "exact"
+    },
+    {
+      "name": "fo/law1/normal/_cohesive_2d_4/ghost",
+      "file": "data/fo__law1__normal___cohesive_2d_4__ghost.npy",
+      "dtype": "f64",
+      "shape": [
+        0,
+        2
+      ],
+      "axes": [
+        "entry",
+        "component"
+      ],
+      "layout": "table",
+      "sha256": "8465b982d07844d91218a2129afe27b20c2809a2de8727045d12fe515ef5c7e9",
+      "description": "cohesive internal normal",
+      "tolerance_class": "exact"
+    },
+    {
+      "name": "fo/law1/reversible_energy/_cohesive_2d_4/not_ghost",
+      "file": "data/fo__law1__reversible_energy___cohesive_2d_4__not_ghost.npy",
+      "dtype": "f64",
+      "shape": [
+        0,
+        1
+      ],
+      "axes": [
+        "entry",
+        "component"
+      ],
+      "layout": "table",
+      "sha256": "aa03397bf977ff4f544e8768afd91f3f4b876dc9732a7b9550ca82f5639b5ef4",
+      "description": "cohesive internal reversible_energy",
+      "tolerance_class": "exact"
+    },
+    {
+      "name": "fo/law1/reversible_energy/_cohesive_2d_4/ghost",
+      "file": "data/fo__law1__reversible_energy___cohesive_2d_4__ghost.npy",
+      "dtype": "f64",
+      "shape": [
+        0,
+        1
+      ],
+      "axes": [
+        "entry",
+        "component"
+      ],
+      "layout": "table",
+      "sha256": "aa03397bf977ff4f544e8768afd91f3f4b876dc9732a7b9550ca82f5639b5ef4",
+      "description": "cohesive internal reversible_energy",
+      "tolerance_class": "exact"
+    },
+    {
+      "name": "fo/law1/total_energy/_cohesive_2d_4/not_ghost",
+      "file": "data/fo__law1__total_energy___cohesive_2d_4__not_ghost.npy",
+      "dtype": "f64",
+      "shape": [
+        0,
+        1
+      ],
+      "axes": [
+        "entry",
+        "component"
+      ],
+      "layout": "table",
+      "sha256": "aa03397bf977ff4f544e8768afd91f3f4b876dc9732a7b9550ca82f5639b5ef4",
+      "description": "cohesive internal total_energy",
+      "tolerance_class": "exact"
+    },
+    {
+      "name": "fo/law1/total_energy/_cohesive_2d_4/ghost",
+      "file": "data/fo__law1__total_energy___cohesive_2d_4__ghost.npy",
+      "dtype": "f64",
+      "shape": [
+        0,
+        1
+      ],
+      "axes": [
+        "entry",
+        "component"
+      ],
+      "layout": "table",
+      "sha256": "aa03397bf977ff4f544e8768afd91f3f4b876dc9732a7b9550ca82f5639b5ef4",
+      "description": "cohesive internal total_energy",
+      "tolerance_class": "exact"
+    },
+    {
+      "name": "fo/law1/sigma_c_eff/_cohesive_2d_4/not_ghost",
+      "file": "data/fo__law1__sigma_c_eff___cohesive_2d_4__not_ghost.npy",
+      "dtype": "f64",
+      "shape": [
+        0,
+        1
+      ],
+      "axes": [
+        "entry",
+        "component"
+      ],
+      "layout": "table",
+      "sha256": "aa03397bf977ff4f544e8768afd91f3f4b876dc9732a7b9550ca82f5639b5ef4",
+      "description": "cohesive internal sigma_c_eff",
+      "tolerance_class": "exact"
+    },
+    {
+      "name": "fo/law1/sigma_c_eff/_cohesive_2d_4/ghost",
+      "file": "data/fo__law1__sigma_c_eff___cohesive_2d_4__ghost.npy",
+      "dtype": "f64",
+      "shape": [
+        0,
+        1
+      ],
+      "axes": [
+        "entry",
+        "component"
+      ],
+      "layout": "table",
+      "sha256": "aa03397bf977ff4f544e8768afd91f3f4b876dc9732a7b9550ca82f5639b5ef4",
+      "description": "cohesive internal sigma_c_eff",
+      "tolerance_class": "exact"
+    },
+    {
+      "name": "fo/law1/delta_c_eff/_cohesive_2d_4/not_ghost",
+      "file": "data/fo__law1__delta_c_eff___cohesive_2d_4__not_ghost.npy",
+      "dtype": "f64",
+      "shape": [
+        0,
+        1
+      ],
+      "axes": [
+        "entry",
+        "component"
+      ],
+      "layout": "table",
+      "sha256": "aa03397bf977ff4f544e8768afd91f3f4b876dc9732a7b9550ca82f5639b5ef4",
+      "description": "cohesive internal delta_c_eff",
+      "tolerance_class": "exact"
+    },
+    {
+      "name": "fo/law1/delta_c_eff/_cohesive_2d_4/ghost",
+      "file": "data/fo__law1__delta_c_eff___cohesive_2d_4__ghost.npy",
+      "dtype": "f64",
+      "shape": [
+        0,
+        1
+      ],
+      "axes": [
+        "entry",
+        "component"
+      ],
+      "layout": "table",
+      "sha256": "aa03397bf977ff4f544e8768afd91f3f4b876dc9732a7b9550ca82f5639b5ef4",
+      "description": "cohesive internal delta_c_eff",
+      "tolerance_class": "exact"
+    },
+    {
+      "name": "fo/law1/insertion_stress/_cohesive_2d_4/not_ghost",
+      "file": "data/fo__law1__insertion_stress___cohesive_2d_4__not_ghost.npy",
+      "dtype": "f64",
+      "shape": [
+        0,
+        2
+      ],
+      "axes": [
+        "entry",
+        "component"
+      ],
+      "layout": "table",
+      "sha256": "8465b982d07844d91218a2129afe27b20c2809a2de8727045d12fe515ef5c7e9",
+      "description": "cohesive internal insertion_stress",
+      "tolerance_class": "exact"
+    },
+    {
+      "name": "fo/law1/insertion_stress/_cohesive_2d_4/ghost",
+      "file": "data/fo__law1__insertion_stress___cohesive_2d_4__ghost.npy",
+      "dtype": "f64",
+      "shape": [
+        0,
+        2
+      ],
+      "axes": [
+        "entry",
+        "component"
+      ],
+      "layout": "table",
+      "sha256": "8465b982d07844d91218a2129afe27b20c2809a2de8727045d12fe515ef5c7e9",
+      "description": "cohesive internal insertion_stress",
+      "tolerance_class": "exact"
+    },
+    {
+      "name": "fo/law1/facet_filter/_segment_2/not_ghost",
+      "file": "data/fo__law1__facet_filter___segment_2__not_ghost.npy",
+      "dtype": "i64",
+      "shape": [
+        50
+      ],
+      "axes": [
+        "entry"
+      ],
+      "layout": "table",
+      "sha256": "7d2bbdee3bfe4aa21f28fa8d572d9bbd6cc5e6e9ad28fe2441f5a5596cdd0043",
+      "description": "facet filter (extrinsic)",
+      "tolerance_class": "exact"
+    },
+    {
+      "name": "fo/law1/facet_filter/_segment_2/ghost",
+      "file": "data/fo__law1__facet_filter___segment_2__ghost.npy",
+      "dtype": "i64",
+      "shape": [
+        0
+      ],
+      "axes": [
+        "entry"
+      ],
+      "layout": "table",
+      "sha256": "e734dac55ea9fbbe782af2d8c02c3c5992131906228afb2aaaf137d6f3ed74db",
+      "description": "facet filter (extrinsic)",
+      "tolerance_class": "exact"
+    },
+    {
+      "name": "fo/law1/sigma_c/_segment_2/not_ghost",
+      "file": "data/fo__law1__sigma_c___segment_2__not_ghost.npy",
+      "dtype": "f64",
+      "shape": [
+        100,
+        1
+      ],
+      "axes": [
+        "entry",
+        "component"
+      ],
+      "layout": "table",
+      "sha256": "433f42a40d709b377f72c8ab9dde0098145cb9088095a745b3f6c6f4fff86f1a",
+      "description": "facet strength sigma_c (per facet quadrature point of the facet filter)",
+      "tolerance_class": "exact"
+    },
+    {
+      "name": "fo/law1/sigma_c/_segment_2/ghost",
+      "file": "data/fo__law1__sigma_c___segment_2__ghost.npy",
+      "dtype": "f64",
+      "shape": [
+        0,
+        1
+      ],
+      "axes": [
+        "entry",
+        "component"
+      ],
+      "layout": "table",
+      "sha256": "aa03397bf977ff4f544e8768afd91f3f4b876dc9732a7b9550ca82f5639b5ef4",
+      "description": "facet strength sigma_c (per facet quadrature point of the facet filter)",
+      "tolerance_class": "exact"
+    },
+    {
+      "name": "fo/model/displacement",
+      "file": "data/fo__model__displacement.npy",
+      "dtype": "f64",
+      "shape": [
+        35,
+        2
+      ],
+      "axes": [
+        "entry",
+        "component"
+      ],
+      "layout": "table",
+      "sha256": "f95615ee532b1d1b1d064c5bf70fe67afb52d678edb28811fa921d717c22e0c3",
+      "description": "displacement",
+      "tolerance_class": "exact"
+    },
+    {
+      "name": "fo/model/velocity",
+      "file": "data/fo__model__velocity.npy",
+      "dtype": "f64",
+      "shape": [
+        35,
+        2
+      ],
+      "axes": [
+        "entry",
+        "component"
+      ],
+      "layout": "table",
+      "sha256": "608da6497fcb213bad59e3313472214e456fe96fb0013fe77255acffcf1230fa",
+      "description": "velocity",
+      "tolerance_class": "exact"
+    },
+    {
+      "name": "fo/model/acceleration",
+      "file": "data/fo__model__acceleration.npy",
+      "dtype": "f64",
+      "shape": [
+        35,
+        2
+      ],
+      "axes": [
+        "entry",
+        "component"
+      ],
+      "layout": "table",
+      "sha256": "a45037c663eae1066137c0a79c1cd694e5e50b9ab35f47f16f0348821f732bdd",
+      "description": "acceleration",
+      "tolerance_class": "exact"
+    },
+    {
+      "name": "fo/model/internal_force",
+      "file": "data/fo__model__internal_force.npy",
+      "dtype": "f64",
+      "shape": [
+        35,
+        2
+      ],
+      "axes": [
+        "entry",
+        "component"
+      ],
+      "layout": "table",
+      "sha256": "f2f9a0a57f9490979e14a835bff4f1a7086a529102e548e9acaa0b80daf35c26",
+      "description": "internal force",
+      "tolerance_class": "exact"
+    },
+    {
+      "name": "fo/model/mass",
+      "file": "data/fo__model__mass.npy",
+      "dtype": "f64",
+      "shape": [
+        35,
+        2
+      ],
+      "axes": [
+        "entry",
+        "component"
+      ],
+      "layout": "table",
+      "sha256": "d09c3f82ce5e4242533ca3c067c5f1f5ff9ae9364ded8d69a59e2a790d3b125d",
+      "description": "lumped mass",
+      "tolerance_class": "exact"
+    },
+    {
+      "name": "fo/model/blocked_dofs",
+      "file": "data/fo__model__blocked_dofs.npy",
+      "dtype": "i64",
+      "shape": [
+        35,
+        2
+      ],
+      "axes": [
+        "entry",
+        "component"
+      ],
+      "layout": "table",
+      "sha256": "34f4c6a57cd1f211ce6c4534ca08b76b5dbb4c8b72c68fcbd453d21e485a538b",
+      "description": "blocked flags",
+      "tolerance_class": "exact"
+    },
+    {
+      "name": "s30/nodes/global_ids",
+      "file": "data/s30__nodes__global_ids.npy",
+      "dtype": "i64",
+      "shape": [
+        35
+      ],
+      "axes": [
+        "entry"
+      ],
+      "layout": "table",
+      "sha256": "77be6b6b98d160f910879f4f2910722026e2cc52ee86a4be7203ec7c0803ae12",
+      "description": "getNodeGlobalId per local node",
+      "tolerance_class": "exact"
+    },
+    {
+      "name": "s30/nodes/flags",
+      "file": "data/s30__nodes__flags.npy",
+      "dtype": "i64",
+      "shape": [
+        35
+      ],
+      "axes": [
+        "entry"
+      ],
+      "layout": "table",
+      "sha256": "910d786ff0b85fdd718f5eee85b4c8f83fa437b1176f545c4db1dcb95edab5b4",
+      "description": "getNodeFlag per local node (NodeFlag bits)",
+      "tolerance_class": "exact"
+    },
+    {
+      "name": "s30/nodes/pranks",
+      "file": "data/s30__nodes__pranks.npy",
+      "dtype": "i64",
+      "shape": [
+        35
+      ],
+      "axes": [
+        "entry"
+      ],
+      "layout": "table",
+      "sha256": "b3f93b6363fda59481d25653f44bb6fb47f57f6dd71e69aae997189eb15b27f0",
+      "description": "getNodePrank per local node (-1: none)",
+      "tolerance_class": "exact"
+    },
+    {
+      "name": "s30/nodes/coordinates",
+      "file": "data/s30__nodes__coordinates.npy",
+      "dtype": "f64",
+      "shape": [
+        35,
+        2
+      ],
+      "axes": [
+        "entry",
+        "component"
+      ],
+      "layout": "table",
+      "sha256": "696d9789de42ed1e6d2adf52c88638862aa1de4f2d3105200eb014c6481603e6",
+      "description": "node coordinates",
+      "tolerance_class": "exact"
+    },
+    {
+      "name": "s30/element_scheme/send/0",
+      "file": "data/s30__element_scheme__send__0.npy",
+      "dtype": "i64",
+      "shape": [
+        13,
+        3
+      ],
+      "axes": [
+        "entry",
+        "component"
+      ],
+      "layout": "table",
+      "sha256": "6f3a8a3c995165c2b0631ceebc9a8817c3f6d598b72e21143ef75f66b1af0a5f",
+      "description": "(type code, element, ghost) in scheme order",
+      "tolerance_class": "exact"
+    },
+    {
+      "name": "s30/element_scheme/send/2",
+      "file": "data/s30__element_scheme__send__2.npy",
+      "dtype": "i64",
+      "shape": [
+        1,
+        3
+      ],
+      "axes": [
+        "entry",
+        "component"
+      ],
+      "layout": "table",
+      "sha256": "fee64fc2ef257c98c78237f0efa37b4274d837a41ce6c3781ec4a2cfd9b57215",
+      "description": "(type code, element, ghost) in scheme order",
+      "tolerance_class": "exact"
+    },
+    {
+      "name": "s30/element_scheme/send/3",
+      "file": "data/s30__element_scheme__send__3.npy",
+      "dtype": "i64",
+      "shape": [
+        8,
+        3
+      ],
+      "axes": [
+        "entry",
+        "component"
+      ],
+      "layout": "table",
+      "sha256": "15fc83d152c4b3151a3c13be6f34a93a12288173df4dc9a3a7ef5d8e2be3541e",
+      "description": "(type code, element, ghost) in scheme order",
+      "tolerance_class": "exact"
+    },
+    {
+      "name": "s30/element_scheme/recv/0",
+      "file": "data/s30__element_scheme__recv__0.npy",
+      "dtype": "i64",
+      "shape": [
+        12,
+        3
+      ],
+      "axes": [
+        "entry",
+        "component"
+      ],
+      "layout": "table",
+      "sha256": "8a11ddc9468efab66a659059f13c14e80dde61fbfea01db95bbbf820b7235506",
+      "description": "(type code, element, ghost) in scheme order",
+      "tolerance_class": "exact"
+    },
+    {
+      "name": "s30/element_scheme/recv/2",
+      "file": "data/s30__element_scheme__recv__2.npy",
+      "dtype": "i64",
+      "shape": [
+        1,
+        3
+      ],
+      "axes": [
+        "entry",
+        "component"
+      ],
+      "layout": "table",
+      "sha256": "e8582aca4f930a0bbd89fa9003fdde533633ac7dccb2501581c427c7f536a523",
+      "description": "(type code, element, ghost) in scheme order",
+      "tolerance_class": "exact"
+    },
+    {
+      "name": "s30/element_scheme/recv/3",
+      "file": "data/s30__element_scheme__recv__3.npy",
+      "dtype": "i64",
+      "shape": [
+        4,
+        3
+      ],
+      "axes": [
+        "entry",
+        "component"
+      ],
+      "layout": "table",
+      "sha256": "9426af41df132039d462a320b068b9cb97d42b3bf7513016de4a77b645c5fda5",
+      "description": "(type code, element, ghost) in scheme order",
+      "tolerance_class": "exact"
+    },
+    {
+      "name": "s30/node_scheme/send/3",
+      "file": "data/s30__node_scheme__send__3.npy",
+      "dtype": "i64",
+      "shape": [
+        1
+      ],
+      "axes": [
+        "entry"
+      ],
+      "layout": "table",
+      "sha256": "c0e56c15761fafc22d306b2a3b504e978a9f814ef4f38e43ab7099c298727a61",
+      "description": "local nodes in scheme order",
+      "tolerance_class": "exact"
+    },
+    {
+      "name": "s30/node_scheme/recv/0",
+      "file": "data/s30__node_scheme__recv__0.npy",
+      "dtype": "i64",
+      "shape": [
+        8
+      ],
+      "axes": [
+        "entry"
+      ],
+      "layout": "table",
+      "sha256": "8f9dee4d6a9aab08a52a028bcca0a0bf69c3febc898e7cd3cab1e3f5c127ebbb",
+      "description": "local nodes in scheme order",
+      "tolerance_class": "exact"
+    },
+    {
+      "name": "s30/facet_scheme/send/0",
+      "file": "data/s30__facet_scheme__send__0.npy",
+      "dtype": "i64",
+      "shape": [
+        15,
+        3
+      ],
+      "axes": [
+        "entry",
+        "component"
+      ],
+      "layout": "table",
+      "sha256": "3eb027b496f17e9594d7ab0ebd212ea3df030dfe98e5860979ed5d0fe02a58e1",
+      "description": "(type code, element, ghost) in scheme order",
+      "tolerance_class": "exact"
+    },
+    {
+      "name": "s30/facet_scheme/send/2",
+      "file": "data/s30__facet_scheme__send__2.npy",
+      "dtype": "i64",
+      "shape": [
+        0,
+        3
+      ],
+      "axes": [
+        "entry",
+        "component"
+      ],
+      "layout": "table",
+      "sha256": "09335c7d428a982a1579c2e4ed7b3c0906514ef4adc62fc1aa06cf7af47d2f32",
+      "description": "(type code, element, ghost) in scheme order",
+      "tolerance_class": "exact"
+    },
+    {
+      "name": "s30/facet_scheme/send/3",
+      "file": "data/s30__facet_scheme__send__3.npy",
+      "dtype": "i64",
+      "shape": [
+        10,
+        3
+      ],
+      "axes": [
+        "entry",
+        "component"
+      ],
+      "layout": "table",
+      "sha256": "110c7c58fa2f585d5bd957719baa201f74b600de9f03d642932ad397dcb8723f",
+      "description": "(type code, element, ghost) in scheme order",
+      "tolerance_class": "exact"
+    },
+    {
+      "name": "s30/facet_scheme/recv/0",
+      "file": "data/s30__facet_scheme__recv__0.npy",
+      "dtype": "i64",
+      "shape": [
+        21,
+        3
+      ],
+      "axes": [
+        "entry",
+        "component"
+      ],
+      "layout": "table",
+      "sha256": "f950168b52f5a782c0cfaa87a9592f7071ec9b829d78a453ed0c9aae41c9d97e",
+      "description": "(type code, element, ghost) in scheme order",
+      "tolerance_class": "exact"
+    },
+    {
+      "name": "s30/facet_scheme/recv/2",
+      "file": "data/s30__facet_scheme__recv__2.npy",
+      "dtype": "i64",
+      "shape": [
+        0,
+        3
+      ],
+      "axes": [
+        "entry",
+        "component"
+      ],
+      "layout": "table",
+      "sha256": "09335c7d428a982a1579c2e4ed7b3c0906514ef4adc62fc1aa06cf7af47d2f32",
+      "description": "(type code, element, ghost) in scheme order",
+      "tolerance_class": "exact"
+    },
+    {
+      "name": "s30/facet_scheme/recv/3",
+      "file": "data/s30__facet_scheme__recv__3.npy",
+      "dtype": "i64",
+      "shape": [
+        3,
+        3
+      ],
+      "axes": [
+        "entry",
+        "component"
+      ],
+      "layout": "table",
+      "sha256": "35b17682e86c6411c07e8928a455ea4d11f825f82d62d038c7661cfcf80ce7e2",
+      "description": "(type code, element, ghost) in scheme order",
+      "tolerance_class": "exact"
+    },
+    {
+      "name": "s30/cohesive_scheme/send/0",
+      "file": "data/s30__cohesive_scheme__send__0.npy",
+      "dtype": "i64",
+      "shape": [
+        0,
+        3
+      ],
+      "axes": [
+        "entry",
+        "component"
+      ],
+      "layout": "table",
+      "sha256": "09335c7d428a982a1579c2e4ed7b3c0906514ef4adc62fc1aa06cf7af47d2f32",
+      "description": "(type code, element, ghost) in scheme order",
+      "tolerance_class": "exact"
+    },
+    {
+      "name": "s30/cohesive_scheme/send/2",
+      "file": "data/s30__cohesive_scheme__send__2.npy",
+      "dtype": "i64",
+      "shape": [
+        0,
+        3
+      ],
+      "axes": [
+        "entry",
+        "component"
+      ],
+      "layout": "table",
+      "sha256": "09335c7d428a982a1579c2e4ed7b3c0906514ef4adc62fc1aa06cf7af47d2f32",
+      "description": "(type code, element, ghost) in scheme order",
+      "tolerance_class": "exact"
+    },
+    {
+      "name": "s30/cohesive_scheme/send/3",
+      "file": "data/s30__cohesive_scheme__send__3.npy",
+      "dtype": "i64",
+      "shape": [
+        0,
+        3
+      ],
+      "axes": [
+        "entry",
+        "component"
+      ],
+      "layout": "table",
+      "sha256": "09335c7d428a982a1579c2e4ed7b3c0906514ef4adc62fc1aa06cf7af47d2f32",
+      "description": "(type code, element, ghost) in scheme order",
+      "tolerance_class": "exact"
+    },
+    {
+      "name": "s30/cohesive_scheme/recv/0",
+      "file": "data/s30__cohesive_scheme__recv__0.npy",
+      "dtype": "i64",
+      "shape": [
+        0,
+        3
+      ],
+      "axes": [
+        "entry",
+        "component"
+      ],
+      "layout": "table",
+      "sha256": "09335c7d428a982a1579c2e4ed7b3c0906514ef4adc62fc1aa06cf7af47d2f32",
+      "description": "(type code, element, ghost) in scheme order",
+      "tolerance_class": "exact"
+    },
+    {
+      "name": "s30/cohesive_scheme/recv/2",
+      "file": "data/s30__cohesive_scheme__recv__2.npy",
+      "dtype": "i64",
+      "shape": [
+        0,
+        3
+      ],
+      "axes": [
+        "entry",
+        "component"
+      ],
+      "layout": "table",
+      "sha256": "09335c7d428a982a1579c2e4ed7b3c0906514ef4adc62fc1aa06cf7af47d2f32",
+      "description": "(type code, element, ghost) in scheme order",
+      "tolerance_class": "exact"
+    },
+    {
+      "name": "s30/cohesive_scheme/recv/3",
+      "file": "data/s30__cohesive_scheme__recv__3.npy",
+      "dtype": "i64",
+      "shape": [
+        0,
+        3
+      ],
+      "axes": [
+        "entry",
+        "component"
+      ],
+      "layout": "table",
+      "sha256": "09335c7d428a982a1579c2e4ed7b3c0906514ef4adc62fc1aa06cf7af47d2f32",
+      "description": "(type code, element, ghost) in scheme order",
+      "tolerance_class": "exact"
+    },
+    {
+      "name": "s30/facet_stress_scheme/send/0",
+      "file": "data/s30__facet_stress_scheme__send__0.npy",
+      "dtype": "i64",
+      "shape": [
+        2,
+        3
+      ],
+      "axes": [
+        "entry",
+        "component"
+      ],
+      "layout": "table",
+      "sha256": "f58f7e7ef1e0a49b6cef2ebe5364858a4f5c60754bcbed9c35ac094ee754c0a3",
+      "description": "(type code, element, ghost) in scheme order",
+      "tolerance_class": "exact"
+    },
+    {
+      "name": "s30/facet_stress_scheme/send/2",
+      "file": "data/s30__facet_stress_scheme__send__2.npy",
+      "dtype": "i64",
+      "shape": [
+        0,
+        3
+      ],
+      "axes": [
+        "entry",
+        "component"
+      ],
+      "layout": "table",
+      "sha256": "09335c7d428a982a1579c2e4ed7b3c0906514ef4adc62fc1aa06cf7af47d2f32",
+      "description": "(type code, element, ghost) in scheme order",
+      "tolerance_class": "exact"
+    },
+    {
+      "name": "s30/facet_stress_scheme/send/3",
+      "file": "data/s30__facet_stress_scheme__send__3.npy",
+      "dtype": "i64",
+      "shape": [
+        0,
+        3
+      ],
+      "axes": [
+        "entry",
+        "component"
+      ],
+      "layout": "table",
+      "sha256": "09335c7d428a982a1579c2e4ed7b3c0906514ef4adc62fc1aa06cf7af47d2f32",
+      "description": "(type code, element, ghost) in scheme order",
+      "tolerance_class": "exact"
+    },
+    {
+      "name": "s30/facet_stress_scheme/recv/0",
+      "file": "data/s30__facet_stress_scheme__recv__0.npy",
+      "dtype": "i64",
+      "shape": [
+        0,
+        3
+      ],
+      "axes": [
+        "entry",
+        "component"
+      ],
+      "layout": "table",
+      "sha256": "09335c7d428a982a1579c2e4ed7b3c0906514ef4adc62fc1aa06cf7af47d2f32",
+      "description": "(type code, element, ghost) in scheme order",
+      "tolerance_class": "exact"
+    },
+    {
+      "name": "s30/facet_stress_scheme/recv/2",
+      "file": "data/s30__facet_stress_scheme__recv__2.npy",
+      "dtype": "i64",
+      "shape": [
+        0,
+        3
+      ],
+      "axes": [
+        "entry",
+        "component"
+      ],
+      "layout": "table",
+      "sha256": "09335c7d428a982a1579c2e4ed7b3c0906514ef4adc62fc1aa06cf7af47d2f32",
+      "description": "(type code, element, ghost) in scheme order",
+      "tolerance_class": "exact"
+    },
+    {
+      "name": "s30/facet_stress_scheme/recv/3",
+      "file": "data/s30__facet_stress_scheme__recv__3.npy",
+      "dtype": "i64",
+      "shape": [
+        2,
+        3
+      ],
+      "axes": [
+        "entry",
+        "component"
+      ],
+      "layout": "table",
+      "sha256": "61849c2023bbe2d51aba76a5e328c23d46138fc3b43c9b5938d80f5335b2f01d",
+      "description": "(type code, element, ghost) in scheme order",
+      "tolerance_class": "exact"
+    },
+    {
+      "name": "s30/check_facets/_segment_2/not_ghost",
+      "file": "data/s30__check_facets___segment_2__not_ghost.npy",
+      "dtype": "i64",
+      "shape": [
+        50
+      ],
+      "axes": [
+        "entry"
+      ],
+      "layout": "table",
+      "sha256": "616d99f386e7641067c564fd5471f3b7f5f39b675a9e58bf4eeb61b728b62509",
+      "description": "per facet flag",
+      "tolerance_class": "exact"
+    },
+    {
+      "name": "s30/check_facets/_segment_2/ghost",
+      "file": "data/s30__check_facets___segment_2__ghost.npy",
+      "dtype": "i64",
+      "shape": [
+        25
+      ],
+      "axes": [
+        "entry"
+      ],
+      "layout": "table",
+      "sha256": "8d42a4e466979f2d1c2099328d1a0e758e9117b7e13d6ffd5c3f81f008c7d43e",
+      "description": "per facet flag",
+      "tolerance_class": "exact"
+    },
+    {
+      "name": "s30/insertion_facets/_segment_2/not_ghost",
+      "file": "data/s30__insertion_facets___segment_2__not_ghost.npy",
+      "dtype": "i64",
+      "shape": [
+        50
+      ],
+      "axes": [
+        "entry"
+      ],
+      "layout": "table",
+      "sha256": "d99c920afd0b9e4687a89b91c3822251a0bf7a12ae8aaec70c4fdc891959626f",
+      "description": "per facet flag",
+      "tolerance_class": "exact"
+    },
+    {
+      "name": "s30/insertion_facets/_segment_2/ghost",
+      "file": "data/s30__insertion_facets___segment_2__ghost.npy",
+      "dtype": "i64",
+      "shape": [
+        25
+      ],
+      "axes": [
+        "entry"
+      ],
+      "layout": "table",
+      "sha256": "8f772c63488159d1a3252099018a0c135fd77944144fae6d007fcdaaae4e275f",
+      "description": "per facet flag",
+      "tolerance_class": "exact"
+    },
+    {
+      "name": "s30/law0/filter/_triangle_3/not_ghost",
+      "file": "data/s30__law0__filter___triangle_3__not_ghost.npy",
+      "dtype": "i64",
+      "shape": [
+        32
+      ],
+      "axes": [
+        "entry"
+      ],
+      "layout": "table",
+      "sha256": "d7e613f1090f555b5641f2b446191b4b16b191e7a4ebfee85716049073143863",
+      "description": "law element filter (ghost: canonical rank order, probe patch)",
+      "tolerance_class": "exact"
+    },
+    {
+      "name": "s30/law0/filter/_triangle_3/ghost",
+      "file": "data/s30__law0__filter___triangle_3__ghost.npy",
+      "dtype": "i64",
+      "shape": [
+        17
+      ],
+      "axes": [
+        "entry"
+      ],
+      "layout": "table",
+      "sha256": "994bf022a0c9a29422035b1e8c949c37a00e5708d855d5e6eabe8f6588384feb",
+      "description": "law element filter (ghost: canonical rank order, probe patch)",
+      "tolerance_class": "exact"
+    },
+    {
+      "name": "s30/law1/filter/_triangle_3/not_ghost",
+      "file": "data/s30__law1__filter___triangle_3__not_ghost.npy",
+      "dtype": "i64",
+      "shape": [
+        0
+      ],
+      "axes": [
+        "entry"
+      ],
+      "layout": "table",
+      "sha256": "e734dac55ea9fbbe782af2d8c02c3c5992131906228afb2aaaf137d6f3ed74db",
+      "description": "law element filter (ghost: canonical rank order, probe patch)",
+      "tolerance_class": "exact"
+    },
+    {
+      "name": "s30/law1/filter/_cohesive_2d_4/not_ghost",
+      "file": "data/s30__law1__filter___cohesive_2d_4__not_ghost.npy",
+      "dtype": "i64",
+      "shape": [
+        0
+      ],
+      "axes": [
+        "entry"
+      ],
+      "layout": "table",
+      "sha256": "e734dac55ea9fbbe782af2d8c02c3c5992131906228afb2aaaf137d6f3ed74db",
+      "description": "law element filter (ghost: canonical rank order, probe patch)",
+      "tolerance_class": "exact"
+    },
+    {
+      "name": "s30/law1/filter/_triangle_3/ghost",
+      "file": "data/s30__law1__filter___triangle_3__ghost.npy",
+      "dtype": "i64",
+      "shape": [
+        0
+      ],
+      "axes": [
+        "entry"
+      ],
+      "layout": "table",
+      "sha256": "e734dac55ea9fbbe782af2d8c02c3c5992131906228afb2aaaf137d6f3ed74db",
+      "description": "law element filter (ghost: canonical rank order, probe patch)",
+      "tolerance_class": "exact"
+    },
+    {
+      "name": "s30/law1/filter/_cohesive_2d_4/ghost",
+      "file": "data/s30__law1__filter___cohesive_2d_4__ghost.npy",
+      "dtype": "i64",
+      "shape": [
+        0
+      ],
+      "axes": [
+        "entry"
+      ],
+      "layout": "table",
+      "sha256": "e734dac55ea9fbbe782af2d8c02c3c5992131906228afb2aaaf137d6f3ed74db",
+      "description": "law element filter (ghost: canonical rank order, probe patch)",
+      "tolerance_class": "exact"
+    },
+    {
+      "name": "s30/law1/opening/_cohesive_2d_4/not_ghost",
+      "file": "data/s30__law1__opening___cohesive_2d_4__not_ghost.npy",
+      "dtype": "f64",
+      "shape": [
+        0,
+        2
+      ],
+      "axes": [
+        "entry",
+        "component"
+      ],
+      "layout": "table",
+      "sha256": "8465b982d07844d91218a2129afe27b20c2809a2de8727045d12fe515ef5c7e9",
+      "description": "cohesive internal opening",
+      "tolerance_class": "exact"
+    },
+    {
+      "name": "s30/law1/opening/_cohesive_2d_4/ghost",
+      "file": "data/s30__law1__opening___cohesive_2d_4__ghost.npy",
+      "dtype": "f64",
+      "shape": [
+        0,
+        2
+      ],
+      "axes": [
+        "entry",
+        "component"
+      ],
+      "layout": "table",
+      "sha256": "8465b982d07844d91218a2129afe27b20c2809a2de8727045d12fe515ef5c7e9",
+      "description": "cohesive internal opening",
+      "tolerance_class": "exact"
+    },
+    {
+      "name": "s30/law1/tractions/_cohesive_2d_4/not_ghost",
+      "file": "data/s30__law1__tractions___cohesive_2d_4__not_ghost.npy",
+      "dtype": "f64",
+      "shape": [
+        0,
+        2
+      ],
+      "axes": [
+        "entry",
+        "component"
+      ],
+      "layout": "table",
+      "sha256": "8465b982d07844d91218a2129afe27b20c2809a2de8727045d12fe515ef5c7e9",
+      "description": "cohesive internal tractions",
+      "tolerance_class": "exact"
+    },
+    {
+      "name": "s30/law1/tractions/_cohesive_2d_4/ghost",
+      "file": "data/s30__law1__tractions___cohesive_2d_4__ghost.npy",
+      "dtype": "f64",
+      "shape": [
+        0,
+        2
+      ],
+      "axes": [
+        "entry",
+        "component"
+      ],
+      "layout": "table",
+      "sha256": "8465b982d07844d91218a2129afe27b20c2809a2de8727045d12fe515ef5c7e9",
+      "description": "cohesive internal tractions",
+      "tolerance_class": "exact"
+    },
+    {
+      "name": "s30/law1/contact_tractions/_cohesive_2d_4/not_ghost",
+      "file": "data/s30__law1__contact_tractions___cohesive_2d_4__not_ghost.npy",
+      "dtype": "f64",
+      "shape": [
+        0,
+        2
+      ],
+      "axes": [
+        "entry",
+        "component"
+      ],
+      "layout": "table",
+      "sha256": "8465b982d07844d91218a2129afe27b20c2809a2de8727045d12fe515ef5c7e9",
+      "description": "cohesive internal contact_tractions",
+      "tolerance_class": "exact"
+    },
+    {
+      "name": "s30/law1/contact_tractions/_cohesive_2d_4/ghost",
+      "file": "data/s30__law1__contact_tractions___cohesive_2d_4__ghost.npy",
+      "dtype": "f64",
+      "shape": [
+        0,
+        2
+      ],
+      "axes": [
+        "entry",
+        "component"
+      ],
+      "layout": "table",
+      "sha256": "8465b982d07844d91218a2129afe27b20c2809a2de8727045d12fe515ef5c7e9",
+      "description": "cohesive internal contact_tractions",
+      "tolerance_class": "exact"
+    },
+    {
+      "name": "s30/law1/contact_opening/_cohesive_2d_4/not_ghost",
+      "file": "data/s30__law1__contact_opening___cohesive_2d_4__not_ghost.npy",
+      "dtype": "f64",
+      "shape": [
+        0,
+        2
+      ],
+      "axes": [
+        "entry",
+        "component"
+      ],
+      "layout": "table",
+      "sha256": "8465b982d07844d91218a2129afe27b20c2809a2de8727045d12fe515ef5c7e9",
+      "description": "cohesive internal contact_opening",
+      "tolerance_class": "exact"
+    },
+    {
+      "name": "s30/law1/contact_opening/_cohesive_2d_4/ghost",
+      "file": "data/s30__law1__contact_opening___cohesive_2d_4__ghost.npy",
+      "dtype": "f64",
+      "shape": [
+        0,
+        2
+      ],
+      "axes": [
+        "entry",
+        "component"
+      ],
+      "layout": "table",
+      "sha256": "8465b982d07844d91218a2129afe27b20c2809a2de8727045d12fe515ef5c7e9",
+      "description": "cohesive internal contact_opening",
+      "tolerance_class": "exact"
+    },
+    {
+      "name": "s30/law1/delta_max/_cohesive_2d_4/not_ghost",
+      "file": "data/s30__law1__delta_max___cohesive_2d_4__not_ghost.npy",
+      "dtype": "f64",
+      "shape": [
+        0,
+        1
+      ],
+      "axes": [
+        "entry",
+        "component"
+      ],
+      "layout": "table",
+      "sha256": "aa03397bf977ff4f544e8768afd91f3f4b876dc9732a7b9550ca82f5639b5ef4",
+      "description": "cohesive internal delta max",
+      "tolerance_class": "exact"
+    },
+    {
+      "name": "s30/law1/delta_max/_cohesive_2d_4/ghost",
+      "file": "data/s30__law1__delta_max___cohesive_2d_4__ghost.npy",
+      "dtype": "f64",
+      "shape": [
+        0,
+        1
+      ],
+      "axes": [
+        "entry",
+        "component"
+      ],
+      "layout": "table",
+      "sha256": "aa03397bf977ff4f544e8768afd91f3f4b876dc9732a7b9550ca82f5639b5ef4",
+      "description": "cohesive internal delta max",
+      "tolerance_class": "exact"
+    },
+    {
+      "name": "s30/law1/damage/_cohesive_2d_4/not_ghost",
+      "file": "data/s30__law1__damage___cohesive_2d_4__not_ghost.npy",
+      "dtype": "f64",
+      "shape": [
+        0,
+        1
+      ],
+      "axes": [
+        "entry",
+        "component"
+      ],
+      "layout": "table",
+      "sha256": "aa03397bf977ff4f544e8768afd91f3f4b876dc9732a7b9550ca82f5639b5ef4",
+      "description": "cohesive internal damage",
+      "tolerance_class": "exact"
+    },
+    {
+      "name": "s30/law1/damage/_cohesive_2d_4/ghost",
+      "file": "data/s30__law1__damage___cohesive_2d_4__ghost.npy",
+      "dtype": "f64",
+      "shape": [
+        0,
+        1
+      ],
+      "axes": [
+        "entry",
+        "component"
+      ],
+      "layout": "table",
+      "sha256": "aa03397bf977ff4f544e8768afd91f3f4b876dc9732a7b9550ca82f5639b5ef4",
+      "description": "cohesive internal damage",
+      "tolerance_class": "exact"
+    },
+    {
+      "name": "s30/law1/normal/_cohesive_2d_4/not_ghost",
+      "file": "data/s30__law1__normal___cohesive_2d_4__not_ghost.npy",
+      "dtype": "f64",
+      "shape": [
+        0,
+        2
+      ],
+      "axes": [
+        "entry",
+        "component"
+      ],
+      "layout": "table",
+      "sha256": "8465b982d07844d91218a2129afe27b20c2809a2de8727045d12fe515ef5c7e9",
+      "description": "cohesive internal normal",
+      "tolerance_class": "exact"
+    },
+    {
+      "name": "s30/law1/normal/_cohesive_2d_4/ghost",
+      "file": "data/s30__law1__normal___cohesive_2d_4__ghost.npy",
+      "dtype": "f64",
+      "shape": [
+        0,
+        2
+      ],
+      "axes": [
+        "entry",
+        "component"
+      ],
+      "layout": "table",
+      "sha256": "8465b982d07844d91218a2129afe27b20c2809a2de8727045d12fe515ef5c7e9",
+      "description": "cohesive internal normal",
+      "tolerance_class": "exact"
+    },
+    {
+      "name": "s30/law1/reversible_energy/_cohesive_2d_4/not_ghost",
+      "file": "data/s30__law1__reversible_energy___cohesive_2d_4__not_ghost.npy",
+      "dtype": "f64",
+      "shape": [
+        0,
+        1
+      ],
+      "axes": [
+        "entry",
+        "component"
+      ],
+      "layout": "table",
+      "sha256": "aa03397bf977ff4f544e8768afd91f3f4b876dc9732a7b9550ca82f5639b5ef4",
+      "description": "cohesive internal reversible_energy",
+      "tolerance_class": "exact"
+    },
+    {
+      "name": "s30/law1/reversible_energy/_cohesive_2d_4/ghost",
+      "file": "data/s30__law1__reversible_energy___cohesive_2d_4__ghost.npy",
+      "dtype": "f64",
+      "shape": [
+        0,
+        1
+      ],
+      "axes": [
+        "entry",
+        "component"
+      ],
+      "layout": "table",
+      "sha256": "aa03397bf977ff4f544e8768afd91f3f4b876dc9732a7b9550ca82f5639b5ef4",
+      "description": "cohesive internal reversible_energy",
+      "tolerance_class": "exact"
+    },
+    {
+      "name": "s30/law1/total_energy/_cohesive_2d_4/not_ghost",
+      "file": "data/s30__law1__total_energy___cohesive_2d_4__not_ghost.npy",
+      "dtype": "f64",
+      "shape": [
+        0,
+        1
+      ],
+      "axes": [
+        "entry",
+        "component"
+      ],
+      "layout": "table",
+      "sha256": "aa03397bf977ff4f544e8768afd91f3f4b876dc9732a7b9550ca82f5639b5ef4",
+      "description": "cohesive internal total_energy",
+      "tolerance_class": "exact"
+    },
+    {
+      "name": "s30/law1/total_energy/_cohesive_2d_4/ghost",
+      "file": "data/s30__law1__total_energy___cohesive_2d_4__ghost.npy",
+      "dtype": "f64",
+      "shape": [
+        0,
+        1
+      ],
+      "axes": [
+        "entry",
+        "component"
+      ],
+      "layout": "table",
+      "sha256": "aa03397bf977ff4f544e8768afd91f3f4b876dc9732a7b9550ca82f5639b5ef4",
+      "description": "cohesive internal total_energy",
+      "tolerance_class": "exact"
+    },
+    {
+      "name": "s30/law1/sigma_c_eff/_cohesive_2d_4/not_ghost",
+      "file": "data/s30__law1__sigma_c_eff___cohesive_2d_4__not_ghost.npy",
+      "dtype": "f64",
+      "shape": [
+        0,
+        1
+      ],
+      "axes": [
+        "entry",
+        "component"
+      ],
+      "layout": "table",
+      "sha256": "aa03397bf977ff4f544e8768afd91f3f4b876dc9732a7b9550ca82f5639b5ef4",
+      "description": "cohesive internal sigma_c_eff",
+      "tolerance_class": "exact"
+    },
+    {
+      "name": "s30/law1/sigma_c_eff/_cohesive_2d_4/ghost",
+      "file": "data/s30__law1__sigma_c_eff___cohesive_2d_4__ghost.npy",
+      "dtype": "f64",
+      "shape": [
+        0,
+        1
+      ],
+      "axes": [
+        "entry",
+        "component"
+      ],
+      "layout": "table",
+      "sha256": "aa03397bf977ff4f544e8768afd91f3f4b876dc9732a7b9550ca82f5639b5ef4",
+      "description": "cohesive internal sigma_c_eff",
+      "tolerance_class": "exact"
+    },
+    {
+      "name": "s30/law1/delta_c_eff/_cohesive_2d_4/not_ghost",
+      "file": "data/s30__law1__delta_c_eff___cohesive_2d_4__not_ghost.npy",
+      "dtype": "f64",
+      "shape": [
+        0,
+        1
+      ],
+      "axes": [
+        "entry",
+        "component"
+      ],
+      "layout": "table",
+      "sha256": "aa03397bf977ff4f544e8768afd91f3f4b876dc9732a7b9550ca82f5639b5ef4",
+      "description": "cohesive internal delta_c_eff",
+      "tolerance_class": "exact"
+    },
+    {
+      "name": "s30/law1/delta_c_eff/_cohesive_2d_4/ghost",
+      "file": "data/s30__law1__delta_c_eff___cohesive_2d_4__ghost.npy",
+      "dtype": "f64",
+      "shape": [
+        0,
+        1
+      ],
+      "axes": [
+        "entry",
+        "component"
+      ],
+      "layout": "table",
+      "sha256": "aa03397bf977ff4f544e8768afd91f3f4b876dc9732a7b9550ca82f5639b5ef4",
+      "description": "cohesive internal delta_c_eff",
+      "tolerance_class": "exact"
+    },
+    {
+      "name": "s30/law1/insertion_stress/_cohesive_2d_4/not_ghost",
+      "file": "data/s30__law1__insertion_stress___cohesive_2d_4__not_ghost.npy",
+      "dtype": "f64",
+      "shape": [
+        0,
+        2
+      ],
+      "axes": [
+        "entry",
+        "component"
+      ],
+      "layout": "table",
+      "sha256": "8465b982d07844d91218a2129afe27b20c2809a2de8727045d12fe515ef5c7e9",
+      "description": "cohesive internal insertion_stress",
+      "tolerance_class": "exact"
+    },
+    {
+      "name": "s30/law1/insertion_stress/_cohesive_2d_4/ghost",
+      "file": "data/s30__law1__insertion_stress___cohesive_2d_4__ghost.npy",
+      "dtype": "f64",
+      "shape": [
+        0,
+        2
+      ],
+      "axes": [
+        "entry",
+        "component"
+      ],
+      "layout": "table",
+      "sha256": "8465b982d07844d91218a2129afe27b20c2809a2de8727045d12fe515ef5c7e9",
+      "description": "cohesive internal insertion_stress",
+      "tolerance_class": "exact"
+    },
+    {
+      "name": "s30/law1/facet_filter/_segment_2/not_ghost",
+      "file": "data/s30__law1__facet_filter___segment_2__not_ghost.npy",
+      "dtype": "i64",
+      "shape": [
+        50
+      ],
+      "axes": [
+        "entry"
+      ],
+      "layout": "table",
+      "sha256": "7d2bbdee3bfe4aa21f28fa8d572d9bbd6cc5e6e9ad28fe2441f5a5596cdd0043",
+      "description": "facet filter (extrinsic)",
+      "tolerance_class": "exact"
+    },
+    {
+      "name": "s30/law1/facet_filter/_segment_2/ghost",
+      "file": "data/s30__law1__facet_filter___segment_2__ghost.npy",
+      "dtype": "i64",
+      "shape": [
+        0
+      ],
+      "axes": [
+        "entry"
+      ],
+      "layout": "table",
+      "sha256": "e734dac55ea9fbbe782af2d8c02c3c5992131906228afb2aaaf137d6f3ed74db",
+      "description": "facet filter (extrinsic)",
+      "tolerance_class": "exact"
+    },
+    {
+      "name": "s30/law1/sigma_c/_segment_2/not_ghost",
+      "file": "data/s30__law1__sigma_c___segment_2__not_ghost.npy",
+      "dtype": "f64",
+      "shape": [
+        100,
+        1
+      ],
+      "axes": [
+        "entry",
+        "component"
+      ],
+      "layout": "table",
+      "sha256": "433f42a40d709b377f72c8ab9dde0098145cb9088095a745b3f6c6f4fff86f1a",
+      "description": "facet strength sigma_c (per facet quadrature point of the facet filter)",
+      "tolerance_class": "exact"
+    },
+    {
+      "name": "s30/law1/sigma_c/_segment_2/ghost",
+      "file": "data/s30__law1__sigma_c___segment_2__ghost.npy",
+      "dtype": "f64",
+      "shape": [
+        0,
+        1
+      ],
+      "axes": [
+        "entry",
+        "component"
+      ],
+      "layout": "table",
+      "sha256": "aa03397bf977ff4f544e8768afd91f3f4b876dc9732a7b9550ca82f5639b5ef4",
+      "description": "facet strength sigma_c (per facet quadrature point of the facet filter)",
+      "tolerance_class": "exact"
+    },
+    {
+      "name": "s30/model/displacement",
+      "file": "data/s30__model__displacement.npy",
+      "dtype": "f64",
+      "shape": [
+        35,
+        2
+      ],
+      "axes": [
+        "entry",
+        "component"
+      ],
+      "layout": "table",
+      "sha256": "a474354e56b524fcef86575c00926cdfef47250fe4db8c1137e69fe39cd5c9b1",
+      "description": "displacement",
+      "tolerance_class": "exact"
+    },
+    {
+      "name": "s30/model/velocity",
+      "file": "data/s30__model__velocity.npy",
+      "dtype": "f64",
+      "shape": [
+        35,
+        2
+      ],
+      "axes": [
+        "entry",
+        "component"
+      ],
+      "layout": "table",
+      "sha256": "7d8a46b30110f3775e3114e2d3fc3cdce81de31690480e2b3e207024252927a8",
+      "description": "velocity",
+      "tolerance_class": "exact"
+    },
+    {
+      "name": "s30/model/acceleration",
+      "file": "data/s30__model__acceleration.npy",
+      "dtype": "f64",
+      "shape": [
+        35,
+        2
+      ],
+      "axes": [
+        "entry",
+        "component"
+      ],
+      "layout": "table",
+      "sha256": "ef4ac02c7eabc6b5fd2e2f1fa71c86340737ca2c69d2a78f1ac374c469d314d5",
+      "description": "acceleration",
+      "tolerance_class": "exact"
+    },
+    {
+      "name": "s30/model/internal_force",
+      "file": "data/s30__model__internal_force.npy",
+      "dtype": "f64",
+      "shape": [
+        35,
+        2
+      ],
+      "axes": [
+        "entry",
+        "component"
+      ],
+      "layout": "table",
+      "sha256": "83b95471717ef7cc516a986dd640019cbbf997f8d61204a24612c4aaea1abd33",
+      "description": "internal force",
+      "tolerance_class": "exact"
+    },
+    {
+      "name": "s30/model/mass",
+      "file": "data/s30__model__mass.npy",
+      "dtype": "f64",
+      "shape": [
+        35,
+        2
+      ],
+      "axes": [
+        "entry",
+        "component"
+      ],
+      "layout": "table",
+      "sha256": "d09c3f82ce5e4242533ca3c067c5f1f5ff9ae9364ded8d69a59e2a790d3b125d",
+      "description": "lumped mass",
+      "tolerance_class": "exact"
+    },
+    {
+      "name": "s30/model/blocked_dofs",
+      "file": "data/s30__model__blocked_dofs.npy",
+      "dtype": "i64",
+      "shape": [
+        35,
+        2
+      ],
+      "axes": [
+        "entry",
+        "component"
+      ],
+      "layout": "table",
+      "sha256": "34f4c6a57cd1f211ce6c4534ca08b76b5dbb4c8b72c68fcbd453d21e485a538b",
+      "description": "blocked flags",
+      "tolerance_class": "exact"
+    },
+    {
+      "name": "steps/energy/kinetic",
+      "file": "data/steps__energy__kinetic.npy",
+      "dtype": "f64",
+      "shape": [
+        30
+      ],
+      "axes": [
+        "step"
+      ],
+      "layout": "table",
+      "sha256": "7e50b5f397cbe3ee0995cb3d401f3723b4744b5f25038105a008e3657cc9d620",
+      "description": "getEnergy(kinetic) after solveStep (MPI_Allreduce)",
+      "tolerance_class": "exact"
+    },
+    {
+      "name": "steps/energy/potential",
+      "file": "data/steps__energy__potential.npy",
+      "dtype": "f64",
+      "shape": [
+        30
+      ],
+      "axes": [
+        "step"
+      ],
+      "layout": "table",
+      "sha256": "7730ad5ad06ded6f3bd4ee4897be5ecca591a884159176dd61e8e396dd0aade5",
+      "description": "getEnergy(potential) (MPI_Allreduce)",
+      "tolerance_class": "exact"
+    },
+    {
+      "name": "steps/local_energy/kinetic",
+      "file": "data/steps__local_energy__kinetic.npy",
+      "dtype": "f64",
+      "shape": [
+        30
+      ],
+      "axes": [
+        "step"
+      ],
+      "layout": "table",
+      "sha256": "301c1ec87ed7b22f7b629f5647875d315f394d2a83fd0ed3e4b4cb68ef064343",
+      "description": "this rank's kinetic contribution",
+      "tolerance_class": "exact"
+    },
+    {
+      "name": "steps/local_energy/potential",
+      "file": "data/steps__local_energy__potential.npy",
+      "dtype": "f64",
+      "shape": [
+        30
+      ],
+      "axes": [
+        "step"
+      ],
+      "layout": "table",
+      "sha256": "2f13fc6aef7f0f5cf488ecf9d3245855306e285062b333dd1f4b698588913527",
+      "description": "sum of the laws' potential energy (local)",
+      "tolerance_class": "exact"
+    }
+  ],
+  "tags": [
+    "parallel",
+    "cohesive"
+  ]
+}

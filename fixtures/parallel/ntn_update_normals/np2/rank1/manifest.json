@@ -1,0 +1,476 @@
+{
+  "format_version": 1,
+  "case_id": "parallel/ntn_update_normals/np2/rank1",
+  "description": "TestNTNFrictionFixture.TestCompression setting on a distributed mesh with NTNBaseContact::initParallel(), 40 steps, then NTNContact::updateNormals(), rank view",
+  "status": "golden",
+  "generator": {
+    "probe": "par4_probe",
+    "probe_version": "1",
+    "command": "oracle/probes/par4/generate.sh "
+  },
+  "reference": {
+    "sha": "35a851780d0b9471d258ed53a003ae98aaa95ea0",
+    "describe": "v5.0.7-post1-554-g35a851780",
+    "patches": [
+      "modified:cmake/AkantuTestsMacros.cmake sha256=c280165a84912eab4bcc081b9eaaaa06aafdd83d4f48d982e11b0859abf9672f (reference sha256=36290de2ec8b111028138fe82029efa16501512241a5bc264fa30ff3e3239b9e)"
+    ]
+  },
+  "build": {
+  "config": "strict",
+  "compiler": "g++ (Debian 14.2.0-19) 14.2.0",
+  "cxx_flags": "-ffp-contract=off -DEIGEN_DONT_VECTORIZE -DEIGEN_NO_CPUID -DEIGEN_DEFAULT_L1_CACHE_SIZE=16384 -DEIGEN_DEFAULT_L2_CACHE_SIZE=524288 -DEIGEN_DEFAULT_L3_CACHE_SIZE=524288 -O2 -g -DNDEBUG -g3 -ggdb3 -flarge-source-files -std=c++20 -flto=auto -fno-fat-lto-objects -fPIC -frounding-math (actual flags of src/model/solid_mechanics/solid_mechanics_model.cc; warnings and non-FP -D defines omitted)",
+  "build_type": "RelWithDebInfo",
+  "arch": "x86_64",
+  "os": "Debian GNU/Linux 13 (trixie)",
+  "libraries": {"eigen_cache_sizes_measured": "16384,524288,524288 (Eigen::l1/l2/l3CacheSize() read at run time in the probe process, D-050)", 
+    "eigen3": "3.4.0-5",
+    "boost": "1.83.0.2+b2",
+    "openmpi": "5.0.7-1",
+    "mumps": "5.7.3-3+b1",
+    "petsc": "3.22.5+dfsg1-2",
+    "scotch": "7.0.7-1",
+    "openblas": "0.3.29+ds-3",
+    "scalapack": "2.2.2-1",
+    "hdf5": "1.14.5+repack-3",
+    "gmsh": "4.13.1+ds1-6",
+    "pybind11": "2.13.6-2",
+    "numpy": "1:2.2.4+ds-1",
+    "scipy": "1.15.3-1",
+    "gcc": "4:14.2.0-1",
+    "gfortran": "4:14.2.0-1",
+    "oracle_image": "sha256:2da26d87e063f3c88264f589cf73381feff583eeaa7770d2e01ae034651d59f5",
+    "oracle_build_scripts": "cca6e460cd3430bf0180262e7ebe26be762112e9",
+    "oracle_install_reference_sha": "35a851780d0b9471d258ed53a003ae98aaa95ea0",
+    "oracle_install_image": "sha256:2da26d87e063f3c88264f589cf73381feff583eeaa7770d2e01ae034651d59f5",
+    "openblas_coretype": "Haswell",
+    "openblas_num_threads": "1",
+    "eigen_cache_sizes": "16384,524288,524288 (compile-time pin of the library and of the probe translation unit: EIGEN_NO_CPUID + defaults, D-050)",
+    "host_cpu": "AMD EPYC 4585PX 16-Core Processor",
+    "x86_64_level": "v3",
+    "sha256:libakantu.so.5.0.7": "554ecfc7838d8c8aa3955f37f2efb556a7f09426083b74af262ffdcccff657ff",
+    "probe_tree_sha256": "57b4abc0f0b57c28d5bd3da00d7d89b1da2ad57ab916743f5058ab3970a76bac",
+    "probe_sources_commit": "422c80a146e2bbd0bf8bdf7253aa036cee175705",
+    "cmake_cxx_flags": "-ffp-contract=off -DEIGEN_DONT_VECTORIZE -DEIGEN_NO_CPUID -DEIGEN_DEFAULT_L1_CACHE_SIZE=16384 -DEIGEN_DEFAULT_L2_CACHE_SIZE=524288 -DEIGEN_DEFAULT_L3_CACHE_SIZE=524288 -O2 -g -DNDEBUG -g3 -ggdb3 -flarge-source-files",
+    "probe": "par4_probe"
+  },
+  "probe_compile_command": "/usr/bin/c++ '-DAKANTU_PROBE_BUILD_TYPE=\"RelWithDebInfo\"' '-DAKANTU_PROBE_CONFIG=\"strict\"' '-DAKANTU_PROBE_CXX_FLAGS=\"-ffp-contract=off -DEIGEN_DONT_VECTORIZE -DEIGEN_NO_CPUID -DEIGEN_DEFAULT_L1_CACHE_SIZE=16384 -DEIGEN_DEFAULT_L2_CACHE_SIZE=524288 -DEIGEN_DEFAULT_L3_CACHE_SIZE=524288  -O2 -g -DNDEBUG\"' -DBOOST_GRAPH_DYN_LINK -DBOOST_GRAPH_NO_LIB -DBOOST_REGEX_DYN_LINK -DBOOST_REGEX_NO_LIB -DCGAL_USE_GMPXX=1 -I/probes/par4/../include -isystem /build/install-strict/include/akantu -isystem /opt/CGAL-5.6.2/include -isystem /usr/lib/x86_64-linux-gnu/openmpi/include -isystem /usr/lib/x86_64-linux-gnu/openmpi/include/openmpi -isystem /usr/lib/petscdir/petsc3.22/x86_64-linux-gnu-real/include -isystem /usr/include/scotch -isystem /build/install-strict/include/akantu_iterators -isystem /usr/include/eigen3 -isystem /build/install-strict/include/iohelper -O2 -g -DNDEBUG -std=gnu++20 -ffp-contract=off -DEIGEN_DONT_VECTORIZE -DEIGEN_NO_CPUID -DEIGEN_DEFAULT_L1_CACHE_SIZE=16384 -DEIGEN_DEFAULT_L2_CACHE_SIZE=524288 -DEIGEN_DEFAULT_L3_CACHE_SIZE=524288 -Wall -Wextra -pedantic -Wno-array-bounds -Wno-use-after-free -Wno-stringop-overread -DOMPI_SKIP_MPICXX -Wno-literal-suffix -frounding-math -o CMakeFiles/par4_probe.dir/par4_probe.cc.o -c /probes/par4/par4_probe.cc",
+  "probe_cxx_flags": "-DAKANTU_PROBE_BUILD_TYPE=\"RelWithDebInfo\" -DAKANTU_PROBE_CONFIG=\"strict\" -DAKANTU_PROBE_CXX_FLAGS=\"-ffp-contract=off -DEIGEN_DONT_VECTORIZE -DEIGEN_NO_CPUID -DEIGEN_DEFAULT_L1_CACHE_SIZE=16384 -DEIGEN_DEFAULT_L2_CACHE_SIZE=524288 -DEIGEN_DEFAULT_L3_CACHE_SIZE=524288  -O2 -g -DNDEBUG\" -DBOOST_GRAPH_DYN_LINK -DBOOST_GRAPH_NO_LIB -DBOOST_REGEX_DYN_LINK -DBOOST_REGEX_NO_LIB -DCGAL_USE_GMPXX=1 -O2 -g -DNDEBUG -std=gnu++20 -ffp-contract=off -DEIGEN_DONT_VECTORIZE -DEIGEN_NO_CPUID -DEIGEN_DEFAULT_L1_CACHE_SIZE=16384 -DEIGEN_DEFAULT_L2_CACHE_SIZE=524288 -DEIGEN_DEFAULT_L3_CACHE_SIZE=524288 -Wall -Wextra -pedantic -Wno-array-bounds -Wno-use-after-free -Wno-stringop-overread -DOMPI_SKIP_MPICXX -Wno-literal-suffix -frounding-math"
+},
+  "created": "2026-11-12T10:33:04Z",
+  "inputs": [
+    {
+      "role": "mesh",
+      "path": "inputs/ntn_test_compression.msh",
+      "source": "upstream:extra_packages/traction-at-split-node-contact/test/test_ntn_model/ntn_test_compression.msh",
+      "sha256": "7112cbfe95cba9c63e41088dbdd3e5281facd5c4994cddf5e131ab50bb10f645"
+    },
+    {
+      "role": "material",
+      "path": "inputs/material_ntn_friction_slip_weakening.dat",
+      "source": "upstream:extra_packages/traction-at-split-node-contact/test/test_ntn_model/data/material_ntn_friction_slip_weakening.dat",
+      "sha256": "bae7f1c1175b27f654b28efbe8d14dce84a23b485a50c299de8e71479766abca"
+    }
+  ],
+  "parameters": {
+    "oracle_pin/eigen_cache_sizes": "16384 524288 524288",
+    "oracle_pin/openblas_coretype": "Haswell",
+    "oracle_pin/openblas_num_threads": "1"
+  },
+  "storage": {
+    "mode": "committed",
+    "bytes": 19208
+  },
+  "quantities": [
+    {
+      "name": "contact/slaves",
+      "file": "data/contact__slaves.npy",
+      "dtype": "i64",
+      "shape": [
+        7
+      ],
+      "axes": [
+        "entry"
+      ],
+      "layout": "table",
+      "sha256": "3da6e12440742af86b3f2856622c587e6bc1d886b63b0677a3ea535706198683",
+      "description": "local ids of the contact nodes",
+      "tolerance_class": "exact"
+    },
+    {
+      "name": "contact/slaves_global",
+      "file": "data/contact__slaves_global.npy",
+      "dtype": "i64",
+      "shape": [
+        7
+      ],
+      "axes": [
+        "entry"
+      ],
+      "layout": "table",
+      "sha256": "916d7adb63f44b55bd889f03f697e135564e6b4673eaf5871abd1b0add868390",
+      "description": "global ids of the contact nodes",
+      "tolerance_class": "exact"
+    },
+    {
+      "name": "contact/masters",
+      "file": "data/contact__masters.npy",
+      "dtype": "i64",
+      "shape": [
+        7
+      ],
+      "axes": [
+        "entry"
+      ],
+      "layout": "table",
+      "sha256": "1d6bdc8a939e1198115d4b854dabd629d0e2e8a9cc0a4addd01bfe722a1ee395",
+      "description": "local ids of the masters",
+      "tolerance_class": "exact"
+    },
+    {
+      "name": "contact/masters_global",
+      "file": "data/contact__masters_global.npy",
+      "dtype": "i64",
+      "shape": [
+        7
+      ],
+      "axes": [
+        "entry"
+      ],
+      "layout": "table",
+      "sha256": "db8a4adabb383b5bc906316c71776057af864bbd0b15a847c738d4eb49c7fffb",
+      "description": "global ids of the masters",
+      "tolerance_class": "exact"
+    },
+    {
+      "name": "time_step",
+      "file": "data/time_step.npy",
+      "dtype": "f64",
+      "shape": [
+        1
+      ],
+      "axes": [
+        "entry"
+      ],
+      "layout": "table",
+      "sha256": "3bdb085a9baa0542780a18131a7ade3b0562237c8573a4b96220b01b5b491b3f"
+    },
+    {
+      "name": "step19/displacement",
+      "file": "data/step19__displacement.npy",
+      "dtype": "f64",
+      "shape": [
+        154,
+        2
+      ],
+      "axes": [
+        "entry",
+        "component"
+      ],
+      "layout": "table",
+      "sha256": "959f109cbb0dfbcb12ab0fcd2ac7952cd80b6dca77ef964510d2745e2dd00cd0",
+      "description": "every local node",
+      "tolerance_class": "exact"
+    },
+    {
+      "name": "step19/velocity",
+      "file": "data/step19__velocity.npy",
+      "dtype": "f64",
+      "shape": [
+        154,
+        2
+      ],
+      "axes": [
+        "entry",
+        "component"
+      ],
+      "layout": "table",
+      "sha256": "4d9f6a790edd59704136e8c4f066bbe4ef22543a688a7a5a44db3122917fcaa0",
+      "description": "every local node",
+      "tolerance_class": "exact"
+    },
+    {
+      "name": "step19/contact_pressure",
+      "file": "data/step19__contact_pressure.npy",
+      "dtype": "f64",
+      "shape": [
+        7,
+        2
+      ],
+      "axes": [
+        "entry",
+        "component"
+      ],
+      "layout": "table",
+      "sha256": "bb99e186c1fd5da7fe829a244310491843442ae0207c94985546425c9cbef1db",
+      "description": "contact",
+      "tolerance_class": "exact"
+    },
+    {
+      "name": "step19/normals",
+      "file": "data/step19__normals.npy",
+      "dtype": "f64",
+      "shape": [
+        7,
+        2
+      ],
+      "axes": [
+        "entry",
+        "component"
+      ],
+      "layout": "table",
+      "sha256": "b01a521bd981975fff3dd42dcacaccd8ba05cc7c55cccd1a398c932316e3e39e",
+      "description": "contact",
+      "tolerance_class": "exact"
+    },
+    {
+      "name": "step19/is_in_contact",
+      "file": "data/step19__is_in_contact.npy",
+      "dtype": "i64",
+      "shape": [
+        7
+      ],
+      "axes": [
+        "entry"
+      ],
+      "layout": "table",
+      "sha256": "8b4dc27edcf7a0d5bdbbfc06b803a8e877f9acdbc683d67a957638656ca16182",
+      "description": "contact",
+      "tolerance_class": "exact"
+    },
+    {
+      "name": "step19/friction_traction",
+      "file": "data/step19__friction_traction.npy",
+      "dtype": "f64",
+      "shape": [
+        7,
+        2
+      ],
+      "axes": [
+        "entry",
+        "component"
+      ],
+      "layout": "table",
+      "sha256": "e859a6b9e7d907bab33e14fba324671a81a2bd7d9df6726a59d20148dbb9526c",
+      "description": "friction",
+      "tolerance_class": "exact"
+    },
+    {
+      "name": "step19/slip",
+      "file": "data/step19__slip.npy",
+      "dtype": "f64",
+      "shape": [
+        7,
+        1
+      ],
+      "axes": [
+        "entry",
+        "component"
+      ],
+      "layout": "table",
+      "sha256": "69cc892d070ae60bae0ea005147ca66cd0a271e3287db39b6fead2263b43980f",
+      "description": "friction",
+      "tolerance_class": "exact"
+    },
+    {
+      "name": "step19/is_sticking",
+      "file": "data/step19__is_sticking.npy",
+      "dtype": "i64",
+      "shape": [
+        7
+      ],
+      "axes": [
+        "entry"
+      ],
+      "layout": "table",
+      "sha256": "eada2598af41765ca3fe116729d93cc3b5caedf68dad86784f0128bd7c901c5f",
+      "description": "friction",
+      "tolerance_class": "exact"
+    },
+    {
+      "name": "step39/displacement",
+      "file": "data/step39__displacement.npy",
+      "dtype": "f64",
+      "shape": [
+        154,
+        2
+      ],
+      "axes": [
+        "entry",
+        "component"
+      ],
+      "layout": "table",
+      "sha256": "904f8e7ceb5fbbad84ec95fef233e9ba0254e02440d14dcac6807264c089b18c",
+      "description": "every local node",
+      "tolerance_class": "exact"
+    },
+    {
+      "name": "step39/velocity",
+      "file": "data/step39__velocity.npy",
+      "dtype": "f64",
+      "shape": [
+        154,
+        2
+      ],
+      "axes": [
+        "entry",
+        "component"
+      ],
+      "layout": "table",
+      "sha256": "ce652ca5dd9c24ff5e9860ea853e4e75bc380d0e67df386250c829c727b36274",
+      "description": "every local node",
+      "tolerance_class": "exact"
+    },
+    {
+      "name": "step39/contact_pressure",
+      "file": "data/step39__contact_pressure.npy",
+      "dtype": "f64",
+      "shape": [
+        7,
+        2
+      ],
+      "axes": [
+        "entry",
+        "component"
+      ],
+      "layout": "table",
+      "sha256": "f7caa109d9911af6ee657fad6b625c1d32413d842f2b371ea4f066627d35a9a7",
+      "description": "contact",
+      "tolerance_class": "exact"
+    },
+    {
+      "name": "step39/normals",
+      "file": "data/step39__normals.npy",
+      "dtype": "f64",
+      "shape": [
+        7,
+        2
+      ],
+      "axes": [
+        "entry",
+        "component"
+      ],
+      "layout": "table",
+      "sha256": "b01a521bd981975fff3dd42dcacaccd8ba05cc7c55cccd1a398c932316e3e39e",
+      "description": "contact",
+      "tolerance_class": "exact"
+    },
+    {
+      "name": "step39/is_in_contact",
+      "file": "data/step39__is_in_contact.npy",
+      "dtype": "i64",
+      "shape": [
+        7
+      ],
+      "axes": [
+        "entry"
+      ],
+      "layout": "table",
+      "sha256": "8b4dc27edcf7a0d5bdbbfc06b803a8e877f9acdbc683d67a957638656ca16182",
+      "description": "contact",
+      "tolerance_class": "exact"
+    },
+    {
+      "name": "step39/friction_traction",
+      "file": "data/step39__friction_traction.npy",
+      "dtype": "f64",
+      "shape": [
+        7,
+        2
+      ],
+      "axes": [
+        "entry",
+        "component"
+      ],
+      "layout": "table",
+      "sha256": "c66cbfcc8a1fce583ee4aa4c4d967082c58f4e83fa282753cef69c3cdc565657",
+      "description": "friction",
+      "tolerance_class": "exact"
+    },
+    {
+      "name": "step39/slip",
+      "file": "data/step39__slip.npy",
+      "dtype": "f64",
+      "shape": [
+        7,
+        1
+      ],
+      "axes": [
+        "entry",
+        "component"
+      ],
+      "layout": "table",
+      "sha256": "479ad5ac9367de5a58e1e195bf61e3ffde6fc3e7e6b22e68583f2eb33f60543e",
+      "description": "friction",
+      "tolerance_class": "exact"
+    },
+    {
+      "name": "step39/is_sticking",
+      "file": "data/step39__is_sticking.npy",
+      "dtype": "i64",
+      "shape": [
+        7
+      ],
+      "axes": [
+        "entry"
+      ],
+      "layout": "table",
+      "sha256": "eada2598af41765ca3fe116729d93cc3b5caedf68dad86784f0128bd7c901c5f",
+      "description": "friction",
+      "tolerance_class": "exact"
+    },
+    {
+      "name": "update_normals/normals",
+      "file": "data/update_normals__normals.npy",
+      "dtype": "f64",
+      "shape": [
+        7,
+        2
+      ],
+      "axes": [
+        "entry",
+        "component"
+      ],
+      "layout": "table",
+      "sha256": "cade569fe2ab859ebc1460938995dd8a2fc54433dc42a8ebf2c761f895efcd31",
+      "description": "normals after updateNormals() (synchronize(_cf_nodal) first)",
+      "tolerance_class": "exact"
+    },
+    {
+      "name": "update_normals/displacement",
+      "file": "data/update_normals__displacement.npy",
+      "dtype": "f64",
+      "shape": [
+        154,
+        2
+      ],
+      "axes": [
+        "entry",
+        "component"
+      ],
+      "layout": "table",
+      "sha256": "55d1e1fa698049ec5bacbe63d845b2359e612b8808923a5b4faba085519a97e2",
+      "description": "every local node, after updateNormals()",
+      "tolerance_class": "exact"
+    },
+    {
+      "name": "update_normals/current_position",
+      "file": "data/update_normals__current_position.npy",
+      "dtype": "f64",
+      "shape": [
+        154,
+        2
+      ],
+      "axes": [
+        "entry",
+        "component"
+      ],
+      "layout": "table",
+      "sha256": "40ac76848a544529321d712a2ec7a7ee8bb548ee82df1db336a69f2ec5f3d58b",
+      "description": "every local node, after updateNormals()",
+      "tolerance_class": "exact"
+    }
+  ],
+  "tags": [
+    "parallel"
+  ]
+}

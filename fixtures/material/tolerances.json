@@ -1,0 +1,58 @@
+{
+  "format_version": 1,
+  "rules": [
+    {
+      "quantity": "input/*",
+      "justification": "Prescribed history written by material_cases.py: exact input.",
+      "reviewed_by": "independent review during the port, November 2026"
+    },
+    {
+      "case": "material/elastic*",
+      "quantity": "grad_u",
+      "justification": "Recorded oracle gradient fed unchanged to the law: exact replay input (the FE gradient is verified bitwise by the fe/engine fixtures).",
+      "evidence": "Exact contract (material [1]).",
+      "reviewed_by": "independent review during the port, November 2026"
+    },
+    {
+      "case": "material/elastic*",
+      "quantity": "*",
+      "justification": "Elastic family (elastic incl. plane stress and finite deformation, elastic_thermal, elastic_orthotropic, elastic_anisotropic): the port replicates the upstream operation order (D-008: Eigen-order small dense ops, Eigen's gebp order for products), so stresses, tangents, energies, internals, celerity and wave speeds are bit-identical in upstream-compat mode.",
+      "evidence": "Measured: 16,980 / 16,980 compat values (30 cases) and 11,560 / 11,560 corrected-default values bit-identical, debug and release (material_fixtures.rs; docs/NUMERICAL_VALIDATION.md).",
+      "reviewed_by": "independent review during the port, November 2026"
+    },
+    {
+      "case": "material/marigo*",
+      "quantity": "*",
+      "justification": "Upstream-compat replay (LawOptions::upstream()) of the inelastic laws: the replay feeds the probe's own input, the FE gradient of u = H X recomputed with akantu_fe (bit-identical to the oracle), and compares the gradient stored by the law after the step (plastic_mazars: (grad_u - eps_p) + eps_p) and every output bitwise; the kernels replicate upstream's operation order (D-008: Eigen-order small dense ops incl. the allocation-free compile-time 3x3 EigenSolver of Mazars, glibc exp/pow/log/sincos ports of akantu_core::glibc_libm, C++ std::max/min semantics). Valid for the recorded corpus (strict aarch64 oracle, fixtures regenerated with the lifetime-corrected probe) on the platforms measured (macOS arm64; the libm calls are platform-independent ports). The corrected defaults are not compared with these fixtures except where they provably coincide (inelastic_material_fixtures.rs); the Neo-Hookean corrected-root C33 comparison is a separate kernel-test bound (1e-5/mu, valid for lambda >= 0, mu > 0), not a fixture rule. Laws: marigo (16 cases).",
+      "evidence": "Measured (debug and release, macOS arm64): marigo_material_points_match_oracle_bitwise: 12,560 / 12,560 values bit-identical (NUMERICAL_VALIDATION, inelastic materials, results).",
+      "reviewed_by": "independent review during the port, November 2026"
+    },
+    {
+      "case": "material/mazars*",
+      "quantity": "*",
+      "justification": "Upstream-compat replay (LawOptions::upstream()) of the inelastic laws: the replay feeds the probe's own input, the FE gradient of u = H X recomputed with akantu_fe (bit-identical to the oracle), and compares the gradient stored by the law after the step (plastic_mazars: (grad_u - eps_p) + eps_p) and every output bitwise; the kernels replicate upstream's operation order (D-008: Eigen-order small dense ops incl. the allocation-free compile-time 3x3 EigenSolver of Mazars, glibc exp/pow/log/sincos ports of akantu_core::glibc_libm, C++ std::max/min semantics). Valid for the recorded corpus (strict aarch64 oracle, fixtures regenerated with the lifetime-corrected probe) on the platforms measured (macOS arm64; the libm calls are platform-independent ports). The corrected defaults are not compared with these fixtures except where they provably coincide (inelastic_material_fixtures.rs); the Neo-Hookean corrected-root C33 comparison is a separate kernel-test bound (1e-5/mu, valid for lambda >= 0, mu > 0), not a fixture rule. Laws: mazars (14 cases).",
+      "evidence": "Measured (debug and release, macOS arm64): mazars_material_points_match_oracle_bitwise: 10,060 / 10,060 values bit-identical (NUMERICAL_VALIDATION, inelastic materials, results).",
+      "reviewed_by": "independent review during the port, November 2026"
+    },
+    {
+      "case": "material/plastic_*",
+      "quantity": "*",
+      "justification": "Upstream-compat replay (LawOptions::upstream()) of the inelastic laws: the replay feeds the probe's own input, the FE gradient of u = H X recomputed with akantu_fe (bit-identical to the oracle), and compares the gradient stored by the law after the step (plastic_mazars: (grad_u - eps_p) + eps_p) and every output bitwise; the kernels replicate upstream's operation order (D-008: Eigen-order small dense ops incl. the allocation-free compile-time 3x3 EigenSolver of Mazars, glibc exp/pow/log/sincos ports of akantu_core::glibc_libm, C++ std::max/min semantics). Valid for the recorded corpus (strict aarch64 oracle, fixtures regenerated with the lifetime-corrected probe) on the platforms measured (macOS arm64; the libm calls are platform-independent ports). The corrected defaults are not compared with these fixtures except where they provably coincide (inelastic_material_fixtures.rs); the Neo-Hookean corrected-root C33 comparison is a separate kernel-test bound (1e-5/mu, valid for lambda >= 0, mu > 0), not a fixture rule. Laws: plastic_linear_isotropic_hardening (17), plastic_drucker_prager (10), plastic_mazars (11).",
+      "evidence": "Measured (debug and release, macOS arm64): plastic_*_material_points_match_oracle_bitwise: 14,120 + 9,600 + 10,060 values bit-identical (NUMERICAL_VALIDATION, inelastic materials, results).",
+      "reviewed_by": "independent review during the port, November 2026"
+    },
+    {
+      "case": "material/neohookean*",
+      "quantity": "*",
+      "justification": "Upstream-compat replay (LawOptions::upstream()) of the inelastic laws: the replay feeds the probe's own input, the FE gradient of u = H X recomputed with akantu_fe (bit-identical to the oracle), and compares the gradient stored by the law after the step (plastic_mazars: (grad_u - eps_p) + eps_p) and every output bitwise; the kernels replicate upstream's operation order (D-008: Eigen-order small dense ops incl. the allocation-free compile-time 3x3 EigenSolver of Mazars, glibc exp/pow/log/sincos ports of akantu_core::glibc_libm, C++ std::max/min semantics). Valid for the recorded corpus (strict aarch64 oracle, fixtures regenerated with the lifetime-corrected probe) on the platforms measured (macOS arm64; the libm calls are platform-independent ports). The corrected defaults are not compared with these fixtures except where they provably coincide (inelastic_material_fixtures.rs); the Neo-Hookean corrected-root C33 comparison is a separate kernel-test bound (1e-5/mu, valid for lambda >= 0, mu > 0), not a fixture rule. Laws: neohookean (2 error-path cases: NotImplementedException at step 0) and the probe-only neohookean_kernel (7 cases: S, non-condensed tangent, upstream C33 Newton replay, upstream energy kernel).",
+      "evidence": "Measured (debug and release, macOS arm64): neohookean_upstream_error_matches_oracle; neohookean_kernel_fixtures.rs: 3,020 / 3,020 values bit-identical (NUMERICAL_VALIDATION, inelastic materials, results).",
+      "reviewed_by": "independent review during the port, November 2026"
+    },
+    {
+      "quantity": "grad_u",
+      "justification": "Elastic-family replays (material_fixtures.rs): recorded oracle gradient, fed unchanged to the law - an exact input of the replay, not a Rust FE output. The inelastic replays instead recompute the FE gradient and compare the stored one exactly (their case rules above). The FE gradient computation itself is verified separately and bitwise by the fe/engine fixtures (field/gradient*).",
+      "evidence": "Split the exact replay input from the FE-gradient rule (material [1]); replays feed the recorded values bit for bit.",
+      "reviewed_by": "independent review during the port, November 2026"
+    }
+  ]
+}

@@ -1,0 +1,975 @@
+{
+  "format_version": 1,
+  "case_id": "parallel/nl_mazars/np2/rank1",
+  "description": "mazars_non_local on a distributed parallel_test.msh under a prescribed displacement history (one law), rank view",
+  "status": "golden",
+  "generator": {
+    "probe": "par4_probe",
+    "probe_version": "1",
+    "command": "oracle/probes/par4/generate.sh --out /home/user/par4-stage3"
+  },
+  "reference": {
+    "sha": "35a851780d0b9471d258ed53a003ae98aaa95ea0",
+    "describe": "v5.0.7-post1-554-g35a851780",
+    "patches": [
+      "modified:cmake/AkantuTestsMacros.cmake sha256=c280165a84912eab4bcc081b9eaaaa06aafdd83d4f48d982e11b0859abf9672f (reference sha256=36290de2ec8b111028138fe82029efa16501512241a5bc264fa30ff3e3239b9e)"
+    ]
+  },
+  "build": {
+  "config": "strict",
+  "compiler": "g++ (Debian 14.2.0-19) 14.2.0",
+  "cxx_flags": "-ffp-contract=off -DEIGEN_DONT_VECTORIZE -DEIGEN_NO_CPUID -DEIGEN_DEFAULT_L1_CACHE_SIZE=16384 -DEIGEN_DEFAULT_L2_CACHE_SIZE=524288 -DEIGEN_DEFAULT_L3_CACHE_SIZE=524288 -O2 -g -DNDEBUG -g3 -ggdb3 -flarge-source-files -std=c++20 -flto=auto -fno-fat-lto-objects -fPIC -frounding-math (actual flags of src/model/solid_mechanics/solid_mechanics_model.cc; warnings and non-FP -D defines omitted)",
+  "build_type": "RelWithDebInfo",
+  "arch": "x86_64",
+  "os": "Debian GNU/Linux 13 (trixie)",
+  "libraries": {"eigen_cache_sizes_measured": "16384,524288,524288 (Eigen::l1/l2/l3CacheSize() read at run time in the probe process, D-050)", 
+    "eigen3": "3.4.0-5",
+    "boost": "1.83.0.2+b2",
+    "openmpi": "5.0.7-1",
+    "mumps": "5.7.3-3+b1",
+    "petsc": "3.22.5+dfsg1-2",
+    "scotch": "7.0.7-1",
+    "openblas": "0.3.29+ds-3",
+    "scalapack": "2.2.2-1",
+    "hdf5": "1.14.5+repack-3",
+    "gmsh": "4.13.1+ds1-6",
+    "pybind11": "2.13.6-2",
+    "numpy": "1:2.2.4+ds-1",
+    "scipy": "1.15.3-1",
+    "gcc": "4:14.2.0-1",
+    "gfortran": "4:14.2.0-1",
+    "oracle_image": "sha256:2da26d87e063f3c88264f589cf73381feff583eeaa7770d2e01ae034651d59f5",
+    "oracle_build_scripts": "cca6e460cd3430bf0180262e7ebe26be762112e9",
+    "oracle_install_reference_sha": "35a851780d0b9471d258ed53a003ae98aaa95ea0",
+    "oracle_install_image": "sha256:2da26d87e063f3c88264f589cf73381feff583eeaa7770d2e01ae034651d59f5",
+    "openblas_coretype": "Haswell",
+    "openblas_num_threads": "1",
+    "eigen_cache_sizes": "16384,524288,524288 (compile-time pin of the library and of the probe translation unit: EIGEN_NO_CPUID + defaults, D-050)",
+    "host_cpu": "AMD Ryzen 9 9950X 16-Core Processor",
+    "x86_64_level": "v3",
+    "sha256:libakantu.so.5.0.7": "554ecfc7838d8c8aa3955f37f2efb556a7f09426083b74af262ffdcccff657ff",
+    "probe_tree_sha256": "44c858615554c8eab93a707000770aaf3976d029a76cd3623f34baee40e88d51",
+    "probe_sources_commit": "d4e16ccde419c6291e00ea5b32e08907664dac3d",
+    "cmake_cxx_flags": "-ffp-contract=off -DEIGEN_DONT_VECTORIZE -DEIGEN_NO_CPUID -DEIGEN_DEFAULT_L1_CACHE_SIZE=16384 -DEIGEN_DEFAULT_L2_CACHE_SIZE=524288 -DEIGEN_DEFAULT_L3_CACHE_SIZE=524288 -O2 -g -DNDEBUG -g3 -ggdb3 -flarge-source-files",
+    "probe": "par4_probe"
+  },
+  "probe_compile_command": "/usr/bin/c++ '-DAKANTU_PROBE_BUILD_TYPE=\"RelWithDebInfo\"' '-DAKANTU_PROBE_CONFIG=\"strict\"' '-DAKANTU_PROBE_CXX_FLAGS=\"-ffp-contract=off -DEIGEN_DONT_VECTORIZE -DEIGEN_NO_CPUID -DEIGEN_DEFAULT_L1_CACHE_SIZE=16384 -DEIGEN_DEFAULT_L2_CACHE_SIZE=524288 -DEIGEN_DEFAULT_L3_CACHE_SIZE=524288  -O2 -g -DNDEBUG\"' -DBOOST_GRAPH_DYN_LINK -DBOOST_GRAPH_NO_LIB -DBOOST_REGEX_DYN_LINK -DBOOST_REGEX_NO_LIB -DCGAL_USE_GMPXX=1 -I/probes/par4/../include -isystem /build/install-strict/include/akantu -isystem /opt/CGAL-5.6.2/include -isystem /usr/lib/x86_64-linux-gnu/openmpi/include -isystem /usr/lib/x86_64-linux-gnu/openmpi/include/openmpi -isystem /usr/lib/petscdir/petsc3.22/x86_64-linux-gnu-real/include -isystem /usr/include/scotch -isystem /build/install-strict/include/akantu_iterators -isystem /usr/include/eigen3 -isystem /build/install-strict/include/iohelper -O2 -g -DNDEBUG -std=gnu++20 -ffp-contract=off -DEIGEN_DONT_VECTORIZE -DEIGEN_NO_CPUID -DEIGEN_DEFAULT_L1_CACHE_SIZE=16384 -DEIGEN_DEFAULT_L2_CACHE_SIZE=524288 -DEIGEN_DEFAULT_L3_CACHE_SIZE=524288 -Wall -Wextra -pedantic -Wno-array-bounds -Wno-use-after-free -Wno-stringop-overread -DOMPI_SKIP_MPICXX -Wno-literal-suffix -frounding-math -o CMakeFiles/par4_probe.dir/par4_probe.cc.o -c /probes/par4/par4_probe.cc",
+  "probe_cxx_flags": "-DAKANTU_PROBE_BUILD_TYPE=\"RelWithDebInfo\" -DAKANTU_PROBE_CONFIG=\"strict\" -DAKANTU_PROBE_CXX_FLAGS=\"-ffp-contract=off -DEIGEN_DONT_VECTORIZE -DEIGEN_NO_CPUID -DEIGEN_DEFAULT_L1_CACHE_SIZE=16384 -DEIGEN_DEFAULT_L2_CACHE_SIZE=524288 -DEIGEN_DEFAULT_L3_CACHE_SIZE=524288  -O2 -g -DNDEBUG\" -DBOOST_GRAPH_DYN_LINK -DBOOST_GRAPH_NO_LIB -DBOOST_REGEX_DYN_LINK -DBOOST_REGEX_NO_LIB -DCGAL_USE_GMPXX=1 -O2 -g -DNDEBUG -std=gnu++20 -ffp-contract=off -DEIGEN_DONT_VECTORIZE -DEIGEN_NO_CPUID -DEIGEN_DEFAULT_L1_CACHE_SIZE=16384 -DEIGEN_DEFAULT_L2_CACHE_SIZE=524288 -DEIGEN_DEFAULT_L3_CACHE_SIZE=524288 -Wall -Wextra -pedantic -Wno-array-bounds -Wno-use-after-free -Wno-stringop-overread -DOMPI_SKIP_MPICXX -Wno-literal-suffix -frounding-math"
+},
+  "created": "2026-11-12T06:24:47Z",
+  "inputs": [
+    {
+      "role": "mesh",
+      "path": "inputs/parallel_test.msh",
+      "source": "upstream:test/test_model/test_common/test_non_local_toolbox/parallel_test.msh",
+      "sha256": "8fc792ac308ba25fc2aeffcf7d92bb90803bff0610def621b39e9dd16c644e7b"
+    }
+  ],
+  "parameters": {
+    "oracle_pin/eigen_cache_sizes": "16384 524288 524288",
+    "oracle_pin/openblas_coretype": "Haswell",
+    "oracle_pin/openblas_num_threads": "1",
+    "init/body/pairs/not_ghost/sha256": "ea43b9f89c9ede044d7e6bcf7aed03cf748fcd7e86e97e95c2c0bd93ea53ddd9",
+    "init/body/weights/not_ghost/sha256": "68720526ddd2f7984831c686435fe6a206b9206ae7ce6e2bda463fb928ff6f72",
+    "init/body/pairs/ghost/sha256": "249c5f8d336893d36dc96ddf4be0cff90c49fa3dc517a19552e4d7d35bcc525a",
+    "init/body/weights/ghost/sha256": "27e79062bf7ccd9f531e056eb4b77c934e14da4b6030204881dd8090629c700b",
+    "lambda": [
+      1.0,
+      2.0,
+      3.0,
+      4.0,
+      5.0,
+      6.0,
+      7.0,
+      8.0,
+      6.0,
+      9.0
+    ],
+    "displacement": "u_x = 1e-4 * lambda * (0.6 x + 0.3 y^2), u_y = 1e-4 * lambda * (0.2 x y - 0.1 y)",
+    "ghost_filter_rewrites": 3
+  },
+  "storage": {
+    "mode": "committed",
+    "bytes": 364224
+  },
+  "quantities": [
+    {
+      "name": "distributed/conn/_triangle_3/not_ghost",
+      "file": "data/distributed__conn___triangle_3__not_ghost.npy",
+      "dtype": "i64",
+      "shape": [
+        707,
+        3
+      ],
+      "axes": [
+        "entry",
+        "component"
+      ],
+      "layout": "table",
+      "sha256": "382e29bfa32045a95346261a0e1a9b8e6c12f8d18744ac7dd0c6f9c4a1745f14",
+      "description": "global connectivity of every element (mesh order)",
+      "tolerance_class": "exact"
+    },
+    {
+      "name": "distributed/conn/_triangle_3/ghost",
+      "file": "data/distributed__conn___triangle_3__ghost.npy",
+      "dtype": "i64",
+      "shape": [
+        58,
+        3
+      ],
+      "axes": [
+        "entry",
+        "component"
+      ],
+      "layout": "table",
+      "sha256": "356ddd5dbda46542409448d6f446b477fa28da0abbd32b3accf2afffe35193dd",
+      "description": "global connectivity of every element (mesh order)",
+      "tolerance_class": "exact"
+    },
+    {
+      "name": "distributed/ghost_counters/_triangle_3",
+      "file": "data/distributed__ghost_counters___triangle_3.npy",
+      "dtype": "i64",
+      "shape": [
+        58
+      ],
+      "axes": [
+        "entry"
+      ],
+      "layout": "table",
+      "sha256": "e835d492c070c082a0082e05d253d1e3abf4790eaf0b27f81f0c9d293d9148e5",
+      "description": "ghost counter of every ghost element",
+      "tolerance_class": "exact"
+    },
+    {
+      "name": "distributed/node_global_ids",
+      "file": "data/distributed__node_global_ids.npy",
+      "dtype": "i64",
+      "shape": [
+        427
+      ],
+      "axes": [
+        "entry"
+      ],
+      "layout": "table",
+      "sha256": "1f7348668973bb1b655ebe9db02027b4ca3e1a6278609dd129e0f113a8653643",
+      "description": "global id of every local node",
+      "tolerance_class": "exact"
+    },
+    {
+      "name": "distributed/node_flags",
+      "file": "data/distributed__node_flags.npy",
+      "dtype": "i64",
+      "shape": [
+        427
+      ],
+      "axes": [
+        "entry"
+      ],
+      "layout": "table",
+      "sha256": "62095d04c872d709822e4200b846a5981e02ec1260341a9a501f6558866ecf5f",
+      "description": "NodeFlag bits of every local node",
+      "tolerance_class": "exact"
+    },
+    {
+      "name": "distributed/node_pranks",
+      "file": "data/distributed__node_pranks.npy",
+      "dtype": "i64",
+      "shape": [
+        427
+      ],
+      "axes": [
+        "entry"
+      ],
+      "layout": "table",
+      "sha256": "204564e07e8f0dbefdb87ebbcae680cb0822590d23e85025a1ae7aad72f816c5",
+      "description": "owner rank of every local node (-1: none)",
+      "tolerance_class": "exact"
+    },
+    {
+      "name": "distributed/nodes",
+      "file": "data/distributed__nodes.npy",
+      "dtype": "f64",
+      "shape": [
+        427,
+        2
+      ],
+      "axes": [
+        "entry",
+        "component"
+      ],
+      "layout": "table",
+      "sha256": "80fd825bffaf5ac4812b868dc6f25159dd7ebed8659e692512572acd293e067c",
+      "description": "coordinates of every local node",
+      "tolerance_class": "exact"
+    },
+    {
+      "name": "init/conn/_triangle_3/not_ghost",
+      "file": "data/init__conn___triangle_3__not_ghost.npy",
+      "dtype": "i64",
+      "shape": [
+        707,
+        3
+      ],
+      "axes": [
+        "entry",
+        "component"
+      ],
+      "layout": "table",
+      "sha256": "382e29bfa32045a95346261a0e1a9b8e6c12f8d18744ac7dd0c6f9c4a1745f14",
+      "description": "global connectivity of every element (mesh order)",
+      "tolerance_class": "exact"
+    },
+    {
+      "name": "init/conn/_triangle_3/ghost",
+      "file": "data/init__conn___triangle_3__ghost.npy",
+      "dtype": "i64",
+      "shape": [
+        58,
+        3
+      ],
+      "axes": [
+        "entry",
+        "component"
+      ],
+      "layout": "table",
+      "sha256": "356ddd5dbda46542409448d6f446b477fa28da0abbd32b3accf2afffe35193dd",
+      "description": "global connectivity of every element (mesh order)",
+      "tolerance_class": "exact"
+    },
+    {
+      "name": "init/ghost_counters/_triangle_3",
+      "file": "data/init__ghost_counters___triangle_3.npy",
+      "dtype": "i64",
+      "shape": [
+        58
+      ],
+      "axes": [
+        "entry"
+      ],
+      "layout": "table",
+      "sha256": "ae9b7a21e59323fa46fb82116afb0124d0cd79148cd5dc016e82c027668f5db2",
+      "description": "ghost counter of every ghost element",
+      "tolerance_class": "exact"
+    },
+    {
+      "name": "init/node_global_ids",
+      "file": "data/init__node_global_ids.npy",
+      "dtype": "i64",
+      "shape": [
+        760
+      ],
+      "axes": [
+        "entry"
+      ],
+      "layout": "table",
+      "sha256": "7b5ac75f7fd6a9db50c4489e1b9b978cf58014adbb24987cd357759ba75530bd",
+      "description": "global id of every local node",
+      "tolerance_class": "exact"
+    },
+    {
+      "name": "init/node_flags",
+      "file": "data/init__node_flags.npy",
+      "dtype": "i64",
+      "shape": [
+        760
+      ],
+      "axes": [
+        "entry"
+      ],
+      "layout": "table",
+      "sha256": "d7729f2e6a1ef521fdc15a93c6936f06ef979801219b82a1cd972dfb01b82de1",
+      "description": "NodeFlag bits of every local node",
+      "tolerance_class": "exact"
+    },
+    {
+      "name": "init/node_pranks",
+      "file": "data/init__node_pranks.npy",
+      "dtype": "i64",
+      "shape": [
+        760
+      ],
+      "axes": [
+        "entry"
+      ],
+      "layout": "table",
+      "sha256": "e0a71b7bda6d614d5243e347c1ae0adf9930848eea6ce44f3e68b6bd14ebacc6",
+      "description": "owner rank of every local node (-1: none)",
+      "tolerance_class": "exact"
+    },
+    {
+      "name": "init/nodes",
+      "file": "data/init__nodes.npy",
+      "dtype": "f64",
+      "shape": [
+        760,
+        2
+      ],
+      "axes": [
+        "entry",
+        "component"
+      ],
+      "layout": "table",
+      "sha256": "a2811ff1507bcdfa6ea5b972c7a359d50449e8401715ff06975dd5513fcf3d03",
+      "description": "coordinates of every local node",
+      "tolerance_class": "exact"
+    },
+    {
+      "name": "init/law_index/_triangle_3/ghost",
+      "file": "data/init__law_index___triangle_3__ghost.npy",
+      "dtype": "i64",
+      "shape": [
+        58
+      ],
+      "axes": [
+        "entry"
+      ],
+      "layout": "table",
+      "sha256": "539920d7dd1cf7a404b51d9d617acfa1aa00689a4704be8bbe09cf708ea568a6",
+      "description": "law of every ghost element (-1: none)",
+      "tolerance_class": "exact"
+    },
+    {
+      "name": "init/law0/filter/_triangle_3/not_ghost",
+      "file": "data/init__law0__filter___triangle_3__not_ghost.npy",
+      "dtype": "i64",
+      "shape": [
+        707
+      ],
+      "axes": [
+        "entry"
+      ],
+      "layout": "table",
+      "sha256": "a000fd5ff53f483b27ad415105edd33282e7f403b984c52901164bce796455aa",
+      "description": "law element filter (ghost: rank-order rewrite, UD-232)",
+      "tolerance_class": "exact"
+    },
+    {
+      "name": "init/law0/filter/_triangle_3/ghost",
+      "file": "data/init__law0__filter___triangle_3__ghost.npy",
+      "dtype": "i64",
+      "shape": [
+        58
+      ],
+      "axes": [
+        "entry"
+      ],
+      "layout": "table",
+      "sha256": "a16182dbf8f16dc414fbb5902cb01965cf72b3b96a78c57b0d85a9da6464c715",
+      "description": "law element filter (ghost: rank-order rewrite, UD-232)",
+      "tolerance_class": "exact"
+    },
+    {
+      "name": "init/body/pairs/not_ghost/count",
+      "file": "data/init__body__pairs__not_ghost__count.npy",
+      "dtype": "i64",
+      "shape": [
+        1
+      ],
+      "axes": [
+        "entry"
+      ],
+      "layout": "table",
+      "sha256": "6106d7e8c92ef44933fd326fd254914b8bff25ba88e847abe218f2e9f2c4d2b6",
+      "description": "number of pairs of the list",
+      "tolerance_class": "exact"
+    },
+    {
+      "name": "init/body/pairs/ghost/count",
+      "file": "data/init__body__pairs__ghost__count.npy",
+      "dtype": "i64",
+      "shape": [
+        1
+      ],
+      "axes": [
+        "entry"
+      ],
+      "layout": "table",
+      "sha256": "bf9f5de3faf8ab1bd74381c0f7ac180a5ae17764f5ba283351f373d1fafae03a",
+      "description": "number of pairs of the list",
+      "tolerance_class": "exact"
+    },
+    {
+      "name": "init/body/grid/send/0",
+      "file": "data/init__body__grid__send__0.npy",
+      "dtype": "i64",
+      "shape": [
+        55,
+        3
+      ],
+      "axes": [
+        "entry",
+        "component"
+      ],
+      "layout": "table",
+      "sha256": "4c1ffaf57b4e2be24be78f9b316517798cc90e86e6f4335c34e7c0fa7c88700c",
+      "description": "scheme entries (type enum, element, ghost type), scheme order",
+      "tolerance_class": "exact"
+    },
+    {
+      "name": "init/body/grid/recv/0",
+      "file": "data/init__body__grid__recv__0.npy",
+      "dtype": "i64",
+      "shape": [
+        58,
+        3
+      ],
+      "axes": [
+        "entry",
+        "component"
+      ],
+      "layout": "table",
+      "sha256": "ddef8bd535970a41559a597b2b2d4472a276df6ebd93203757385bfdcda878c6",
+      "description": "scheme entries (type enum, element, ghost type), scheme order",
+      "tolerance_class": "exact"
+    },
+    {
+      "name": "step0/law0/damage/_triangle_3/not_ghost",
+      "file": "data/step0__law0__damage___triangle_3__not_ghost.npy",
+      "dtype": "f64",
+      "shape": [
+        707,
+        1
+      ],
+      "axes": [
+        "entry",
+        "component"
+      ],
+      "layout": "table",
+      "sha256": "37cdf77aaebe474dbe554a65e0df6ee6138da0aaed9808ce0b91b3b70ed73f5d",
+      "description": "damage per law-local element and point",
+      "tolerance_class": "exact"
+    },
+    {
+      "name": "step0/law0/non_local_variable/_triangle_3/not_ghost",
+      "file": "data/step0__law0__non_local_variable___triangle_3__not_ghost.npy",
+      "dtype": "f64",
+      "shape": [
+        707,
+        1
+      ],
+      "axes": [
+        "entry",
+        "component"
+      ],
+      "layout": "table",
+      "sha256": "afc7e266c204d397407fd581bd04831c878b0aad4454fbc71a22d2ac823b31d1",
+      "description": "non_local_variable per law-local element and point",
+      "tolerance_class": "exact"
+    },
+    {
+      "name": "step0/internal_force",
+      "file": "data/step0__internal_force.npy",
+      "dtype": "f64",
+      "shape": [
+        760,
+        2
+      ],
+      "axes": [
+        "entry",
+        "component"
+      ],
+      "layout": "table",
+      "sha256": "afc52d900c020e7042de820431590895f8f65ada78e345e186b69475c63a56ed",
+      "description": "internal force",
+      "tolerance_class": "exact"
+    },
+    {
+      "name": "step1/law0/damage/_triangle_3/not_ghost",
+      "file": "data/step1__law0__damage___triangle_3__not_ghost.npy",
+      "dtype": "f64",
+      "shape": [
+        707,
+        1
+      ],
+      "axes": [
+        "entry",
+        "component"
+      ],
+      "layout": "table",
+      "sha256": "aa107c9c18191c2b0a44884f415e2afcfe9574945d2e11c5105b60fea1e3c9b7",
+      "description": "damage per law-local element and point",
+      "tolerance_class": "exact"
+    },
+    {
+      "name": "step1/law0/non_local_variable/_triangle_3/not_ghost",
+      "file": "data/step1__law0__non_local_variable___triangle_3__not_ghost.npy",
+      "dtype": "f64",
+      "shape": [
+        707,
+        1
+      ],
+      "axes": [
+        "entry",
+        "component"
+      ],
+      "layout": "table",
+      "sha256": "5380bcc02e13277230a7c379580145f239f9da1b524ac9ee6a0a76d42df3f8b5",
+      "description": "non_local_variable per law-local element and point",
+      "tolerance_class": "exact"
+    },
+    {
+      "name": "step1/internal_force",
+      "file": "data/step1__internal_force.npy",
+      "dtype": "f64",
+      "shape": [
+        760,
+        2
+      ],
+      "axes": [
+        "entry",
+        "component"
+      ],
+      "layout": "table",
+      "sha256": "d00a3646e978338ec477efcdb89c192c06b003a668db544a19ce2498bca149c4",
+      "description": "internal force",
+      "tolerance_class": "exact"
+    },
+    {
+      "name": "step2/law0/damage/_triangle_3/not_ghost",
+      "file": "data/step2__law0__damage___triangle_3__not_ghost.npy",
+      "dtype": "f64",
+      "shape": [
+        707,
+        1
+      ],
+      "axes": [
+        "entry",
+        "component"
+      ],
+      "layout": "table",
+      "sha256": "7143405ac3e7e7e8ecb68943201de9da2b3aed9034cfa2dc4ea083196f962146",
+      "description": "damage per law-local element and point",
+      "tolerance_class": "exact"
+    },
+    {
+      "name": "step2/law0/non_local_variable/_triangle_3/not_ghost",
+      "file": "data/step2__law0__non_local_variable___triangle_3__not_ghost.npy",
+      "dtype": "f64",
+      "shape": [
+        707,
+        1
+      ],
+      "axes": [
+        "entry",
+        "component"
+      ],
+      "layout": "table",
+      "sha256": "4ac692d430e6fbc8ccb3e38d023c6b0b9470fb4c5542a4b9cc2d1ff4eec2718a",
+      "description": "non_local_variable per law-local element and point",
+      "tolerance_class": "exact"
+    },
+    {
+      "name": "step2/internal_force",
+      "file": "data/step2__internal_force.npy",
+      "dtype": "f64",
+      "shape": [
+        760,
+        2
+      ],
+      "axes": [
+        "entry",
+        "component"
+      ],
+      "layout": "table",
+      "sha256": "35ee1b40a5731d6cdb1648ba3c2319256a9f158fa3b34288d08e733e9feda907",
+      "description": "internal force",
+      "tolerance_class": "exact"
+    },
+    {
+      "name": "step3/law0/damage/_triangle_3/not_ghost",
+      "file": "data/step3__law0__damage___triangle_3__not_ghost.npy",
+      "dtype": "f64",
+      "shape": [
+        707,
+        1
+      ],
+      "axes": [
+        "entry",
+        "component"
+      ],
+      "layout": "table",
+      "sha256": "dbdb4b63731a4a78c8858b9dcdb1b3b4080dac9d9192a6064c62c16007656d5d",
+      "description": "damage per law-local element and point",
+      "tolerance_class": "exact"
+    },
+    {
+      "name": "step3/law0/non_local_variable/_triangle_3/not_ghost",
+      "file": "data/step3__law0__non_local_variable___triangle_3__not_ghost.npy",
+      "dtype": "f64",
+      "shape": [
+        707,
+        1
+      ],
+      "axes": [
+        "entry",
+        "component"
+      ],
+      "layout": "table",
+      "sha256": "04e6f281976a5225776067dedbb4486c003120fcc20e8fff1d29d364f4426d00",
+      "description": "non_local_variable per law-local element and point",
+      "tolerance_class": "exact"
+    },
+    {
+      "name": "step3/internal_force",
+      "file": "data/step3__internal_force.npy",
+      "dtype": "f64",
+      "shape": [
+        760,
+        2
+      ],
+      "axes": [
+        "entry",
+        "component"
+      ],
+      "layout": "table",
+      "sha256": "4e59e5a534e0257be3568da826697d63cc43e84b7414fa648aeca711e72f9b93",
+      "description": "internal force",
+      "tolerance_class": "exact"
+    },
+    {
+      "name": "step4/law0/damage/_triangle_3/not_ghost",
+      "file": "data/step4__law0__damage___triangle_3__not_ghost.npy",
+      "dtype": "f64",
+      "shape": [
+        707,
+        1
+      ],
+      "axes": [
+        "entry",
+        "component"
+      ],
+      "layout": "table",
+      "sha256": "c54aacb0c60e479d8d0a579366b41d101503febe97895118865eb458c94c9743",
+      "description": "damage per law-local element and point",
+      "tolerance_class": "exact"
+    },
+    {
+      "name": "step4/law0/non_local_variable/_triangle_3/not_ghost",
+      "file": "data/step4__law0__non_local_variable___triangle_3__not_ghost.npy",
+      "dtype": "f64",
+      "shape": [
+        707,
+        1
+      ],
+      "axes": [
+        "entry",
+        "component"
+      ],
+      "layout": "table",
+      "sha256": "7a1fc71f1761023363dd728164e9233b16fd7a537c21d38950745582acac93b6",
+      "description": "non_local_variable per law-local element and point",
+      "tolerance_class": "exact"
+    },
+    {
+      "name": "step4/internal_force",
+      "file": "data/step4__internal_force.npy",
+      "dtype": "f64",
+      "shape": [
+        760,
+        2
+      ],
+      "axes": [
+        "entry",
+        "component"
+      ],
+      "layout": "table",
+      "sha256": "e5651a1ec246ef55bd4f0d6ef5aadf1ff3984c3b1dcb3fa099d2cf35f50f4ff2",
+      "description": "internal force",
+      "tolerance_class": "exact"
+    },
+    {
+      "name": "step5/law0/damage/_triangle_3/not_ghost",
+      "file": "data/step5__law0__damage___triangle_3__not_ghost.npy",
+      "dtype": "f64",
+      "shape": [
+        707,
+        1
+      ],
+      "axes": [
+        "entry",
+        "component"
+      ],
+      "layout": "table",
+      "sha256": "04ae65b7794e6069e0ebb9c0a830f35555a7add0df306e1be1d33249a2225c8e",
+      "description": "damage per law-local element and point",
+      "tolerance_class": "exact"
+    },
+    {
+      "name": "step5/law0/non_local_variable/_triangle_3/not_ghost",
+      "file": "data/step5__law0__non_local_variable___triangle_3__not_ghost.npy",
+      "dtype": "f64",
+      "shape": [
+        707,
+        1
+      ],
+      "axes": [
+        "entry",
+        "component"
+      ],
+      "layout": "table",
+      "sha256": "a1c968a269fcaf64fad9a0d166210e4d619375a0873849154b2aebbb349c84c7",
+      "description": "non_local_variable per law-local element and point",
+      "tolerance_class": "exact"
+    },
+    {
+      "name": "step5/internal_force",
+      "file": "data/step5__internal_force.npy",
+      "dtype": "f64",
+      "shape": [
+        760,
+        2
+      ],
+      "axes": [
+        "entry",
+        "component"
+      ],
+      "layout": "table",
+      "sha256": "979b3dbe117dbfcb1d62522c32abe1deca375434e8b883cd9dc8680ff84bf994",
+      "description": "internal force",
+      "tolerance_class": "exact"
+    },
+    {
+      "name": "step6/law0/damage/_triangle_3/not_ghost",
+      "file": "data/step6__law0__damage___triangle_3__not_ghost.npy",
+      "dtype": "f64",
+      "shape": [
+        707,
+        1
+      ],
+      "axes": [
+        "entry",
+        "component"
+      ],
+      "layout": "table",
+      "sha256": "5aee80cee38aa6c0f0c2b65285471e5a3a6262cd5d54738f6e56abd849cf23bb",
+      "description": "damage per law-local element and point",
+      "tolerance_class": "exact"
+    },
+    {
+      "name": "step6/law0/non_local_variable/_triangle_3/not_ghost",
+      "file": "data/step6__law0__non_local_variable___triangle_3__not_ghost.npy",
+      "dtype": "f64",
+      "shape": [
+        707,
+        1
+      ],
+      "axes": [
+        "entry",
+        "component"
+      ],
+      "layout": "table",
+      "sha256": "099fbf1db133a2e96469dbbafe0fca4b08e8ba1b75e746e4ae0c50ceefa4b856",
+      "description": "non_local_variable per law-local element and point",
+      "tolerance_class": "exact"
+    },
+    {
+      "name": "step6/internal_force",
+      "file": "data/step6__internal_force.npy",
+      "dtype": "f64",
+      "shape": [
+        760,
+        2
+      ],
+      "axes": [
+        "entry",
+        "component"
+      ],
+      "layout": "table",
+      "sha256": "b55485109aff24df80a031ff26c48e6217a8e7323c884bfc0271ffb8d40d9478",
+      "description": "internal force",
+      "tolerance_class": "exact"
+    },
+    {
+      "name": "step7/law0/damage/_triangle_3/not_ghost",
+      "file": "data/step7__law0__damage___triangle_3__not_ghost.npy",
+      "dtype": "f64",
+      "shape": [
+        707,
+        1
+      ],
+      "axes": [
+        "entry",
+        "component"
+      ],
+      "layout": "table",
+      "sha256": "29bd7bc16dcc825b97aaf5aed83f115443ba6500b89f3d154a70fb553ae29bd3",
+      "description": "damage per law-local element and point",
+      "tolerance_class": "exact"
+    },
+    {
+      "name": "step7/law0/non_local_variable/_triangle_3/not_ghost",
+      "file": "data/step7__law0__non_local_variable___triangle_3__not_ghost.npy",
+      "dtype": "f64",
+      "shape": [
+        707,
+        1
+      ],
+      "axes": [
+        "entry",
+        "component"
+      ],
+      "layout": "table",
+      "sha256": "5f8bb5ee71a9bff9cab0dbb74e5f1d736fa5f4c66eb72d718295f474c478626e",
+      "description": "non_local_variable per law-local element and point",
+      "tolerance_class": "exact"
+    },
+    {
+      "name": "step7/internal_force",
+      "file": "data/step7__internal_force.npy",
+      "dtype": "f64",
+      "shape": [
+        760,
+        2
+      ],
+      "axes": [
+        "entry",
+        "component"
+      ],
+      "layout": "table",
+      "sha256": "1c82a74a90bb278691df9fcad39fc136ba3084050984eae671f5c5dfca35e497",
+      "description": "internal force",
+      "tolerance_class": "exact"
+    },
+    {
+      "name": "step8/law0/damage/_triangle_3/not_ghost",
+      "file": "data/step8__law0__damage___triangle_3__not_ghost.npy",
+      "dtype": "f64",
+      "shape": [
+        707,
+        1
+      ],
+      "axes": [
+        "entry",
+        "component"
+      ],
+      "layout": "table",
+      "sha256": "29bd7bc16dcc825b97aaf5aed83f115443ba6500b89f3d154a70fb553ae29bd3",
+      "description": "damage per law-local element and point",
+      "tolerance_class": "exact"
+    },
+    {
+      "name": "step8/law0/non_local_variable/_triangle_3/not_ghost",
+      "file": "data/step8__law0__non_local_variable___triangle_3__not_ghost.npy",
+      "dtype": "f64",
+      "shape": [
+        707,
+        1
+      ],
+      "axes": [
+        "entry",
+        "component"
+      ],
+      "layout": "table",
+      "sha256": "a1c968a269fcaf64fad9a0d166210e4d619375a0873849154b2aebbb349c84c7",
+      "description": "non_local_variable per law-local element and point",
+      "tolerance_class": "exact"
+    },
+    {
+      "name": "step8/internal_force",
+      "file": "data/step8__internal_force.npy",
+      "dtype": "f64",
+      "shape": [
+        760,
+        2
+      ],
+      "axes": [
+        "entry",
+        "component"
+      ],
+      "layout": "table",
+      "sha256": "5713aa96801bf03c8358d032d809b0b9c9a87cd2c292da2d1e3445c57d6fc837",
+      "description": "internal force",
+      "tolerance_class": "exact"
+    },
+    {
+      "name": "step9/law0/damage/_triangle_3/not_ghost",
+      "file": "data/step9__law0__damage___triangle_3__not_ghost.npy",
+      "dtype": "f64",
+      "shape": [
+        707,
+        1
+      ],
+      "axes": [
+        "entry",
+        "component"
+      ],
+      "layout": "table",
+      "sha256": "bc6129139614e6a6f2d93425985976d7cf9c5e3b1ccdafbd48c7ff08dc96e2d8",
+      "description": "damage per law-local element and point",
+      "tolerance_class": "exact"
+    },
+    {
+      "name": "step9/law0/non_local_variable/_triangle_3/not_ghost",
+      "file": "data/step9__law0__non_local_variable___triangle_3__not_ghost.npy",
+      "dtype": "f64",
+      "shape": [
+        707,
+        1
+      ],
+      "axes": [
+        "entry",
+        "component"
+      ],
+      "layout": "table",
+      "sha256": "d93412b68f5ccf708688fe7c276cfea0097dbda2b5b36727fe3605d11ba1a682",
+      "description": "non_local_variable per law-local element and point",
+      "tolerance_class": "exact"
+    },
+    {
+      "name": "step9/internal_force",
+      "file": "data/step9__internal_force.npy",
+      "dtype": "f64",
+      "shape": [
+        760,
+        2
+      ],
+      "axes": [
+        "entry",
+        "component"
+      ],
+      "layout": "table",
+      "sha256": "6c40f1c059313852f27a8d114fd3dd458c178648931a4735ba27d464f141a202",
+      "description": "internal force",
+      "tolerance_class": "exact"
+    },
+    {
+      "name": "step9/law0/Ehat/_triangle_3/not_ghost",
+      "file": "data/step9__law0__Ehat___triangle_3__not_ghost.npy",
+      "dtype": "f64",
+      "shape": [
+        707,
+        1
+      ],
+      "axes": [
+        "entry",
+        "component"
+      ],
+      "layout": "table",
+      "sha256": "28ea44236244e98dc7364bedf65c06f0fcc7728372af85062822bc4dd529d240",
+      "description": "Ehat per law-local element and point",
+      "tolerance_class": "exact"
+    },
+    {
+      "name": "step9/law0/stress/_triangle_3/not_ghost",
+      "file": "data/step9__law0__stress___triangle_3__not_ghost.npy",
+      "dtype": "f64",
+      "shape": [
+        707,
+        4
+      ],
+      "axes": [
+        "entry",
+        "component"
+      ],
+      "layout": "table",
+      "sha256": "a448d65aff1f1f619ae09ee52d1f5813c323cce65c6bae6b895b9edfe79d116b",
+      "description": "stress per law-local element and point",
+      "tolerance_class": "exact"
+    }
+  ],
+  "tags": [
+    "parallel"
+  ]
+}

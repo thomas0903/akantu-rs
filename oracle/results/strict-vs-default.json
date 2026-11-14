@@ -1,0 +1,4837 @@
+{
+ "tool": "compare-outputs.py v2 (field-level normalization, review V10 OB-01)",
+ "a": {
+  "root": "/build/strict",
+  "window": [
+   1794224723.0,
+   1794224983.0
+  ]
+ },
+ "b": {
+  "root": "/build/default",
+  "window": [
+   1794220890.0,
+   1794224537.0
+  ]
+ },
+ "suffixes": [
+  ".lastout",
+  ".csv"
+ ],
+ "source_root": "/akantu-src",
+ "rule_prefix": null,
+ "rules": [
+  {
+   "id": "progress-bar",
+   "kind": "drop-segment",
+   "files": "examples/c++/phase_field_model/*",
+   "regex": "\\[[-\\\\|/]\\]\\s+\\d+/\\d+ \\(\\s*[-+]?(?:\\d+\\.?\\d*|\\.\\d+)(?:[eE][-+]?\\d+)?ms/step - elapsed:\\s*[-+]?(?:\\d+\\.?\\d*|\\.\\d+)(?:[eE][-+]?\\d+)?s - ETA:\\s*[-+]?(?:\\d+\\.?\\d*|\\.\\d+)(?:[eE][-+]?\\d+)?s\\)\\x14*",
+   "why": "wall-clock progress display (refreshed by time, written with \\r): the number of refreshes and their ms/step, elapsed and ETA values depend on timing"
+  },
+  {
+   "id": "gmsh-wall-cpu",
+   "kind": "mask",
+   "files": "*",
+   "regex": "Info\\s+: .*\\(Wall (?P<v1>[-+]?(?:\\d+\\.?\\d*|\\.\\d+)(?:[eE][-+]?\\d+)?)s, CPU (?P<v2>[-+]?(?:\\d+\\.?\\d*|\\.\\d+)(?:[eE][-+]?\\d+)?)s\\)",
+   "why": "Gmsh mesher timing report (wall/CPU seconds) printed while meshing"
+  },
+  {
+   "id": "gmsh-date",
+   "kind": "mask",
+   "files": "*",
+   "regex": "Info\\s+: (?:Started|Stopped) on (?P<v1>\\w{3} \\w{3} [ \\d]\\d \\d\\d:\\d\\d:\\d\\d \\d{4})(?: \\(From start: Wall (?P<v2>[-+]?(?:\\d+\\.?\\d*|\\.\\d+)(?:[eE][-+]?\\d+)?)s, CPU (?P<v3>[-+]?(?:\\d+\\.?\\d*|\\.\\d+)(?:[eE][-+]?\\d+)?)s\\))?",
+   "why": "Gmsh start/stop wall-clock date and timing"
+  },
+  {
+   "id": "heap-address",
+   "kind": "mask",
+   "files": "*",
+   "regex": "\\s*\\+ address\\s+: (?P<v>0x[0-9a-f]+)",
+   "why": "heap address of an Array printed by Array::printself"
+  },
+  {
+   "id": "build-tree-path",
+   "kind": "mask",
+   "files": "*",
+   "regex": "rootdir: (?P<v>/build/[A-Za-z0-9_-]+)(?:/\\S*)?",
+   "why": "pytest header: absolute path of the build tree (/build/strict vs /build/default)"
+  },
+  {
+   "id": "pytest-duration",
+   "kind": "mask",
+   "files": "*",
+   "regex": "(?P<v1>=+) (?:\\d+ (?:passed|failed|skipped|errors?|warnings?|xfailed|xpassed)(?:, )?)+ in (?P<v2>\\d+\\.\\d+)s(?: \\(\\d+:\\d\\d:\\d\\d\\))? (?P<v3>=+)",
+   "why": "pytest summary: wall-clock duration and the '=' padding whose width depends on it (the pass/fail counts are kept)"
+  },
+  {
+   "id": "gtest-xml-time",
+   "kind": "mask",
+   "files": "*.xml",
+   "regex": "\\s*<(?:testsuites|testsuite|testcase) .* time=\\\"(?P<v1>[0-9.]+)\\\" timestamp=\\\"(?P<v2>[0-9T:.+-]+)\\\".*",
+   "why": "gtest XML report: wall-clock duration and start timestamp of a suite/case (names, counts, statuses and failure messages are kept)"
+  },
+  {
+   "id": "gtest-console-ms",
+   "kind": "mask",
+   "files": "*",
+   "regex": "\\[(?: {7}OK |  FAILED  |  SKIPPED )\\] \\S.* \\((?P<v>\\d+) ms\\)|\\[-{10}\\] \\d+ tests? from \\S.* \\((?P<v_>\\d+) ms total\\)|\\[={10}\\] \\d+ tests? from \\d+ test suites? ran\\. \\((?P<v__>\\d+) ms total\\)",
+   "why": "gtest console: wall-clock duration of a case/suite/run (same fields as upstream's driver ignore pattern '([0-9]+ ms( total)?)')"
+  },
+  {
+   "id": "akantu-debug-prefix",
+   "kind": "mask",
+   "files": "*",
+   "regex": "<(?P<v1>\\d+)>\\[R\\d+\\|S\\d+\\] \\{(?P<v2>\\d+)\\} .*",
+   "why": "Akantu debug/exception message prefix: process id and microsecond wall-clock timestamp (rank/size and the message are kept)"
+  },
+  {
+   "id": "mpi-process-ids",
+   "kind": "mask",
+   "files": "*",
+   "regex": "\\s*Process name: \\[prterun-(?P<v1>[0-9a-f]+)-(?P<v2>\\d+)@\\d+,(?P<v8>\\d+)\\]|prterun noticed that process rank \\d+ with PID (?P<v3>\\d+) on node (?P<v4>[0-9a-f]+) exited on|\\[(?P<v5>[0-9a-f]+):(?P<v6>\\d+)\\] (?:PMIX ERROR: .*|\\*\\*\\* .*|Signal: .*|Signal code: .*|Failing at address: (?P<v7>0x[0-9a-f]+))",
+   "why": "Open MPI/PMIx launcher and signal-handler messages: container host name, process ids, the faulting address (ASLR) and which rank happened to exit first (an exit-order race)"
+  },
+  {
+   "id": "mpi-backtrace-address",
+   "kind": "mask",
+   "files": "*",
+   "regex": "\\[(?P<v1>[0-9a-f]+):(?P<v2>\\d+)\\] \\[ ?\\d+\\] \\S.* \\[(?P<v3>0x[0-9a-f]+)\\]",
+   "why": "Open MPI signal-handler backtrace frame: host name, pid and absolute return address (ASLR); the symbol+offset is kept"
+  },
+  {
+   "id": "scalability-chrono",
+   "kind": "mask",
+   "files": "examples/c++/scalability_test/*",
+   "regex": "Passing the first \\w+ chrono! \\[(?P<v>[-+]?(?:\\d+\\.?\\d*|\\.\\d+)(?:[eE][-+]?\\d+)?)\\]",
+   "why": "scalability example: wall-clock timer of each phase"
+  },
+  {
+   "id": "scalability-time",
+   "kind": "mask",
+   "files": "examples/c++/scalability_test/*",
+   "regex": "(?:Full|Init) time: (?P<v>[-+]?(?:\\d+\\.?\\d*|\\.\\d+)(?:[eE][-+]?\\d+)?)",
+   "why": "scalability example: wall-clock time"
+  },
+  {
+   "id": "scalability-step-time",
+   "kind": "mask",
+   "files": "examples/c++/scalability_test/*",
+   "regex": "Step time: (?P<v1>[-+]?(?:\\d+\\.?\\d*|\\.\\d+)(?:[eE][-+]?\\d+)?) - nb_steps: \\d+ - time_per_step: (?P<v2>[-+]?(?:\\d+\\.?\\d*|\\.\\d+)(?:[eE][-+]?\\d+)?)",
+   "why": "scalability example: wall-clock step timing (nb_steps is kept)"
+  },
+  {
+   "id": "contact-search-time",
+   "kind": "mask",
+   "files": "examples/python/contact_mechanics_model/compression/*",
+   "regex": "Search time = %s seconds (?P<v>[-+]?(?:\\d+\\.?\\d*|\\.\\d+)(?:[eE][-+]?\\d+)?)",
+   "why": "python contact detection example: wall-clock duration of the search"
+  }
+ ],
+ "only_in_a": [],
+ "only_in_b": [],
+ "excluded": [
+  {
+   "file": "extra_packages/traction-at-split-node-contact/test/test_ntn_model/test_ntn_friction_gtest.lastout",
+   "reason": "gtest-capture: overwritten by every gtest case ctest runs from the same binary; content depends on scheduling (compare isolated per-case runs instead)",
+   "bytes_identical": false
+  },
+  {
+   "file": "extra_packages/traction-at-split-node-contact/test/test_ntn_model/test_ntn_model_gtest.lastout",
+   "reason": "gtest-capture: overwritten by every gtest case ctest runs from the same binary; content depends on scheduling (compare isolated per-case runs instead)",
+   "bytes_identical": false
+  },
+  {
+   "file": "test/test_common/test_common_gtest.lastout",
+   "reason": "gtest-capture: overwritten by every gtest case ctest runs from the same binary; content depends on scheduling (compare isolated per-case runs instead)",
+   "bytes_identical": false
+  },
+  {
+   "file": "test/test_fe_engine/_hexahedron_20.csv",
+   "reason": "input-copy: byte-identical to the same path in the reference source tree",
+   "bytes_identical": true
+  },
+  {
+   "file": "test/test_fe_engine/_hexahedron_8.csv",
+   "reason": "input-copy: byte-identical to the same path in the reference source tree",
+   "bytes_identical": true
+  },
+  {
+   "file": "test/test_fe_engine/_pentahedron_15.csv",
+   "reason": "input-copy: byte-identical to the same path in the reference source tree",
+   "bytes_identical": true
+  },
+  {
+   "file": "test/test_fe_engine/_pentahedron_6.csv",
+   "reason": "input-copy: byte-identical to the same path in the reference source tree",
+   "bytes_identical": true
+  },
+  {
+   "file": "test/test_fe_engine/_quadrangle_4.csv",
+   "reason": "input-copy: byte-identical to the same path in the reference source tree",
+   "bytes_identical": true
+  },
+  {
+   "file": "test/test_fe_engine/_quadrangle_8.csv",
+   "reason": "input-copy: byte-identical to the same path in the reference source tree",
+   "bytes_identical": true
+  },
+  {
+   "file": "test/test_fe_engine/_segment_2.csv",
+   "reason": "input-copy: byte-identical to the same path in the reference source tree",
+   "bytes_identical": true
+  },
+  {
+   "file": "test/test_fe_engine/_segment_3.csv",
+   "reason": "input-copy: byte-identical to the same path in the reference source tree",
+   "bytes_identical": true
+  },
+  {
+   "file": "test/test_fe_engine/_tetrahedron_10.csv",
+   "reason": "input-copy: byte-identical to the same path in the reference source tree",
+   "bytes_identical": true
+  },
+  {
+   "file": "test/test_fe_engine/_tetrahedron_4.csv",
+   "reason": "input-copy: byte-identical to the same path in the reference source tree",
+   "bytes_identical": true
+  },
+  {
+   "file": "test/test_fe_engine/_triangle_3.csv",
+   "reason": "input-copy: byte-identical to the same path in the reference source tree",
+   "bytes_identical": true
+  },
+  {
+   "file": "test/test_fe_engine/_triangle_6.csv",
+   "reason": "input-copy: byte-identical to the same path in the reference source tree",
+   "bytes_identical": true
+  },
+  {
+   "file": "test/test_fe_engine/test_fe_engine_gtest.lastout",
+   "reason": "gtest-capture: overwritten by every gtest case ctest runs from the same binary; content depends on scheduling (compare isolated per-case runs instead)",
+   "bytes_identical": false
+  },
+  {
+   "file": "test/test_io/test_parser/parser_gtest_gtest.lastout",
+   "reason": "gtest-capture: overwritten by every gtest case ctest runs from the same binary; content depends on scheduling (compare isolated per-case runs instead)",
+   "bytes_identical": false
+  },
+  {
+   "file": "test/test_mesh_utils/test_buildfacets/test_buildfacets_gtest.lastout",
+   "reason": "gtest-capture: overwritten by every gtest case ctest runs from the same binary; content depends on scheduling (compare isolated per-case runs instead)",
+   "bytes_identical": false
+  },
+  {
+   "file": "test/test_mesh_utils/test_mesh_periodic/test_mesh_periodic_gtest_1-1.lastout",
+   "reason": "gtest-capture: overwritten by every gtest case ctest runs from the same binary; content depends on scheduling (compare isolated per-case runs instead)",
+   "bytes_identical": false
+  },
+  {
+   "file": "test/test_mesh_utils/test_mesh_periodic/test_mesh_periodic_gtest_2-2.lastout",
+   "reason": "gtest-capture: overwritten by every gtest case ctest runs from the same binary; content depends on scheduling (compare isolated per-case runs instead)",
+   "bytes_identical": false
+  },
+  {
+   "file": "test/test_model/patch_tests/patch_test_linear_gtest.lastout",
+   "reason": "gtest-capture: overwritten by every gtest case ctest runs from the same binary; content depends on scheduling (compare isolated per-case runs instead)",
+   "bytes_identical": false
+  },
+  {
+   "file": "test/test_model/test_common/test_dof_manager_gtest_1-1.lastout",
+   "reason": "gtest-capture: overwritten by every gtest case ctest runs from the same binary; content depends on scheduling (compare isolated per-case runs instead)",
+   "bytes_identical": false
+  },
+  {
+   "file": "test/test_model/test_common/test_dof_manager_gtest_2-2.lastout",
+   "reason": "gtest-capture: overwritten by every gtest case ctest runs from the same binary; content depends on scheduling (compare isolated per-case runs instead)",
+   "bytes_identical": false
+  },
+  {
+   "file": "test/test_model/test_common/test_dof_manager_gtest_4-4.lastout",
+   "reason": "gtest-capture: overwritten by every gtest case ctest runs from the same binary; content depends on scheduling (compare isolated per-case runs instead)",
+   "bytes_identical": false
+  },
+  {
+   "file": "test/test_model/test_common/test_dof_manager_gtest_8-8.lastout",
+   "reason": "gtest-capture: overwritten by every gtest case ctest runs from the same binary; content depends on scheduling (compare isolated per-case runs instead)",
+   "bytes_identical": false
+  },
+  {
+   "file": "test/test_model/test_solid_mechanics_model/test_cohesive/test_materials/test_material_cohesive_gtest.lastout",
+   "reason": "gtest-capture: overwritten by every gtest case ctest runs from the same binary; content depends on scheduling (compare isolated per-case runs instead)",
+   "bytes_identical": false
+  },
+  {
+   "file": "test/test_model/test_solid_mechanics_model/test_cohesive/test_solid_mechanics_model_cohesive_gtest_1-1.lastout",
+   "reason": "gtest-capture: overwritten by every gtest case ctest runs from the same binary; content depends on scheduling (compare isolated per-case runs instead)",
+   "bytes_identical": false
+  },
+  {
+   "file": "test/test_model/test_solid_mechanics_model/test_cohesive/test_solid_mechanics_model_cohesive_gtest_2-2.lastout",
+   "reason": "gtest-capture: overwritten by every gtest case ctest runs from the same binary; content depends on scheduling (compare isolated per-case runs instead)",
+   "bytes_identical": false
+  },
+  {
+   "file": "test/test_model/test_solid_mechanics_model/test_energies/test_solid_mechanics_model_energies_gtest_1-1.lastout",
+   "reason": "gtest-capture: overwritten by every gtest case ctest runs from the same binary; content depends on scheduling (compare isolated per-case runs instead)",
+   "bytes_identical": false
+  },
+  {
+   "file": "test/test_model/test_solid_mechanics_model/test_energies/test_solid_mechanics_model_energies_gtest_2-2.lastout",
+   "reason": "gtest-capture: overwritten by every gtest case ctest runs from the same binary; content depends on scheduling (compare isolated per-case runs instead)",
+   "bytes_identical": false
+  },
+  {
+   "file": "test/test_model/test_solid_mechanics_model/test_materials/test_material_gtest.lastout",
+   "reason": "gtest-capture: overwritten by every gtest case ctest runs from the same binary; content depends on scheduling (compare isolated per-case runs instead)",
+   "bytes_identical": false
+  },
+  {
+   "file": "test/test_model/test_solid_mechanics_model/test_solid_mechanics_model_gtest_1-1.lastout",
+   "reason": "gtest-capture: overwritten by every gtest case ctest runs from the same binary; content depends on scheduling (compare isolated per-case runs instead)",
+   "bytes_identical": false
+  },
+  {
+   "file": "test/test_model/test_solid_mechanics_model/test_solid_mechanics_model_gtest_2-2.lastout",
+   "reason": "gtest-capture: overwritten by every gtest case ctest runs from the same binary; content depends on scheduling (compare isolated per-case runs instead)",
+   "bytes_identical": false
+  },
+  {
+   "file": "test/test_model/test_solid_mechanics_model/test_solid_mechanics_model_gtest_4-4.lastout",
+   "reason": "gtest-capture: overwritten by every gtest case ctest runs from the same binary; content depends on scheduling (compare isolated per-case runs instead)",
+   "bytes_identical": false
+  },
+  {
+   "file": "test/test_model/test_solid_mechanics_model/test_solid_mechanics_model_gtest_8-8.lastout",
+   "reason": "gtest-capture: overwritten by every gtest case ctest runs from the same binary; content depends on scheduling (compare isolated per-case runs instead)",
+   "bytes_identical": false
+  },
+  {
+   "file": "test/test_model/test_structural_mechanics_model/test_structural_mechanics_gtest.lastout",
+   "reason": "gtest-capture: overwritten by every gtest case ctest runs from the same binary; content depends on scheduling (compare isolated per-case runs instead)",
+   "bytes_identical": false
+  },
+  {
+   "file": "test/test_synchronizer/test_synchronizers_gtest_1-1.lastout",
+   "reason": "gtest-capture: overwritten by every gtest case ctest runs from the same binary; content depends on scheduling (compare isolated per-case runs instead)",
+   "bytes_identical": false
+  },
+  {
+   "file": "test/test_synchronizer/test_synchronizers_gtest_2-2.lastout",
+   "reason": "gtest-capture: overwritten by every gtest case ctest runs from the same binary; content depends on scheduling (compare isolated per-case runs instead)",
+   "bytes_identical": false
+  },
+  {
+   "file": "test/test_synchronizer/test_synchronizers_gtest_4-4.lastout",
+   "reason": "gtest-capture: overwritten by every gtest case ctest runs from the same binary; content depends on scheduling (compare isolated per-case runs instead)",
+   "bytes_identical": false
+  },
+  {
+   "file": "test/test_synchronizer/test_synchronizers_gtest_8-8.lastout",
+   "reason": "gtest-capture: overwritten by every gtest case ctest runs from the same binary; content depends on scheduling (compare isolated per-case runs instead)",
+   "bytes_identical": false
+  }
+ ],
+ "files": [
+  {
+   "file": "examples/c++/contact_mechanics_model/friction/bloc_friction-test.lastout",
+   "bytes": [
+    3321,
+    3321
+   ],
+   "sha256": [
+    "1e33b78756c2c7540920b85e7f987aab18cab3223c1d2902eac376604d6753a8",
+    "1e33b78756c2c7540920b85e7f987aab18cab3223c1d2902eac376604d6753a8"
+   ],
+   "lines": [
+    4,
+    4
+   ],
+   "numeric_tokens": [
+    301,
+    301
+   ],
+   "empty": false,
+   "status": "identical_bytes"
+  },
+  {
+   "file": "examples/c++/contact_mechanics_model/hertz/cohesive_contact_explicit_dynamic-test.lastout",
+   "bytes": [
+    38,
+    38
+   ],
+   "sha256": [
+    "9fc5d1d817da17d9ff06e5f19d12b05f379017f429a43d59634424b1b19c3a12",
+    "9fc5d1d817da17d9ff06e5f19d12b05f379017f429a43d59634424b1b19c3a12"
+   ],
+   "lines": [
+    2,
+    2
+   ],
+   "numeric_tokens": [
+    2,
+    2
+   ],
+   "empty": false,
+   "status": "identical_bytes"
+  },
+  {
+   "file": "examples/c++/contact_mechanics_model/hertz/contact_explicit_dynamic-test.lastout",
+   "bytes": [
+    40,
+    40
+   ],
+   "sha256": [
+    "2aa13cbed2ed482656b191bebe1e2a478095f84ac098f369fc3d30fb590d499c",
+    "2aa13cbed2ed482656b191bebe1e2a478095f84ac098f369fc3d30fb590d499c"
+   ],
+   "lines": [
+    2,
+    2
+   ],
+   "numeric_tokens": [
+    2,
+    2
+   ],
+   "empty": false,
+   "status": "identical_bytes"
+  },
+  {
+   "file": "examples/c++/contact_mechanics_model/hertz/contact_explicit_static-test.lastout",
+   "bytes": [
+    0,
+    0
+   ],
+   "sha256": [
+    "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+    "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
+   ],
+   "lines": [
+    1,
+    1
+   ],
+   "numeric_tokens": [
+    0,
+    0
+   ],
+   "empty": true,
+   "status": "identical_bytes"
+  },
+  {
+   "file": "examples/c++/diffusion_model/heat_diffusion_dynamics_2d-test.lastout",
+   "bytes": [
+    24448,
+    24448
+   ],
+   "sha256": [
+    "c1409e824e39db3b58e443bb9b332ca863927efde1cc65bf66d6a1b8832fb26a",
+    "c1409e824e39db3b58e443bb9b332ca863927efde1cc65bf66d6a1b8832fb26a"
+   ],
+   "lines": [
+    1507,
+    1507
+   ],
+   "numeric_tokens": [
+    3002,
+    3002
+   ],
+   "empty": false,
+   "status": "identical_bytes"
+  },
+  {
+   "file": "examples/c++/diffusion_model/heat_diffusion_dynamics_3d-test.lastout",
+   "bytes": [
+    1442,
+    1442
+   ],
+   "sha256": [
+    "4288484996f3a19acd7241ba78caf338501c216c4ce846ca767eb2584ff4d5b1",
+    "4288484996f3a19acd7241ba78caf338501c216c4ce846ca767eb2584ff4d5b1"
+   ],
+   "lines": [
+    103,
+    103
+   ],
+   "numeric_tokens": [
+    202,
+    202
+   ],
+   "empty": false,
+   "status": "identical_bytes"
+  },
+  {
+   "file": "examples/c++/diffusion_model/heat_diffusion_static_2d-test.lastout",
+   "bytes": [
+    0,
+    0
+   ],
+   "sha256": [
+    "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+    "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
+   ],
+   "lines": [
+    1,
+    1
+   ],
+   "numeric_tokens": [
+    0,
+    0
+   ],
+   "empty": true,
+   "status": "identical_bytes"
+  },
+  {
+   "file": "examples/c++/node_to_node/friction-energies-steady_state.csv",
+   "bytes": [
+    79837,
+    79823
+   ],
+   "sha256": [
+    "8c2c12d499198611a8b0244dda9df0874f2ddae3ce29eabb2817850e06bdd16c",
+    "aa226082568459ccd8ecafa2b9aa37fccb9a82c0586e0a646af4bc57a548ae77"
+   ],
+   "lines": [
+    1002,
+    1002
+   ],
+   "numeric_tokens": [
+    7000,
+    7000
+   ],
+   "empty": false,
+   "token_diffs": {
+    "value": 997
+   },
+   "status": "numeric_diff",
+   "n_diff": 997,
+   "first_differences": [
+    {
+     "line": 4,
+     "a": "7.49007e-21",
+     "b": "6.82993e-21",
+     "kind": "value"
+    },
+    {
+     "line": 5,
+     "a": "6.32213e-21",
+     "b": "6.49986e-21",
+     "kind": "value"
+    },
+    {
+     "line": 6,
+     "a": "7.59163e-21",
+     "b": "7.08383e-21",
+     "kind": "value"
+    },
+    {
+     "line": 7,
+     "a": "6.67759e-21",
+     "b": "6.60142e-21",
+     "kind": "value"
+    },
+    {
+     "line": 8,
+     "a": "7.21078e-21",
+     "b": "6.60142e-21",
+     "kind": "value"
+    }
+   ],
+   "max_abs": 1e-12,
+   "max_rel": 0.20521014677752705,
+   "normwise_rel": 1.3643383777470954e-13
+  },
+  {
+   "file": "examples/c++/node_to_node/steady_state-test.lastout",
+   "bytes": [
+    0,
+    0
+   ],
+   "sha256": [
+    "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+    "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
+   ],
+   "lines": [
+    1,
+    1
+   ],
+   "numeric_tokens": [
+    0,
+    0
+   ],
+   "empty": true,
+   "status": "identical_bytes"
+  },
+  {
+   "file": "examples/c++/phase_field_model/phase_field_notch-test.lastout",
+   "bytes": [
+    428,
+    428
+   ],
+   "sha256": [
+    "532a14006bd615e5982b4e2cae3e37a079b5c0e964b6c28043bcffc35c7a1930",
+    "1508bbb79ee835ae4eb1339faf263aa207a73292716fa240286d34b213e13191"
+   ],
+   "lines": [
+    3,
+    3
+   ],
+   "numeric_tokens": [
+    1,
+    1
+   ],
+   "empty": false,
+   "normalized_fields": {
+    "a": {
+     "progress-bar": 4
+    },
+    "b": {
+     "progress-bar": 4
+    }
+   },
+   "status": "identical_after_normalization"
+  },
+  {
+   "file": "examples/c++/phase_field_model/phase_field_parallel-test_2-2.lastout",
+   "bytes": [
+    10237,
+    10237
+   ],
+   "sha256": [
+    "ab5615f5499750dd03069420ec0ac067cca705a29bbbcc2bad11e2249dddd32d",
+    "be7caca25c23de3304d38c07f309c1ede67711d4abe471630e101677f0b95f70"
+   ],
+   "lines": [
+    3,
+    3
+   ],
+   "numeric_tokens": [
+    2,
+    2
+   ],
+   "empty": false,
+   "normalized_fields": {
+    "a": {
+     "progress-bar": 99
+    },
+    "b": {
+     "progress-bar": 99
+    }
+   },
+   "status": "identical_after_normalization"
+  },
+  {
+   "file": "examples/c++/scalability_test/scalability_test-test.lastout",
+   "bytes": [
+    773,
+    772
+   ],
+   "sha256": [
+    "70060a6ae0d24d2757cffa62aaef98e480310013248a3eca6fa09f19e3695bfa",
+    "3aba4c5d19b6a15cabd69d759b418b87eb859ed9cce727429f9dbd07da5f7d63"
+   ],
+   "lines": [
+    23,
+    23
+   ],
+   "numeric_tokens": [
+    11,
+    11
+   ],
+   "empty": false,
+   "normalized_fields": {
+    "a": {
+     "scalability-chrono": 8,
+     "scalability-time": 2,
+     "scalability-step-time": 2
+    },
+    "b": {
+     "scalability-chrono": 8,
+     "scalability-time": 2,
+     "scalability-step-time": 2
+    }
+   },
+   "status": "identical_after_normalization"
+  },
+  {
+   "file": "examples/c++/solid_mechanics_cohesive_model/cohesive_extrinsic/cohesive_extrinsic-test.lastout",
+   "bytes": [
+    2229,
+    2229
+   ],
+   "sha256": [
+    "1190c093197e907417193901f8c63b6c46c49b889fcfac6917a29603ffff5674",
+    "1190c093197e907417193901f8c63b6c46c49b889fcfac6917a29603ffff5674"
+   ],
+   "lines": [
+    103,
+    103
+   ],
+   "numeric_tokens": [
+    203,
+    203
+   ],
+   "empty": false,
+   "status": "identical_bytes"
+  },
+  {
+   "file": "examples/c++/solid_mechanics_cohesive_model/cohesive_extrinsic_ig_tg/cohesive_extrinsic_ig_tg-test.lastout",
+   "bytes": [
+    2213,
+    2213
+   ],
+   "sha256": [
+    "6de87a5ef530ed37867dee8174a08f5a7e063bc211d3d465a15d1d381f2703a9",
+    "6de87a5ef530ed37867dee8174a08f5a7e063bc211d3d465a15d1d381f2703a9"
+   ],
+   "lines": [
+    102,
+    102
+   ],
+   "numeric_tokens": [
+    201,
+    201
+   ],
+   "empty": false,
+   "status": "identical_bytes"
+  },
+  {
+   "file": "examples/c++/solid_mechanics_cohesive_model/cohesive_intrinsic/cohesive_intrinsic-test.lastout",
+   "bytes": [
+    7278,
+    7278
+   ],
+   "sha256": [
+    "07a4bc616c19526a3f066259058ec7b75f9eb5745a32ffafcdd6f82d6bdc2686",
+    "07a4bc616c19526a3f066259058ec7b75f9eb5745a32ffafcdd6f82d6bdc2686"
+   ],
+   "lines": [
+    353,
+    353
+   ],
+   "numeric_tokens": [
+    703,
+    703
+   ],
+   "empty": false,
+   "status": "identical_bytes"
+  },
+  {
+   "file": "examples/c++/solid_mechanics_model/boundary_conditions/predefined_bc/predefined_bc-test.lastout",
+   "bytes": [
+    0,
+    0
+   ],
+   "sha256": [
+    "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+    "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
+   ],
+   "lines": [
+    1,
+    1
+   ],
+   "numeric_tokens": [
+    0,
+    0
+   ],
+   "empty": true,
+   "status": "identical_bytes"
+  },
+  {
+   "file": "examples/c++/solid_mechanics_model/boundary_conditions/python_user_defined_bc/python_user_defined_bc-test.lastout",
+   "bytes": [
+    0,
+    0
+   ],
+   "sha256": [
+    "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+    "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
+   ],
+   "lines": [
+    1,
+    1
+   ],
+   "numeric_tokens": [
+    0,
+    0
+   ],
+   "empty": true,
+   "status": "identical_bytes"
+  },
+  {
+   "file": "examples/c++/solid_mechanics_model/boundary_conditions/user_defined_bc/user_defined_bc-test.lastout",
+   "bytes": [
+    0,
+    0
+   ],
+   "sha256": [
+    "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+    "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
+   ],
+   "lines": [
+    1,
+    1
+   ],
+   "numeric_tokens": [
+    0,
+    0
+   ],
+   "empty": true,
+   "status": "identical_bytes"
+  },
+  {
+   "file": "examples/c++/solid_mechanics_model/explicit/energy.csv",
+   "bytes": [
+    51507,
+    51507
+   ],
+   "sha256": [
+    "9771b1e023da1e6d2d539870057e24da0e87d2b4f64402df380b529fb068089d",
+    "9771b1e023da1e6d2d539870057e24da0e87d2b4f64402df380b529fb068089d"
+   ],
+   "lines": [
+    1002,
+    1002
+   ],
+   "numeric_tokens": [
+    5000,
+    5000
+   ],
+   "empty": false,
+   "status": "identical_bytes"
+  },
+  {
+   "file": "examples/c++/solid_mechanics_model/explicit/explicit_dynamic-test.lastout",
+   "bytes": [
+    2232,
+    2232
+   ],
+   "sha256": [
+    "cb9e34ad16d2501bb5e6e23245bf14ce31c0c8451513503c480caa73c299cfb8",
+    "cb9e34ad16d2501bb5e6e23245bf14ce31c0c8451513503c480caa73c299cfb8"
+   ],
+   "lines": [
+    102,
+    102
+   ],
+   "numeric_tokens": [
+    202,
+    202
+   ],
+   "empty": false,
+   "status": "identical_bytes"
+  },
+  {
+   "file": "examples/c++/solid_mechanics_model/implicit/implicit_dynamic-test.lastout",
+   "bytes": [
+    29899,
+    29899
+   ],
+   "sha256": [
+    "e38b712cd427038f43ab9eb676164b61dd0970b9c5613dd7a63768806a0e5b86",
+    "e38b712cd427038f43ab9eb676164b61dd0970b9c5613dd7a63768806a0e5b86"
+   ],
+   "lines": [
+    2,
+    2
+   ],
+   "numeric_tokens": [
+    6201,
+    6201
+   ],
+   "empty": false,
+   "status": "identical_bytes"
+  },
+  {
+   "file": "examples/c++/solid_mechanics_model/implicit/position.csv",
+   "bytes": [
+    202717,
+    202717
+   ],
+   "sha256": [
+    "f9cfdbb527bc43408df2b576ab09aea56de95b9910bc3e05142a10a53d29ab3c",
+    "f9cfdbb527bc43408df2b576ab09aea56de95b9910bc3e05142a10a53d29ab3c"
+   ],
+   "lines": [
+    6203,
+    6203
+   ],
+   "numeric_tokens": [
+    24804,
+    24804
+   ],
+   "empty": false,
+   "status": "identical_bytes"
+  },
+  {
+   "file": "examples/c++/solid_mechanics_model/io/dumper/dumpable_interface-test.lastout",
+   "bytes": [
+    0,
+    0
+   ],
+   "sha256": [
+    "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+    "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
+   ],
+   "lines": [
+    1,
+    1
+   ],
+   "numeric_tokens": [
+    0,
+    0
+   ],
+   "empty": true,
+   "status": "identical_bytes"
+  },
+  {
+   "file": "examples/c++/solid_mechanics_model/io/dumper/dumper_low_level-test.lastout",
+   "bytes": [
+    0,
+    0
+   ],
+   "sha256": [
+    "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+    "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
+   ],
+   "lines": [
+    1,
+    1
+   ],
+   "numeric_tokens": [
+    0,
+    0
+   ],
+   "empty": true,
+   "status": "identical_bytes"
+  },
+  {
+   "file": "examples/c++/solid_mechanics_model/io/parser/example_parser-test.lastout",
+   "bytes": [
+    0,
+    0
+   ],
+   "sha256": [
+    "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+    "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
+   ],
+   "lines": [
+    1,
+    1
+   ],
+   "numeric_tokens": [
+    0,
+    0
+   ],
+   "empty": true,
+   "status": "identical_bytes"
+  },
+  {
+   "file": "examples/c++/solid_mechanics_model/new_material/new_local_material-test.lastout",
+   "bytes": [
+    4382,
+    4382
+   ],
+   "sha256": [
+    "89e81132680c7f0c1ec3016f9e84f43937a4c70c596e89f4b2e0ee11acccebad",
+    "89e81132680c7f0c1ec3016f9e84f43937a4c70c596e89f4b2e0ee11acccebad"
+   ],
+   "lines": [
+    120,
+    120
+   ],
+   "numeric_tokens": [
+    414,
+    414
+   ],
+   "empty": false,
+   "status": "identical_bytes"
+  },
+  {
+   "file": "examples/c++/solid_mechanics_model/new_material/viscoelastic_maxwell/material_viscoelastic_maxwell_energies-test.lastout",
+   "bytes": [
+    56148,
+    56148
+   ],
+   "sha256": [
+    "8d1ab249498252bd84b692a1e68ec26f63271f7b20d8eb9bba66fdfe5599324e",
+    "8d1ab249498252bd84b692a1e68ec26f63271f7b20d8eb9bba66fdfe5599324e"
+   ],
+   "lines": [
+    3031,
+    3031
+   ],
+   "numeric_tokens": [
+    3026,
+    3026
+   ],
+   "empty": false,
+   "status": "identical_bytes"
+  },
+  {
+   "file": "examples/c++/solid_mechanics_model/parallel/parallel_2d-test_2-2.lastout",
+   "bytes": [
+    3506,
+    3506
+   ],
+   "sha256": [
+    "2bc19ae30d6b22115d69ef9781aed36624a8e9c2d21ae1ee3bd2ef015514b7ee",
+    "c8f9ddd1725e24bceda50a609c36e80f825c757e3446bee6f0bab00e71249930"
+   ],
+   "lines": [
+    123,
+    123
+   ],
+   "numeric_tokens": [
+    218,
+    218
+   ],
+   "empty": false,
+   "status": "reordered_lines",
+   "lines_out_of_place": 21
+  },
+  {
+   "file": "examples/c++/solid_mechanics_model/static/static-test.lastout",
+   "bytes": [
+    0,
+    0
+   ],
+   "sha256": [
+    "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+    "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
+   ],
+   "lines": [
+    1,
+    1
+   ],
+   "numeric_tokens": [
+    0,
+    0
+   ],
+   "empty": true,
+   "status": "identical_bytes"
+  },
+  {
+   "file": "examples/c++/structural_mechanics_model/bernoulli_beam_2_example-test.lastout",
+   "bytes": [
+    50,
+    50
+   ],
+   "sha256": [
+    "aa9a9578b7f517a3cfe94c065e8b4864180cb96600a0e32ec9c63d24cf9f4b40",
+    "aa9a9578b7f517a3cfe94c065e8b4864180cb96600a0e32ec9c63d24cf9f4b40"
+   ],
+   "lines": [
+    6,
+    6
+   ],
+   "numeric_tokens": [
+    10,
+    10
+   ],
+   "empty": false,
+   "status": "identical_bytes"
+  },
+  {
+   "file": "examples/python/contact_mechanics_model/compression/compression-test.lastout",
+   "bytes": [
+    268890,
+    268890
+   ],
+   "sha256": [
+    "7e51707f37b2317e6d22f34c04a59ed1c13a064b7544ac844b0246fd1105491e",
+    "7e51707f37b2317e6d22f34c04a59ed1c13a064b7544ac844b0246fd1105491e"
+   ],
+   "lines": [
+    20001,
+    20001
+   ],
+   "numeric_tokens": [
+    20000,
+    20000
+   ],
+   "empty": false,
+   "status": "identical_bytes"
+  },
+  {
+   "file": "examples/python/contact_mechanics_model/compression/detection_explicit.py-test.lastout",
+   "bytes": [
+    9496,
+    9496
+   ],
+   "sha256": [
+    "c2263fe370543cfdc13261376fb343a518422c42627d8d17f398b749d4770116",
+    "61bb3f3bcd0398497b3a33d8134f03d2a00eb0c39b914f17b8308c7c1a825677"
+   ],
+   "lines": [
+    532,
+    532
+   ],
+   "numeric_tokens": [
+    1395,
+    1395
+   ],
+   "empty": false,
+   "normalized_fields": {
+    "a": {
+     "contact-search-time": 1
+    },
+    "b": {
+     "contact-search-time": 1
+    }
+   },
+   "status": "identical_after_normalization"
+  },
+  {
+   "file": "examples/python/contact_mechanics_model/friction/bloc_friction_python-test.lastout",
+   "bytes": [
+    3331,
+    3331
+   ],
+   "sha256": [
+    "b3db9d9e19ade627c73b845af631d617ae801ab95d0e31142b3a434655972ae6",
+    "b3db9d9e19ade627c73b845af631d617ae801ab95d0e31142b3a434655972ae6"
+   ],
+   "lines": [
+    4,
+    4
+   ],
+   "numeric_tokens": [
+    301,
+    301
+   ],
+   "empty": false,
+   "status": "identical_bytes"
+  },
+  {
+   "file": "examples/python/phase_field_model/phasefield_dynamic-test.lastout",
+   "bytes": [
+    3639,
+    3639
+   ],
+   "sha256": [
+    "b92446dc913dca606fed20401a881991a090c8289ad19ec9f0af6d801cf72364",
+    "b92446dc913dca606fed20401a881991a090c8289ad19ec9f0af6d801cf72364"
+   ],
+   "lines": [
+    1,
+    1
+   ],
+   "numeric_tokens": [
+    300,
+    300
+   ],
+   "empty": false,
+   "status": "identical_bytes"
+  },
+  {
+   "file": "examples/python/phase_field_model/phasefield_static-test.lastout",
+   "bytes": [
+    435384,
+    435384
+   ],
+   "sha256": [
+    "ddded873edc73f5ab34cc9f7ee21a39c6c014f1578b6d45d574e83b6da66af92",
+    "ddded873edc73f5ab34cc9f7ee21a39c6c014f1578b6d45d574e83b6da66af92"
+   ],
+   "lines": [
+    1,
+    1
+   ],
+   "numeric_tokens": [
+    24188,
+    24188
+   ],
+   "empty": false,
+   "status": "identical_bytes"
+  },
+  {
+   "file": "examples/python/solid_mechanics_cohesive_model/cohesive/cohesive_python-test.lastout",
+   "bytes": [
+    716,
+    716
+   ],
+   "sha256": [
+    "fd1924540286b98c36fa7285444d2bb1824fead80bcee666f0481db9cd7f3121",
+    "fd1924540286b98c36fa7285444d2bb1824fead80bcee666f0481db9cd7f3121"
+   ],
+   "lines": [
+    102,
+    102
+   ],
+   "numeric_tokens": [
+    201,
+    201
+   ],
+   "empty": false,
+   "status": "identical_bytes"
+  },
+  {
+   "file": "examples/python/solid_mechanics_cohesive_model/fragmentation/fragmentation-test.lastout",
+   "bytes": [
+    1577,
+    1577
+   ],
+   "sha256": [
+    "ebca4881763d61f9770dc7c02a150ade85d7e516a18a09d2ed722b35c0973646",
+    "ebca4881763d61f9770dc7c02a150ade85d7e516a18a09d2ed722b35c0973646"
+   ],
+   "lines": [
+    104,
+    104
+   ],
+   "numeric_tokens": [
+    203,
+    203
+   ],
+   "empty": false,
+   "status": "identical_bytes"
+  },
+  {
+   "file": "examples/python/solid_mechanics_cohesive_model/multi-material/multi_material_py-test.lastout",
+   "bytes": [
+    8916,
+    8916
+   ],
+   "sha256": [
+    "3f97d31e9b2994905bd25a71eccabb7e1574377b269816a7aa1db032a8ec5517",
+    "3f97d31e9b2994905bd25a71eccabb7e1574377b269816a7aa1db032a8ec5517"
+   ],
+   "lines": [
+    1002,
+    1002
+   ],
+   "numeric_tokens": [
+    2001,
+    2001
+   ],
+   "empty": false,
+   "status": "identical_bytes"
+  },
+  {
+   "file": "examples/python/solid_mechanics_model/custom-material/bi-material-test.lastout",
+   "bytes": [
+    37,
+    37
+   ],
+   "sha256": [
+    "75cf70e2468c723a6731b85038ff1b98462c72d38cbd5a9e05b01c6532572db2",
+    "64200e9f483edc1876927012dabac5d0bf0ec3c438746e5e36a3627f03fa52ef"
+   ],
+   "lines": [
+    2,
+    2
+   ],
+   "numeric_tokens": [
+    1,
+    1
+   ],
+   "empty": false,
+   "token_diffs": {
+    "value": 1
+   },
+   "status": "numeric_diff",
+   "n_diff": 1,
+   "first_differences": [
+    {
+     "line": 1,
+     "a": "1.8015526262873176",
+     "b": "1.8015526262873174",
+     "kind": "value"
+    }
+   ],
+   "max_abs": 2e-16,
+   "max_rel": 1.1101535258071519e-16,
+   "normwise_rel": 1.1101535258071519e-16
+  },
+  {
+   "file": "examples/python/solid_mechanics_model/custom-material/custom-material-test.lastout",
+   "bytes": [
+    22554,
+    22541
+   ],
+   "sha256": [
+    "f98c2472c5277f5acde5bf5767b275e9745a0f2278be60da8ad2c3fd86be6655",
+    "bd7f3dc8170dafc304f2e668ee8929f39f96710895f47e3db295f4bd8e7177fc"
+   ],
+   "lines": [
+    255,
+    255
+   ],
+   "numeric_tokens": [
+    1257,
+    1257
+   ],
+   "empty": false,
+   "token_diffs": {
+    "value": 715
+   },
+   "status": "numeric_diff",
+   "n_diff": 715,
+   "first_differences": [
+    {
+     "line": 4,
+     "a": "0.00011030785324535622",
+     "b": "0.00011030785324535615",
+     "kind": "value"
+    },
+    {
+     "line": 4,
+     "a": "5.84466400172488e-07",
+     "b": "5.844664001724878e-07",
+     "kind": "value"
+    },
+    {
+     "line": 4,
+     "a": "0.00011089231964552871",
+     "b": "0.00011089231964552864",
+     "kind": "value"
+    },
+    {
+     "line": 5,
+     "a": "0.00010570091756503146",
+     "b": "0.00010570091756503141",
+     "kind": "value"
+    },
+    {
+     "line": 5,
+     "a": "5.157649956544042e-06",
+     "b": "5.157649956544032e-06",
+     "kind": "value"
+    }
+   ],
+   "max_abs": 1.93e-19,
+   "max_rel": 3.499297544495077e-15,
+   "normwise_rel": 7.72e-22
+  },
+  {
+   "file": "examples/python/solid_mechanics_model/dynamics/dynamics-python-test.lastout",
+   "bytes": [
+    22554,
+    22528
+   ],
+   "sha256": [
+    "f98c2472c5277f5acde5bf5767b275e9745a0f2278be60da8ad2c3fd86be6655",
+    "c4981acc56871fa3b90e0354346dfc94b9b75d86fd60e1f8472ab1454aba3ef6"
+   ],
+   "lines": [
+    255,
+    255
+   ],
+   "numeric_tokens": [
+    1257,
+    1257
+   ],
+   "empty": false,
+   "token_diffs": {
+    "value": 714
+   },
+   "status": "numeric_diff",
+   "n_diff": 714,
+   "first_differences": [
+    {
+     "line": 4,
+     "a": "0.00011030785324535622",
+     "b": "0.00011030785324535615",
+     "kind": "value"
+    },
+    {
+     "line": 4,
+     "a": "5.84466400172488e-07",
+     "b": "5.844664001724877e-07",
+     "kind": "value"
+    },
+    {
+     "line": 4,
+     "a": "0.00011089231964552871",
+     "b": "0.00011089231964552864",
+     "kind": "value"
+    },
+    {
+     "line": 5,
+     "a": "0.00010570091756503146",
+     "b": "0.00010570091756503141",
+     "kind": "value"
+    },
+    {
+     "line": 5,
+     "a": "5.157649956544042e-06",
+     "b": "5.157649956544031e-06",
+     "kind": "value"
+    }
+   ],
+   "max_abs": 1.9e-19,
+   "max_rel": 3.2635935648140615e-15,
+   "normwise_rel": 7.6e-22
+  },
+  {
+   "file": "examples/python/solid_mechanics_model/eigen_modes/eigen-modes-test.lastout",
+   "bytes": [
+    35494,
+    35492
+   ],
+   "sha256": [
+    "b04d024ca93cf77684022079cc3d4f8f22d242941a356c951eca6e1ddb787159",
+    "2115e776189422f3497d3815bbd6f24439684f3f9ec24eaee605bb90e13bcbcd"
+   ],
+   "lines": [
+    524,
+    524
+   ],
+   "numeric_tokens": [
+    2530,
+    2530
+   ],
+   "empty": false,
+   "normalized_fields": {
+    "a": {
+     "gmsh-date": 4,
+     "gmsh-wall-cpu": 4
+    },
+    "b": {
+     "gmsh-date": 4,
+     "gmsh-wall-cpu": 4
+    }
+   },
+   "token_diffs": {
+    "value": 1500
+   },
+   "status": "numeric_diff",
+   "n_diff": 1500,
+   "first_differences": [
+    {
+     "line": 24,
+     "a": "0.4152203760346851",
+     "b": "0.4152203760346818",
+     "kind": "value"
+    },
+    {
+     "line": 24,
+     "a": "0.0004106494063521688",
+     "b": "0.00041064940635216537",
+     "kind": "value"
+    },
+    {
+     "line": 24,
+     "a": "0.41563102544103725",
+     "b": "0.415631025441034",
+     "kind": "value"
+    },
+    {
+     "line": 25,
+     "a": "0.4119449118299226",
+     "b": "0.41194491182991944",
+     "kind": "value"
+    },
+    {
+     "line": 25,
+     "a": "0.003686113611114609",
+     "b": "0.0036861136111145804",
+     "kind": "value"
+    }
+   ],
+   "max_abs": 3.9e-15,
+   "max_rel": 1.3368629962668744e-13,
+   "normwise_rel": 6.818181818181818e-18
+  },
+  {
+   "file": "examples/python/solid_mechanics_model/plate-hole/plate-hole-test.lastout",
+   "bytes": [
+    24,
+    24
+   ],
+   "sha256": [
+    "b123f464a25dc1ff4b97486cc3e0bf0804ee4d1a29022ed5c6dc4142c0f1d0d9",
+    "b123f464a25dc1ff4b97486cc3e0bf0804ee4d1a29022ed5c6dc4142c0f1d0d9"
+   ],
+   "lines": [
+    2,
+    2
+   ],
+   "numeric_tokens": [
+    1,
+    1
+   ],
+   "empty": false,
+   "status": "identical_bytes"
+  },
+  {
+   "file": "examples/python/solid_mechanics_model/solver_callback/solver_callback-test.lastout",
+   "bytes": [
+    21981,
+    21987
+   ],
+   "sha256": [
+    "63f61e3701334d38496473e2c0048673c8063b056297aa9aacf6933f1aff8187",
+    "d793a5a180f5a85c50819411d4d5800ac8385cb5cd9f52f5fcb875af306927ef"
+   ],
+   "lines": [
+    255,
+    255
+   ],
+   "numeric_tokens": [
+    1257,
+    1257
+   ],
+   "empty": false,
+   "token_diffs": {
+    "value": 647
+   },
+   "status": "numeric_diff",
+   "n_diff": 647,
+   "first_differences": [
+    {
+     "line": 4,
+     "a": "0.0011958867859383701",
+     "b": "0.0011958867859383703",
+     "kind": "value"
+    },
+    {
+     "line": 4,
+     "a": "0.0008848296180439735",
+     "b": "0.0008848296180439741",
+     "kind": "value"
+    },
+    {
+     "line": 4,
+     "a": "0.0020807164039823435",
+     "b": "0.0020807164039823444",
+     "kind": "value"
+    },
+    {
+     "line": 5,
+     "a": "0.0011967145798685887",
+     "b": "0.0011967145798685889",
+     "kind": "value"
+    },
+    {
+     "line": 5,
+     "a": "0.0008839541794465978",
+     "b": "0.0008839541794465976",
+     "kind": "value"
+    }
+   ],
+   "max_abs": 4.3e-18,
+   "max_rel": 3.568632017438587e-15,
+   "normwise_rel": 1.72e-20
+  },
+  {
+   "file": "examples/python/solid_mechanics_model/stiffness_matrix/stiffness_matrix-test.lastout",
+   "bytes": [
+    636,
+    636
+   ],
+   "sha256": [
+    "2e23da8ba133c818741525a9fb339bfa9982fc87d091c43029ee89ada5a4e9ee",
+    "2e23da8ba133c818741525a9fb339bfa9982fc87d091c43029ee89ada5a4e9ee"
+   ],
+   "lines": [
+    14,
+    14
+   ],
+   "numeric_tokens": [
+    36,
+    36
+   ],
+   "empty": false,
+   "status": "identical_bytes"
+  },
+  {
+   "file": "examples/python/structural_mechanics_model/structural_mechanics-test.lastout",
+   "bytes": [
+    0,
+    0
+   ],
+   "sha256": [
+    "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+    "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
+   ],
+   "lines": [
+    1,
+    1
+   ],
+   "numeric_tokens": [
+    0,
+    0
+   ],
+   "empty": true,
+   "status": "identical_bytes"
+  },
+  {
+   "file": "examples/python/structural_mechanics_model/structural_mechanics_dynamics-test.lastout",
+   "bytes": [
+    0,
+    0
+   ],
+   "sha256": [
+    "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+    "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
+   ],
+   "lines": [
+    1,
+    1
+   ],
+   "numeric_tokens": [
+    0,
+    0
+   ],
+   "empty": true,
+   "status": "identical_bytes"
+  },
+  {
+   "file": "examples/python/structural_mechanics_model/structural_mechanics_softening-test.lastout",
+   "bytes": [
+    0,
+    0
+   ],
+   "sha256": [
+    "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+    "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
+   ],
+   "lines": [
+    1,
+    1
+   ],
+   "numeric_tokens": [
+    0,
+    0
+   ],
+   "empty": true,
+   "status": "identical_bytes"
+  },
+  {
+   "file": "extra_packages/traction-at-split-node-contact/test/test_ntn_model/firction-energies-material_ntn_friction_rate_and_state_dieterich_ageing.csv",
+   "bytes": [
+    78545,
+    78547
+   ],
+   "sha256": [
+    "6079aaa54349060fff8972630a23230a3f71d0a03a78ea6b0b776d3723133891",
+    "35a89710ae697dadd7229be01372a534597b61bb7175248c67d0de4a3001fb04"
+   ],
+   "lines": [
+    1002,
+    1002
+   ],
+   "numeric_tokens": [
+    7000,
+    7000
+   ],
+   "empty": false,
+   "token_diffs": {
+    "value": 1838
+   },
+   "status": "numeric_diff",
+   "n_diff": 1838,
+   "first_differences": [
+    {
+     "line": 4,
+     "a": "5.83971e-23",
+     "b": "3.04681e-23",
+     "kind": "value"
+    },
+    {
+     "line": 5,
+     "a": "4.57021e-23",
+     "b": "2.0312e-23",
+     "kind": "value"
+    },
+    {
+     "line": 6,
+     "a": "4.82411e-23",
+     "b": "2.79291e-23",
+     "kind": "value"
+    },
+    {
+     "line": 6,
+     "a": "7.80626e-17",
+     "b": "7.63278e-17",
+     "kind": "value"
+    },
+    {
+     "line": 7,
+     "a": "5.33191e-23",
+     "b": "2.79291e-23",
+     "kind": "value"
+    }
+   ],
+   "max_abs": 9e-18,
+   "max_rel": 1.6661307574693711,
+   "normwise_rel": 6.27479415189185e-16
+  },
+  {
+   "file": "extra_packages/traction-at-split-node-contact/test/test_ntn_model/firction-energies-material_ntn_friction_rate_and_state_dieterich_ageing_regularized.csv",
+   "bytes": [
+    79525,
+    79500
+   ],
+   "sha256": [
+    "3391d96b2a6a4200b69fee639b718ba90b074c3ac0c0ca0b628a13a8ed4e483b",
+    "758687b508788af12de0cd7f36c27e312c858a28d2fb2e259240a1910ca638c1"
+   ],
+   "lines": [
+    1002,
+    1002
+   ],
+   "numeric_tokens": [
+    7000,
+    7000
+   ],
+   "empty": false,
+   "token_diffs": {
+    "value": 1838
+   },
+   "status": "numeric_diff",
+   "n_diff": 1838,
+   "first_differences": [
+    {
+     "line": 3,
+     "a": "1.73472e-18",
+     "b": "-1.73472e-18",
+     "kind": "value"
+    },
+    {
+     "line": 4,
+     "a": "5.83971e-23",
+     "b": "3.04681e-23",
+     "kind": "value"
+    },
+    {
+     "line": 5,
+     "a": "5.07801e-23",
+     "b": "2.0312e-23",
+     "kind": "value"
+    },
+    {
+     "line": 5,
+     "a": "1.73472e-18",
+     "b": "0",
+     "kind": "value"
+    },
+    {
+     "line": 6,
+     "a": "4.82411e-23",
+     "b": "2.53901e-23",
+     "kind": "value"
+    }
+   ],
+   "max_abs": 8.7e-18,
+   "max_rel": 2.0,
+   "normwise_rel": 6.065634346828789e-16
+  },
+  {
+   "file": "extra_packages/traction-at-split-node-contact/test/test_ntn_model/firction-energies-material_ntn_friction_rate_and_state_dieterich_slip.csv",
+   "bytes": [
+    78545,
+    78547
+   ],
+   "sha256": [
+    "6079aaa54349060fff8972630a23230a3f71d0a03a78ea6b0b776d3723133891",
+    "35a89710ae697dadd7229be01372a534597b61bb7175248c67d0de4a3001fb04"
+   ],
+   "lines": [
+    1002,
+    1002
+   ],
+   "numeric_tokens": [
+    7000,
+    7000
+   ],
+   "empty": false,
+   "token_diffs": {
+    "value": 1838
+   },
+   "status": "numeric_diff",
+   "n_diff": 1838,
+   "first_differences": [
+    {
+     "line": 4,
+     "a": "5.83971e-23",
+     "b": "3.04681e-23",
+     "kind": "value"
+    },
+    {
+     "line": 5,
+     "a": "4.57021e-23",
+     "b": "2.0312e-23",
+     "kind": "value"
+    },
+    {
+     "line": 6,
+     "a": "4.82411e-23",
+     "b": "2.79291e-23",
+     "kind": "value"
+    },
+    {
+     "line": 6,
+     "a": "7.80626e-17",
+     "b": "7.63278e-17",
+     "kind": "value"
+    },
+    {
+     "line": 7,
+     "a": "5.33191e-23",
+     "b": "2.79291e-23",
+     "kind": "value"
+    }
+   ],
+   "max_abs": 9e-18,
+   "max_rel": 1.6661307574693711,
+   "normwise_rel": 6.27479415189185e-16
+  },
+  {
+   "file": "extra_packages/traction-at-split-node-contact/test/test_ntn_model/firction-energies-material_ntn_friction_rate_and_state_n_shaped_ageing.csv",
+   "bytes": [
+    79149,
+    79091
+   ],
+   "sha256": [
+    "55572d51381056af10a9a00bbcc8db8fc3f4c425677905607c511853b0d03d48",
+    "554d4aa59a3bc9c9544566fd129251350a1a535631594bd2736aa9d64c4f2466"
+   ],
+   "lines": [
+    1002,
+    1002
+   ],
+   "numeric_tokens": [
+    7000,
+    7000
+   ],
+   "empty": false,
+   "token_diffs": {
+    "value": 1765
+   },
+   "status": "numeric_diff",
+   "n_diff": 1765,
+   "first_differences": [
+    {
+     "line": 4,
+     "a": "5.07801e-23",
+     "b": "2.28511e-23",
+     "kind": "value"
+    },
+    {
+     "line": 5,
+     "a": "2.53901e-23",
+     "b": "2.79291e-23",
+     "kind": "value"
+    },
+    {
+     "line": 6,
+     "a": "5.83971e-23",
+     "b": "4.31631e-23",
+     "kind": "value"
+    },
+    {
+     "line": 6,
+     "a": "0",
+     "b": "1.73472e-18",
+     "kind": "value"
+    },
+    {
+     "line": 7,
+     "a": "5.33191e-23",
+     "b": "2.79291e-23",
+     "kind": "value"
+    }
+   ],
+   "max_abs": 8.674e-18,
+   "max_rel": 1.2496543238232736,
+   "normwise_rel": 7.70645462218471e-16
+  },
+  {
+   "file": "extra_packages/traction-at-split-node-contact/test/test_ntn_model/firction-energies-material_ntn_friction_rate_and_state_n_shaped_ageing_regularized.csv",
+   "bytes": [
+    79247,
+    79337
+   ],
+   "sha256": [
+    "905ccf4484ee4815651893e7747f63e62442df9bcdb4037bb98ebe4ed9bb0745",
+    "59fe193285d79edafed299629227cbe428116df7c52a242e5bf40af33b9649af"
+   ],
+   "lines": [
+    1002,
+    1002
+   ],
+   "numeric_tokens": [
+    7000,
+    7000
+   ],
+   "empty": false,
+   "token_diffs": {
+    "value": 1775
+   },
+   "status": "numeric_diff",
+   "n_diff": 1775,
+   "first_differences": [
+    {
+     "line": 4,
+     "a": "5.07801e-23",
+     "b": "2.28511e-23",
+     "kind": "value"
+    },
+    {
+     "line": 5,
+     "a": "3.30071e-23",
+     "b": "2.79291e-23",
+     "kind": "value"
+    },
+    {
+     "line": 6,
+     "a": "4.06241e-23",
+     "b": "1.7773e-23",
+     "kind": "value"
+    },
+    {
+     "line": 7,
+     "a": "6.85532e-23",
+     "b": "3.55461e-23",
+     "kind": "value"
+    },
+    {
+     "line": 8,
+     "a": "6.09361e-23",
+     "b": "1.5234e-23",
+     "kind": "value"
+    }
+   ],
+   "max_abs": 8.67e-18,
+   "max_rel": 1.5328113475475156,
+   "normwise_rel": 7.702900804051352e-16
+  },
+  {
+   "file": "extra_packages/traction-at-split-node-contact/test/test_ntn_model/firction-energies-material_ntn_friction_rate_and_state_n_shaped_slip.csv",
+   "bytes": [
+    79149,
+    79091
+   ],
+   "sha256": [
+    "55572d51381056af10a9a00bbcc8db8fc3f4c425677905607c511853b0d03d48",
+    "554d4aa59a3bc9c9544566fd129251350a1a535631594bd2736aa9d64c4f2466"
+   ],
+   "lines": [
+    1002,
+    1002
+   ],
+   "numeric_tokens": [
+    7000,
+    7000
+   ],
+   "empty": false,
+   "token_diffs": {
+    "value": 1765
+   },
+   "status": "numeric_diff",
+   "n_diff": 1765,
+   "first_differences": [
+    {
+     "line": 4,
+     "a": "5.07801e-23",
+     "b": "2.28511e-23",
+     "kind": "value"
+    },
+    {
+     "line": 5,
+     "a": "2.53901e-23",
+     "b": "2.79291e-23",
+     "kind": "value"
+    },
+    {
+     "line": 6,
+     "a": "5.83971e-23",
+     "b": "4.31631e-23",
+     "kind": "value"
+    },
+    {
+     "line": 6,
+     "a": "0",
+     "b": "1.73472e-18",
+     "kind": "value"
+    },
+    {
+     "line": 7,
+     "a": "5.33191e-23",
+     "b": "2.79291e-23",
+     "kind": "value"
+    }
+   ],
+   "max_abs": 8.674e-18,
+   "max_rel": 1.2496543238232736,
+   "normwise_rel": 7.70645462218471e-16
+  },
+  {
+   "file": "extra_packages/traction-at-split-node-contact/test/test_ntn_model/firction-energies-material_ntn_friction_rate_and_state_regularized_dieterich_ageing.csv",
+   "bytes": [
+    78397,
+    78404
+   ],
+   "sha256": [
+    "c6671b333ddcdce5fbe85dfc18c760875794f54f835fb515c41684eb6f386ed8",
+    "f3c99338b0ec0eb3b1ddbeb4764351de4151699cf76ea214587f3dd5a459f59e"
+   ],
+   "lines": [
+    1002,
+    1002
+   ],
+   "numeric_tokens": [
+    7000,
+    7000
+   ],
+   "empty": false,
+   "token_diffs": {
+    "value": 1763
+   },
+   "status": "numeric_diff",
+   "n_diff": 1763,
+   "first_differences": [
+    {
+     "line": 4,
+     "a": "5.58581e-23",
+     "b": "1.5234e-23",
+     "kind": "value"
+    },
+    {
+     "line": 4,
+     "a": "1.73472e-18",
+     "b": "3.46945e-18",
+     "kind": "value"
+    },
+    {
+     "line": 5,
+     "a": "5.58581e-23",
+     "b": "3.04681e-23",
+     "kind": "value"
+    },
+    {
+     "line": 5,
+     "a": "8.67362e-18",
+     "b": "6.93889e-18",
+     "kind": "value"
+    },
+    {
+     "line": 6,
+     "a": "3.80851e-23",
+     "b": "3.04681e-23",
+     "kind": "value"
+    }
+   ],
+   "max_abs": 7e-18,
+   "max_rel": 1.39986610219553,
+   "normwise_rel": 4.650884664704436e-16
+  },
+  {
+   "file": "extra_packages/traction-at-split-node-contact/test/test_ntn_model/firction-energies-material_ntn_friction_rate_and_state_regularized_dieterich_ageing_regularized.csv",
+   "bytes": [
+    79353,
+    79379
+   ],
+   "sha256": [
+    "95b70bd99cd7f89d07481516bb8b0cdff16f521f53305969f4be9825b5d8783b",
+    "6ee84df8270223acbc5f976f449a92e6defc1f8b6ca6b3ef5cb96b1c6abf45d0"
+   ],
+   "lines": [
+    1002,
+    1002
+   ],
+   "numeric_tokens": [
+    7000,
+    7000
+   ],
+   "empty": false,
+   "token_diffs": {
+    "value": 1756
+   },
+   "status": "numeric_diff",
+   "n_diff": 1756,
+   "first_differences": [
+    {
+     "line": 3,
+     "a": "1.73472e-18",
+     "b": "0",
+     "kind": "value"
+    },
+    {
+     "line": 4,
+     "a": "5.58581e-23",
+     "b": "1.5234e-23",
+     "kind": "value"
+    },
+    {
+     "line": 4,
+     "a": "1.73472e-18",
+     "b": "0",
+     "kind": "value"
+    },
+    {
+     "line": 5,
+     "a": "6.85532e-23",
+     "b": "2.28511e-23",
+     "kind": "value"
+    },
+    {
+     "line": 5,
+     "a": "0",
+     "b": "1.73472e-18",
+     "kind": "value"
+    }
+   ],
+   "max_abs": 7e-18,
+   "max_rel": 1.5985841669093284,
+   "normwise_rel": 4.650884664704436e-16
+  },
+  {
+   "file": "extra_packages/traction-at-split-node-contact/test/test_ntn_model/firction-energies-material_ntn_friction_rate_and_state_regularized_dieterich_slip.csv",
+   "bytes": [
+    78397,
+    78404
+   ],
+   "sha256": [
+    "c6671b333ddcdce5fbe85dfc18c760875794f54f835fb515c41684eb6f386ed8",
+    "f3c99338b0ec0eb3b1ddbeb4764351de4151699cf76ea214587f3dd5a459f59e"
+   ],
+   "lines": [
+    1002,
+    1002
+   ],
+   "numeric_tokens": [
+    7000,
+    7000
+   ],
+   "empty": false,
+   "token_diffs": {
+    "value": 1763
+   },
+   "status": "numeric_diff",
+   "n_diff": 1763,
+   "first_differences": [
+    {
+     "line": 4,
+     "a": "5.58581e-23",
+     "b": "1.5234e-23",
+     "kind": "value"
+    },
+    {
+     "line": 4,
+     "a": "1.73472e-18",
+     "b": "3.46945e-18",
+     "kind": "value"
+    },
+    {
+     "line": 5,
+     "a": "5.58581e-23",
+     "b": "3.04681e-23",
+     "kind": "value"
+    },
+    {
+     "line": 5,
+     "a": "8.67362e-18",
+     "b": "6.93889e-18",
+     "kind": "value"
+    },
+    {
+     "line": 6,
+     "a": "3.80851e-23",
+     "b": "3.04681e-23",
+     "kind": "value"
+    }
+   ],
+   "max_abs": 7e-18,
+   "max_rel": 1.39986610219553,
+   "normwise_rel": 4.650884664704436e-16
+  },
+  {
+   "file": "extra_packages/traction-at-split-node-contact/test/test_ntn_model/firction-energies-material_ntn_friction_rate_and_state_revised_dieterich_ageing.csv",
+   "bytes": [
+    78432,
+    78414
+   ],
+   "sha256": [
+    "5f80c9515dbfe1d5398f1ac2745bcf3d5153b9ef15af5a1683a942af01a7f53c",
+    "152efcbeeec103bd29648c55bf7df72aa3c3fd9480f77c9196135a1146d94b76"
+   ],
+   "lines": [
+    1002,
+    1002
+   ],
+   "numeric_tokens": [
+    7000,
+    7000
+   ],
+   "empty": false,
+   "token_diffs": {
+    "value": 1739
+   },
+   "status": "numeric_diff",
+   "n_diff": 1739,
+   "first_differences": [
+    {
+     "line": 3,
+     "a": "1.73472e-18",
+     "b": "0",
+     "kind": "value"
+    },
+    {
+     "line": 4,
+     "a": "5.83971e-23",
+     "b": "1.0156e-23",
+     "kind": "value"
+    },
+    {
+     "line": 4,
+     "a": "3.46945e-18",
+     "b": "5.20417e-18",
+     "kind": "value"
+    },
+    {
+     "line": 5,
+     "a": "5.33191e-23",
+     "b": "2.0312e-23",
+     "kind": "value"
+    },
+    {
+     "line": 5,
+     "a": "1.04083e-17",
+     "b": "1.38778e-17",
+     "kind": "value"
+    }
+   ],
+   "max_abs": 1.04e-17,
+   "max_rel": 1.6918032886188588,
+   "normwise_rel": 7.094569243677988e-16
+  },
+  {
+   "file": "extra_packages/traction-at-split-node-contact/test/test_ntn_model/firction-energies-material_ntn_friction_rate_and_state_revised_dieterich_ageing_regularized.csv",
+   "bytes": [
+    79400,
+    79397
+   ],
+   "sha256": [
+    "dd390a70e9cfbb6b7d1fcda72f688e1c29d6c3b2920172c80826756154992604",
+    "6269aee132ada6c366fc09b473893821b2fa9519bde04613924a15de5f410783"
+   ],
+   "lines": [
+    1002,
+    1002
+   ],
+   "numeric_tokens": [
+    7000,
+    7000
+   ],
+   "empty": false,
+   "token_diffs": {
+    "value": 1730
+   },
+   "status": "numeric_diff",
+   "n_diff": 1730,
+   "first_differences": [
+    {
+     "line": 3,
+     "a": "0",
+     "b": "1.73472e-18",
+     "kind": "value"
+    },
+    {
+     "line": 4,
+     "a": "5.83971e-23",
+     "b": "1.0156e-23",
+     "kind": "value"
+    },
+    {
+     "line": 4,
+     "a": "-1.73472e-18",
+     "b": "0",
+     "kind": "value"
+    },
+    {
+     "line": 5,
+     "a": "5.33191e-23",
+     "b": "1.5234e-23",
+     "kind": "value"
+    },
+    {
+     "line": 5,
+     "a": "-1.73472e-18",
+     "b": "0",
+     "kind": "value"
+    }
+   ],
+   "max_abs": 1.38e-17,
+   "max_rel": 1.2774082200051187,
+   "normwise_rel": 9.413947650265024e-16
+  },
+  {
+   "file": "extra_packages/traction-at-split-node-contact/test/test_ntn_model/firction-energies-material_ntn_friction_rate_and_state_revised_dieterich_slip.csv",
+   "bytes": [
+    78432,
+    78414
+   ],
+   "sha256": [
+    "5f80c9515dbfe1d5398f1ac2745bcf3d5153b9ef15af5a1683a942af01a7f53c",
+    "152efcbeeec103bd29648c55bf7df72aa3c3fd9480f77c9196135a1146d94b76"
+   ],
+   "lines": [
+    1002,
+    1002
+   ],
+   "numeric_tokens": [
+    7000,
+    7000
+   ],
+   "empty": false,
+   "token_diffs": {
+    "value": 1739
+   },
+   "status": "numeric_diff",
+   "n_diff": 1739,
+   "first_differences": [
+    {
+     "line": 3,
+     "a": "1.73472e-18",
+     "b": "0",
+     "kind": "value"
+    },
+    {
+     "line": 4,
+     "a": "5.83971e-23",
+     "b": "1.0156e-23",
+     "kind": "value"
+    },
+    {
+     "line": 4,
+     "a": "3.46945e-18",
+     "b": "5.20417e-18",
+     "kind": "value"
+    },
+    {
+     "line": 5,
+     "a": "5.33191e-23",
+     "b": "2.0312e-23",
+     "kind": "value"
+    },
+    {
+     "line": 5,
+     "a": "1.04083e-17",
+     "b": "1.38778e-17",
+     "kind": "value"
+    }
+   ],
+   "max_abs": 1.04e-17,
+   "max_rel": 1.6918032886188588,
+   "normwise_rel": 7.094569243677988e-16
+  },
+  {
+   "file": "test/test_common/test_grid.lastout",
+   "bytes": [
+    174,
+    174
+   ],
+   "sha256": [
+    "9b7ea8ddc1065896437fc318a96eb922b80f77b7f509d3844906967cb81871e8",
+    "9b7ea8ddc1065896437fc318a96eb922b80f77b7f509d3844906967cb81871e8"
+   ],
+   "lines": [
+    10,
+    10
+   ],
+   "numeric_tokens": [
+    11,
+    11
+   ],
+   "empty": false,
+   "status": "identical_bytes"
+  },
+  {
+   "file": "test/test_fe_engine/test_facet_element_mapping.lastout",
+   "bytes": [
+    14553,
+    14553
+   ],
+   "sha256": [
+    "90a1cdc1f9aab3b5be67f524f5d5e0556a57e95f35dd9e735233a010f24fdcaf",
+    "c3a1020263a63ee33e033036f84d72dd1ea5840e0f93073fa64ac5f0c84eab3d"
+   ],
+   "lines": [
+    185,
+    185
+   ],
+   "numeric_tokens": [
+    748,
+    748
+   ],
+   "empty": false,
+   "normalized_fields": {
+    "a": {
+     "heap-address": 2
+    },
+    "b": {
+     "heap-address": 2
+    }
+   },
+   "status": "identical_after_normalization"
+  },
+  {
+   "file": "test/test_fe_engine/test_mesh_boundary.lastout",
+   "bytes": [
+    3888,
+    3888
+   ],
+   "sha256": [
+    "d2def7a7a1d2ddf2202894f01c2f0b8df6996204a67d876752c00885545ff49e",
+    "2fd5eba697c34949187ec0a7bcdcbee8852be4c62647fd667cecdc32c8f1782e"
+   ],
+   "lines": [
+    151,
+    151
+   ],
+   "numeric_tokens": [
+    61,
+    61
+   ],
+   "empty": false,
+   "normalized_fields": {
+    "a": {
+     "heap-address": 11
+    },
+    "b": {
+     "heap-address": 11
+    }
+   },
+   "status": "identical_after_normalization"
+  },
+  {
+   "file": "test/test_fe_engine/test_mesh_data_UInt.lastout",
+   "bytes": [
+    261,
+    261
+   ],
+   "sha256": [
+    "1875e6a87dd37b8498430bc472d847bfa76909360f589b78b77b4689861abf75",
+    "f205871f6468a950893fb44509d589dc7d6da3afdcb6a33219a4b2b15c2fd4cc"
+   ],
+   "lines": [
+    12,
+    12
+   ],
+   "numeric_tokens": [
+    7,
+    7
+   ],
+   "empty": false,
+   "normalized_fields": {
+    "a": {
+     "heap-address": 1
+    },
+    "b": {
+     "heap-address": 1
+    }
+   },
+   "status": "identical_after_normalization"
+  },
+  {
+   "file": "test/test_fe_engine/test_mesh_data_string.lastout",
+   "bytes": [
+    339,
+    339
+   ],
+   "sha256": [
+    "98fecb671c0d10b8d7c0f3d0c65757e58ac317a245166681b5532e819eda2b82",
+    "1ba48b96c4eebf36dd1076eb048d4d0276f6990391ba114166119c266045f240"
+   ],
+   "lines": [
+    12,
+    12
+   ],
+   "numeric_tokens": [
+    8,
+    8
+   ],
+   "empty": false,
+   "normalized_fields": {
+    "a": {
+     "heap-address": 1
+    },
+    "b": {
+     "heap-address": 1
+    }
+   },
+   "status": "identical_after_normalization"
+  },
+  {
+   "file": "test/test_geometry/test_geometry_intersection.lastout",
+   "bytes": [
+    15,
+    15
+   ],
+   "sha256": [
+    "d10a54575cdfdecc1f7ff3ec686f03fc1c26e463111c54cc300f12418ea62a45",
+    "d10a54575cdfdecc1f7ff3ec686f03fc1c26e463111c54cc300f12418ea62a45"
+   ],
+   "lines": [
+    2,
+    2
+   ],
+   "numeric_tokens": [
+    2,
+    2
+   ],
+   "empty": false,
+   "status": "identical_bytes"
+  },
+  {
+   "file": "test/test_geometry/test_geometry_predicates.lastout",
+   "bytes": [
+    0,
+    0
+   ],
+   "sha256": [
+    "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+    "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
+   ],
+   "lines": [
+    1,
+    1
+   ],
+   "numeric_tokens": [
+    0,
+    0
+   ],
+   "empty": true,
+   "status": "identical_bytes"
+  },
+  {
+   "file": "test/test_geometry/test_segment_intersection_tetrahedron_4.lastout",
+   "bytes": [
+    0,
+    0
+   ],
+   "sha256": [
+    "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+    "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
+   ],
+   "lines": [
+    1,
+    1
+   ],
+   "numeric_tokens": [
+    0,
+    0
+   ],
+   "empty": true,
+   "status": "identical_bytes"
+  },
+  {
+   "file": "test/test_geometry/test_segment_intersection_triangle_3.lastout",
+   "bytes": [
+    0,
+    0
+   ],
+   "sha256": [
+    "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+    "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
+   ],
+   "lines": [
+    1,
+    1
+   ],
+   "numeric_tokens": [
+    0,
+    0
+   ],
+   "empty": true,
+   "status": "identical_bytes"
+  },
+  {
+   "file": "test/test_io/test_dumper/paraview/text_bottom-DataFiles/text_bottom_blocked_dofs.csv",
+   "bytes": [
+    165,
+    165
+   ],
+   "sha256": [
+    "984a6639a6d0dfe7c40da22c4e53796a99d9652b617289e0e7623c9975d97986",
+    "984a6639a6d0dfe7c40da22c4e53796a99d9652b617289e0e7623c9975d97986"
+   ],
+   "lines": [
+    31,
+    31
+   ],
+   "numeric_tokens": [
+    81,
+    81
+   ],
+   "empty": false,
+   "status": "identical_bytes"
+  },
+  {
+   "file": "test/test_io/test_dumper/paraview/text_bottom-DataFiles/text_bottom_displacement.csv",
+   "bytes": [
+    1218,
+    1218
+   ],
+   "sha256": [
+    "b0e6a68dff4b7d1e4133be85dacd44d59fe04cb0d47301b7e513eac34b258bb7",
+    "b0e6a68dff4b7d1e4133be85dacd44d59fe04cb0d47301b7e513eac34b258bb7"
+   ],
+   "lines": [
+    31,
+    31
+   ],
+   "numeric_tokens": [
+    81,
+    81
+   ],
+   "empty": false,
+   "status": "identical_bytes"
+  },
+  {
+   "file": "test/test_io/test_dumper/paraview/text_bottom-DataFiles/text_bottom_global_forces.csv",
+   "bytes": [
+    90,
+    90
+   ],
+   "sha256": [
+    "69c77824403ed08758b1b5f851eb6edc4f9d514677e6698342231397a7f8ccba",
+    "69c77824403ed08758b1b5f851eb6edc4f9d514677e6698342231397a7f8ccba"
+   ],
+   "lines": [
+    4,
+    4
+   ],
+   "numeric_tokens": [
+    6,
+    6
+   ],
+   "empty": false,
+   "status": "identical_bytes"
+  },
+  {
+   "file": "test/test_io/test_dumper/paraview/text_bottom-DataFiles/text_bottom_position.csv",
+   "bytes": [
+    1218,
+    1218
+   ],
+   "sha256": [
+    "56698b48181843774cf90b0c865fbbff76b7a7a31ee09f558d2ccfc042199f5a",
+    "56698b48181843774cf90b0c865fbbff76b7a7a31ee09f558d2ccfc042199f5a"
+   ],
+   "lines": [
+    31,
+    31
+   ],
+   "numeric_tokens": [
+    81,
+    81
+   ],
+   "empty": false,
+   "status": "identical_bytes"
+  },
+  {
+   "file": "test/test_io/test_dumper/paraview/text_bottom-DataFiles/text_bottom_potential_energy.csv",
+   "bytes": [
+    45,
+    45
+   ],
+   "sha256": [
+    "d654d15eccaaf5055955719d66a5cfa7522e4193a8460d04f902004950c7d74f",
+    "d654d15eccaaf5055955719d66a5cfa7522e4193a8460d04f902004950c7d74f"
+   ],
+   "lines": [
+    4,
+    4
+   ],
+   "numeric_tokens": [
+    3,
+    3
+   ],
+   "empty": false,
+   "status": "identical_bytes"
+  },
+  {
+   "file": "test/test_io/test_dumper/test_dumper.lastout",
+   "bytes": [
+    0,
+    0
+   ],
+   "sha256": [
+    "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+    "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
+   ],
+   "lines": [
+    1,
+    1
+   ],
+   "numeric_tokens": [
+    0,
+    0
+   ],
+   "empty": true,
+   "status": "identical_bytes"
+  },
+  {
+   "file": "test/test_io/test_parser/test_parser.lastout",
+   "bytes": [
+    1382,
+    1382
+   ],
+   "sha256": [
+    "309d165d0c195320c6cab457f02f196178e50cc4e82221a052ae164341e6585f",
+    "309d165d0c195320c6cab457f02f196178e50cc4e82221a052ae164341e6585f"
+   ],
+   "lines": [
+    47,
+    47
+   ],
+   "numeric_tokens": [
+    105,
+    105
+   ],
+   "empty": false,
+   "status": "identical_bytes"
+  },
+  {
+   "file": "test/test_io/test_parser/test_parser_python.lastout",
+   "bytes": [
+    682,
+    683
+   ],
+   "sha256": [
+    "d085ea0381e39074c8022e8ad46d3e02da88dc70aa0e9e28575db4c5f660ebdf",
+    "e3bb87c4e7d05c1591dad50e14d97103d1550d08c758579ce924b89df1da6914"
+   ],
+   "lines": [
+    13,
+    13
+   ],
+   "numeric_tokens": [
+    13,
+    13
+   ],
+   "empty": false,
+   "normalized_fields": {
+    "a": {
+     "build-tree-path": 1,
+     "pytest-duration": 3
+    },
+    "b": {
+     "build-tree-path": 1,
+     "pytest-duration": 3
+    }
+   },
+   "status": "identical_after_normalization"
+  },
+  {
+   "file": "test/test_mesh_utils/test_mesh_io/test_mesh_io_msh.lastout",
+   "bytes": [
+    1487,
+    1487
+   ],
+   "sha256": [
+    "e0b09fb411577064cbba80cf9e69c199f77681d5f4510e43dd50005aae19ba46",
+    "a34375babb6b9e6d6e513acc5509e790a90588ff68b75d0f9133fe9ac2c07d07"
+   ],
+   "lines": [
+    61,
+    61
+   ],
+   "numeric_tokens": [
+    29,
+    29
+   ],
+   "empty": false,
+   "normalized_fields": {
+    "a": {
+     "heap-address": 5
+    },
+    "b": {
+     "heap-address": 5
+    }
+   },
+   "status": "identical_after_normalization"
+  },
+  {
+   "file": "test/test_mesh_utils/test_mesh_io/test_mesh_io_msh_physical_names.lastout",
+   "bytes": [
+    1914,
+    1914
+   ],
+   "sha256": [
+    "2c8e56a40a8de243d43fe01597884a7cccbe2f60a3d53a6c94cca20758629c54",
+    "2c8e56a40a8de243d43fe01597884a7cccbe2f60a3d53a6c94cca20758629c54"
+   ],
+   "lines": [
+    33,
+    33
+   ],
+   "numeric_tokens": [
+    64,
+    64
+   ],
+   "empty": false,
+   "status": "identical_bytes"
+  },
+  {
+   "file": "test/test_mesh_utils/test_mesh_iterators.lastout",
+   "bytes": [
+    272,
+    272
+   ],
+   "sha256": [
+    "aef8675ca2fe01a8c2e2f5f27ad904d08441677647ccfca6353c1b884960e9b9",
+    "aef8675ca2fe01a8c2e2f5f27ad904d08441677647ccfca6353c1b884960e9b9"
+   ],
+   "lines": [
+    22,
+    22
+   ],
+   "numeric_tokens": [
+    18,
+    18
+   ],
+   "empty": false,
+   "status": "identical_bytes"
+  },
+  {
+   "file": "test/test_mesh_utils/test_mesh_partitionate/test_mesh_partitionate_mesh_data.lastout",
+   "bytes": [
+    32290,
+    32290
+   ],
+   "sha256": [
+    "466a1a7948774eebd5253bb00bfbff7c2c9aed8703c4a040a8b26eb0c8f0d2af",
+    "466a1a7948774eebd5253bb00bfbff7c2c9aed8703c4a040a8b26eb0c8f0d2af"
+   ],
+   "lines": [
+    401,
+    401
+   ],
+   "numeric_tokens": [
+    1600,
+    1600
+   ],
+   "empty": false,
+   "status": "identical_bytes"
+  },
+  {
+   "file": "test/test_mesh_utils/test_mesh_partitionate/test_mesh_partitionate_scotch.lastout",
+   "bytes": [
+    0,
+    0
+   ],
+   "sha256": [
+    "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+    "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
+   ],
+   "lines": [
+    1,
+    1
+   ],
+   "numeric_tokens": [
+    0,
+    0
+   ],
+   "empty": true,
+   "status": "identical_bytes"
+  },
+  {
+   "file": "test/test_mesh_utils/test_purify_mesh.lastout",
+   "bytes": [
+    0,
+    0
+   ],
+   "sha256": [
+    "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+    "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
+   ],
+   "lines": [
+    1,
+    1
+   ],
+   "numeric_tokens": [
+    0,
+    0
+   ],
+   "empty": true,
+   "status": "identical_bytes"
+  },
+  {
+   "file": "test/test_model/patch_tests/test_linear_anisotropic_explicit_python.lastout",
+   "bytes": [
+    0,
+    0
+   ],
+   "sha256": [
+    "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+    "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
+   ],
+   "lines": [
+    1,
+    1
+   ],
+   "numeric_tokens": [
+    0,
+    0
+   ],
+   "empty": true,
+   "status": "identical_bytes"
+  },
+  {
+   "file": "test/test_model/patch_tests/test_linear_elastic_explicit_python.lastout",
+   "bytes": [
+    0,
+    0
+   ],
+   "sha256": [
+    "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+    "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
+   ],
+   "lines": [
+    1,
+    1
+   ],
+   "numeric_tokens": [
+    0,
+    0
+   ],
+   "empty": true,
+   "status": "identical_bytes"
+  },
+  {
+   "file": "test/test_model/patch_tests/test_linear_elastic_static_python.lastout",
+   "bytes": [
+    0,
+    0
+   ],
+   "sha256": [
+    "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+    "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
+   ],
+   "lines": [
+    1,
+    1
+   ],
+   "numeric_tokens": [
+    0,
+    0
+   ],
+   "empty": true,
+   "status": "identical_bytes"
+  },
+  {
+   "file": "test/test_model/test_common/test_model_solver/test_dof_manager_default.lastout",
+   "bytes": [
+    324,
+    324
+   ],
+   "sha256": [
+    "ad573df50b3b01d8bae9f1233e48da1073570128585a915adb091b5b75e06b1a",
+    "ad573df50b3b01d8bae9f1233e48da1073570128585a915adb091b5b75e06b1a"
+   ],
+   "lines": [
+    13,
+    13
+   ],
+   "numeric_tokens": [
+    22,
+    22
+   ],
+   "empty": false,
+   "status": "identical_bytes"
+  },
+  {
+   "file": "test/test_model/test_common/test_model_solver/test_model_solver_dynamic_explicit.lastout",
+   "bytes": [
+    42210,
+    42210
+   ],
+   "sha256": [
+    "e955798103f601b9d1ba450ec758b1cfea13dd2fd23595c19ca6c7986c88b9e1",
+    "e955798103f601b9d1ba450ec758b1cfea13dd2fd23595c19ca6c7986c88b9e1"
+   ],
+   "lines": [
+    403,
+    403
+   ],
+   "numeric_tokens": [
+    2807,
+    2807
+   ],
+   "empty": false,
+   "status": "identical_bytes"
+  },
+  {
+   "file": "test/test_model/test_common/test_model_solver/test_model_solver_dynamic_implicit.lastout",
+   "bytes": [
+    42210,
+    42210
+   ],
+   "sha256": [
+    "44faf9d83f5ad44680cf6b5bbd61bb53985713daef7ae8f550bae2f04a40223b",
+    "44faf9d83f5ad44680cf6b5bbd61bb53985713daef7ae8f550bae2f04a40223b"
+   ],
+   "lines": [
+    403,
+    403
+   ],
+   "numeric_tokens": [
+    2807,
+    2807
+   ],
+   "empty": false,
+   "status": "identical_bytes"
+  },
+  {
+   "file": "test/test_model/test_common/test_model_solver/test_model_solver_dynamic_petsc.lastout",
+   "bytes": [
+    42210,
+    42210
+   ],
+   "sha256": [
+    "44faf9d83f5ad44680cf6b5bbd61bb53985713daef7ae8f550bae2f04a40223b",
+    "44faf9d83f5ad44680cf6b5bbd61bb53985713daef7ae8f550bae2f04a40223b"
+   ],
+   "lines": [
+    403,
+    403
+   ],
+   "numeric_tokens": [
+    2807,
+    2807
+   ],
+   "empty": false,
+   "status": "identical_bytes"
+  },
+  {
+   "file": "test/test_model/test_common/test_model_solver/test_model_solver_mumps.lastout",
+   "bytes": [
+    3428,
+    3428
+   ],
+   "sha256": [
+    "007cdbdf80c451df1bf868481e36836353a2788fe57a5aec773eec464578bebb",
+    "007cdbdf80c451df1bf868481e36836353a2788fe57a5aec773eec464578bebb"
+   ],
+   "lines": [
+    102,
+    102
+   ],
+   "numeric_tokens": [
+    400,
+    400
+   ],
+   "empty": false,
+   "status": "identical_bytes"
+  },
+  {
+   "file": "test/test_model/test_common/test_model_solver/test_model_solver_petsc.lastout",
+   "bytes": [
+    3428,
+    3428
+   ],
+   "sha256": [
+    "007cdbdf80c451df1bf868481e36836353a2788fe57a5aec773eec464578bebb",
+    "007cdbdf80c451df1bf868481e36836353a2788fe57a5aec773eec464578bebb"
+   ],
+   "lines": [
+    102,
+    102
+   ],
+   "numeric_tokens": [
+    400,
+    400
+   ],
+   "empty": false,
+   "status": "identical_bytes"
+  },
+  {
+   "file": "test/test_model/test_common/test_non_local_toolbox/test_build_neighborhood_parallel_2-2.lastout",
+   "bytes": [
+    0,
+    0
+   ],
+   "sha256": [
+    "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+    "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
+   ],
+   "lines": [
+    1,
+    1
+   ],
+   "numeric_tokens": [
+    0,
+    0
+   ],
+   "empty": true,
+   "status": "identical_bytes"
+  },
+  {
+   "file": "test/test_model/test_common/test_non_local_toolbox/test_non_local_averaging.lastout",
+   "bytes": [
+    0,
+    0
+   ],
+   "sha256": [
+    "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+    "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
+   ],
+   "lines": [
+    1,
+    1
+   ],
+   "numeric_tokens": [
+    0,
+    0
+   ],
+   "empty": true,
+   "status": "identical_bytes"
+  },
+  {
+   "file": "test/test_model/test_common/test_non_local_toolbox/test_non_local_neighborhood_base.lastout",
+   "bytes": [
+    62116,
+    62116
+   ],
+   "sha256": [
+    "5f5074176d14041cd067cd871e2d694121a9130591008e9048b32d4a432b41ea",
+    "5f5074176d14041cd067cd871e2d694121a9130591008e9048b32d4a432b41ea"
+   ],
+   "lines": [
+    1111,
+    1111
+   ],
+   "numeric_tokens": [
+    5116,
+    5116
+   ],
+   "empty": false,
+   "status": "identical_bytes"
+  },
+  {
+   "file": "test/test_model/test_common/test_non_local_toolbox/test_pair_computation_1-1.lastout",
+   "bytes": [
+    0,
+    0
+   ],
+   "sha256": [
+    "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+    "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
+   ],
+   "lines": [
+    1,
+    1
+   ],
+   "numeric_tokens": [
+    0,
+    0
+   ],
+   "empty": true,
+   "status": "identical_bytes"
+  },
+  {
+   "file": "test/test_model/test_common/test_non_local_toolbox/test_pair_computation_2-2.lastout",
+   "bytes": [
+    0,
+    0
+   ],
+   "sha256": [
+    "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+    "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
+   ],
+   "lines": [
+    1,
+    1
+   ],
+   "numeric_tokens": [
+    0,
+    0
+   ],
+   "empty": true,
+   "status": "identical_bytes"
+  },
+  {
+   "file": "test/test_model/test_common/test_non_local_toolbox/test_remove_damage_weight_function.lastout",
+   "bytes": [
+    14566,
+    14560
+   ],
+   "sha256": [
+    "cf3dddc77d5764b2740bf9b56b7857429d63f4e9c9129312e77c9dd5f15cf84c",
+    "a330aa89519440591479e6a97e9693c2c08c34ef98e0b8d6f1850f3995f48121"
+   ],
+   "lines": [
+    585,
+    585
+   ],
+   "numeric_tokens": [
+    2336,
+    2336
+   ],
+   "empty": false,
+   "token_diffs": {
+    "value": 55
+   },
+   "status": "numeric_diff",
+   "n_diff": 55,
+   "first_differences": [
+    {
+     "line": 12,
+     "a": "1.05013e-23",
+     "b": "1.05005e-23",
+     "kind": "value"
+    },
+    {
+     "line": 12,
+     "a": "7.2164e-24",
+     "b": "7.21582e-24",
+     "kind": "value"
+    },
+    {
+     "line": 24,
+     "a": "7.08718e-24",
+     "b": "7.08833e-24",
+     "kind": "value"
+    },
+    {
+     "line": 24,
+     "a": "7.08718e-24",
+     "b": "7.08833e-24",
+     "kind": "value"
+    },
+    {
+     "line": 38,
+     "a": "2.34707e-24",
+     "b": "2.3474e-24",
+     "kind": "value"
+    }
+   ],
+   "max_abs": 2.68e-27,
+   "max_rel": 0.0002944906081670597,
+   "normwise_rel": 1.34e-27
+  },
+  {
+   "file": "test/test_model/test_common/test_non_local_toolbox/test_weight_computation.lastout",
+   "bytes": [
+    8348,
+    8350
+   ],
+   "sha256": [
+    "79afb3078609a89749f47587e42f5ca64c5ed5ea317f00380a4be934913f6d5b",
+    "6061af5293b21ed69ce1f9ee08b7739f198b0f9e59eb7303587e9328b5aa97b9"
+   ],
+   "lines": [
+    323,
+    323
+   ],
+   "numeric_tokens": [
+    1288,
+    1288
+   ],
+   "empty": false,
+   "token_diffs": {
+    "value": 32
+   },
+   "status": "numeric_diff",
+   "n_diff": 32,
+   "first_differences": [
+    {
+     "line": 12,
+     "a": "1.05013e-23",
+     "b": "1.05005e-23",
+     "kind": "value"
+    },
+    {
+     "line": 12,
+     "a": "7.2164e-24",
+     "b": "7.21582e-24",
+     "kind": "value"
+    },
+    {
+     "line": 24,
+     "a": "7.08718e-24",
+     "b": "7.08833e-24",
+     "kind": "value"
+    },
+    {
+     "line": 24,
+     "a": "7.08718e-24",
+     "b": "7.08833e-24",
+     "kind": "value"
+    },
+    {
+     "line": 38,
+     "a": "2.34707e-24",
+     "b": "2.3474e-24",
+     "kind": "value"
+    }
+   ],
+   "max_abs": 1.6e-27,
+   "max_rel": 0.0002944678453915782,
+   "normwise_rel": 8e-28
+  },
+  {
+   "file": "test/test_model/test_contact_mechanics_model/test_explicit_dynamic.lastout",
+   "bytes": [
+    44,
+    44
+   ],
+   "sha256": [
+    "bdbf4c0fb51eee0c9b621a12bf59bb682e9702495f391f36bd6b2073c98372f7",
+    "bdbf4c0fb51eee0c9b621a12bf59bb682e9702495f391f36bd6b2073c98372f7"
+   ],
+   "lines": [
+    2,
+    2
+   ],
+   "numeric_tokens": [
+    1,
+    1
+   ],
+   "empty": false,
+   "status": "identical_bytes"
+  },
+  {
+   "file": "test/test_model/test_contact_mechanics_model/test_explicit_friction.lastout",
+   "bytes": [
+    44,
+    44
+   ],
+   "sha256": [
+    "3ebeb692b4e48eca74418577b75ff15112a293992b887712514979f26bb631b7",
+    "3ebeb692b4e48eca74418577b75ff15112a293992b887712514979f26bb631b7"
+   ],
+   "lines": [
+    2,
+    2
+   ],
+   "numeric_tokens": [
+    1,
+    1
+   ],
+   "empty": false,
+   "status": "identical_bytes"
+  },
+  {
+   "file": "test/test_model/test_phase_field_model/data-explicit.csv",
+   "bytes": [
+    62647,
+    60710
+   ],
+   "sha256": [
+    "2e44904309dcddb634bf528eda09c43139e0d29ce5a7dd94b54634e0aad0ff22",
+    "f8f55812d16ca91366da1dd5a8f558a1f4b845bcbc37b1ffdadb319e68ff2949"
+   ],
+   "lines": [
+    1002,
+    1002
+   ],
+   "numeric_tokens": [
+    7000,
+    7000
+   ],
+   "empty": false,
+   "token_diffs": {
+    "value": 1207
+   },
+   "status": "numeric_diff",
+   "n_diff": 1207,
+   "first_differences": [
+    {
+     "line": 3,
+     "a": "2.45541e-16",
+     "b": "0",
+     "kind": "value"
+    },
+    {
+     "line": 4,
+     "a": "3.68686e-16",
+     "b": "1.22895e-16",
+     "kind": "value"
+    },
+    {
+     "line": 4,
+     "a": "1.59911e-16",
+     "b": "0",
+     "kind": "value"
+    },
+    {
+     "line": 6,
+     "a": "2.46792e-16",
+     "b": "0",
+     "kind": "value"
+    },
+    {
+     "line": 8,
+     "a": "1.42915e-16",
+     "b": "0",
+     "kind": "value"
+    }
+   ],
+   "max_abs": 8.0343678e-14,
+   "max_rel": 1.0,
+   "normwise_rel": 8.081832401695156e-14
+  },
+  {
+   "file": "test/test_model/test_phase_field_model/data.csv",
+   "bytes": [
+    62123,
+    94282
+   ],
+   "sha256": [
+    "4f3a1a122f66d5bd93ce722be3b1500b6f4521135e7fd7434314ab77f1f1ebd1",
+    "e77e907182d9da928e35abc3a88d2c15afe27e49eca7d1c61dd41f1717722a68"
+   ],
+   "lines": [
+    2002,
+    1200
+   ],
+   "numeric_tokens": [
+    6000,
+    9225
+   ],
+   "empty": false,
+   "status": "structure_diff",
+   "first_structure_diff": {
+    "line": 1,
+    "a": "position,damage,optimal_damage",
+    "b": "#strain stress damage analytical_sigma analytical_damage error_stress error_damage error_energy"
+   }
+  },
+  {
+   "file": "test/test_model/test_phase_field_model/test_multi_material.lastout",
+   "bytes": [
+    0,
+    0
+   ],
+   "sha256": [
+    "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+    "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
+   ],
+   "lines": [
+    1,
+    1
+   ],
+   "numeric_tokens": [
+    0,
+    0
+   ],
+   "empty": true,
+   "status": "identical_bytes"
+  },
+  {
+   "file": "test/test_model/test_phase_field_model/test_penalization.lastout",
+   "bytes": [
+    0,
+    0
+   ],
+   "sha256": [
+    "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+    "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
+   ],
+   "lines": [
+    1,
+    1
+   ],
+   "numeric_tokens": [
+    0,
+    0
+   ],
+   "empty": true,
+   "status": "identical_bytes"
+  },
+  {
+   "file": "test/test_model/test_phase_field_model/test_phase_field_anisotropic.lastout",
+   "bytes": [
+    0,
+    0
+   ],
+   "sha256": [
+    "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+    "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
+   ],
+   "lines": [
+    1,
+    1
+   ],
+   "numeric_tokens": [
+    0,
+    0
+   ],
+   "empty": true,
+   "status": "identical_bytes"
+  },
+  {
+   "file": "test/test_model/test_phase_field_model/test_phase_field_deviatoric_split.lastout",
+   "bytes": [
+    0,
+    0
+   ],
+   "sha256": [
+    "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+    "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
+   ],
+   "lines": [
+    1,
+    1
+   ],
+   "numeric_tokens": [
+    0,
+    0
+   ],
+   "empty": true,
+   "status": "identical_bytes"
+  },
+  {
+   "file": "test/test_model/test_phase_field_model/test_phase_field_linear.lastout",
+   "bytes": [
+    0,
+    0
+   ],
+   "sha256": [
+    "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+    "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
+   ],
+   "lines": [
+    1,
+    1
+   ],
+   "numeric_tokens": [
+    0,
+    0
+   ],
+   "empty": true,
+   "status": "identical_bytes"
+  },
+  {
+   "file": "test/test_model/test_phase_field_model/test_phase_field_optimal.lastout",
+   "bytes": [
+    0,
+    0
+   ],
+   "sha256": [
+    "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+    "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
+   ],
+   "lines": [
+    1,
+    1
+   ],
+   "numeric_tokens": [
+    0,
+    0
+   ],
+   "empty": true,
+   "status": "identical_bytes"
+  },
+  {
+   "file": "test/test_model/test_phase_field_model/test_phase_field_optimal_linear.lastout",
+   "bytes": [
+    667,
+    667
+   ],
+   "sha256": [
+    "7ffaaeb7444149d95dd86be8017214badc6c9c0db4069ab18bd5c3302d30adce",
+    "7ffaaeb7444149d95dd86be8017214badc6c9c0db4069ab18bd5c3302d30adce"
+   ],
+   "lines": [
+    12,
+    12
+   ],
+   "numeric_tokens": [
+    33,
+    33
+   ],
+   "empty": false,
+   "status": "identical_bytes"
+  },
+  {
+   "file": "test/test_model/test_phase_field_model/test_phase_field_tao.lastout",
+   "bytes": [
+    0,
+    0
+   ],
+   "sha256": [
+    "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+    "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
+   ],
+   "lines": [
+    1,
+    1
+   ],
+   "numeric_tokens": [
+    0,
+    0
+   ],
+   "empty": true,
+   "status": "identical_bytes"
+  },
+  {
+   "file": "test/test_model/test_phase_field_model/test_phase_solid_coupling.lastout",
+   "bytes": [
+    0,
+    0
+   ],
+   "sha256": [
+    "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+    "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
+   ],
+   "lines": [
+    1,
+    1
+   ],
+   "numeric_tokens": [
+    0,
+    0
+   ],
+   "empty": true,
+   "status": "identical_bytes"
+  },
+  {
+   "file": "test/test_model/test_phase_field_model/test_phase_solid_explicit.lastout",
+   "bytes": [
+    0,
+    0
+   ],
+   "sha256": [
+    "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+    "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
+   ],
+   "lines": [
+    1,
+    1
+   ],
+   "numeric_tokens": [
+    0,
+    0
+   ],
+   "empty": true,
+   "status": "identical_bytes"
+  },
+  {
+   "file": "test/test_model/test_phase_field_model/test_phasefield_selector.lastout",
+   "bytes": [
+    0,
+    0
+   ],
+   "sha256": [
+    "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+    "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
+   ],
+   "lines": [
+    1,
+    1
+   ],
+   "numeric_tokens": [
+    0,
+    0
+   ],
+   "empty": true,
+   "status": "identical_bytes"
+  },
+  {
+   "file": "test/test_model/test_solid_mechanics_model/test_cohesive/test_cohesive_buildfragments/test_cohesive_buildfragments.lastout",
+   "bytes": [
+    4137,
+    4137
+   ],
+   "sha256": [
+    "8fe20e7e004b0c6685b16ee21e0e574eac2473a31f4fd99a71a464e6d18c5a41",
+    "8fe20e7e004b0c6685b16ee21e0e574eac2473a31f4fd99a71a464e6d18c5a41"
+   ],
+   "lines": [
+    202,
+    202
+   ],
+   "numeric_tokens": [
+    400,
+    400
+   ],
+   "empty": false,
+   "status": "identical_bytes"
+  },
+  {
+   "file": "test/test_model/test_solid_mechanics_model/test_cohesive/test_cohesive_insertion/test_cohesive_group_update.lastout",
+   "bytes": [
+    0,
+    0
+   ],
+   "sha256": [
+    "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+    "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
+   ],
+   "lines": [
+    1,
+    1
+   ],
+   "numeric_tokens": [
+    0,
+    0
+   ],
+   "empty": true,
+   "status": "identical_bytes"
+  },
+  {
+   "file": "test/test_model/test_solid_mechanics_model/test_cohesive/test_cohesive_insertion/test_cohesive_insertion_along_physical_surfaces.lastout",
+   "bytes": [
+    0,
+    0
+   ],
+   "sha256": [
+    "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+    "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
+   ],
+   "lines": [
+    1,
+    1
+   ],
+   "numeric_tokens": [
+    0,
+    0
+   ],
+   "empty": true,
+   "status": "identical_bytes"
+  },
+  {
+   "file": "test/test_model/test_solid_mechanics_model/test_cohesive/test_materials/Cycles.csv",
+   "bytes": [
+    17868,
+    55979
+   ],
+   "sha256": [
+    "d3e7956f94441bbaf73bdf6e9f931aff25a47f50f3a73bd276cd4a3d11caa616",
+    "7d9e5393be264de7356fa71df9affb4a141985131035d2422358c4c1455ccbb0"
+   ],
+   "lines": [
+    703,
+    703
+   ],
+   "numeric_tokens": [
+    2105,
+    4913
+   ],
+   "empty": false,
+   "status": "structure_diff",
+   "first_structure_diff": {
+    "line": 1,
+    "a": "delta, opening_0, traction_0",
+    "b": "delta, opening_0, opening_1, opening_2, traction_0, traction_1, traction_2"
+   }
+  },
+  {
+   "file": "test/test_model/test_solid_mechanics_model/test_cohesive/test_materials/ModeI.csv",
+   "bytes": [
+    7709,
+    8058
+   ],
+   "sha256": [
+    "f57d1bbac61c4e390e41df753a31b46ce329bf90427ca550d0c7ea422d8a0dd0",
+    "4496ac4fbf3138d160d6a1694223c7a8b680baa9e414b24fd28a6fa59db8a1e8"
+   ],
+   "lines": [
+    103,
+    103
+   ],
+   "numeric_tokens": [
+    713,
+    713
+   ],
+   "empty": false,
+   "token_diffs": {
+    "value": 400
+   },
+   "status": "numeric_diff",
+   "n_diff": 400,
+   "first_differences": [
+    {
+     "line": 2,
+     "a": "-3.49246e-10",
+     "b": "-2.76892e-10",
+     "kind": "value"
+    },
+    {
+     "line": 2,
+     "a": "1.16415e-10",
+     "b": "7.61654e-11",
+     "kind": "value"
+    },
+    {
+     "line": 3,
+     "a": "-6.61744e-23",
+     "b": "-5.26781e-23",
+     "kind": "value"
+    },
+    {
+     "line": 3,
+     "a": "2.64698e-23",
+     "b": "-4.87826e-24",
+     "kind": "value"
+    },
+    {
+     "line": 3,
+     "a": "-2.91038e-10",
+     "b": "-1.96179e-10",
+     "kind": "value"
+    }
+   ],
+   "max_abs": 1.36175e-10,
+   "max_rel": 1.9837031590376515,
+   "normwise_rel": 1.36175e-16
+  },
+  {
+   "file": "test/test_model/test_solid_mechanics_model/test_cohesive/test_materials/ModeII.csv",
+   "bytes": [
+    8082,
+    8098
+   ],
+   "sha256": [
+    "0fbc67e3603e3517fdbc1c11492d085be58c0eab5a6bf81e20eed728f9c2f514",
+    "2d3fc170446b6d0e6ef1c471c76b824b24d30f2cc0d89af6a926cebdfb1009e2"
+   ],
+   "lines": [
+    103,
+    103
+   ],
+   "numeric_tokens": [
+    713,
+    713
+   ],
+   "empty": false,
+   "token_diffs": {
+    "value": 200
+   },
+   "status": "numeric_diff",
+   "n_diff": 200,
+   "first_differences": [
+    {
+     "line": 2,
+     "a": "-5.23869e-10",
+     "b": "-4.21957e-10",
+     "kind": "value"
+    },
+    {
+     "line": 3,
+     "a": "-4.96308e-23",
+     "b": "-3.78649e-23",
+     "kind": "value"
+    },
+    {
+     "line": 3,
+     "a": "-1.74623e-10",
+     "b": "-8.09667e-12",
+     "kind": "value"
+    },
+    {
+     "line": 4,
+     "a": "-9.92617e-23",
+     "b": "-7.57298e-23",
+     "kind": "value"
+    },
+    {
+     "line": 4,
+     "a": "-1.74623e-10",
+     "b": "-1.71554e-10",
+     "kind": "value"
+    }
+   ],
+   "max_abs": 1.6652633e-10,
+   "max_rel": 1.8604364831665932,
+   "normwise_rel": 9.911514585180909e-17
+  },
+  {
+   "file": "test/test_model/test_solid_mechanics_model/test_material_selector.lastout",
+   "bytes": [
+    0,
+    0
+   ],
+   "sha256": [
+    "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+    "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
+   ],
+   "lines": [
+    1,
+    1
+   ],
+   "numeric_tokens": [
+    0,
+    0
+   ],
+   "empty": true,
+   "status": "identical_bytes"
+  },
+  {
+   "file": "test/test_model/test_solid_mechanics_model/test_materials/energy.csv",
+   "bytes": [
+    27361,
+    27361
+   ],
+   "sha256": [
+    "1aa80489473204a721f1697541d6ffe7c06ac0f34ef4d5bbb8ff545ea5f86ede",
+    "1aa80489473204a721f1697541d6ffe7c06ac0f34ef4d5bbb8ff545ea5f86ede"
+   ],
+   "lines": [
+    1002,
+    1002
+   ],
+   "numeric_tokens": [
+    4000,
+    4000
+   ],
+   "empty": false,
+   "status": "identical_bytes"
+  },
+  {
+   "file": "test/test_model/test_solid_mechanics_model/test_materials/test_interpolate_stress.lastout",
+   "bytes": [
+    38,
+    38
+   ],
+   "sha256": [
+    "33de187d54b4c989acbbe3be226780a9e57bffc862b105d7834222f54f602e26",
+    "33de187d54b4c989acbbe3be226780a9e57bffc862b105d7834222f54f602e26"
+   ],
+   "lines": [
+    2,
+    2
+   ],
+   "numeric_tokens": [
+    0,
+    0
+   ],
+   "empty": false,
+   "status": "identical_bytes"
+  },
+  {
+   "file": "test/test_model/test_solid_mechanics_model/test_materials/test_local_material.lastout",
+   "bytes": [
+    1177,
+    1177
+   ],
+   "sha256": [
+    "8ae21874d2f55560cbd8b761a3b9a3428d768c9a7d093d5b6b957b8116b02ab2",
+    "a718732b16cb35d8dd91dd7c38fd3be2abbc6b9f083669ebbfe87c90186e9c99"
+   ],
+   "lines": [
+    29,
+    29
+   ],
+   "numeric_tokens": [
+    20,
+    20
+   ],
+   "empty": false,
+   "normalized_fields": {
+    "a": {
+     "heap-address": 1
+    },
+    "b": {
+     "heap-address": 1
+    }
+   },
+   "status": "identical_after_normalization"
+  },
+  {
+   "file": "test/test_model/test_solid_mechanics_model/test_materials/test_material_elasto_plastic_linear_isotropic_hardening/test_material_standard_linear_isotropic_hardening.lastout",
+   "bytes": [
+    173,
+    173
+   ],
+   "sha256": [
+    "51b70bf1acda681d1b115f5c33a384e1fb602d4ac65f2af66415e1c85b1a0b3c",
+    "51b70bf1acda681d1b115f5c33a384e1fb602d4ac65f2af66415e1c85b1a0b3c"
+   ],
+   "lines": [
+    21,
+    21
+   ],
+   "numeric_tokens": [
+    40,
+    40
+   ],
+   "empty": false,
+   "status": "identical_bytes"
+  },
+  {
+   "file": "test/test_model/test_solid_mechanics_model/test_materials/test_material_mazars.lastout",
+   "bytes": [
+    0,
+    0
+   ],
+   "sha256": [
+    "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+    "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
+   ],
+   "lines": [
+    1,
+    1
+   ],
+   "numeric_tokens": [
+    0,
+    0
+   ],
+   "empty": true,
+   "status": "identical_bytes"
+  },
+  {
+   "file": "test/test_model/test_solid_mechanics_model/test_materials/test_material_non_local/test_material_damage_non_local.lastout",
+   "bytes": [
+    8728,
+    8728
+   ],
+   "sha256": [
+    "675a479144d1d1c0b2a244030b6fd9f95d94faf84c075f51ed6b96f5267700a4",
+    "4efb56b613cc2b80e157061b42cd0c12a7f3ba229bdd71f9e199a8ed196ae34b"
+   ],
+   "lines": [
+    263,
+    263
+   ],
+   "numeric_tokens": [
+    122,
+    122
+   ],
+   "empty": false,
+   "normalized_fields": {
+    "a": {
+     "heap-address": 18
+    },
+    "b": {
+     "heap-address": 18
+    }
+   },
+   "status": "identical_after_normalization"
+  },
+  {
+   "file": "test/test_model/test_solid_mechanics_model/test_materials/test_material_non_local/test_material_non_local.lastout",
+   "bytes": [
+    1087,
+    1087
+   ],
+   "sha256": [
+    "bb98ca075a50cd8f138fb89ad03bdf5995a84df076014e00b29c0c0a68feec24",
+    "bb98ca075a50cd8f138fb89ad03bdf5995a84df076014e00b29c0c0a68feec24"
+   ],
+   "lines": [
+    22,
+    22
+   ],
+   "numeric_tokens": [
+    18,
+    18
+   ],
+   "empty": false,
+   "status": "identical_bytes"
+  },
+  {
+   "file": "test/test_model/test_solid_mechanics_model/test_materials/test_material_orthotropic.lastout",
+   "bytes": [
+    9645,
+    9645
+   ],
+   "sha256": [
+    "eb296a0df078f819431542fd15f2781f381bd2e5826a253138c4e723f4e94dc4",
+    "44cde9b522916ed9bb8139902c036d72bfd381b7cfcb13c5a5290f4daee9ff33"
+   ],
+   "lines": [
+    283,
+    283
+   ],
+   "numeric_tokens": [
+    196,
+    196
+   ],
+   "empty": false,
+   "normalized_fields": {
+    "a": {
+     "heap-address": 17
+    },
+    "b": {
+     "heap-address": 17
+    }
+   },
+   "status": "identical_after_normalization"
+  },
+  {
+   "file": "test/test_model/test_solid_mechanics_model/test_materials/test_material_viscoelastic/test_material_standard_linear_solid_deviatoric_relaxation.lastout",
+   "bytes": [
+    1271,
+    1271
+   ],
+   "sha256": [
+    "8267f50edf644f8056de3441394babb5cea2f5a465cb7ebc0d876490a82a30f7",
+    "8267f50edf644f8056de3441394babb5cea2f5a465cb7ebc0d876490a82a30f7"
+   ],
+   "lines": [
+    26,
+    26
+   ],
+   "numeric_tokens": [
+    20,
+    20
+   ],
+   "empty": false,
+   "status": "identical_bytes"
+  },
+  {
+   "file": "test/test_model/test_solid_mechanics_model/test_materials/test_material_viscoelastic/test_material_standard_linear_solid_deviatoric_relaxation_tension.lastout",
+   "bytes": [
+    1291,
+    1291
+   ],
+   "sha256": [
+    "34706fa5e41c94fbb55d2a3fe9d2a3c089dd251ef31d1ebf8f5c6e73c4d43a09",
+    "34706fa5e41c94fbb55d2a3fe9d2a3c089dd251ef31d1ebf8f5c6e73c4d43a09"
+   ],
+   "lines": [
+    27,
+    27
+   ],
+   "numeric_tokens": [
+    21,
+    21
+   ],
+   "empty": false,
+   "status": "identical_bytes"
+  },
+  {
+   "file": "test/test_model/test_solid_mechanics_model/test_materials/test_material_viscoelastic_maxwell/test_material_viscoelasti_maxwell_relaxation.lastout",
+   "bytes": [
+    1498,
+    1498
+   ],
+   "sha256": [
+    "d8847d9e656b159d8d51b3fec92403e0fce50d181783fd4af332edd101018e9c",
+    "d8847d9e656b159d8d51b3fec92403e0fce50d181783fd4af332edd101018e9c"
+   ],
+   "lines": [
+    34,
+    34
+   ],
+   "numeric_tokens": [
+    29,
+    29
+   ],
+   "empty": false,
+   "status": "identical_bytes"
+  },
+  {
+   "file": "test/test_model/test_solid_mechanics_model/test_materials/test_multi_material_elastic.lastout",
+   "bytes": [
+    0,
+    0
+   ],
+   "sha256": [
+    "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+    "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
+   ],
+   "lines": [
+    1,
+    1
+   ],
+   "numeric_tokens": [
+    0,
+    0
+   ],
+   "empty": true,
+   "status": "identical_bytes"
+  },
+  {
+   "file": "test/test_model/test_solid_mechanics_model/test_solid_mechanics_model_material_eigenstrain.lastout",
+   "bytes": [
+    323,
+    323
+   ],
+   "sha256": [
+    "36c4f7e0d682fb3749ffaf734ac7142c5bc73d86915e5acffa043f771c741c4c",
+    "7f4c906a642ee78caa3762e8c397bebaebb1f219eb29551c7e844b32e3b08412"
+   ],
+   "lines": [
+    40,
+    40
+   ],
+   "numeric_tokens": [
+    40,
+    40
+   ],
+   "empty": false,
+   "token_diffs": {
+    "value": 1
+   },
+   "status": "numeric_diff",
+   "n_diff": 1,
+   "first_differences": [
+    {
+     "line": 39,
+     "a": "5.73734e-05",
+     "b": "5.50797e-05",
+     "kind": "value"
+    }
+   ],
+   "max_abs": 2.2937e-06,
+   "max_rel": 0.03997845691557412,
+   "normwise_rel": 6.19918918918919e-08
+  },
+  {
+   "file": "test/test_model/test_solid_mechanics_model/test_solid_mechanics_model_material_large_rotation.lastout",
+   "bytes": [
+    38,
+    38
+   ],
+   "sha256": [
+    "41452b7a551c8da016a9b0f81b9dcfda8fec71b7cdc2b92a694aaceb9d1f3323",
+    "41452b7a551c8da016a9b0f81b9dcfda8fec71b7cdc2b92a694aaceb9d1f3323"
+   ],
+   "lines": [
+    7,
+    7
+   ],
+   "numeric_tokens": [
+    10,
+    10
+   ],
+   "empty": false,
+   "status": "identical_bytes"
+  },
+  {
+   "file": "test/test_model/test_solid_mechanics_model/test_solid_mechanics_model_reassign_material_1-1.lastout",
+   "bytes": [
+    17,
+    17
+   ],
+   "sha256": [
+    "02f23cdcd0a0d536af2814b289eede550e7bd9471cfdff54f86a5649fdca6110",
+    "02f23cdcd0a0d536af2814b289eede550e7bd9471cfdff54f86a5649fdca6110"
+   ],
+   "lines": [
+    2,
+    2
+   ],
+   "numeric_tokens": [
+    0,
+    0
+   ],
+   "empty": false,
+   "status": "identical_bytes"
+  },
+  {
+   "file": "test/test_model/test_solid_mechanics_model/test_solid_mechanics_model_reassign_material_2-2.lastout",
+   "bytes": [
+    17,
+    17
+   ],
+   "sha256": [
+    "02f23cdcd0a0d536af2814b289eede550e7bd9471cfdff54f86a5649fdca6110",
+    "02f23cdcd0a0d536af2814b289eede550e7bd9471cfdff54f86a5649fdca6110"
+   ],
+   "lines": [
+    2,
+    2
+   ],
+   "numeric_tokens": [
+    0,
+    0
+   ],
+   "empty": false,
+   "status": "identical_bytes"
+  },
+  {
+   "file": "test/test_model/test_solid_mechanics_model/test_solid_mechanics_model_reassign_material_4-4.lastout",
+   "bytes": [
+    17,
+    17
+   ],
+   "sha256": [
+    "02f23cdcd0a0d536af2814b289eede550e7bd9471cfdff54f86a5649fdca6110",
+    "02f23cdcd0a0d536af2814b289eede550e7bd9471cfdff54f86a5649fdca6110"
+   ],
+   "lines": [
+    2,
+    2
+   ],
+   "numeric_tokens": [
+    0,
+    0
+   ],
+   "empty": false,
+   "status": "identical_bytes"
+  },
+  {
+   "file": "test/test_model/test_solid_mechanics_model/test_solid_mechanics_model_reassign_material_8-8.lastout",
+   "bytes": [
+    17,
+    17
+   ],
+   "sha256": [
+    "02f23cdcd0a0d536af2814b289eede550e7bd9471cfdff54f86a5649fdca6110",
+    "02f23cdcd0a0d536af2814b289eede550e7bd9471cfdff54f86a5649fdca6110"
+   ],
+   "lines": [
+    2,
+    2
+   ],
+   "numeric_tokens": [
+    0,
+    0
+   ],
+   "empty": false,
+   "status": "identical_bytes"
+  },
+  {
+   "file": "test/test_model/test_structural_mechanics_model/position_bernoulli_beam_2.csv",
+   "bytes": [
+    10728,
+    10728
+   ],
+   "sha256": [
+    "c537084ecd6c54ebcbe3887b9db8a94b9a692c79233cbf592ab8ebcc7233c27e",
+    "c537084ecd6c54ebcbe3887b9db8a94b9a692c79233cbf592ab8ebcc7233c27e"
+   ],
+   "lines": [
+    301,
+    301
+   ],
+   "numeric_tokens": [
+    1196,
+    1196
+   ],
+   "empty": false,
+   "status": "identical_bytes"
+  },
+  {
+   "file": "test/test_model/test_structural_mechanics_model/position_bernoulli_beam_3.csv",
+   "bytes": [
+    10728,
+    10728
+   ],
+   "sha256": [
+    "c537084ecd6c54ebcbe3887b9db8a94b9a692c79233cbf592ab8ebcc7233c27e",
+    "c537084ecd6c54ebcbe3887b9db8a94b9a692c79233cbf592ab8ebcc7233c27e"
+   ],
+   "lines": [
+    301,
+    301
+   ],
+   "numeric_tokens": [
+    1196,
+    1196
+   ],
+   "empty": false,
+   "status": "identical_bytes"
+  },
+  {
+   "file": "test/test_python_interface/test_python_interface.lastout",
+   "bytes": [
+    864,
+    865
+   ],
+   "sha256": [
+    "e0b66d05b67975b8bdb15fb8b4a393d9beb53a4bb63e3d29504642c5bab01c3f",
+    "c931b3187d46fb6d71af2e40d1c63070e2bccf7f016478ba3284d67c62a57af0"
+   ],
+   "lines": [
+    15,
+    15
+   ],
+   "numeric_tokens": [
+    13,
+    13
+   ],
+   "empty": false,
+   "normalized_fields": {
+    "a": {
+     "build-tree-path": 1,
+     "pytest-duration": 3
+    },
+    "b": {
+     "build-tree-path": 1,
+     "pytest-duration": 3
+    }
+   },
+   "status": "identical_after_normalization"
+  },
+  {
+   "file": "test/test_solver/test_sparse_matrix_assemble.lastout",
+   "bytes": [
+    0,
+    0
+   ],
+   "sha256": [
+    "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+    "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
+   ],
+   "lines": [
+    1,
+    1
+   ],
+   "numeric_tokens": [
+    0,
+    0
+   ],
+   "empty": true,
+   "status": "identical_bytes"
+  },
+  {
+   "file": "test/test_solver/test_sparse_matrix_product.lastout",
+   "bytes": [
+    1232,
+    1232
+   ],
+   "sha256": [
+    "78c1debd314b7b7d09be3ff31706a70ae52ab645a01cd456a5b90ed1b9476728",
+    "78c1debd314b7b7d09be3ff31706a70ae52ab645a01cd456a5b90ed1b9476728"
+   ],
+   "lines": [
+    14,
+    14
+   ],
+   "numeric_tokens": [
+    247,
+    247
+   ],
+   "empty": false,
+   "status": "identical_bytes"
+  },
+  {
+   "file": "test/test_solver/test_sparse_matrix_profile.lastout",
+   "bytes": [
+    0,
+    0
+   ],
+   "sha256": [
+    "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+    "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
+   ],
+   "lines": [
+    1,
+    1
+   ],
+   "numeric_tokens": [
+    0,
+    0
+   ],
+   "empty": true,
+   "status": "identical_bytes"
+  },
+  {
+   "file": "test/test_solver/test_sparse_solver_eigen_1-1.lastout",
+   "bytes": [
+    467,
+    467
+   ],
+   "sha256": [
+    "913b740d1cf5d34348d80341ba98e2674da1c3bcee110300a77353f03a1040fb",
+    "913b740d1cf5d34348d80341ba98e2674da1c3bcee110300a77353f03a1040fb"
+   ],
+   "lines": [
+    21,
+    21
+   ],
+   "numeric_tokens": [
+    81,
+    81
+   ],
+   "empty": false,
+   "status": "identical_bytes"
+  },
+  {
+   "file": "test/test_solver/test_sparse_solver_eigen_2-2.lastout",
+   "bytes": [
+    305,
+    305
+   ],
+   "sha256": [
+    "9bd96691d0fcabba82dac412670cfddcc61143d72c97b5b67c26954f0e8b52ec",
+    "9bd96691d0fcabba82dac412670cfddcc61143d72c97b5b67c26954f0e8b52ec"
+   ],
+   "lines": [
+    15,
+    15
+   ],
+   "numeric_tokens": [
+    84,
+    84
+   ],
+   "empty": false,
+   "status": "identical_bytes"
+  },
+  {
+   "file": "test/test_solver/test_sparse_solver_eigen_4-4.lastout",
+   "bytes": [
+    437,
+    437
+   ],
+   "sha256": [
+    "4859b5e2afff0dcf161b3d38b02bff578e16ba41c2efbc2c2e53bb68bcda016a",
+    "2485e6823c9a63b32c24209357ea92afadcf099878cfe4fe34fb24a1ec0096e4"
+   ],
+   "lines": [
+    21,
+    21
+   ],
+   "numeric_tokens": [
+    120,
+    120
+   ],
+   "empty": false,
+   "status": "reordered_lines",
+   "lines_out_of_place": 20
+  },
+  {
+   "file": "test/test_solver/test_sparse_solver_eigen_8-8.lastout",
+   "bytes": [
+    699,
+    699
+   ],
+   "sha256": [
+    "15b159f4024978120d05b2b39613bb7ff7d62fdccb5ee830ab80dacc707efef9",
+    "e2ad229545b1cb84e63076ce017f6dc85bf854591ba3016afff76e95ea94924a"
+   ],
+   "lines": [
+    33,
+    33
+   ],
+   "numeric_tokens": [
+    192,
+    192
+   ],
+   "empty": false,
+   "status": "reordered_lines",
+   "lines_out_of_place": 23
+  },
+  {
+   "file": "test/test_solver/test_sparse_solver_mumps_1-1.lastout",
+   "bytes": [
+    467,
+    467
+   ],
+   "sha256": [
+    "913b740d1cf5d34348d80341ba98e2674da1c3bcee110300a77353f03a1040fb",
+    "913b740d1cf5d34348d80341ba98e2674da1c3bcee110300a77353f03a1040fb"
+   ],
+   "lines": [
+    21,
+    21
+   ],
+   "numeric_tokens": [
+    81,
+    81
+   ],
+   "empty": false,
+   "status": "identical_bytes"
+  },
+  {
+   "file": "test/test_solver/test_sparse_solver_mumps_2-2.lastout",
+   "bytes": [
+    525,
+    525
+   ],
+   "sha256": [
+    "28491c5d0fd51535d7d16e091216b1c8a53302d00a0d87d7adf9d55433145fe0",
+    "ebc3d51e31e608f542fbe79a1da8bb3a34c1009ddbc40cfd85ddfd2eda2db254"
+   ],
+   "lines": [
+    24,
+    24
+   ],
+   "numeric_tokens": [
+    99,
+    99
+   ],
+   "empty": false,
+   "status": "reordered_lines",
+   "lines_out_of_place": 13
+  },
+  {
+   "file": "test/test_solver/test_sparse_solver_mumps_4-4.lastout",
+   "bytes": [
+    660,
+    660
+   ],
+   "sha256": [
+    "555ce1cb02f0031ae153b1685a62ec53b944d957ffe713ff3f671e107d78a407",
+    "ea0f2b6cfbe479dd7c7dc5b87e16bceec2da630d710facca54f939830cea9358"
+   ],
+   "lines": [
+    30,
+    30
+   ],
+   "numeric_tokens": [
+    135,
+    135
+   ],
+   "empty": false,
+   "status": "reordered_lines",
+   "lines_out_of_place": 18
+  },
+  {
+   "file": "test/test_solver/test_sparse_solver_mumps_8-8.lastout",
+   "bytes": [
+    923,
+    923
+   ],
+   "sha256": [
+    "2004b3d4514d7a23f809e69e37e6789939fa0fdc2e0c181f3722101dc017f0b1",
+    "94d066c396a1a3da5426f77fbda770c3c5a81243b11551fb07d5f34157735121"
+   ],
+   "lines": [
+    42,
+    42
+   ],
+   "numeric_tokens": [
+    207,
+    207
+   ],
+   "empty": false,
+   "status": "reordered_lines",
+   "lines_out_of_place": 32
+  },
+  {
+   "file": "test/test_solver/test_sparse_solver_petsc_1-1.lastout",
+   "bytes": [
+    467,
+    467
+   ],
+   "sha256": [
+    "913b740d1cf5d34348d80341ba98e2674da1c3bcee110300a77353f03a1040fb",
+    "913b740d1cf5d34348d80341ba98e2674da1c3bcee110300a77353f03a1040fb"
+   ],
+   "lines": [
+    21,
+    21
+   ],
+   "numeric_tokens": [
+    81,
+    81
+   ],
+   "empty": false,
+   "status": "identical_bytes"
+  },
+  {
+   "file": "test/test_solver/test_sparse_solver_petsc_2-2.lastout",
+   "bytes": [
+    305,
+    305
+   ],
+   "sha256": [
+    "9bd96691d0fcabba82dac412670cfddcc61143d72c97b5b67c26954f0e8b52ec",
+    "146d4326fa6a9f0ea975eae105f9c8af5b675ab077a2dec5d8207c453fdb0615"
+   ],
+   "lines": [
+    15,
+    15
+   ],
+   "numeric_tokens": [
+    84,
+    84
+   ],
+   "empty": false,
+   "status": "reordered_lines",
+   "lines_out_of_place": 12
+  },
+  {
+   "file": "test/test_solver/test_sparse_solver_petsc_4-4.lastout",
+   "bytes": [
+    437,
+    437
+   ],
+   "sha256": [
+    "137cc7a2b5676d167b7f61ed216eee612bc82c2dc9687c383285790613da6b82",
+    "9914cacafcf48f887a3336e171130cbe7f84338688630f48de739b98dd14cea3"
+   ],
+   "lines": [
+    21,
+    21
+   ],
+   "numeric_tokens": [
+    120,
+    120
+   ],
+   "empty": false,
+   "status": "reordered_lines",
+   "lines_out_of_place": 18
+  },
+  {
+   "file": "test/test_solver/test_sparse_solver_petsc_8-8.lastout",
+   "bytes": [
+    699,
+    699
+   ],
+   "sha256": [
+    "8f61459bd9aff877e0bf98409e1eceaef5500cd7aeb5472e0f77421d0f95986a",
+    "2d881d36c3a752898b292348af12f999e673a84e205c5783ffa40c283cee863f"
+   ],
+   "lines": [
+    33,
+    33
+   ],
+   "numeric_tokens": [
+    192,
+    192
+   ],
+   "empty": false,
+   "status": "reordered_lines",
+   "lines_out_of_place": 32
+  },
+  {
+   "file": "test/test_synchronizer/test_dof_synchronizer_1-1.lastout",
+   "bytes": [
+    27,
+    27
+   ],
+   "sha256": [
+    "5453378c267c91847a513e2f79b05564f9a894a80dfc6bb626082fb1c149ba95",
+    "5453378c267c91847a513e2f79b05564f9a894a80dfc6bb626082fb1c149ba95"
+   ],
+   "lines": [
+    2,
+    2
+   ],
+   "numeric_tokens": [
+    0,
+    0
+   ],
+   "empty": false,
+   "status": "identical_bytes"
+  },
+  {
+   "file": "test/test_synchronizer/test_dof_synchronizer_2-2.lastout",
+   "bytes": [
+    54,
+    54
+   ],
+   "sha256": [
+    "c2207b544eeb2c978e55bfc283656ae9243ecb4694c49a43d8f2f8269f47010f",
+    "c2207b544eeb2c978e55bfc283656ae9243ecb4694c49a43d8f2f8269f47010f"
+   ],
+   "lines": [
+    3,
+    3
+   ],
+   "numeric_tokens": [
+    0,
+    0
+   ],
+   "empty": false,
+   "status": "identical_bytes"
+  },
+  {
+   "file": "test/test_synchronizer/test_dof_synchronizer_4-4.lastout",
+   "bytes": [
+    108,
+    108
+   ],
+   "sha256": [
+    "66a1b5f915b581a190764ab6d99e83ee87832ff734ed2d399f63239204f073e1",
+    "66a1b5f915b581a190764ab6d99e83ee87832ff734ed2d399f63239204f073e1"
+   ],
+   "lines": [
+    5,
+    5
+   ],
+   "numeric_tokens": [
+    0,
+    0
+   ],
+   "empty": false,
+   "status": "identical_bytes"
+  },
+  {
+   "file": "test/test_synchronizer/test_dof_synchronizer_8-8.lastout",
+   "bytes": [
+    216,
+    216
+   ],
+   "sha256": [
+    "78c988b4467c7a67b442342751a3cf887fec6f74f2a66bb941c9cfba3f513f53",
+    "78c988b4467c7a67b442342751a3cf887fec6f74f2a66bb941c9cfba3f513f53"
+   ],
+   "lines": [
+    9,
+    9
+   ],
+   "numeric_tokens": [
+    0,
+    0
+   ],
+   "empty": false,
+   "status": "identical_bytes"
+  }
+ ],
+ "summary": {
+  "compared": 161,
+  "excluded": 40,
+  "only_in_a": 0,
+  "only_in_b": 0,
+  "by_status": {
+   "identical_bytes": 112,
+   "identical_after_normalization": 14,
+   "value_equal_format_diff": 0,
+   "numeric_diff": 24,
+   "reordered_lines": 9,
+   "structure_diff": 2,
+   "stale": 0
+  },
+  "by_status_with_numeric_tokens": {
+   "identical_bytes": 60,
+   "identical_after_normalization": 14,
+   "value_equal_format_diff": 0,
+   "numeric_diff": 24,
+   "reordered_lines": 9,
+   "structure_diff": 2,
+   "stale": 0
+  },
+  "files_without_numeric_tokens": 52,
+  "empty_files": 43,
+  "normalized_fields_total": {
+   "build-tree-path": {
+    "a": 2,
+    "b": 2
+   },
+   "contact-search-time": {
+    "a": 1,
+    "b": 1
+   },
+   "gmsh-date": {
+    "a": 4,
+    "b": 4
+   },
+   "gmsh-wall-cpu": {
+    "a": 4,
+    "b": 4
+   },
+   "heap-address": {
+    "a": 56,
+    "b": 56
+   },
+   "progress-bar": {
+    "a": 103,
+    "b": 103
+   },
+   "pytest-duration": {
+    "a": 6,
+    "b": 6
+   },
+   "scalability-chrono": {
+    "a": 8,
+    "b": 8
+   },
+   "scalability-step-time": {
+    "a": 2,
+    "b": 2
+   },
+   "scalability-time": {
+    "a": 2,
+    "b": 2
+   }
+  },
+  "files_with_normalized_fields": 15,
+  "token_diffs_total": {
+   "value": 27778
+  },
+  "numeric_diff_with_nonfinite_mismatch": 0,
+  "max_finite_normwise_rel": 6.19918918918919e-08,
+  "median_finite_normwise_rel": 6.065634346828789e-16,
+  "normwise_rel_histogram": {
+   "<1e-15": 21,
+   "1e-15..1e-12": 2,
+   "1e-12..1e-9": 0,
+   "1e-9..1e-6": 1,
+   "1e-6..1e-3": 0,
+   ">=1e-3": 0
+  }
+ }
+}

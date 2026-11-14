@@ -1,0 +1,250 @@
+{
+  "format_version": 1,
+  "case_id": "model/diffusion/square_explicit",
+  "description": "upstream diffusion example on the frozen irregular mesh (square_explicit, Eigen sparse solver)",
+  "status": "golden",
+  "generator": {
+    "probe": "diffusion_probe",
+    "probe_version": "1",
+    "command": "oracle/probes/diffusion/generate.sh "
+  },
+  "reference": {
+    "sha": "35a851780d0b9471d258ed53a003ae98aaa95ea0",
+    "describe": "v5.0.7-post1-554-g35a851780",
+    "patches": [
+      "modified:cmake/AkantuTestsMacros.cmake sha256=c280165a84912eab4bcc081b9eaaaa06aafdd83d4f48d982e11b0859abf9672f (reference sha256=36290de2ec8b111028138fe82029efa16501512241a5bc264fa30ff3e3239b9e)"
+    ]
+  },
+  "build": {
+  "config": "strict",
+  "compiler": "g++ (Debian 14.2.0-19) 14.2.0",
+  "cxx_flags": "-ffp-contract=off -DEIGEN_DONT_VECTORIZE -O2 -g -DNDEBUG -g3 -ggdb3 -flarge-source-files -std=c++20 -flto=auto -fno-fat-lto-objects -fPIC -frounding-math (actual flags of src/model/solid_mechanics/solid_mechanics_model.cc; warnings and non-FP -D defines omitted)",
+  "build_type": "RelWithDebInfo",
+  "arch": "aarch64",
+  "os": "Debian GNU/Linux 13 (trixie)",
+  "libraries": {
+    "eigen3": "3.4.0-5",
+    "boost": "1.83.0.2+b2",
+    "openmpi": "5.0.7-1",
+    "mumps": "5.7.3-3+b1",
+    "petsc": "3.22.5+dfsg1-2",
+    "scotch": "7.0.7-1",
+    "openblas": "0.3.29+ds-3",
+    "scalapack": "2.2.2-1",
+    "hdf5": "1.14.5+repack-3",
+    "gmsh": "4.13.1+ds1-6",
+    "pybind11": "2.13.6-2",
+    "numpy": "1:2.2.4+ds-1",
+    "scipy": "1.15.3-1",
+    "gcc": "4:14.2.0-1",
+    "gfortran": "4:14.2.0-1",
+    "oracle_image": "sha256:6683233d0a3b9341eb5cedf5879bc9ccb76ddf3d91e9aa0fd35b99dc7866d7a6",
+    "oracle_build_scripts": "45b473da9cbfb356a039d94609fe39f6f36a1a9a",
+    "oracle_install_reference_sha": "35a851780d0b9471d258ed53a003ae98aaa95ea0",
+    "oracle_install_image": "sha256:6683233d0a3b9341eb5cedf5879bc9ccb76ddf3d91e9aa0fd35b99dc7866d7a6",
+    "sha256:libakantu.so.5.0.7": "9768e51184f0423c49abfd67535e6f3bc371522045b0b634223cce0ee07f0b0b",
+    "probe_tree_sha256": "c2fab900b686580aed80eaee9f2c342b797659f27057da0732f58a6b719d1f8b",
+    "probe_sources_commit": "5098a5badfeffed432f6bf9444a6c0f615116c5a",
+    "cmake_cxx_flags": "-ffp-contract=off -DEIGEN_DONT_VECTORIZE -O2 -g -DNDEBUG -g3 -ggdb3 -flarge-source-files",
+    "probe": "diffusion_probe"
+  },
+  "probe_compile_command": "/usr/bin/c++ '-DAKANTU_PROBE_BUILD_TYPE=\"RelWithDebInfo\"' '-DAKANTU_PROBE_CONFIG=\"strict\"' '-DAKANTU_PROBE_CXX_FLAGS=\"-ffp-contract=off -DEIGEN_DONT_VECTORIZE  -O2 -g -DNDEBUG\"' -DBOOST_GRAPH_DYN_LINK -DBOOST_GRAPH_NO_LIB -DBOOST_REGEX_DYN_LINK -DBOOST_REGEX_NO_LIB -DCGAL_USE_GMPXX=1 -I/probes/diffusion/../include -isystem /build/install-strict/include/akantu -isystem /opt/CGAL-5.6.2/include -isystem /usr/lib/aarch64-linux-gnu/openmpi/include -isystem /usr/lib/aarch64-linux-gnu/openmpi/include/openmpi -isystem /usr/lib/petscdir/petsc3.22/aarch64-linux-gnu-real/include -isystem /usr/include/scotch -isystem /build/install-strict/include/akantu_iterators -isystem /usr/include/eigen3 -isystem /build/install-strict/include/iohelper -O2 -g -DNDEBUG -std=gnu++20 -ffp-contract=off -DEIGEN_DONT_VECTORIZE -Wall -Wextra -pedantic -Wno-array-bounds -Wno-use-after-free -Wno-stringop-overread -DOMPI_SKIP_MPICXX -Wno-literal-suffix -frounding-math -o CMakeFiles/diffusion_probe.dir/diffusion_probe.cc.o -c /probes/diffusion/diffusion_probe.cc",
+  "probe_cxx_flags": "-DAKANTU_PROBE_BUILD_TYPE=\"RelWithDebInfo\" -DAKANTU_PROBE_CONFIG=\"strict\" -DAKANTU_PROBE_CXX_FLAGS=\"-ffp-contract=off -DEIGEN_DONT_VECTORIZE  -O2 -g -DNDEBUG\" -DBOOST_GRAPH_DYN_LINK -DBOOST_GRAPH_NO_LIB -DBOOST_REGEX_DYN_LINK -DBOOST_REGEX_NO_LIB -DCGAL_USE_GMPXX=1 -O2 -g -DNDEBUG -std=gnu++20 -ffp-contract=off -DEIGEN_DONT_VECTORIZE -Wall -Wextra -pedantic -Wno-array-bounds -Wno-use-after-free -Wno-stringop-overread -DOMPI_SKIP_MPICXX -Wno-literal-suffix -frounding-math"
+},
+  "created": "2026-11-10T23:08:54Z",
+  "inputs": [
+    {
+      "role": "mesh",
+      "source": "frozen:examples/c++/diffusion_model/square.msh",
+      "sha256": "b508709ff965c8cc64e33ed07f192ee005beba473119201eed5db2e85e4d324d"
+    },
+    {
+      "role": "material",
+      "path": "inputs/material.dat",
+      "source": "upstream:examples/c++/diffusion_model/material.dat",
+      "sha256": "9f505ea83481d485db81b11066394d16fdd5f10c6ebcd7d1c99ae6e12435691b"
+    }
+  ],
+  "parameters": {
+    "spatial_dimension": 2,
+    "model_id": "heat_transfer",
+    "analysis": "square_explicit",
+    "steps": 40,
+    "newton": false,
+    "initial_temperature/sha256": "cf0f89d0e53346b7de76550088e802997366981b854afa87b87cd9c8f96c1215",
+    "step_digests": [
+      "58fd5379819128242da6d12b7b3147e71e1e4cf6d89bab584cb33b2ad8d481c4",
+      "364c959521a28e92f4675f9c5ad382aa36759dda2c9a0af9498408ff7e71d1fb",
+      "e58d6bd0583e4d2ef89124de68522b32c8cec060ea5f6a2a9df2eb2ac99aa861",
+      "13eb48e2cce1d5d5f49408e8d48e34cfde5594e8c1873338d218afc78baa2472",
+      "eb90cf6b427ea4c04eba4e0c3656f3fa375d35cf4669a15f4cc685ffab2d8f3d",
+      "f864bcfb9eb693dfc4980137229e6fbf5546ba027376f6d5a256a471ede03d5a",
+      "d7652050d2a6732e73ffcdb7c4c1c6ffbad242c8af67d4c6d2f9c2c2982e6a8d",
+      "3ce7914f00ecad3ee5db5ca174126598df0ecfd06a94724d85c2e2f3f45d53d5",
+      "eeb1b03883ebc462a0ae12581aaabcb5b719960abf718777cfb68094bb94b4bc",
+      "e265b1a04604bb2e6483e52b78df39db88ee356b86e3b4b2ba442f770043938e",
+      "1b74c20e96991026045504fb7c50990c00a0dd4a5a8c6e935bc090294417066c",
+      "27ed7485cba02a75c29a0942cee16b8710268693d0215b21d3023b12bd6d93c3",
+      "2b87de6acdf76f2c9c0fb8845828b8ada176a8b49b3c0560d14251533df02d7f",
+      "6251c5c457c3bdce028b77308f78ce5e5045b395e39567ddec6784e7f2cb21f8",
+      "eb41614d896f14110fd427afb5bd47b2e856f98f415314b8f13f966700cffea7",
+      "bc8f992aacd8dbbf77a4b82259d2828bf14ca4713f7fa18b99324aa623b61bf6",
+      "e604938c54b78bb09d47cf1d86e1b0d899725c7a6e54e8ee7a0f008114d640ff",
+      "e469e053cd1e408065372ba8c8ec4ef38a104fe97fa47d01d75a97249699c81f",
+      "77042587678337b2aef02170e4c48d80fa4e914880612487c56448b2f135e1e0",
+      "17de88706e08c2d080b9e31c729e29d19f6a6e6f3aef7acd64e8e5c412e3223b",
+      "d435afe9fbbabeb12bc5ee27e02edf811096e06131067caaa00e9a8ff6ea4faa",
+      "60627cff92feef805e2b0c7fce928ec460e92a66e52ddefd7e3d1874dee42678",
+      "ea467c2d4575b78463eeb520d8f9e65b5b8874c7093f8b17b04bb5e41b03c036",
+      "4f3191b7ba2645b6433908051c086c01a00e2aa687af11c4cec2b8d1def8ff6f",
+      "38a315515fc1ed63d43d78c48eca0ccd08b4ee29609e68e7f0ee6d650e4b91c7",
+      "6327aca367b80a9476a44d552be317a339dfabea3fb0d2e08ac063307c695a15",
+      "c47e6fe7b6958997b3f8cf03f8de396cfdc7dfec1203bd2c6d2a326a1ee6bfe6",
+      "784af78bce817fa8e4ce7f80f31fe352ca6ce0b831b51ace649ff75358890b12",
+      "1616b80c55d265bc085248220c04029ed14f7ad7eb3a25166bf9275657b03ff8",
+      "85a756d858cdc189d8ec21c4d90658b947c2521a4659ee72508d8cdfe6d3f4d4",
+      "1a20f0681a8ab10787931f3c4f01505db9c69437bcf52e4cacfe2dea8e77c540",
+      "66b417981e857807343edc12778d9f9e6dd2fe54016dced555737b3cebd976b8",
+      "3f3feb9acf2a4c9a132ea603ae6767e6eea735ed10cdeb5f2a6498516a2d5d1c",
+      "053c62a69579d4e06b219151ab4dd1878cf8a51e1932ee808016344809477ffe",
+      "1d785b92104eec30d3a136127703394fc9ffd264e47165f8cb46f60e5c4b5b04",
+      "c47bb71947d7deec5d6a6951f96fe7603b895dc625ce0e573c2d39ad15c00fde",
+      "6c009ba192178c14b4afb03afd7150a55027e9b24cfc1595c58fe93034fe1bdc",
+      "bc39b69b52be81e84509e1d5a8e0426715202026037a5de2fbadcb5712307845",
+      "b78d1e7167331405237497d680a5a1e4e7f70df5920dbb194d13d4d0556cf4d2",
+      "14d0b8811f399e6a38d27a85d3e002a0c1c7c1e19dc48b521357adf8def13d81"
+    ],
+    "step_digests_definition": "SHA-256 of temperature || temperature_rate || internal_heat_rate (binary64 LE) after each solveStep",
+    "law0/∇u/_triangle_6/sha256": "40b185878574622df7576167c1a0359cf813efbaef59643682ac0affbc0f830b",
+    "law0/D∇u/_triangle_6/sha256": "5b27b80d1dfa0541360ca3fe7632d821d6c9127c7e4ac4c048f7ff7d86fecc5c",
+    "law0/diffusivity/_triangle_6/sha256": "fc0e62073e434d07dd0d62fdd4da16eefe42da36876f786236f809580c4e29d0",
+    "law0/filter/_triangle_6/sha256": "d62ca5c3ccd6093f71c16d6b04afee05e9c7f51d111568776ff66e4f15d72056",
+    "K/exists": false,
+    "M/exists": true,
+    "M/symmetric": true,
+    "M/size": 11857,
+    "M/nnz": 0,
+    "M/coords_sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+    "M/values_sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+    "J/exists": false,
+    "lumped_M/exists": true,
+    "lumped_M/sha256": "fe64036b6a2eea84bd40c28afd1fdcb6edd80229570fccf05d46477523a0450b",
+    "lumped_M/sequential_sum": 3441900.0000000261
+  },
+  "storage": {
+    "mode": "committed",
+    "bytes": 297665
+  },
+  "quantities": [
+    {
+      "name": "time_step",
+      "file": "data/time_step.npy",
+      "dtype": "f64",
+      "shape": [
+        2
+      ],
+      "axes": [
+        "entry"
+      ],
+      "layout": "table",
+      "sha256": "d37e3366f8372f4cc2463aaf8a8009dd76872fb6b5980e9db293af5ad9115c51",
+      "description": "getStableTimeStep(), time step used"
+    },
+    {
+      "name": "blocked_dofs",
+      "file": "data/blocked_dofs.npy",
+      "dtype": "u8",
+      "shape": [
+        11857,
+        1
+      ],
+      "axes": [
+        "entry",
+        "component"
+      ],
+      "layout": "table",
+      "sha256": "bf088ae05c939376165adb9dcd90408a7da1045c2864b055c1a9a3ea0e951bd8",
+      "description": "blocked flags"
+    },
+    {
+      "name": "energy/thermal_per_step",
+      "file": "data/energy__thermal_per_step.npy",
+      "dtype": "f64",
+      "shape": [
+        40
+      ],
+      "axes": [
+        "entry"
+      ],
+      "layout": "table",
+      "sha256": "59883184cfbb3572c76deeca753f18d91c8778def2ceb614071d8957ac2a4384",
+      "description": "getEnergy(\"thermal\") after each step"
+    },
+    {
+      "name": "temperature",
+      "file": "data/temperature.npy",
+      "dtype": "f64",
+      "shape": [
+        11857,
+        1
+      ],
+      "axes": [
+        "entry",
+        "component"
+      ],
+      "layout": "table",
+      "sha256": "b2950cd450923c6324946645ae689445052b697e21054c7eef42a311ee248f3d",
+      "description": "final temperature"
+    },
+    {
+      "name": "temperature_rate",
+      "file": "data/temperature_rate.npy",
+      "dtype": "f64",
+      "shape": [
+        11857,
+        1
+      ],
+      "axes": [
+        "entry",
+        "component"
+      ],
+      "layout": "table",
+      "sha256": "75a3728982df9f0557709e764b08c9cbd5b49ff0411fb9bd4831a812cb02dc1f",
+      "description": "final temperature rate"
+    },
+    {
+      "name": "internal_heat_rate",
+      "file": "data/internal_heat_rate.npy",
+      "dtype": "f64",
+      "shape": [
+        11857,
+        1
+      ],
+      "axes": [
+        "entry",
+        "component"
+      ],
+      "layout": "table",
+      "sha256": "d3299a2b732660ea2e6cbb702c9c0676172192d9a394659923da9a1361617cff",
+      "description": "final internal flow"
+    },
+    {
+      "name": "energy/thermal",
+      "file": "data/energy__thermal.npy",
+      "dtype": "f64",
+      "shape": [
+        1
+      ],
+      "axes": [
+        "entry"
+      ],
+      "layout": "table",
+      "sha256": "66406c9e34c66ce9c2053d1b2173f242b03561f894fb0fae5c7c618de3d3dd48",
+      "description": "getEnergy(\"thermal\")"
+    }
+  ],
+  "tags": [
+    "model",
+    "diffusion"
+  ]
+}

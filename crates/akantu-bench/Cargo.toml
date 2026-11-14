@@ -1,0 +1,62 @@
+# SPDX-License-Identifier: LGPL-3.0-or-later
+[package]
+name = "akantu-bench"
+description = "Benchmark drivers of akantu-rs: the cohesive scalability test of the Akantu JOSS paper (port of performance-testing-cohesive cohesive_extrinsic.cc)"
+version.workspace = true
+edition.workspace = true
+rust-version.workspace = true
+license.workspace = true
+repository.workspace = true
+authors.workspace = true
+homepage.workspace = true
+keywords.workspace = true
+categories.workspace = true
+publish = false
+# Not part of a package: the raw benchmark results and the scripts that ran
+# and analysed the measurement campaigns (docs/BENCHMARKS.md).
+exclude = ["scripts/"]
+
+[features]
+# Real MPI (rsmpi; Docker image docker/mpi): `mpirun -np N cohesive_extrinsic`.
+mpi = ["akantu-comm/mpi", "akantu-mesh/mpi"]
+# Scotch partitioner (Docker image docker/scotch): upstream `mesh.distribute()`.
+scotch = ["akantu-mesh/scotch"]
+# The parallel MUMPS static solve (Docker image docker/mumps,
+# which also has the Scotch headers): with it the input's `_auto` sparse
+# solver resolves to MUMPS on the MPI world at any rank count (upstream's MPI
+# build; distributed assembled matrix, centralised right-hand side), and
+# `rust_sparse_solver = mumps` is available. Without it `_auto` is Eigen,
+# centralised on rank 0 when P > 1.
+mumps = ["mpi", "akantu-solver/mumps"]
+
+[dependencies]
+akantu-core.workspace = true
+akantu-parser.workspace = true
+akantu-comm.workspace = true
+akantu-mesh.workspace = true
+akantu-io.workspace = true
+akantu-model.workspace = true
+akantu-solid.workspace = true
+akantu-cohesive.workspace = true
+# the static solve's resolved sparse solver and its statistics (DOF manager
+# backend); also the `mumps` feature switch
+akantu-solver.workspace = true
+
+[dev-dependencies]
+# the differential test reads the oracle's JSON summaries (correctly rounded
+# with the workspace's `float_roundtrip` feature)
+serde_json.workspace = true
+
+[[bin]]
+name = "cohesive_extrinsic"
+path = "src/bin/cohesive_extrinsic.rs"
+
+# The MUMPS static solve against the strict oracle (MPI binary,
+# harness = false; scripts/mumps/run-mumps-tier.sh runs it under mpirun 1/2).
+[[test]]
+name = "perf_cohesive_mumps"
+harness = false
+required-features = ["mumps"]
+
+[lints]
+workspace = true

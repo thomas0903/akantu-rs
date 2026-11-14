@@ -1,0 +1,57 @@
+# SPDX-License-Identifier: LGPL-3.0-or-later
+# akantu-rs CI tooling: the expected skips of the `wheel` tier's
+# two pytest runs (ci/tools/pytest_skips.py; a skip not listed here, or more of
+# it than listed, fails the tier). Format: run | path | reason | count. The
+# version numbers of an environment skip ("here [...]") are not compared.
+# Measured on an x86_64 Ubuntu 24.04 host (CPython 3.12, NumPy 2.2.4 pinned,
+# SciPy 1.18.1 unpinned, matplotlib 3.10.7):
+#  * test_gmsh_conversion needs the `gmsh` module (not in a PyPI venv);
+#  * eigen_modes / eigen_modes_eigen (EX-036) compare against the oracle only
+#    with SciPy 1.15.3: pinned on PyPI it is not bitwise the oracle image's
+#    (Debian) build (2.8e-14 on the eigenmodes, measured), so they stay skipped
+#    here and are compared in the oracle image only;
+#  * the greenlet cases skip in the run without greenlet, by design.
+# solver_callback* (needs NumPy < 2.5) runs and passes with the NumPy pin.
+#
+# Platform lines (`run@<platform key>`; the key of
+# python/tests/examples: machine-sys.platform-libc) apply on that platform only:
+#  * x86_64 Linux: dynamics / custom_material skip where NumPy has no AVX-512F
+#    kernel (`numpy_avx512f`: their pulse takes np.exp's AVX-512F kernel on the
+#    oracle's CPU; class X1, docs/NUMERICAL_VALIDATION.md);
+#    on an AVX-512F runner they run and are compared bitwise;
+#  * arm64 macOS (packaging.yml:wheel-macos, NumPy / SciPy unpinned): the
+#    platform class (dynamics, custom_material), eigen_modes* on NumPy and
+#    SciPy, solver_callback* on NumPy >= 2.5 (7 skips with
+#    greenlet on the Mac run); without these lines that job failed its skip check.
+#  * aarch64 Linux (the arm64 build of the project image, NumPy 2.2.4 pinned
+#    as in python.yml): the platform class only (dynamics, custom_material:
+#    platform key and no AVX-512F); 304 passed, 5 skipped with greenlet.
+greenlet | tests/test_gmsh_conversion.py | could not import 'gmsh': No module named 'gmsh' | 1
+greenlet | tests/examples/test_python_examples.py | eigen_modes depends on ['scipy']: here ['1.18.1'], in the oracle runs ['1.15.3'] | 1
+greenlet | tests/examples/test_python_examples.py | eigen_modes_eigen depends on ['scipy']: here ['1.18.1'], in the oracle runs ['1.15.3'] | 1
+no-greenlet | tests/test_gmsh_conversion.py | could not import 'gmsh': No module named 'gmsh' | 1
+no-greenlet | tests/examples/test_python_examples.py | eigen_modes depends on ['scipy']: here ['1.18.1'], in the oracle runs ['1.15.3'] | 1
+no-greenlet | tests/examples/test_python_examples.py | eigen_modes_eigen depends on ['scipy']: here ['1.18.1'], in the oracle runs ['1.15.3'] | 1
+no-greenlet | tests/test_execution_contexts.py | could not import 'greenlet': No module named greenlet | 1
+no-greenlet | tests/test_execution_contexts.py | could not import 'greenlet': No module named greenlet | 4
+no-greenlet | tests/test_execution_contexts.py | could not import 'greenlet': No module named greenlet | 1
+greenlet@x86_64-linux-glibc | tests/examples/test_python_examples.py | dynamics depends on ['numpy_avx512f']: | 1
+greenlet@x86_64-linux-glibc | tests/examples/test_python_examples.py | custom_material depends on ['numpy_avx512f']: | 1
+no-greenlet@x86_64-linux-glibc | tests/examples/test_python_examples.py | dynamics depends on ['numpy_avx512f']: | 1
+no-greenlet@x86_64-linux-glibc | tests/examples/test_python_examples.py | custom_material depends on ['numpy_avx512f']: | 1
+greenlet@arm64-darwin | tests/examples/test_python_examples.py | dynamics depends on ['platform', 'numpy_avx512f']: | 1
+greenlet@arm64-darwin | tests/examples/test_python_examples.py | custom_material depends on ['platform', 'numpy_avx512f']: | 1
+greenlet@arm64-darwin | tests/examples/test_python_examples.py | eigen_modes depends on ['numpy', 'scipy']: | 1
+greenlet@arm64-darwin | tests/examples/test_python_examples.py | eigen_modes_eigen depends on ['numpy', 'scipy']: | 1
+greenlet@arm64-darwin | tests/examples/test_python_examples.py | solver_callback depends on ['numpy_size1_to_scalar']: | 1
+greenlet@arm64-darwin | tests/examples/test_python_examples.py | solver_callback_eigen depends on ['numpy_size1_to_scalar']: | 1
+no-greenlet@arm64-darwin | tests/examples/test_python_examples.py | dynamics depends on ['platform', 'numpy_avx512f']: | 1
+no-greenlet@arm64-darwin | tests/examples/test_python_examples.py | custom_material depends on ['platform', 'numpy_avx512f']: | 1
+no-greenlet@arm64-darwin | tests/examples/test_python_examples.py | eigen_modes depends on ['numpy', 'scipy']: | 1
+no-greenlet@arm64-darwin | tests/examples/test_python_examples.py | eigen_modes_eigen depends on ['numpy', 'scipy']: | 1
+no-greenlet@arm64-darwin | tests/examples/test_python_examples.py | solver_callback depends on ['numpy_size1_to_scalar']: | 1
+no-greenlet@arm64-darwin | tests/examples/test_python_examples.py | solver_callback_eigen depends on ['numpy_size1_to_scalar']: | 1
+greenlet@aarch64-linux-glibc | tests/examples/test_python_examples.py | dynamics depends on ['platform', 'numpy_avx512f']: | 1
+greenlet@aarch64-linux-glibc | tests/examples/test_python_examples.py | custom_material depends on ['platform', 'numpy_avx512f']: | 1
+no-greenlet@aarch64-linux-glibc | tests/examples/test_python_examples.py | dynamics depends on ['platform', 'numpy_avx512f']: | 1
+no-greenlet@aarch64-linux-glibc | tests/examples/test_python_examples.py | custom_material depends on ['platform', 'numpy_avx512f']: | 1

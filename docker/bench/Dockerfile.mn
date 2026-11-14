@@ -1,0 +1,54 @@
+# SPDX-License-Identifier: LGPL-3.0-or-later
+# akantu-rs multi-node benchmark image: the benchmark
+# image akantu-rs-bench:c1 (docker/bench/Dockerfile: akantu-rs-mumps:dev
+# with Open MPI 5.0.7, MUMPS 5.7.3, OpenBLAS pinned to Haswell, one thread;
+# plus the release driver `cohesive_extrinsic` and the upstream inputs) and
+# what Open MPI's remote launch between containers on several hosts needs:
+#
+#   * openssh-server / openssh-client from the same Debian (trixie) index as
+#     the base image; the resolved versions are recorded in
+#     /usr/share/akantu-rs-bench/mn-packages.tsv;
+#   * the entrypoint docker/bench/mn-entrypoint.sh (runs as root): installs
+#     the session's keys from the read-only mount /mn-ssh (a client key of
+#     user `akantu`, the session's host key and known_hosts, all generated
+#     per session on the head node by mn_cluster.py keygen; nothing is baked
+#     into the image) and starts sshd in the foreground on MN_SSH_PORT
+#     (default 2222, so that it does not collide with the host's sshd under
+#     `--network host`);
+#   * sshd_config_mn: key-only logins of `akantu`, no root, no passwords, no
+#     forwarding (docker/bench/sshd_config_mn);
+#   * the memory sampler memsample.py (one per host during a run);
+#   * /mn/work owned by `akantu`, so that a new named volume mounted there
+#     (the per-host run directories) is writable by the ranks.
+#
+# Thread and BLAS pins (D-050) come from the base image's ENV and are
+# forwarded to the remote ranks by mpirun (`-x`, mn_cluster.py), because an
+# SSH session does not inherit a container's ENV. Built by
+# crates/akantu-bench/scripts/c1_images.sh export-mn; the build context holds the four files above and
+# mn-provenance.txt only.
+ARG BASE_IMAGE=akantu-rs-bench:c1
+FROM ${BASE_IMAGE}
+USER root
+RUN apt-get -qq update && apt-get -qq -y --no-install-recommends install \
+      openssh-server openssh-client \
+    && rm -rf /var/lib/apt/lists/* \
+    && rm -f /etc/ssh/ssh_host_* \
+    && mkdir -p /run/sshd /etc/akantu-mn /mn/work \
+    && chown akantu:akantu /mn/work \
+    && usermod -p '*' akantu \
+    && dpkg-query -W -f='${Package}\t${Version}\t${Architecture}\n' openssh-server openssh-client \
+         > /usr/share/akantu-rs-bench/mn-packages.tsv
+COPY mn-entrypoint.sh /usr/local/sbin/mn-entrypoint.sh
+COPY sshd_config_mn /etc/ssh/sshd_config_mn
+COPY memsample.py /usr/local/share/akantu-rs-bench/memsample.py
+COPY mn-provenance.txt /usr/share/akantu-rs-bench/mn-provenance.txt
+# `usermod -p '*'`: an account with a locked password field ("!") is refused
+# by sshd when UsePAM is off; "*" is not locked and matches no password.
+# The configuration is checked once at build time with a throw-away key.
+RUN chmod 0755 /usr/local/sbin/mn-entrypoint.sh \
+    && ssh-keygen -q -t ed25519 -N '' -f /tmp/k \
+    && /usr/sbin/sshd -t -f /etc/ssh/sshd_config_mn -h /tmp/k \
+    && rm -f /tmp/k /tmp/k.pub \
+    && cohesive_extrinsic --help > /dev/null
+EXPOSE 2222
+ENTRYPOINT ["/usr/local/sbin/mn-entrypoint.sh"]

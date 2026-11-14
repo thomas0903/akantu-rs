@@ -1,0 +1,318 @@
+{
+  "format_version": 1,
+  "case_id": "material/sls_deviatoric/2d_steady_state",
+  "description": "material point: sls_deviatoric/2d_steady_state (held load/unload path, 12 steps)",
+  "status": "golden",
+  "generator": {
+    "probe": "material_probe",
+    "probe_version": "4",
+    "command": "oracle/scripts/generate-fixtures.sh --memory 4g material"
+  },
+  "reference": {
+    "sha": "35a851780d0b9471d258ed53a003ae98aaa95ea0",
+    "describe": "v5.0.7-post1-554-g35a851780",
+    "patches": [
+      "modified:cmake/AkantuTestsMacros.cmake sha256=c280165a84912eab4bcc081b9eaaaa06aafdd83d4f48d982e11b0859abf9672f (reference sha256=36290de2ec8b111028138fe82029efa16501512241a5bc264fa30ff3e3239b9e)"
+    ]
+  },
+  "build": {
+  "config": "strict",
+  "compiler": "g++ (Debian 14.2.0-19) 14.2.0",
+  "cxx_flags": "-ffp-contract=off -DEIGEN_DONT_VECTORIZE -O2 -g -DNDEBUG -g3 -ggdb3 -flarge-source-files -std=c++20 -flto=auto -fno-fat-lto-objects -fPIC -frounding-math (actual flags of src/model/solid_mechanics/solid_mechanics_model.cc; warnings and non-FP -D defines omitted)",
+  "build_type": "RelWithDebInfo",
+  "arch": "aarch64",
+  "os": "Debian GNU/Linux 13 (trixie)",
+  "libraries": {
+    "eigen3": "3.4.0-5",
+    "boost": "1.83.0.2+b2",
+    "openmpi": "5.0.7-1",
+    "mumps": "5.7.3-3+b1",
+    "petsc": "3.22.5+dfsg1-2",
+    "scotch": "7.0.7-1",
+    "openblas": "0.3.29+ds-3",
+    "scalapack": "2.2.2-1",
+    "hdf5": "1.14.5+repack-3",
+    "gmsh": "4.13.1+ds1-6",
+    "pybind11": "2.13.6-2",
+    "numpy": "1:2.2.4+ds-1",
+    "scipy": "1.15.3-1",
+    "gcc": "4:14.2.0-1",
+    "gfortran": "4:14.2.0-1",
+    "oracle_image": "sha256:6683233d0a3b9341eb5cedf5879bc9ccb76ddf3d91e9aa0fd35b99dc7866d7a6",
+    "oracle_build_scripts": "45b473da9cbfb356a039d94609fe39f6f36a1a9a",
+    "oracle_install_reference_sha": "35a851780d0b9471d258ed53a003ae98aaa95ea0",
+    "oracle_install_image": "sha256:6683233d0a3b9341eb5cedf5879bc9ccb76ddf3d91e9aa0fd35b99dc7866d7a6",
+    "sha256:libakantu.so.5.0.7": "9768e51184f0423c49abfd67535e6f3bc371522045b0b634223cce0ee07f0b0b",
+    "probe_tree_sha256": "5c47645b165ad2e8f1124731d02847c76b3f814220bd3489192300a5203f62d2",
+    "probe_sources_commit": "f0a124474c62c8287119ff815c2a759648d05845",
+    "cmake_cxx_flags": "-ffp-contract=off -DEIGEN_DONT_VECTORIZE -O2 -g -DNDEBUG -g3 -ggdb3 -flarge-source-files",
+    "probe": "material_probe"
+  },
+  "probe_compile_command": "/usr/bin/c++ '-DAKANTU_PROBE_BUILD_TYPE=\"RelWithDebInfo\"' '-DAKANTU_PROBE_CONFIG=\"strict\"' '-DAKANTU_PROBE_CXX_FLAGS=\"-ffp-contract=off -DEIGEN_DONT_VECTORIZE  -O2 -g -DNDEBUG\"' -DBOOST_GRAPH_DYN_LINK -DBOOST_GRAPH_NO_LIB -DBOOST_REGEX_DYN_LINK -DBOOST_REGEX_NO_LIB -DCGAL_USE_GMPXX=1 -I/probes/include -isystem /build/install-strict/include/akantu -isystem /opt/CGAL-5.6.2/include -isystem /usr/lib/aarch64-linux-gnu/openmpi/include -isystem /usr/lib/aarch64-linux-gnu/openmpi/include/openmpi -isystem /usr/lib/petscdir/petsc3.22/aarch64-linux-gnu-real/include -isystem /usr/include/scotch -isystem /build/install-strict/include/akantu_iterators -isystem /usr/include/eigen3 -isystem /build/install-strict/include/iohelper -O2 -g -DNDEBUG -std=gnu++20 -ffp-contract=off -DEIGEN_DONT_VECTORIZE -Wall -Wextra -pedantic -Wno-array-bounds -Wno-use-after-free -Wno-stringop-overread -DOMPI_SKIP_MPICXX -Wno-literal-suffix -frounding-math -o CMakeFiles/material_probe.dir/cpp/material_probe.cc.o -c /probes/cpp/material_probe.cc",
+  "probe_cxx_flags": "-DAKANTU_PROBE_BUILD_TYPE=\"RelWithDebInfo\" -DAKANTU_PROBE_CONFIG=\"strict\" -DAKANTU_PROBE_CXX_FLAGS=\"-ffp-contract=off -DEIGEN_DONT_VECTORIZE  -O2 -g -DNDEBUG\" -DBOOST_GRAPH_DYN_LINK -DBOOST_GRAPH_NO_LIB -DBOOST_REGEX_DYN_LINK -DBOOST_REGEX_NO_LIB -DCGAL_USE_GMPXX=1 -O2 -g -DNDEBUG -std=gnu++20 -ffp-contract=off -DEIGEN_DONT_VECTORIZE -Wall -Wextra -pedantic -Wno-array-bounds -Wno-use-after-free -Wno-stringop-overread -DOMPI_SKIP_MPICXX -Wno-literal-suffix -frounding-math"
+},
+  "created": "2026-11-10T12:04:06Z",
+  "inputs": [
+    {
+      "role": "mesh",
+      "path": "inputs/one_element_2d.msh",
+      "source": "generated:material_probe one-element mesh",
+      "sha256": "eb7bca1d2773528b3509250c889107dcef3d3e430ecf8afa32f1d469855b30b0"
+    },
+    {
+      "role": "material",
+      "path": "inputs/material.dat",
+      "source": "generated:material_cases.py",
+      "sha256": "72c5c199929094fbeda3213f0620da469848f7d5bda55abffa33dc6466424373"
+    },
+    {
+      "role": "grad_u",
+      "path": "inputs/grad_u.npy",
+      "source": "generated:material_cases.py",
+      "sha256": "f2401a5b9ff551c086bba75a4fcd9c7c3b74e07108b964ddef5017650aa8144b"
+    },
+    {
+      "role": "time_steps",
+      "path": "inputs/time_steps.npy",
+      "source": "generated:material_cases.py",
+      "sha256": "c4d77ae8a92d048793cbfecfeb518bf6f22fbcd24b384fdfd7b41aa845b09f7e"
+    }
+  ],
+  "parameters": {
+    "spatial_dimension": 2,
+    "element_type": "_triangle_3",
+    "material_name": "anything",
+    "material_id": "solid_mechanics_model:0:sls_deviatoric",
+    "nb_steps": 12,
+    "voigt_order": [
+      "xx",
+      "yy",
+      "xy"
+    ],
+    "steady_state_at": 0,
+    "missing_internals": []
+  },
+  "storage": {
+    "mode": "committed",
+    "bytes": 4672
+  },
+  "steps": {
+    "recorded": [
+      0,
+      1,
+      2,
+      3,
+      4,
+      5,
+      6,
+      7,
+      8,
+      9,
+      10,
+      11
+    ]
+  },
+  "quantities": [
+    {
+      "name": "input/grad_u_prescribed",
+      "file": "data/input__grad_u_prescribed.npy",
+      "dtype": "f64",
+      "shape": [
+        12,
+        2,
+        2
+      ],
+      "axes": [
+        "sample",
+        "row",
+        "col"
+      ],
+      "layout": "table",
+      "sha256": "f2401a5b9ff551c086bba75a4fcd9c7c3b74e07108b964ddef5017650aa8144b",
+      "description": "input: prescribed H_k (u = H_k X) for every requested step",
+      "tolerance_class": "exact"
+    },
+    {
+      "name": "grad_u",
+      "file": "data/grad_u.npy",
+      "dtype": "f64",
+      "shape": [
+        12,
+        2,
+        2
+      ],
+      "axes": [
+        "step",
+        "row",
+        "col"
+      ],
+      "layout": "table",
+      "sha256": "52f3ed8197b5b17d5e2dbd3f27c0b6350ddc1e71d04b9b6020cc1805202c4273",
+      "description": "displacement gradient stored by the material after the step (computeAllStresses: FE gradient of u = H X; plastic_mazars stores (grad_u - eps_p) + eps_p)",
+      "tolerance_class": "kernel"
+    },
+    {
+      "name": "stress",
+      "file": "data/stress.npy",
+      "dtype": "f64",
+      "shape": [
+        12,
+        2,
+        2
+      ],
+      "axes": [
+        "step",
+        "row",
+        "col"
+      ],
+      "layout": "table",
+      "sha256": "840a2c7c896e2d0d172d6f43e9de724b7a3858177cfc48d315070a81df8aea7a",
+      "description": "Cauchy/first-PK stress as stored by the material (getStress)",
+      "tolerance_class": "kernel"
+    },
+    {
+      "name": "tangent",
+      "file": "data/tangent.npy",
+      "dtype": "f64",
+      "shape": [
+        12,
+        3,
+        3
+      ],
+      "axes": [
+        "step",
+        "row",
+        "col"
+      ],
+      "layout": "table",
+      "sha256": "f79b7d4adb61b40f22683da46668cb6388b129f908a698c15db4b441ff1d06d0",
+      "description": "computeTangentModuli: d sigma_row / d epsilon_col in Akantu Voigt order (parameters.voigt_order; 1D xx, 2D xx yy xy, 3D xx yy zz yz xz xy; shear components act on engineering strains 2 eps_ij); stored [row, col] row-major",
+      "tolerance_class": "kernel"
+    },
+    {
+      "name": "energy/potential",
+      "file": "data/energy__potential.npy",
+      "dtype": "f64",
+      "shape": [
+        12
+      ],
+      "axes": [
+        "step"
+      ],
+      "layout": "scalar",
+      "sha256": "d9d1be378286fec9338e402401394312f385bfed7754568830c6dc53ec9d56a7",
+      "tolerance_class": "kernel"
+    },
+    {
+      "name": "input/time_step",
+      "file": "data/input__time_step.npy",
+      "dtype": "f64",
+      "shape": [
+        12
+      ],
+      "axes": [
+        "step"
+      ],
+      "layout": "scalar",
+      "sha256": "c4d77ae8a92d048793cbfecfeb518bf6f22fbcd24b384fdfd7b41aa845b09f7e",
+      "description": "input: model.setTimeStep(dt_k) before step k",
+      "tolerance_class": "exact"
+    },
+    {
+      "name": "energy/dissipated",
+      "file": "data/energy__dissipated.npy",
+      "dtype": "f64",
+      "shape": [
+        12
+      ],
+      "axes": [
+        "step"
+      ],
+      "layout": "scalar",
+      "sha256": "b8a90b3319218098d2a19af2734b99d8e7a854e14a36c6ee5318e6710d913308",
+      "description": "getEnergy(id) after the stresses of the step (before afterSolveStep)",
+      "tolerance_class": "kernel"
+    },
+    {
+      "name": "energy/dissipated_sls_deviatoric",
+      "file": "data/energy__dissipated_sls_deviatoric.npy",
+      "dtype": "f64",
+      "shape": [
+        12
+      ],
+      "axes": [
+        "step"
+      ],
+      "layout": "scalar",
+      "sha256": "b8a90b3319218098d2a19af2734b99d8e7a854e14a36c6ee5318e6710d913308",
+      "description": "getEnergy(id) after the stresses of the step (before afterSolveStep)",
+      "tolerance_class": "kernel"
+    },
+    {
+      "name": "internal/stress_dev",
+      "file": "data/internal__stress_dev.npy",
+      "dtype": "f64",
+      "shape": [
+        12,
+        4
+      ],
+      "axes": [
+        "step",
+        "component"
+      ],
+      "layout": "table",
+      "sha256": "bac3833d6b75f5efc955060b3c3183f5b83f9133c13ebdaf3b8b44c82ccf5a97",
+      "description": "internal variable at the integration point after the step, raw Akantu component order (a dim x dim tensor is column-major: component r + c*dim is M(r, c))",
+      "tolerance_class": "kernel",
+      "components": [
+        "xx",
+        "yx",
+        "xy",
+        "yy"
+      ]
+    },
+    {
+      "name": "internal/history_integral",
+      "file": "data/internal__history_integral.npy",
+      "dtype": "f64",
+      "shape": [
+        12,
+        4
+      ],
+      "axes": [
+        "step",
+        "component"
+      ],
+      "layout": "table",
+      "sha256": "ef24e5d8383a42457b0703c6617ab49763d9acbe44e4ac648dacc0b90e1323e9",
+      "description": "internal variable at the integration point after the step, raw Akantu component order (a dim x dim tensor is column-major: component r + c*dim is M(r, c))",
+      "tolerance_class": "kernel",
+      "components": [
+        "xx",
+        "yx",
+        "xy",
+        "yy"
+      ]
+    },
+    {
+      "name": "internal/dissipated_energy",
+      "file": "data/internal__dissipated_energy.npy",
+      "dtype": "f64",
+      "shape": [
+        12,
+        1
+      ],
+      "axes": [
+        "step",
+        "component"
+      ],
+      "layout": "table",
+      "sha256": "0d1115ffd408332f3c5e01ec2fa56c5b96e2625e1278edd90ab2a5c12f1ef0d7",
+      "description": "internal variable at the integration point after the step, raw Akantu component order (a dim x dim tensor is column-major: component r + c*dim is M(r, c))",
+      "tolerance_class": "kernel"
+    }
+  ],
+  "tags": [
+    "material"
+  ]
+}

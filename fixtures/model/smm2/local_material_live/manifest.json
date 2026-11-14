@@ -1,0 +1,597 @@
+{
+  "format_version": 1,
+  "case_id": "model/smm2/local_material_live",
+  "description": "TEST-135 variant: the test's LocalMaterialDamage (factory) with a non-uniform initial displacement, so that its first evaluation gives non-zero stresses; 5 explicit steps",
+  "status": "golden",
+  "generator": {
+    "probe": "smm2_probe",
+    "probe_version": "1",
+    "command": "oracle/probes/smm2/generate.sh --out /home/user/stage-smm2c"
+  },
+  "reference": {
+    "sha": "35a851780d0b9471d258ed53a003ae98aaa95ea0",
+    "describe": "v5.0.7-post1-554-g35a851780",
+    "patches": [
+      "modified:cmake/AkantuTestsMacros.cmake sha256=c280165a84912eab4bcc081b9eaaaa06aafdd83d4f48d982e11b0859abf9672f (reference sha256=36290de2ec8b111028138fe82029efa16501512241a5bc264fa30ff3e3239b9e)"
+    ]
+  },
+  "build": {
+  "config": "strict",
+  "compiler": "g++ (Debian 14.2.0-19) 14.2.0",
+  "cxx_flags": "-ffp-contract=off -DEIGEN_DONT_VECTORIZE -DEIGEN_NO_CPUID -DEIGEN_DEFAULT_L1_CACHE_SIZE=16384 -DEIGEN_DEFAULT_L2_CACHE_SIZE=524288 -DEIGEN_DEFAULT_L3_CACHE_SIZE=524288 -O2 -g -DNDEBUG -g3 -ggdb3 -flarge-source-files -std=c++20 -flto=auto -fno-fat-lto-objects -fPIC -frounding-math (actual flags of src/model/solid_mechanics/solid_mechanics_model.cc; warnings and non-FP -D defines omitted)",
+  "build_type": "RelWithDebInfo",
+  "arch": "x86_64",
+  "os": "Debian GNU/Linux 13 (trixie)",
+  "libraries": {
+    "eigen3": "3.4.0-5",
+    "boost": "1.83.0.2+b2",
+    "openmpi": "5.0.7-1",
+    "mumps": "5.7.3-3+b1",
+    "petsc": "3.22.5+dfsg1-2",
+    "scotch": "7.0.7-1",
+    "openblas": "0.3.29+ds-3",
+    "scalapack": "2.2.2-1",
+    "hdf5": "1.14.5+repack-3",
+    "gmsh": "4.13.1+ds1-6",
+    "pybind11": "2.13.6-2",
+    "numpy": "1:2.2.4+ds-1",
+    "scipy": "1.15.3-1",
+    "gcc": "4:14.2.0-1",
+    "gfortran": "4:14.2.0-1",
+    "oracle_image": "sha256:2da26d87e063f3c88264f589cf73381feff583eeaa7770d2e01ae034651d59f5",
+    "oracle_build_scripts": "cca6e460cd3430bf0180262e7ebe26be762112e9",
+    "oracle_install_reference_sha": "35a851780d0b9471d258ed53a003ae98aaa95ea0",
+    "oracle_install_image": "sha256:2da26d87e063f3c88264f589cf73381feff583eeaa7770d2e01ae034651d59f5",
+    "sha256:libakantu.so.5.0.7": "554ecfc7838d8c8aa3955f37f2efb556a7f09426083b74af262ffdcccff657ff",
+    "probe_tree_sha256": "46e5a66daf9c75e829c772fff779fdb19e8aaf852bc621eb41bae965cbf6155b",
+    "probe_sources_commit": "63595d0bc90c3c872273da0156ef3adfe5b6386b",
+    "cmake_cxx_flags": "-ffp-contract=off -DEIGEN_DONT_VECTORIZE -DEIGEN_NO_CPUID -DEIGEN_DEFAULT_L1_CACHE_SIZE=16384 -DEIGEN_DEFAULT_L2_CACHE_SIZE=524288 -DEIGEN_DEFAULT_L3_CACHE_SIZE=524288 -O2 -g -DNDEBUG -g3 -ggdb3 -flarge-source-files",
+    "probe": "smm2_probe"
+  },
+  "probe_compile_command": "/usr/bin/c++ '-DAKANTU_PROBE_BUILD_TYPE=\"RelWithDebInfo\"' '-DAKANTU_PROBE_CONFIG=\"strict\"' '-DAKANTU_PROBE_CXX_FLAGS=\"-ffp-contract=off -DEIGEN_DONT_VECTORIZE -DEIGEN_NO_CPUID -DEIGEN_DEFAULT_L1_CACHE_SIZE=16384 -DEIGEN_DEFAULT_L2_CACHE_SIZE=524288 -DEIGEN_DEFAULT_L3_CACHE_SIZE=524288  -O2 -g -DNDEBUG\"' -DBOOST_GRAPH_DYN_LINK -DBOOST_GRAPH_NO_LIB -DBOOST_REGEX_DYN_LINK -DBOOST_REGEX_NO_LIB -DCGAL_USE_GMPXX=1 -I/probes/smm2/../include -I/akantu-src/test/test_model/test_solid_mechanics_model/test_materials -isystem /build/install-strict/include/akantu -isystem /opt/CGAL-5.6.2/include -isystem /usr/lib/x86_64-linux-gnu/openmpi/include -isystem /usr/lib/x86_64-linux-gnu/openmpi/include/openmpi -isystem /usr/lib/petscdir/petsc3.22/x86_64-linux-gnu-real/include -isystem /usr/include/scotch -isystem /build/install-strict/include/akantu_iterators -isystem /usr/include/eigen3 -isystem /build/install-strict/include/iohelper -O2 -g -DNDEBUG -std=gnu++20 -ffp-contract=off -DEIGEN_DONT_VECTORIZE -DEIGEN_NO_CPUID -DEIGEN_DEFAULT_L1_CACHE_SIZE=16384 -DEIGEN_DEFAULT_L2_CACHE_SIZE=524288 -DEIGEN_DEFAULT_L3_CACHE_SIZE=524288 -g0 -Wall -Wextra -pedantic -Wno-array-bounds -Wno-use-after-free -Wno-stringop-overread -DOMPI_SKIP_MPICXX -Wno-literal-suffix -frounding-math -o CMakeFiles/smm2_probe.dir/smm2_probe.cc.o -c /probes/smm2/smm2_probe.cc",
+  "probe_cxx_flags": "-DAKANTU_PROBE_BUILD_TYPE=\"RelWithDebInfo\" -DAKANTU_PROBE_CONFIG=\"strict\" -DAKANTU_PROBE_CXX_FLAGS=\"-ffp-contract=off -DEIGEN_DONT_VECTORIZE -DEIGEN_NO_CPUID -DEIGEN_DEFAULT_L1_CACHE_SIZE=16384 -DEIGEN_DEFAULT_L2_CACHE_SIZE=524288 -DEIGEN_DEFAULT_L3_CACHE_SIZE=524288  -O2 -g -DNDEBUG\" -DBOOST_GRAPH_DYN_LINK -DBOOST_GRAPH_NO_LIB -DBOOST_REGEX_DYN_LINK -DBOOST_REGEX_NO_LIB -DCGAL_USE_GMPXX=1 -O2 -g -DNDEBUG -std=gnu++20 -ffp-contract=off -DEIGEN_DONT_VECTORIZE -DEIGEN_NO_CPUID -DEIGEN_DEFAULT_L1_CACHE_SIZE=16384 -DEIGEN_DEFAULT_L2_CACHE_SIZE=524288 -DEIGEN_DEFAULT_L3_CACHE_SIZE=524288 -g0 -Wall -Wextra -pedantic -Wno-array-bounds -Wno-use-after-free -Wno-stringop-overread -DOMPI_SKIP_MPICXX -Wno-literal-suffix -frounding-math"
+},
+  "created": "2026-11-11T06:33:09Z",
+  "inputs": [
+    {
+      "role": "mesh",
+      "path": "inputs/mesh_section_gap.msh",
+      "source": "frozen:test/test_model/test_solid_mechanics_model/test_materials/mesh_section_gap.msh",
+      "sha256": "d2df8a987d6104636dc0a1126fad86a07a3f98940b279012acff2ad43373aacb"
+    },
+    {
+      "role": "material",
+      "path": "inputs/material.dat",
+      "source": "upstream:test/test_model/test_solid_mechanics_model/test_materials/material.dat",
+      "sha256": "b47b26b58fe62cf6354e39a660e69f1699acb3f989c3ef7c3196efc3e4f34479"
+    }
+  ],
+  "parameters": {
+    "eigen_cache_sizes": "setCpuCacheSizes(16384, 524288, 524288) (D-050)",
+    "sparse_solver": "eigen",
+    "spatial_dimension": 2,
+    "steps": 5,
+    "initial_displacement": "u_x = 8e-3 x^2 + 5e-3 y^2, u_y = -3e-3 x y (before applyBC)",
+    "law_type": "local_damage"
+  },
+  "storage": {
+    "mode": "committed",
+    "bytes": 499488
+  },
+  "quantities": [
+    {
+      "name": "time_step",
+      "file": "data/time_step.npy",
+      "dtype": "f64",
+      "shape": [
+        2
+      ],
+      "axes": [
+        "entry"
+      ],
+      "layout": "table",
+      "sha256": "2ff297bda3e743fdaeae69f10ed2b940cb42950f60f786c4b8a5bf7b9bd3cf9e",
+      "description": "getStableTimeStep(), time step used"
+    },
+    {
+      "name": "initial_displacement",
+      "file": "data/initial_displacement.npy",
+      "dtype": "f64",
+      "shape": [
+        661,
+        2
+      ],
+      "axes": [
+        "entry",
+        "component"
+      ],
+      "layout": "table",
+      "sha256": "98ccb4521437de7ef62c271a8d82b8a5ce13095f010dbe5200fe12a305086673",
+      "description": "u after applyBC, before step 1"
+    },
+    {
+      "name": "step_1/grad_u",
+      "file": "data/step_1__grad_u.npy",
+      "dtype": "f64",
+      "shape": [
+        906,
+        4
+      ],
+      "axes": [
+        "entry",
+        "component"
+      ],
+      "layout": "table",
+      "sha256": "1a59d242b502112f14de9d5f7496fa7f0e120238d5a38fda298df46d1ff9d4d3",
+      "description": "grad_u after the step"
+    },
+    {
+      "name": "step_1/damage",
+      "file": "data/step_1__damage.npy",
+      "dtype": "f64",
+      "shape": [
+        906,
+        1
+      ],
+      "axes": [
+        "entry",
+        "component"
+      ],
+      "layout": "table",
+      "sha256": "c889303acc45b9e0518543e481a4c9fdec83bd3eb995fb13a336f64684c72c16",
+      "description": "damage after the step"
+    },
+    {
+      "name": "step_1/stress",
+      "file": "data/step_1__stress.npy",
+      "dtype": "f64",
+      "shape": [
+        906,
+        4
+      ],
+      "axes": [
+        "entry",
+        "component"
+      ],
+      "layout": "table",
+      "sha256": "09446284706d53d4fdf4c9e5a64f1dcf838790b64726f19a430302065f482e8b",
+      "description": "stress after the step"
+    },
+    {
+      "name": "step_1/internal_force",
+      "file": "data/step_1__internal_force.npy",
+      "dtype": "f64",
+      "shape": [
+        661,
+        2
+      ],
+      "axes": [
+        "entry",
+        "component"
+      ],
+      "layout": "table",
+      "sha256": "0caced312c0b77468c39a2942ca8f860f44dc4b896eab07c65a57324b97199fa",
+      "description": "f_int"
+    },
+    {
+      "name": "step_1/displacement",
+      "file": "data/step_1__displacement.npy",
+      "dtype": "f64",
+      "shape": [
+        661,
+        2
+      ],
+      "axes": [
+        "entry",
+        "component"
+      ],
+      "layout": "table",
+      "sha256": "b950860f39199b94be4a7bf2740e536132e3a74cbf8199945b48aac4bb7cf958",
+      "description": "u"
+    },
+    {
+      "name": "step_1/velocity",
+      "file": "data/step_1__velocity.npy",
+      "dtype": "f64",
+      "shape": [
+        661,
+        2
+      ],
+      "axes": [
+        "entry",
+        "component"
+      ],
+      "layout": "table",
+      "sha256": "75ffd292aee0de78187f8977dca81137c2a97fb0603f2f1857212d021575120e",
+      "description": "v"
+    },
+    {
+      "name": "step_2/grad_u",
+      "file": "data/step_2__grad_u.npy",
+      "dtype": "f64",
+      "shape": [
+        906,
+        4
+      ],
+      "axes": [
+        "entry",
+        "component"
+      ],
+      "layout": "table",
+      "sha256": "2ba11190d0d10aac8a4ea3324a7379b9a65024420da3150473c0bd7d16c61d43",
+      "description": "grad_u after the step"
+    },
+    {
+      "name": "step_2/damage",
+      "file": "data/step_2__damage.npy",
+      "dtype": "f64",
+      "shape": [
+        906,
+        1
+      ],
+      "axes": [
+        "entry",
+        "component"
+      ],
+      "layout": "table",
+      "sha256": "ca2ee3ad950ffd5d6fdb244c8d50eca008414a7811eb611d75182a9be711194b",
+      "description": "damage after the step"
+    },
+    {
+      "name": "step_2/stress",
+      "file": "data/step_2__stress.npy",
+      "dtype": "f64",
+      "shape": [
+        906,
+        4
+      ],
+      "axes": [
+        "entry",
+        "component"
+      ],
+      "layout": "table",
+      "sha256": "5b7657ad2867de57b0de697253b91f4614d2f85d6307fd4b188e19fcfab42d0a",
+      "description": "stress after the step"
+    },
+    {
+      "name": "step_2/internal_force",
+      "file": "data/step_2__internal_force.npy",
+      "dtype": "f64",
+      "shape": [
+        661,
+        2
+      ],
+      "axes": [
+        "entry",
+        "component"
+      ],
+      "layout": "table",
+      "sha256": "a22691fc403cbafc88dbc5696ee22b8a7bc5e75e1710c1252ae5e27156505e36",
+      "description": "f_int"
+    },
+    {
+      "name": "step_2/displacement",
+      "file": "data/step_2__displacement.npy",
+      "dtype": "f64",
+      "shape": [
+        661,
+        2
+      ],
+      "axes": [
+        "entry",
+        "component"
+      ],
+      "layout": "table",
+      "sha256": "509f6a89721ce6826716e403e316d91ae31c444a47cbd35cd6966c9ad70c193a",
+      "description": "u"
+    },
+    {
+      "name": "step_2/velocity",
+      "file": "data/step_2__velocity.npy",
+      "dtype": "f64",
+      "shape": [
+        661,
+        2
+      ],
+      "axes": [
+        "entry",
+        "component"
+      ],
+      "layout": "table",
+      "sha256": "bb99739523a3da871b8aa34c89be73819c92c42049e97a1d1a7463bec7dd9b1d",
+      "description": "v"
+    },
+    {
+      "name": "step_3/grad_u",
+      "file": "data/step_3__grad_u.npy",
+      "dtype": "f64",
+      "shape": [
+        906,
+        4
+      ],
+      "axes": [
+        "entry",
+        "component"
+      ],
+      "layout": "table",
+      "sha256": "e771f7fe86b1892e45cc1d1337de6db984ee3e7f4a4e397f060a7390d41701af",
+      "description": "grad_u after the step"
+    },
+    {
+      "name": "step_3/damage",
+      "file": "data/step_3__damage.npy",
+      "dtype": "f64",
+      "shape": [
+        906,
+        1
+      ],
+      "axes": [
+        "entry",
+        "component"
+      ],
+      "layout": "table",
+      "sha256": "ca2ee3ad950ffd5d6fdb244c8d50eca008414a7811eb611d75182a9be711194b",
+      "description": "damage after the step"
+    },
+    {
+      "name": "step_3/stress",
+      "file": "data/step_3__stress.npy",
+      "dtype": "f64",
+      "shape": [
+        906,
+        4
+      ],
+      "axes": [
+        "entry",
+        "component"
+      ],
+      "layout": "table",
+      "sha256": "fb43f7bd9a023e68458b2c167786995ffea9c20279a80faa0b84654852611057",
+      "description": "stress after the step"
+    },
+    {
+      "name": "step_3/internal_force",
+      "file": "data/step_3__internal_force.npy",
+      "dtype": "f64",
+      "shape": [
+        661,
+        2
+      ],
+      "axes": [
+        "entry",
+        "component"
+      ],
+      "layout": "table",
+      "sha256": "a22691fc403cbafc88dbc5696ee22b8a7bc5e75e1710c1252ae5e27156505e36",
+      "description": "f_int"
+    },
+    {
+      "name": "step_3/displacement",
+      "file": "data/step_3__displacement.npy",
+      "dtype": "f64",
+      "shape": [
+        661,
+        2
+      ],
+      "axes": [
+        "entry",
+        "component"
+      ],
+      "layout": "table",
+      "sha256": "7e0c5e09f54559831612057f8f1c431eb3b526911ff2504a5b0caee9f0392401",
+      "description": "u"
+    },
+    {
+      "name": "step_3/velocity",
+      "file": "data/step_3__velocity.npy",
+      "dtype": "f64",
+      "shape": [
+        661,
+        2
+      ],
+      "axes": [
+        "entry",
+        "component"
+      ],
+      "layout": "table",
+      "sha256": "a54f3082ff0dfd78f4bde5f281c46e3ccff3ced33bbe5694680e4130d73ef414",
+      "description": "v"
+    },
+    {
+      "name": "step_4/grad_u",
+      "file": "data/step_4__grad_u.npy",
+      "dtype": "f64",
+      "shape": [
+        906,
+        4
+      ],
+      "axes": [
+        "entry",
+        "component"
+      ],
+      "layout": "table",
+      "sha256": "1f4a239a195ee4776247ebb6fff3c0a0aaf49abf3b46726e2a7b7dbc7c5564cd",
+      "description": "grad_u after the step"
+    },
+    {
+      "name": "step_4/damage",
+      "file": "data/step_4__damage.npy",
+      "dtype": "f64",
+      "shape": [
+        906,
+        1
+      ],
+      "axes": [
+        "entry",
+        "component"
+      ],
+      "layout": "table",
+      "sha256": "ca2ee3ad950ffd5d6fdb244c8d50eca008414a7811eb611d75182a9be711194b",
+      "description": "damage after the step"
+    },
+    {
+      "name": "step_4/stress",
+      "file": "data/step_4__stress.npy",
+      "dtype": "f64",
+      "shape": [
+        906,
+        4
+      ],
+      "axes": [
+        "entry",
+        "component"
+      ],
+      "layout": "table",
+      "sha256": "ba0256ed29d7f5ea1c39656a964fbb287beb765be77c9cedb9d4a40b24328ad9",
+      "description": "stress after the step"
+    },
+    {
+      "name": "step_4/internal_force",
+      "file": "data/step_4__internal_force.npy",
+      "dtype": "f64",
+      "shape": [
+        661,
+        2
+      ],
+      "axes": [
+        "entry",
+        "component"
+      ],
+      "layout": "table",
+      "sha256": "a22691fc403cbafc88dbc5696ee22b8a7bc5e75e1710c1252ae5e27156505e36",
+      "description": "f_int"
+    },
+    {
+      "name": "step_4/displacement",
+      "file": "data/step_4__displacement.npy",
+      "dtype": "f64",
+      "shape": [
+        661,
+        2
+      ],
+      "axes": [
+        "entry",
+        "component"
+      ],
+      "layout": "table",
+      "sha256": "a1b84343bf01b3a2cc9b522612ffffb8f4d0dd8b2a573c3b55a13169cb4a8e29",
+      "description": "u"
+    },
+    {
+      "name": "step_4/velocity",
+      "file": "data/step_4__velocity.npy",
+      "dtype": "f64",
+      "shape": [
+        661,
+        2
+      ],
+      "axes": [
+        "entry",
+        "component"
+      ],
+      "layout": "table",
+      "sha256": "6bedb0c899af249624797af2159e80b6d27cd365eb2092efd8cf2802ad2bf19d",
+      "description": "v"
+    },
+    {
+      "name": "step_5/grad_u",
+      "file": "data/step_5__grad_u.npy",
+      "dtype": "f64",
+      "shape": [
+        906,
+        4
+      ],
+      "axes": [
+        "entry",
+        "component"
+      ],
+      "layout": "table",
+      "sha256": "59805ee195f87f85d8181c9622511487708cdac489519105361db4cca922926d",
+      "description": "grad_u after the step"
+    },
+    {
+      "name": "step_5/damage",
+      "file": "data/step_5__damage.npy",
+      "dtype": "f64",
+      "shape": [
+        906,
+        1
+      ],
+      "axes": [
+        "entry",
+        "component"
+      ],
+      "layout": "table",
+      "sha256": "ca2ee3ad950ffd5d6fdb244c8d50eca008414a7811eb611d75182a9be711194b",
+      "description": "damage after the step"
+    },
+    {
+      "name": "step_5/stress",
+      "file": "data/step_5__stress.npy",
+      "dtype": "f64",
+      "shape": [
+        906,
+        4
+      ],
+      "axes": [
+        "entry",
+        "component"
+      ],
+      "layout": "table",
+      "sha256": "dd97e2bed833ae458be9a30da4f312b45980d743bbefc682f26d6f3ba2960380",
+      "description": "stress after the step"
+    },
+    {
+      "name": "step_5/internal_force",
+      "file": "data/step_5__internal_force.npy",
+      "dtype": "f64",
+      "shape": [
+        661,
+        2
+      ],
+      "axes": [
+        "entry",
+        "component"
+      ],
+      "layout": "table",
+      "sha256": "a22691fc403cbafc88dbc5696ee22b8a7bc5e75e1710c1252ae5e27156505e36",
+      "description": "f_int"
+    },
+    {
+      "name": "step_5/displacement",
+      "file": "data/step_5__displacement.npy",
+      "dtype": "f64",
+      "shape": [
+        661,
+        2
+      ],
+      "axes": [
+        "entry",
+        "component"
+      ],
+      "layout": "table",
+      "sha256": "06e347028e0a6c65661e2344f83f248b4d62a42259212993be784ec6357ff1b5",
+      "description": "u"
+    },
+    {
+      "name": "step_5/velocity",
+      "file": "data/step_5__velocity.npy",
+      "dtype": "f64",
+      "shape": [
+        661,
+        2
+      ],
+      "axes": [
+        "entry",
+        "component"
+      ],
+      "layout": "table",
+      "sha256": "34571359d98bb1ec21cb5d673eefb42b9a0e1a93184bd9d60ba46dcb6fa67965",
+      "description": "v"
+    }
+  ],
+  "tags": [
+    "model",
+    "smm2"
+  ]
+}

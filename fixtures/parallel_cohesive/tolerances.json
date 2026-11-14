@@ -1,0 +1,11 @@
+{
+  "format_version": 1,
+  "rules": [
+    {
+      "quantity": "*",
+      "justification": "Parallel cohesive records (oracle/probes/parallel_cohesive): distributed topology after cohesive insertion (connectivities in local ids, node global ids, flags, owner ranks, synchronizer schemes, facet adjacency, check / insertion facets, law filters), the cohesive internals, facet stresses, nodal fields and per-rank energy contributions are deterministic functions of the oracle's arithmetic on each rank (3 identical runs at 1, 2 and 4 ranks; ghost filters in the canonical rank order of the probe patch, D-035 / UD-232): compared bitwise (D-046). The globally reduced energies at 4 ranks (MPI_Allreduce) are not compared value to value in rank-ordered mode: the port's rank-ordered value is checked to equal the rank-order fold of the recorded per-rank contributions exactly (D-039 amendment); with ReductionPolicy::NativeMpi on real MPI they are compared bitwise. Scenarios of probe v2 ( facets_only_tri, facets_only_tet, clusters_tri, fragments_tri): the same classes; the fragment integrals (masses, centres, velocities, inertia) are global sums like the energies: bitwise where every summation order of the recorded per-rank contributions (also recorded, bitwise) gives the same value, else the port's value equals the rank-order fold of the recorded contributions exactly (D-039 amendment); NativeMpi: bitwise. The principal moments and directions of a fragment whose summed inertia integrals are order-dependent at 4 ranks equal, bitwise, the eigen-decomposition (eig_vectors, as FragmentManager::compute_inertia_moments) of the rank-order fold of the recorded per-rank inertia integrals.",
+      "evidence": "2026-11-12: crates/akantu-cohesive/tests/parallel_cohesive.rs (local world 1/2/4 ranks) and mpi_cohesive (real MPI); crates/akantu-cohesive/tests/par_coh/coh2.rs (parallel_cohesive.rs local world 1/2/4 ranks, mpi_cohesive real MPI)",
+      "reviewed_by": "independent review during the port, November 2026"
+    }
+  ]
+}

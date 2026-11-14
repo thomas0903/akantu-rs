@@ -1,0 +1,11 @@
+{
+  "format_version": 1,
+  "rules": [
+    {
+      "quantity": "*",
+      "justification": "Adversarial SMM-024 cases, produced by an independent probe derived from oracle/probes/smm2/smm2_probe.cc (same helpers, stress field and fixture format) with the Eigen sparse solver on the D-050 pinned x86_64 strict oracle. Every compared quantity is either an exact input fed unchanged to the port (mesh, material file, stresses set from the quadrature-point coordinates in the same operation order) or the output of computations whose order the port replicates (facet construction and numbering, element filters, FE interpolation, elemental-field interpolation products through the GEBP translation, the facet copy), as for fixtures/model/smm2 (rule [0] there). Bit identity is the expected result; any difference is a defect. Exception by construction: reinit/by_elem/* records upstream's stale interpolation after a second initElementalFieldInterpolation with another point count (UD-685, category C); the port rebuilds the interpolation and is checked against the exact answer instead (crates/akantu-solid/tests/smm2_interpolation_v87.rs), never against that array.",
+      "evidence": "crates/akantu-solid/tests/smm2_interpolation_v87.rs replays the four cases: 18,071 values bitwise (757 + 1,349 + 15,485 + 480; aarch64 macOS; the same values x86_64 in the test image; docs/NUMERICAL_VALIDATION.md). Oracle side: three identical runs (D-035) on the pinned install cca6e460 (image sha256:2da26d87...), and identical to an independent run on the unpinned install with the run-time pin. Re-run by an independent review: 18,071 values bitwise; the UD-685 exact-answer check 8.35e-16 (bound 1e-12).",
+      "reviewed_by": "independent review during the port, November 2026"
+    }
+  ]
+}

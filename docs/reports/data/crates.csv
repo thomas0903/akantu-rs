@@ -1,0 +1,31 @@
+crate,layer,licence,direct_deps_reduced,optional_deps,src_lines,tests_lines,off_by_default
+# source: off_by_default = facade feature off by default, docs/manual/src/getting-started.md (facade module table and feature table)
+# source: cargo metadata --no-deps (normal dependencies between workspace crates; transitive edges removed; layer = longest dependency path from akantu-core), at the release state (2026-11-14)
+# source: wc -l of crates/<crate>/src/**/*.rs (includes in-file unit tests and doc comments) and crates/<crate>/tests/**/*.rs (git ls-files), on 2026-11-15
+akantu-core,0,LGPL-3.0-or-later AND MPL-2.0,,,22146,4171,
+akantu-validation,0,LGPL-3.0-or-later,,,10934,4386,
+akantu-comm,1,LGPL-3.0-or-later,akantu-core,,14593,5630,
+akantu-parser,1,LGPL-3.0-or-later,akantu-core,,7499,4756,
+akantu-linalg,2,LGPL-3.0-or-later AND MPL-2.0,akantu-comm,,16071,8783,
+akantu-mesh,2,LGPL-3.0-or-later,akantu-comm,,21435,15731,
+akantu-fe,3,LGPL-3.0-or-later,akantu-mesh,,10587,9268,
+akantu-geometry,3,LGPL-3.0-or-later,akantu-mesh,,5248,3165,
+akantu-solver,3,LGPL-3.0-or-later,akantu-linalg akantu-mesh akantu-parser,,12845,20880,
+akantu-geometry-cgal,4,GPL-3.0-or-later,akantu-geometry,,1383,1550,yes
+akantu-io,4,LGPL-3.0-or-later,akantu-fe akantu-linalg,,9377,7684,
+akantu-model,5,LGPL-3.0-or-later,akantu-io akantu-solver,,12331,3859,
+akantu-contact,6,LGPL-3.0-or-later,akantu-model,,7177,5747,
+akantu-diffusion,6,LGPL-3.0-or-later,akantu-model,,4406,5703,
+akantu-phase-field,6,LGPL-3.0-or-later,akantu-model,,4886,4644,
+akantu-solid,6,LGPL-3.0-or-later,akantu-model,,25891,48939,
+akantu-structural,6,LGPL-3.0-or-later,akantu-model,,3775,7679,
+akantu-cohesive,7,LGPL-3.0-or-later,akantu-solid,,15912,21006,
+akantu-embedded,7,LGPL-3.0-or-later,akantu-geometry akantu-solid,,2478,5134,
+akantu-extra-materials,7,LGPL-3.0-or-later,akantu-solid,,7729,6432,yes
+akantu-igfem,7,LGPL-3.0-or-later,akantu-geometry-cgal akantu-solid,akantu-geometry-cgal,8110,5878,yes
+akantu-ntn-contact,7,LGPL-3.0-or-later,akantu-solid,,7847,6336,yes
+akantu-bench,8,LGPL-3.0-or-later,akantu-cohesive,,4805,2229,
+akantu-couplers,8,LGPL-3.0-or-later,akantu-cohesive akantu-contact akantu-phase-field,,3139,13074,
+akantu,9,LGPL-3.0-or-later,akantu-couplers akantu-diffusion akantu-embedded akantu-extra-materials akantu-igfem akantu-ntn-contact akantu-structural,akantu-cohesive akantu-contact akantu-couplers akantu-diffusion akantu-embedded akantu-extra-materials akantu-geometry-cgal akantu-igfem akantu-ntn-contact akantu-phase-field akantu-solid akantu-structural,685,16291,
+akantu-capi,10,LGPL-3.0-or-later,akantu,,40,0,
+akantu-python,10,LGPL-3.0-or-later,akantu,,22182,1856,

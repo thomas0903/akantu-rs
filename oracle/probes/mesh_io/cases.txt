@@ -1,0 +1,39 @@
+# Cases of oracle/probes/mesh_io/mesh_io_probe.cc (one spec per line, see
+# the probe header). file= prefixes: up: reference checkout, in: this
+# directory's inputs/, fz: frozen Gmsh meshes (fixtures/meshes/gmsh-4.13.1).
+# Mesh::write output (UD-044, UD-061, UD-093 evidence)
+case=write/tetrahedron_10;file=up:test/test_fe_engine/_tetrahedron_10.msh;dim=3;write
+case=write/pentahedron_6;file=up:test/test_fe_engine/_pentahedron_6.msh;dim=3;write
+case=write/pentahedron_15;file=up:test/test_fe_engine/_pentahedron_15.msh;dim=3;write
+case=write/hexahedron_20;file=up:test/test_fe_engine/_hexahedron_20.msh;dim=3;write
+case=write/triangle_3;file=up:test/test_fe_engine/_triangle_3.msh;dim=2;write
+case=write/segment_2;file=up:test/test_fe_engine/_segment_2.msh;dim=1;write
+case=write/quadrangle_8;file=up:test/test_fe_engine/_quadrangle_8.msh;dim=2;write
+case=write/hexahedron_8_pentahedron_6;file=up:test/test_mesh_utils/test_buildfacets/_hexahedron_8_pentahedron_6.msh;dim=3;write
+case=write/test_dumper;file=up:test/test_io/test_dumper/test_dumper.msh;dim=3;write
+case=write/cube_msh41;file=fz:test/test_mesh_utils/test_mesh_io/cube.msh;dim=3;write
+case=write/node_data_only;file=in:node_data_only.msh;dim=3;write
+# data blocks (UD-044, UD-047, UD-091), physical names with blanks/escapes
+case=data/data_blocks;file=in:data_blocks.msh;dim=2;write
+case=data/element_node_data_3d;file=in:element_node_data_3d.msh;dim=3;write
+# $NodeData blocks of one dataset before and after $Nodes, reused with the
+# same number of components (review finding MIO-01)
+case=data/node_data_section_order;file=in:node_data_section_order.msh;dim=1
+# MSH 4 physical-group semantics (UD-045), unsupported element block (UD-090)
+case=msh4/unnamed_physical;file=in:unnamed_physical_41.msh;dim=2
+case=msh4/pyramid_block;file=in:pyramid_block_41.msh;dim=3
+# MSH 1.0 (UD-046) and its MSH 2.2 equivalent; binary files
+case=msh1/msh1;file=in:msh1.msh;dim=2
+case=msh1/msh1_equivalent_22;file=in:msh1_equivalent_22.msh;dim=2
+case=errors/binary_header;file=in:binary_header.msh;dim=2
+# structural reader (_miot_gmsh_struct), as the structural test fixtures use it
+case=struct/fe_bernoulli_beam_2;file=up:test/test_fe_engine/_bernoulli_beam_2.msh;dim=2;type=gmsh_struct;write
+case=struct/fe_bernoulli_beam_3;file=up:test/test_fe_engine/_bernoulli_beam_3.msh;dim=3;type=gmsh_struct;write
+case=struct/fe_discrete_kirchhoff_triangle_18;file=up:test/test_fe_engine/_discrete_kirchhoff_triangle_18.msh;dim=3;type=gmsh_struct;write
+case=struct/model_bernoulli_beam_2;file=up:test/test_model/test_structural_mechanics_model/_bernoulli_beam_2.msh;dim=2;type=gmsh_struct
+case=struct/model_bernoulli_beam_3;file=up:test/test_model/test_structural_mechanics_model/_bernoulli_beam_3.msh;dim=3;type=gmsh_struct
+case=struct/model_discrete_kirchhoff_triangle_18;file=up:test/test_model/test_structural_mechanics_model/_discrete_kirchhoff_triangle_18.msh;dim=3;type=gmsh_struct
+case=struct/dumper_mesh_as_struct;file=up:test/test_io/test_dumper/test_dumper.msh;dim=3;type=gmsh_struct
+# Diana (3-D; the 2-D reader is broken upstream, UD-048)
+case=diana/diana_3d;file=in:diana_3d.diana;dim=3;type=diana;cwd
+case=diana/diana_3d_auto;file=in:diana_3d.diana;dim=3;cwd

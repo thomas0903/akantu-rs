@@ -1,0 +1,77 @@
+{
+  "format_version": 1,
+  "rules": [
+    {
+      "quantity": "mesh/*",
+      "justification": "Input written by the probe (node coordinates, connectivities): exact.",
+      "reviewed_by": "independent review during the port, November 2026"
+    },
+    {
+      "quantity": "materials",
+      "justification": "Input written by the probe (StructuralMaterial list): exact.",
+      "reviewed_by": "independent review during the port, November 2026"
+    },
+    {
+      "quantity": "element_material/*",
+      "justification": "Input written by the probe (material index per element): exact.",
+      "reviewed_by": "independent review during the port, November 2026"
+    },
+    {
+      "quantity": "extra_normal/*",
+      "justification": "Input written by the probe (beam normals): exact.",
+      "reviewed_by": "independent review during the port, November 2026"
+    },
+    {
+      "quantity": "input/*",
+      "justification": "Inputs recorded before the first step (blocked DOFs, imposed displacement, external force, exact time step); input/external_force of the line-load cases is computed and compared bitwise (see loads/*).",
+      "reviewed_by": "independent review during the port, November 2026"
+    },
+    {
+      "quantity": "loads/*",
+      "justification": "Bitwise: traction arrays are probe inputs; the external forces of computeForcesByGlobalTractionArray / computeForcesByLocalTractionArray use the structural FE engine kernels (R.T rotation GEMV, (N.T)^T t, integration GEMV from +0; fixtures/fe/structural rules) and the DOF-manager scatter-add in upstream order.",
+      "evidence": "crates/akantu-structural/tests/structural_model_matches_oracle.rs, StructuralModelUpstreamCompat::UPSTREAM, reproduces every compared value of the 18 non-lumped fixtures/model/structural cases bit for bit (10 original cases: 14,191 values; 8 adversarial cases, probe v2 with Eigen cache sizes pinned per D-050: 5,700 values; COO coordinates equal: 22,218, counted apart); the 2 lumped-mass cases are documented UD-005 differences, not bitwise (lumped/*). Each compat switch corrected alone changes exactly its declared quantity groups. macOS arm64 debug and x86_64 strict oracle. Rules accepted by an independent review; the fix round re-checked by a second review",
+      "reviewed_by": "independent review during the port, November 2026"
+    },
+    {
+      "quantity": "K/*",
+      "justification": "Bitwise: COO coordinates and storage order of the AIJ matrix (profile built element by element in connectivity order, as upstream) and values sum of the element stiffnesses int (B.T)^T D (B.T) (fixtures/fe/structural btdb/stiffness rules) added in upstream order (symmetric storage).",
+      "evidence": "crates/akantu-structural/tests/structural_model_matches_oracle.rs, StructuralModelUpstreamCompat::UPSTREAM, reproduces every compared value of the 18 non-lumped fixtures/model/structural cases bit for bit (10 original cases: 14,191 values; 8 adversarial cases, probe v2 with Eigen cache sizes pinned per D-050: 5,700 values; COO coordinates equal: 22,218, counted apart); the 2 lumped-mass cases are documented UD-005 differences, not bitwise (lumped/*). Each compat switch corrected alone changes exactly its declared quantity groups. macOS arm64 debug and x86_64 strict oracle. Rules accepted by an independent review; the fix round re-checked by a second review",
+      "reviewed_by": "independent review during the port, November 2026"
+    },
+    {
+      "quantity": "M/*",
+      "justification": "Bitwise: consistent mass assembleFieldMatrix with rho*A per component (upstream ComputeRhoFunctorStruct; replayed with StructuralModelUpstreamCompat::UPSTREAM, UD-507) on the order-2*degree rule (fixtures/fe/structural mass/elemental rule), assembled in upstream order.",
+      "evidence": "crates/akantu-structural/tests/structural_model_matches_oracle.rs, StructuralModelUpstreamCompat::UPSTREAM, reproduces every compared value of the 18 non-lumped fixtures/model/structural cases bit for bit (10 original cases: 14,191 values; 8 adversarial cases, probe v2 with Eigen cache sizes pinned per D-050: 5,700 values; COO coordinates equal: 22,218, counted apart); the 2 lumped-mass cases are documented UD-005 differences, not bitwise (lumped/*). Each compat switch corrected alone changes exactly its declared quantity groups. macOS arm64 debug and x86_64 strict oracle. Rules accepted by an independent review; the fix round re-checked by a second review",
+      "reviewed_by": "independent review during the port, November 2026"
+    },
+    {
+      "quantity": "final/*",
+      "justification": "Bitwise: states after the last step (displacement-rotation, velocity, acceleration, internal force, generalised stresses) from the Eigen SparseLU translation (D-040) with identical J and residual, the solver and integration schemes of akantu-solver (upstream order) and the model's stress / B^T sigma kernels.",
+      "evidence": "crates/akantu-structural/tests/structural_model_matches_oracle.rs, StructuralModelUpstreamCompat::UPSTREAM, reproduces every compared value of the 18 non-lumped fixtures/model/structural cases bit for bit (10 original cases: 14,191 values; 8 adversarial cases, probe v2 with Eigen cache sizes pinned per D-050: 5,700 values; COO coordinates equal: 22,218, counted apart); the 2 lumped-mass cases are documented UD-005 differences, not bitwise (lumped/*). Each compat switch corrected alone changes exactly its declared quantity groups. macOS arm64 debug and x86_64 strict oracle. Rules accepted by an independent review; the fix round re-checked by a second review",
+      "reviewed_by": "independent review during the port, November 2026"
+    },
+    {
+      "quantity": "series/*",
+      "justification": "Bitwise: per-step node displacement, full displacement at selected steps, Newton iterations and energies (1/2 v.(M v), 1/2 u.(K u) with the upstream local-or-master accumulation and AIJ mat-vec order) of 299 / 40 / 30 implicit (trapezoidal rule 2) or 50 / 60 explicit (central difference) steps.",
+      "evidence": "crates/akantu-structural/tests/structural_model_matches_oracle.rs, StructuralModelUpstreamCompat::UPSTREAM, reproduces every compared value of the 18 non-lumped fixtures/model/structural cases bit for bit (10 original cases: 14,191 values; 8 adversarial cases, probe v2 with Eigen cache sizes pinned per D-050: 5,700 values; COO coordinates equal: 22,218, counted apart); the 2 lumped-mass cases are documented UD-005 differences, not bitwise (lumped/*). Each compat switch corrected alone changes exactly its declared quantity groups. macOS arm64 debug and x86_64 strict oracle. Rules accepted by an independent review; the fix round re-checked by a second review",
+      "reviewed_by": "independent review during the port, November 2026"
+    },
+    {
+      "quantity": "energy/*",
+      "justification": "Bitwise: static potential energy 1/2 u.(K u) and the kinetic energy without mass (exactly 0).",
+      "evidence": "crates/akantu-structural/tests/structural_model_matches_oracle.rs, StructuralModelUpstreamCompat::UPSTREAM, reproduces every compared value of the 18 non-lumped fixtures/model/structural cases bit for bit (10 original cases: 14,191 values; 8 adversarial cases, probe v2 with Eigen cache sizes pinned per D-050: 5,700 values; COO coordinates equal: 22,218, counted apart); the 2 lumped-mass cases are documented UD-005 differences, not bitwise (lumped/*). Each compat switch corrected alone changes exactly its declared quantity groups. macOS arm64 debug and x86_64 strict oracle. Rules accepted by an independent review; the fix round re-checked by a second review",
+      "reviewed_by": "independent review during the port, November 2026"
+    },
+    {
+      "quantity": "lumped/*",
+      "justification": "Documented difference (UD-005, category B without compat switch): upstream's lumped mass and lumped kinetic energy are identically zero (node2 = conn(0)); the replay checks that record exactly and that the port's corrected lumped mass (UD-059, D-059: translational m/2 per node and rotary inertia) is positive and gives 1/2 sum m v^2. lumped/velocity is a probe input. Not counted as bitwise values.",
+      "reviewed_by": "independent review during the port, November 2026"
+    },
+    {
+      "quantity": "pre/*",
+      "justification": "Explicit-lumped analysis right after initFull (cases v76_beam{2,3}_lumped_pre_energy, UD-510): pre/velocity is a probe input; pre/kinetic_energy (getEnergy(\"kinetic\") before any step) is bitwise: upstream and the port take the consistent branch (sparse M created with the integration scheme, no lumped M yet), 1/2 v.(M v) with the AIJ mat-vec and local-or-master order; pre/M/* bitwise as M/* (rows/cols equal, values bitwise). pre/kinetic_energy_after_lumped is a documented UD-005 difference (upstream 0: zero lumped mass; the port's value is checked against 1/2 sum m v^2). The has_* booleans in the manifest parameters are compared exactly.",
+      "evidence": "crates/akantu-structural/tests/structural_model_matches_oracle.rs (2-D 5.320198364029312e-2, 3-D 1.666334946565129e-1 bitwise; fails before the fix); x86_64 strict oracle, probe v2, three identical runs",
+      "reviewed_by": "independent review during the port, November 2026"
+    }
+  ]
+}

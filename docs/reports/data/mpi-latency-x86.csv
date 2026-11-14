@@ -1,0 +1,14 @@
+transport,case,ranks,bytes,raw_us,raw_min,raw_max,akantu_us,akantu_min,akantu_max,ratio_paired,ratio_min,ratio_max
+# source: docs/benchmarks/mpi-latency-2026-11-14/separate.tsv (docs/BENCHMARKS.md, "Point-to-point latency against raw MPI", table "Method A, separate launches"); boat.dev default sandbox, AMD Ryzen 9 9950X host, 4 vCPU, container 4 CPUs; 2026-11-14; raw = scripts/mpi/bench_baseline.c (mpicc -O2), akantu = akantu-comm mpi_bench (release); separate launches, order alternated, 5 repetitions; microseconds (ping-pong: half round trip; halo: per exchange, slowest rank), median [min, max]; ratio = per-repetition akantu / raw; shared memory without single copy (image setting)
+shared_memory,pingpong,2,8,0.09,0.09,0.16,0.59,0.58,0.61,6.44,3.75,6.78
+shared_memory,pingpong,2,65536,2.45,2.43,2.48,5.27,5.20,12.1,2.17,2.11,4.94
+shared_memory,pingpong,2,1048576,26.3,26.1,27.2,92.1,89.7,120.5,3.50,3.44,4.52
+shared_memory,pingpong,2,16777216,1212,1079,1563,5994,5732,6720,4.76,4.30,5.54
+shared_memory,halo,2,8192,0.77,0.71,2.08,2.06,1.89,2.29,2.59,0.97,3.23
+shared_memory,halo,4,8192,2.53,2.32,4.79,8.90,6.32,12.8,2.85,2.05,4.30
+tcp,pingpong,2,8,2.25,2.09,3.46,2.80,2.72,3.88,1.28,0.89,1.41
+tcp,pingpong,2,65536,11.1,10.7,15.6,14.3,13.8,20.0,1.29,1.24,1.76
+tcp,pingpong,2,1048576,60.9,49.7,77.0,117.5,116.2,158.9,2.06,1.72,2.36
+tcp,pingpong,2,16777216,1890,1850,2236,6630,6462,7332,3.52,3.11,3.63
+tcp,halo,2,8192,3.80,3.61,5.41,4.91,4.88,5.00,1.32,0.91,1.35
+tcp,halo,4,8192,10.6,9.79,20.8,15.7,14.0,21.5,1.42,1.03,1.62

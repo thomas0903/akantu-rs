@@ -1,0 +1,11 @@
+run,code,ranks,wall_s,read_mesh_s,dist_mesh_s,init_full_s,static_solve_s,before_step_s,solve_step_ms,check_ms,energies_ms,loop_s,core_us_per_el_step,largest_rank_gib,total_sampler_gib,container_gib,mumps_infog19_mb,steps
+# source: steps = the 5,000-step schedule of both full-size runs (docs/BENCHMARKS.md, "The full-size run" and "Multi-node runs")
+# source: docs/BENCHMARKS.md, "The full-size run", table "Phases", and "Memory", tables "Memory" and "MUMPS" (docs/benchmarks/c1-2026-11-12/, printed by crates/akantu-bench/scripts/c1_report.py); AWS r7a.16xlarge on demand, AMD EPYC 9R14, 64 cores, one NUMA node; 2026-11-12; JOSS mesh 4,392,183 tetrahedra, 5,000 steps with insertion, same partition for both codes; one run per point; C++ = reference 35a85178 strict install with JOSS-patch emulation; C++ at 8 ranks not run; MUMPS INFOG(19) recorded by the port only
+c1,rust,64,2387,5.48,151,1.91,305,2.93,108,255,20.2,1916,5.29,6.13,227.0,206.2,182823,5000
+c1,cpp,64,2729,15.6,80.9,7.42,228,2.3,132,318,28,2390,6.56,4.84,212.0,191.7,,5000
+c1,rust,32,3221,5.67,83.5,3.12,356,4.71,112,418,22.9,2764,3.86,10.42,189.0,185.5,162775,5000
+c1,cpp,32,3787,15.3,66.4,17.3,353,4.17,179,459,27.3,3326,4.65,11.24,197.9,194.2,,5000
+c1,rust,8,10967,5.41,32.1,12.8,831,16.4,249,1656,109,10065,3.47,31.78,165.3,165.9,139310,5000
+# source: docs/benchmarks/results-2026-11-13.txt, "(a) The JOSS mesh, 5,000 steps" (rows "1 (r7a.16xlarge)"; printed by crates/akantu-bench/scripts/results_report.py from docs/benchmarks/c1-rerun-2026-11-13/; summarised in docs/BENCHMARKS.md, "Multi-node runs", table "The JOSS mesh across eight hosts against one node"); AWS r7a.16xlarge, AMD EPYC 9R14; 2026-11-13; the port only, corrected load placement (rerun after UD-1280); memory columns not in that table (container peaks 198.2 / 190.7 GiB: docs/manual/src/appendix/joss.md, full-size table)
+rerun,rust,64,2415,5.49,149.4,1.86,324.5,2.99,110.7,254.2,20.3,1926,,,,198.2,,5000
+rerun,rust,32,3107,5.41,83.5,3.12,337.6,4.51,109.9,402.2,21.7,2669,,,,190.7,,5000

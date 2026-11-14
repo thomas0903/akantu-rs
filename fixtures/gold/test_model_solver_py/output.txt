@@ -1,0 +1,17 @@
+11a12
+> import python_fe.truss_fe, python_fe.static_solver  # noqa: E401
+22,23c23,24
+<     F={f: [np.where(F == f)] for f in np.unique(F)},
+<     blocked=(np.where(blocked == 1), u[blocked == 1]),
+---
+>     F={f: [np.where(F == f)[0]] for f in np.unique(F)},
+>     blocked=(np.where(blocked == 1)[0], u[blocked == 1]),
+32a34
+> print("relative error", repr(n))
+numpy 2.2.4 scipy 1.15.3
+relative error np.float64(1.1916780266424304e-14)
+Traceback (most recent call last):
+  File "/tmp/pyfe.u9oZzX/check.py", line 36, in <module>
+    raise ValueError("Something went wrong in the simulation")
+ValueError: Something went wrong in the simulation
+exit status 1

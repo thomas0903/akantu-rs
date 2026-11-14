@@ -1,0 +1,155 @@
+# SPDX-License-Identifier: LGPL-3.0-or-later
+# akantu-rs CI: documentation (row CI-024). On every pull request and every
+# push to main: `rustdoc` builds the API documentation with -D warnings and
+# `manual` builds the user manual with mdBook; both keep their HTML as an
+# artifact. On a push to main (or a manual run on main) only: `site`
+# assembles the manual, the Rust API documentation and the Python API
+# documentation into one site (ci/github/pages-site.sh) and `deploy`
+# publishes it to GitHub Pages (D-114). The repository's Pages source must be
+# "GitHub Actions" before the first deployment (ci/github/README.md).
+name: docs
+on:
+  # No path filter: `rustdoc` and `manual` are required checks of a pull
+  # request, and a workflow skipped by a path filter leaves them pending.
+  pull_request:
+  push:
+    branches: [main]
+  workflow_dispatch:
+permissions:
+  contents: read
+env:
+  # Container caps of scripts/mpi/in-docker.sh. The defaults (4 CPUs / 6g) fit
+  # the standard runner of a public repository (4 vCPU / 16 GB); on a
+  # private repository's 2-vCPU runner set the repository variable
+  # AKANTU_RS_DOCKER_CPUS=2 (ci/github/README.md, "Runners and their limits").
+  AKANTU_RS_DOCKER_CPUS: ${{ vars.AKANTU_RS_DOCKER_CPUS || '4' }}
+  AKANTU_RS_DOCKER_MEMORY: ${{ vars.AKANTU_RS_DOCKER_MEMORY || '6g' }}
+concurrency:
+  # A newer push to the same pull request or branch cancels the older run. On
+  # main a running run is not cancelled, so a Pages deployment in progress
+  # finishes; the newest pending run waits and then deploys its commit.
+  group: docs-${{ github.ref }}
+  cancel-in-progress: ${{ github.ref != 'refs/heads/main' }}
+jobs:
+  rustdoc:
+    runs-on: ubuntu-24.04
+    timeout-minutes: 45
+    steps:
+      - uses: actions/checkout@de0fac2e4500dabe0009e67214ff5f5447ce83dd # v6.0.2
+        with:
+          persist-credentials: false
+      - name: Cargo registry (crate archives and index, keyed by Cargo.lock)
+        uses: actions/cache@668228422ae6a00e4ad889ee87cd7109ec5666a7 # v5.0.4
+        with:
+          path: |
+            ~/.cargo/registry/index
+            ~/.cargo/registry/cache
+          key: cargo-registry-${{ runner.os }}-${{ hashFiles('Cargo.lock') }}
+          restore-keys: cargo-registry-${{ runner.os }}-
+      - name: rustdoc (host toolchain from rust-toolchain.toml)
+        run: ci/run-all.sh --backend host --tiers docs --out "$RUNNER_TEMP/ci-out"
+      - if: always()
+        uses: actions/upload-artifact@bbbca2ddaa5d8feaa63e36b76fdaad77386f024f # v7.0.0
+        with:
+          name: ci-docs
+          path: |
+            ${{ runner.temp }}/ci-out
+            target/doc
+          retention-days: 7
+  manual:
+    runs-on: ubuntu-24.04
+    timeout-minutes: 30
+    steps:
+      - uses: actions/checkout@de0fac2e4500dabe0009e67214ff5f5447ce83dd # v6.0.2
+        with:
+          persist-credentials: false
+      - name: mdBook binary (cargo install is a no-op when the cached version is present)
+        uses: actions/cache@668228422ae6a00e4ad889ee87cd7109ec5666a7 # v5.0.4
+        with:
+          path: ${{ runner.temp }}/mdbook
+          key: mdbook-0.4.40-${{ runner.os }}
+      - name: manual (mdBook 0.4.40 from crates.io, the version the manual was reviewed with)
+        run: |
+          cargo install mdbook --version 0.4.40 --locked --root "$RUNNER_TEMP/mdbook"
+          "$RUNNER_TEMP/mdbook/bin/mdbook" build docs/manual
+      - if: always()
+        uses: actions/upload-artifact@bbbca2ddaa5d8feaa63e36b76fdaad77386f024f # v7.0.0
+        with:
+          name: ci-manual
+          path: docs/manual/book
+          retention-days: 7
+  # The site (a push to main or a manual run on main, never a pull request):
+  # the three parts built by the same commands as the jobs that check them
+  # (`rustdoc` and `manual` above, the `python` preset of python.yml),
+  # assembled by ci/github/pages-site.sh. The `python` preset includes the
+  # pytest suite, so every push to main runs it here. Read-only permissions
+  # (the workflow's).
+  site:
+    if: (github.event_name == 'push' || github.event_name == 'workflow_dispatch') && github.ref == 'refs/heads/main'
+    needs: rustdoc
+    runs-on: ubuntu-24.04
+    timeout-minutes: 120
+    steps:
+      - uses: actions/checkout@de0fac2e4500dabe0009e67214ff5f5447ce83dd # v6.0.2
+        with:
+          persist-credentials: false
+      - name: Cargo registry (crate archives and index, keyed by Cargo.lock)
+        uses: actions/cache@668228422ae6a00e4ad889ee87cd7109ec5666a7 # v5.0.4
+        with:
+          path: |
+            ~/.cargo/registry/index
+            ~/.cargo/registry/cache
+          key: cargo-registry-${{ runner.os }}-${{ hashFiles('Cargo.lock') }}
+          restore-keys: cargo-registry-${{ runner.os }}-
+      - name: mdBook binary (cargo install is a no-op when the cached version is present)
+        uses: actions/cache@668228422ae6a00e4ad889ee87cd7109ec5666a7 # v5.0.4
+        with:
+          path: ${{ runner.temp }}/mdbook
+          key: mdbook-0.4.40-${{ runner.os }}
+      - name: manual (mdBook 0.4.40 from crates.io, the version the manual was reviewed with)
+        run: |
+          cargo install mdbook --version 0.4.40 --locked --root "$RUNNER_TEMP/mdbook"
+          "$RUNNER_TEMP/mdbook/bin/mdbook" build docs/manual
+      - name: rustdoc (host toolchain from rust-toolchain.toml)
+        run: ci/run-all.sh --backend host --tiers docs --out "$RUNNER_TEMP/ci-out-docs"
+      - name: wheel + import + pytest, then pdoc (as python.yml)
+        env:
+          CI_WHEEL_PIP_BASE: numpy==2.2.4
+        run: ci/run-all.sh --backend host --preset python --out "$RUNNER_TEMP/ci-out"
+      - name: assemble the site
+        run: ci/github/pages-site.sh "$RUNNER_TEMP/site" --python "$RUNNER_TEMP/ci-out/pydocs/html"
+      - uses: actions/upload-pages-artifact@fc324d3547104276b827a68afc52ff2a11cc49c9 # v5.0.0
+        with:
+          path: ${{ runner.temp }}/site
+      - if: always()
+        uses: actions/upload-artifact@bbbca2ddaa5d8feaa63e36b76fdaad77386f024f # v7.0.0
+        with:
+          name: ci-site
+          path: |
+            ${{ runner.temp }}/ci-out
+            ${{ runner.temp }}/ci-out-docs
+            !${{ runner.temp }}/ci-out/**/venv
+          retention-days: 7
+  # The only job with write permissions: it publishes the artifact that `site`
+  # uploaded and nothing else (no checkout, no repository code runs here).
+  deploy:
+    if: (github.event_name == 'push' || github.event_name == 'workflow_dispatch') && github.ref == 'refs/heads/main'
+    needs: site
+    runs-on: ubuntu-24.04
+    timeout-minutes: 10
+    # Its own group, never cancelled: a newer push to main must not stop a
+    # Pages deployment that is running (the newer run deploys after it).
+    concurrency:
+      group: pages
+      cancel-in-progress: false
+    permissions:
+      contents: read
+      pages: write
+      id-token: write
+    environment:
+      name: github-pages
+      url: ${{ steps.deployment.outputs.page_url }}
+    steps:
+      - uses: actions/configure-pages@983d7736d9b0ae728b81ab479565c72886d7745b # v5.0.0
+      - id: deployment
+        uses: actions/deploy-pages@368f82528645a54fb793d4d04e342629a3f51346 # v5.0.1

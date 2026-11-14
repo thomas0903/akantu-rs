@@ -1,0 +1,17 @@
+# SPDX-License-Identifier: LGPL-3.0-or-later
+# GitHub Actions only. Cargo dependency updates can change floating-point
+# results and go through the procedure of docs/MAINTAINING.md ("Updating a
+# dependency without changing results"). An accepted update of a workflow under
+# .github/workflows/ must be copied to ci/github/ as well (ci/selftest.sh).
+version: 2
+updates:
+  - package-ecosystem: github-actions
+    directory: /
+    schedule:
+      interval: monthly
+    open-pull-requests-limit: 3
+    groups:
+      actions:
+        patterns: ["*"]
+    commit-message:
+      prefix: "ci"

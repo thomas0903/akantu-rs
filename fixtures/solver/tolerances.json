@@ -1,0 +1,11 @@
+{
+  "format_version": 1,
+  "rules": [
+    {
+      "quantity": "*",
+      "justification": "Sparse algebra and direct solvers (docs/NUMERICAL_VALIDATION.md, 'Sparse algebra and direct solvers'): every floating-point quantity of fixtures/solver is either an input echoed by the probe (element matrices, triplets, right-hand sides, product operands, special values), fed unchanged to the port, or an output whose operation order the port replicates statement by statement: AIJ accumulation in upstream loop order (single binary64 additions), matVecMul in storage order with upstream's final '+ 0', applyBoundary assignments, copyProfile/add(B, alpha) in storage order, and the MPL-2.0 translation of Eigen 3.4.0 SparseLU + COLAMD with the strict-build dense kernel order (no vectorisation, no contraction). Bit identity is therefore the expected result by construction; any difference is a defect, not rounding noise.",
+      "evidence": "2026-11-10: crates/akantu-linalg/tests/{aij_oracle,matrix_market_oracle,eigen_sparse_lu_oracle}.rs observe every compared value of all 15 cases bit-identical. AIJ: 6 cases. LU: 14 cases = 12 successful factorisations + 2 singular refusals; the lu/* successful cases and the 4 aij/bar_* cases compare perm_c, etree, perm_r, every factor array, nnzL/nnzU and the solution; the 2 aij/triangle_* cases compare only the permutations, the elimination tree, nnzL/nnzU, the supernode count and the solution (the probe records no factor arrays there: solver_probe.cc:293-294; docs/NUMERICAL_VALIDATION.md). Text: 30 special values. An independent review re-ran 4 adversarial cases (zero_diagonal, dense_row_column, laplacian, near_singular) byte-identical.",
+      "reviewed_by": "independent review during the port, November 2026"
+    }
+  ]
+}

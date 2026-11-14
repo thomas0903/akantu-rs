@@ -1,0 +1,71 @@
+# SPDX-License-Identifier: LGPL-3.0-or-later
+# akantu-rs: cases of oracle/probes/mesh2/mesh2_probe.cc (one spec per line, see
+# the probe header). Fixtures: fixtures/mesh2/<case>.
+# MESH-001...004 (container, counts, type iteration, facet connectivity,
+# makeReady state), MESH-017...019 (ElementTypeMapArray::initialize), MESH-020
+# (ElementTypeMapArrayFilter) and getNbDataPerElem
+case=queries/quadrangle_4_triangle_3;file=up:test/test_mesh_utils/test_buildfacets/_quadrangle_4_triangle_3.msh;dim=2;ops=queries,typemap,filter
+case=queries/hexahedron_8_pentahedron_6;file=up:test/test_mesh_utils/test_buildfacets/_hexahedron_8_pentahedron_6.msh;dim=3;ops=queries,typemap
+case=queries/cube_physical_names;file=fz:test/test_fe_engine/cube_physical_names.msh;dim=3;ops=queries,typemap,filter
+case=queries/segment_3;file=up:test/test_fe_engine/_segment_3.msh;dim=1;ops=queries,typemap
+case=queries/pentahedron_15;file=up:test/test_fe_engine/_pentahedron_15.msh;dim=3;ops=queries
+case=queries/triangle_6;file=up:test/test_fe_engine/_triangle_6.msh;dim=2;ops=queries,typemap
+# Mesh::read of a 1-D mesh as a 2-D mesh: no element of the mesh dimension
+# (upstream warning), makeReady still runs
+case=queries/segment_2_as_2d;file=up:test/test_fe_engine/_segment_2.msh;dim=2;ops=queries,typemap
+# generated meshes (MeshAccessor; MESH-016): kinds the test meshes lack
+case=queries/accessor_quads;file=gen:accessor_quads;dim=2;ops=queries,typemap,filter
+case=queries/cohesive_2d;file=gen:cohesive_2d;dim=2;ops=queries,typemap
+case=queries/mixed_2d_kinds;file=gen:mixed_2d_kinds;dim=2;ops=queries,typemap
+case=queries/beams_2d;file=gen:beams_2d;dim=2;ops=queries,typemap
+# MESH-022, MESH-023, MESH-027: default group dumpers, field factories,
+# getGroupDumper, renamed group, node-group dumpers
+case=groups_dump/cube_physical_names;file=fz:test/test_fe_engine/cube_physical_names.msh;dim=3;ops=groups_dump
+case=groups_dump/test_dumper;file=up:test/test_io/test_dumper/test_dumper.msh;dim=3;ops=groups_dump
+# MUTIL-014: Scotch node reordering, weighted partitioning, dblDump files
+case=scotch/reorder_cube;file=fz:test/test_fe_engine/cube.msh;dim=3;ops=reorder,dbldump
+case=scotch/reorder_cube_physical_names;file=fz:test/test_fe_engine/cube_physical_names.msh;dim=3;ops=reorder
+case=scotch/reorder_quad;file=fz:test/test_mesh_utils/test_mesh_partitionate/quad.msh;dim=2;ops=reorder,dbldump
+case=scotch/reorder_mixed_2d_kinds;file=gen:mixed_2d_kinds;dim=2;ops=reorder
+case=scotch/weighted_cube;file=fz:test/test_fe_engine/cube.msh;dim=3;ops=weighted,dbldump;parts=3
+case=scotch/weighted_quad;file=fz:test/test_mesh_utils/test_mesh_partitionate/quad.msh;dim=2;ops=weighted;parts=4
+# MUTIL-017: BoostGraphConverter::toGraphviz
+case=graphviz/triangle_3;file=up:test/test_fe_engine/_triangle_3.msh;dim=2;ops=graphviz
+case=graphviz/quadrangle_4_triangle_3;file=up:test/test_mesh_utils/test_buildfacets/_quadrangle_4_triangle_3.msh;dim=2;ops=graphviz
+case=graphviz/hexahedron_8;file=up:test/test_mesh_utils/test_buildfacets/_hexahedron_8.msh;dim=3;ops=graphviz
+case=graphviz/segment_2;file=up:test/test_fe_engine/_segment_2.msh;dim=1;ops=graphviz
+case=graphviz/cohesive_2d;file=gen:cohesive_2d;dim=2;ops=graphviz
+# Adversarial cases (specs as in oracle/probes/mesh2/adversarial-cases.txt,
+# shown identical by an independent run on the pinned oracle):
+# MESH-022 / 023 / 027 group dumpers on quadratic and mixed meshes
+case=groups_dump/v88_hexahedron_20;file=up:test/test_fe_engine/_hexahedron_20.msh;dim=3;ops=groups_dump
+case=groups_dump/v88_hex_penta;file=up:test/test_mesh_utils/test_buildfacets/_hexahedron_8_pentahedron_6.msh;dim=3;ops=groups_dump
+case=groups_dump/v88_triangle_6;file=up:test/test_fe_engine/_triangle_6.msh;dim=2;ops=groups_dump
+# default group dumpers on cohesive, structural, segment and point elements
+# (review probe mode `kinds_group_dump`)
+case=groups_dump/v88_kinds_cohesive_2d;file=gen:cohesive_2d;dim=2;ops=kinds_group_dump
+case=groups_dump/v88_kinds_mixed_2d_kinds;file=gen:mixed_2d_kinds;dim=2;ops=kinds_group_dump
+case=groups_dump/v88_kinds_beams_2d;file=gen:beams_2d;dim=2;ops=kinds_group_dump
+# MESH-001...004 / 019 / 020 on quadratic 3-D meshes
+case=queries/v88_hexahedron_20;file=up:test/test_fe_engine/_hexahedron_20.msh;dim=3;ops=queries,typemap,filter
+case=queries/v88_tetrahedron_10;file=up:test/test_fe_engine/_tetrahedron_10.msh;dim=3;ops=queries,typemap,filter
+# MUTIL-014 weighted partitions at 2 / 4 / 8 parts, mixed element types,
+# quadratic elements, dblDump files with non-trivial barycentres (`%.6g`)
+case=scotch/v88_weighted_cube_2;file=fz:test/test_fe_engine/cube.msh;dim=3;ops=weighted,dbldump;parts=2
+case=scotch/v88_weighted_cube_8;file=fz:test/test_fe_engine/cube.msh;dim=3;ops=weighted;parts=8
+case=scotch/v88_weighted_quad_2;file=fz:test/test_mesh_utils/test_mesh_partitionate/quad.msh;dim=2;ops=weighted;parts=2
+case=scotch/v88_weighted_quad_8;file=fz:test/test_mesh_utils/test_mesh_partitionate/quad.msh;dim=2;ops=weighted,dbldump;parts=8
+case=scotch/v88_weighted_triangle_8;file=fz:test/test_mesh_utils/test_mesh_partitionate/triangle.msh;dim=2;ops=weighted,dbldump;parts=8
+case=scotch/v88_weighted_hex_penta_4;file=up:test/test_mesh_utils/test_buildfacets/_hexahedron_8_pentahedron_6.msh;dim=3;ops=weighted,dbldump;parts=4
+case=scotch/v88_weighted_quad_tri_8;file=up:test/test_mesh_utils/test_buildfacets/_quadrangle_4_triangle_3.msh;dim=2;ops=weighted;parts=8
+# MUTIL-014 / UD-670 reordering: named groups, mixed 3-D types, quadratic
+# elements, cohesive and structural kinds, a mesh without any element of the
+# mesh dimension
+case=scotch/v88_reorder_test_dumper;file=up:test/test_io/test_dumper/test_dumper.msh;dim=3;ops=reorder,dbldump
+case=scotch/v88_reorder_hex_penta;file=up:test/test_mesh_utils/test_buildfacets/_hexahedron_8_pentahedron_6.msh;dim=3;ops=reorder
+case=scotch/v88_reorder_triangle_6;file=fz:test/test_mesh_utils/test_mesh_partitionate/triangle.msh;dim=2;ops=reorder,dbldump
+case=scotch/v88_reorder_cohesive_2d;file=gen:cohesive_2d;dim=2;ops=reorder
+case=scotch/v88_reorder_beams_2d;file=gen:beams_2d;dim=2;ops=reorder
+case=scotch/v88_reorder_segment_2_as_2d;file=up:test/test_fe_engine/_segment_2.msh;dim=2;ops=reorder
+# MUTIL-017 on a mixed 3-D mesh
+case=graphviz/v88_hex_penta;file=up:test/test_mesh_utils/test_buildfacets/_hexahedron_8_pentahedron_6.msh;dim=3;ops=graphviz

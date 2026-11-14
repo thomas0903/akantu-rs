@@ -1,0 +1,94 @@
+# SPDX-License-Identifier: LGPL-3.0-or-later
+[package]
+name = "akantu-igfem"
+description = "Interface-enriched generalized FEM: IGFEM elements, shape functions, model and materials (port of extra_packages/igfem)"
+version.workspace = true
+edition.workspace = true
+rust-version.workspace = true
+license.workspace = true
+repository.workspace = true
+authors.workspace = true
+homepage.workspace = true
+keywords.workspace = true
+categories.workspace = true
+readme = "README.md"
+publish = false
+
+[features]
+# Sphere–mesh intersection for the growing-gel mesh generation: links the
+# GPL-3.0-or-later crate akantu-geometry-cgal (decision D-042). OFF by
+# default; the umbrella feature `igfem` enables it (a build with it is
+# GPL-3.0-or-later as a whole).
+cgal = ["dep:akantu-geometry-cgal"]
+
+[dependencies]
+akantu-core.workspace = true
+akantu-comm.workspace = true
+akantu-mesh.workspace = true
+akantu-geometry.workspace = true
+akantu-fe.workspace = true
+akantu-model.workspace = true
+akantu-solid.workspace = true
+akantu-solver.workspace = true
+akantu-linalg.workspace = true  # Eigen-order eigenvalues of the damage laws (IGFEM-007 / 008)
+akantu-parser.workspace = true
+akantu-io.workspace = true  # the "igfem elements" dumper (IGFEM-010)
+akantu-geometry-cgal = { workspace = true, optional = true }  # GPL-3.0-or-later (feature `cgal`, D-042)
+
+[dev-dependencies]
+akantu-io.workspace = true  # read the upstream test meshes
+akantu-extra-materials = { workspace = true, features = ["damage-non-local"] }  # damage_iterative / iterative_stiffness_reduction sub-materials (TEST-201, 202, 204, 205)
+
+[[test]]
+name = "test_generation_igfem_mesh"
+required-features = ["cgal"]
+
+[[test]]
+name = "test_patch_tests"
+required-features = ["cgal"]
+
+[[test]]
+name = "test_interface_position"
+required-features = ["cgal"]
+
+[[test]]
+name = "test_solid_mechanics_model_igfem"
+required-features = ["cgal"]
+
+[[test]]
+name = "test_igfem_element_orientation"
+required-features = ["cgal"]
+
+[[test]]
+name = "test_eigenstrain"
+required-features = ["cgal"]
+
+[[test]]
+name = "test_transfer_internals"
+required-features = ["cgal"]
+
+[[test]]
+name = "test_igfem_dumper"
+required-features = ["cgal"]
+
+[[test]]
+name = "test_non_local_igfem"
+required-features = ["cgal"]
+
+[[test]]
+name = "test_asr_damage"
+required-features = ["cgal"]
+
+[[test]]
+name = "test_material_igfem_iterative_stiffness_reduction"
+required-features = ["cgal"]
+
+# Off-centre inclusion convergence study (run it in
+# release, see the file header). Built and linted by the feature gate
+# `cargo clippy -p akantu-igfem --all-targets --features cgal`.
+[[example]]
+name = "igfem_off_centre_inclusion"
+required-features = ["cgal"]
+
+[lints]
+workspace = true

@@ -1,0 +1,11 @@
+{
+  "format_version": 1,
+  "rules": [
+    {
+      "quantity": "*",
+      "justification": "Exact. fixtures/model/upstream_tests_2b/* (oracle/probes/upstream_tests_2b/test2b_probe.cc) replay upstream test programs: material_mazars_hexahedron_8 (explicit lumped mass, no linear solve), material_gtest_random_rotation (integer engine, generate_canonical, IEEE divisions/square roots of the transcribed getRandomRotation), elasto_plastic_linear_isotropic_hardening (static Newton with the Eigen sparse LU pinned). The ports compare every recorded floating-point quantity bit for bit: crates/akantu-solid/tests/upstream_material_mazars.rs (step/stress_xx, step/energy/*, final/*), upstream_elastic_materials.rs (engine/uniform, rotation/2, rotation/3; engine/raw as integers), upstream_material_elasto_plastic_linear_isotropic_hardening.rs (step/strain_xx, step/reaction, step/error, final/displacement, final/internal_force; step/nb_iterations as integers). Any difference is a defect.",
+      "evidence": "3 cases, 29,767 floating-point values bitwise against the x86_64 strict oracle (akantu-oracle:dev sha256:45122c21..., Eigen cache sizes and OPENBLAS_CORETYPE=Haswell pinned, three identical runs), replayed on aarch64 macOS and in the x86_64 Linux test image (docs/NUMERICAL_VALIDATION.md)",
+      "reviewed_by": "independent review during the port, November 2026"
+    }
+  ]
+}

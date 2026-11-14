@@ -1,0 +1,34 @@
+# SPDX-License-Identifier: LGPL-3.0-or-later
+# akantu-rs test-only image: a stand-in for one AWS host
+# in the rehearsal of the ssh backend (crates/akantu-bench/scripts/mn_e2e_ssh.sh):
+# Docker-in-Docker (its own dockerd, image store and network namespace, so
+# that `--network host` node containers of different stand-in hosts are
+# isolated as on separate machines) plus an sshd on port 22 with a login
+# `ubuntu` in the docker group, like the Ubuntu 24.04 instances of the AWS
+# run. Never part of a benchmark result; never pushed anywhere. Run
+# privileged (Docker-in-Docker); the entrypoint installs the rehearsal's
+# throw-away launch key from /launch/authorized_keys (the role of the
+# operator's EC2 key pair) and starts sshd, then dockerd on the unix
+# socket only.
+# docker:27.5.1-dind (2025-02-02), pinned by digest
+ARG BASE_IMAGE=docker:27.5.1-dind@sha256:aa3df78ecf320f5fafdce71c659f1629e96e9de0968305fe1de670e0ca9176ce
+FROM ${BASE_IMAGE}
+RUN apk add --no-cache openssh-server openssh-client openssh-keygen bash python3 coreutils tar gzip procps sudo \
+    && (addgroup -S docker 2>/dev/null || true) \
+    && adduser -D -s /bin/bash ubuntu \
+    && addgroup ubuntu docker \
+    && sed -i 's/^ubuntu:!/ubuntu:*/' /etc/shadow \
+    && sed -i -e 's/^#*[[:space:]]*AllowTcpForwarding.*/AllowTcpForwarding yes/' /etc/ssh/sshd_config \
+    && (grep -q '^AllowTcpForwarding yes' /etc/ssh/sshd_config || echo 'AllowTcpForwarding yes' >> /etc/ssh/sshd_config) \
+    && printf 'PasswordAuthentication no\nKbdInteractiveAuthentication no\nPermitRootLogin no\nAllowUsers ubuntu\n' \
+         >> /etc/ssh/sshd_config \
+    && echo 'ubuntu ALL=(ALL) NOPASSWD: ALL' > /etc/sudoers.d/ubuntu && chmod 0440 /etc/sudoers.d/ubuntu
+# TCP forwarding allowed as on Ubuntu (Alpine's sshd_config
+# says `AllowTcpForwarding no`, which refuses the `ssh -J` hop through the head);
+# stand-ins of an Ubuntu instance's `cloud-init status` and
+# `shutdown` for mn_aws_hosts.py (record only; mnhost-standins.sh)
+COPY mnhost-entrypoint.sh /usr/local/bin/mnhost-entrypoint.sh
+COPY mnhost-standins.sh /usr/local/bin/cloud-init
+COPY mnhost-standins.sh /usr/local/sbin/shutdown
+RUN chmod 0755 /usr/local/bin/mnhost-entrypoint.sh /usr/local/bin/cloud-init /usr/local/sbin/shutdown
+ENTRYPOINT ["/usr/local/bin/mnhost-entrypoint.sh"]

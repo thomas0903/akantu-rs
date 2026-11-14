@@ -1,0 +1,47 @@
+# SPDX-License-Identifier: LGPL-3.0-or-later
+# akantu-rs CI: line coverage of the workspace tests with cargo-llvm-cov
+# (row CI-020), weekly and on manual dispatch. A report only: the per-file
+# table is in the step log of the artifact, no threshold is enforced and
+# nothing is uploaded to a coverage service.
+name: coverage
+on:
+  schedule:
+    - cron: "17 6 * * 6"
+  workflow_dispatch:
+permissions:
+  contents: read
+env:
+  # Container caps of scripts/mpi/in-docker.sh. The defaults (4 CPUs / 6g) fit
+  # the standard runner of a public repository (4 vCPU / 16 GB); on a
+  # private repository's 2-vCPU runner set the repository variable
+  # AKANTU_RS_DOCKER_CPUS=2 (ci/github/README.md, "Runners and their limits").
+  AKANTU_RS_DOCKER_CPUS: ${{ vars.AKANTU_RS_DOCKER_CPUS || '4' }}
+  AKANTU_RS_DOCKER_MEMORY: ${{ vars.AKANTU_RS_DOCKER_MEMORY || '6g' }}
+concurrency:
+  group: coverage-${{ github.ref }}
+  cancel-in-progress: false
+jobs:
+  coverage:
+    runs-on: ubuntu-24.04
+    timeout-minutes: 240
+    steps:
+      - uses: actions/checkout@de0fac2e4500dabe0009e67214ff5f5447ce83dd # v6.0.2
+        with:
+          persist-credentials: false
+      - name: Free disk space on the runner (project images and the cargo target volume are large)
+        run: ci/github/free-disk.sh
+      - uses: actions/cache@668228422ae6a00e4ad889ee87cd7109ec5666a7 # v5.0.4
+        with:
+          path: ~/akantu-images
+          key: images-v3-mpi-${{ hashFiles('docker/mpi/Dockerfile') }}
+      - run: ci/github/images.sh ~/akantu-images mpi
+      - name: cargo-llvm-cov 0.9.1 (installed from crates.io in the image's target volume), workspace tests
+        env:
+          CI_INSTALL_TOOLCHAINS: "1"
+        run: ci/run-all.sh --backend docker --tiers coverage --out "$RUNNER_TEMP/ci-out"
+      - if: always()
+        uses: actions/upload-artifact@bbbca2ddaa5d8feaa63e36b76fdaad77386f024f # v7.0.0
+        with:
+          name: ci-coverage
+          path: ${{ runner.temp }}/ci-out
+          retention-days: 14

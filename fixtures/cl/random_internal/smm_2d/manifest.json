@@ -1,0 +1,2994 @@
+{
+  "format_version": 1,
+  "case_id": "cl/random_internal/smm_2d",
+  "description": "Random internal fields of a probe Material in a SolidMechanicsModel: allocation and draw order on init, ghost addElements, setDefaultValue, setRandomDistribution, NewElementsEvent, eraseElements; block layout per internal (spatial dimension / element kind restriction)",
+  "status": "golden",
+  "generator": {
+    "probe": "law_random_probe",
+    "probe_version": "1",
+    "command": "oracle/scripts/generate-fixtures.sh fe_extra cl_random core_init parsable"
+  },
+  "reference": {
+    "sha": "35a851780d0b9471d258ed53a003ae98aaa95ea0",
+    "describe": "v5.0.7-post1-554-g35a851780",
+    "patches": [
+      "modified:cmake/AkantuTestsMacros.cmake sha256=c280165a84912eab4bcc081b9eaaaa06aafdd83d4f48d982e11b0859abf9672f (reference sha256=36290de2ec8b111028138fe82029efa16501512241a5bc264fa30ff3e3239b9e)"
+    ]
+  },
+  "build": {
+  "config": "strict",
+  "compiler": "g++ (Debian 14.2.0-19) 14.2.0",
+  "cxx_flags": "-ffp-contract=off -DEIGEN_DONT_VECTORIZE -O2 -g -DNDEBUG -g3 -ggdb3 -flarge-source-files -std=c++20 -flto=auto -fno-fat-lto-objects -fPIC -frounding-math (actual flags of src/model/solid_mechanics/solid_mechanics_model.cc; warnings and non-FP -D defines omitted)",
+  "build_type": "RelWithDebInfo",
+  "arch": "aarch64",
+  "os": "Debian GNU/Linux 13 (trixie)",
+  "libraries": {
+    "eigen3": "3.4.0-5",
+    "boost": "1.83.0.2+b2",
+    "openmpi": "5.0.7-1",
+    "mumps": "5.7.3-3+b1",
+    "petsc": "3.22.5+dfsg1-2",
+    "scotch": "7.0.7-1",
+    "openblas": "0.3.29+ds-3",
+    "scalapack": "2.2.2-1",
+    "hdf5": "1.14.5+repack-3",
+    "gmsh": "4.13.1+ds1-6",
+    "pybind11": "2.13.6-2",
+    "numpy": "1:2.2.4+ds-1",
+    "scipy": "1.15.3-1",
+    "gcc": "4:14.2.0-1",
+    "gfortran": "4:14.2.0-1",
+    "oracle_image": "sha256:6683233d0a3b9341eb5cedf5879bc9ccb76ddf3d91e9aa0fd35b99dc7866d7a6",
+    "oracle_build_scripts": "45b473da9cbfb356a039d94609fe39f6f36a1a9a",
+    "oracle_install_reference_sha": "35a851780d0b9471d258ed53a003ae98aaa95ea0",
+    "oracle_install_image": "sha256:6683233d0a3b9341eb5cedf5879bc9ccb76ddf3d91e9aa0fd35b99dc7866d7a6",
+    "sha256:libakantu.so.5.0.7": "9768e51184f0423c49abfd67535e6f3bc371522045b0b634223cce0ee07f0b0b",
+    "probe_tree_sha256": "ddf5e38bdae45e7475061c6755bfd4975434c9ebf760343220a4f124c7bf38db",
+    "probe_sources_commit": "f065bd5cbefc1f018fa7d24b8606c4a391a2b9c9",
+    "cmake_cxx_flags": "-ffp-contract=off -DEIGEN_DONT_VECTORIZE -O2 -g -DNDEBUG -g3 -ggdb3 -flarge-source-files",
+    "probe": "law_random_probe"
+  },
+  "probe_compile_command": "/usr/bin/c++ '-DAKANTU_PROBE_BUILD_TYPE=\"RelWithDebInfo\"' '-DAKANTU_PROBE_CONFIG=\"strict\"' '-DAKANTU_PROBE_CXX_FLAGS=\"-ffp-contract=off -DEIGEN_DONT_VECTORIZE  -O2 -g -DNDEBUG\"' -DBOOST_GRAPH_DYN_LINK -DBOOST_GRAPH_NO_LIB -DBOOST_REGEX_DYN_LINK -DBOOST_REGEX_NO_LIB -DCGAL_USE_GMPXX=1 -I/probes/include -isystem /build/install-strict/include/akantu -isystem /opt/CGAL-5.6.2/include -isystem /usr/lib/aarch64-linux-gnu/openmpi/include -isystem /usr/lib/aarch64-linux-gnu/openmpi/include/openmpi -isystem /usr/lib/petscdir/petsc3.22/aarch64-linux-gnu-real/include -isystem /usr/include/scotch -isystem /build/install-strict/include/akantu_iterators -isystem /usr/include/eigen3 -isystem /build/install-strict/include/iohelper -O2 -g -DNDEBUG -std=gnu++20 -ffp-contract=off -DEIGEN_DONT_VECTORIZE -Wall -Wextra -pedantic -Wno-array-bounds -Wno-use-after-free -Wno-stringop-overread -DOMPI_SKIP_MPICXX -Wno-literal-suffix -frounding-math -o CMakeFiles/law_random_probe.dir/cpp/law_random_probe.cc.o -c /probes/cpp/law_random_probe.cc",
+  "probe_cxx_flags": "-DAKANTU_PROBE_BUILD_TYPE=\"RelWithDebInfo\" -DAKANTU_PROBE_CONFIG=\"strict\" -DAKANTU_PROBE_CXX_FLAGS=\"-ffp-contract=off -DEIGEN_DONT_VECTORIZE  -O2 -g -DNDEBUG\" -DBOOST_GRAPH_DYN_LINK -DBOOST_GRAPH_NO_LIB -DBOOST_REGEX_DYN_LINK -DBOOST_REGEX_NO_LIB -DCGAL_USE_GMPXX=1 -O2 -g -DNDEBUG -std=gnu++20 -ffp-contract=off -DEIGEN_DONT_VECTORIZE -Wall -Wextra -pedantic -Wno-array-bounds -Wno-use-after-free -Wno-stringop-overread -DOMPI_SKIP_MPICXX -Wno-literal-suffix -frounding-math"
+},
+  "created": "2026-11-10T06:47:49Z",
+  "inputs": [
+    {
+      "role": "material",
+      "path": "inputs/law_random_probe.dat",
+      "sha256": "16bbbe3fda653bdfa29856cdca5a8dc0fdd8e024e8776b39c3b112302c85dd76"
+    }
+  ],
+  "parameters": {
+    "seed": 1234,
+    "nb_quadrature_points": [
+      1,
+      4
+    ],
+    "removal": {
+      "removed": [
+        {
+          "type": "_triangle_3",
+          "element": 1,
+          "ghost": "not_ghost"
+        },
+        {
+          "type": "_quadrangle_4",
+          "element": 0,
+          "ghost": "not_ghost"
+        }
+      ],
+      "numbering": [
+        {
+          "type": "_triangle_3",
+          "ghost": "not_ghost",
+          "new_numbering": [
+            0,
+            -1,
+            2,
+            3,
+            4,
+            1
+          ]
+        },
+        {
+          "type": "_quadrangle_4",
+          "ghost": "not_ghost",
+          "new_numbering": [
+            -1,
+            1,
+            0
+          ]
+        }
+      ]
+    },
+    "steps": [
+      {
+        "step": "s1",
+        "filter": [
+          {
+            "type": "_triangle_3",
+            "ghost": "not_ghost",
+            "elements": [
+              0,
+              1,
+              2,
+              3
+            ]
+          },
+          {
+            "type": "_quadrangle_4",
+            "ghost": "not_ghost",
+            "elements": [
+              0,
+              1
+            ]
+          },
+          {
+            "type": "_triangle_3",
+            "ghost": "ghost",
+            "elements": []
+          },
+          {
+            "type": "_quadrangle_4",
+            "ghost": "ghost",
+            "elements": []
+          }
+        ],
+        "layout": [
+          {
+            "field": "a_rand",
+            "type": "_triangle_3",
+            "ghost": "not_ghost",
+            "size": 4,
+            "nb_component": 2
+          },
+          {
+            "field": "a_rand",
+            "type": "_quadrangle_4",
+            "ghost": "not_ghost",
+            "size": 8,
+            "nb_component": 2
+          },
+          {
+            "field": "a_rand",
+            "type": "_triangle_3",
+            "ghost": "ghost",
+            "size": 0,
+            "nb_component": 2
+          },
+          {
+            "field": "a_rand",
+            "type": "_quadrangle_4",
+            "ghost": "ghost",
+            "size": 0,
+            "nb_component": 2
+          },
+          {
+            "field": "k_coh",
+            "type": "_triangle_3",
+            "ghost": "not_ghost",
+            "size": 0,
+            "nb_component": 1
+          },
+          {
+            "field": "k_coh",
+            "type": "_quadrangle_4",
+            "ghost": "not_ghost",
+            "size": 0,
+            "nb_component": 1
+          },
+          {
+            "field": "k_coh",
+            "type": "_triangle_3",
+            "ghost": "ghost",
+            "size": 0,
+            "nb_component": 1
+          },
+          {
+            "field": "k_coh",
+            "type": "_quadrangle_4",
+            "ghost": "ghost",
+            "size": 0,
+            "nb_component": 1
+          },
+          {
+            "field": "m_rand",
+            "type": "_triangle_3",
+            "ghost": "not_ghost",
+            "size": 4,
+            "nb_component": 1
+          },
+          {
+            "field": "m_rand",
+            "type": "_quadrangle_4",
+            "ghost": "not_ghost",
+            "size": 8,
+            "nb_component": 1
+          },
+          {
+            "field": "m_rand",
+            "type": "_triangle_3",
+            "ghost": "ghost",
+            "size": 0,
+            "nb_component": 1
+          },
+          {
+            "field": "m_rand",
+            "type": "_quadrangle_4",
+            "ghost": "ghost",
+            "size": 0,
+            "nb_component": 1
+          },
+          {
+            "field": "previous_m_rand",
+            "type": "_triangle_3",
+            "ghost": "not_ghost",
+            "size": 4,
+            "nb_component": 1
+          },
+          {
+            "field": "previous_m_rand",
+            "type": "_quadrangle_4",
+            "ghost": "not_ghost",
+            "size": 8,
+            "nb_component": 1
+          },
+          {
+            "field": "previous_m_rand",
+            "type": "_triangle_3",
+            "ghost": "ghost",
+            "size": 0,
+            "nb_component": 1
+          },
+          {
+            "field": "previous_m_rand",
+            "type": "_quadrangle_4",
+            "ghost": "ghost",
+            "size": 0,
+            "nb_component": 1
+          },
+          {
+            "field": "p_plain",
+            "type": "_triangle_3",
+            "ghost": "not_ghost",
+            "size": 4,
+            "nb_component": 1
+          },
+          {
+            "field": "p_plain",
+            "type": "_quadrangle_4",
+            "ghost": "not_ghost",
+            "size": 8,
+            "nb_component": 1
+          },
+          {
+            "field": "p_plain",
+            "type": "_triangle_3",
+            "ghost": "ghost",
+            "size": 0,
+            "nb_component": 1
+          },
+          {
+            "field": "p_plain",
+            "type": "_quadrangle_4",
+            "ghost": "ghost",
+            "size": 0,
+            "nb_component": 1
+          },
+          {
+            "field": "z_rand",
+            "type": "_triangle_3",
+            "ghost": "not_ghost",
+            "size": 4,
+            "nb_component": 1
+          },
+          {
+            "field": "z_rand",
+            "type": "_quadrangle_4",
+            "ghost": "not_ghost",
+            "size": 8,
+            "nb_component": 1
+          },
+          {
+            "field": "z_rand",
+            "type": "_triangle_3",
+            "ghost": "ghost",
+            "size": 0,
+            "nb_component": 1
+          },
+          {
+            "field": "z_rand",
+            "type": "_quadrangle_4",
+            "ghost": "ghost",
+            "size": 0,
+            "nb_component": 1
+          }
+        ]
+      },
+      {
+        "step": "s2",
+        "filter": [
+          {
+            "type": "_triangle_3",
+            "ghost": "not_ghost",
+            "elements": [
+              0,
+              1,
+              2,
+              3
+            ]
+          },
+          {
+            "type": "_quadrangle_4",
+            "ghost": "not_ghost",
+            "elements": [
+              0,
+              1
+            ]
+          },
+          {
+            "type": "_triangle_3",
+            "ghost": "ghost",
+            "elements": [
+              1,
+              0
+            ]
+          },
+          {
+            "type": "_quadrangle_4",
+            "ghost": "ghost",
+            "elements": [
+              0
+            ]
+          }
+        ],
+        "layout": [
+          {
+            "field": "a_rand",
+            "type": "_triangle_3",
+            "ghost": "not_ghost",
+            "size": 4,
+            "nb_component": 2
+          },
+          {
+            "field": "a_rand",
+            "type": "_quadrangle_4",
+            "ghost": "not_ghost",
+            "size": 8,
+            "nb_component": 2
+          },
+          {
+            "field": "a_rand",
+            "type": "_triangle_3",
+            "ghost": "ghost",
+            "size": 2,
+            "nb_component": 2
+          },
+          {
+            "field": "a_rand",
+            "type": "_quadrangle_4",
+            "ghost": "ghost",
+            "size": 4,
+            "nb_component": 2
+          },
+          {
+            "field": "k_coh",
+            "type": "_triangle_3",
+            "ghost": "not_ghost",
+            "size": 0,
+            "nb_component": 1
+          },
+          {
+            "field": "k_coh",
+            "type": "_quadrangle_4",
+            "ghost": "not_ghost",
+            "size": 0,
+            "nb_component": 1
+          },
+          {
+            "field": "k_coh",
+            "type": "_triangle_3",
+            "ghost": "ghost",
+            "size": 0,
+            "nb_component": 1
+          },
+          {
+            "field": "k_coh",
+            "type": "_quadrangle_4",
+            "ghost": "ghost",
+            "size": 0,
+            "nb_component": 1
+          },
+          {
+            "field": "m_rand",
+            "type": "_triangle_3",
+            "ghost": "not_ghost",
+            "size": 4,
+            "nb_component": 1
+          },
+          {
+            "field": "m_rand",
+            "type": "_quadrangle_4",
+            "ghost": "not_ghost",
+            "size": 8,
+            "nb_component": 1
+          },
+          {
+            "field": "m_rand",
+            "type": "_triangle_3",
+            "ghost": "ghost",
+            "size": 2,
+            "nb_component": 1
+          },
+          {
+            "field": "m_rand",
+            "type": "_quadrangle_4",
+            "ghost": "ghost",
+            "size": 4,
+            "nb_component": 1
+          },
+          {
+            "field": "previous_m_rand",
+            "type": "_triangle_3",
+            "ghost": "not_ghost",
+            "size": 4,
+            "nb_component": 1
+          },
+          {
+            "field": "previous_m_rand",
+            "type": "_quadrangle_4",
+            "ghost": "not_ghost",
+            "size": 8,
+            "nb_component": 1
+          },
+          {
+            "field": "previous_m_rand",
+            "type": "_triangle_3",
+            "ghost": "ghost",
+            "size": 2,
+            "nb_component": 1
+          },
+          {
+            "field": "previous_m_rand",
+            "type": "_quadrangle_4",
+            "ghost": "ghost",
+            "size": 4,
+            "nb_component": 1
+          },
+          {
+            "field": "p_plain",
+            "type": "_triangle_3",
+            "ghost": "not_ghost",
+            "size": 4,
+            "nb_component": 1
+          },
+          {
+            "field": "p_plain",
+            "type": "_quadrangle_4",
+            "ghost": "not_ghost",
+            "size": 8,
+            "nb_component": 1
+          },
+          {
+            "field": "p_plain",
+            "type": "_triangle_3",
+            "ghost": "ghost",
+            "size": 2,
+            "nb_component": 1
+          },
+          {
+            "field": "p_plain",
+            "type": "_quadrangle_4",
+            "ghost": "ghost",
+            "size": 4,
+            "nb_component": 1
+          },
+          {
+            "field": "z_rand",
+            "type": "_triangle_3",
+            "ghost": "not_ghost",
+            "size": 4,
+            "nb_component": 1
+          },
+          {
+            "field": "z_rand",
+            "type": "_quadrangle_4",
+            "ghost": "not_ghost",
+            "size": 8,
+            "nb_component": 1
+          },
+          {
+            "field": "z_rand",
+            "type": "_triangle_3",
+            "ghost": "ghost",
+            "size": 2,
+            "nb_component": 1
+          },
+          {
+            "field": "z_rand",
+            "type": "_quadrangle_4",
+            "ghost": "ghost",
+            "size": 4,
+            "nb_component": 1
+          }
+        ]
+      },
+      {
+        "step": "s3",
+        "filter": [
+          {
+            "type": "_triangle_3",
+            "ghost": "not_ghost",
+            "elements": [
+              0,
+              1,
+              2,
+              3
+            ]
+          },
+          {
+            "type": "_quadrangle_4",
+            "ghost": "not_ghost",
+            "elements": [
+              0,
+              1
+            ]
+          },
+          {
+            "type": "_triangle_3",
+            "ghost": "ghost",
+            "elements": [
+              1,
+              0
+            ]
+          },
+          {
+            "type": "_quadrangle_4",
+            "ghost": "ghost",
+            "elements": [
+              0
+            ]
+          }
+        ],
+        "layout": [
+          {
+            "field": "a_rand",
+            "type": "_triangle_3",
+            "ghost": "not_ghost",
+            "size": 4,
+            "nb_component": 2
+          },
+          {
+            "field": "a_rand",
+            "type": "_quadrangle_4",
+            "ghost": "not_ghost",
+            "size": 8,
+            "nb_component": 2
+          },
+          {
+            "field": "a_rand",
+            "type": "_triangle_3",
+            "ghost": "ghost",
+            "size": 2,
+            "nb_component": 2
+          },
+          {
+            "field": "a_rand",
+            "type": "_quadrangle_4",
+            "ghost": "ghost",
+            "size": 4,
+            "nb_component": 2
+          },
+          {
+            "field": "k_coh",
+            "type": "_triangle_3",
+            "ghost": "not_ghost",
+            "size": 0,
+            "nb_component": 1
+          },
+          {
+            "field": "k_coh",
+            "type": "_quadrangle_4",
+            "ghost": "not_ghost",
+            "size": 0,
+            "nb_component": 1
+          },
+          {
+            "field": "k_coh",
+            "type": "_triangle_3",
+            "ghost": "ghost",
+            "size": 0,
+            "nb_component": 1
+          },
+          {
+            "field": "k_coh",
+            "type": "_quadrangle_4",
+            "ghost": "ghost",
+            "size": 0,
+            "nb_component": 1
+          },
+          {
+            "field": "m_rand",
+            "type": "_triangle_3",
+            "ghost": "not_ghost",
+            "size": 4,
+            "nb_component": 1
+          },
+          {
+            "field": "m_rand",
+            "type": "_quadrangle_4",
+            "ghost": "not_ghost",
+            "size": 8,
+            "nb_component": 1
+          },
+          {
+            "field": "m_rand",
+            "type": "_triangle_3",
+            "ghost": "ghost",
+            "size": 2,
+            "nb_component": 1
+          },
+          {
+            "field": "m_rand",
+            "type": "_quadrangle_4",
+            "ghost": "ghost",
+            "size": 4,
+            "nb_component": 1
+          },
+          {
+            "field": "previous_m_rand",
+            "type": "_triangle_3",
+            "ghost": "not_ghost",
+            "size": 4,
+            "nb_component": 1
+          },
+          {
+            "field": "previous_m_rand",
+            "type": "_quadrangle_4",
+            "ghost": "not_ghost",
+            "size": 8,
+            "nb_component": 1
+          },
+          {
+            "field": "previous_m_rand",
+            "type": "_triangle_3",
+            "ghost": "ghost",
+            "size": 2,
+            "nb_component": 1
+          },
+          {
+            "field": "previous_m_rand",
+            "type": "_quadrangle_4",
+            "ghost": "ghost",
+            "size": 4,
+            "nb_component": 1
+          },
+          {
+            "field": "p_plain",
+            "type": "_triangle_3",
+            "ghost": "not_ghost",
+            "size": 4,
+            "nb_component": 1
+          },
+          {
+            "field": "p_plain",
+            "type": "_quadrangle_4",
+            "ghost": "not_ghost",
+            "size": 8,
+            "nb_component": 1
+          },
+          {
+            "field": "p_plain",
+            "type": "_triangle_3",
+            "ghost": "ghost",
+            "size": 2,
+            "nb_component": 1
+          },
+          {
+            "field": "p_plain",
+            "type": "_quadrangle_4",
+            "ghost": "ghost",
+            "size": 4,
+            "nb_component": 1
+          },
+          {
+            "field": "z_rand",
+            "type": "_triangle_3",
+            "ghost": "not_ghost",
+            "size": 4,
+            "nb_component": 1
+          },
+          {
+            "field": "z_rand",
+            "type": "_quadrangle_4",
+            "ghost": "not_ghost",
+            "size": 8,
+            "nb_component": 1
+          },
+          {
+            "field": "z_rand",
+            "type": "_triangle_3",
+            "ghost": "ghost",
+            "size": 2,
+            "nb_component": 1
+          },
+          {
+            "field": "z_rand",
+            "type": "_quadrangle_4",
+            "ghost": "ghost",
+            "size": 4,
+            "nb_component": 1
+          }
+        ]
+      },
+      {
+        "step": "s4",
+        "filter": [
+          {
+            "type": "_triangle_3",
+            "ghost": "not_ghost",
+            "elements": [
+              0,
+              1,
+              2,
+              3
+            ]
+          },
+          {
+            "type": "_quadrangle_4",
+            "ghost": "not_ghost",
+            "elements": [
+              0,
+              1
+            ]
+          },
+          {
+            "type": "_triangle_3",
+            "ghost": "ghost",
+            "elements": [
+              1,
+              0
+            ]
+          },
+          {
+            "type": "_quadrangle_4",
+            "ghost": "ghost",
+            "elements": [
+              0
+            ]
+          }
+        ],
+        "layout": [
+          {
+            "field": "a_rand",
+            "type": "_triangle_3",
+            "ghost": "not_ghost",
+            "size": 4,
+            "nb_component": 2
+          },
+          {
+            "field": "a_rand",
+            "type": "_quadrangle_4",
+            "ghost": "not_ghost",
+            "size": 8,
+            "nb_component": 2
+          },
+          {
+            "field": "a_rand",
+            "type": "_triangle_3",
+            "ghost": "ghost",
+            "size": 2,
+            "nb_component": 2
+          },
+          {
+            "field": "a_rand",
+            "type": "_quadrangle_4",
+            "ghost": "ghost",
+            "size": 4,
+            "nb_component": 2
+          },
+          {
+            "field": "k_coh",
+            "type": "_triangle_3",
+            "ghost": "not_ghost",
+            "size": 0,
+            "nb_component": 1
+          },
+          {
+            "field": "k_coh",
+            "type": "_quadrangle_4",
+            "ghost": "not_ghost",
+            "size": 0,
+            "nb_component": 1
+          },
+          {
+            "field": "k_coh",
+            "type": "_triangle_3",
+            "ghost": "ghost",
+            "size": 0,
+            "nb_component": 1
+          },
+          {
+            "field": "k_coh",
+            "type": "_quadrangle_4",
+            "ghost": "ghost",
+            "size": 0,
+            "nb_component": 1
+          },
+          {
+            "field": "m_rand",
+            "type": "_triangle_3",
+            "ghost": "not_ghost",
+            "size": 4,
+            "nb_component": 1
+          },
+          {
+            "field": "m_rand",
+            "type": "_quadrangle_4",
+            "ghost": "not_ghost",
+            "size": 8,
+            "nb_component": 1
+          },
+          {
+            "field": "m_rand",
+            "type": "_triangle_3",
+            "ghost": "ghost",
+            "size": 2,
+            "nb_component": 1
+          },
+          {
+            "field": "m_rand",
+            "type": "_quadrangle_4",
+            "ghost": "ghost",
+            "size": 4,
+            "nb_component": 1
+          },
+          {
+            "field": "previous_m_rand",
+            "type": "_triangle_3",
+            "ghost": "not_ghost",
+            "size": 4,
+            "nb_component": 1
+          },
+          {
+            "field": "previous_m_rand",
+            "type": "_quadrangle_4",
+            "ghost": "not_ghost",
+            "size": 8,
+            "nb_component": 1
+          },
+          {
+            "field": "previous_m_rand",
+            "type": "_triangle_3",
+            "ghost": "ghost",
+            "size": 2,
+            "nb_component": 1
+          },
+          {
+            "field": "previous_m_rand",
+            "type": "_quadrangle_4",
+            "ghost": "ghost",
+            "size": 4,
+            "nb_component": 1
+          },
+          {
+            "field": "p_plain",
+            "type": "_triangle_3",
+            "ghost": "not_ghost",
+            "size": 4,
+            "nb_component": 1
+          },
+          {
+            "field": "p_plain",
+            "type": "_quadrangle_4",
+            "ghost": "not_ghost",
+            "size": 8,
+            "nb_component": 1
+          },
+          {
+            "field": "p_plain",
+            "type": "_triangle_3",
+            "ghost": "ghost",
+            "size": 2,
+            "nb_component": 1
+          },
+          {
+            "field": "p_plain",
+            "type": "_quadrangle_4",
+            "ghost": "ghost",
+            "size": 4,
+            "nb_component": 1
+          },
+          {
+            "field": "z_rand",
+            "type": "_triangle_3",
+            "ghost": "not_ghost",
+            "size": 4,
+            "nb_component": 1
+          },
+          {
+            "field": "z_rand",
+            "type": "_quadrangle_4",
+            "ghost": "not_ghost",
+            "size": 8,
+            "nb_component": 1
+          },
+          {
+            "field": "z_rand",
+            "type": "_triangle_3",
+            "ghost": "ghost",
+            "size": 2,
+            "nb_component": 1
+          },
+          {
+            "field": "z_rand",
+            "type": "_quadrangle_4",
+            "ghost": "ghost",
+            "size": 4,
+            "nb_component": 1
+          }
+        ]
+      },
+      {
+        "step": "s5",
+        "filter": [
+          {
+            "type": "_triangle_3",
+            "ghost": "not_ghost",
+            "elements": [
+              0,
+              1,
+              2,
+              3,
+              4,
+              5
+            ]
+          },
+          {
+            "type": "_quadrangle_4",
+            "ghost": "not_ghost",
+            "elements": [
+              0,
+              1,
+              2
+            ]
+          },
+          {
+            "type": "_triangle_3",
+            "ghost": "ghost",
+            "elements": [
+              1,
+              0
+            ]
+          },
+          {
+            "type": "_quadrangle_4",
+            "ghost": "ghost",
+            "elements": [
+              0
+            ]
+          }
+        ],
+        "layout": [
+          {
+            "field": "a_rand",
+            "type": "_triangle_3",
+            "ghost": "not_ghost",
+            "size": 6,
+            "nb_component": 2
+          },
+          {
+            "field": "a_rand",
+            "type": "_quadrangle_4",
+            "ghost": "not_ghost",
+            "size": 12,
+            "nb_component": 2
+          },
+          {
+            "field": "a_rand",
+            "type": "_triangle_3",
+            "ghost": "ghost",
+            "size": 2,
+            "nb_component": 2
+          },
+          {
+            "field": "a_rand",
+            "type": "_quadrangle_4",
+            "ghost": "ghost",
+            "size": 4,
+            "nb_component": 2
+          },
+          {
+            "field": "k_coh",
+            "type": "_triangle_3",
+            "ghost": "not_ghost",
+            "size": 0,
+            "nb_component": 1
+          },
+          {
+            "field": "k_coh",
+            "type": "_quadrangle_4",
+            "ghost": "not_ghost",
+            "size": 0,
+            "nb_component": 1
+          },
+          {
+            "field": "k_coh",
+            "type": "_triangle_3",
+            "ghost": "ghost",
+            "size": 0,
+            "nb_component": 1
+          },
+          {
+            "field": "k_coh",
+            "type": "_quadrangle_4",
+            "ghost": "ghost",
+            "size": 0,
+            "nb_component": 1
+          },
+          {
+            "field": "m_rand",
+            "type": "_triangle_3",
+            "ghost": "not_ghost",
+            "size": 6,
+            "nb_component": 1
+          },
+          {
+            "field": "m_rand",
+            "type": "_quadrangle_4",
+            "ghost": "not_ghost",
+            "size": 12,
+            "nb_component": 1
+          },
+          {
+            "field": "m_rand",
+            "type": "_triangle_3",
+            "ghost": "ghost",
+            "size": 2,
+            "nb_component": 1
+          },
+          {
+            "field": "m_rand",
+            "type": "_quadrangle_4",
+            "ghost": "ghost",
+            "size": 4,
+            "nb_component": 1
+          },
+          {
+            "field": "previous_m_rand",
+            "type": "_triangle_3",
+            "ghost": "not_ghost",
+            "size": 6,
+            "nb_component": 1
+          },
+          {
+            "field": "previous_m_rand",
+            "type": "_quadrangle_4",
+            "ghost": "not_ghost",
+            "size": 12,
+            "nb_component": 1
+          },
+          {
+            "field": "previous_m_rand",
+            "type": "_triangle_3",
+            "ghost": "ghost",
+            "size": 2,
+            "nb_component": 1
+          },
+          {
+            "field": "previous_m_rand",
+            "type": "_quadrangle_4",
+            "ghost": "ghost",
+            "size": 4,
+            "nb_component": 1
+          },
+          {
+            "field": "p_plain",
+            "type": "_triangle_3",
+            "ghost": "not_ghost",
+            "size": 6,
+            "nb_component": 1
+          },
+          {
+            "field": "p_plain",
+            "type": "_quadrangle_4",
+            "ghost": "not_ghost",
+            "size": 12,
+            "nb_component": 1
+          },
+          {
+            "field": "p_plain",
+            "type": "_triangle_3",
+            "ghost": "ghost",
+            "size": 2,
+            "nb_component": 1
+          },
+          {
+            "field": "p_plain",
+            "type": "_quadrangle_4",
+            "ghost": "ghost",
+            "size": 4,
+            "nb_component": 1
+          },
+          {
+            "field": "z_rand",
+            "type": "_triangle_3",
+            "ghost": "not_ghost",
+            "size": 6,
+            "nb_component": 1
+          },
+          {
+            "field": "z_rand",
+            "type": "_quadrangle_4",
+            "ghost": "not_ghost",
+            "size": 12,
+            "nb_component": 1
+          },
+          {
+            "field": "z_rand",
+            "type": "_triangle_3",
+            "ghost": "ghost",
+            "size": 2,
+            "nb_component": 1
+          },
+          {
+            "field": "z_rand",
+            "type": "_quadrangle_4",
+            "ghost": "ghost",
+            "size": 4,
+            "nb_component": 1
+          }
+        ]
+      },
+      {
+        "step": "s6",
+        "filter": [
+          {
+            "type": "_triangle_3",
+            "ghost": "not_ghost",
+            "elements": [
+              0,
+              2,
+              3,
+              4,
+              1
+            ]
+          },
+          {
+            "type": "_quadrangle_4",
+            "ghost": "not_ghost",
+            "elements": [
+              1,
+              0
+            ]
+          },
+          {
+            "type": "_triangle_3",
+            "ghost": "ghost",
+            "elements": [
+              1,
+              0
+            ]
+          },
+          {
+            "type": "_quadrangle_4",
+            "ghost": "ghost",
+            "elements": [
+              0
+            ]
+          }
+        ],
+        "layout": [
+          {
+            "field": "a_rand",
+            "type": "_triangle_3",
+            "ghost": "not_ghost",
+            "size": 5,
+            "nb_component": 2
+          },
+          {
+            "field": "a_rand",
+            "type": "_quadrangle_4",
+            "ghost": "not_ghost",
+            "size": 8,
+            "nb_component": 2
+          },
+          {
+            "field": "a_rand",
+            "type": "_triangle_3",
+            "ghost": "ghost",
+            "size": 2,
+            "nb_component": 2
+          },
+          {
+            "field": "a_rand",
+            "type": "_quadrangle_4",
+            "ghost": "ghost",
+            "size": 4,
+            "nb_component": 2
+          },
+          {
+            "field": "k_coh",
+            "type": "_triangle_3",
+            "ghost": "not_ghost",
+            "size": 0,
+            "nb_component": 1
+          },
+          {
+            "field": "k_coh",
+            "type": "_quadrangle_4",
+            "ghost": "not_ghost",
+            "size": 0,
+            "nb_component": 1
+          },
+          {
+            "field": "k_coh",
+            "type": "_triangle_3",
+            "ghost": "ghost",
+            "size": 0,
+            "nb_component": 1
+          },
+          {
+            "field": "k_coh",
+            "type": "_quadrangle_4",
+            "ghost": "ghost",
+            "size": 0,
+            "nb_component": 1
+          },
+          {
+            "field": "m_rand",
+            "type": "_triangle_3",
+            "ghost": "not_ghost",
+            "size": 5,
+            "nb_component": 1
+          },
+          {
+            "field": "m_rand",
+            "type": "_quadrangle_4",
+            "ghost": "not_ghost",
+            "size": 8,
+            "nb_component": 1
+          },
+          {
+            "field": "m_rand",
+            "type": "_triangle_3",
+            "ghost": "ghost",
+            "size": 2,
+            "nb_component": 1
+          },
+          {
+            "field": "m_rand",
+            "type": "_quadrangle_4",
+            "ghost": "ghost",
+            "size": 4,
+            "nb_component": 1
+          },
+          {
+            "field": "previous_m_rand",
+            "type": "_triangle_3",
+            "ghost": "not_ghost",
+            "size": 6,
+            "nb_component": 1
+          },
+          {
+            "field": "previous_m_rand",
+            "type": "_quadrangle_4",
+            "ghost": "not_ghost",
+            "size": 12,
+            "nb_component": 1
+          },
+          {
+            "field": "previous_m_rand",
+            "type": "_triangle_3",
+            "ghost": "ghost",
+            "size": 2,
+            "nb_component": 1
+          },
+          {
+            "field": "previous_m_rand",
+            "type": "_quadrangle_4",
+            "ghost": "ghost",
+            "size": 4,
+            "nb_component": 1
+          },
+          {
+            "field": "p_plain",
+            "type": "_triangle_3",
+            "ghost": "not_ghost",
+            "size": 5,
+            "nb_component": 1
+          },
+          {
+            "field": "p_plain",
+            "type": "_quadrangle_4",
+            "ghost": "not_ghost",
+            "size": 8,
+            "nb_component": 1
+          },
+          {
+            "field": "p_plain",
+            "type": "_triangle_3",
+            "ghost": "ghost",
+            "size": 2,
+            "nb_component": 1
+          },
+          {
+            "field": "p_plain",
+            "type": "_quadrangle_4",
+            "ghost": "ghost",
+            "size": 4,
+            "nb_component": 1
+          },
+          {
+            "field": "z_rand",
+            "type": "_triangle_3",
+            "ghost": "not_ghost",
+            "size": 5,
+            "nb_component": 1
+          },
+          {
+            "field": "z_rand",
+            "type": "_quadrangle_4",
+            "ghost": "not_ghost",
+            "size": 8,
+            "nb_component": 1
+          },
+          {
+            "field": "z_rand",
+            "type": "_triangle_3",
+            "ghost": "ghost",
+            "size": 2,
+            "nb_component": 1
+          },
+          {
+            "field": "z_rand",
+            "type": "_quadrangle_4",
+            "ghost": "ghost",
+            "size": 4,
+            "nb_component": 1
+          }
+        ]
+      },
+      {
+        "step": "s7",
+        "filter": [
+          {
+            "type": "_triangle_3",
+            "ghost": "not_ghost",
+            "elements": [
+              0,
+              2,
+              3,
+              4,
+              1,
+              5
+            ]
+          },
+          {
+            "type": "_quadrangle_4",
+            "ghost": "not_ghost",
+            "elements": [
+              1,
+              0
+            ]
+          },
+          {
+            "type": "_triangle_3",
+            "ghost": "ghost",
+            "elements": [
+              1,
+              0
+            ]
+          },
+          {
+            "type": "_quadrangle_4",
+            "ghost": "ghost",
+            "elements": [
+              0
+            ]
+          }
+        ],
+        "layout": [
+          {
+            "field": "a_rand",
+            "type": "_triangle_3",
+            "ghost": "not_ghost",
+            "size": 6,
+            "nb_component": 2
+          },
+          {
+            "field": "a_rand",
+            "type": "_quadrangle_4",
+            "ghost": "not_ghost",
+            "size": 8,
+            "nb_component": 2
+          },
+          {
+            "field": "a_rand",
+            "type": "_triangle_3",
+            "ghost": "ghost",
+            "size": 2,
+            "nb_component": 2
+          },
+          {
+            "field": "a_rand",
+            "type": "_quadrangle_4",
+            "ghost": "ghost",
+            "size": 4,
+            "nb_component": 2
+          },
+          {
+            "field": "k_coh",
+            "type": "_triangle_3",
+            "ghost": "not_ghost",
+            "size": 0,
+            "nb_component": 1
+          },
+          {
+            "field": "k_coh",
+            "type": "_quadrangle_4",
+            "ghost": "not_ghost",
+            "size": 0,
+            "nb_component": 1
+          },
+          {
+            "field": "k_coh",
+            "type": "_triangle_3",
+            "ghost": "ghost",
+            "size": 0,
+            "nb_component": 1
+          },
+          {
+            "field": "k_coh",
+            "type": "_quadrangle_4",
+            "ghost": "ghost",
+            "size": 0,
+            "nb_component": 1
+          },
+          {
+            "field": "m_rand",
+            "type": "_triangle_3",
+            "ghost": "not_ghost",
+            "size": 6,
+            "nb_component": 1
+          },
+          {
+            "field": "m_rand",
+            "type": "_quadrangle_4",
+            "ghost": "not_ghost",
+            "size": 8,
+            "nb_component": 1
+          },
+          {
+            "field": "m_rand",
+            "type": "_triangle_3",
+            "ghost": "ghost",
+            "size": 2,
+            "nb_component": 1
+          },
+          {
+            "field": "m_rand",
+            "type": "_quadrangle_4",
+            "ghost": "ghost",
+            "size": 4,
+            "nb_component": 1
+          },
+          {
+            "field": "previous_m_rand",
+            "type": "_triangle_3",
+            "ghost": "not_ghost",
+            "size": 6,
+            "nb_component": 1
+          },
+          {
+            "field": "previous_m_rand",
+            "type": "_quadrangle_4",
+            "ghost": "not_ghost",
+            "size": 8,
+            "nb_component": 1
+          },
+          {
+            "field": "previous_m_rand",
+            "type": "_triangle_3",
+            "ghost": "ghost",
+            "size": 2,
+            "nb_component": 1
+          },
+          {
+            "field": "previous_m_rand",
+            "type": "_quadrangle_4",
+            "ghost": "ghost",
+            "size": 4,
+            "nb_component": 1
+          },
+          {
+            "field": "p_plain",
+            "type": "_triangle_3",
+            "ghost": "not_ghost",
+            "size": 6,
+            "nb_component": 1
+          },
+          {
+            "field": "p_plain",
+            "type": "_quadrangle_4",
+            "ghost": "not_ghost",
+            "size": 8,
+            "nb_component": 1
+          },
+          {
+            "field": "p_plain",
+            "type": "_triangle_3",
+            "ghost": "ghost",
+            "size": 2,
+            "nb_component": 1
+          },
+          {
+            "field": "p_plain",
+            "type": "_quadrangle_4",
+            "ghost": "ghost",
+            "size": 4,
+            "nb_component": 1
+          },
+          {
+            "field": "z_rand",
+            "type": "_triangle_3",
+            "ghost": "not_ghost",
+            "size": 6,
+            "nb_component": 1
+          },
+          {
+            "field": "z_rand",
+            "type": "_quadrangle_4",
+            "ghost": "not_ghost",
+            "size": 8,
+            "nb_component": 1
+          },
+          {
+            "field": "z_rand",
+            "type": "_triangle_3",
+            "ghost": "ghost",
+            "size": 2,
+            "nb_component": 1
+          },
+          {
+            "field": "z_rand",
+            "type": "_quadrangle_4",
+            "ghost": "ghost",
+            "size": 4,
+            "nb_component": 1
+          }
+        ]
+      }
+    ]
+  },
+  "storage": {
+    "mode": "committed",
+    "bytes": 14272
+  },
+  "quantities": [
+    {
+      "name": "s1/a_rand/_triangle_3/not_ghost",
+      "file": "data/s1__a_rand___triangle_3__not_ghost.npy",
+      "dtype": "f64",
+      "shape": [
+        4,
+        2
+      ],
+      "axes": [
+        "quad",
+        "component"
+      ],
+      "layout": "quadrature",
+      "sha256": "0c063eae694402abff5abeee22fa273a1f8829057353a5ee8bd9fb84d65f8e2e",
+      "element_type": "_triangle_3",
+      "ghost_type": "not_ghost",
+      "tolerance_class": "exact"
+    },
+    {
+      "name": "s1/a_rand/_quadrangle_4/not_ghost",
+      "file": "data/s1__a_rand___quadrangle_4__not_ghost.npy",
+      "dtype": "f64",
+      "shape": [
+        8,
+        2
+      ],
+      "axes": [
+        "quad",
+        "component"
+      ],
+      "layout": "quadrature",
+      "sha256": "3936e27d37c63116cac69444d4dbad99a1f811c34aafc3fc6a73eb078741b34a",
+      "element_type": "_quadrangle_4",
+      "ghost_type": "not_ghost",
+      "tolerance_class": "exact"
+    },
+    {
+      "name": "s1/m_rand/_triangle_3/not_ghost",
+      "file": "data/s1__m_rand___triangle_3__not_ghost.npy",
+      "dtype": "f64",
+      "shape": [
+        4,
+        1
+      ],
+      "axes": [
+        "quad",
+        "component"
+      ],
+      "layout": "quadrature",
+      "sha256": "1dede5a87cccedd558b05d7ed68b3ef5b685f6df3e319cd394e023bd6d31ad58",
+      "element_type": "_triangle_3",
+      "ghost_type": "not_ghost",
+      "tolerance_class": "exact"
+    },
+    {
+      "name": "s1/m_rand/_quadrangle_4/not_ghost",
+      "file": "data/s1__m_rand___quadrangle_4__not_ghost.npy",
+      "dtype": "f64",
+      "shape": [
+        8,
+        1
+      ],
+      "axes": [
+        "quad",
+        "component"
+      ],
+      "layout": "quadrature",
+      "sha256": "313a3c5a965312dd75538e3108584d30fae3b0d50ca06856e47535eee5f1b3a6",
+      "element_type": "_quadrangle_4",
+      "ghost_type": "not_ghost",
+      "tolerance_class": "exact"
+    },
+    {
+      "name": "s1/z_rand/_triangle_3/not_ghost",
+      "file": "data/s1__z_rand___triangle_3__not_ghost.npy",
+      "dtype": "f64",
+      "shape": [
+        4,
+        1
+      ],
+      "axes": [
+        "quad",
+        "component"
+      ],
+      "layout": "quadrature",
+      "sha256": "111c241a3cc7e8441a47637ae08aa1b20a418ded62a56b1faec3f870994bd3b1",
+      "element_type": "_triangle_3",
+      "ghost_type": "not_ghost",
+      "tolerance_class": "exact"
+    },
+    {
+      "name": "s1/z_rand/_quadrangle_4/not_ghost",
+      "file": "data/s1__z_rand___quadrangle_4__not_ghost.npy",
+      "dtype": "f64",
+      "shape": [
+        8,
+        1
+      ],
+      "axes": [
+        "quad",
+        "component"
+      ],
+      "layout": "quadrature",
+      "sha256": "49f6bec1b865fdd51d298a37dadfe9cb4c64d15ece8d033d12c0375085f76309",
+      "element_type": "_quadrangle_4",
+      "ghost_type": "not_ghost",
+      "tolerance_class": "exact"
+    },
+    {
+      "name": "s2/a_rand/_triangle_3/not_ghost",
+      "file": "data/s2__a_rand___triangle_3__not_ghost.npy",
+      "dtype": "f64",
+      "shape": [
+        4,
+        2
+      ],
+      "axes": [
+        "quad",
+        "component"
+      ],
+      "layout": "quadrature",
+      "sha256": "0c063eae694402abff5abeee22fa273a1f8829057353a5ee8bd9fb84d65f8e2e",
+      "element_type": "_triangle_3",
+      "ghost_type": "not_ghost",
+      "tolerance_class": "exact"
+    },
+    {
+      "name": "s2/a_rand/_quadrangle_4/not_ghost",
+      "file": "data/s2__a_rand___quadrangle_4__not_ghost.npy",
+      "dtype": "f64",
+      "shape": [
+        8,
+        2
+      ],
+      "axes": [
+        "quad",
+        "component"
+      ],
+      "layout": "quadrature",
+      "sha256": "3936e27d37c63116cac69444d4dbad99a1f811c34aafc3fc6a73eb078741b34a",
+      "element_type": "_quadrangle_4",
+      "ghost_type": "not_ghost",
+      "tolerance_class": "exact"
+    },
+    {
+      "name": "s2/a_rand/_triangle_3/ghost",
+      "file": "data/s2__a_rand___triangle_3__ghost.npy",
+      "dtype": "f64",
+      "shape": [
+        2,
+        2
+      ],
+      "axes": [
+        "quad",
+        "component"
+      ],
+      "layout": "quadrature",
+      "sha256": "4e7b6b7fed382fc2a080d25fb5b11aab820b5fc0a7a2ea0fb9bca0be4127cce5",
+      "element_type": "_triangle_3",
+      "ghost_type": "ghost",
+      "tolerance_class": "exact"
+    },
+    {
+      "name": "s2/a_rand/_quadrangle_4/ghost",
+      "file": "data/s2__a_rand___quadrangle_4__ghost.npy",
+      "dtype": "f64",
+      "shape": [
+        4,
+        2
+      ],
+      "axes": [
+        "quad",
+        "component"
+      ],
+      "layout": "quadrature",
+      "sha256": "063c93079c9727bb684f1959e629f79769d4cba16e6e82de6300185310632925",
+      "element_type": "_quadrangle_4",
+      "ghost_type": "ghost",
+      "tolerance_class": "exact"
+    },
+    {
+      "name": "s2/m_rand/_triangle_3/not_ghost",
+      "file": "data/s2__m_rand___triangle_3__not_ghost.npy",
+      "dtype": "f64",
+      "shape": [
+        4,
+        1
+      ],
+      "axes": [
+        "quad",
+        "component"
+      ],
+      "layout": "quadrature",
+      "sha256": "1dede5a87cccedd558b05d7ed68b3ef5b685f6df3e319cd394e023bd6d31ad58",
+      "element_type": "_triangle_3",
+      "ghost_type": "not_ghost",
+      "tolerance_class": "exact"
+    },
+    {
+      "name": "s2/m_rand/_quadrangle_4/not_ghost",
+      "file": "data/s2__m_rand___quadrangle_4__not_ghost.npy",
+      "dtype": "f64",
+      "shape": [
+        8,
+        1
+      ],
+      "axes": [
+        "quad",
+        "component"
+      ],
+      "layout": "quadrature",
+      "sha256": "313a3c5a965312dd75538e3108584d30fae3b0d50ca06856e47535eee5f1b3a6",
+      "element_type": "_quadrangle_4",
+      "ghost_type": "not_ghost",
+      "tolerance_class": "exact"
+    },
+    {
+      "name": "s2/m_rand/_triangle_3/ghost",
+      "file": "data/s2__m_rand___triangle_3__ghost.npy",
+      "dtype": "f64",
+      "shape": [
+        2,
+        1
+      ],
+      "axes": [
+        "quad",
+        "component"
+      ],
+      "layout": "quadrature",
+      "sha256": "180191e4c11c8d10aeeccc7f3dfb56b7250d387f925383e52f2a94b20ea55750",
+      "element_type": "_triangle_3",
+      "ghost_type": "ghost",
+      "tolerance_class": "exact"
+    },
+    {
+      "name": "s2/m_rand/_quadrangle_4/ghost",
+      "file": "data/s2__m_rand___quadrangle_4__ghost.npy",
+      "dtype": "f64",
+      "shape": [
+        4,
+        1
+      ],
+      "axes": [
+        "quad",
+        "component"
+      ],
+      "layout": "quadrature",
+      "sha256": "6a91c565b006801171bd2af95e7650b803487efcafc42985350a578eb8384548",
+      "element_type": "_quadrangle_4",
+      "ghost_type": "ghost",
+      "tolerance_class": "exact"
+    },
+    {
+      "name": "s2/z_rand/_triangle_3/not_ghost",
+      "file": "data/s2__z_rand___triangle_3__not_ghost.npy",
+      "dtype": "f64",
+      "shape": [
+        4,
+        1
+      ],
+      "axes": [
+        "quad",
+        "component"
+      ],
+      "layout": "quadrature",
+      "sha256": "111c241a3cc7e8441a47637ae08aa1b20a418ded62a56b1faec3f870994bd3b1",
+      "element_type": "_triangle_3",
+      "ghost_type": "not_ghost",
+      "tolerance_class": "exact"
+    },
+    {
+      "name": "s2/z_rand/_quadrangle_4/not_ghost",
+      "file": "data/s2__z_rand___quadrangle_4__not_ghost.npy",
+      "dtype": "f64",
+      "shape": [
+        8,
+        1
+      ],
+      "axes": [
+        "quad",
+        "component"
+      ],
+      "layout": "quadrature",
+      "sha256": "49f6bec1b865fdd51d298a37dadfe9cb4c64d15ece8d033d12c0375085f76309",
+      "element_type": "_quadrangle_4",
+      "ghost_type": "not_ghost",
+      "tolerance_class": "exact"
+    },
+    {
+      "name": "s2/z_rand/_triangle_3/ghost",
+      "file": "data/s2__z_rand___triangle_3__ghost.npy",
+      "dtype": "f64",
+      "shape": [
+        2,
+        1
+      ],
+      "axes": [
+        "quad",
+        "component"
+      ],
+      "layout": "quadrature",
+      "sha256": "d1c176a33c355fa82302cb0c97f99adbf69391f27d90e6e41a7f552de53a0673",
+      "element_type": "_triangle_3",
+      "ghost_type": "ghost",
+      "tolerance_class": "exact"
+    },
+    {
+      "name": "s2/z_rand/_quadrangle_4/ghost",
+      "file": "data/s2__z_rand___quadrangle_4__ghost.npy",
+      "dtype": "f64",
+      "shape": [
+        4,
+        1
+      ],
+      "axes": [
+        "quad",
+        "component"
+      ],
+      "layout": "quadrature",
+      "sha256": "572f8152bb948bf131ea2a10cbe97ccf36e2fc88edfbeb8bb0804ab66211a6b3",
+      "element_type": "_quadrangle_4",
+      "ghost_type": "ghost",
+      "tolerance_class": "exact"
+    },
+    {
+      "name": "s3/a_rand/_triangle_3/not_ghost",
+      "file": "data/s3__a_rand___triangle_3__not_ghost.npy",
+      "dtype": "f64",
+      "shape": [
+        4,
+        2
+      ],
+      "axes": [
+        "quad",
+        "component"
+      ],
+      "layout": "quadrature",
+      "sha256": "0c063eae694402abff5abeee22fa273a1f8829057353a5ee8bd9fb84d65f8e2e",
+      "element_type": "_triangle_3",
+      "ghost_type": "not_ghost",
+      "tolerance_class": "exact"
+    },
+    {
+      "name": "s3/a_rand/_quadrangle_4/not_ghost",
+      "file": "data/s3__a_rand___quadrangle_4__not_ghost.npy",
+      "dtype": "f64",
+      "shape": [
+        8,
+        2
+      ],
+      "axes": [
+        "quad",
+        "component"
+      ],
+      "layout": "quadrature",
+      "sha256": "3936e27d37c63116cac69444d4dbad99a1f811c34aafc3fc6a73eb078741b34a",
+      "element_type": "_quadrangle_4",
+      "ghost_type": "not_ghost",
+      "tolerance_class": "exact"
+    },
+    {
+      "name": "s3/a_rand/_triangle_3/ghost",
+      "file": "data/s3__a_rand___triangle_3__ghost.npy",
+      "dtype": "f64",
+      "shape": [
+        2,
+        2
+      ],
+      "axes": [
+        "quad",
+        "component"
+      ],
+      "layout": "quadrature",
+      "sha256": "4e7b6b7fed382fc2a080d25fb5b11aab820b5fc0a7a2ea0fb9bca0be4127cce5",
+      "element_type": "_triangle_3",
+      "ghost_type": "ghost",
+      "tolerance_class": "exact"
+    },
+    {
+      "name": "s3/a_rand/_quadrangle_4/ghost",
+      "file": "data/s3__a_rand___quadrangle_4__ghost.npy",
+      "dtype": "f64",
+      "shape": [
+        4,
+        2
+      ],
+      "axes": [
+        "quad",
+        "component"
+      ],
+      "layout": "quadrature",
+      "sha256": "063c93079c9727bb684f1959e629f79769d4cba16e6e82de6300185310632925",
+      "element_type": "_quadrangle_4",
+      "ghost_type": "ghost",
+      "tolerance_class": "exact"
+    },
+    {
+      "name": "s3/m_rand/_triangle_3/not_ghost",
+      "file": "data/s3__m_rand___triangle_3__not_ghost.npy",
+      "dtype": "f64",
+      "shape": [
+        4,
+        1
+      ],
+      "axes": [
+        "quad",
+        "component"
+      ],
+      "layout": "quadrature",
+      "sha256": "1dede5a87cccedd558b05d7ed68b3ef5b685f6df3e319cd394e023bd6d31ad58",
+      "element_type": "_triangle_3",
+      "ghost_type": "not_ghost",
+      "tolerance_class": "exact"
+    },
+    {
+      "name": "s3/m_rand/_quadrangle_4/not_ghost",
+      "file": "data/s3__m_rand___quadrangle_4__not_ghost.npy",
+      "dtype": "f64",
+      "shape": [
+        8,
+        1
+      ],
+      "axes": [
+        "quad",
+        "component"
+      ],
+      "layout": "quadrature",
+      "sha256": "313a3c5a965312dd75538e3108584d30fae3b0d50ca06856e47535eee5f1b3a6",
+      "element_type": "_quadrangle_4",
+      "ghost_type": "not_ghost",
+      "tolerance_class": "exact"
+    },
+    {
+      "name": "s3/m_rand/_triangle_3/ghost",
+      "file": "data/s3__m_rand___triangle_3__ghost.npy",
+      "dtype": "f64",
+      "shape": [
+        2,
+        1
+      ],
+      "axes": [
+        "quad",
+        "component"
+      ],
+      "layout": "quadrature",
+      "sha256": "180191e4c11c8d10aeeccc7f3dfb56b7250d387f925383e52f2a94b20ea55750",
+      "element_type": "_triangle_3",
+      "ghost_type": "ghost",
+      "tolerance_class": "exact"
+    },
+    {
+      "name": "s3/m_rand/_quadrangle_4/ghost",
+      "file": "data/s3__m_rand___quadrangle_4__ghost.npy",
+      "dtype": "f64",
+      "shape": [
+        4,
+        1
+      ],
+      "axes": [
+        "quad",
+        "component"
+      ],
+      "layout": "quadrature",
+      "sha256": "6a91c565b006801171bd2af95e7650b803487efcafc42985350a578eb8384548",
+      "element_type": "_quadrangle_4",
+      "ghost_type": "ghost",
+      "tolerance_class": "exact"
+    },
+    {
+      "name": "s3/z_rand/_triangle_3/not_ghost",
+      "file": "data/s3__z_rand___triangle_3__not_ghost.npy",
+      "dtype": "f64",
+      "shape": [
+        4,
+        1
+      ],
+      "axes": [
+        "quad",
+        "component"
+      ],
+      "layout": "quadrature",
+      "sha256": "15c284d60e7b2cb0b0d894a8a9640a006c0fd27bf3697d690b8f5a31dc6bbfce",
+      "element_type": "_triangle_3",
+      "ghost_type": "not_ghost",
+      "tolerance_class": "exact"
+    },
+    {
+      "name": "s3/z_rand/_quadrangle_4/not_ghost",
+      "file": "data/s3__z_rand___quadrangle_4__not_ghost.npy",
+      "dtype": "f64",
+      "shape": [
+        8,
+        1
+      ],
+      "axes": [
+        "quad",
+        "component"
+      ],
+      "layout": "quadrature",
+      "sha256": "8966bdfa1b6d9b7c81bc47ae06c968cddd318d6188c1bf27e91a54e58a68294a",
+      "element_type": "_quadrangle_4",
+      "ghost_type": "not_ghost",
+      "tolerance_class": "exact"
+    },
+    {
+      "name": "s3/z_rand/_triangle_3/ghost",
+      "file": "data/s3__z_rand___triangle_3__ghost.npy",
+      "dtype": "f64",
+      "shape": [
+        2,
+        1
+      ],
+      "axes": [
+        "quad",
+        "component"
+      ],
+      "layout": "quadrature",
+      "sha256": "ca5e3afd99637985808d38277e79143817995c1fce23d594a3be500563881e4e",
+      "element_type": "_triangle_3",
+      "ghost_type": "ghost",
+      "tolerance_class": "exact"
+    },
+    {
+      "name": "s3/z_rand/_quadrangle_4/ghost",
+      "file": "data/s3__z_rand___quadrangle_4__ghost.npy",
+      "dtype": "f64",
+      "shape": [
+        4,
+        1
+      ],
+      "axes": [
+        "quad",
+        "component"
+      ],
+      "layout": "quadrature",
+      "sha256": "e8b3d3ecb8a43f9120dc48b26336b3eb327e969d729acd73e71104c59dc71cf1",
+      "element_type": "_quadrangle_4",
+      "ghost_type": "ghost",
+      "tolerance_class": "exact"
+    },
+    {
+      "name": "s4/a_rand/_triangle_3/not_ghost",
+      "file": "data/s4__a_rand___triangle_3__not_ghost.npy",
+      "dtype": "f64",
+      "shape": [
+        4,
+        2
+      ],
+      "axes": [
+        "quad",
+        "component"
+      ],
+      "layout": "quadrature",
+      "sha256": "da65db514739a9a1f985d2e7adfb8697eaaac36a68b7b9ae78d3a7d53132b747",
+      "element_type": "_triangle_3",
+      "ghost_type": "not_ghost",
+      "tolerance_class": "exact"
+    },
+    {
+      "name": "s4/a_rand/_quadrangle_4/not_ghost",
+      "file": "data/s4__a_rand___quadrangle_4__not_ghost.npy",
+      "dtype": "f64",
+      "shape": [
+        8,
+        2
+      ],
+      "axes": [
+        "quad",
+        "component"
+      ],
+      "layout": "quadrature",
+      "sha256": "d6bf5a446ce62221441595890f288eea8f67d966fb56d8ca5a51081f1537b958",
+      "element_type": "_quadrangle_4",
+      "ghost_type": "not_ghost",
+      "tolerance_class": "exact"
+    },
+    {
+      "name": "s4/a_rand/_triangle_3/ghost",
+      "file": "data/s4__a_rand___triangle_3__ghost.npy",
+      "dtype": "f64",
+      "shape": [
+        2,
+        2
+      ],
+      "axes": [
+        "quad",
+        "component"
+      ],
+      "layout": "quadrature",
+      "sha256": "1612792c292994f22ebbc1e4745a5b1dc6d94050ad68f98584a202d7e852ff94",
+      "element_type": "_triangle_3",
+      "ghost_type": "ghost",
+      "tolerance_class": "exact"
+    },
+    {
+      "name": "s4/a_rand/_quadrangle_4/ghost",
+      "file": "data/s4__a_rand___quadrangle_4__ghost.npy",
+      "dtype": "f64",
+      "shape": [
+        4,
+        2
+      ],
+      "axes": [
+        "quad",
+        "component"
+      ],
+      "layout": "quadrature",
+      "sha256": "fb4e66ac41c9e72194553c7ac5d83f1fe92c576cae0e9e9cc15c72531d3ed1ab",
+      "element_type": "_quadrangle_4",
+      "ghost_type": "ghost",
+      "tolerance_class": "exact"
+    },
+    {
+      "name": "s4/m_rand/_triangle_3/not_ghost",
+      "file": "data/s4__m_rand___triangle_3__not_ghost.npy",
+      "dtype": "f64",
+      "shape": [
+        4,
+        1
+      ],
+      "axes": [
+        "quad",
+        "component"
+      ],
+      "layout": "quadrature",
+      "sha256": "1dede5a87cccedd558b05d7ed68b3ef5b685f6df3e319cd394e023bd6d31ad58",
+      "element_type": "_triangle_3",
+      "ghost_type": "not_ghost",
+      "tolerance_class": "exact"
+    },
+    {
+      "name": "s4/m_rand/_quadrangle_4/not_ghost",
+      "file": "data/s4__m_rand___quadrangle_4__not_ghost.npy",
+      "dtype": "f64",
+      "shape": [
+        8,
+        1
+      ],
+      "axes": [
+        "quad",
+        "component"
+      ],
+      "layout": "quadrature",
+      "sha256": "313a3c5a965312dd75538e3108584d30fae3b0d50ca06856e47535eee5f1b3a6",
+      "element_type": "_quadrangle_4",
+      "ghost_type": "not_ghost",
+      "tolerance_class": "exact"
+    },
+    {
+      "name": "s4/m_rand/_triangle_3/ghost",
+      "file": "data/s4__m_rand___triangle_3__ghost.npy",
+      "dtype": "f64",
+      "shape": [
+        2,
+        1
+      ],
+      "axes": [
+        "quad",
+        "component"
+      ],
+      "layout": "quadrature",
+      "sha256": "180191e4c11c8d10aeeccc7f3dfb56b7250d387f925383e52f2a94b20ea55750",
+      "element_type": "_triangle_3",
+      "ghost_type": "ghost",
+      "tolerance_class": "exact"
+    },
+    {
+      "name": "s4/m_rand/_quadrangle_4/ghost",
+      "file": "data/s4__m_rand___quadrangle_4__ghost.npy",
+      "dtype": "f64",
+      "shape": [
+        4,
+        1
+      ],
+      "axes": [
+        "quad",
+        "component"
+      ],
+      "layout": "quadrature",
+      "sha256": "6a91c565b006801171bd2af95e7650b803487efcafc42985350a578eb8384548",
+      "element_type": "_quadrangle_4",
+      "ghost_type": "ghost",
+      "tolerance_class": "exact"
+    },
+    {
+      "name": "s4/z_rand/_triangle_3/not_ghost",
+      "file": "data/s4__z_rand___triangle_3__not_ghost.npy",
+      "dtype": "f64",
+      "shape": [
+        4,
+        1
+      ],
+      "axes": [
+        "quad",
+        "component"
+      ],
+      "layout": "quadrature",
+      "sha256": "15c284d60e7b2cb0b0d894a8a9640a006c0fd27bf3697d690b8f5a31dc6bbfce",
+      "element_type": "_triangle_3",
+      "ghost_type": "not_ghost",
+      "tolerance_class": "exact"
+    },
+    {
+      "name": "s4/z_rand/_quadrangle_4/not_ghost",
+      "file": "data/s4__z_rand___quadrangle_4__not_ghost.npy",
+      "dtype": "f64",
+      "shape": [
+        8,
+        1
+      ],
+      "axes": [
+        "quad",
+        "component"
+      ],
+      "layout": "quadrature",
+      "sha256": "8966bdfa1b6d9b7c81bc47ae06c968cddd318d6188c1bf27e91a54e58a68294a",
+      "element_type": "_quadrangle_4",
+      "ghost_type": "not_ghost",
+      "tolerance_class": "exact"
+    },
+    {
+      "name": "s4/z_rand/_triangle_3/ghost",
+      "file": "data/s4__z_rand___triangle_3__ghost.npy",
+      "dtype": "f64",
+      "shape": [
+        2,
+        1
+      ],
+      "axes": [
+        "quad",
+        "component"
+      ],
+      "layout": "quadrature",
+      "sha256": "ca5e3afd99637985808d38277e79143817995c1fce23d594a3be500563881e4e",
+      "element_type": "_triangle_3",
+      "ghost_type": "ghost",
+      "tolerance_class": "exact"
+    },
+    {
+      "name": "s4/z_rand/_quadrangle_4/ghost",
+      "file": "data/s4__z_rand___quadrangle_4__ghost.npy",
+      "dtype": "f64",
+      "shape": [
+        4,
+        1
+      ],
+      "axes": [
+        "quad",
+        "component"
+      ],
+      "layout": "quadrature",
+      "sha256": "e8b3d3ecb8a43f9120dc48b26336b3eb327e969d729acd73e71104c59dc71cf1",
+      "element_type": "_quadrangle_4",
+      "ghost_type": "ghost",
+      "tolerance_class": "exact"
+    },
+    {
+      "name": "s5/a_rand/_triangle_3/not_ghost",
+      "file": "data/s5__a_rand___triangle_3__not_ghost.npy",
+      "dtype": "f64",
+      "shape": [
+        6,
+        2
+      ],
+      "axes": [
+        "quad",
+        "component"
+      ],
+      "layout": "quadrature",
+      "sha256": "2777519dbdb16df9f4a99438f8e55970347da0e1ef5f288104bf6cd08210ac93",
+      "element_type": "_triangle_3",
+      "ghost_type": "not_ghost",
+      "tolerance_class": "exact"
+    },
+    {
+      "name": "s5/a_rand/_quadrangle_4/not_ghost",
+      "file": "data/s5__a_rand___quadrangle_4__not_ghost.npy",
+      "dtype": "f64",
+      "shape": [
+        12,
+        2
+      ],
+      "axes": [
+        "quad",
+        "component"
+      ],
+      "layout": "quadrature",
+      "sha256": "f66258187a3d6cd0cc91f849076e049f02542062f1e6dad327166615ff6fd6f1",
+      "element_type": "_quadrangle_4",
+      "ghost_type": "not_ghost",
+      "tolerance_class": "exact"
+    },
+    {
+      "name": "s5/a_rand/_triangle_3/ghost",
+      "file": "data/s5__a_rand___triangle_3__ghost.npy",
+      "dtype": "f64",
+      "shape": [
+        2,
+        2
+      ],
+      "axes": [
+        "quad",
+        "component"
+      ],
+      "layout": "quadrature",
+      "sha256": "1612792c292994f22ebbc1e4745a5b1dc6d94050ad68f98584a202d7e852ff94",
+      "element_type": "_triangle_3",
+      "ghost_type": "ghost",
+      "tolerance_class": "exact"
+    },
+    {
+      "name": "s5/a_rand/_quadrangle_4/ghost",
+      "file": "data/s5__a_rand___quadrangle_4__ghost.npy",
+      "dtype": "f64",
+      "shape": [
+        4,
+        2
+      ],
+      "axes": [
+        "quad",
+        "component"
+      ],
+      "layout": "quadrature",
+      "sha256": "fb4e66ac41c9e72194553c7ac5d83f1fe92c576cae0e9e9cc15c72531d3ed1ab",
+      "element_type": "_quadrangle_4",
+      "ghost_type": "ghost",
+      "tolerance_class": "exact"
+    },
+    {
+      "name": "s5/m_rand/_triangle_3/not_ghost",
+      "file": "data/s5__m_rand___triangle_3__not_ghost.npy",
+      "dtype": "f64",
+      "shape": [
+        6,
+        1
+      ],
+      "axes": [
+        "quad",
+        "component"
+      ],
+      "layout": "quadrature",
+      "sha256": "ebdd606492eca191a3cea43dddb2c8e4b305111e0e52d9b7c800f3e857750203",
+      "element_type": "_triangle_3",
+      "ghost_type": "not_ghost",
+      "tolerance_class": "exact"
+    },
+    {
+      "name": "s5/m_rand/_quadrangle_4/not_ghost",
+      "file": "data/s5__m_rand___quadrangle_4__not_ghost.npy",
+      "dtype": "f64",
+      "shape": [
+        12,
+        1
+      ],
+      "axes": [
+        "quad",
+        "component"
+      ],
+      "layout": "quadrature",
+      "sha256": "ba136d302711c36b7e8a4bf2358932e2be4ac53b5fb854a315a6d75ec9498fa1",
+      "element_type": "_quadrangle_4",
+      "ghost_type": "not_ghost",
+      "tolerance_class": "exact"
+    },
+    {
+      "name": "s5/m_rand/_triangle_3/ghost",
+      "file": "data/s5__m_rand___triangle_3__ghost.npy",
+      "dtype": "f64",
+      "shape": [
+        2,
+        1
+      ],
+      "axes": [
+        "quad",
+        "component"
+      ],
+      "layout": "quadrature",
+      "sha256": "180191e4c11c8d10aeeccc7f3dfb56b7250d387f925383e52f2a94b20ea55750",
+      "element_type": "_triangle_3",
+      "ghost_type": "ghost",
+      "tolerance_class": "exact"
+    },
+    {
+      "name": "s5/m_rand/_quadrangle_4/ghost",
+      "file": "data/s5__m_rand___quadrangle_4__ghost.npy",
+      "dtype": "f64",
+      "shape": [
+        4,
+        1
+      ],
+      "axes": [
+        "quad",
+        "component"
+      ],
+      "layout": "quadrature",
+      "sha256": "6a91c565b006801171bd2af95e7650b803487efcafc42985350a578eb8384548",
+      "element_type": "_quadrangle_4",
+      "ghost_type": "ghost",
+      "tolerance_class": "exact"
+    },
+    {
+      "name": "s5/z_rand/_triangle_3/not_ghost",
+      "file": "data/s5__z_rand___triangle_3__not_ghost.npy",
+      "dtype": "f64",
+      "shape": [
+        6,
+        1
+      ],
+      "axes": [
+        "quad",
+        "component"
+      ],
+      "layout": "quadrature",
+      "sha256": "985e0d6df3abe495863aa5a89e962c2a3c30e2f12cd14fcfb94817f0f1e6ddbb",
+      "element_type": "_triangle_3",
+      "ghost_type": "not_ghost",
+      "tolerance_class": "exact"
+    },
+    {
+      "name": "s5/z_rand/_quadrangle_4/not_ghost",
+      "file": "data/s5__z_rand___quadrangle_4__not_ghost.npy",
+      "dtype": "f64",
+      "shape": [
+        12,
+        1
+      ],
+      "axes": [
+        "quad",
+        "component"
+      ],
+      "layout": "quadrature",
+      "sha256": "ed8cf907d0aa31ddafdc8ea4a291d6ca10b2ac2a94b0196b99f0c031b05eadea",
+      "element_type": "_quadrangle_4",
+      "ghost_type": "not_ghost",
+      "tolerance_class": "exact"
+    },
+    {
+      "name": "s5/z_rand/_triangle_3/ghost",
+      "file": "data/s5__z_rand___triangle_3__ghost.npy",
+      "dtype": "f64",
+      "shape": [
+        2,
+        1
+      ],
+      "axes": [
+        "quad",
+        "component"
+      ],
+      "layout": "quadrature",
+      "sha256": "ca5e3afd99637985808d38277e79143817995c1fce23d594a3be500563881e4e",
+      "element_type": "_triangle_3",
+      "ghost_type": "ghost",
+      "tolerance_class": "exact"
+    },
+    {
+      "name": "s5/z_rand/_quadrangle_4/ghost",
+      "file": "data/s5__z_rand___quadrangle_4__ghost.npy",
+      "dtype": "f64",
+      "shape": [
+        4,
+        1
+      ],
+      "axes": [
+        "quad",
+        "component"
+      ],
+      "layout": "quadrature",
+      "sha256": "e8b3d3ecb8a43f9120dc48b26336b3eb327e969d729acd73e71104c59dc71cf1",
+      "element_type": "_quadrangle_4",
+      "ghost_type": "ghost",
+      "tolerance_class": "exact"
+    },
+    {
+      "name": "s6/a_rand/_triangle_3/not_ghost",
+      "file": "data/s6__a_rand___triangle_3__not_ghost.npy",
+      "dtype": "f64",
+      "shape": [
+        5,
+        2
+      ],
+      "axes": [
+        "quad",
+        "component"
+      ],
+      "layout": "quadrature",
+      "sha256": "28e4d243c5afc70aeff2e5a3a677e33fe36784efb0ab1ccf8b3f881d2c8b775c",
+      "element_type": "_triangle_3",
+      "ghost_type": "not_ghost",
+      "tolerance_class": "exact"
+    },
+    {
+      "name": "s6/a_rand/_quadrangle_4/not_ghost",
+      "file": "data/s6__a_rand___quadrangle_4__not_ghost.npy",
+      "dtype": "f64",
+      "shape": [
+        8,
+        2
+      ],
+      "axes": [
+        "quad",
+        "component"
+      ],
+      "layout": "quadrature",
+      "sha256": "046047bfc8b00b01eb63be1f175f2bcab8888bb533cfb9c45538a84da96c709d",
+      "element_type": "_quadrangle_4",
+      "ghost_type": "not_ghost",
+      "tolerance_class": "exact"
+    },
+    {
+      "name": "s6/a_rand/_triangle_3/ghost",
+      "file": "data/s6__a_rand___triangle_3__ghost.npy",
+      "dtype": "f64",
+      "shape": [
+        2,
+        2
+      ],
+      "axes": [
+        "quad",
+        "component"
+      ],
+      "layout": "quadrature",
+      "sha256": "1612792c292994f22ebbc1e4745a5b1dc6d94050ad68f98584a202d7e852ff94",
+      "element_type": "_triangle_3",
+      "ghost_type": "ghost",
+      "tolerance_class": "exact"
+    },
+    {
+      "name": "s6/a_rand/_quadrangle_4/ghost",
+      "file": "data/s6__a_rand___quadrangle_4__ghost.npy",
+      "dtype": "f64",
+      "shape": [
+        4,
+        2
+      ],
+      "axes": [
+        "quad",
+        "component"
+      ],
+      "layout": "quadrature",
+      "sha256": "fb4e66ac41c9e72194553c7ac5d83f1fe92c576cae0e9e9cc15c72531d3ed1ab",
+      "element_type": "_quadrangle_4",
+      "ghost_type": "ghost",
+      "tolerance_class": "exact"
+    },
+    {
+      "name": "s6/m_rand/_triangle_3/not_ghost",
+      "file": "data/s6__m_rand___triangle_3__not_ghost.npy",
+      "dtype": "f64",
+      "shape": [
+        5,
+        1
+      ],
+      "axes": [
+        "quad",
+        "component"
+      ],
+      "layout": "quadrature",
+      "sha256": "e50972ba946941887b8da5c3dfd71ca0c98ef46476b7290f6fe83c0a980da332",
+      "element_type": "_triangle_3",
+      "ghost_type": "not_ghost",
+      "tolerance_class": "exact"
+    },
+    {
+      "name": "s6/m_rand/_quadrangle_4/not_ghost",
+      "file": "data/s6__m_rand___quadrangle_4__not_ghost.npy",
+      "dtype": "f64",
+      "shape": [
+        8,
+        1
+      ],
+      "axes": [
+        "quad",
+        "component"
+      ],
+      "layout": "quadrature",
+      "sha256": "1813a9acb0d52b4fab6d992a724ef4377aef9995d0a85364c8c63d9fda3de80c",
+      "element_type": "_quadrangle_4",
+      "ghost_type": "not_ghost",
+      "tolerance_class": "exact"
+    },
+    {
+      "name": "s6/m_rand/_triangle_3/ghost",
+      "file": "data/s6__m_rand___triangle_3__ghost.npy",
+      "dtype": "f64",
+      "shape": [
+        2,
+        1
+      ],
+      "axes": [
+        "quad",
+        "component"
+      ],
+      "layout": "quadrature",
+      "sha256": "180191e4c11c8d10aeeccc7f3dfb56b7250d387f925383e52f2a94b20ea55750",
+      "element_type": "_triangle_3",
+      "ghost_type": "ghost",
+      "tolerance_class": "exact"
+    },
+    {
+      "name": "s6/m_rand/_quadrangle_4/ghost",
+      "file": "data/s6__m_rand___quadrangle_4__ghost.npy",
+      "dtype": "f64",
+      "shape": [
+        4,
+        1
+      ],
+      "axes": [
+        "quad",
+        "component"
+      ],
+      "layout": "quadrature",
+      "sha256": "6a91c565b006801171bd2af95e7650b803487efcafc42985350a578eb8384548",
+      "element_type": "_quadrangle_4",
+      "ghost_type": "ghost",
+      "tolerance_class": "exact"
+    },
+    {
+      "name": "s6/z_rand/_triangle_3/not_ghost",
+      "file": "data/s6__z_rand___triangle_3__not_ghost.npy",
+      "dtype": "f64",
+      "shape": [
+        5,
+        1
+      ],
+      "axes": [
+        "quad",
+        "component"
+      ],
+      "layout": "quadrature",
+      "sha256": "893caee2a60e9d2c1501c585dd2f57412a0201ac9c0cd3c4410722f1812e17ac",
+      "element_type": "_triangle_3",
+      "ghost_type": "not_ghost",
+      "tolerance_class": "exact"
+    },
+    {
+      "name": "s6/z_rand/_quadrangle_4/not_ghost",
+      "file": "data/s6__z_rand___quadrangle_4__not_ghost.npy",
+      "dtype": "f64",
+      "shape": [
+        8,
+        1
+      ],
+      "axes": [
+        "quad",
+        "component"
+      ],
+      "layout": "quadrature",
+      "sha256": "b9df40f54f7a99b79f4910f5acd53707f1a16a970a1eff383b87d2426df2c875",
+      "element_type": "_quadrangle_4",
+      "ghost_type": "not_ghost",
+      "tolerance_class": "exact"
+    },
+    {
+      "name": "s6/z_rand/_triangle_3/ghost",
+      "file": "data/s6__z_rand___triangle_3__ghost.npy",
+      "dtype": "f64",
+      "shape": [
+        2,
+        1
+      ],
+      "axes": [
+        "quad",
+        "component"
+      ],
+      "layout": "quadrature",
+      "sha256": "ca5e3afd99637985808d38277e79143817995c1fce23d594a3be500563881e4e",
+      "element_type": "_triangle_3",
+      "ghost_type": "ghost",
+      "tolerance_class": "exact"
+    },
+    {
+      "name": "s6/z_rand/_quadrangle_4/ghost",
+      "file": "data/s6__z_rand___quadrangle_4__ghost.npy",
+      "dtype": "f64",
+      "shape": [
+        4,
+        1
+      ],
+      "axes": [
+        "quad",
+        "component"
+      ],
+      "layout": "quadrature",
+      "sha256": "e8b3d3ecb8a43f9120dc48b26336b3eb327e969d729acd73e71104c59dc71cf1",
+      "element_type": "_quadrangle_4",
+      "ghost_type": "ghost",
+      "tolerance_class": "exact"
+    },
+    {
+      "name": "s7/a_rand/_triangle_3/not_ghost",
+      "file": "data/s7__a_rand___triangle_3__not_ghost.npy",
+      "dtype": "f64",
+      "shape": [
+        6,
+        2
+      ],
+      "axes": [
+        "quad",
+        "component"
+      ],
+      "layout": "quadrature",
+      "sha256": "801bcd034d7dc31c140aae5e69b3713582aa8140cef1c8b784d446dc05750527",
+      "element_type": "_triangle_3",
+      "ghost_type": "not_ghost",
+      "tolerance_class": "exact"
+    },
+    {
+      "name": "s7/a_rand/_quadrangle_4/not_ghost",
+      "file": "data/s7__a_rand___quadrangle_4__not_ghost.npy",
+      "dtype": "f64",
+      "shape": [
+        8,
+        2
+      ],
+      "axes": [
+        "quad",
+        "component"
+      ],
+      "layout": "quadrature",
+      "sha256": "046047bfc8b00b01eb63be1f175f2bcab8888bb533cfb9c45538a84da96c709d",
+      "element_type": "_quadrangle_4",
+      "ghost_type": "not_ghost",
+      "tolerance_class": "exact"
+    },
+    {
+      "name": "s7/a_rand/_triangle_3/ghost",
+      "file": "data/s7__a_rand___triangle_3__ghost.npy",
+      "dtype": "f64",
+      "shape": [
+        2,
+        2
+      ],
+      "axes": [
+        "quad",
+        "component"
+      ],
+      "layout": "quadrature",
+      "sha256": "1612792c292994f22ebbc1e4745a5b1dc6d94050ad68f98584a202d7e852ff94",
+      "element_type": "_triangle_3",
+      "ghost_type": "ghost",
+      "tolerance_class": "exact"
+    },
+    {
+      "name": "s7/a_rand/_quadrangle_4/ghost",
+      "file": "data/s7__a_rand___quadrangle_4__ghost.npy",
+      "dtype": "f64",
+      "shape": [
+        4,
+        2
+      ],
+      "axes": [
+        "quad",
+        "component"
+      ],
+      "layout": "quadrature",
+      "sha256": "fb4e66ac41c9e72194553c7ac5d83f1fe92c576cae0e9e9cc15c72531d3ed1ab",
+      "element_type": "_quadrangle_4",
+      "ghost_type": "ghost",
+      "tolerance_class": "exact"
+    },
+    {
+      "name": "s7/m_rand/_triangle_3/not_ghost",
+      "file": "data/s7__m_rand___triangle_3__not_ghost.npy",
+      "dtype": "f64",
+      "shape": [
+        6,
+        1
+      ],
+      "axes": [
+        "quad",
+        "component"
+      ],
+      "layout": "quadrature",
+      "sha256": "f04de5e43dbb4975c161c011bfddc0d0420e0f15c34dd54586d1344b4401ca55",
+      "element_type": "_triangle_3",
+      "ghost_type": "not_ghost",
+      "tolerance_class": "exact"
+    },
+    {
+      "name": "s7/m_rand/_quadrangle_4/not_ghost",
+      "file": "data/s7__m_rand___quadrangle_4__not_ghost.npy",
+      "dtype": "f64",
+      "shape": [
+        8,
+        1
+      ],
+      "axes": [
+        "quad",
+        "component"
+      ],
+      "layout": "quadrature",
+      "sha256": "1813a9acb0d52b4fab6d992a724ef4377aef9995d0a85364c8c63d9fda3de80c",
+      "element_type": "_quadrangle_4",
+      "ghost_type": "not_ghost",
+      "tolerance_class": "exact"
+    },
+    {
+      "name": "s7/m_rand/_triangle_3/ghost",
+      "file": "data/s7__m_rand___triangle_3__ghost.npy",
+      "dtype": "f64",
+      "shape": [
+        2,
+        1
+      ],
+      "axes": [
+        "quad",
+        "component"
+      ],
+      "layout": "quadrature",
+      "sha256": "180191e4c11c8d10aeeccc7f3dfb56b7250d387f925383e52f2a94b20ea55750",
+      "element_type": "_triangle_3",
+      "ghost_type": "ghost",
+      "tolerance_class": "exact"
+    },
+    {
+      "name": "s7/m_rand/_quadrangle_4/ghost",
+      "file": "data/s7__m_rand___quadrangle_4__ghost.npy",
+      "dtype": "f64",
+      "shape": [
+        4,
+        1
+      ],
+      "axes": [
+        "quad",
+        "component"
+      ],
+      "layout": "quadrature",
+      "sha256": "6a91c565b006801171bd2af95e7650b803487efcafc42985350a578eb8384548",
+      "element_type": "_quadrangle_4",
+      "ghost_type": "ghost",
+      "tolerance_class": "exact"
+    },
+    {
+      "name": "s7/z_rand/_triangle_3/not_ghost",
+      "file": "data/s7__z_rand___triangle_3__not_ghost.npy",
+      "dtype": "f64",
+      "shape": [
+        6,
+        1
+      ],
+      "axes": [
+        "quad",
+        "component"
+      ],
+      "layout": "quadrature",
+      "sha256": "31d95f919a4a663110eee5b6de3c2bae88e3669fcbf3a747ca497c684252aaba",
+      "element_type": "_triangle_3",
+      "ghost_type": "not_ghost",
+      "tolerance_class": "exact"
+    },
+    {
+      "name": "s7/z_rand/_quadrangle_4/not_ghost",
+      "file": "data/s7__z_rand___quadrangle_4__not_ghost.npy",
+      "dtype": "f64",
+      "shape": [
+        8,
+        1
+      ],
+      "axes": [
+        "quad",
+        "component"
+      ],
+      "layout": "quadrature",
+      "sha256": "b9df40f54f7a99b79f4910f5acd53707f1a16a970a1eff383b87d2426df2c875",
+      "element_type": "_quadrangle_4",
+      "ghost_type": "not_ghost",
+      "tolerance_class": "exact"
+    },
+    {
+      "name": "s7/z_rand/_triangle_3/ghost",
+      "file": "data/s7__z_rand___triangle_3__ghost.npy",
+      "dtype": "f64",
+      "shape": [
+        2,
+        1
+      ],
+      "axes": [
+        "quad",
+        "component"
+      ],
+      "layout": "quadrature",
+      "sha256": "ca5e3afd99637985808d38277e79143817995c1fce23d594a3be500563881e4e",
+      "element_type": "_triangle_3",
+      "ghost_type": "ghost",
+      "tolerance_class": "exact"
+    },
+    {
+      "name": "s7/z_rand/_quadrangle_4/ghost",
+      "file": "data/s7__z_rand___quadrangle_4__ghost.npy",
+      "dtype": "f64",
+      "shape": [
+        4,
+        1
+      ],
+      "axes": [
+        "quad",
+        "component"
+      ],
+      "layout": "quadrature",
+      "sha256": "e8b3d3ecb8a43f9120dc48b26336b3eb327e969d729acd73e71104c59dc71cf1",
+      "element_type": "_quadrangle_4",
+      "ghost_type": "ghost",
+      "tolerance_class": "exact"
+    },
+    {
+      "name": "next_draws",
+      "file": "data/next_draws.npy",
+      "dtype": "i64",
+      "shape": [
+        4
+      ],
+      "axes": [
+        "entry"
+      ],
+      "layout": "table",
+      "sha256": "a75ced62676016f01b30ff8890908f452f37723f16997b4ef924b5537e220eea",
+      "description": "next raw values of RandomGenerator<Idx> after s7",
+      "tolerance_class": "exact"
+    }
+  ],
+  "tags": [
+    "cl",
+    "wp-verify-1"
+  ]
+}

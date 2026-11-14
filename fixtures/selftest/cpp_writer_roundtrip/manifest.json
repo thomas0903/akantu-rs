@@ -1,0 +1,217 @@
+{
+  "format_version": 1,
+  "case_id": "selftest/cpp_writer_roundtrip",
+  "description": "Self-test of the header-only C++ fixture writer: special doubles, integer types, booleans, empty and 0-d arrays, ragged data",
+  "status": "golden",
+  "generator": {
+    "probe": "writer_selftest",
+    "probe_version": "1",
+    "command": "oracle/probes/selftest/writer_selftest fixtures"
+  },
+  "reference": {
+    "sha": "35a851780d0b9471d258ed53a003ae98aaa95ea0",
+    "describe": "v5.0.7-post1-554-g35a851780",
+    "patches": [
+      "modified:cmake/AkantuTestsMacros.cmake sha256=c280165a84912eab4bcc081b9eaaaa06aafdd83d4f48d982e11b0859abf9672f (reference sha256=36290de2ec8b111028138fe82029efa16501512241a5bc264fa30ff3e3239b9e)"
+    ]
+  },
+  "build": {
+  "config": "strict",
+  "compiler": "g++ (Debian 14.2.0-19) 14.2.0",
+  "cxx_flags": "-ffp-contract=off -DEIGEN_DONT_VECTORIZE -O2 -g -DNDEBUG -g3 -ggdb3 -flarge-source-files -std=c++20 -flto=auto -fno-fat-lto-objects -fPIC -frounding-math (actual flags of src/model/solid_mechanics/solid_mechanics_model.cc; warnings and non-FP -D defines omitted)",
+  "build_type": "RelWithDebInfo",
+  "arch": "aarch64",
+  "os": "Debian GNU/Linux 13 (trixie)",
+  "libraries": {
+    "eigen3": "3.4.0-5",
+    "boost": "1.83.0.2+b2",
+    "openmpi": "5.0.7-1",
+    "mumps": "5.7.3-3+b1",
+    "petsc": "3.22.5+dfsg1-2",
+    "scotch": "7.0.7-1",
+    "openblas": "0.3.29+ds-3",
+    "scalapack": "2.2.2-1",
+    "hdf5": "1.14.5+repack-3",
+    "gmsh": "4.13.1+ds1-6",
+    "pybind11": "2.13.6-2",
+    "numpy": "1:2.2.4+ds-1",
+    "scipy": "1.15.3-1",
+    "gcc": "4:14.2.0-1",
+    "gfortran": "4:14.2.0-1",
+    "oracle_image": "sha256:6683233d0a3b9341eb5cedf5879bc9ccb76ddf3d91e9aa0fd35b99dc7866d7a6",
+    "oracle_build_scripts": "45b473da9cbfb356a039d94609fe39f6f36a1a9a",
+    "oracle_install_reference_sha": "35a851780d0b9471d258ed53a003ae98aaa95ea0",
+    "oracle_install_image": "sha256:6683233d0a3b9341eb5cedf5879bc9ccb76ddf3d91e9aa0fd35b99dc7866d7a6",
+    "sha256:libakantu.so.5.0.7": "9768e51184f0423c49abfd67535e6f3bc371522045b0b634223cce0ee07f0b0b",
+    "probe_tree_sha256": "b3a138e6bc2b4fb839edef2cefc708b46d2dd4fb235fc307c9db4263fb375183",
+    "probe_sources_commit": "2366b35a4d089cd6c6ef561d4575ae986357a33f",
+    "cmake_cxx_flags": "-ffp-contract=off -DEIGEN_DONT_VECTORIZE -O2 -g -DNDEBUG -g3 -ggdb3 -flarge-source-files",
+    "probe": "writer_selftest"
+  },
+  "probe_compile_command": "/usr/bin/c++ -I/probes/include -O2 -g -DNDEBUG -std=gnu++20 -ffp-contract=off -DEIGEN_DONT_VECTORIZE -o CMakeFiles/writer_selftest.dir/selftest/writer_selftest.cc.o -c /probes/selftest/writer_selftest.cc",
+  "probe_cxx_flags": "-O2 -g -DNDEBUG -std=gnu++20 -ffp-contract=off -DEIGEN_DONT_VECTORIZE"
+},
+  "created": "2026-11-09T11:57:20Z",
+  "parameters": {
+    "note": "values are fixed by construction",
+    "pi": 3.1415926535897931
+  },
+  "storage": {
+    "mode": "committed",
+    "bytes": 1565
+  },
+  "quantities": [
+    {
+      "name": "special",
+      "file": "data/special.npy",
+      "dtype": "f64",
+      "shape": [
+        13
+      ],
+      "axes": [
+        "entry"
+      ],
+      "layout": "table",
+      "sha256": "d20ea37b34a07bc8c8e65533b11ee9a8ec44aaf5dac670175fa155cf32968183",
+      "description": "special IEEE-754 values",
+      "tolerance_class": "exact"
+    },
+    {
+      "name": "u",
+      "file": "data/u.npy",
+      "dtype": "f64",
+      "shape": [
+        4,
+        2
+      ],
+      "axes": [
+        "node",
+        "component"
+      ],
+      "layout": "nodal",
+      "sha256": "7014f514f120171bd2f53fcb9c293ee826f56cb092db88ff30c468180e312e08",
+      "components": [
+        "x",
+        "y"
+      ],
+      "ordering": [
+        {
+          "axis": "node",
+          "kind": "global_id",
+          "key_quantity": "node_ids"
+        }
+      ]
+    },
+    {
+      "name": "node_ids",
+      "file": "data/node_ids.npy",
+      "dtype": "i64",
+      "shape": [
+        4
+      ],
+      "axes": [
+        "node"
+      ],
+      "layout": "nodal",
+      "sha256": "27149228c73926da8e8a9ef28b0a562ce3f563830e4763d8c8aac41f74891df9"
+    },
+    {
+      "name": "i32",
+      "file": "data/i32.npy",
+      "dtype": "i32",
+      "shape": [
+        2,
+        2
+      ],
+      "axes": [
+        "row",
+        "col"
+      ],
+      "layout": "table",
+      "sha256": "78355bc9bb65fb47ee88b2fbe6f129e0bd9c3b5d5a1614df0a2910e73b254e3d"
+    },
+    {
+      "name": "u8",
+      "file": "data/u8.npy",
+      "dtype": "u8",
+      "shape": [
+        2
+      ],
+      "axes": [
+        "entry"
+      ],
+      "layout": "table",
+      "sha256": "b9248eeeaaf7f42e5e0ce38280e691e55d86104714e566296f7dd3f13e8572a4"
+    },
+    {
+      "name": "flags",
+      "file": "data/flags.npy",
+      "dtype": "bool",
+      "shape": [
+        3
+      ],
+      "axes": [
+        "entry"
+      ],
+      "layout": "table",
+      "sha256": "67c5322b3a41bd511d187bf14aa4032195ab34034d7c31199d9408522483f689"
+    },
+    {
+      "name": "empty",
+      "file": "data/empty.npy",
+      "dtype": "f64",
+      "shape": [
+        0,
+        3
+      ],
+      "axes": [
+        "entry",
+        "component"
+      ],
+      "layout": "table",
+      "sha256": "4aa7aa40d1bbd6bba4570a87b12a7a2be0c4643337cc363349524c7c66ef8fd0"
+    },
+    {
+      "name": "scalar",
+      "file": "data/scalar.npy",
+      "dtype": "f64",
+      "shape": [],
+      "axes": [],
+      "layout": "scalar",
+      "sha256": "1a340b49ead6fab95ace1269fa70f93307abe33464a80334244725f90c3d6831"
+    },
+    {
+      "name": "residuals/offsets",
+      "file": "data/residuals__offsets.npy",
+      "dtype": "i64",
+      "shape": [
+        4
+      ],
+      "axes": [
+        "entry"
+      ],
+      "layout": "ragged_offsets",
+      "sha256": "42760d0c2075b77061569a4a5ca0f4d6e6a3a9bb1eefc6b9db447cc736a2e164"
+    },
+    {
+      "name": "residuals",
+      "file": "data/residuals.npy",
+      "dtype": "f64",
+      "shape": [
+        3
+      ],
+      "axes": [
+        "iteration"
+      ],
+      "layout": "ragged_values",
+      "sha256": "8c10df9f61958037654e5d2bfaac29e945ee6c47210e27c3251b90a66e54b03d",
+      "ragged": {
+        "offsets": "residuals/offsets",
+        "row_axis": "step"
+      }
+    }
+  ],
+  "tags": [
+    "selftest"
+  ]
+}

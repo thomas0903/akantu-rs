@@ -1,0 +1,244 @@
+{
+  "format_version": 1,
+  "case_id": "solver_model/solver_switch_shared_j",
+  "description": "review V38 Appendix A scenario C: static (pseudo_time) and dynamic (trapezoidal_rule_2 / displacement) Newton-Raphson solvers alternating on one DOF manager (21-node MyModel bar, consistent mass, Eigen); each solver reuses the J the other one built (UD-193): non-convergence at the static step after dynamic steps, divergence of the dynamic steps after a static rebuild",
+  "status": "golden",
+  "generator": {
+    "probe": "solver_model_probe",
+    "probe_version": "2",
+    "command": "oracle/probes/solver_model/generate.sh "
+  },
+  "reference": {
+    "sha": "35a851780d0b9471d258ed53a003ae98aaa95ea0",
+    "describe": "v5.0.7-post1-554-g35a851780",
+    "patches": [
+      "modified:cmake/AkantuTestsMacros.cmake sha256=c280165a84912eab4bcc081b9eaaaa06aafdd83d4f48d982e11b0859abf9672f (reference sha256=36290de2ec8b111028138fe82029efa16501512241a5bc264fa30ff3e3239b9e)"
+    ]
+  },
+  "build": {
+  "config": "strict",
+  "compiler": "g++ (Debian 14.2.0-19) 14.2.0",
+  "cxx_flags": "-ffp-contract=off -DEIGEN_DONT_VECTORIZE -O2 -g -DNDEBUG -g3 -ggdb3 -flarge-source-files -std=c++20 -flto=auto -fno-fat-lto-objects -fPIC -frounding-math (actual flags of src/model/solid_mechanics/solid_mechanics_model.cc; warnings and non-FP -D defines omitted)",
+  "build_type": "RelWithDebInfo",
+  "arch": "aarch64",
+  "os": "Debian GNU/Linux 13 (trixie)",
+  "libraries": {
+    "eigen3": "3.4.0-5",
+    "boost": "1.83.0.2+b2",
+    "openmpi": "5.0.7-1",
+    "mumps": "5.7.3-3+b1",
+    "petsc": "3.22.5+dfsg1-2",
+    "scotch": "7.0.7-1",
+    "openblas": "0.3.29+ds-3",
+    "scalapack": "2.2.2-1",
+    "hdf5": "1.14.5+repack-3",
+    "gmsh": "4.13.1+ds1-6",
+    "pybind11": "2.13.6-2",
+    "numpy": "1:2.2.4+ds-1",
+    "scipy": "1.15.3-1",
+    "gcc": "4:14.2.0-1",
+    "gfortran": "4:14.2.0-1",
+    "oracle_image": "sha256:6683233d0a3b9341eb5cedf5879bc9ccb76ddf3d91e9aa0fd35b99dc7866d7a6",
+    "oracle_build_scripts": "45b473da9cbfb356a039d94609fe39f6f36a1a9a",
+    "oracle_install_reference_sha": "35a851780d0b9471d258ed53a003ae98aaa95ea0",
+    "oracle_install_image": "sha256:6683233d0a3b9341eb5cedf5879bc9ccb76ddf3d91e9aa0fd35b99dc7866d7a6",
+    "sha256:libakantu.so.5.0.7": "9768e51184f0423c49abfd67535e6f3bc371522045b0b634223cce0ee07f0b0b",
+    "probe_tree_sha256": "9f8ff46dbab21ad4273ecde9bc6653f19f9ecc8655f9bd32316561b4abab8c4b",
+    "probe_sources_commit": "c91ad68c3cb1fc7ef55d9b2b81e085c523a17111",
+    "cmake_cxx_flags": "-ffp-contract=off -DEIGEN_DONT_VECTORIZE -O2 -g -DNDEBUG -g3 -ggdb3 -flarge-source-files",
+    "probe": "solver_model_probe"
+  },
+  "probe_compile_command": "/usr/bin/c++ '-DAKANTU_PROBE_BUILD_TYPE=\"RelWithDebInfo\"' '-DAKANTU_PROBE_CONFIG=\"strict\"' '-DAKANTU_PROBE_CXX_FLAGS=\"-ffp-contract=off -DEIGEN_DONT_VECTORIZE  -O2 -g -DNDEBUG\"' -DBOOST_GRAPH_DYN_LINK -DBOOST_GRAPH_NO_LIB -DBOOST_REGEX_DYN_LINK -DBOOST_REGEX_NO_LIB -DCGAL_USE_GMPXX=1 -I/probes/solver_model/../include -I/akantu-src/test/test_model/test_common/test_model_solver -isystem /build/install-strict/include/akantu -isystem /opt/CGAL-5.6.2/include -isystem /usr/lib/aarch64-linux-gnu/openmpi/include -isystem /usr/lib/aarch64-linux-gnu/openmpi/include/openmpi -isystem /usr/lib/petscdir/petsc3.22/aarch64-linux-gnu-real/include -isystem /usr/include/scotch -isystem /build/install-strict/include/akantu_iterators -isystem /usr/include/eigen3 -isystem /build/install-strict/include/iohelper -O2 -g -DNDEBUG -std=gnu++20 -ffp-contract=off -DEIGEN_DONT_VECTORIZE -Wall -Wextra -pedantic -Wno-array-bounds -Wno-use-after-free -Wno-stringop-overread -DOMPI_SKIP_MPICXX -Wno-literal-suffix -frounding-math -o CMakeFiles/solver_model_probe.dir/solver_model_probe.cc.o -c /probes/solver_model/solver_model_probe.cc",
+  "probe_cxx_flags": "-DAKANTU_PROBE_BUILD_TYPE=\"RelWithDebInfo\" -DAKANTU_PROBE_CONFIG=\"strict\" -DAKANTU_PROBE_CXX_FLAGS=\"-ffp-contract=off -DEIGEN_DONT_VECTORIZE  -O2 -g -DNDEBUG\" -DBOOST_GRAPH_DYN_LINK -DBOOST_GRAPH_NO_LIB -DBOOST_REGEX_DYN_LINK -DBOOST_REGEX_NO_LIB -DCGAL_USE_GMPXX=1 -O2 -g -DNDEBUG -std=gnu++20 -ffp-contract=off -DEIGEN_DONT_VECTORIZE -Wall -Wextra -pedantic -Wno-array-bounds -Wno-use-after-free -Wno-stringop-overread -DOMPI_SKIP_MPICXX -Wno-literal-suffix -frounding-math"
+},
+  "created": "2026-11-10T11:46:51Z",
+  "parameters": {
+    "driver": "solver_switch",
+    "nb_nodes": 21,
+    "initial_force": -1.0,
+    "initial_velocity": "0.1 * node",
+    "time_step_dynamic": 0.050000000000000003,
+    "max_iterations": 10,
+    "sparse_solver_type": "eigen",
+    "sequence": [
+      "static",
+      "dynamic",
+      "dynamic",
+      "force=-2",
+      "static",
+      "dynamic",
+      "block=20",
+      "force=-0.5",
+      "static",
+      "dynamic",
+      "dynamic",
+      "force=-1.5",
+      "static"
+    ],
+    "step_solvers": [
+      "static",
+      "dynamic",
+      "dynamic",
+      "static",
+      "dynamic",
+      "static",
+      "dynamic",
+      "dynamic",
+      "static"
+    ]
+  },
+  "storage": {
+    "mode": "committed",
+    "bytes": 7760
+  },
+  "quantities": [
+    {
+      "name": "newton/nb_iterations",
+      "file": "data/newton__nb_iterations.npy",
+      "dtype": "i64",
+      "shape": [
+        9
+      ],
+      "axes": [
+        "step"
+      ],
+      "layout": "table",
+      "sha256": "bf81b4c76251b04b9e0c545a04c821f469fe67fa235f84f91288a6ee0ebdaefb",
+      "description": "nb_iterations after each solveStep"
+    },
+    {
+      "name": "newton/error",
+      "file": "data/newton__error.npy",
+      "dtype": "f64",
+      "shape": [
+        9
+      ],
+      "axes": [
+        "step"
+      ],
+      "layout": "table",
+      "sha256": "7f75d313537c16e7b092039006de13c8692394e179bb43e5c74f69759801d688",
+      "description": "error after each solveStep"
+    },
+    {
+      "name": "newton/converged",
+      "file": "data/newton__converged.npy",
+      "dtype": "i64",
+      "shape": [
+        9
+      ],
+      "axes": [
+        "step"
+      ],
+      "layout": "table",
+      "sha256": "6d29b693f7a6d0c536fc5ab8ddf4b223580946d07e2a77921c1f75143db35ad9",
+      "description": "converged after each solveStep"
+    },
+    {
+      "name": "not_converged_exception",
+      "file": "data/not_converged_exception.npy",
+      "dtype": "i64",
+      "shape": [
+        9
+      ],
+      "axes": [
+        "step"
+      ],
+      "layout": "table",
+      "sha256": "50037b485f76441adc0371aa9f7d93685c28652792d857ffe6127d25c992e08c",
+      "description": "1 if solveStep threw NLSNotConvergedException (the run continues)"
+    },
+    {
+      "name": "jacobian/value_release",
+      "file": "data/jacobian__value_release.npy",
+      "dtype": "i64",
+      "shape": [
+        9
+      ],
+      "axes": [
+        "step"
+      ],
+      "layout": "table",
+      "sha256": "6d470778e3fc318a0e075cec6624d2109fb497cd5f8154fc065aeaf8ac0f07f7",
+      "description": "SparseMatrixAIJ::getValueRelease of J after each solveStep"
+    },
+    {
+      "name": "jacobian/profile_release",
+      "file": "data/jacobian__profile_release.npy",
+      "dtype": "i64",
+      "shape": [
+        9
+      ],
+      "axes": [
+        "step"
+      ],
+      "layout": "table",
+      "sha256": "fbcf13272c2d2d50e10ba24531a43c3ce04605889320873ca20e855d3bb403a7",
+      "description": "SparseMatrixAIJ::getProfileRelease of J after each solveStep"
+    },
+    {
+      "name": "displacement",
+      "file": "data/displacement.npy",
+      "dtype": "f64",
+      "shape": [
+        9,
+        21
+      ],
+      "axes": [
+        "step",
+        "node"
+      ],
+      "layout": "nodal",
+      "sha256": "4ac5633d9accefab224ce6c67200fe177bf3383a17fcf41d8c4f54f33ddc1d39",
+      "description": "displacement after each solveStep (after the restore of a failed step)"
+    },
+    {
+      "name": "velocity",
+      "file": "data/velocity.npy",
+      "dtype": "f64",
+      "shape": [
+        9,
+        21
+      ],
+      "axes": [
+        "step",
+        "node"
+      ],
+      "layout": "nodal",
+      "sha256": "33db67da4e62c56dfc1157e8def1371270984d5f447d7569db5f4faf1f2e68d1",
+      "description": "velocity after each solveStep"
+    },
+    {
+      "name": "acceleration",
+      "file": "data/acceleration.npy",
+      "dtype": "f64",
+      "shape": [
+        9,
+        21
+      ],
+      "axes": [
+        "step",
+        "node"
+      ],
+      "layout": "nodal",
+      "sha256": "30fc036b26e0ebec7ae1ba7044977c57dfd28399abce0f86f0aae7a1a7d8d421",
+      "description": "acceleration after each solveStep"
+    },
+    {
+      "name": "residual",
+      "file": "data/residual.npy",
+      "dtype": "f64",
+      "shape": [
+        9,
+        21
+      ],
+      "axes": [
+        "step",
+        "dof"
+      ],
+      "layout": "dof",
+      "sha256": "57d4921ade1867f5c6942f0c5a2129c5de212cca3dfcad4d3389dc0e2d3ffd59",
+      "description": "DOF manager residual after each solveStep"
+    }
+  ]
+}

@@ -1,0 +1,593 @@
+{
+  "format_version": 1,
+  "case_id": "model/cohesive/adv_v57_implicit_bilinear_standalone_retry",
+  "description": "review V57 adversarial implicit case",
+  "status": "golden",
+  "generator": {
+    "probe": "cohesive_probe",
+    "probe_version": "1",
+    "command": "oracle/probes/cohesive/generate.sh "
+  },
+  "reference": {
+    "sha": "35a851780d0b9471d258ed53a003ae98aaa95ea0",
+    "describe": "v5.0.7-post1-554-g35a851780",
+    "patches": [
+      "modified:cmake/AkantuTestsMacros.cmake sha256=c280165a84912eab4bcc081b9eaaaa06aafdd83d4f48d982e11b0859abf9672f (reference sha256=36290de2ec8b111028138fe82029efa16501512241a5bc264fa30ff3e3239b9e)"
+    ]
+  },
+  "build": {
+  "config": "strict",
+  "compiler": "g++ (Debian 14.2.0-19) 14.2.0",
+  "cxx_flags": "-ffp-contract=off -DEIGEN_DONT_VECTORIZE -O2 -g -DNDEBUG -g3 -ggdb3 -flarge-source-files -std=c++20 -flto=auto -fno-fat-lto-objects -fPIC -frounding-math (actual flags of src/model/solid_mechanics/solid_mechanics_model.cc; warnings and non-FP -D defines omitted)",
+  "build_type": "RelWithDebInfo",
+  "arch": "x86_64",
+  "os": "Debian GNU/Linux 13 (trixie)",
+  "libraries": {
+    "eigen3": "3.4.0-5",
+    "boost": "1.83.0.2+b2",
+    "openmpi": "5.0.7-1",
+    "mumps": "5.7.3-3+b1",
+    "petsc": "3.22.5+dfsg1-2",
+    "scotch": "7.0.7-1",
+    "openblas": "0.3.29+ds-3",
+    "scalapack": "2.2.2-1",
+    "hdf5": "1.14.5+repack-3",
+    "gmsh": "4.13.1+ds1-6",
+    "pybind11": "2.13.6-2",
+    "numpy": "1:2.2.4+ds-1",
+    "scipy": "1.15.3-1",
+    "gcc": "4:14.2.0-1",
+    "gfortran": "4:14.2.0-1",
+    "oracle_image": "sha256:45122c213e9fa194b6b58dcc31fc23b5fa4f7c0f64d0a452e40ae072c51c5cdb",
+    "oracle_build_scripts": "e168f393291494c869fa759b3ad9ae4a371a0369",
+    "oracle_install_reference_sha": "35a851780d0b9471d258ed53a003ae98aaa95ea0",
+    "oracle_install_image": "sha256:45122c213e9fa194b6b58dcc31fc23b5fa4f7c0f64d0a452e40ae072c51c5cdb",
+    "sha256:libakantu.so.5.0.7": "5491d902b6f363e11b47d2dc1d0aff0597374e8ff785bbfe2bff534f38509e81",
+    "probe_tree_sha256": "2181216c2bb01d2104ecd47d27d2be002d6e415c35f88d3bdea7b927876573ad",
+    "probe_sources_commit": "35faa1a5baa94e66a7b0f701b61b4502976a635f",
+    "cmake_cxx_flags": "-ffp-contract=off -DEIGEN_DONT_VECTORIZE -O2 -g -DNDEBUG -g3 -ggdb3 -flarge-source-files",
+    "probe": "cohesive_probe"
+  },
+  "probe_compile_command": "/usr/bin/c++ '-DAKANTU_PROBE_BUILD_TYPE=\"RelWithDebInfo\"' '-DAKANTU_PROBE_CONFIG=\"strict\"' '-DAKANTU_PROBE_CXX_FLAGS=\"-ffp-contract=off -DEIGEN_DONT_VECTORIZE  -O2 -g -DNDEBUG\"' -DBOOST_GRAPH_DYN_LINK -DBOOST_GRAPH_NO_LIB -DBOOST_REGEX_DYN_LINK -DBOOST_REGEX_NO_LIB -DCGAL_USE_GMPXX=1 -I/probes/cohesive/../include -isystem /build/install-strict/include/akantu -isystem /opt/CGAL-5.6.2/include -isystem /usr/lib/x86_64-linux-gnu/openmpi/include -isystem /usr/lib/x86_64-linux-gnu/openmpi/include/openmpi -isystem /usr/lib/petscdir/petsc3.22/x86_64-linux-gnu-real/include -isystem /usr/include/scotch -isystem /build/install-strict/include/akantu_iterators -isystem /usr/include/eigen3 -isystem /build/install-strict/include/iohelper -O2 -g -DNDEBUG -std=gnu++20 -ffp-contract=off -DEIGEN_DONT_VECTORIZE -Wall -Wextra -pedantic -Wno-array-bounds -Wno-use-after-free -Wno-stringop-overread -DOMPI_SKIP_MPICXX -Wno-literal-suffix -frounding-math -o CMakeFiles/cohesive_probe.dir/cohesive_probe.cc.o -c /probes/cohesive/cohesive_probe.cc",
+  "probe_cxx_flags": "-DAKANTU_PROBE_BUILD_TYPE=\"RelWithDebInfo\" -DAKANTU_PROBE_CONFIG=\"strict\" -DAKANTU_PROBE_CXX_FLAGS=\"-ffp-contract=off -DEIGEN_DONT_VECTORIZE  -O2 -g -DNDEBUG\" -DBOOST_GRAPH_DYN_LINK -DBOOST_GRAPH_NO_LIB -DBOOST_REGEX_DYN_LINK -DBOOST_REGEX_NO_LIB -DCGAL_USE_GMPXX=1 -O2 -g -DNDEBUG -std=gnu++20 -ffp-contract=off -DEIGEN_DONT_VECTORIZE -Wall -Wextra -pedantic -Wno-array-bounds -Wno-use-after-free -Wno-stringop-overread -DOMPI_SKIP_MPICXX -Wno-literal-suffix -frounding-math"
+},
+  "created": "2026-11-11T03:56:50Z",
+  "inputs": [
+    {
+      "role": "mesh",
+      "path": "inputs/implicit.msh",
+      "source": "upstream:test/test_model/test_solid_mechanics_model/test_cohesive/test_cohesive_intrinsic_impl/implicit.msh",
+      "sha256": "2e8d55df46af57456c366c088fccd430969bfde852531ce262b31c3146dbaaca"
+    },
+    {
+      "role": "material",
+      "path": "inputs/cohesive_probe_adv_v57_implicit_bilinear_standalone_retry.dat",
+      "source": "probe-defined (review V57 adversarial case)",
+      "sha256": "065c9e5b427059fe0a9810e5ef88b125c2ed86edad0ff83835ee8cb9d3532022"
+    }
+  ],
+  "parameters": {
+    "ux_ratio": 0.29999999999999999,
+    "random_seed": 7,
+    "standalone_at": 15,
+    "fail_at": 28,
+    "schedule": [
+      [
+        1.0,
+        45
+      ]
+    ],
+    "nb_cohesive": 1,
+    "upstream_nonconverged_step": -1,
+    "attempt_digests": [
+      "b275e3b7e9bd92e86792a646a3ed25810552e8d301c3e5341d69be4d87459f23",
+      "9620c8f2ce07f13505622c2ca04a443108c9a9f94b2e1ad8940846da8bbe729a",
+      "16bfe105103c4348af9bd8b1c496812cece8baecc9650e16ba93574b6c86cd5e",
+      "333c02a6474e76b3bfcd8635f72aabc1fa4dfa532900e74da55e7a8c5435b9c9",
+      "6431a9a7f6224d71d7c61a7b7c0117f5490ba60dc78ed8e60b7ea072ca11e2d2",
+      "e765e7b07805d7542cfb17ebd2d1fbfd7858e9782caf652254d52611fac5b0e2",
+      "1ff0c8f2b93ebcaa8cc2914daa4eb54dd3acd9488f1459df5043c2d6976a74a0",
+      "4795abff6ad67a1b00aaaf291447c2b2ab69045ac6810890c2c3d7b0d93dd18d",
+      "daa9e706aca4bf65117aa2700e97edb52d7892b35db4bf001fd59b4c3f889758",
+      "eb10d163c8d499bfaaf808d4325d9984b0682fc37f2daf4d4fa548a2ab3d78a4",
+      "81b75eda69118d6c81519a031ef980058d9fd75a7378def9effd225894202080",
+      "313b6fdff8ee4c7545d5acecd8d7331041f3222197dd05c6ebde09029e34045b",
+      "2b784a1c3a6752a27f8adc6c3dd5202e0b86f9de562ed35a85be6eb315f7f19a",
+      "9d14827ae735af5898fe3c0fcd20b1095d207e5ae1139ff7b3909b341bd3bc6d",
+      "e6349ae2cc0e3a89c1f09ffa102b639d49fd3365e541fc5b8cd7e39c8eafd2b1",
+      "10a3c18984a49236f06254457a1083fcf9f215192fa0d11ca457b3bfe050c567",
+      "97f9d6a9d293f048e5d85f3935896968bf886aa8c2b90719a7860453fa2b1c2a",
+      "2a2b335c1856317f59a056c7e2dd223f41db39031c7331f0e024fa7cd7d40e23",
+      "5916fce6315893e128251c2790032ee6c9039d9b63395cc5afbc69d2e7f8dfa0",
+      "2e74fd8cd0cc2687bc672f572d0abcbf67c79f96ee7b479cb996a5f28d744bc7",
+      "4f42926a55181c343d0e01e315c4016a1b0d7f05814a4c996b9e3e9348aa5826",
+      "52588f4b146cf26848907511594a4a98d93c6bad475fbfeaa8109f54b4196909",
+      "a85e4038c7c9d1460ddf25d3ba805102778bf4a3d9e8f85f24381f0c030865a2",
+      "05532cfc33d47d5ccfaf0dee74303efb4500f7f2c7957d19c41a5e23a9b66857",
+      "e17b39e9f8d3147086124e7eb4cbe8ec4abd685ed410a27bf41dcf0ad3b793f4",
+      "5f762965dae58babd95a28e185ca6fbd80d81a869f0a6ff65b65d85a58bf73d3",
+      "7497153a4abfdd4f7937091a12b6639e6059818e9ee40d1affe7c1305a21e0ff",
+      "7fa2183a9e7818fb36f9613f7ec6a8364cec2f60d4991d6d163b78168baa06cf",
+      "bdb7279d203af5081aca13f9872a2d0d84dc424821936b66bd00f8e289110844",
+      "75874bc09a735d04a2bcb8d25190faf3a795923a0247bb0e411d5b0db2bb0c2a",
+      "d734f8f8cd9172ac74dd4c452052e811fe0e85418130139fcc8c4ab27487e4ab",
+      "10f9a54d9a6b32ada537c9981a7da07b76b349c7f32bb55ec459a07749c1b767",
+      "969ff622a5865565e2d0d9d1977a2f52322f9eff14f437166308510fe2883331",
+      "ad47748ad2a8868a0cdf416f269f21c6705565ed0829fb5ed777821f2a3e2dc4",
+      "588478774bd5de55a670fefc773a7770de03b466568d19c4f90d3d38adcf8c03",
+      "9c37e1567847794b7b89f3cad958de783edc3ee116ea0aa86db12ddacac10e9e",
+      "bda8a4de6af6107d9ea5e54d309c48dc530c9dee01d501d36a7d630221aac182",
+      "c1147e6c39339099151196bd62d695338baf14e7c1c3d6dcc3b7ec511c9eae80",
+      "1056a08415ce7cade9b10d505b95b2e9166ceda15c395918324fce1d698188c4",
+      "fdd95f5e855a791f35b7ce50b57cdc8bf6ce270d18d171c6709af7a7207607c0",
+      "6b0092435c5d4a6ea751da7d6b1367a594aa33ab526936428eecdfef0e4907e5",
+      "ddf333386a1ae9ff1da3280f128f61977b6c38b94eb019b859a6a83494f73806",
+      "872861c545938fcca2e62708a92c8f454795e0ca17f638f296d6ef52c7fd00fd",
+      "f2401311ea8674f2ac1c8edbb1ee48d95def0c686c9876303fda49c3a596ffd1",
+      "02797b610f96843abdbc51ce8c3bf854235d39144a0c93fb6080634eb6de78aa",
+      "e679f300129c9d1943f24481e9efa3d5ecd26afdfb4bcf0b7fb681ce11fc01f5"
+    ],
+    "K/symmetric": true,
+    "mesh_types": [
+      "_triangle_6",
+      "_cohesive_2d_6"
+    ]
+  },
+  "storage": {
+    "mode": "committed",
+    "bytes": 14716
+  },
+  "quantities": [
+    {
+      "name": "attempts/step",
+      "file": "data/attempts__step.npy",
+      "dtype": "i64",
+      "shape": [
+        46
+      ],
+      "axes": [
+        "entry"
+      ],
+      "layout": "table",
+      "sha256": "1e03aa93823bed15dd63b28ada639a69ed1ad0580654d739a0d94434eb58f662",
+      "description": "step index of each solve attempt"
+    },
+    {
+      "name": "attempts/converged",
+      "file": "data/attempts__converged.npy",
+      "dtype": "i64",
+      "shape": [
+        46
+      ],
+      "axes": [
+        "entry"
+      ],
+      "layout": "table",
+      "sha256": "c4d2ba1a87a8a64753afd42f3d031368230a1481d8a109af4019cda68eab3a80",
+      "description": "1 if the attempt converged"
+    },
+    {
+      "name": "attempts/nb_iterations",
+      "file": "data/attempts__nb_iterations.npy",
+      "dtype": "i64",
+      "shape": [
+        46
+      ],
+      "axes": [
+        "entry"
+      ],
+      "layout": "table",
+      "sha256": "97f5d2c338526694eed25c30446e70592b58a61d0f066604b3c57b7fdba674f7",
+      "description": "Newton iterations per attempt"
+    },
+    {
+      "name": "attempts/error",
+      "file": "data/attempts__error.npy",
+      "dtype": "f64",
+      "shape": [
+        46
+      ],
+      "axes": [
+        "entry"
+      ],
+      "layout": "table",
+      "sha256": "a9f1f83eb45a743e1c6b1cb483f67e66dfb5e41be6cc3b807457ecaa7c9d9b29",
+      "description": "Newton error per attempt"
+    },
+    {
+      "name": "attempts/top_reaction_x",
+      "file": "data/attempts__top_reaction_x.npy",
+      "dtype": "f64",
+      "shape": [
+        46
+      ],
+      "axes": [
+        "entry"
+      ],
+      "layout": "table",
+      "sha256": "6a4d56444e12916c68789a18d25f1a0ae1c277353a6d9ba93c8641acc3be3dec",
+      "description": "sum of internal_force(n, 0) at y = 2"
+    },
+    {
+      "name": "attempts/top_reaction_y",
+      "file": "data/attempts__top_reaction_y.npy",
+      "dtype": "f64",
+      "shape": [
+        46
+      ],
+      "axes": [
+        "entry"
+      ],
+      "layout": "table",
+      "sha256": "e31038ad062d47d8e052aeb84c55344143f25d51b431e35f7af6679db2329f1e",
+      "description": "sum of internal_force(n, 1) at y = 2"
+    },
+    {
+      "name": "standalone/top_reaction",
+      "file": "data/standalone__top_reaction.npy",
+      "dtype": "f64",
+      "shape": [
+        2
+      ],
+      "axes": [
+        "entry"
+      ],
+      "layout": "table",
+      "sha256": "b366707913dffc07b0f3066825ab0ee295544154c85f513f68caf2c5eccbbc60",
+      "description": "standalone assembleInternalForces at the overshoot"
+    },
+    {
+      "name": "displacement",
+      "file": "data/displacement.npy",
+      "dtype": "f64",
+      "shape": [
+        18,
+        2
+      ],
+      "axes": [
+        "entry",
+        "component"
+      ],
+      "layout": "table",
+      "sha256": "de24a20d8a79dfb36efdec0f11c7345e908dc2824fcb630afc09c6345f1602ce",
+      "description": "final displacement"
+    },
+    {
+      "name": "internal_force",
+      "file": "data/internal_force.npy",
+      "dtype": "f64",
+      "shape": [
+        18,
+        2
+      ],
+      "axes": [
+        "entry",
+        "component"
+      ],
+      "layout": "table",
+      "sha256": "22ae0fe4e85d1695da097ea0792a1698defac133c9fb42f33b628814d31d223d",
+      "description": "final internal force"
+    },
+    {
+      "name": "blocked_dofs",
+      "file": "data/blocked_dofs.npy",
+      "dtype": "u8",
+      "shape": [
+        18,
+        2
+      ],
+      "axes": [
+        "entry",
+        "component"
+      ],
+      "layout": "table",
+      "sha256": "be8352cf35f9d11e8a967b96cd1aa26567dfe2e3ef6d72becb41d90800f4023d",
+      "description": "blocked flags"
+    },
+    {
+      "name": "K/rows",
+      "file": "data/K__rows.npy",
+      "dtype": "i64",
+      "shape": [
+        306
+      ],
+      "axes": [
+        "entry"
+      ],
+      "layout": "table",
+      "sha256": "501934c2bc561e2d81a429d373de32bc3956a3516d004918be9f48acb9f39aad",
+      "description": "SparseMatrixAIJ::getIRN - 1 (storage order)"
+    },
+    {
+      "name": "K/cols",
+      "file": "data/K__cols.npy",
+      "dtype": "i64",
+      "shape": [
+        306
+      ],
+      "axes": [
+        "entry"
+      ],
+      "layout": "table",
+      "sha256": "60061bf930d0c12d6de097659983bcbafe965f7919df3b1662c46a7d67d58264",
+      "description": "SparseMatrixAIJ::getJCN - 1 (storage order)"
+    },
+    {
+      "name": "K/values",
+      "file": "data/K__values.npy",
+      "dtype": "f64",
+      "shape": [
+        306
+      ],
+      "axes": [
+        "entry"
+      ],
+      "layout": "table",
+      "sha256": "a3b2771d946d349d3bb2e32494159deef1a4591aac4dd50bc093c0403c65fc44",
+      "description": "SparseMatrixAIJ::getA (storage order)"
+    },
+    {
+      "name": "material/cohesive/filter/_cohesive_2d_6",
+      "file": "data/material__cohesive__filter___cohesive_2d_6.npy",
+      "dtype": "i64",
+      "shape": [
+        1
+      ],
+      "axes": [
+        "entry"
+      ],
+      "layout": "table",
+      "sha256": "f6df0000bed676f0a4b777e2a1d915b6608dab452e11737f82c685cebf0e8ba7",
+      "description": "element filter"
+    },
+    {
+      "name": "material/cohesive/opening/_cohesive_2d_6",
+      "file": "data/material__cohesive__opening___cohesive_2d_6.npy",
+      "dtype": "f64",
+      "shape": [
+        2,
+        2
+      ],
+      "axes": [
+        "entry",
+        "component"
+      ],
+      "layout": "table",
+      "sha256": "3fd22a1f5c61d43f761f6ed9ee9317cf2e21991cfdaaca112a674dd216e5f7c9",
+      "description": "internal opening"
+    },
+    {
+      "name": "material/cohesive/tractions/_cohesive_2d_6",
+      "file": "data/material__cohesive__tractions___cohesive_2d_6.npy",
+      "dtype": "f64",
+      "shape": [
+        2,
+        2
+      ],
+      "axes": [
+        "entry",
+        "component"
+      ],
+      "layout": "table",
+      "sha256": "7f23df45f96f5c4c013a1fd754eb49fe33ff5d113c6464ad649a1e15a79f0ab5",
+      "description": "internal tractions"
+    },
+    {
+      "name": "material/cohesive/contact_tractions/_cohesive_2d_6",
+      "file": "data/material__cohesive__contact_tractions___cohesive_2d_6.npy",
+      "dtype": "f64",
+      "shape": [
+        2,
+        2
+      ],
+      "axes": [
+        "entry",
+        "component"
+      ],
+      "layout": "table",
+      "sha256": "7f23df45f96f5c4c013a1fd754eb49fe33ff5d113c6464ad649a1e15a79f0ab5",
+      "description": "internal contact_tractions"
+    },
+    {
+      "name": "material/cohesive/contact_opening/_cohesive_2d_6",
+      "file": "data/material__cohesive__contact_opening___cohesive_2d_6.npy",
+      "dtype": "f64",
+      "shape": [
+        2,
+        2
+      ],
+      "axes": [
+        "entry",
+        "component"
+      ],
+      "layout": "table",
+      "sha256": "7f23df45f96f5c4c013a1fd754eb49fe33ff5d113c6464ad649a1e15a79f0ab5",
+      "description": "internal contact_opening"
+    },
+    {
+      "name": "material/cohesive/delta_max/_cohesive_2d_6",
+      "file": "data/material__cohesive__delta_max___cohesive_2d_6.npy",
+      "dtype": "f64",
+      "shape": [
+        2,
+        1
+      ],
+      "axes": [
+        "entry",
+        "component"
+      ],
+      "layout": "table",
+      "sha256": "29a0159d78bf9c64c74fff4be901b31290d0d9668eceb51fb3bab70622d7b188",
+      "description": "internal delta max"
+    },
+    {
+      "name": "material/cohesive/damage/_cohesive_2d_6",
+      "file": "data/material__cohesive__damage___cohesive_2d_6.npy",
+      "dtype": "f64",
+      "shape": [
+        2,
+        1
+      ],
+      "axes": [
+        "entry",
+        "component"
+      ],
+      "layout": "table",
+      "sha256": "43e49631ece3248ff09e7aa1416c69a45b178e9cb73de9a8692aeebb55b31f2a",
+      "description": "internal damage"
+    },
+    {
+      "name": "material/cohesive/normal/_cohesive_2d_6",
+      "file": "data/material__cohesive__normal___cohesive_2d_6.npy",
+      "dtype": "f64",
+      "shape": [
+        2,
+        2
+      ],
+      "axes": [
+        "entry",
+        "component"
+      ],
+      "layout": "table",
+      "sha256": "0cc5e7135199de37ef2dea1492d45e4d7382551ff6444d9a1eed085471a40dfd",
+      "description": "internal normal"
+    },
+    {
+      "name": "material/cohesive/reversible_energy/_cohesive_2d_6",
+      "file": "data/material__cohesive__reversible_energy___cohesive_2d_6.npy",
+      "dtype": "f64",
+      "shape": [
+        2,
+        1
+      ],
+      "axes": [
+        "entry",
+        "component"
+      ],
+      "layout": "table",
+      "sha256": "e5913d7870b27bc229e6ff04484494d04ef911de79f5ea251a9451817cb835c5",
+      "description": "internal reversible_energy"
+    },
+    {
+      "name": "material/cohesive/total_energy/_cohesive_2d_6",
+      "file": "data/material__cohesive__total_energy___cohesive_2d_6.npy",
+      "dtype": "f64",
+      "shape": [
+        2,
+        1
+      ],
+      "axes": [
+        "entry",
+        "component"
+      ],
+      "layout": "table",
+      "sha256": "8f39460f39b5be7c96c7fccf4a3608ad13a74753d8ed1be90e445aa886d7f125",
+      "description": "internal total_energy"
+    },
+    {
+      "name": "material/cohesive/sigma_c_eff/_cohesive_2d_6",
+      "file": "data/material__cohesive__sigma_c_eff___cohesive_2d_6.npy",
+      "dtype": "f64",
+      "shape": [
+        2,
+        1
+      ],
+      "axes": [
+        "entry",
+        "component"
+      ],
+      "layout": "table",
+      "sha256": "c1c89afe26fe98079971faa9f82eca7ced5658165aff13d11c6b3232c7d19955",
+      "description": "internal sigma_c_eff"
+    },
+    {
+      "name": "material/cohesive/delta_c_eff/_cohesive_2d_6",
+      "file": "data/material__cohesive__delta_c_eff___cohesive_2d_6.npy",
+      "dtype": "f64",
+      "shape": [
+        2,
+        1
+      ],
+      "axes": [
+        "entry",
+        "component"
+      ],
+      "layout": "table",
+      "sha256": "2ae76f339d75bcce6df7a878ec10980c51297eb0edd72d8b3fe5b350a4875718",
+      "description": "internal delta_c_eff"
+    },
+    {
+      "name": "material/cohesive/insertion_stress/_cohesive_2d_6",
+      "file": "data/material__cohesive__insertion_stress___cohesive_2d_6.npy",
+      "dtype": "f64",
+      "shape": [
+        2,
+        2
+      ],
+      "axes": [
+        "entry",
+        "component"
+      ],
+      "layout": "table",
+      "sha256": "7f23df45f96f5c4c013a1fd754eb49fe33ff5d113c6464ad649a1e15a79f0ab5",
+      "description": "internal insertion_stress"
+    },
+    {
+      "name": "mesh/nodes",
+      "file": "data/mesh__nodes.npy",
+      "dtype": "f64",
+      "shape": [
+        18,
+        2
+      ],
+      "axes": [
+        "entry",
+        "component"
+      ],
+      "layout": "table",
+      "sha256": "2d746d53c8209d834d5e526b71916427a2c4c39656161ce40e0808f60484c51c",
+      "description": "final node coordinates"
+    },
+    {
+      "name": "mesh/connectivity/_triangle_6",
+      "file": "data/mesh__connectivity___triangle_6.npy",
+      "dtype": "i64",
+      "shape": [
+        4,
+        6
+      ],
+      "axes": [
+        "element",
+        "node_local"
+      ],
+      "layout": "elemental",
+      "sha256": "9520ad03ded26521b0ba03eb5b61ad6368b44cde8058a8dd9aa80205c0178eb7",
+      "element_type": "_triangle_6",
+      "description": "connectivity after the run (cohesive elements and doubled facets appended)"
+    },
+    {
+      "name": "mesh/connectivity/_cohesive_2d_6",
+      "file": "data/mesh__connectivity___cohesive_2d_6.npy",
+      "dtype": "i64",
+      "shape": [
+        1,
+        6
+      ],
+      "axes": [
+        "element",
+        "node_local"
+      ],
+      "layout": "elemental",
+      "sha256": "1b935ac22b653722919722d68d54a2019998185e6f42fe2e2455a3e3b84de6cc",
+      "element_type": "_cohesive_2d_6",
+      "description": "connectivity after the run (cohesive elements and doubled facets appended)"
+    }
+  ],
+  "tags": [
+    "model",
+    "cohesive",
+    "implicit",
+    "adversarial"
+  ],
+  "notes": "Provenance (recorded on 2026-11-11 after an independent review): generated on the superseded UNPINNED x86_64 strict install (oracle image sha256:45122c21..., install scripts e168f393; docs/ORACLE_BUILD.md forbids new goldens from it) by probe 35faa1a5, which predates the run-time Eigen cache-size pin (D-050; no pin in this run), with OPENBLAS_CORETYPE=Haswell, OPENBLAS_NUM_THREADS=1. Re-verification: an independent review regenerated the case on the compile-time pinned install (image sha256:2da26d87..., install READY cca6e460, -DEIGEN_NO_CPUID and the three Eigen cache-size defines; an x86_64 Linux virtual machine, AMD Ryzen 7 9700X): every data and input file byte-identical in 6 runs (2 invocations x 3). Data and inputs unchanged; only this note was added."
+}

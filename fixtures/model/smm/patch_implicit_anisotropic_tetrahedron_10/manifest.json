@@ -1,0 +1,544 @@
+{
+  "format_version": 1,
+  "case_id": "model/smm/patch_implicit_anisotropic_tetrahedron_10",
+  "description": "patch test (implicit, anisotropic, _tetrahedron_10) of test/test_model/patch_tests with the Eigen sparse solver",
+  "status": "golden",
+  "generator": {
+    "probe": "smm_probe",
+    "probe_version": "1",
+    "command": "oracle/probes/smm/generate.sh "
+  },
+  "reference": {
+    "sha": "35a851780d0b9471d258ed53a003ae98aaa95ea0",
+    "describe": "v5.0.7-post1-554-g35a851780",
+    "patches": [
+      "modified:cmake/AkantuTestsMacros.cmake sha256=c280165a84912eab4bcc081b9eaaaa06aafdd83d4f48d982e11b0859abf9672f (reference sha256=36290de2ec8b111028138fe82029efa16501512241a5bc264fa30ff3e3239b9e)"
+    ]
+  },
+  "build": {
+  "config": "strict",
+  "compiler": "g++ (Debian 14.2.0-19) 14.2.0",
+  "cxx_flags": "-ffp-contract=off -DEIGEN_DONT_VECTORIZE -O2 -g -DNDEBUG -g3 -ggdb3 -flarge-source-files -std=c++20 -flto=auto -fno-fat-lto-objects -fPIC -frounding-math (actual flags of src/model/solid_mechanics/solid_mechanics_model.cc; warnings and non-FP -D defines omitted)",
+  "build_type": "RelWithDebInfo",
+  "arch": "aarch64",
+  "os": "Debian GNU/Linux 13 (trixie)",
+  "libraries": {
+    "eigen3": "3.4.0-5",
+    "boost": "1.83.0.2+b2",
+    "openmpi": "5.0.7-1",
+    "mumps": "5.7.3-3+b1",
+    "petsc": "3.22.5+dfsg1-2",
+    "scotch": "7.0.7-1",
+    "openblas": "0.3.29+ds-3",
+    "scalapack": "2.2.2-1",
+    "hdf5": "1.14.5+repack-3",
+    "gmsh": "4.13.1+ds1-6",
+    "pybind11": "2.13.6-2",
+    "numpy": "1:2.2.4+ds-1",
+    "scipy": "1.15.3-1",
+    "gcc": "4:14.2.0-1",
+    "gfortran": "4:14.2.0-1",
+    "oracle_image": "sha256:6683233d0a3b9341eb5cedf5879bc9ccb76ddf3d91e9aa0fd35b99dc7866d7a6",
+    "oracle_build_scripts": "45b473da9cbfb356a039d94609fe39f6f36a1a9a",
+    "oracle_install_reference_sha": "35a851780d0b9471d258ed53a003ae98aaa95ea0",
+    "oracle_install_image": "sha256:6683233d0a3b9341eb5cedf5879bc9ccb76ddf3d91e9aa0fd35b99dc7866d7a6",
+    "sha256:libakantu.so.5.0.7": "9768e51184f0423c49abfd67535e6f3bc371522045b0b634223cce0ee07f0b0b",
+    "probe_tree_sha256": "7d7e8acca8d7d4e6113319150987c81315e67804f2f5ff11b00d81095f1cb2f3",
+    "probe_sources_commit": "082f22c5561a40afe7c596740fa85421808334fa",
+    "cmake_cxx_flags": "-ffp-contract=off -DEIGEN_DONT_VECTORIZE -O2 -g -DNDEBUG -g3 -ggdb3 -flarge-source-files",
+    "probe": "smm_probe"
+  },
+  "probe_compile_command": "/usr/bin/c++ '-DAKANTU_PROBE_BUILD_TYPE=\"RelWithDebInfo\"' '-DAKANTU_PROBE_CONFIG=\"strict\"' '-DAKANTU_PROBE_CXX_FLAGS=\"-ffp-contract=off -DEIGEN_DONT_VECTORIZE  -O2 -g -DNDEBUG\"' -DBOOST_GRAPH_DYN_LINK -DBOOST_GRAPH_NO_LIB -DBOOST_REGEX_DYN_LINK -DBOOST_REGEX_NO_LIB -DCGAL_USE_GMPXX=1 -I/probes/smm/../include -isystem /build/install-strict/include/akantu -isystem /opt/CGAL-5.6.2/include -isystem /usr/lib/aarch64-linux-gnu/openmpi/include -isystem /usr/lib/aarch64-linux-gnu/openmpi/include/openmpi -isystem /usr/lib/petscdir/petsc3.22/aarch64-linux-gnu-real/include -isystem /usr/include/scotch -isystem /build/install-strict/include/akantu_iterators -isystem /usr/include/eigen3 -isystem /build/install-strict/include/iohelper -O2 -g -DNDEBUG -std=gnu++20 -ffp-contract=off -DEIGEN_DONT_VECTORIZE -Wall -Wextra -pedantic -Wno-array-bounds -Wno-use-after-free -Wno-stringop-overread -DOMPI_SKIP_MPICXX -Wno-literal-suffix -frounding-math -o CMakeFiles/smm_probe.dir/smm_probe.cc.o -c /probes/smm/smm_probe.cc",
+  "probe_cxx_flags": "-DAKANTU_PROBE_BUILD_TYPE=\"RelWithDebInfo\" -DAKANTU_PROBE_CONFIG=\"strict\" -DAKANTU_PROBE_CXX_FLAGS=\"-ffp-contract=off -DEIGEN_DONT_VECTORIZE  -O2 -g -DNDEBUG\" -DBOOST_GRAPH_DYN_LINK -DBOOST_GRAPH_NO_LIB -DBOOST_REGEX_DYN_LINK -DBOOST_REGEX_NO_LIB -DCGAL_USE_GMPXX=1 -O2 -g -DNDEBUG -std=gnu++20 -ffp-contract=off -DEIGEN_DONT_VECTORIZE -Wall -Wextra -pedantic -Wno-array-bounds -Wno-use-after-free -Wno-stringop-overread -DOMPI_SKIP_MPICXX -Wno-literal-suffix -frounding-math"
+},
+  "created": "2026-11-10T11:48:22Z",
+  "inputs": [
+    {
+      "role": "mesh",
+      "path": "inputs/_tetrahedron_10.msh",
+      "source": "upstream:test/test_model/patch_tests/data/_tetrahedron_10.msh",
+      "sha256": "d1dee7143c196303ca793b09b8c725b37027acfa52964e6901e7f12ac464091d"
+    },
+    {
+      "role": "material",
+      "path": "inputs/material_anisotropic_3.dat",
+      "source": "upstream:test/test_model/patch_tests/data/material_anisotropic_3.dat",
+      "sha256": "b84fc6180b2ca0e4213651ed8e7cae64e64054a4074401124f8f47820bedf596"
+    }
+  ],
+  "parameters": {
+    "spatial_dimension": 3,
+    "element_type": "_tetrahedron_10",
+    "model_id": "_tetrahedron_10",
+    "analysis": "implicit",
+    "law": "anisotropic",
+    "sparse_solver_type": "eigen",
+    "newton": true,
+    "stable_time_step": 0.011485820950688378,
+    "time_step": 0.0091886567605507022,
+    "step_digests": [
+      "486a536b0a05f8e68cb83529c6597db1691a8e53ff64f532b349c0ae71b83d1a",
+      "c8f04e126e2992811b31630ce61362bc99d6817e905e2ac88c67f842c609e08c",
+      "23a5ccce748b77f872546192d2eac5d77926c35dd41bf5fc1ca7bff5e83d6ade",
+      "99a65ae825a03730d6f9faa3cf2c92853c4ae62809370ad9aab029b5584785cd",
+      "dfcd30c5754ee8129fbfa92313185f200cc064c08e27f80ef5374c80b3036e2d",
+      "3564bac43924cd6a0a7ae1d2c4fa59bb69cacc6c784f2e5e808b9a86025c1903",
+      "374588db43e9a1528b541b0db86857faabee67b89c535ce1c35785080e6ca272",
+      "debd28671a94f0fb6230cbd690c16acc8f714d20fc435ac5479c1223305f0e3e",
+      "15148ee029fd4cd966305fe46e4c0ec87ddd8139e9156aefd21dc8686a6c5168",
+      "5827fa70584d4beac3073b01af322252454093d1e6b2c1836753632993500c50",
+      "e4493154a2c6355ecd33c58447f55a5bab73d3b5066fcfca36c016b9c83e26fc",
+      "c276b73ba151e5e5e050dfed627e9c30544ed6f49299176fa9f35d77f7dfd65f",
+      "c59afbbf66cedab47cf9bfd14d9209d2d12b74d2699f4cbb19d5ffcf6985b5f2",
+      "e84145ea735c653aeeb020cc4d3e822410a4a857db569bab70b161a71ae7ce05",
+      "c981ead9989b465acfda98b778e3efc0cb76026902ed1c7ce5323605d92e60a5",
+      "1a4652c9e0907d2b3e13417f4083cd07fce87126379febe308b99d85a65c34f8",
+      "837c664f563b162daa9844e2975c35affd9be74adee8950c85460969caa5809a",
+      "8b72c378af3769dabad34a620be24dc76df28156033ad6b73a542db25e0db585",
+      "de84e1e4a93e9a74bc15416671bf7fd08c4d98804d7e4747c0c5c604bc0d509c",
+      "8a27553cc84b93c01808ef846406d29bfdee8ae0722d6826f83e72b2e0713a2c",
+      "199f23df7bd23a40d8defaaf4757d8f9680a44c64fa6cb4c7eebd9332e455b6b",
+      "aaf8ba9f017ce5dc0572053ce6b10b6ff76d44971558d271cb68754a5bae986c",
+      "71469f4aa4a756f4f5fb76773a0f60bed76baba7642aaf22469bb538a8d4a47a",
+      "b231bd01b26456b7fcebd2bdbb12d7170e38969e3f1a1d34b16ac121dbb1e72c",
+      "58c2db1dfc6a8cda1b9e2141b93b688e03d451f810191570086cd6cd4aa358d2",
+      "1dbad2114984c9fe83589106a6ac33679422d83b2869c454d87cc724871ea2e7",
+      "d609d69742d34fcd9144ec2ca7c04a9dba273dfe3820cdd009f3b7f78f75c7c2",
+      "43fa37eff3efd23b7899af833fc6ae5cc47b347d3d632102a084cfd376a4d5e0",
+      "a76e04a0cbcba5227a8e2dac635cebdaaf8299465d5099be55ab38b436f6da96",
+      "7e1eab6518a147954e53053c6ab791d8e45bc2be4a2fe357de45f35436dadaf2",
+      "8faf5c0b43a102e347fa80fc6619228c1ac357279287e412af689946ce0e8b38",
+      "d37022177ad2ae63726cef5a40f70256963f8724c376331d1104a9d9da48d919",
+      "65a03e65c44f2ff6c8ced2ab547721c8b8bcfcf0871663115105c76293e56932",
+      "5229eeffbc3029379d54a799d8d6863a40e812a42d6beb0b17282038723a8d90",
+      "ed3c427412a4bd53fb97a6e57f183013cfc86dc8d810b9e320608080e072d61c",
+      "3b27a1b3c42907a86d4e4e34dd1b28be48c872d235a975370ef0c414c9410ca0",
+      "325aa4eb4a46c818a2f8253135d517bb7d3c908dd780e45c82849cc367a780ea",
+      "f639572e2f7246e8b9706f66d82589bf414d776fcdb9a7d1f03442640d6f00f2",
+      "ea45f460ced51a94e130f99631c8a1445f95a318ea118e552dd6a8b290a3528a",
+      "c297abec4d4c802a9a0ec5bd32136df8823b9c7c8ac38c6c1c6ba6fb6aee0122",
+      "019c18128a6b3d4fdaa3239993113ca905446c6ada47187a2565f124b790d316",
+      "afe80ee5d7210f8b9aabd2c743caa9199dbcb7f3945866f7fa112ccf1f2b9281",
+      "36bb637251baa329c5301fb85b2cdc01d9f5e06dc59c999e4d3b97dba87bd5c3",
+      "5461299f392d3b06831a34b339083df646265b382dcc6d34a6eb801915333de0",
+      "460c28ab2bca0fcdfe80be45bacbf2a886fdeeb07e25d9ca923ccb462c039d15",
+      "ce719ddf39f09062d2a61517c6e030601f55711c46d9a1e4b08783893f88d74c",
+      "45232f573e2b3a8f45fedc6a68a2eca18bc2e92d6062fa69e4259f61366feff8",
+      "3d8444d76c14ec7de3a4d6b81cfe3a6bfab61e8375d612fe149ec9d8b965cc76",
+      "a8eef5dfe5a7ec21f98a27a8f243ba503510ba1fd88caf6d8cb56bb2709ba168",
+      "655e7912b1db0ee20b75128ce83cb311e0a7abe56a3f6c2f8eee91bd62eb60de",
+      "1519483dfe8664ad939bb50d7f24af818b321f386194d62e3f4b15cb32d133c2",
+      "df1c45de6a70221381319a5c8b79b0348d3972c5d2c71f1e6545cea0f8ed9c27",
+      "0591e42b749969ddbfadc0e0cd1d80807adb02dda669bb4a5eb94106d228f057",
+      "b15c536919a44a96d89fc20030465ca9009047253652df0de8c1c7333c55d125",
+      "6987492131b22c7742285b7aacf22168950e08cc89f73102ccfda4e52009d70d",
+      "189656f628613a71df85772c8beb4d5725ac08028e1264fc7fb3c75302221a15",
+      "c02da23c45da4f0ee40d5c82b4a7f53cf9bbaa544cd35d1b7489ff5dc089363d",
+      "fd0b623f9ede5bd8df43d75e5c93bc36f2f469ee4041bd86cdc5d3854407ef3b",
+      "a47123a872b06c37906fdf68ed38d5cdf218dedd5d519f48f0acea15b921c583",
+      "839eb760d60903df77ddc6ed3b7f9c9858fe786de02e3f994cb90225940bc984",
+      "d80666d93fb1636576a0251da5bfbd6361db59fe82b2abb3455e6882f5fe05a5",
+      "6056d8093c9fdf1c4933d5e19f4173e235121afa0f564cb7466195d8c544755d",
+      "21543abf7f41c5c5f606324d22a88ef5f4409621e041bdee7e5077a0d4c8008d",
+      "7a4ef02432893c33a35aade501b703752dfd368f964f433882c6a2f85237928a",
+      "35df4845eb71fc148f47b31ab8973e1d9762319d5e02ace5f47aa920cf8d316f",
+      "785e6f323c43d0eedd3d5e20f78d7adc3196b9566fadda18184ab4b41688d18f",
+      "98ec3f8d067719190792f8b4c7f5efac2c8abe69b178feb8896572f6cd62ac55",
+      "40ad89527566bbd6bd1e9a4edf276f0ad363e9c01d2ac32060f2ce97daef143b",
+      "df9d7ff15bcffe4a1dd149cb5502a15d03d73ca8c8fe26a9cb9e763c06263435",
+      "771c26eadd7b3ffd1e8300f698c54db9e6a82a7237c7beba692c4e3b104d4c68",
+      "33dd1d724e37b98cffd2336d56c6a1df672b6d735aaecb054012ce16c315bbaa",
+      "e31e110a47ceddc8ee29a712a62ab2df4ab18efe18fd75dcf4a71ae918099cd1",
+      "3edc77a5fc34d21b74a94cb6e09f0830d2c8b2c21533f2c409974d088b311f0f",
+      "7b0843186b48cf75c77e8edda198051fd42b55912be45fbca35475ba0dda94ee",
+      "513994cb0f2683a0ec428bed136dc5a6db32d78653fcddce4dc22b9343a5b48a",
+      "effe9739973c0b711753c90916bba4c4865d93f28ca2224d4dbb2c7280e692bc",
+      "afdbe39fceb1924da6eb1402c1e595c3cb60f728a6fa1ad4048e6e5554973e50",
+      "226d7153be09c72e02d0765bd0495aa4aa1b00ccbaf4661932daf41a678f3c01",
+      "c8029b9b30449394566067291222e9f54102ac0c69309a4acbc3b0194ced9bf0",
+      "8b6cdb5a763c24c9191560ea2e1d9a8e293055f7b053d04a4f317ddf5f23b32f",
+      "af109a5cfe46ea9c25ae5cf1f33c818cf2a40c4cbc7aee03cb95fada21baaeec",
+      "5bdb5d182132fe52908163b2e61f9c0e63c46e274c78361c25f10e46ea13a3c5",
+      "781310703ea3010a3263caeb20ea32b395ee57a30bd4882b3a88b66b8f0205b4",
+      "49b29f976ba18dd154d56c4458619a83ef10a2adeee3d7f7de91f764091468a5",
+      "24d791f60174e6a1ad115b19b081bd0ddcc83fba14199facdb149688cd91bd2d",
+      "a7c058326c731e084bfde7a7d03300ca52a4a9f20d350b0d39b42317f89e87fa",
+      "91c25ba726ef6b722c8fda7ed8bc75050165c3ef2f30f704a2183c50a9ab703d",
+      "eabb2b6e2ab0ee4db5de72f66437f3e33e08dcd94fbbff2ef380d8abd3b07d6e",
+      "ab8b82c7af4a99dea14bae88718d65b949cfda1efa92fe86bf116203fa3915f5",
+      "fe6807ff212144cc70a26a5becbef1c994ff56d2743e2b40c321436484b08dbb",
+      "351f15ab184373914574a855349323ff90dc56d7df17c51cd3956206dd3cd404",
+      "a0bab1aae29d883871f35744ebc2878af31aa3a3f7908d5d2af0614611e6938a",
+      "d18ba81191501ec1fd075845f9b05f2f85d313d3525b1926dddd6103db058e51",
+      "e967d7aa630b05001f455a91d29f6ff77a3a5b800f04d44c738b68d68ebe9a64",
+      "6656c26b49bd6612de934326d9c7e86f158144667f4ea82547c100b721230805",
+      "e9755d992ff6de2b2f2a20d2bbb955c2ce3678e71e9170e4797eee756638adf1",
+      "75c5212706e6c09acf61421546c41f4dbb5680c525930106ce9199595a779a89",
+      "28d9da93ebd0c2f32c98072077f845e321c4981f49d329591467ab7060dfdd9a",
+      "66de28e67c1f6a5ba76c68f2facfe118927132519a7875d28a60bea8ef4e70b2",
+      "f54aa0d9a8ba75e19fb614cee501f326f9c1dad41add9a89404b593771c36baf"
+    ],
+    "step_digests_definition": "SHA-256 of displacement || velocity || acceleration (binary64 LE) after each solveStep",
+    "K/symmetric": true,
+    "K/size": 189,
+    "K/nnz": 5589,
+    "K/coords_sha256": "a7abd574777f22c4ae91c9ec2ee1384991f8e15b9ef754b991558eb1146390e8",
+    "K/values_sha256": "bf032201674469fad8faad8ed93afef26fb97b5924459448b6a83bfdbc4e5115",
+    "M/symmetric": true,
+    "M/size": 189,
+    "M/nnz": 5589,
+    "M/coords_sha256": "a7abd574777f22c4ae91c9ec2ee1384991f8e15b9ef754b991558eb1146390e8",
+    "M/values_sha256": "ab750016ff28cd2fc5319038ceff0b411f23470cf67252d7425f3fb6fd71ea5c",
+    "mesh_types": [
+      "_point_1",
+      "_segment_3",
+      "_triangle_6",
+      "_tetrahedron_10"
+    ],
+    "groups": [
+      {
+        "name": "boundary_0",
+        "dimension": 2,
+        "types": [
+          "_triangle_6"
+        ]
+      }
+    ]
+  },
+  "storage": {
+    "mode": "committed",
+    "bytes": 33117
+  },
+  "quantities": [
+    {
+      "name": "blocked_dofs",
+      "file": "data/blocked_dofs.npy",
+      "dtype": "u8",
+      "shape": [
+        63,
+        3
+      ],
+      "axes": [
+        "entry",
+        "component"
+      ],
+      "layout": "table",
+      "sha256": "5e76dc87caf533ed8c37a0ba2f45cea0ff21ea9495a708629ab7c4f50ab67d63",
+      "description": "blocked flags after applyBC"
+    },
+    {
+      "name": "initial_displacement",
+      "file": "data/initial_displacement.npy",
+      "dtype": "f64",
+      "shape": [
+        63,
+        3
+      ],
+      "axes": [
+        "entry",
+        "component"
+      ],
+      "layout": "table",
+      "sha256": "68182e05cad528d9c18b8485b9d3abb76fc2fef6f767411243d35c3a792bc418",
+      "description": "displacement after applyBC (affine on boundary)"
+    },
+    {
+      "name": "time_step",
+      "file": "data/time_step.npy",
+      "dtype": "f64",
+      "shape": [
+        2
+      ],
+      "axes": [
+        "entry"
+      ],
+      "layout": "table",
+      "sha256": "fd342c72de842f7909bb71d34a3eecd10ad8257e3209d0f3cb97807c1f776993",
+      "description": "getStableTimeStep(), 0.8 * getStableTimeStep()"
+    },
+    {
+      "name": "energy/kinetic_final",
+      "file": "data/energy__kinetic_final.npy",
+      "dtype": "f64",
+      "shape": [
+        1
+      ],
+      "axes": [
+        "entry"
+      ],
+      "layout": "table",
+      "sha256": "329f9d16d852eccc20349c0e97fdad7ea6d0e9e2f240c3fcb70aff08d29ef58f",
+      "description": "getEnergy(\"kinetic\") after the last step"
+    },
+    {
+      "name": "velocity",
+      "file": "data/velocity.npy",
+      "dtype": "f64",
+      "shape": [
+        63,
+        3
+      ],
+      "axes": [
+        "entry",
+        "component"
+      ],
+      "layout": "table",
+      "sha256": "bd142dc1d09a00cb91131affe036339361d2bbefc436be67001270cea6fec13d",
+      "description": "final velocity"
+    },
+    {
+      "name": "acceleration",
+      "file": "data/acceleration.npy",
+      "dtype": "f64",
+      "shape": [
+        63,
+        3
+      ],
+      "axes": [
+        "entry",
+        "component"
+      ],
+      "layout": "table",
+      "sha256": "e7d039a32aaacde3bc64114ff24253666a3279197f4ecf1a186151a753ddad7b",
+      "description": "final acceleration"
+    },
+    {
+      "name": "newton/nb_iterations",
+      "file": "data/newton__nb_iterations.npy",
+      "dtype": "i64",
+      "shape": [
+        100
+      ],
+      "axes": [
+        "entry"
+      ],
+      "layout": "table",
+      "sha256": "cb975a00ef6a847145eb153d665f831f9ae1167981b60534de789b3420d583f1",
+      "description": "nb_iterations per solveStep"
+    },
+    {
+      "name": "newton/error",
+      "file": "data/newton__error.npy",
+      "dtype": "f64",
+      "shape": [
+        100
+      ],
+      "axes": [
+        "entry"
+      ],
+      "layout": "table",
+      "sha256": "02de44f842df42bced61da7d65a0c656453cc2cfcff234695d5362be1f584ef5",
+      "description": "error per solveStep"
+    },
+    {
+      "name": "displacement",
+      "file": "data/displacement.npy",
+      "dtype": "f64",
+      "shape": [
+        63,
+        3
+      ],
+      "axes": [
+        "entry",
+        "component"
+      ],
+      "layout": "table",
+      "sha256": "4e4bfa74885e657172f66e17e018dbaf2f58920c059806dac73b1575e7f194ad",
+      "description": "final displacement"
+    },
+    {
+      "name": "internal_force",
+      "file": "data/internal_force.npy",
+      "dtype": "f64",
+      "shape": [
+        63,
+        3
+      ],
+      "axes": [
+        "entry",
+        "component"
+      ],
+      "layout": "table",
+      "sha256": "05abe8d473807d985eb1b3b2753f7b9f2f7e8a34842bf938581515901a98d791",
+      "description": "final internal force"
+    },
+    {
+      "name": "stress/_tetrahedron_10",
+      "file": "data/stress___tetrahedron_10.npy",
+      "dtype": "f64",
+      "shape": [
+        96,
+        9
+      ],
+      "axes": [
+        "entry",
+        "component"
+      ],
+      "layout": "table",
+      "sha256": "63bd1cc277351941b8cff6460a4b75342f63dbcb380b3dfbc3b7808d90578387",
+      "description": "material stress per quadrature point, raw column-major dim x dim tuples"
+    },
+    {
+      "name": "grad_u/_tetrahedron_10",
+      "file": "data/grad_u___tetrahedron_10.npy",
+      "dtype": "f64",
+      "shape": [
+        96,
+        9
+      ],
+      "axes": [
+        "entry",
+        "component"
+      ],
+      "layout": "table",
+      "sha256": "ebfdea80d9edbb0ffd277a8f08a7cc5ce485a453c38cd3f055aff02adf12a5a7",
+      "description": "material grad_u per quadrature point, raw column-major dim x dim tuples"
+    },
+    {
+      "name": "filter/_tetrahedron_10",
+      "file": "data/filter___tetrahedron_10.npy",
+      "dtype": "i64",
+      "shape": [
+        24
+      ],
+      "axes": [
+        "entry"
+      ],
+      "layout": "table",
+      "sha256": "f4f2b7d08f056fe1e6df46ffd4d3337c22eca292d754ae7889f211a975e445f6",
+      "description": "element filter of the material"
+    },
+    {
+      "name": "external_force_neumann",
+      "file": "data/external_force_neumann.npy",
+      "dtype": "f64",
+      "shape": [
+        63,
+        3
+      ],
+      "axes": [
+        "entry",
+        "component"
+      ],
+      "layout": "table",
+      "sha256": "298e9c75e6ce558ea197c14ec4458e75075b30f3bc872c68b49f357bbd984cea",
+      "description": "checkForces: external force after applyBC(FromHigherDim(sigma), group) on every element group (sigma = stress of quadrature point 0)"
+    },
+    {
+      "name": "mesh/nodes",
+      "file": "data/mesh__nodes.npy",
+      "dtype": "f64",
+      "shape": [
+        63,
+        3
+      ],
+      "axes": [
+        "entry",
+        "component"
+      ],
+      "layout": "table",
+      "sha256": "ff8019255ad01d0f76146df5e0f0d438d315da336741cff7eb2080592b208485",
+      "description": "node coordinates"
+    },
+    {
+      "name": "mesh/connectivity/_point_1",
+      "file": "data/mesh__connectivity___point_1.npy",
+      "dtype": "i64",
+      "shape": [
+        8,
+        1
+      ],
+      "axes": [
+        "element",
+        "node_local"
+      ],
+      "layout": "elemental",
+      "sha256": "7bbab16cdf01247392b2fc1aaabb260ded121cf5702c3306244498c052683bbb",
+      "element_type": "_point_1",
+      "description": "connectivity after buildFacets (facets appended by upstream)"
+    },
+    {
+      "name": "mesh/connectivity/_segment_3",
+      "file": "data/mesh__connectivity___segment_3.npy",
+      "dtype": "i64",
+      "shape": [
+        12,
+        3
+      ],
+      "axes": [
+        "element",
+        "node_local"
+      ],
+      "layout": "elemental",
+      "sha256": "4edea9ca89976f7b1942103074b57d8303eb6716cc5b1b3c9b82dc6a4a079226",
+      "element_type": "_segment_3",
+      "description": "connectivity after buildFacets (facets appended by upstream)"
+    },
+    {
+      "name": "mesh/connectivity/_triangle_6",
+      "file": "data/mesh__connectivity___triangle_6.npy",
+      "dtype": "i64",
+      "shape": [
+        24,
+        6
+      ],
+      "axes": [
+        "element",
+        "node_local"
+      ],
+      "layout": "elemental",
+      "sha256": "c230551b0fe30b24d55b4925de8ef04e156b1d64c728b7810a6eeeaa5f9386f4",
+      "element_type": "_triangle_6",
+      "description": "connectivity after buildFacets (facets appended by upstream)"
+    },
+    {
+      "name": "mesh/connectivity/_tetrahedron_10",
+      "file": "data/mesh__connectivity___tetrahedron_10.npy",
+      "dtype": "i64",
+      "shape": [
+        24,
+        10
+      ],
+      "axes": [
+        "element",
+        "node_local"
+      ],
+      "layout": "elemental",
+      "sha256": "4f6669d3baf2e4574fb3d4ec3c4e6a985cf509802db7e8ccfc1ce4072302e150",
+      "element_type": "_tetrahedron_10",
+      "description": "connectivity after buildFacets (facets appended by upstream)"
+    },
+    {
+      "name": "group/boundary_0/elements/_triangle_6",
+      "file": "data/group__boundary_0__elements___triangle_6.npy",
+      "dtype": "i64",
+      "shape": [
+        24
+      ],
+      "axes": [
+        "entry"
+      ],
+      "layout": "table",
+      "sha256": "d910feff895c9926ca8eb2003a6d83dfc51de104315be725b15b5a10c1e4ca55",
+      "description": "element group elements"
+    },
+    {
+      "name": "group/boundary_0/nodes",
+      "file": "data/group__boundary_0__nodes.npy",
+      "dtype": "i64",
+      "shape": [
+        50
+      ],
+      "axes": [
+        "entry"
+      ],
+      "layout": "table",
+      "sha256": "7d2bbdee3bfe4aa21f28fa8d572d9bbd6cc5e6e9ad28fe2441f5a5596cdd0043",
+      "description": "node group (iteration order)"
+    }
+  ],
+  "tags": [
+    "model",
+    "smm"
+  ]
+}

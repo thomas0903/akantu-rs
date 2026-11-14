@@ -1,0 +1,78 @@
+# SPDX-License-Identifier: LGPL-3.0-or-later
+# akantu-rs licence policy for ci/tools/licence_audit.py. Sources:
+# docs/DEPENDENCIES.md ("License compatibility notes for an LGPL-3.0-or-later
+# Rust port"), D-001, D-030, D-042 (docs/DECISIONS.md), AGENTS.md, "Rules for `unsafe` and licensing".
+# Changing this file changes what the audit accepts: review it like code.
+
+[third_party]
+# A third-party crate passes when its SPDX `license` expression can be
+# satisfied using only these identifiers (OR = any branch, AND = all, WITH =
+# the exception must be listed as written). Legacy "/" separators count as
+# OR (as cargo-deny does). No `license-file`-only crates are accepted
+# without an entry in [third_party.reviewed].
+allow = [
+  "MIT",
+  "Apache-2.0",
+  "Apache-2.0 WITH LLVM-exception",
+  "BSD-2-Clause",
+  "BSD-3-Clause",
+  "ISC",
+  "Zlib",
+  "BSL-1.0",
+  "MPL-2.0",
+  "LGPL-2.1-or-later",
+  "LGPL-3.0-or-later",
+  # Not in DEPENDENCIES.md's list yet: permissive (OSI-approved) data licence
+  # of the Unicode tables in unicode-ident (proc-macro2 → serde_derive,
+  # thiserror-impl; compile-time only). Proposed for DEPENDENCIES.md.
+  "Unicode-3.0",
+]
+# Never acceptable for a dependency of the library (docs/DEPENDENCIES.md, "Licence of Akantu and of akantu-rs").
+deny = ["GPL-2.0-only", "GPL-2.0-or-later", "GPL-3.0-only", "GPL-3.0-or-later", "AGPL-3.0-only", "AGPL-3.0-or-later", "SSPL-1.0"]
+
+[third_party.reviewed]
+# "<crate> <version>" = "reason" for crates without an SPDX expression.
+
+[workspace]
+# Licence of every workspace member unless listed below.
+default = "LGPL-3.0-or-later"
+# Members that carry MPL-2.0 translations of Eigen (file-level copyleft,
+# DEPENDENCIES.md "Ported third-party code"): files may be MPL-2.0.
+mpl_members = ["akantu-core", "akantu-linalg"]
+# D-042: the only members allowed to be GPL-3.0-or-later (CGAL GPL ports).
+gpl_members = ["akantu-geometry-cgal"]
+
+[workspace.gpl_features]
+# D-042 (2): member -> features allowed to bring a GPL member into the
+# build. None of them may be a default feature; any other way a GPL member
+# enters a non-GPL member's dependency closure fails the audit.
+# `igfem` implies `cgal` (IGFEM needs the GPL sphere intersector; a
+# project decision). `embedded` must not.
+akantu = ["cgal", "igfem"]
+# `akantu-igfem`'s own feature `cgal` (off by default; the umbrella's `igfem`
+# enables it): the IGFEM mesh generation needs the GPL sphere intersector
+# (2026-11-13, applying D-042; found).
+akantu-igfem = ["cgal"]
+
+[headers]
+# Accepted SPDX ids per licence class of a member, applied to EVERY file under
+# crates/<member>/ (tracked or untracked-not-ignored): the first line of each
+# .rs file, the first three lines of each C/C++ source and header, and any
+# other file that carries an SPDX line in its first ten lines
+# (a GPL-headed C shim or an include!d GPL file in an LGPL crate fails;
+# D-030 / D-042: only akantu-geometry-cgal may hold GPL-3.0-or-later files).
+lgpl = ["LGPL-3.0-or-later"]
+mpl = ["LGPL-3.0-or-later", "MPL-2.0"]
+gpl = ["GPL-3.0-or-later"]
+# Other tracked files that must carry an SPDX line in their first 3 lines.
+# Globs are git pathspecs (fnmatch, `*` crosses `/`).
+tooling_globs = ["ci/*.sh", "ci/*.py", "ci/*.toml", "ci/*.yml", "scripts/*.sh", "scripts/*.py", "crates/*.c", "crates/*.h", "Cargo.toml", "crates/*/Cargo.toml"]
+
+[native]
+# Informational: native libraries behind cargo features (linked dynamically,
+# not redistributed; their notices ship with binaries that link them).
+mpi = "Open MPI 5.0.7 (BSD-3-Clause-Open-MPI) or MPICH; rsmpi MIT OR Apache-2.0"
+scotch = "Scotch 7.0.7 (CeCILL-C)"
+python = "CPython 3 (PSF-2.0); pyo3 MIT OR Apache-2.0; numpy (crate) BSD-2-Clause"
+mumps = "MUMPS 5.7.3 (CeCILL-C) + ScaLAPACK/OpenBLAS (BSD-3-Clause)"
+petsc = "PETSc 3.22 (BSD-2-Clause); Debian's build links GPL-2+ SuiteSparse (UMFPACK, SPQR, CHOLMOD modules) and FFTW: a binary with the feature is GPL-3.0-or-later as a whole (D-076 option A)"

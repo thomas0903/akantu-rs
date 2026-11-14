@@ -1,0 +1,17 @@
+model solid_mechanics_model_cohesive [
+  material elastic [
+    name = body
+    rho = 1e3
+    E = 1e9
+    nu = 0.2
+  ]
+  material cohesive_linear [
+    name = coh
+    beta = 1
+    kappa = 2
+    G_c = 10
+    sigma_c = 1e6 uniform [-1e5, 1e5]
+    penalty = 1e11
+    contact_after_breaking = true
+  ]
+]

@@ -1,0 +1,76 @@
+# SPDX-License-Identifier: LGPL-3.0-or-later
+# akantu-rs oracle variant `embedded` (D-060), patch 0006 — UD-589, restores
+# the released v5.0.0 behaviour. Upstream: Akantu (EPFL/LSMS) 35a851780d0b,
+# embedded_interface_model.cc and material_reinforcement{.hh,_tmpl.hh}.
+# The only Material constructor now takes the model's spatial dimension, so
+# MaterialReinforcement<MaterialElastic<1>, dim> would get dim-dimensional
+# internals that never include _segment_2 (v5.0.0: Mat(model, 1,
+# interface_mesh, engine, id)). (a) The reinforcement allocator (a member of
+# the model) presents spatial dimension 1 while the law is constructed and
+# restores it afterwards (also on the error path). (b) The law overrides
+# updateInternalParameters with MaterialElastic<1>'s body (lambda, mu, kpa,
+# was_stiffness_assembled; then ConstitutiveLaw's) without Material's fill of
+# eigen_grad_u with the MODEL's dimension (a runtime exception for a 1-D
+# law); the reinforcement never reads eigen_grad_u (UD-594). No formula
+# changes. Applied only to a COPY of the sources.
+
+--- a/src/model/solid_mechanics/materials/material_embedded/material_reinforcement.hh
++++ b/src/model/solid_mechanics/materials/material_embedded/material_reinforcement.hh
+@@ -66,6 +66,11 @@ public:
+   /// Init the material
+   void initMaterial() override;
+ 
++  /// V82 patch (UD-589): MaterialElastic<1>::updateInternalParameters without
++  /// Material's eigen_grad_u fill, which uses the model's dimension (the
++  /// reinforcement ignores eigen_grad_u, UD-594)
++  void updateInternalParameters() override;
++
+   /// Init the filters for background elements
+   void initFilters();
+ 
+--- a/src/model/solid_mechanics/materials/material_embedded/material_reinforcement_tmpl.hh
++++ b/src/model/solid_mechanics/materials/material_embedded/material_reinforcement_tmpl.hh
+@@ -59,6 +59,16 @@ void MaterialReinforcement<Mat, dim>::initMaterial() {
+   this->initDirectingCosines();
+ }
+ 
++/* -------------------------------------------------------------------------- */
++template <class Mat, Int dim>
++void MaterialReinforcement<Mat, dim>::updateInternalParameters() {
++  this->lambda = this->nu * this->E / ((1 + this->nu) * (1 - 2 * this->nu));
++  this->mu = this->E / (2 * (1 + this->nu));
++  this->kpa = this->lambda + 2. / 3. * this->mu;
++  this->was_stiffness_assembled = false;
++  ConstitutiveLaw<SolidMechanicsModel>::updateInternalParameters();
++}
++
+ /* -------------------------------------------------------------------------- */
+ /// Initialize the filter for background elements
+ template <class Mat, Int dim>
+--- a/src/model/solid_mechanics/solid_mechanics_model_embedded_interface/embedded_interface_model.cc
++++ b/src/model/solid_mechanics/solid_mechanics_model_embedded_interface/embedded_interface_model.cc
+@@ -62,14 +62,22 @@ EmbeddedInterfaceModel::EmbeddedInterfaceModel(Mesh & mesh,
+           const ID & id) -> std::unique_ptr<Material> {
+         if (constitutive == "elastic") {
+           using mat = MaterialElastic<1>;
++          const auto model_dim = this->spatial_dimension;
++          std::unique_ptr<Material> law;
++          this->spatial_dimension = 1; // V82 patch (UD-589): 1-D law
+           switch (dim) {
+           case 2:
+-            return std::make_unique<MaterialReinforcement<mat, 2>>(*this, id);
++            law = std::make_unique<MaterialReinforcement<mat, 2>>(*this, id);
++            break;
+           case 3:
+-            return std::make_unique<MaterialReinforcement<mat, 3>>(*this, id);
++            law = std::make_unique<MaterialReinforcement<mat, 3>>(*this, id);
++            break;
+           default:
++            this->spatial_dimension = model_dim;
+             AKANTU_EXCEPTION("Dimension 1 is invalid for reinforcements");
+           }
++          this->spatial_dimension = model_dim;
++          return law;
+         } else {
+           AKANTU_EXCEPTION("Reinforcement type" << constitutive
+                                                 << " is not recognized");

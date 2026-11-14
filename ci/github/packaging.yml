@@ -1,0 +1,167 @@
+# SPDX-License-Identifier: LGPL-3.0-or-later
+# akantu-rs CI: packaging dry runs (rows CI-013, CI-014, CI-017, CI-021,
+# CI-022, CI-029) on `v*` tags, weekly and on manual dispatch. Version check
+# (tag = workspace.package.version), `cargo package --list` per member with
+# the readiness report and a downstream consumer, direct minimal versions,
+# abi3 wheels for Linux (manylinux_2_28) and macOS (arm64), each imported
+# and tested with pytest (the `wheel` tier) and kept as artifacts. Nothing is
+# uploaded to a registry: there is no publish step and no token. Supply
+# chain: the actions are pinned to commit SHAs, maturin to an exact version,
+# the rustup installer to its sha256 and the manylinux image to a digest
+# (repository variable MANYLINUX_IMAGE, ci/github/README.md).
+name: packaging
+on:
+  push:
+    tags: ["v*"]
+  schedule:
+    - cron: "17 4 * * 6"
+  workflow_dispatch:
+permissions:
+  contents: read
+env:
+  # Container caps of scripts/mpi/in-docker.sh. The defaults (4 CPUs / 6g) fit
+  # the standard runner of a public repository (4 vCPU / 16 GB); on a
+  # private repository's 2-vCPU runner set the repository variable
+  # AKANTU_RS_DOCKER_CPUS=2 (ci/github/README.md, "Runners and their limits").
+  AKANTU_RS_DOCKER_CPUS: ${{ vars.AKANTU_RS_DOCKER_CPUS || '4' }}
+  AKANTU_RS_DOCKER_MEMORY: ${{ vars.AKANTU_RS_DOCKER_MEMORY || '6g' }}
+concurrency:
+  group: packaging-${{ github.ref }}
+  cancel-in-progress: false
+jobs:
+  detect:
+    # `hashFiles` is not allowed in a job-level `if` (GitHub rejects the whole
+    # file): the Python package layout is detected here and handed to the
+    # wheel jobs as an output. On a tree without python/pyproject.toml the
+    # wheel jobs are skipped (a skipped job reports success). With the Python
+    # package present the job also checks that the manylinux image variable
+    # is a digest reference and fails loudly if not.
+    runs-on: ubuntu-24.04
+    timeout-minutes: 5
+    outputs:
+      python: ${{ steps.d.outputs.python }}
+    steps:
+      - uses: actions/checkout@de0fac2e4500dabe0009e67214ff5f5447ce83dd # v6.0.2
+        with:
+          persist-credentials: false
+      - id: d
+        env:
+          MANYLINUX_IMAGE: ${{ vars.MANYLINUX_IMAGE || 'quay.io/pypa/manylinux_2_28_x86_64@sha256:9555ba6c479fa69a2aa80ad1dc57154a60d562b19df159361d9379a02beb1e36' }}
+        run: |
+          if [ -f python/pyproject.toml ]; then
+            case "$MANYLINUX_IMAGE" in
+              quay.io/pypa/manylinux_2_28_x86_64@sha256:*) ;;
+              *) echo "::error::the repository variable MANYLINUX_IMAGE must be quay.io/pypa/manylinux_2_28_x86_64@sha256:<digest> (ci/github/README.md)"; exit 1 ;;
+            esac
+            echo "python=true" >> "$GITHUB_OUTPUT"
+          else
+            echo "python=false" >> "$GITHUB_OUTPUT"
+          fi
+  crates-dry-run:
+    runs-on: ubuntu-24.04
+    timeout-minutes: 60
+    steps:
+      - uses: actions/checkout@de0fac2e4500dabe0009e67214ff5f5447ce83dd # v6.0.2
+        with:
+          persist-credentials: false
+          fetch-depth: 0
+      - name: Cargo registry (crate archives and index, keyed by Cargo.lock)
+        uses: actions/cache@668228422ae6a00e4ad889ee87cd7109ec5666a7 # v5.0.4
+        with:
+          path: |
+            ~/.cargo/registry/index
+            ~/.cargo/registry/cache
+          key: cargo-registry-${{ runner.os }}-${{ hashFiles('Cargo.lock') }}
+          restore-keys: cargo-registry-${{ runner.os }}-
+      - name: version check (tag = workspace.package.version), cargo package --list, readiness report, downstream consumer, minimal versions
+        env:
+          CI_INSTALL_TOOLCHAINS: "1"
+        run: ci/run-all.sh --backend host --tiers version,package,minver --out "$RUNNER_TEMP/ci-out"
+      - if: always()
+        uses: actions/upload-artifact@bbbca2ddaa5d8feaa63e36b76fdaad77386f024f # v7.0.0
+        with:
+          name: ci-packaging
+          path: ${{ runner.temp }}/ci-out
+          retention-days: 14
+  wheel-linux:
+    # Skipped on a tree without python/pyproject.toml (see `detect`).
+    needs: detect
+    if: ${{ needs.detect.outputs.python == 'true' }}
+    runs-on: ubuntu-24.04
+    # First GitHub run (2-vCPU runner, 2026-11-14): 50.6 min, pytest 1,336 +
+    # 1,343 s; the python.yml runner of the same run took 1,944 + 1,942 s per
+    # pytest run, on which this job would take about 73 min (that runner's
+    # build 358 s, two pytest runs of 1,943 s, smoke and setup 95 s): 90 min =
+    # 1.23 x that estimate, as python.yml's 90 min for its 71.5 min.
+    timeout-minutes: 90
+    container: ${{ vars.MANYLINUX_IMAGE || 'quay.io/pypa/manylinux_2_28_x86_64@sha256:9555ba6c479fa69a2aa80ad1dc57154a60d562b19df159361d9379a02beb1e36' }}
+    steps:
+      - uses: actions/checkout@de0fac2e4500dabe0009e67214ff5f5447ce83dd # v6.0.2
+        with:
+          persist-credentials: false
+      - name: Rust toolchain (rust-toolchain.toml; maturin is installed by the wheel tier)
+        # rustup-init 1.29.0 for x86_64-unknown-linux-gnu, checked against its
+        # published sha256 (https://static.rust-lang.org/rustup/archive/1.29.0/
+        # x86_64-unknown-linux-gnu/rustup-init.sha256); the installer is never
+        # piped into a shell.
+        run: |
+          curl -sSfO https://static.rust-lang.org/rustup/archive/1.29.0/x86_64-unknown-linux-gnu/rustup-init
+          echo "4acc9acc76d5079515b46346a485974457b5a79893cfb01112423c89aeb5aa10  rustup-init" | sha256sum -c -
+          chmod +x rustup-init
+          ./rustup-init -y --profile minimal --default-toolchain none --no-modify-path
+          echo "$HOME/.cargo/bin" >> "$GITHUB_PATH"
+      - name: abi3 wheel (manylinux_2_28), import on the oldest and newest CPython, pytest (the `wheel` tier)
+        # The tier (ci/tiers/wheel.sh) runs in the PyPA image on the host
+        # backend: maturin from PyPI in a throw-away venv of CPython 3.12, the
+        # wheel tagged manylinux_2_28, `import akantu` on CPython 3.9 and 3.13
+        # in venvs of their own, pytest of python/tests with and without
+        # greenlet (replayed in the pinned image on an 8-vCPU Linux machine:
+        # wheel `cp39-abi3-manylinux_2_28_x86_64`, 791 s, CI: PASS).
+        env:
+          CI_WHEEL_PYTHON: /opt/python/cp312-cp312/bin/python
+          CI_WHEEL_COMPAT: manylinux_2_28
+          CI_WHEEL_SMOKE: /opt/python/cp39-cp39/bin/python /opt/python/cp313-cp313/bin/python
+          CI_WHEEL_PIP_BASE: numpy==2.2.4
+        run: bash ci/run-all.sh --backend host --tiers wheel --out "$GITHUB_WORKSPACE/ci-out"
+      # always(): the logs of a failed or cancelled run are the evidence (the
+      # first macOS run, cancelled at its time limit, left none)
+      - if: always()
+        uses: actions/upload-artifact@bbbca2ddaa5d8feaa63e36b76fdaad77386f024f # v7.0.0
+        with:
+          name: wheel-linux
+          path: |
+            ci-out/wheel/wheels
+            ci-out/wheel/steps.tsv
+            ci-out/wheel/*.log
+          retention-days: 14
+  wheel-macos:
+    needs: detect
+    if: ${{ needs.detect.outputs.python == 'true' }}
+    runs-on: macos-15
+    # First GitHub run (2026-11-14): cancelled at 60 min, build + import 145 s,
+    # the first pytest run still going after 57 min: two runs need at least
+    # 2 x 57 + 2.5 + setup = 118 min; 150 min = 1.27 x that lower bound. The
+    # per-test durations of the next run's logs (uploaded always) decide
+    # whether this suffices. On a private repository macOS minutes count ten
+    # times: up to 1,500 billed minutes per run.
+    timeout-minutes: 150
+    steps:
+      - uses: actions/checkout@de0fac2e4500dabe0009e67214ff5f5447ce83dd # v6.0.2
+        with:
+          persist-credentials: false
+      - name: abi3 wheel (macOS arm64), import and pytest (the `wheel` tier)
+        # maturin's own platform tag (no --compatibility); the extension links
+        # no shared library outside Python, so no delocate step. macOS minutes
+        # are billed at ten times the Linux rate on a private repository.
+        env:
+          CI_WHEEL_COMPAT: "off"
+        run: bash ci/run-all.sh --backend host --tiers wheel --out "$RUNNER_TEMP/ci-out"
+      - if: always()
+        uses: actions/upload-artifact@bbbca2ddaa5d8feaa63e36b76fdaad77386f024f # v7.0.0
+        with:
+          name: wheel-macos
+          path: |
+            ${{ runner.temp }}/ci-out/wheel/wheels
+            ${{ runner.temp }}/ci-out/wheel/steps.tsv
+            ${{ runner.temp }}/ci-out/wheel/*.log
+          retention-days: 14

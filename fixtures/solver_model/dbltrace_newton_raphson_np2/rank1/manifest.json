@@ -1,0 +1,636 @@
+{
+  "format_version": 1,
+  "case_id": "solver_model/dbltrace_newton_raphson_np2/rank1",
+  "description": "non-linear bar (11 nodes) distributed over 2 processes (MeshPartitionMeshData: segments 0-4 on rank 0, 5-9 on rank 1), 2 load steps of -2, Newton-Raphson (solution criterion, MUMPS) at debug level dblTrace in one scratch directory shared by the ranks: this rank's std::cout text, the files it wrote and the directory's listing (review V161 LR20-01, DOF-017), rank view",
+  "status": "golden",
+  "generator": {
+    "probe": "solver_model_probe",
+    "probe_version": "5",
+    "command": "oracle/probes/solver_model/generate.sh "
+  },
+  "reference": {
+    "sha": "35a851780d0b9471d258ed53a003ae98aaa95ea0",
+    "describe": "v5.0.7-post1-554-g35a851780",
+    "patches": [
+      "modified:cmake/AkantuTestsMacros.cmake sha256=c280165a84912eab4bcc081b9eaaaa06aafdd83d4f48d982e11b0859abf9672f (reference sha256=36290de2ec8b111028138fe82029efa16501512241a5bc264fa30ff3e3239b9e)"
+    ]
+  },
+  "build": {
+  "config": "strict",
+  "compiler": "g++ (Debian 14.2.0-19) 14.2.0",
+  "cxx_flags": "-ffp-contract=off -DEIGEN_DONT_VECTORIZE -DEIGEN_NO_CPUID -DEIGEN_DEFAULT_L1_CACHE_SIZE=16384 -DEIGEN_DEFAULT_L2_CACHE_SIZE=524288 -DEIGEN_DEFAULT_L3_CACHE_SIZE=524288 -O2 -g -DNDEBUG -g3 -ggdb3 -flarge-source-files -std=c++20 -flto=auto -fno-fat-lto-objects -fPIC -frounding-math (actual flags of src/model/solid_mechanics/solid_mechanics_model.cc; warnings and non-FP -D defines omitted)",
+  "build_type": "RelWithDebInfo",
+  "arch": "x86_64",
+  "os": "Debian GNU/Linux 13 (trixie)",
+  "libraries": {"eigen_cache_sizes_measured": "16384,524288,524288 (Eigen::l1/l2/l3CacheSize() read at run time in the probe process, D-050)", 
+    "eigen3": "3.4.0-5",
+    "boost": "1.83.0.2+b2",
+    "openmpi": "5.0.7-1",
+    "mumps": "5.7.3-3+b1",
+    "petsc": "3.22.5+dfsg1-2",
+    "scotch": "7.0.7-1",
+    "openblas": "0.3.29+ds-3",
+    "scalapack": "2.2.2-1",
+    "hdf5": "1.14.5+repack-3",
+    "gmsh": "4.13.1+ds1-6",
+    "pybind11": "2.13.6-2",
+    "numpy": "1:2.2.4+ds-1",
+    "scipy": "1.15.3-1",
+    "gcc": "4:14.2.0-1",
+    "gfortran": "4:14.2.0-1",
+    "oracle_image": "sha256:2da26d87e063f3c88264f589cf73381feff583eeaa7770d2e01ae034651d59f5",
+    "oracle_build_scripts": "cca6e460cd3430bf0180262e7ebe26be762112e9",
+    "oracle_install_reference_sha": "35a851780d0b9471d258ed53a003ae98aaa95ea0",
+    "oracle_install_image": "sha256:2da26d87e063f3c88264f589cf73381feff583eeaa7770d2e01ae034651d59f5",
+    "openblas_coretype": "Haswell",
+    "openblas_num_threads": "1",
+    "eigen_cache_sizes": "16384,524288,524288 (compile-time pin of the library and of the probe translation unit: EIGEN_NO_CPUID + defaults, D-050)",
+    "host_cpu": "AMD Ryzen 9 9950X 16-Core Processor",
+    "x86_64_level": "v3",
+    "sha256:libakantu.so.5.0.7": "554ecfc7838d8c8aa3955f37f2efb556a7f09426083b74af262ffdcccff657ff",
+    "probe_tree_sha256": "edaaae5d5c53b364cfb480dfbb33e26b5f51d0f779e956356a1b3401cccd8720",
+    "probe_sources_commit": "03df5cceccab703013fedfe3eacf0bda4fc0ab30",
+    "cmake_cxx_flags": "-ffp-contract=off -DEIGEN_DONT_VECTORIZE -DEIGEN_NO_CPUID -DEIGEN_DEFAULT_L1_CACHE_SIZE=16384 -DEIGEN_DEFAULT_L2_CACHE_SIZE=524288 -DEIGEN_DEFAULT_L3_CACHE_SIZE=524288 -O2 -g -DNDEBUG -g3 -ggdb3 -flarge-source-files",
+    "probe": "solver_model_probe"
+  },
+  "probe_compile_command": "/usr/bin/c++ '-DAKANTU_PROBE_BUILD_TYPE=\"RelWithDebInfo\"' '-DAKANTU_PROBE_CONFIG=\"strict\"' '-DAKANTU_PROBE_CXX_FLAGS=\"-ffp-contract=off -DEIGEN_DONT_VECTORIZE -DEIGEN_NO_CPUID -DEIGEN_DEFAULT_L1_CACHE_SIZE=16384 -DEIGEN_DEFAULT_L2_CACHE_SIZE=524288 -DEIGEN_DEFAULT_L3_CACHE_SIZE=524288  -O2 -g -DNDEBUG\"' -DBOOST_GRAPH_DYN_LINK -DBOOST_GRAPH_NO_LIB -DBOOST_REGEX_DYN_LINK -DBOOST_REGEX_NO_LIB -DCGAL_USE_GMPXX=1 -I/probes/solver_model/../include -I/akantu-src/test/test_model/test_common/test_model_solver -isystem /build/install-strict/include/akantu -isystem /opt/CGAL-5.6.2/include -isystem /usr/lib/x86_64-linux-gnu/openmpi/include -isystem /usr/lib/x86_64-linux-gnu/openmpi/include/openmpi -isystem /usr/lib/petscdir/petsc3.22/x86_64-linux-gnu-real/include -isystem /usr/include/scotch -isystem /build/install-strict/include/akantu_iterators -isystem /usr/include/eigen3 -isystem /build/install-strict/include/iohelper -O2 -g -DNDEBUG -std=gnu++20 -ffp-contract=off -DEIGEN_DONT_VECTORIZE -DEIGEN_NO_CPUID -DEIGEN_DEFAULT_L1_CACHE_SIZE=16384 -DEIGEN_DEFAULT_L2_CACHE_SIZE=524288 -DEIGEN_DEFAULT_L3_CACHE_SIZE=524288 -Wall -Wextra -pedantic -Wno-array-bounds -Wno-use-after-free -Wno-stringop-overread -DOMPI_SKIP_MPICXX -Wno-literal-suffix -frounding-math -o CMakeFiles/solver_model_probe.dir/solver_model_probe.cc.o -c /probes/solver_model/solver_model_probe.cc",
+  "probe_cxx_flags": "-DAKANTU_PROBE_BUILD_TYPE=\"RelWithDebInfo\" -DAKANTU_PROBE_CONFIG=\"strict\" -DAKANTU_PROBE_CXX_FLAGS=\"-ffp-contract=off -DEIGEN_DONT_VECTORIZE -DEIGEN_NO_CPUID -DEIGEN_DEFAULT_L1_CACHE_SIZE=16384 -DEIGEN_DEFAULT_L2_CACHE_SIZE=524288 -DEIGEN_DEFAULT_L3_CACHE_SIZE=524288  -O2 -g -DNDEBUG\" -DBOOST_GRAPH_DYN_LINK -DBOOST_GRAPH_NO_LIB -DBOOST_REGEX_DYN_LINK -DBOOST_REGEX_NO_LIB -DCGAL_USE_GMPXX=1 -O2 -g -DNDEBUG -std=gnu++20 -ffp-contract=off -DEIGEN_DONT_VECTORIZE -DEIGEN_NO_CPUID -DEIGEN_DEFAULT_L1_CACHE_SIZE=16384 -DEIGEN_DEFAULT_L2_CACHE_SIZE=524288 -DEIGEN_DEFAULT_L3_CACHE_SIZE=524288 -Wall -Wextra -pedantic -Wno-array-bounds -Wno-use-after-free -Wno-stringop-overread -DOMPI_SKIP_MPICXX -Wno-literal-suffix -frounding-math"
+},
+  "created": "2026-11-12T19:18:12Z",
+  "inputs": [
+    {
+      "role": "stdout",
+      "path": "inputs/solver_model_probe_dbltrace_newton_raphson_np2_rank1_stdout.txt",
+      "sha256": "5e7a1ac5afa488230ed1cd1328e7341de8c643a88f63cabe79d600873cf65c58"
+    },
+    {
+      "role": "trace:A_0_rank-1.mtx",
+      "path": "inputs/A_0_rank-1.mtx",
+      "source": "oracle output (dblTrace dump, this rank)",
+      "sha256": "bca6975d84b2ade73419d55a64cd3fae33cc094cd5af7c9960b3f8b3f35ac1db"
+    },
+    {
+      "role": "trace:A_10_rank-1.mtx",
+      "path": "inputs/A_10_rank-1.mtx",
+      "source": "oracle output (dblTrace dump, this rank)",
+      "sha256": "3219a38e51a61f0900e0e9548353c217db9b8677a9b07c9a82ef11853a57b3ad"
+    },
+    {
+      "role": "trace:A_11_rank-1.mtx",
+      "path": "inputs/A_11_rank-1.mtx",
+      "source": "oracle output (dblTrace dump, this rank)",
+      "sha256": "e58af8a4363c479035511dc9b9d2a330c0c43d07ee938981b915ae768e283997"
+    },
+    {
+      "role": "trace:A_12_rank-1.mtx",
+      "path": "inputs/A_12_rank-1.mtx",
+      "source": "oracle output (dblTrace dump, this rank)",
+      "sha256": "f783bcd92c031a0e1fb3a32e35a459801bb2bbe511f217c0f4300136c6d9201b"
+    },
+    {
+      "role": "trace:A_13_rank-1.mtx",
+      "path": "inputs/A_13_rank-1.mtx",
+      "source": "oracle output (dblTrace dump, this rank)",
+      "sha256": "100d44c2e56d566a8c5fd8cd222d4930f6888be99d4a6208aeb97fb37f7adfa2"
+    },
+    {
+      "role": "trace:A_14_rank-1.mtx",
+      "path": "inputs/A_14_rank-1.mtx",
+      "source": "oracle output (dblTrace dump, this rank)",
+      "sha256": "cfa89ee816438e1ea567316a83a068ac00f95ab576ca30e893f91a24aee7e4d0"
+    },
+    {
+      "role": "trace:A_15_rank-1.mtx",
+      "path": "inputs/A_15_rank-1.mtx",
+      "source": "oracle output (dblTrace dump, this rank)",
+      "sha256": "768a49a32af4e5390ab462aacb7933a8912ab7db7558597888f52ea29a684085"
+    },
+    {
+      "role": "trace:A_16_rank-1.mtx",
+      "path": "inputs/A_16_rank-1.mtx",
+      "source": "oracle output (dblTrace dump, this rank)",
+      "sha256": "768a49a32af4e5390ab462aacb7933a8912ab7db7558597888f52ea29a684085"
+    },
+    {
+      "role": "trace:A_1_rank-1.mtx",
+      "path": "inputs/A_1_rank-1.mtx",
+      "source": "oracle output (dblTrace dump, this rank)",
+      "sha256": "2bab26333802ddbb2e0e21cda484b3cfaac5149bef4af8582d9f3a7e88cf6740"
+    },
+    {
+      "role": "trace:A_2_rank-1.mtx",
+      "path": "inputs/A_2_rank-1.mtx",
+      "source": "oracle output (dblTrace dump, this rank)",
+      "sha256": "65c5e869a6a00e0f48ca907638571475b5d1ac7af44bfa6b1fafa4e0e15fc068"
+    },
+    {
+      "role": "trace:A_3_rank-1.mtx",
+      "path": "inputs/A_3_rank-1.mtx",
+      "source": "oracle output (dblTrace dump, this rank)",
+      "sha256": "e16d2654704608a0d76fd0ed44f407d59aea392b77feaa66bf54090947b9bbc9"
+    },
+    {
+      "role": "trace:A_4_rank-1.mtx",
+      "path": "inputs/A_4_rank-1.mtx",
+      "source": "oracle output (dblTrace dump, this rank)",
+      "sha256": "d4bbed62183e5e1dcb10dd0b8c340bbfc63c3c13a416f906c97d2f489ada91da"
+    },
+    {
+      "role": "trace:A_5_rank-1.mtx",
+      "path": "inputs/A_5_rank-1.mtx",
+      "source": "oracle output (dblTrace dump, this rank)",
+      "sha256": "349b9c31059339a558eb5ea5a68042986a3445bd2cc0b5ea82cfbf4f09393baa"
+    },
+    {
+      "role": "trace:A_6_rank-1.mtx",
+      "path": "inputs/A_6_rank-1.mtx",
+      "source": "oracle output (dblTrace dump, this rank)",
+      "sha256": "4e709c1d72f213b9abba06196b857cecfce9099bf21e7d33af94b790a434d48d"
+    },
+    {
+      "role": "trace:A_7_rank-1.mtx",
+      "path": "inputs/A_7_rank-1.mtx",
+      "source": "oracle output (dblTrace dump, this rank)",
+      "sha256": "8053a210e99b4f937351ad6b59c06d9c55904f51c367595184ccca520c6ea239"
+    },
+    {
+      "role": "trace:A_8_rank-1.mtx",
+      "path": "inputs/A_8_rank-1.mtx",
+      "source": "oracle output (dblTrace dump, this rank)",
+      "sha256": "8053a210e99b4f937351ad6b59c06d9c55904f51c367595184ccca520c6ea239"
+    },
+    {
+      "role": "trace:A_9_rank-1.mtx",
+      "path": "inputs/A_9_rank-1.mtx",
+      "source": "oracle output (dblTrace dump, this rank)",
+      "sha256": "8053a210e99b4f937351ad6b59c06d9c55904f51c367595184ccca520c6ea239"
+    },
+    {
+      "role": "trace:b_0_rank-1.mtx",
+      "path": "inputs/b_0_rank-1.mtx",
+      "source": "oracle output (dblTrace dump, this rank)",
+      "sha256": "a249800a697740a9ec35d1ee1d56de9181d9c8aa3fa81fea632d6069c3c153d3"
+    },
+    {
+      "role": "trace:b_10_rank-1.mtx",
+      "path": "inputs/b_10_rank-1.mtx",
+      "source": "oracle output (dblTrace dump, this rank)",
+      "sha256": "61947beb9ce53ee358ca7895723bddec70c4c5521447092be73505a593ca2d3a"
+    },
+    {
+      "role": "trace:b_11_rank-1.mtx",
+      "path": "inputs/b_11_rank-1.mtx",
+      "source": "oracle output (dblTrace dump, this rank)",
+      "sha256": "d3e472c2c017a94b824eef3ff4fe38aa75dedcc304e4df752f4cfea631d28ba3"
+    },
+    {
+      "role": "trace:b_12_rank-1.mtx",
+      "path": "inputs/b_12_rank-1.mtx",
+      "source": "oracle output (dblTrace dump, this rank)",
+      "sha256": "5ab5c9d8ce362a0a4d8467eb4b88cf725e4d5ea4dc224ccd519e348d1a2e528f"
+    },
+    {
+      "role": "trace:b_13_rank-1.mtx",
+      "path": "inputs/b_13_rank-1.mtx",
+      "source": "oracle output (dblTrace dump, this rank)",
+      "sha256": "29b3c2196e035643e88ae173b7b7fe7fe6d4e5cd65240aac308ad8a808b20f6e"
+    },
+    {
+      "role": "trace:b_14_rank-1.mtx",
+      "path": "inputs/b_14_rank-1.mtx",
+      "source": "oracle output (dblTrace dump, this rank)",
+      "sha256": "1bed6b4785f08c7033b89bcee23819d908af8cf2d616fe6a799d720e3ecfac82"
+    },
+    {
+      "role": "trace:b_15_rank-1.mtx",
+      "path": "inputs/b_15_rank-1.mtx",
+      "source": "oracle output (dblTrace dump, this rank)",
+      "sha256": "ee39190d8a608eece5651392dd9e998749938f781e6acfd72cab590acdfcfeb7"
+    },
+    {
+      "role": "trace:b_16_rank-1.mtx",
+      "path": "inputs/b_16_rank-1.mtx",
+      "source": "oracle output (dblTrace dump, this rank)",
+      "sha256": "214f8a9d1cf8bcb53115c9b72b2249018fed5e631d15e1b18ee70d855deb7260"
+    },
+    {
+      "role": "trace:b_1_rank-1.mtx",
+      "path": "inputs/b_1_rank-1.mtx",
+      "source": "oracle output (dblTrace dump, this rank)",
+      "sha256": "b5a83d73b41040ca0a1b5686e609f3895e09e53c3ed31d8ad183bb4138594efb"
+    },
+    {
+      "role": "trace:b_2_rank-1.mtx",
+      "path": "inputs/b_2_rank-1.mtx",
+      "source": "oracle output (dblTrace dump, this rank)",
+      "sha256": "027f8c9ed19592f9f66828169228403b7138d9fe8804aa606aba9abee9c4b217"
+    },
+    {
+      "role": "trace:b_3_rank-1.mtx",
+      "path": "inputs/b_3_rank-1.mtx",
+      "source": "oracle output (dblTrace dump, this rank)",
+      "sha256": "2c1bb5949c76550577561e62feffdc7a84f7d29801479db543aa5d34cc762d01"
+    },
+    {
+      "role": "trace:b_4_rank-1.mtx",
+      "path": "inputs/b_4_rank-1.mtx",
+      "source": "oracle output (dblTrace dump, this rank)",
+      "sha256": "835e14169b2f64f568ab5f6f7de25d15550588495e88cfdb437fc8683fd59bce"
+    },
+    {
+      "role": "trace:b_5_rank-1.mtx",
+      "path": "inputs/b_5_rank-1.mtx",
+      "source": "oracle output (dblTrace dump, this rank)",
+      "sha256": "ccd4109b1e2387ab2bebc6074aa7705e072159742f08c090355b853ccdf395fb"
+    },
+    {
+      "role": "trace:b_6_rank-1.mtx",
+      "path": "inputs/b_6_rank-1.mtx",
+      "source": "oracle output (dblTrace dump, this rank)",
+      "sha256": "0af081b23e303e2ae03640dae746999b09534310c7c84395abad46190560e4d7"
+    },
+    {
+      "role": "trace:b_7_rank-1.mtx",
+      "path": "inputs/b_7_rank-1.mtx",
+      "source": "oracle output (dblTrace dump, this rank)",
+      "sha256": "f395ceae642c9e8bd045bf76a33682ed65c59b6889b14d895e18f53ca445a5d9"
+    },
+    {
+      "role": "trace:b_8_rank-1.mtx",
+      "path": "inputs/b_8_rank-1.mtx",
+      "source": "oracle output (dblTrace dump, this rank)",
+      "sha256": "f395ceae642c9e8bd045bf76a33682ed65c59b6889b14d895e18f53ca445a5d9"
+    },
+    {
+      "role": "trace:b_9_rank-1.mtx",
+      "path": "inputs/b_9_rank-1.mtx",
+      "source": "oracle output (dblTrace dump, this rank)",
+      "sha256": "a249800a697740a9ec35d1ee1d56de9181d9c8aa3fa81fea632d6069c3c153d3"
+    },
+    {
+      "role": "trace:nodes_rank-1.mtx",
+      "path": "inputs/nodes_rank-1.mtx",
+      "source": "oracle output (dblTrace dump, this rank)",
+      "sha256": "6fd616d038395e00c313261eef12410c5b5f8eb2b6aa8b33dec414acba32811d"
+    },
+    {
+      "role": "trace:x_0_rank-1.mtx",
+      "path": "inputs/x_0_rank-1.mtx",
+      "source": "oracle output (dblTrace dump, this rank)",
+      "sha256": "03df144ee7c3818bf8b360108bc35a40163059c0403b2c7ef24dcc0727672888"
+    },
+    {
+      "role": "trace:x_10_rank-1.mtx",
+      "path": "inputs/x_10_rank-1.mtx",
+      "source": "oracle output (dblTrace dump, this rank)",
+      "sha256": "0684f977eaeaf46538fb3126933f88f023a7309d35367ed6b9a876587e23626c"
+    },
+    {
+      "role": "trace:x_11_rank-1.mtx",
+      "path": "inputs/x_11_rank-1.mtx",
+      "source": "oracle output (dblTrace dump, this rank)",
+      "sha256": "7339476adfe1c0b1ba505ed02a77752bec1d548c38d8eebe306572f5d7d1d24b"
+    },
+    {
+      "role": "trace:x_12_rank-1.mtx",
+      "path": "inputs/x_12_rank-1.mtx",
+      "source": "oracle output (dblTrace dump, this rank)",
+      "sha256": "b83e29da32bd896911de2c36a27160cbb03a28cbfabd03fe7d0fd464c40e405e"
+    },
+    {
+      "role": "trace:x_13_rank-1.mtx",
+      "path": "inputs/x_13_rank-1.mtx",
+      "source": "oracle output (dblTrace dump, this rank)",
+      "sha256": "f1a78b9f4729c706268005250c50435fbb8a4f601b1692bfb5d898072ff576a2"
+    },
+    {
+      "role": "trace:x_14_rank-1.mtx",
+      "path": "inputs/x_14_rank-1.mtx",
+      "source": "oracle output (dblTrace dump, this rank)",
+      "sha256": "be0309f628f5c515308b99c87eae7c9d237f1e5c3888715bc0b1a19c0e1268a4"
+    },
+    {
+      "role": "trace:x_15_rank-1.mtx",
+      "path": "inputs/x_15_rank-1.mtx",
+      "source": "oracle output (dblTrace dump, this rank)",
+      "sha256": "4f0784ca87f37db138193514bc617827a8ca8be1a2b5a8012396b2d521eadb45"
+    },
+    {
+      "role": "trace:x_16_rank-1.mtx",
+      "path": "inputs/x_16_rank-1.mtx",
+      "source": "oracle output (dblTrace dump, this rank)",
+      "sha256": "b5fb727734c6567e5b41dd892fcf012706637798b06787a5fff87de8e36c20cd"
+    },
+    {
+      "role": "trace:x_1_rank-1.mtx",
+      "path": "inputs/x_1_rank-1.mtx",
+      "source": "oracle output (dblTrace dump, this rank)",
+      "sha256": "df975c3f696571d63b634bcb62609adac0486469288e4594972360e5d1e4ab3f"
+    },
+    {
+      "role": "trace:x_2_rank-1.mtx",
+      "path": "inputs/x_2_rank-1.mtx",
+      "source": "oracle output (dblTrace dump, this rank)",
+      "sha256": "e80f39e3c0ef52eaf4341ac5b188c169337f58ed999c8dcd55cdba417ade35c5"
+    },
+    {
+      "role": "trace:x_3_rank-1.mtx",
+      "path": "inputs/x_3_rank-1.mtx",
+      "source": "oracle output (dblTrace dump, this rank)",
+      "sha256": "9560e5826e38c6e675b5bd9392dbb8c5a2446e1731acea002a3b37685b46fe65"
+    },
+    {
+      "role": "trace:x_4_rank-1.mtx",
+      "path": "inputs/x_4_rank-1.mtx",
+      "source": "oracle output (dblTrace dump, this rank)",
+      "sha256": "d1e966189b9cb5c9a71b6a906a4c6d0fbb69549d67160b47191042a5a9546ea5"
+    },
+    {
+      "role": "trace:x_5_rank-1.mtx",
+      "path": "inputs/x_5_rank-1.mtx",
+      "source": "oracle output (dblTrace dump, this rank)",
+      "sha256": "d7dd452f7750483b681456708a9ac79be143055406c634f7011e515193962bdb"
+    },
+    {
+      "role": "trace:x_6_rank-1.mtx",
+      "path": "inputs/x_6_rank-1.mtx",
+      "source": "oracle output (dblTrace dump, this rank)",
+      "sha256": "c0d1ed47327950e943b2e3c071789cf3c0bee9f9aab81a8f0e66e4cc34c2e11e"
+    },
+    {
+      "role": "trace:x_7_rank-1.mtx",
+      "path": "inputs/x_7_rank-1.mtx",
+      "source": "oracle output (dblTrace dump, this rank)",
+      "sha256": "b0520412c84f1896a66a9482ff00bc87f012274fc853a8cf4df8e5b62edac8ba"
+    },
+    {
+      "role": "trace:x_8_rank-1.mtx",
+      "path": "inputs/x_8_rank-1.mtx",
+      "source": "oracle output (dblTrace dump, this rank)",
+      "sha256": "c9eb26bce61fc73f7b9933e161e34dc3dcb8cd92bb8ed75cc1303c8739938c35"
+    },
+    {
+      "role": "trace:x_9_rank-1.mtx",
+      "path": "inputs/x_9_rank-1.mtx",
+      "source": "oracle output (dblTrace dump, this rank)",
+      "sha256": "55f0c4081cde8d408389cc95237c9e78d912d72ee85567590c0d9cad92bd5961"
+    }
+  ],
+  "parameters": {
+    "driver": "dbltrace_np2",
+    "rank": 1,
+    "nb_ranks": 2,
+    "nb_nodes": 11,
+    "load_increment": -2.0,
+    "load_steps": 2,
+    "non_linear_solver_type": "newton_raphson",
+    "convergence_type": "solution",
+    "max_iterations": 10,
+    "sparse_solver_type": "mumps",
+    "partition/kind": "MeshPartitionMeshData",
+    "is_distributed": true,
+    "residual_is_distributed": true,
+    "solution_is_distributed": true,
+    "trace_files": [
+      "A_0_rank-1.mtx",
+      "A_10_rank-1.mtx",
+      "A_11_rank-1.mtx",
+      "A_12_rank-1.mtx",
+      "A_13_rank-1.mtx",
+      "A_14_rank-1.mtx",
+      "A_15_rank-1.mtx",
+      "A_16_rank-1.mtx",
+      "A_1_rank-1.mtx",
+      "A_2_rank-1.mtx",
+      "A_3_rank-1.mtx",
+      "A_4_rank-1.mtx",
+      "A_5_rank-1.mtx",
+      "A_6_rank-1.mtx",
+      "A_7_rank-1.mtx",
+      "A_8_rank-1.mtx",
+      "A_9_rank-1.mtx",
+      "b_0_rank-1.mtx",
+      "b_10_rank-1.mtx",
+      "b_11_rank-1.mtx",
+      "b_12_rank-1.mtx",
+      "b_13_rank-1.mtx",
+      "b_14_rank-1.mtx",
+      "b_15_rank-1.mtx",
+      "b_16_rank-1.mtx",
+      "b_1_rank-1.mtx",
+      "b_2_rank-1.mtx",
+      "b_3_rank-1.mtx",
+      "b_4_rank-1.mtx",
+      "b_5_rank-1.mtx",
+      "b_6_rank-1.mtx",
+      "b_7_rank-1.mtx",
+      "b_8_rank-1.mtx",
+      "b_9_rank-1.mtx",
+      "nodes_rank-1.mtx",
+      "x_0_rank-1.mtx",
+      "x_10_rank-1.mtx",
+      "x_11_rank-1.mtx",
+      "x_12_rank-1.mtx",
+      "x_13_rank-1.mtx",
+      "x_14_rank-1.mtx",
+      "x_15_rank-1.mtx",
+      "x_16_rank-1.mtx",
+      "x_1_rank-1.mtx",
+      "x_2_rank-1.mtx",
+      "x_3_rank-1.mtx",
+      "x_4_rank-1.mtx",
+      "x_5_rank-1.mtx",
+      "x_6_rank-1.mtx",
+      "x_7_rank-1.mtx",
+      "x_8_rank-1.mtx",
+      "x_9_rank-1.mtx"
+    ],
+    "all_trace_files": [
+      "A_0_rank-0.mtx",
+      "A_0_rank-1.mtx",
+      "A_10_rank-0.mtx",
+      "A_10_rank-1.mtx",
+      "A_11_rank-0.mtx",
+      "A_11_rank-1.mtx",
+      "A_12_rank-0.mtx",
+      "A_12_rank-1.mtx",
+      "A_13_rank-0.mtx",
+      "A_13_rank-1.mtx",
+      "A_14_rank-0.mtx",
+      "A_14_rank-1.mtx",
+      "A_15_rank-0.mtx",
+      "A_15_rank-1.mtx",
+      "A_16_rank-0.mtx",
+      "A_16_rank-1.mtx",
+      "A_1_rank-0.mtx",
+      "A_1_rank-1.mtx",
+      "A_2_rank-0.mtx",
+      "A_2_rank-1.mtx",
+      "A_3_rank-0.mtx",
+      "A_3_rank-1.mtx",
+      "A_4_rank-0.mtx",
+      "A_4_rank-1.mtx",
+      "A_5_rank-0.mtx",
+      "A_5_rank-1.mtx",
+      "A_6_rank-0.mtx",
+      "A_6_rank-1.mtx",
+      "A_7_rank-0.mtx",
+      "A_7_rank-1.mtx",
+      "A_8_rank-0.mtx",
+      "A_8_rank-1.mtx",
+      "A_9_rank-0.mtx",
+      "A_9_rank-1.mtx",
+      "b_0_rank-0.mtx",
+      "b_0_rank-1.mtx",
+      "b_10_rank-0.mtx",
+      "b_10_rank-1.mtx",
+      "b_11_rank-0.mtx",
+      "b_11_rank-1.mtx",
+      "b_12_rank-0.mtx",
+      "b_12_rank-1.mtx",
+      "b_13_rank-0.mtx",
+      "b_13_rank-1.mtx",
+      "b_14_rank-0.mtx",
+      "b_14_rank-1.mtx",
+      "b_15_rank-0.mtx",
+      "b_15_rank-1.mtx",
+      "b_16_rank-0.mtx",
+      "b_16_rank-1.mtx",
+      "b_1_rank-0.mtx",
+      "b_1_rank-1.mtx",
+      "b_2_rank-0.mtx",
+      "b_2_rank-1.mtx",
+      "b_3_rank-0.mtx",
+      "b_3_rank-1.mtx",
+      "b_4_rank-0.mtx",
+      "b_4_rank-1.mtx",
+      "b_5_rank-0.mtx",
+      "b_5_rank-1.mtx",
+      "b_6_rank-0.mtx",
+      "b_6_rank-1.mtx",
+      "b_7_rank-0.mtx",
+      "b_7_rank-1.mtx",
+      "b_8_rank-0.mtx",
+      "b_8_rank-1.mtx",
+      "b_9_rank-0.mtx",
+      "b_9_rank-1.mtx",
+      "nodes_rank-0.mtx",
+      "nodes_rank-1.mtx",
+      "x_0_rank-0.mtx",
+      "x_0_rank-1.mtx",
+      "x_10_rank-0.mtx",
+      "x_10_rank-1.mtx",
+      "x_11_rank-0.mtx",
+      "x_11_rank-1.mtx",
+      "x_12_rank-0.mtx",
+      "x_12_rank-1.mtx",
+      "x_13_rank-0.mtx",
+      "x_13_rank-1.mtx",
+      "x_14_rank-0.mtx",
+      "x_14_rank-1.mtx",
+      "x_15_rank-0.mtx",
+      "x_15_rank-1.mtx",
+      "x_16_rank-0.mtx",
+      "x_16_rank-1.mtx",
+      "x_1_rank-0.mtx",
+      "x_1_rank-1.mtx",
+      "x_2_rank-0.mtx",
+      "x_2_rank-1.mtx",
+      "x_3_rank-0.mtx",
+      "x_3_rank-1.mtx",
+      "x_4_rank-0.mtx",
+      "x_4_rank-1.mtx",
+      "x_5_rank-0.mtx",
+      "x_5_rank-1.mtx",
+      "x_6_rank-0.mtx",
+      "x_6_rank-1.mtx",
+      "x_7_rank-0.mtx",
+      "x_7_rank-1.mtx",
+      "x_8_rank-0.mtx",
+      "x_8_rank-1.mtx",
+      "x_9_rank-0.mtx",
+      "x_9_rank-1.mtx"
+    ]
+  },
+  "storage": {
+    "mode": "committed",
+    "bytes": 960
+  },
+  "quantities": [
+    {
+      "name": "partition/element_rank",
+      "file": "data/partition__element_rank.npy",
+      "dtype": "i64",
+      "shape": [
+        10
+      ],
+      "axes": [
+        "element"
+      ],
+      "layout": "table",
+      "sha256": "f48eee012ee51a4864a4ee12df1742743d9baf6d3127c88b45e6ae92a7f20eef",
+      "description": "rank of each segment (global element order on rank 0 before the distribution)"
+    },
+    {
+      "name": "nodes/global_id",
+      "file": "data/nodes__global_id.npy",
+      "dtype": "i64",
+      "shape": [
+        7
+      ],
+      "axes": [
+        "node"
+      ],
+      "layout": "table",
+      "sha256": "06047487a11bb34c632c141576572a881b9a63a9da9d41c3bbc7763325309c73",
+      "description": "global id of each local node"
+    },
+    {
+      "name": "nodes/flag",
+      "file": "data/nodes__flag.npy",
+      "dtype": "i64",
+      "shape": [
+        7
+      ],
+      "axes": [
+        "node"
+      ],
+      "layout": "table",
+      "sha256": "e0e895769f6578754ffa54d3ee24935e0c4a65743c7308c7d13b9ba5838a1fb5",
+      "description": "NodeFlag of each local node (upstream's values: 0 normal, 3 master, 5 slave, 9 pure ghost)"
+    },
+    {
+      "name": "newton/nb_iterations",
+      "file": "data/newton__nb_iterations.npy",
+      "dtype": "i64",
+      "shape": [
+        2
+      ],
+      "axes": [
+        "step"
+      ],
+      "layout": "table",
+      "sha256": "436bf8b77ad6b132f9327e881762e21606b0d7d10d75de0b8434acc0480a9697",
+      "description": "nb_iterations after each solveStep"
+    },
+    {
+      "name": "displacement",
+      "file": "data/displacement.npy",
+      "dtype": "f64",
+      "shape": [
+        2,
+        7
+      ],
+      "axes": [
+        "step",
+        "node"
+      ],
+      "layout": "nodal",
+      "sha256": "73d928e87fbb7672f6c0e16b06296f69adb6350c0375312d5873513a0f1fbc78",
+      "description": "displacement of the local nodes after each solveStep"
+    }
+  ],
+  "tags": [
+    "parallel"
+  ]
+}

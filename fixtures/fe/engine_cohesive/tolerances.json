@@ -1,0 +1,63 @@
+{
+  "format_version": 1,
+  "rules": [
+    {
+      "quantity": "mesh/nodes",
+      "justification": "Input written by the probe: exact.",
+      "reviewed_by": "independent review during the port, November 2026"
+    },
+    {
+      "quantity": "field/nodal",
+      "justification": "Input written by the probe: exact.",
+      "reviewed_by": "independent review during the port, November 2026"
+    },
+    {
+      "quantity": "shapes",
+      "justification": "Bitwise: verbatim facet-interpolation shape formulas.",
+      "evidence": "crates/akantu-fe/tests/fe_engine_matches_oracle.rs reproduces every value of the 7 cohesive fixtures bit for bit",
+      "reviewed_by": "independent review during the port, November 2026"
+    },
+    {
+      "quantity": "shapes_derivatives",
+      "justification": "Bitwise: natural dN/ds of the facet interpolation (no Jacobian).",
+      "evidence": "crates/akantu-fe/tests/fe_engine_matches_oracle.rs reproduces every value of the 7 cohesive fixtures bit for bit",
+      "reviewed_by": "independent review during the port, November 2026"
+    },
+    {
+      "quantity": "jacobians",
+      "justification": "Bitwise: akantu-fe reproduces the Eigen operand types of the upstream call site (crate::eigen: tree for compile-time inner sizes, sequential for run-time sizes, from +0 for GEMV, dynamic LU for J^-1 and det J), so the IEEE results are identical. mid-surface coordinates (X_n + X_{n+half})/2, |J| or |J0 x J1| times w; _cohesive_1d_2: 1 * w.",
+      "evidence": "crates/akantu-fe/tests/fe_engine_matches_oracle.rs reproduces every value of the 7 cohesive fixtures bit for bit",
+      "reviewed_by": "independent review during the port, November 2026"
+    },
+    {
+      "quantity": "field/mean",
+      "justification": "Bitwise: 0.5 (u+ + u-) per node, then U_el * N (lazy sequential).",
+      "evidence": "crates/akantu-fe/tests/fe_engine_matches_oracle.rs reproduces every value of the 7 cohesive fixtures bit for bit",
+      "reviewed_by": "independent review during the port, November 2026"
+    },
+    {
+      "quantity": "field/opening",
+      "justification": "Bitwise: u+ - u- per node, then U_el * N (lazy sequential).",
+      "evidence": "crates/akantu-fe/tests/fe_engine_matches_oracle.rs reproduces every value of the 7 cohesive fixtures bit for bit",
+      "reviewed_by": "independent review during the port, November 2026"
+    },
+    {
+      "quantity": "field/integrated_opening",
+      "justification": "Bitwise: GEMV integration from +0.",
+      "evidence": "crates/akantu-fe/tests/fe_engine_matches_oracle.rs reproduces every value of the 7 cohesive fixtures bit for bit",
+      "reviewed_by": "independent review during the port, November 2026"
+    },
+    {
+      "quantity": "field/integral_scalar",
+      "justification": "Bitwise: Math::reduce of the per-element integrals.",
+      "evidence": "crates/akantu-fe/tests/fe_engine_matches_oracle.rs reproduces every value of the 7 cohesive fixtures bit for bit",
+      "reviewed_by": "independent review during the port, November 2026"
+    },
+    {
+      "quantity": "normals",
+      "justification": "Bitwise: akantu-fe reproduces the Eigen operand types of the upstream call site (crate::eigen: tree for compile-time inner sizes, sequential for run-time sizes, from +0 for GEMV, dynamic LU for J^-1 and det J), so the IEEE results are identical. tangents U_el * dnds^T (coefficient-based), 2-D (-t1, t0) / ||t||, 3-D normalized(t0 x t1) on fixed vectors.",
+      "evidence": "crates/akantu-fe/tests/fe_engine_matches_oracle.rs reproduces every value of the 7 cohesive fixtures bit for bit",
+      "reviewed_by": "independent review during the port, November 2026"
+    }
+  ]
+}

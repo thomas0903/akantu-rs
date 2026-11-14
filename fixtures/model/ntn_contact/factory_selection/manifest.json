@@ -1,0 +1,1180 @@
+{
+  "format_version": 1,
+  "case_id": "model/ntn_contact/factory_selection",
+  "description": "printself of initializeNTNFriction for every law x regularisation option, node-to-node and rigid-flat contacts",
+  "status": "golden",
+  "generator": {
+    "probe": "ntn_probe",
+    "probe_version": "1",
+    "command": "oracle/probes/ntn_contact/generate.sh "
+  },
+  "reference": {
+    "sha": "35a851780d0b9471d258ed53a003ae98aaa95ea0",
+    "describe": "v5.0.7-post1-554-g35a851780",
+    "patches": [
+      "modified:cmake/AkantuTestsMacros.cmake sha256=c280165a84912eab4bcc081b9eaaaa06aafdd83d4f48d982e11b0859abf9672f (reference sha256=36290de2ec8b111028138fe82029efa16501512241a5bc264fa30ff3e3239b9e)"
+    ]
+  },
+  "build": {
+  "config": "strict",
+  "compiler": "g++ (Debian 14.2.0-19) 14.2.0",
+  "cxx_flags": "-ffp-contract=off -DEIGEN_DONT_VECTORIZE -O2 -g -DNDEBUG -g3 -ggdb3 -flarge-source-files -std=c++20 -flto=auto -fno-fat-lto-objects -fPIC -frounding-math (actual flags of src/model/solid_mechanics/solid_mechanics_model.cc; warnings and non-FP -D defines omitted)",
+  "build_type": "RelWithDebInfo",
+  "arch": "x86_64",
+  "os": "Debian GNU/Linux 13 (trixie)",
+  "libraries": {
+    "eigen3": "3.4.0-5",
+    "boost": "1.83.0.2+b2",
+    "openmpi": "5.0.7-1",
+    "mumps": "5.7.3-3+b1",
+    "petsc": "3.22.5+dfsg1-2",
+    "scotch": "7.0.7-1",
+    "openblas": "0.3.29+ds-3",
+    "scalapack": "2.2.2-1",
+    "hdf5": "1.14.5+repack-3",
+    "gmsh": "4.13.1+ds1-6",
+    "pybind11": "2.13.6-2",
+    "numpy": "1:2.2.4+ds-1",
+    "scipy": "1.15.3-1",
+    "gcc": "4:14.2.0-1",
+    "gfortran": "4:14.2.0-1",
+    "oracle_image": "sha256:45122c213e9fa194b6b58dcc31fc23b5fa4f7c0f64d0a452e40ae072c51c5cdb",
+    "oracle_build_scripts": "e168f393291494c869fa759b3ad9ae4a371a0369",
+    "oracle_install_reference_sha": "35a851780d0b9471d258ed53a003ae98aaa95ea0",
+    "oracle_install_image": "sha256:45122c213e9fa194b6b58dcc31fc23b5fa4f7c0f64d0a452e40ae072c51c5cdb",
+    "sha256:libakantu.so.5.0.7": "5491d902b6f363e11b47d2dc1d0aff0597374e8ff785bbfe2bff534f38509e81",
+    "probe_tree_sha256": "813e466d8007b01041a7f7fb5319f689f2a5ef999f09e8068c64e899a792867a",
+    "probe_sources_commit": "48664b660462491e40a04cd421d091cf196ad0c5",
+    "cmake_cxx_flags": "-ffp-contract=off -DEIGEN_DONT_VECTORIZE -O2 -g -DNDEBUG -g3 -ggdb3 -flarge-source-files",
+    "probe": "ntn_probe"
+  },
+  "probe_compile_command": "/usr/bin/c++ '-DAKANTU_PROBE_BUILD_TYPE=\"RelWithDebInfo\"' '-DAKANTU_PROBE_CONFIG=\"strict\"' '-DAKANTU_PROBE_CXX_FLAGS=\"-ffp-contract=off -DEIGEN_DONT_VECTORIZE  -O2 -g -DNDEBUG\"' -DBOOST_GRAPH_DYN_LINK -DBOOST_GRAPH_NO_LIB -DBOOST_REGEX_DYN_LINK -DBOOST_REGEX_NO_LIB -DCGAL_USE_GMPXX=1 -I/probes/ntn_contact/../include -isystem /build/install-strict/include/akantu -isystem /opt/CGAL-5.6.2/include -isystem /usr/lib/x86_64-linux-gnu/openmpi/include -isystem /usr/lib/x86_64-linux-gnu/openmpi/include/openmpi -isystem /usr/lib/petscdir/petsc3.22/x86_64-linux-gnu-real/include -isystem /usr/include/scotch -isystem /build/install-strict/include/akantu_iterators -isystem /usr/include/eigen3 -isystem /build/install-strict/include/iohelper -O2 -g -DNDEBUG -std=gnu++20 -ffp-contract=off -DEIGEN_DONT_VECTORIZE -Wall -Wextra -pedantic -Wno-array-bounds -Wno-use-after-free -Wno-stringop-overread -DOMPI_SKIP_MPICXX -Wno-literal-suffix -frounding-math -o CMakeFiles/ntn_probe.dir/ntn_probe.cc.o -c /probes/ntn_contact/ntn_probe.cc",
+  "probe_cxx_flags": "-DAKANTU_PROBE_BUILD_TYPE=\"RelWithDebInfo\" -DAKANTU_PROBE_CONFIG=\"strict\" -DAKANTU_PROBE_CXX_FLAGS=\"-ffp-contract=off -DEIGEN_DONT_VECTORIZE  -O2 -g -DNDEBUG\" -DBOOST_GRAPH_DYN_LINK -DBOOST_GRAPH_NO_LIB -DBOOST_REGEX_DYN_LINK -DBOOST_REGEX_NO_LIB -DCGAL_USE_GMPXX=1 -O2 -g -DNDEBUG -std=gnu++20 -ffp-contract=off -DEIGEN_DONT_VECTORIZE -Wall -Wextra -pedantic -Wno-array-bounds -Wno-use-after-free -Wno-stringop-overread -DOMPI_SKIP_MPICXX -Wno-literal-suffix -frounding-math"
+},
+  "created": "2026-11-11T03:04:45Z",
+  "inputs": [
+    {
+      "role": "mesh",
+      "path": "inputs/ntn_test_2d.msh",
+      "source": "upstream:extra_packages/traction-at-split-node-contact/test/test_ntn_model/ntn_test_2d.msh",
+      "sha256": "922d72663e833679d08e0d03b5390220472776902c776e69e350816843308ea6"
+    }
+  ],
+  "parameters": {
+    "cases": [
+      {
+        "contact": "ntn",
+        "law": "rate_and_state:dieterich:ageing",
+        "option": "no_regularisation",
+        "printself": "NTNFriction [\nNTNFricLawRateAndState [\nNTNFricLawCoulomb [\nNTNFricRegRubinAmpuero [\nNTNFricRegNoRegularisation [\nNTNBaseFriction [\n"
+      },
+      {
+        "contact": "ntn",
+        "law": "rate_and_state:dieterich:ageing",
+        "option": "rubin_ampuero",
+        "printself": "NTNFriction [\nNTNFricLawRateAndState [\nNTNFricLawCoulomb [\nNTNFricRegRubinAmpuero [\nNTNFricRegNoRegularisation [\nNTNBaseFriction [\n"
+      },
+      {
+        "contact": "ntn",
+        "law": "rate_and_state:dieterich:ageing",
+        "option": "simplified_prakash_clifton",
+        "printself": "NTNFriction [\nNTNFricLawRateAndState [\nNTNFricLawCoulomb [\nNTNFricRegSimplifiedPrakashClifton [\nNTNFricRegNoRegularisation [\nNTNBaseFriction [\n"
+      },
+      {
+        "contact": "ntn",
+        "law": "rate_and_state:dieterich:ageing",
+        "option": "bogus_option",
+        "printself": "NTNFriction [\nNTNFricLawRateAndState [\nNTNFricLawCoulomb [\nNTNFricRegRubinAmpuero [\nNTNFricRegNoRegularisation [\nNTNBaseFriction [\n"
+      },
+      {
+        "contact": "ntn",
+        "law": "rate_and_state:dieterich:slip",
+        "option": "no_regularisation",
+        "printself": "NTNFriction [\nNTNFricLawRateAndState [\nNTNFricLawCoulomb [\nNTNFricRegRubinAmpuero [\nNTNFricRegNoRegularisation [\nNTNBaseFriction [\n"
+      },
+      {
+        "contact": "ntn",
+        "law": "rate_and_state:dieterich:slip",
+        "option": "rubin_ampuero",
+        "printself": "NTNFriction [\nNTNFricLawRateAndState [\nNTNFricLawCoulomb [\nNTNFricRegRubinAmpuero [\nNTNFricRegNoRegularisation [\nNTNBaseFriction [\n"
+      },
+      {
+        "contact": "ntn",
+        "law": "rate_and_state:dieterich:slip",
+        "option": "simplified_prakash_clifton",
+        "printself": "NTNFriction [\nNTNFricLawRateAndState [\nNTNFricLawCoulomb [\nNTNFricRegSimplifiedPrakashClifton [\nNTNFricRegNoRegularisation [\nNTNBaseFriction [\n"
+      },
+      {
+        "contact": "ntn",
+        "law": "rate_and_state:dieterich:slip",
+        "option": "bogus_option",
+        "printself": "NTNFriction [\nNTNFricLawRateAndState [\nNTNFricLawCoulomb [\nNTNFricRegRubinAmpuero [\nNTNFricRegNoRegularisation [\nNTNBaseFriction [\n"
+      },
+      {
+        "contact": "ntn",
+        "law": "rate_and_state:dieterich:ageing_regularized",
+        "option": "no_regularisation",
+        "printself": "NTNFriction [\nNTNFricLawRateAndState [\nNTNFricLawCoulomb [\nNTNFricRegRubinAmpuero [\nNTNFricRegNoRegularisation [\nNTNBaseFriction [\n"
+      },
+      {
+        "contact": "ntn",
+        "law": "rate_and_state:dieterich:ageing_regularized",
+        "option": "rubin_ampuero",
+        "printself": "NTNFriction [\nNTNFricLawRateAndState [\nNTNFricLawCoulomb [\nNTNFricRegRubinAmpuero [\nNTNFricRegNoRegularisation [\nNTNBaseFriction [\n"
+      },
+      {
+        "contact": "ntn",
+        "law": "rate_and_state:dieterich:ageing_regularized",
+        "option": "simplified_prakash_clifton",
+        "printself": "NTNFriction [\nNTNFricLawRateAndState [\nNTNFricLawCoulomb [\nNTNFricRegSimplifiedPrakashClifton [\nNTNFricRegNoRegularisation [\nNTNBaseFriction [\n"
+      },
+      {
+        "contact": "ntn",
+        "law": "rate_and_state:dieterich:ageing_regularized",
+        "option": "bogus_option",
+        "printself": "NTNFriction [\nNTNFricLawRateAndState [\nNTNFricLawCoulomb [\nNTNFricRegRubinAmpuero [\nNTNFricRegNoRegularisation [\nNTNBaseFriction [\n"
+      },
+      {
+        "contact": "ntn",
+        "law": "rate_and_state:revised_dieterich:ageing",
+        "option": "no_regularisation",
+        "printself": "NTNFriction [\nNTNFricLawRateAndState [\nNTNFricLawCoulomb [\nNTNFricRegRubinAmpuero [\nNTNFricRegNoRegularisation [\nNTNBaseFriction [\n"
+      },
+      {
+        "contact": "ntn",
+        "law": "rate_and_state:revised_dieterich:ageing",
+        "option": "rubin_ampuero",
+        "printself": "NTNFriction [\nNTNFricLawRateAndState [\nNTNFricLawCoulomb [\nNTNFricRegRubinAmpuero [\nNTNFricRegNoRegularisation [\nNTNBaseFriction [\n"
+      },
+      {
+        "contact": "ntn",
+        "law": "rate_and_state:revised_dieterich:ageing",
+        "option": "simplified_prakash_clifton",
+        "printself": "NTNFriction [\nNTNFricLawRateAndState [\nNTNFricLawCoulomb [\nNTNFricRegSimplifiedPrakashClifton [\nNTNFricRegNoRegularisation [\nNTNBaseFriction [\n"
+      },
+      {
+        "contact": "ntn",
+        "law": "rate_and_state:revised_dieterich:ageing",
+        "option": "bogus_option",
+        "printself": "NTNFriction [\nNTNFricLawRateAndState [\nNTNFricLawCoulomb [\nNTNFricRegRubinAmpuero [\nNTNFricRegNoRegularisation [\nNTNBaseFriction [\n"
+      },
+      {
+        "contact": "ntn",
+        "law": "rate_and_state:revised_dieterich:slip",
+        "option": "no_regularisation",
+        "printself": "NTNFriction [\nNTNFricLawRateAndState [\nNTNFricLawCoulomb [\nNTNFricRegRubinAmpuero [\nNTNFricRegNoRegularisation [\nNTNBaseFriction [\n"
+      },
+      {
+        "contact": "ntn",
+        "law": "rate_and_state:revised_dieterich:slip",
+        "option": "rubin_ampuero",
+        "printself": "NTNFriction [\nNTNFricLawRateAndState [\nNTNFricLawCoulomb [\nNTNFricRegRubinAmpuero [\nNTNFricRegNoRegularisation [\nNTNBaseFriction [\n"
+      },
+      {
+        "contact": "ntn",
+        "law": "rate_and_state:revised_dieterich:slip",
+        "option": "simplified_prakash_clifton",
+        "printself": "NTNFriction [\nNTNFricLawRateAndState [\nNTNFricLawCoulomb [\nNTNFricRegSimplifiedPrakashClifton [\nNTNFricRegNoRegularisation [\nNTNBaseFriction [\n"
+      },
+      {
+        "contact": "ntn",
+        "law": "rate_and_state:revised_dieterich:slip",
+        "option": "bogus_option",
+        "printself": "NTNFriction [\nNTNFricLawRateAndState [\nNTNFricLawCoulomb [\nNTNFricRegRubinAmpuero [\nNTNFricRegNoRegularisation [\nNTNBaseFriction [\n"
+      },
+      {
+        "contact": "ntn",
+        "law": "rate_and_state:revised_dieterich:ageing_regularized",
+        "option": "no_regularisation",
+        "printself": "NTNFriction [\nNTNFricLawRateAndState [\nNTNFricLawCoulomb [\nNTNFricRegRubinAmpuero [\nNTNFricRegNoRegularisation [\nNTNBaseFriction [\n"
+      },
+      {
+        "contact": "ntn",
+        "law": "rate_and_state:revised_dieterich:ageing_regularized",
+        "option": "rubin_ampuero",
+        "printself": "NTNFriction [\nNTNFricLawRateAndState [\nNTNFricLawCoulomb [\nNTNFricRegRubinAmpuero [\nNTNFricRegNoRegularisation [\nNTNBaseFriction [\n"
+      },
+      {
+        "contact": "ntn",
+        "law": "rate_and_state:revised_dieterich:ageing_regularized",
+        "option": "simplified_prakash_clifton",
+        "printself": "NTNFriction [\nNTNFricLawRateAndState [\nNTNFricLawCoulomb [\nNTNFricRegSimplifiedPrakashClifton [\nNTNFricRegNoRegularisation [\nNTNBaseFriction [\n"
+      },
+      {
+        "contact": "ntn",
+        "law": "rate_and_state:revised_dieterich:ageing_regularized",
+        "option": "bogus_option",
+        "printself": "NTNFriction [\nNTNFricLawRateAndState [\nNTNFricLawCoulomb [\nNTNFricRegRubinAmpuero [\nNTNFricRegNoRegularisation [\nNTNBaseFriction [\n"
+      },
+      {
+        "contact": "ntn",
+        "law": "rate_and_state:regularized_dieterich:ageing",
+        "option": "no_regularisation",
+        "printself": "NTNFriction [\nNTNFricLawRateAndState [\nNTNFricLawCoulomb [\nNTNFricRegRubinAmpuero [\nNTNFricRegNoRegularisation [\nNTNBaseFriction [\n"
+      },
+      {
+        "contact": "ntn",
+        "law": "rate_and_state:regularized_dieterich:ageing",
+        "option": "rubin_ampuero",
+        "printself": "NTNFriction [\nNTNFricLawRateAndState [\nNTNFricLawCoulomb [\nNTNFricRegRubinAmpuero [\nNTNFricRegNoRegularisation [\nNTNBaseFriction [\n"
+      },
+      {
+        "contact": "ntn",
+        "law": "rate_and_state:regularized_dieterich:ageing",
+        "option": "simplified_prakash_clifton",
+        "printself": "NTNFriction [\nNTNFricLawRateAndState [\nNTNFricLawCoulomb [\nNTNFricRegSimplifiedPrakashClifton [\nNTNFricRegNoRegularisation [\nNTNBaseFriction [\n"
+      },
+      {
+        "contact": "ntn",
+        "law": "rate_and_state:regularized_dieterich:ageing",
+        "option": "bogus_option",
+        "printself": "NTNFriction [\nNTNFricLawRateAndState [\nNTNFricLawCoulomb [\nNTNFricRegRubinAmpuero [\nNTNFricRegNoRegularisation [\nNTNBaseFriction [\n"
+      },
+      {
+        "contact": "ntn",
+        "law": "rate_and_state:regularized_dieterich:slip",
+        "option": "no_regularisation",
+        "printself": "NTNFriction [\nNTNFricLawRateAndState [\nNTNFricLawCoulomb [\nNTNFricRegRubinAmpuero [\nNTNFricRegNoRegularisation [\nNTNBaseFriction [\n"
+      },
+      {
+        "contact": "ntn",
+        "law": "rate_and_state:regularized_dieterich:slip",
+        "option": "rubin_ampuero",
+        "printself": "NTNFriction [\nNTNFricLawRateAndState [\nNTNFricLawCoulomb [\nNTNFricRegRubinAmpuero [\nNTNFricRegNoRegularisation [\nNTNBaseFriction [\n"
+      },
+      {
+        "contact": "ntn",
+        "law": "rate_and_state:regularized_dieterich:slip",
+        "option": "simplified_prakash_clifton",
+        "printself": "NTNFriction [\nNTNFricLawRateAndState [\nNTNFricLawCoulomb [\nNTNFricRegSimplifiedPrakashClifton [\nNTNFricRegNoRegularisation [\nNTNBaseFriction [\n"
+      },
+      {
+        "contact": "ntn",
+        "law": "rate_and_state:regularized_dieterich:slip",
+        "option": "bogus_option",
+        "printself": "NTNFriction [\nNTNFricLawRateAndState [\nNTNFricLawCoulomb [\nNTNFricRegRubinAmpuero [\nNTNFricRegNoRegularisation [\nNTNBaseFriction [\n"
+      },
+      {
+        "contact": "ntn",
+        "law": "rate_and_state:regularized_dieterich:ageing_regularized",
+        "option": "no_regularisation",
+        "printself": "NTNFriction [\nNTNFricLawRateAndState [\nNTNFricLawCoulomb [\nNTNFricRegRubinAmpuero [\nNTNFricRegNoRegularisation [\nNTNBaseFriction [\n"
+      },
+      {
+        "contact": "ntn",
+        "law": "rate_and_state:regularized_dieterich:ageing_regularized",
+        "option": "rubin_ampuero",
+        "printself": "NTNFriction [\nNTNFricLawRateAndState [\nNTNFricLawCoulomb [\nNTNFricRegRubinAmpuero [\nNTNFricRegNoRegularisation [\nNTNBaseFriction [\n"
+      },
+      {
+        "contact": "ntn",
+        "law": "rate_and_state:regularized_dieterich:ageing_regularized",
+        "option": "simplified_prakash_clifton",
+        "printself": "NTNFriction [\nNTNFricLawRateAndState [\nNTNFricLawCoulomb [\nNTNFricRegSimplifiedPrakashClifton [\nNTNFricRegNoRegularisation [\nNTNBaseFriction [\n"
+      },
+      {
+        "contact": "ntn",
+        "law": "rate_and_state:regularized_dieterich:ageing_regularized",
+        "option": "bogus_option",
+        "printself": "NTNFriction [\nNTNFricLawRateAndState [\nNTNFricLawCoulomb [\nNTNFricRegRubinAmpuero [\nNTNFricRegNoRegularisation [\nNTNBaseFriction [\n"
+      },
+      {
+        "contact": "ntn",
+        "law": "rate_and_state:n_shaped:ageing",
+        "option": "no_regularisation",
+        "printself": "NTNFriction [\nNTNFricLawRateAndState [\nNTNFricLawCoulomb [\nNTNFricRegRubinAmpuero [\nNTNFricRegNoRegularisation [\nNTNBaseFriction [\n"
+      },
+      {
+        "contact": "ntn",
+        "law": "rate_and_state:n_shaped:ageing",
+        "option": "rubin_ampuero",
+        "printself": "NTNFriction [\nNTNFricLawRateAndState [\nNTNFricLawCoulomb [\nNTNFricRegRubinAmpuero [\nNTNFricRegNoRegularisation [\nNTNBaseFriction [\n"
+      },
+      {
+        "contact": "ntn",
+        "law": "rate_and_state:n_shaped:ageing",
+        "option": "simplified_prakash_clifton",
+        "printself": "NTNFriction [\nNTNFricLawRateAndState [\nNTNFricLawCoulomb [\nNTNFricRegSimplifiedPrakashClifton [\nNTNFricRegNoRegularisation [\nNTNBaseFriction [\n"
+      },
+      {
+        "contact": "ntn",
+        "law": "rate_and_state:n_shaped:ageing",
+        "option": "bogus_option",
+        "printself": "NTNFriction [\nNTNFricLawRateAndState [\nNTNFricLawCoulomb [\nNTNFricRegRubinAmpuero [\nNTNFricRegNoRegularisation [\nNTNBaseFriction [\n"
+      },
+      {
+        "contact": "ntn",
+        "law": "rate_and_state:n_shaped:slip",
+        "option": "no_regularisation",
+        "printself": "NTNFriction [\nNTNFricLawRateAndState [\nNTNFricLawCoulomb [\nNTNFricRegRubinAmpuero [\nNTNFricRegNoRegularisation [\nNTNBaseFriction [\n"
+      },
+      {
+        "contact": "ntn",
+        "law": "rate_and_state:n_shaped:slip",
+        "option": "rubin_ampuero",
+        "printself": "NTNFriction [\nNTNFricLawRateAndState [\nNTNFricLawCoulomb [\nNTNFricRegRubinAmpuero [\nNTNFricRegNoRegularisation [\nNTNBaseFriction [\n"
+      },
+      {
+        "contact": "ntn",
+        "law": "rate_and_state:n_shaped:slip",
+        "option": "simplified_prakash_clifton",
+        "printself": "NTNFriction [\nNTNFricLawRateAndState [\nNTNFricLawCoulomb [\nNTNFricRegSimplifiedPrakashClifton [\nNTNFricRegNoRegularisation [\nNTNBaseFriction [\n"
+      },
+      {
+        "contact": "ntn",
+        "law": "rate_and_state:n_shaped:slip",
+        "option": "bogus_option",
+        "printself": "NTNFriction [\nNTNFricLawRateAndState [\nNTNFricLawCoulomb [\nNTNFricRegRubinAmpuero [\nNTNFricRegNoRegularisation [\nNTNBaseFriction [\n"
+      },
+      {
+        "contact": "ntn",
+        "law": "rate_and_state:n_shaped:ageing_regularized",
+        "option": "no_regularisation",
+        "printself": "NTNFriction [\nNTNFricLawRateAndState [\nNTNFricLawCoulomb [\nNTNFricRegRubinAmpuero [\nNTNFricRegNoRegularisation [\nNTNBaseFriction [\n"
+      },
+      {
+        "contact": "ntn",
+        "law": "rate_and_state:n_shaped:ageing_regularized",
+        "option": "rubin_ampuero",
+        "printself": "NTNFriction [\nNTNFricLawRateAndState [\nNTNFricLawCoulomb [\nNTNFricRegRubinAmpuero [\nNTNFricRegNoRegularisation [\nNTNBaseFriction [\n"
+      },
+      {
+        "contact": "ntn",
+        "law": "rate_and_state:n_shaped:ageing_regularized",
+        "option": "simplified_prakash_clifton",
+        "printself": "NTNFriction [\nNTNFricLawRateAndState [\nNTNFricLawCoulomb [\nNTNFricRegSimplifiedPrakashClifton [\nNTNFricRegNoRegularisation [\nNTNBaseFriction [\n"
+      },
+      {
+        "contact": "ntn",
+        "law": "rate_and_state:n_shaped:ageing_regularized",
+        "option": "bogus_option",
+        "printself": "NTNFriction [\nNTNFricLawRateAndState [\nNTNFricLawCoulomb [\nNTNFricRegRubinAmpuero [\nNTNFricRegNoRegularisation [\nNTNBaseFriction [\n"
+      },
+      {
+        "contact": "ntn",
+        "law": "rate_and_state:revised_n_shaped:ageing",
+        "option": "no_regularisation",
+        "printself": "NTNFriction [\nNTNFricLawRateAndState [\nNTNFricLawCoulomb [\nNTNFricRegRubinAmpuero [\nNTNFricRegNoRegularisation [\nNTNBaseFriction [\n"
+      },
+      {
+        "contact": "ntn",
+        "law": "rate_and_state:revised_n_shaped:ageing",
+        "option": "rubin_ampuero",
+        "printself": "NTNFriction [\nNTNFricLawRateAndState [\nNTNFricLawCoulomb [\nNTNFricRegRubinAmpuero [\nNTNFricRegNoRegularisation [\nNTNBaseFriction [\n"
+      },
+      {
+        "contact": "ntn",
+        "law": "rate_and_state:revised_n_shaped:ageing",
+        "option": "simplified_prakash_clifton",
+        "printself": "NTNFriction [\nNTNFricLawRateAndState [\nNTNFricLawCoulomb [\nNTNFricRegSimplifiedPrakashClifton [\nNTNFricRegNoRegularisation [\nNTNBaseFriction [\n"
+      },
+      {
+        "contact": "ntn",
+        "law": "rate_and_state:revised_n_shaped:ageing",
+        "option": "bogus_option",
+        "printself": "NTNFriction [\nNTNFricLawRateAndState [\nNTNFricLawCoulomb [\nNTNFricRegRubinAmpuero [\nNTNFricRegNoRegularisation [\nNTNBaseFriction [\n"
+      },
+      {
+        "contact": "ntn",
+        "law": "rate_and_state:revised_n_shaped:slip",
+        "option": "no_regularisation",
+        "printself": "NTNFriction [\nNTNFricLawRateAndState [\nNTNFricLawCoulomb [\nNTNFricRegRubinAmpuero [\nNTNFricRegNoRegularisation [\nNTNBaseFriction [\n"
+      },
+      {
+        "contact": "ntn",
+        "law": "rate_and_state:revised_n_shaped:slip",
+        "option": "rubin_ampuero",
+        "printself": "NTNFriction [\nNTNFricLawRateAndState [\nNTNFricLawCoulomb [\nNTNFricRegRubinAmpuero [\nNTNFricRegNoRegularisation [\nNTNBaseFriction [\n"
+      },
+      {
+        "contact": "ntn",
+        "law": "rate_and_state:revised_n_shaped:slip",
+        "option": "simplified_prakash_clifton",
+        "printself": "NTNFriction [\nNTNFricLawRateAndState [\nNTNFricLawCoulomb [\nNTNFricRegSimplifiedPrakashClifton [\nNTNFricRegNoRegularisation [\nNTNBaseFriction [\n"
+      },
+      {
+        "contact": "ntn",
+        "law": "rate_and_state:revised_n_shaped:slip",
+        "option": "bogus_option",
+        "printself": "NTNFriction [\nNTNFricLawRateAndState [\nNTNFricLawCoulomb [\nNTNFricRegRubinAmpuero [\nNTNFricRegNoRegularisation [\nNTNBaseFriction [\n"
+      },
+      {
+        "contact": "ntn",
+        "law": "rate_and_state:revised_n_shaped:ageing_regularized",
+        "option": "no_regularisation",
+        "printself": "NTNFriction [\nNTNFricLawRateAndState [\nNTNFricLawCoulomb [\nNTNFricRegRubinAmpuero [\nNTNFricRegNoRegularisation [\nNTNBaseFriction [\n"
+      },
+      {
+        "contact": "ntn",
+        "law": "rate_and_state:revised_n_shaped:ageing_regularized",
+        "option": "rubin_ampuero",
+        "printself": "NTNFriction [\nNTNFricLawRateAndState [\nNTNFricLawCoulomb [\nNTNFricRegRubinAmpuero [\nNTNFricRegNoRegularisation [\nNTNBaseFriction [\n"
+      },
+      {
+        "contact": "ntn",
+        "law": "rate_and_state:revised_n_shaped:ageing_regularized",
+        "option": "simplified_prakash_clifton",
+        "printself": "NTNFriction [\nNTNFricLawRateAndState [\nNTNFricLawCoulomb [\nNTNFricRegSimplifiedPrakashClifton [\nNTNFricRegNoRegularisation [\nNTNBaseFriction [\n"
+      },
+      {
+        "contact": "ntn",
+        "law": "rate_and_state:revised_n_shaped:ageing_regularized",
+        "option": "bogus_option",
+        "printself": "NTNFriction [\nNTNFricLawRateAndState [\nNTNFricLawCoulomb [\nNTNFricRegRubinAmpuero [\nNTNFricRegNoRegularisation [\nNTNBaseFriction [\n"
+      },
+      {
+        "contact": "ntn",
+        "law": "rate_and_state_n_shaped_ageing",
+        "option": "no_regularisation",
+        "printself": "NTNFriction [\nNTNFricLawRateAndState [\nNTNFricLawCoulomb [\nNTNFricRegRubinAmpuero [\nNTNFricRegNoRegularisation [\nNTNBaseFriction [\n"
+      },
+      {
+        "contact": "ntn",
+        "law": "rate_and_state_n_shaped_ageing",
+        "option": "rubin_ampuero",
+        "printself": "NTNFriction [\nNTNFricLawRateAndState [\nNTNFricLawCoulomb [\nNTNFricRegRubinAmpuero [\nNTNFricRegNoRegularisation [\nNTNBaseFriction [\n"
+      },
+      {
+        "contact": "ntn",
+        "law": "rate_and_state_n_shaped_ageing",
+        "option": "simplified_prakash_clifton",
+        "printself": "NTNFriction [\nNTNFricLawRateAndState [\nNTNFricLawCoulomb [\nNTNFricRegSimplifiedPrakashClifton [\nNTNFricRegNoRegularisation [\nNTNBaseFriction [\n"
+      },
+      {
+        "contact": "ntn",
+        "law": "rate_and_state_n_shaped_ageing",
+        "option": "bogus_option",
+        "printself": "NTNFriction [\nNTNFricLawRateAndState [\nNTNFricLawCoulomb [\nNTNFricRegRubinAmpuero [\nNTNFricRegNoRegularisation [\nNTNBaseFriction [\n"
+      },
+      {
+        "contact": "ntn",
+        "law": "rate_and_state_n_shaped_slip",
+        "option": "no_regularisation",
+        "printself": "NTNFriction [\nNTNFricLawRateAndState [\nNTNFricLawCoulomb [\nNTNFricRegRubinAmpuero [\nNTNFricRegNoRegularisation [\nNTNBaseFriction [\n"
+      },
+      {
+        "contact": "ntn",
+        "law": "rate_and_state_n_shaped_slip",
+        "option": "rubin_ampuero",
+        "printself": "NTNFriction [\nNTNFricLawRateAndState [\nNTNFricLawCoulomb [\nNTNFricRegRubinAmpuero [\nNTNFricRegNoRegularisation [\nNTNBaseFriction [\n"
+      },
+      {
+        "contact": "ntn",
+        "law": "rate_and_state_n_shaped_slip",
+        "option": "simplified_prakash_clifton",
+        "printself": "NTNFriction [\nNTNFricLawRateAndState [\nNTNFricLawCoulomb [\nNTNFricRegSimplifiedPrakashClifton [\nNTNFricRegNoRegularisation [\nNTNBaseFriction [\n"
+      },
+      {
+        "contact": "ntn",
+        "law": "rate_and_state_n_shaped_slip",
+        "option": "bogus_option",
+        "printself": "NTNFriction [\nNTNFricLawRateAndState [\nNTNFricLawCoulomb [\nNTNFricRegRubinAmpuero [\nNTNFricRegNoRegularisation [\nNTNBaseFriction [\n"
+      },
+      {
+        "contact": "ntn",
+        "law": "rate_and_state_n_shaped_ageing_regularized",
+        "option": "no_regularisation",
+        "printself": "NTNFriction [\nNTNFricLawRateAndState [\nNTNFricLawCoulomb [\nNTNFricRegRubinAmpuero [\nNTNFricRegNoRegularisation [\nNTNBaseFriction [\n"
+      },
+      {
+        "contact": "ntn",
+        "law": "rate_and_state_n_shaped_ageing_regularized",
+        "option": "rubin_ampuero",
+        "printself": "NTNFriction [\nNTNFricLawRateAndState [\nNTNFricLawCoulomb [\nNTNFricRegRubinAmpuero [\nNTNFricRegNoRegularisation [\nNTNBaseFriction [\n"
+      },
+      {
+        "contact": "ntn",
+        "law": "rate_and_state_n_shaped_ageing_regularized",
+        "option": "simplified_prakash_clifton",
+        "printself": "NTNFriction [\nNTNFricLawRateAndState [\nNTNFricLawCoulomb [\nNTNFricRegSimplifiedPrakashClifton [\nNTNFricRegNoRegularisation [\nNTNBaseFriction [\n"
+      },
+      {
+        "contact": "ntn",
+        "law": "rate_and_state_n_shaped_ageing_regularized",
+        "option": "bogus_option",
+        "printself": "NTNFriction [\nNTNFricLawRateAndState [\nNTNFricLawCoulomb [\nNTNFricRegRubinAmpuero [\nNTNFricRegNoRegularisation [\nNTNBaseFriction [\n"
+      },
+      {
+        "contact": "ntn",
+        "law": "rate_and_state:flashheating",
+        "option": "no_regularisation",
+        "printself": "NTNFriction [\nNTNFricLawRateAndState [\nNTNFricLawCoulomb [\nNTNFricRegRubinAmpuero [\nNTNFricRegNoRegularisation [\nNTNBaseFriction [\n"
+      },
+      {
+        "contact": "ntn",
+        "law": "rate_and_state:flashheating",
+        "option": "rubin_ampuero",
+        "printself": "NTNFriction [\nNTNFricLawRateAndState [\nNTNFricLawCoulomb [\nNTNFricRegRubinAmpuero [\nNTNFricRegNoRegularisation [\nNTNBaseFriction [\n"
+      },
+      {
+        "contact": "ntn",
+        "law": "rate_and_state:flashheating",
+        "option": "simplified_prakash_clifton",
+        "printself": "NTNFriction [\nNTNFricLawRateAndState [\nNTNFricLawCoulomb [\nNTNFricRegSimplifiedPrakashClifton [\nNTNFricRegNoRegularisation [\nNTNBaseFriction [\n"
+      },
+      {
+        "contact": "ntn",
+        "law": "rate_and_state:flashheating",
+        "option": "bogus_option",
+        "printself": "NTNFriction [\nNTNFricLawRateAndState [\nNTNFricLawCoulomb [\nNTNFricRegRubinAmpuero [\nNTNFricRegNoRegularisation [\nNTNBaseFriction [\n"
+      },
+      {
+        "contact": "ntn",
+        "law": "coulomb",
+        "option": "no_regularisation",
+        "printself": "NTNFriction [\nNTNFricLawCoulomb [\nNTNFricRegRubinAmpuero [\nNTNFricRegNoRegularisation [\nNTNBaseFriction [\n"
+      },
+      {
+        "contact": "ntn",
+        "law": "coulomb",
+        "option": "rubin_ampuero",
+        "printself": "NTNFriction [\nNTNFricLawCoulomb [\nNTNFricRegRubinAmpuero [\nNTNFricRegNoRegularisation [\nNTNBaseFriction [\n"
+      },
+      {
+        "contact": "ntn",
+        "law": "coulomb",
+        "option": "simplified_prakash_clifton",
+        "printself": "NTNFriction [\nNTNFricLawCoulomb [\nNTNFricRegSimplifiedPrakashClifton [\nNTNFricRegNoRegularisation [\nNTNBaseFriction [\n"
+      },
+      {
+        "contact": "ntn",
+        "law": "coulomb",
+        "option": "bogus_option",
+        "printself": "NTNFriction [\nNTNFricLawCoulomb [\nNTNFricRegRubinAmpuero [\nNTNFricRegNoRegularisation [\nNTNBaseFriction [\n"
+      },
+      {
+        "contact": "ntn",
+        "law": "linear_slip_weakening",
+        "option": "no_regularisation",
+        "printself": "NTNFriction [\nNTNFricLawLinearSlipWeakening [\nNTNFricLawCoulomb [\nNTNFricRegRubinAmpuero [\nNTNFricRegNoRegularisation [\nNTNBaseFriction [\n"
+      },
+      {
+        "contact": "ntn",
+        "law": "linear_slip_weakening",
+        "option": "rubin_ampuero",
+        "printself": "NTNFriction [\nNTNFricLawLinearSlipWeakening [\nNTNFricLawCoulomb [\nNTNFricRegRubinAmpuero [\nNTNFricRegNoRegularisation [\nNTNBaseFriction [\n"
+      },
+      {
+        "contact": "ntn",
+        "law": "linear_slip_weakening",
+        "option": "simplified_prakash_clifton",
+        "printself": "NTNFriction [\nNTNFricLawLinearSlipWeakening [\nNTNFricLawCoulomb [\nNTNFricRegSimplifiedPrakashClifton [\nNTNFricRegNoRegularisation [\nNTNBaseFriction [\n"
+      },
+      {
+        "contact": "ntn",
+        "law": "linear_slip_weakening",
+        "option": "bogus_option",
+        "printself": "NTNFriction [\nNTNFricLawLinearSlipWeakening [\nNTNFricLawCoulomb [\nNTNFricRegRubinAmpuero [\nNTNFricRegNoRegularisation [\nNTNBaseFriction [\n"
+      },
+      {
+        "contact": "ntn",
+        "law": "linear_slip_weakening_no_healing",
+        "option": "no_regularisation",
+        "printself": "NTNFriction [\nNTNFricLawLinearSlipWeakeningNoHealing [\nNTNFricLawLinearSlipWeakening [\nNTNFricLawCoulomb [\nNTNFricRegRubinAmpuero [\nNTNFricRegNoRegularisation [\nNTNBaseFriction [\n"
+      },
+      {
+        "contact": "ntn",
+        "law": "linear_slip_weakening_no_healing",
+        "option": "rubin_ampuero",
+        "printself": "NTNFriction [\nNTNFricLawLinearSlipWeakeningNoHealing [\nNTNFricLawLinearSlipWeakening [\nNTNFricLawCoulomb [\nNTNFricRegRubinAmpuero [\nNTNFricRegNoRegularisation [\nNTNBaseFriction [\n"
+      },
+      {
+        "contact": "ntn",
+        "law": "linear_slip_weakening_no_healing",
+        "option": "simplified_prakash_clifton",
+        "printself": "NTNFriction [\nNTNFricLawLinearSlipWeakeningNoHealing [\nNTNFricLawLinearSlipWeakening [\nNTNFricLawCoulomb [\nNTNFricRegSimplifiedPrakashClifton [\nNTNFricRegNoRegularisation [\nNTNBaseFriction [\n"
+      },
+      {
+        "contact": "ntn",
+        "law": "linear_slip_weakening_no_healing",
+        "option": "bogus_option",
+        "printself": "NTNFriction [\nNTNFricLawLinearSlipWeakeningNoHealing [\nNTNFricLawLinearSlipWeakening [\nNTNFricLawCoulomb [\nNTNFricRegRubinAmpuero [\nNTNFricRegNoRegularisation [\nNTNBaseFriction [\n"
+      },
+      {
+        "contact": "ntn",
+        "law": "linear_cohesive",
+        "option": "no_regularisation",
+        "printself": "NTNFriction [\nNTNFricLawLinearCohesive [\nNTNFricRegRubinAmpuero [\nNTNFricRegNoRegularisation [\nNTNBaseFriction [\n"
+      },
+      {
+        "contact": "ntn",
+        "law": "linear_cohesive",
+        "option": "rubin_ampuero",
+        "printself": "NTNFriction [\nNTNFricLawLinearCohesive [\nNTNFricRegRubinAmpuero [\nNTNFricRegNoRegularisation [\nNTNBaseFriction [\n"
+      },
+      {
+        "contact": "ntn",
+        "law": "linear_cohesive",
+        "option": "simplified_prakash_clifton",
+        "printself": "NTNFriction [\nNTNFricLawLinearCohesive [\nNTNFricRegSimplifiedPrakashClifton [\nNTNFricRegNoRegularisation [\nNTNBaseFriction [\n"
+      },
+      {
+        "contact": "ntn",
+        "law": "linear_cohesive",
+        "option": "bogus_option",
+        "printself": "NTNFriction [\nNTNFricLawLinearCohesive [\nNTNFricRegRubinAmpuero [\nNTNFricRegNoRegularisation [\nNTNBaseFriction [\n"
+      },
+      {
+        "contact": "ntrf",
+        "law": "rate_and_state:dieterich:ageing",
+        "option": "no_regularisation",
+        "printself": "NTRFFriction [\nNTNFricLawRateAndState [\nNTNFricLawCoulomb [\nNTNFricRegRubinAmpuero [\nNTNFricRegNoRegularisation [\nNTNBaseFriction [\n"
+      },
+      {
+        "contact": "ntrf",
+        "law": "rate_and_state:dieterich:ageing",
+        "option": "rubin_ampuero",
+        "printself": "NTRFFriction [\nNTNFricLawRateAndState [\nNTNFricLawCoulomb [\nNTNFricRegRubinAmpuero [\nNTNFricRegNoRegularisation [\nNTNBaseFriction [\n"
+      },
+      {
+        "contact": "ntrf",
+        "law": "rate_and_state:dieterich:ageing",
+        "option": "simplified_prakash_clifton",
+        "printself": "NTRFFriction [\nNTNFricLawRateAndState [\nNTNFricLawCoulomb [\nNTNFricRegSimplifiedPrakashClifton [\nNTNFricRegNoRegularisation [\nNTNBaseFriction [\n"
+      },
+      {
+        "contact": "ntrf",
+        "law": "rate_and_state:dieterich:ageing",
+        "option": "bogus_option",
+        "printself": "NTRFFriction [\nNTNFricLawRateAndState [\nNTNFricLawCoulomb [\nNTNFricRegRubinAmpuero [\nNTNFricRegNoRegularisation [\nNTNBaseFriction [\n"
+      },
+      {
+        "contact": "ntrf",
+        "law": "rate_and_state:dieterich:slip",
+        "option": "no_regularisation",
+        "printself": "NTRFFriction [\nNTNFricLawRateAndState [\nNTNFricLawCoulomb [\nNTNFricRegRubinAmpuero [\nNTNFricRegNoRegularisation [\nNTNBaseFriction [\n"
+      },
+      {
+        "contact": "ntrf",
+        "law": "rate_and_state:dieterich:slip",
+        "option": "rubin_ampuero",
+        "printself": "NTRFFriction [\nNTNFricLawRateAndState [\nNTNFricLawCoulomb [\nNTNFricRegRubinAmpuero [\nNTNFricRegNoRegularisation [\nNTNBaseFriction [\n"
+      },
+      {
+        "contact": "ntrf",
+        "law": "rate_and_state:dieterich:slip",
+        "option": "simplified_prakash_clifton",
+        "printself": "NTRFFriction [\nNTNFricLawRateAndState [\nNTNFricLawCoulomb [\nNTNFricRegSimplifiedPrakashClifton [\nNTNFricRegNoRegularisation [\nNTNBaseFriction [\n"
+      },
+      {
+        "contact": "ntrf",
+        "law": "rate_and_state:dieterich:slip",
+        "option": "bogus_option",
+        "printself": "NTRFFriction [\nNTNFricLawRateAndState [\nNTNFricLawCoulomb [\nNTNFricRegRubinAmpuero [\nNTNFricRegNoRegularisation [\nNTNBaseFriction [\n"
+      },
+      {
+        "contact": "ntrf",
+        "law": "rate_and_state:dieterich:ageing_regularized",
+        "option": "no_regularisation",
+        "printself": "NTRFFriction [\nNTNFricLawRateAndState [\nNTNFricLawCoulomb [\nNTNFricRegRubinAmpuero [\nNTNFricRegNoRegularisation [\nNTNBaseFriction [\n"
+      },
+      {
+        "contact": "ntrf",
+        "law": "rate_and_state:dieterich:ageing_regularized",
+        "option": "rubin_ampuero",
+        "printself": "NTRFFriction [\nNTNFricLawRateAndState [\nNTNFricLawCoulomb [\nNTNFricRegRubinAmpuero [\nNTNFricRegNoRegularisation [\nNTNBaseFriction [\n"
+      },
+      {
+        "contact": "ntrf",
+        "law": "rate_and_state:dieterich:ageing_regularized",
+        "option": "simplified_prakash_clifton",
+        "printself": "NTRFFriction [\nNTNFricLawRateAndState [\nNTNFricLawCoulomb [\nNTNFricRegSimplifiedPrakashClifton [\nNTNFricRegNoRegularisation [\nNTNBaseFriction [\n"
+      },
+      {
+        "contact": "ntrf",
+        "law": "rate_and_state:dieterich:ageing_regularized",
+        "option": "bogus_option",
+        "printself": "NTRFFriction [\nNTNFricLawRateAndState [\nNTNFricLawCoulomb [\nNTNFricRegRubinAmpuero [\nNTNFricRegNoRegularisation [\nNTNBaseFriction [\n"
+      },
+      {
+        "contact": "ntrf",
+        "law": "rate_and_state:revised_dieterich:ageing",
+        "option": "no_regularisation",
+        "printself": "NTRFFriction [\nNTNFricLawRateAndState [\nNTNFricLawCoulomb [\nNTNFricRegRubinAmpuero [\nNTNFricRegNoRegularisation [\nNTNBaseFriction [\n"
+      },
+      {
+        "contact": "ntrf",
+        "law": "rate_and_state:revised_dieterich:ageing",
+        "option": "rubin_ampuero",
+        "printself": "NTRFFriction [\nNTNFricLawRateAndState [\nNTNFricLawCoulomb [\nNTNFricRegRubinAmpuero [\nNTNFricRegNoRegularisation [\nNTNBaseFriction [\n"
+      },
+      {
+        "contact": "ntrf",
+        "law": "rate_and_state:revised_dieterich:ageing",
+        "option": "simplified_prakash_clifton",
+        "printself": "NTRFFriction [\nNTNFricLawRateAndState [\nNTNFricLawCoulomb [\nNTNFricRegSimplifiedPrakashClifton [\nNTNFricRegNoRegularisation [\nNTNBaseFriction [\n"
+      },
+      {
+        "contact": "ntrf",
+        "law": "rate_and_state:revised_dieterich:ageing",
+        "option": "bogus_option",
+        "printself": "NTRFFriction [\nNTNFricLawRateAndState [\nNTNFricLawCoulomb [\nNTNFricRegRubinAmpuero [\nNTNFricRegNoRegularisation [\nNTNBaseFriction [\n"
+      },
+      {
+        "contact": "ntrf",
+        "law": "rate_and_state:revised_dieterich:slip",
+        "option": "no_regularisation",
+        "printself": "NTRFFriction [\nNTNFricLawRateAndState [\nNTNFricLawCoulomb [\nNTNFricRegRubinAmpuero [\nNTNFricRegNoRegularisation [\nNTNBaseFriction [\n"
+      },
+      {
+        "contact": "ntrf",
+        "law": "rate_and_state:revised_dieterich:slip",
+        "option": "rubin_ampuero",
+        "printself": "NTRFFriction [\nNTNFricLawRateAndState [\nNTNFricLawCoulomb [\nNTNFricRegRubinAmpuero [\nNTNFricRegNoRegularisation [\nNTNBaseFriction [\n"
+      },
+      {
+        "contact": "ntrf",
+        "law": "rate_and_state:revised_dieterich:slip",
+        "option": "simplified_prakash_clifton",
+        "printself": "NTRFFriction [\nNTNFricLawRateAndState [\nNTNFricLawCoulomb [\nNTNFricRegSimplifiedPrakashClifton [\nNTNFricRegNoRegularisation [\nNTNBaseFriction [\n"
+      },
+      {
+        "contact": "ntrf",
+        "law": "rate_and_state:revised_dieterich:slip",
+        "option": "bogus_option",
+        "printself": "NTRFFriction [\nNTNFricLawRateAndState [\nNTNFricLawCoulomb [\nNTNFricRegRubinAmpuero [\nNTNFricRegNoRegularisation [\nNTNBaseFriction [\n"
+      },
+      {
+        "contact": "ntrf",
+        "law": "rate_and_state:revised_dieterich:ageing_regularized",
+        "option": "no_regularisation",
+        "printself": "NTRFFriction [\nNTNFricLawRateAndState [\nNTNFricLawCoulomb [\nNTNFricRegRubinAmpuero [\nNTNFricRegNoRegularisation [\nNTNBaseFriction [\n"
+      },
+      {
+        "contact": "ntrf",
+        "law": "rate_and_state:revised_dieterich:ageing_regularized",
+        "option": "rubin_ampuero",
+        "printself": "NTRFFriction [\nNTNFricLawRateAndState [\nNTNFricLawCoulomb [\nNTNFricRegRubinAmpuero [\nNTNFricRegNoRegularisation [\nNTNBaseFriction [\n"
+      },
+      {
+        "contact": "ntrf",
+        "law": "rate_and_state:revised_dieterich:ageing_regularized",
+        "option": "simplified_prakash_clifton",
+        "printself": "NTRFFriction [\nNTNFricLawRateAndState [\nNTNFricLawCoulomb [\nNTNFricRegSimplifiedPrakashClifton [\nNTNFricRegNoRegularisation [\nNTNBaseFriction [\n"
+      },
+      {
+        "contact": "ntrf",
+        "law": "rate_and_state:revised_dieterich:ageing_regularized",
+        "option": "bogus_option",
+        "printself": "NTRFFriction [\nNTNFricLawRateAndState [\nNTNFricLawCoulomb [\nNTNFricRegRubinAmpuero [\nNTNFricRegNoRegularisation [\nNTNBaseFriction [\n"
+      },
+      {
+        "contact": "ntrf",
+        "law": "rate_and_state:regularized_dieterich:ageing",
+        "option": "no_regularisation",
+        "printself": "NTRFFriction [\nNTNFricLawRateAndState [\nNTNFricLawCoulomb [\nNTNFricRegRubinAmpuero [\nNTNFricRegNoRegularisation [\nNTNBaseFriction [\n"
+      },
+      {
+        "contact": "ntrf",
+        "law": "rate_and_state:regularized_dieterich:ageing",
+        "option": "rubin_ampuero",
+        "printself": "NTRFFriction [\nNTNFricLawRateAndState [\nNTNFricLawCoulomb [\nNTNFricRegRubinAmpuero [\nNTNFricRegNoRegularisation [\nNTNBaseFriction [\n"
+      },
+      {
+        "contact": "ntrf",
+        "law": "rate_and_state:regularized_dieterich:ageing",
+        "option": "simplified_prakash_clifton",
+        "printself": "NTRFFriction [\nNTNFricLawRateAndState [\nNTNFricLawCoulomb [\nNTNFricRegSimplifiedPrakashClifton [\nNTNFricRegNoRegularisation [\nNTNBaseFriction [\n"
+      },
+      {
+        "contact": "ntrf",
+        "law": "rate_and_state:regularized_dieterich:ageing",
+        "option": "bogus_option",
+        "printself": "NTRFFriction [\nNTNFricLawRateAndState [\nNTNFricLawCoulomb [\nNTNFricRegRubinAmpuero [\nNTNFricRegNoRegularisation [\nNTNBaseFriction [\n"
+      },
+      {
+        "contact": "ntrf",
+        "law": "rate_and_state:regularized_dieterich:slip",
+        "option": "no_regularisation",
+        "printself": "NTRFFriction [\nNTNFricLawRateAndState [\nNTNFricLawCoulomb [\nNTNFricRegRubinAmpuero [\nNTNFricRegNoRegularisation [\nNTNBaseFriction [\n"
+      },
+      {
+        "contact": "ntrf",
+        "law": "rate_and_state:regularized_dieterich:slip",
+        "option": "rubin_ampuero",
+        "printself": "NTRFFriction [\nNTNFricLawRateAndState [\nNTNFricLawCoulomb [\nNTNFricRegRubinAmpuero [\nNTNFricRegNoRegularisation [\nNTNBaseFriction [\n"
+      },
+      {
+        "contact": "ntrf",
+        "law": "rate_and_state:regularized_dieterich:slip",
+        "option": "simplified_prakash_clifton",
+        "printself": "NTRFFriction [\nNTNFricLawRateAndState [\nNTNFricLawCoulomb [\nNTNFricRegSimplifiedPrakashClifton [\nNTNFricRegNoRegularisation [\nNTNBaseFriction [\n"
+      },
+      {
+        "contact": "ntrf",
+        "law": "rate_and_state:regularized_dieterich:slip",
+        "option": "bogus_option",
+        "printself": "NTRFFriction [\nNTNFricLawRateAndState [\nNTNFricLawCoulomb [\nNTNFricRegRubinAmpuero [\nNTNFricRegNoRegularisation [\nNTNBaseFriction [\n"
+      },
+      {
+        "contact": "ntrf",
+        "law": "rate_and_state:regularized_dieterich:ageing_regularized",
+        "option": "no_regularisation",
+        "printself": "NTRFFriction [\nNTNFricLawRateAndState [\nNTNFricLawCoulomb [\nNTNFricRegRubinAmpuero [\nNTNFricRegNoRegularisation [\nNTNBaseFriction [\n"
+      },
+      {
+        "contact": "ntrf",
+        "law": "rate_and_state:regularized_dieterich:ageing_regularized",
+        "option": "rubin_ampuero",
+        "printself": "NTRFFriction [\nNTNFricLawRateAndState [\nNTNFricLawCoulomb [\nNTNFricRegRubinAmpuero [\nNTNFricRegNoRegularisation [\nNTNBaseFriction [\n"
+      },
+      {
+        "contact": "ntrf",
+        "law": "rate_and_state:regularized_dieterich:ageing_regularized",
+        "option": "simplified_prakash_clifton",
+        "printself": "NTRFFriction [\nNTNFricLawRateAndState [\nNTNFricLawCoulomb [\nNTNFricRegSimplifiedPrakashClifton [\nNTNFricRegNoRegularisation [\nNTNBaseFriction [\n"
+      },
+      {
+        "contact": "ntrf",
+        "law": "rate_and_state:regularized_dieterich:ageing_regularized",
+        "option": "bogus_option",
+        "printself": "NTRFFriction [\nNTNFricLawRateAndState [\nNTNFricLawCoulomb [\nNTNFricRegRubinAmpuero [\nNTNFricRegNoRegularisation [\nNTNBaseFriction [\n"
+      },
+      {
+        "contact": "ntrf",
+        "law": "rate_and_state:n_shaped:ageing",
+        "option": "no_regularisation",
+        "printself": "NTRFFriction [\nNTNFricLawRateAndState [\nNTNFricLawCoulomb [\nNTNFricRegRubinAmpuero [\nNTNFricRegNoRegularisation [\nNTNBaseFriction [\n"
+      },
+      {
+        "contact": "ntrf",
+        "law": "rate_and_state:n_shaped:ageing",
+        "option": "rubin_ampuero",
+        "printself": "NTRFFriction [\nNTNFricLawRateAndState [\nNTNFricLawCoulomb [\nNTNFricRegRubinAmpuero [\nNTNFricRegNoRegularisation [\nNTNBaseFriction [\n"
+      },
+      {
+        "contact": "ntrf",
+        "law": "rate_and_state:n_shaped:ageing",
+        "option": "simplified_prakash_clifton",
+        "printself": "NTRFFriction [\nNTNFricLawRateAndState [\nNTNFricLawCoulomb [\nNTNFricRegSimplifiedPrakashClifton [\nNTNFricRegNoRegularisation [\nNTNBaseFriction [\n"
+      },
+      {
+        "contact": "ntrf",
+        "law": "rate_and_state:n_shaped:ageing",
+        "option": "bogus_option",
+        "printself": "NTRFFriction [\nNTNFricLawRateAndState [\nNTNFricLawCoulomb [\nNTNFricRegRubinAmpuero [\nNTNFricRegNoRegularisation [\nNTNBaseFriction [\n"
+      },
+      {
+        "contact": "ntrf",
+        "law": "rate_and_state:n_shaped:slip",
+        "option": "no_regularisation",
+        "printself": "NTRFFriction [\nNTNFricLawRateAndState [\nNTNFricLawCoulomb [\nNTNFricRegRubinAmpuero [\nNTNFricRegNoRegularisation [\nNTNBaseFriction [\n"
+      },
+      {
+        "contact": "ntrf",
+        "law": "rate_and_state:n_shaped:slip",
+        "option": "rubin_ampuero",
+        "printself": "NTRFFriction [\nNTNFricLawRateAndState [\nNTNFricLawCoulomb [\nNTNFricRegRubinAmpuero [\nNTNFricRegNoRegularisation [\nNTNBaseFriction [\n"
+      },
+      {
+        "contact": "ntrf",
+        "law": "rate_and_state:n_shaped:slip",
+        "option": "simplified_prakash_clifton",
+        "printself": "NTRFFriction [\nNTNFricLawRateAndState [\nNTNFricLawCoulomb [\nNTNFricRegSimplifiedPrakashClifton [\nNTNFricRegNoRegularisation [\nNTNBaseFriction [\n"
+      },
+      {
+        "contact": "ntrf",
+        "law": "rate_and_state:n_shaped:slip",
+        "option": "bogus_option",
+        "printself": "NTRFFriction [\nNTNFricLawRateAndState [\nNTNFricLawCoulomb [\nNTNFricRegRubinAmpuero [\nNTNFricRegNoRegularisation [\nNTNBaseFriction [\n"
+      },
+      {
+        "contact": "ntrf",
+        "law": "rate_and_state:n_shaped:ageing_regularized",
+        "option": "no_regularisation",
+        "printself": "NTRFFriction [\nNTNFricLawRateAndState [\nNTNFricLawCoulomb [\nNTNFricRegRubinAmpuero [\nNTNFricRegNoRegularisation [\nNTNBaseFriction [\n"
+      },
+      {
+        "contact": "ntrf",
+        "law": "rate_and_state:n_shaped:ageing_regularized",
+        "option": "rubin_ampuero",
+        "printself": "NTRFFriction [\nNTNFricLawRateAndState [\nNTNFricLawCoulomb [\nNTNFricRegRubinAmpuero [\nNTNFricRegNoRegularisation [\nNTNBaseFriction [\n"
+      },
+      {
+        "contact": "ntrf",
+        "law": "rate_and_state:n_shaped:ageing_regularized",
+        "option": "simplified_prakash_clifton",
+        "printself": "NTRFFriction [\nNTNFricLawRateAndState [\nNTNFricLawCoulomb [\nNTNFricRegSimplifiedPrakashClifton [\nNTNFricRegNoRegularisation [\nNTNBaseFriction [\n"
+      },
+      {
+        "contact": "ntrf",
+        "law": "rate_and_state:n_shaped:ageing_regularized",
+        "option": "bogus_option",
+        "printself": "NTRFFriction [\nNTNFricLawRateAndState [\nNTNFricLawCoulomb [\nNTNFricRegRubinAmpuero [\nNTNFricRegNoRegularisation [\nNTNBaseFriction [\n"
+      },
+      {
+        "contact": "ntrf",
+        "law": "rate_and_state:revised_n_shaped:ageing",
+        "option": "no_regularisation",
+        "printself": "NTRFFriction [\nNTNFricLawRateAndState [\nNTNFricLawCoulomb [\nNTNFricRegRubinAmpuero [\nNTNFricRegNoRegularisation [\nNTNBaseFriction [\n"
+      },
+      {
+        "contact": "ntrf",
+        "law": "rate_and_state:revised_n_shaped:ageing",
+        "option": "rubin_ampuero",
+        "printself": "NTRFFriction [\nNTNFricLawRateAndState [\nNTNFricLawCoulomb [\nNTNFricRegRubinAmpuero [\nNTNFricRegNoRegularisation [\nNTNBaseFriction [\n"
+      },
+      {
+        "contact": "ntrf",
+        "law": "rate_and_state:revised_n_shaped:ageing",
+        "option": "simplified_prakash_clifton",
+        "printself": "NTRFFriction [\nNTNFricLawRateAndState [\nNTNFricLawCoulomb [\nNTNFricRegSimplifiedPrakashClifton [\nNTNFricRegNoRegularisation [\nNTNBaseFriction [\n"
+      },
+      {
+        "contact": "ntrf",
+        "law": "rate_and_state:revised_n_shaped:ageing",
+        "option": "bogus_option",
+        "printself": "NTRFFriction [\nNTNFricLawRateAndState [\nNTNFricLawCoulomb [\nNTNFricRegRubinAmpuero [\nNTNFricRegNoRegularisation [\nNTNBaseFriction [\n"
+      },
+      {
+        "contact": "ntrf",
+        "law": "rate_and_state:revised_n_shaped:slip",
+        "option": "no_regularisation",
+        "printself": "NTRFFriction [\nNTNFricLawRateAndState [\nNTNFricLawCoulomb [\nNTNFricRegRubinAmpuero [\nNTNFricRegNoRegularisation [\nNTNBaseFriction [\n"
+      },
+      {
+        "contact": "ntrf",
+        "law": "rate_and_state:revised_n_shaped:slip",
+        "option": "rubin_ampuero",
+        "printself": "NTRFFriction [\nNTNFricLawRateAndState [\nNTNFricLawCoulomb [\nNTNFricRegRubinAmpuero [\nNTNFricRegNoRegularisation [\nNTNBaseFriction [\n"
+      },
+      {
+        "contact": "ntrf",
+        "law": "rate_and_state:revised_n_shaped:slip",
+        "option": "simplified_prakash_clifton",
+        "printself": "NTRFFriction [\nNTNFricLawRateAndState [\nNTNFricLawCoulomb [\nNTNFricRegSimplifiedPrakashClifton [\nNTNFricRegNoRegularisation [\nNTNBaseFriction [\n"
+      },
+      {
+        "contact": "ntrf",
+        "law": "rate_and_state:revised_n_shaped:slip",
+        "option": "bogus_option",
+        "printself": "NTRFFriction [\nNTNFricLawRateAndState [\nNTNFricLawCoulomb [\nNTNFricRegRubinAmpuero [\nNTNFricRegNoRegularisation [\nNTNBaseFriction [\n"
+      },
+      {
+        "contact": "ntrf",
+        "law": "rate_and_state:revised_n_shaped:ageing_regularized",
+        "option": "no_regularisation",
+        "printself": "NTRFFriction [\nNTNFricLawRateAndState [\nNTNFricLawCoulomb [\nNTNFricRegRubinAmpuero [\nNTNFricRegNoRegularisation [\nNTNBaseFriction [\n"
+      },
+      {
+        "contact": "ntrf",
+        "law": "rate_and_state:revised_n_shaped:ageing_regularized",
+        "option": "rubin_ampuero",
+        "printself": "NTRFFriction [\nNTNFricLawRateAndState [\nNTNFricLawCoulomb [\nNTNFricRegRubinAmpuero [\nNTNFricRegNoRegularisation [\nNTNBaseFriction [\n"
+      },
+      {
+        "contact": "ntrf",
+        "law": "rate_and_state:revised_n_shaped:ageing_regularized",
+        "option": "simplified_prakash_clifton",
+        "printself": "NTRFFriction [\nNTNFricLawRateAndState [\nNTNFricLawCoulomb [\nNTNFricRegSimplifiedPrakashClifton [\nNTNFricRegNoRegularisation [\nNTNBaseFriction [\n"
+      },
+      {
+        "contact": "ntrf",
+        "law": "rate_and_state:revised_n_shaped:ageing_regularized",
+        "option": "bogus_option",
+        "printself": "NTRFFriction [\nNTNFricLawRateAndState [\nNTNFricLawCoulomb [\nNTNFricRegRubinAmpuero [\nNTNFricRegNoRegularisation [\nNTNBaseFriction [\n"
+      },
+      {
+        "contact": "ntrf",
+        "law": "rate_and_state_n_shaped_ageing",
+        "option": "no_regularisation",
+        "printself": "NTRFFriction [\nNTNFricLawRateAndState [\nNTNFricLawCoulomb [\nNTNFricRegRubinAmpuero [\nNTNFricRegNoRegularisation [\nNTNBaseFriction [\n"
+      },
+      {
+        "contact": "ntrf",
+        "law": "rate_and_state_n_shaped_ageing",
+        "option": "rubin_ampuero",
+        "printself": "NTRFFriction [\nNTNFricLawRateAndState [\nNTNFricLawCoulomb [\nNTNFricRegRubinAmpuero [\nNTNFricRegNoRegularisation [\nNTNBaseFriction [\n"
+      },
+      {
+        "contact": "ntrf",
+        "law": "rate_and_state_n_shaped_ageing",
+        "option": "simplified_prakash_clifton",
+        "printself": "NTRFFriction [\nNTNFricLawRateAndState [\nNTNFricLawCoulomb [\nNTNFricRegSimplifiedPrakashClifton [\nNTNFricRegNoRegularisation [\nNTNBaseFriction [\n"
+      },
+      {
+        "contact": "ntrf",
+        "law": "rate_and_state_n_shaped_ageing",
+        "option": "bogus_option",
+        "printself": "NTRFFriction [\nNTNFricLawRateAndState [\nNTNFricLawCoulomb [\nNTNFricRegRubinAmpuero [\nNTNFricRegNoRegularisation [\nNTNBaseFriction [\n"
+      },
+      {
+        "contact": "ntrf",
+        "law": "rate_and_state_n_shaped_slip",
+        "option": "no_regularisation",
+        "printself": "NTRFFriction [\nNTNFricLawRateAndState [\nNTNFricLawCoulomb [\nNTNFricRegRubinAmpuero [\nNTNFricRegNoRegularisation [\nNTNBaseFriction [\n"
+      },
+      {
+        "contact": "ntrf",
+        "law": "rate_and_state_n_shaped_slip",
+        "option": "rubin_ampuero",
+        "printself": "NTRFFriction [\nNTNFricLawRateAndState [\nNTNFricLawCoulomb [\nNTNFricRegRubinAmpuero [\nNTNFricRegNoRegularisation [\nNTNBaseFriction [\n"
+      },
+      {
+        "contact": "ntrf",
+        "law": "rate_and_state_n_shaped_slip",
+        "option": "simplified_prakash_clifton",
+        "printself": "NTRFFriction [\nNTNFricLawRateAndState [\nNTNFricLawCoulomb [\nNTNFricRegSimplifiedPrakashClifton [\nNTNFricRegNoRegularisation [\nNTNBaseFriction [\n"
+      },
+      {
+        "contact": "ntrf",
+        "law": "rate_and_state_n_shaped_slip",
+        "option": "bogus_option",
+        "printself": "NTRFFriction [\nNTNFricLawRateAndState [\nNTNFricLawCoulomb [\nNTNFricRegRubinAmpuero [\nNTNFricRegNoRegularisation [\nNTNBaseFriction [\n"
+      },
+      {
+        "contact": "ntrf",
+        "law": "rate_and_state_n_shaped_ageing_regularized",
+        "option": "no_regularisation",
+        "printself": "NTRFFriction [\nNTNFricLawRateAndState [\nNTNFricLawCoulomb [\nNTNFricRegRubinAmpuero [\nNTNFricRegNoRegularisation [\nNTNBaseFriction [\n"
+      },
+      {
+        "contact": "ntrf",
+        "law": "rate_and_state_n_shaped_ageing_regularized",
+        "option": "rubin_ampuero",
+        "printself": "NTRFFriction [\nNTNFricLawRateAndState [\nNTNFricLawCoulomb [\nNTNFricRegRubinAmpuero [\nNTNFricRegNoRegularisation [\nNTNBaseFriction [\n"
+      },
+      {
+        "contact": "ntrf",
+        "law": "rate_and_state_n_shaped_ageing_regularized",
+        "option": "simplified_prakash_clifton",
+        "printself": "NTRFFriction [\nNTNFricLawRateAndState [\nNTNFricLawCoulomb [\nNTNFricRegSimplifiedPrakashClifton [\nNTNFricRegNoRegularisation [\nNTNBaseFriction [\n"
+      },
+      {
+        "contact": "ntrf",
+        "law": "rate_and_state_n_shaped_ageing_regularized",
+        "option": "bogus_option",
+        "printself": "NTRFFriction [\nNTNFricLawRateAndState [\nNTNFricLawCoulomb [\nNTNFricRegRubinAmpuero [\nNTNFricRegNoRegularisation [\nNTNBaseFriction [\n"
+      },
+      {
+        "contact": "ntrf",
+        "law": "rate_and_state:flashheating",
+        "option": "no_regularisation",
+        "printself": "NTRFFriction [\nNTNFricLawRateAndState [\nNTNFricLawCoulomb [\nNTNFricRegRubinAmpuero [\nNTNFricRegNoRegularisation [\nNTNBaseFriction [\n"
+      },
+      {
+        "contact": "ntrf",
+        "law": "rate_and_state:flashheating",
+        "option": "rubin_ampuero",
+        "printself": "NTRFFriction [\nNTNFricLawRateAndState [\nNTNFricLawCoulomb [\nNTNFricRegRubinAmpuero [\nNTNFricRegNoRegularisation [\nNTNBaseFriction [\n"
+      },
+      {
+        "contact": "ntrf",
+        "law": "rate_and_state:flashheating",
+        "option": "simplified_prakash_clifton",
+        "printself": "NTRFFriction [\nNTNFricLawRateAndState [\nNTNFricLawCoulomb [\nNTNFricRegSimplifiedPrakashClifton [\nNTNFricRegNoRegularisation [\nNTNBaseFriction [\n"
+      },
+      {
+        "contact": "ntrf",
+        "law": "rate_and_state:flashheating",
+        "option": "bogus_option",
+        "printself": "NTRFFriction [\nNTNFricLawRateAndState [\nNTNFricLawCoulomb [\nNTNFricRegRubinAmpuero [\nNTNFricRegNoRegularisation [\nNTNBaseFriction [\n"
+      },
+      {
+        "contact": "ntrf",
+        "law": "coulomb",
+        "option": "no_regularisation",
+        "printself": "NTRFFriction [\nNTNFricLawCoulomb [\nNTNFricRegRubinAmpuero [\nNTNFricRegNoRegularisation [\nNTNBaseFriction [\n"
+      },
+      {
+        "contact": "ntrf",
+        "law": "coulomb",
+        "option": "rubin_ampuero",
+        "printself": "NTRFFriction [\nNTNFricLawCoulomb [\nNTNFricRegRubinAmpuero [\nNTNFricRegNoRegularisation [\nNTNBaseFriction [\n"
+      },
+      {
+        "contact": "ntrf",
+        "law": "coulomb",
+        "option": "simplified_prakash_clifton",
+        "printself": "NTRFFriction [\nNTNFricLawCoulomb [\nNTNFricRegSimplifiedPrakashClifton [\nNTNFricRegNoRegularisation [\nNTNBaseFriction [\n"
+      },
+      {
+        "contact": "ntrf",
+        "law": "coulomb",
+        "option": "bogus_option",
+        "printself": "NTRFFriction [\nNTNFricLawCoulomb [\nNTNFricRegRubinAmpuero [\nNTNFricRegNoRegularisation [\nNTNBaseFriction [\n"
+      },
+      {
+        "contact": "ntrf",
+        "law": "linear_slip_weakening",
+        "option": "no_regularisation",
+        "printself": "NTRFFriction [\nNTNFricLawLinearSlipWeakening [\nNTNFricLawCoulomb [\nNTNFricRegRubinAmpuero [\nNTNFricRegNoRegularisation [\nNTNBaseFriction [\n"
+      },
+      {
+        "contact": "ntrf",
+        "law": "linear_slip_weakening",
+        "option": "rubin_ampuero",
+        "printself": "NTRFFriction [\nNTNFricLawLinearSlipWeakening [\nNTNFricLawCoulomb [\nNTNFricRegRubinAmpuero [\nNTNFricRegNoRegularisation [\nNTNBaseFriction [\n"
+      },
+      {
+        "contact": "ntrf",
+        "law": "linear_slip_weakening",
+        "option": "simplified_prakash_clifton",
+        "printself": "NTRFFriction [\nNTNFricLawLinearSlipWeakening [\nNTNFricLawCoulomb [\nNTNFricRegSimplifiedPrakashClifton [\nNTNFricRegNoRegularisation [\nNTNBaseFriction [\n"
+      },
+      {
+        "contact": "ntrf",
+        "law": "linear_slip_weakening",
+        "option": "bogus_option",
+        "printself": "NTRFFriction [\nNTNFricLawLinearSlipWeakening [\nNTNFricLawCoulomb [\nNTNFricRegRubinAmpuero [\nNTNFricRegNoRegularisation [\nNTNBaseFriction [\n"
+      },
+      {
+        "contact": "ntrf",
+        "law": "linear_slip_weakening_no_healing",
+        "option": "no_regularisation",
+        "printself": "NTRFFriction [\nNTNFricLawLinearSlipWeakeningNoHealing [\nNTNFricLawLinearSlipWeakening [\nNTNFricLawCoulomb [\nNTNFricRegRubinAmpuero [\nNTNFricRegNoRegularisation [\nNTNBaseFriction [\n"
+      },
+      {
+        "contact": "ntrf",
+        "law": "linear_slip_weakening_no_healing",
+        "option": "rubin_ampuero",
+        "printself": "NTRFFriction [\nNTNFricLawLinearSlipWeakeningNoHealing [\nNTNFricLawLinearSlipWeakening [\nNTNFricLawCoulomb [\nNTNFricRegRubinAmpuero [\nNTNFricRegNoRegularisation [\nNTNBaseFriction [\n"
+      },
+      {
+        "contact": "ntrf",
+        "law": "linear_slip_weakening_no_healing",
+        "option": "simplified_prakash_clifton",
+        "printself": "NTRFFriction [\nNTNFricLawLinearSlipWeakeningNoHealing [\nNTNFricLawLinearSlipWeakening [\nNTNFricLawCoulomb [\nNTNFricRegSimplifiedPrakashClifton [\nNTNFricRegNoRegularisation [\nNTNBaseFriction [\n"
+      },
+      {
+        "contact": "ntrf",
+        "law": "linear_slip_weakening_no_healing",
+        "option": "bogus_option",
+        "printself": "NTRFFriction [\nNTNFricLawLinearSlipWeakeningNoHealing [\nNTNFricLawLinearSlipWeakening [\nNTNFricLawCoulomb [\nNTNFricRegRubinAmpuero [\nNTNFricRegNoRegularisation [\nNTNBaseFriction [\n"
+      },
+      {
+        "contact": "ntrf",
+        "law": "linear_cohesive",
+        "option": "no_regularisation",
+        "printself": "NTRFFriction [\nNTNFricLawLinearCohesive [\nNTNFricRegRubinAmpuero [\nNTNFricRegNoRegularisation [\nNTNBaseFriction [\n"
+      },
+      {
+        "contact": "ntrf",
+        "law": "linear_cohesive",
+        "option": "rubin_ampuero",
+        "printself": "NTRFFriction [\nNTNFricLawLinearCohesive [\nNTNFricRegRubinAmpuero [\nNTNFricRegNoRegularisation [\nNTNBaseFriction [\n"
+      },
+      {
+        "contact": "ntrf",
+        "law": "linear_cohesive",
+        "option": "simplified_prakash_clifton",
+        "printself": "NTRFFriction [\nNTNFricLawLinearCohesive [\nNTNFricRegSimplifiedPrakashClifton [\nNTNFricRegNoRegularisation [\nNTNBaseFriction [\n"
+      },
+      {
+        "contact": "ntrf",
+        "law": "linear_cohesive",
+        "option": "bogus_option",
+        "printself": "NTRFFriction [\nNTNFricLawLinearCohesive [\nNTNFricRegRubinAmpuero [\nNTNFricRegNoRegularisation [\nNTNBaseFriction [\n"
+      }
+    ]
+  },
+  "storage": {
+    "mode": "committed",
+    "bytes": 0
+  },
+  "quantities": [],
+  "tags": [
+    "model",
+    "ntn_contact"
+  ]
+}

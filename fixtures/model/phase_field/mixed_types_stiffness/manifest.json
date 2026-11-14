@@ -1,0 +1,1087 @@
+{
+  "format_version": 1,
+  "case_id": "model/phase_field/mixed_types_stiffness",
+  "description": "two quadratic phase fields on two triangles (law tri) and one quadrangle (law quad): K and f_int after assembleInternalForces + assembleStiffnessMatrix (UD-378: upstream stops at the empty triangle filter of law quad), no solve",
+  "status": "golden",
+  "generator": {
+    "probe": "phase_field_probe",
+    "probe_version": "1",
+    "command": "oracle/probes/phase_field/generate.sh "
+  },
+  "reference": {
+    "sha": "35a851780d0b9471d258ed53a003ae98aaa95ea0",
+    "describe": "v5.0.7-post1-554-g35a851780",
+    "patches": [
+      "modified:cmake/AkantuTestsMacros.cmake sha256=c280165a84912eab4bcc081b9eaaaa06aafdd83d4f48d982e11b0859abf9672f (reference sha256=36290de2ec8b111028138fe82029efa16501512241a5bc264fa30ff3e3239b9e)"
+    ]
+  },
+  "build": {
+  "config": "strict",
+  "compiler": "g++ (Debian 14.2.0-19) 14.2.0",
+  "cxx_flags": "-ffp-contract=off -DEIGEN_DONT_VECTORIZE -O2 -g -DNDEBUG -g3 -ggdb3 -flarge-source-files -std=c++20 -flto=auto -fno-fat-lto-objects -fPIC -frounding-math (actual flags of src/model/solid_mechanics/solid_mechanics_model.cc; warnings and non-FP -D defines omitted)",
+  "build_type": "RelWithDebInfo",
+  "arch": "x86_64",
+  "os": "Debian GNU/Linux 13 (trixie)",
+  "libraries": {
+    "eigen3": "3.4.0-5",
+    "boost": "1.83.0.2+b2",
+    "openmpi": "5.0.7-1",
+    "mumps": "5.7.3-3+b1",
+    "petsc": "3.22.5+dfsg1-2",
+    "scotch": "7.0.7-1",
+    "openblas": "0.3.29+ds-3",
+    "scalapack": "2.2.2-1",
+    "hdf5": "1.14.5+repack-3",
+    "gmsh": "4.13.1+ds1-6",
+    "pybind11": "2.13.6-2",
+    "numpy": "1:2.2.4+ds-1",
+    "scipy": "1.15.3-1",
+    "gcc": "4:14.2.0-1",
+    "gfortran": "4:14.2.0-1",
+    "oracle_image": "sha256:45122c213e9fa194b6b58dcc31fc23b5fa4f7c0f64d0a452e40ae072c51c5cdb",
+    "oracle_build_scripts": "e168f393291494c869fa759b3ad9ae4a371a0369",
+    "oracle_install_reference_sha": "35a851780d0b9471d258ed53a003ae98aaa95ea0",
+    "oracle_install_image": "sha256:45122c213e9fa194b6b58dcc31fc23b5fa4f7c0f64d0a452e40ae072c51c5cdb",
+    "sha256:libakantu.so.5.0.7": "5491d902b6f363e11b47d2dc1d0aff0597374e8ff785bbfe2bff534f38509e81",
+    "probe_tree_sha256": "a646486bb2d4be987d89f970f4cc93e4492f3fb580304fb00f4d9620802d0927",
+    "probe_sources_commit": "4bb35dfc273d8b15dc08e42e257b4be749df0288",
+    "cmake_cxx_flags": "-ffp-contract=off -DEIGEN_DONT_VECTORIZE -O2 -g -DNDEBUG -g3 -ggdb3 -flarge-source-files",
+    "probe": "phase_field_probe"
+  },
+  "probe_compile_command": "/usr/bin/c++ '-DAKANTU_PROBE_BUILD_TYPE=\"RelWithDebInfo\"' '-DAKANTU_PROBE_CONFIG=\"strict\"' '-DAKANTU_PROBE_CXX_FLAGS=\"-ffp-contract=off -DEIGEN_DONT_VECTORIZE  -O2 -g -DNDEBUG\"' -DBOOST_GRAPH_DYN_LINK -DBOOST_GRAPH_NO_LIB -DBOOST_REGEX_DYN_LINK -DBOOST_REGEX_NO_LIB -DCGAL_USE_GMPXX=1 -I/probes/phase_field/../include -isystem /build/install-strict/include/akantu -isystem /opt/CGAL-5.6.2/include -isystem /usr/lib/x86_64-linux-gnu/openmpi/include -isystem /usr/lib/x86_64-linux-gnu/openmpi/include/openmpi -isystem /usr/lib/petscdir/petsc3.22/x86_64-linux-gnu-real/include -isystem /usr/include/scotch -isystem /build/install-strict/include/akantu_iterators -isystem /usr/include/eigen3 -isystem /build/install-strict/include/iohelper -O2 -g -DNDEBUG -std=gnu++20 -ffp-contract=off -DEIGEN_DONT_VECTORIZE -Wall -Wextra -pedantic -Wno-array-bounds -Wno-use-after-free -Wno-stringop-overread -DOMPI_SKIP_MPICXX -Wno-literal-suffix -frounding-math -o CMakeFiles/phase_field_probe.dir/phase_field_probe.cc.o -c /probes/phase_field/phase_field_probe.cc",
+  "probe_cxx_flags": "-DAKANTU_PROBE_BUILD_TYPE=\"RelWithDebInfo\" -DAKANTU_PROBE_CONFIG=\"strict\" -DAKANTU_PROBE_CXX_FLAGS=\"-ffp-contract=off -DEIGEN_DONT_VECTORIZE  -O2 -g -DNDEBUG\" -DBOOST_GRAPH_DYN_LINK -DBOOST_GRAPH_NO_LIB -DBOOST_REGEX_DYN_LINK -DBOOST_REGEX_NO_LIB -DCGAL_USE_GMPXX=1 -O2 -g -DNDEBUG -std=gnu++20 -ffp-contract=off -DEIGEN_DONT_VECTORIZE -Wall -Wextra -pedantic -Wno-array-bounds -Wno-use-after-free -Wno-stringop-overread -DOMPI_SKIP_MPICXX -Wno-literal-suffix -frounding-math"
+},
+  "created": "2026-11-11T02:47:16Z",
+  "inputs": [
+    {
+      "role": "mesh",
+      "path": "inputs/mixed_types.msh",
+      "source": "probe:2 triangles + 1 quadrangle",
+      "sha256": "1d84d3ab4ace67e20cfb815f31a04447c46df0a2e53cc5f18c5df3148e7c5e75"
+    },
+    {
+      "role": "material",
+      "path": "inputs/mixed_types.dat",
+      "source": "probe:material mixed_types",
+      "sha256": "0716fcd7f6e5459de1f70f2ff5be2139e34e10b106e39a9b495296fc388eb8ff"
+    }
+  ],
+  "parameters": {
+    "spatial_dimension": 2,
+    "selector_physical_names": true,
+    "seed": 1,
+    "steps": 1,
+    "save_previous_state": true,
+    "newton_max_iterations": 100,
+    "newton_threshold": 1e-10,
+    "newton_convergence_type": "residual",
+    "sparse_solver_type": "eigen",
+    "solve": false,
+    "nb_phase_fields": 2,
+    "bc_group": "",
+    "bc_value": 0.0,
+    "full_internals": true,
+    "K/symmetric": true,
+    "K/size": 6,
+    "energy_groups": [
+      "quad",
+      "tri"
+    ]
+  },
+  "storage": {
+    "mode": "committed",
+    "bytes": 9558
+  },
+  "quantities": [
+    {
+      "name": "step/0/strain/0/_triangle_3",
+      "file": "data/step__0__strain__0___triangle_3.npy",
+      "dtype": "f64",
+      "shape": [
+        2,
+        4
+      ],
+      "axes": [
+        "entry",
+        "component"
+      ],
+      "layout": "table",
+      "sha256": "c25bbacb3855bbde8e432702162c479b34a0143a8361eb5ad654996cbd337fe1",
+      "description": "strain written into the law before the step (law-local order)"
+    },
+    {
+      "name": "step/0/strain/1/_quadrangle_4",
+      "file": "data/step__0__strain__1___quadrangle_4.npy",
+      "dtype": "f64",
+      "shape": [
+        4,
+        4
+      ],
+      "axes": [
+        "entry",
+        "component"
+      ],
+      "layout": "table",
+      "sha256": "4e7563b837242fbe6f48401c680d05597ffb9e5b46749232bc5ead408363898d",
+      "description": "strain written into the law before the step (law-local order)"
+    },
+    {
+      "name": "step/0/internal_force",
+      "file": "data/step__0__internal_force.npy",
+      "dtype": "f64",
+      "shape": [
+        6,
+        1
+      ],
+      "axes": [
+        "entry",
+        "component"
+      ],
+      "layout": "table",
+      "sha256": "c4a0a8cd00dd4e840d1052d1335d3fc4ac9e9aa782a3f27aba80dc71c0e5d814",
+      "description": "internal force after assembleInternalForces"
+    },
+    {
+      "name": "energy/dissipated",
+      "file": "data/energy__dissipated.npy",
+      "dtype": "f64",
+      "shape": [
+        1
+      ],
+      "axes": [
+        "entry"
+      ],
+      "layout": "table",
+      "sha256": "02fcf6a2d17f32c6d543e461ca7153bb33744f77743d69e715d9cfbce788ca0c",
+      "description": "getEnergy(\"dissipated\") after each step (solveStep, or the assembly)"
+    },
+    {
+      "name": "blocked_dofs",
+      "file": "data/blocked_dofs.npy",
+      "dtype": "bool",
+      "shape": [
+        6,
+        1
+      ],
+      "axes": [
+        "entry",
+        "component"
+      ],
+      "layout": "table",
+      "sha256": "a80f2815139acabd28c4089af6db0432bc11f0852541f9ce1f327f9a0e646661",
+      "description": "blocked flags after the boundary conditions"
+    },
+    {
+      "name": "law/0/filter/_triangle_3",
+      "file": "data/law__0__filter___triangle_3.npy",
+      "dtype": "i64",
+      "shape": [
+        2
+      ],
+      "axes": [
+        "entry"
+      ],
+      "layout": "table",
+      "sha256": "edf57b3e7cc4d837db7a3b400e84ffa2cc07b6adc347edef9feabbc11c5183cb",
+      "description": "element filter"
+    },
+    {
+      "name": "law/0/g_c/_triangle_3",
+      "file": "data/law__0__g_c___triangle_3.npy",
+      "dtype": "f64",
+      "shape": [
+        2,
+        1
+      ],
+      "axes": [
+        "entry",
+        "component"
+      ],
+      "layout": "table",
+      "sha256": "8bbd2415fa68ec6ec7d0cab04ef61eb3a5f24c9687ebacc98a87c81d2878d969",
+      "description": "internal g_c (law-local order)"
+    },
+    {
+      "name": "law/0/damage/_triangle_3",
+      "file": "data/law__0__damage___triangle_3.npy",
+      "dtype": "f64",
+      "shape": [
+        2,
+        1
+      ],
+      "axes": [
+        "entry",
+        "component"
+      ],
+      "layout": "table",
+      "sha256": "8715558a765cefee32f7de88f3c2a4a9874705d156cb3324c8dc76c81b0b01f7",
+      "description": "internal damage (law-local order)"
+    },
+    {
+      "name": "law/0/previous_damage/_triangle_3",
+      "file": "data/law__0__previous_damage___triangle_3.npy",
+      "dtype": "f64",
+      "shape": [
+        2,
+        1
+      ],
+      "axes": [
+        "entry",
+        "component"
+      ],
+      "layout": "table",
+      "sha256": "8715558a765cefee32f7de88f3c2a4a9874705d156cb3324c8dc76c81b0b01f7",
+      "description": "history of damage"
+    },
+    {
+      "name": "law/0/grad_d/_triangle_3",
+      "file": "data/law__0__grad_d___triangle_3.npy",
+      "dtype": "f64",
+      "shape": [
+        2,
+        2
+      ],
+      "axes": [
+        "entry",
+        "component"
+      ],
+      "layout": "table",
+      "sha256": "7f23df45f96f5c4c013a1fd754eb49fe33ff5d113c6464ad649a1e15a79f0ab5",
+      "description": "internal grad_d (law-local order)"
+    },
+    {
+      "name": "law/0/phi/_triangle_3",
+      "file": "data/law__0__phi___triangle_3.npy",
+      "dtype": "f64",
+      "shape": [
+        2,
+        1
+      ],
+      "axes": [
+        "entry",
+        "component"
+      ],
+      "layout": "table",
+      "sha256": "1bea42ddf2fee8df4a2c1034b0f3c9c1f85485e35aad5093885feaed142e27a1",
+      "description": "internal phi (law-local order)"
+    },
+    {
+      "name": "law/0/previous_phi/_triangle_3",
+      "file": "data/law__0__previous_phi___triangle_3.npy",
+      "dtype": "f64",
+      "shape": [
+        2,
+        1
+      ],
+      "axes": [
+        "entry",
+        "component"
+      ],
+      "layout": "table",
+      "sha256": "8715558a765cefee32f7de88f3c2a4a9874705d156cb3324c8dc76c81b0b01f7",
+      "description": "history of phi"
+    },
+    {
+      "name": "law/0/strain/_triangle_3",
+      "file": "data/law__0__strain___triangle_3.npy",
+      "dtype": "f64",
+      "shape": [
+        2,
+        4
+      ],
+      "axes": [
+        "entry",
+        "component"
+      ],
+      "layout": "table",
+      "sha256": "c25bbacb3855bbde8e432702162c479b34a0143a8361eb5ad654996cbd337fe1",
+      "description": "internal strain (law-local order)"
+    },
+    {
+      "name": "law/0/driving_force/_triangle_3",
+      "file": "data/law__0__driving_force___triangle_3.npy",
+      "dtype": "f64",
+      "shape": [
+        2,
+        1
+      ],
+      "axes": [
+        "entry",
+        "component"
+      ],
+      "layout": "table",
+      "sha256": "c2b8308c022a75e9989a55b145a45a0bf9f40df7cf9034b0779adafd69bf386e",
+      "description": "internal driving_force (law-local order)"
+    },
+    {
+      "name": "law/0/driving_energy/_triangle_3",
+      "file": "data/law__0__driving_energy___triangle_3.npy",
+      "dtype": "f64",
+      "shape": [
+        2,
+        2
+      ],
+      "axes": [
+        "entry",
+        "component"
+      ],
+      "layout": "table",
+      "sha256": "7f23df45f96f5c4c013a1fd754eb49fe33ff5d113c6464ad649a1e15a79f0ab5",
+      "description": "internal driving_energy (law-local order)"
+    },
+    {
+      "name": "law/0/damage_energy/_triangle_3",
+      "file": "data/law__0__damage_energy___triangle_3.npy",
+      "dtype": "f64",
+      "shape": [
+        2,
+        4
+      ],
+      "axes": [
+        "entry",
+        "component"
+      ],
+      "layout": "table",
+      "sha256": "8a3d7a976f2c8243bf9989c402e5f0c5ce5c22b49dd43b4a86bfdddd7f88624f",
+      "description": "internal damage_energy (law-local order)"
+    },
+    {
+      "name": "law/0/damage_energy_density/_triangle_3",
+      "file": "data/law__0__damage_energy_density___triangle_3.npy",
+      "dtype": "f64",
+      "shape": [
+        2,
+        1
+      ],
+      "axes": [
+        "entry",
+        "component"
+      ],
+      "layout": "table",
+      "sha256": "9803e49877cd97b4ba2a5ead4932e6f1afcc69c7db6b2337aba1ca55ea8cd369",
+      "description": "internal damage_energy_density (law-local order)"
+    },
+    {
+      "name": "law/0/dissipated_energy/_triangle_3",
+      "file": "data/law__0__dissipated_energy___triangle_3.npy",
+      "dtype": "f64",
+      "shape": [
+        2,
+        1
+      ],
+      "axes": [
+        "entry",
+        "component"
+      ],
+      "layout": "table",
+      "sha256": "8715558a765cefee32f7de88f3c2a4a9874705d156cb3324c8dc76c81b0b01f7",
+      "description": "internal dissipated_energy (law-local order)"
+    },
+    {
+      "name": "law/0/filter/_quadrangle_4",
+      "file": "data/law__0__filter___quadrangle_4.npy",
+      "dtype": "i64",
+      "shape": [
+        0
+      ],
+      "axes": [
+        "entry"
+      ],
+      "layout": "table",
+      "sha256": "e734dac55ea9fbbe782af2d8c02c3c5992131906228afb2aaaf137d6f3ed74db",
+      "description": "element filter"
+    },
+    {
+      "name": "law/0/g_c/_quadrangle_4",
+      "file": "data/law__0__g_c___quadrangle_4.npy",
+      "dtype": "f64",
+      "shape": [
+        0,
+        1
+      ],
+      "axes": [
+        "entry",
+        "component"
+      ],
+      "layout": "table",
+      "sha256": "aa03397bf977ff4f544e8768afd91f3f4b876dc9732a7b9550ca82f5639b5ef4",
+      "description": "internal g_c (law-local order)"
+    },
+    {
+      "name": "law/0/damage/_quadrangle_4",
+      "file": "data/law__0__damage___quadrangle_4.npy",
+      "dtype": "f64",
+      "shape": [
+        0,
+        1
+      ],
+      "axes": [
+        "entry",
+        "component"
+      ],
+      "layout": "table",
+      "sha256": "aa03397bf977ff4f544e8768afd91f3f4b876dc9732a7b9550ca82f5639b5ef4",
+      "description": "internal damage (law-local order)"
+    },
+    {
+      "name": "law/0/previous_damage/_quadrangle_4",
+      "file": "data/law__0__previous_damage___quadrangle_4.npy",
+      "dtype": "f64",
+      "shape": [
+        0,
+        1
+      ],
+      "axes": [
+        "entry",
+        "component"
+      ],
+      "layout": "table",
+      "sha256": "aa03397bf977ff4f544e8768afd91f3f4b876dc9732a7b9550ca82f5639b5ef4",
+      "description": "history of damage"
+    },
+    {
+      "name": "law/0/grad_d/_quadrangle_4",
+      "file": "data/law__0__grad_d___quadrangle_4.npy",
+      "dtype": "f64",
+      "shape": [
+        0,
+        2
+      ],
+      "axes": [
+        "entry",
+        "component"
+      ],
+      "layout": "table",
+      "sha256": "8465b982d07844d91218a2129afe27b20c2809a2de8727045d12fe515ef5c7e9",
+      "description": "internal grad_d (law-local order)"
+    },
+    {
+      "name": "law/0/phi/_quadrangle_4",
+      "file": "data/law__0__phi___quadrangle_4.npy",
+      "dtype": "f64",
+      "shape": [
+        0,
+        1
+      ],
+      "axes": [
+        "entry",
+        "component"
+      ],
+      "layout": "table",
+      "sha256": "aa03397bf977ff4f544e8768afd91f3f4b876dc9732a7b9550ca82f5639b5ef4",
+      "description": "internal phi (law-local order)"
+    },
+    {
+      "name": "law/0/previous_phi/_quadrangle_4",
+      "file": "data/law__0__previous_phi___quadrangle_4.npy",
+      "dtype": "f64",
+      "shape": [
+        0,
+        1
+      ],
+      "axes": [
+        "entry",
+        "component"
+      ],
+      "layout": "table",
+      "sha256": "aa03397bf977ff4f544e8768afd91f3f4b876dc9732a7b9550ca82f5639b5ef4",
+      "description": "history of phi"
+    },
+    {
+      "name": "law/0/strain/_quadrangle_4",
+      "file": "data/law__0__strain___quadrangle_4.npy",
+      "dtype": "f64",
+      "shape": [
+        0,
+        4
+      ],
+      "axes": [
+        "entry",
+        "component"
+      ],
+      "layout": "table",
+      "sha256": "8825ff7dd3621950d9d249e0725e93ab26e2904d6d9eff4a45bd0630772b2c67",
+      "description": "internal strain (law-local order)"
+    },
+    {
+      "name": "law/0/driving_force/_quadrangle_4",
+      "file": "data/law__0__driving_force___quadrangle_4.npy",
+      "dtype": "f64",
+      "shape": [
+        0,
+        1
+      ],
+      "axes": [
+        "entry",
+        "component"
+      ],
+      "layout": "table",
+      "sha256": "aa03397bf977ff4f544e8768afd91f3f4b876dc9732a7b9550ca82f5639b5ef4",
+      "description": "internal driving_force (law-local order)"
+    },
+    {
+      "name": "law/0/driving_energy/_quadrangle_4",
+      "file": "data/law__0__driving_energy___quadrangle_4.npy",
+      "dtype": "f64",
+      "shape": [
+        0,
+        2
+      ],
+      "axes": [
+        "entry",
+        "component"
+      ],
+      "layout": "table",
+      "sha256": "8465b982d07844d91218a2129afe27b20c2809a2de8727045d12fe515ef5c7e9",
+      "description": "internal driving_energy (law-local order)"
+    },
+    {
+      "name": "law/0/damage_energy/_quadrangle_4",
+      "file": "data/law__0__damage_energy___quadrangle_4.npy",
+      "dtype": "f64",
+      "shape": [
+        0,
+        4
+      ],
+      "axes": [
+        "entry",
+        "component"
+      ],
+      "layout": "table",
+      "sha256": "8825ff7dd3621950d9d249e0725e93ab26e2904d6d9eff4a45bd0630772b2c67",
+      "description": "internal damage_energy (law-local order)"
+    },
+    {
+      "name": "law/0/damage_energy_density/_quadrangle_4",
+      "file": "data/law__0__damage_energy_density___quadrangle_4.npy",
+      "dtype": "f64",
+      "shape": [
+        0,
+        1
+      ],
+      "axes": [
+        "entry",
+        "component"
+      ],
+      "layout": "table",
+      "sha256": "aa03397bf977ff4f544e8768afd91f3f4b876dc9732a7b9550ca82f5639b5ef4",
+      "description": "internal damage_energy_density (law-local order)"
+    },
+    {
+      "name": "law/0/dissipated_energy/_quadrangle_4",
+      "file": "data/law__0__dissipated_energy___quadrangle_4.npy",
+      "dtype": "f64",
+      "shape": [
+        0,
+        1
+      ],
+      "axes": [
+        "entry",
+        "component"
+      ],
+      "layout": "table",
+      "sha256": "aa03397bf977ff4f544e8768afd91f3f4b876dc9732a7b9550ca82f5639b5ef4",
+      "description": "internal dissipated_energy (law-local order)"
+    },
+    {
+      "name": "law/1/filter/_triangle_3",
+      "file": "data/law__1__filter___triangle_3.npy",
+      "dtype": "i64",
+      "shape": [
+        0
+      ],
+      "axes": [
+        "entry"
+      ],
+      "layout": "table",
+      "sha256": "e734dac55ea9fbbe782af2d8c02c3c5992131906228afb2aaaf137d6f3ed74db",
+      "description": "element filter"
+    },
+    {
+      "name": "law/1/g_c/_triangle_3",
+      "file": "data/law__1__g_c___triangle_3.npy",
+      "dtype": "f64",
+      "shape": [
+        0,
+        1
+      ],
+      "axes": [
+        "entry",
+        "component"
+      ],
+      "layout": "table",
+      "sha256": "aa03397bf977ff4f544e8768afd91f3f4b876dc9732a7b9550ca82f5639b5ef4",
+      "description": "internal g_c (law-local order)"
+    },
+    {
+      "name": "law/1/damage/_triangle_3",
+      "file": "data/law__1__damage___triangle_3.npy",
+      "dtype": "f64",
+      "shape": [
+        0,
+        1
+      ],
+      "axes": [
+        "entry",
+        "component"
+      ],
+      "layout": "table",
+      "sha256": "aa03397bf977ff4f544e8768afd91f3f4b876dc9732a7b9550ca82f5639b5ef4",
+      "description": "internal damage (law-local order)"
+    },
+    {
+      "name": "law/1/previous_damage/_triangle_3",
+      "file": "data/law__1__previous_damage___triangle_3.npy",
+      "dtype": "f64",
+      "shape": [
+        0,
+        1
+      ],
+      "axes": [
+        "entry",
+        "component"
+      ],
+      "layout": "table",
+      "sha256": "aa03397bf977ff4f544e8768afd91f3f4b876dc9732a7b9550ca82f5639b5ef4",
+      "description": "history of damage"
+    },
+    {
+      "name": "law/1/grad_d/_triangle_3",
+      "file": "data/law__1__grad_d___triangle_3.npy",
+      "dtype": "f64",
+      "shape": [
+        0,
+        2
+      ],
+      "axes": [
+        "entry",
+        "component"
+      ],
+      "layout": "table",
+      "sha256": "8465b982d07844d91218a2129afe27b20c2809a2de8727045d12fe515ef5c7e9",
+      "description": "internal grad_d (law-local order)"
+    },
+    {
+      "name": "law/1/phi/_triangle_3",
+      "file": "data/law__1__phi___triangle_3.npy",
+      "dtype": "f64",
+      "shape": [
+        0,
+        1
+      ],
+      "axes": [
+        "entry",
+        "component"
+      ],
+      "layout": "table",
+      "sha256": "aa03397bf977ff4f544e8768afd91f3f4b876dc9732a7b9550ca82f5639b5ef4",
+      "description": "internal phi (law-local order)"
+    },
+    {
+      "name": "law/1/previous_phi/_triangle_3",
+      "file": "data/law__1__previous_phi___triangle_3.npy",
+      "dtype": "f64",
+      "shape": [
+        0,
+        1
+      ],
+      "axes": [
+        "entry",
+        "component"
+      ],
+      "layout": "table",
+      "sha256": "aa03397bf977ff4f544e8768afd91f3f4b876dc9732a7b9550ca82f5639b5ef4",
+      "description": "history of phi"
+    },
+    {
+      "name": "law/1/strain/_triangle_3",
+      "file": "data/law__1__strain___triangle_3.npy",
+      "dtype": "f64",
+      "shape": [
+        0,
+        4
+      ],
+      "axes": [
+        "entry",
+        "component"
+      ],
+      "layout": "table",
+      "sha256": "8825ff7dd3621950d9d249e0725e93ab26e2904d6d9eff4a45bd0630772b2c67",
+      "description": "internal strain (law-local order)"
+    },
+    {
+      "name": "law/1/driving_force/_triangle_3",
+      "file": "data/law__1__driving_force___triangle_3.npy",
+      "dtype": "f64",
+      "shape": [
+        0,
+        1
+      ],
+      "axes": [
+        "entry",
+        "component"
+      ],
+      "layout": "table",
+      "sha256": "aa03397bf977ff4f544e8768afd91f3f4b876dc9732a7b9550ca82f5639b5ef4",
+      "description": "internal driving_force (law-local order)"
+    },
+    {
+      "name": "law/1/driving_energy/_triangle_3",
+      "file": "data/law__1__driving_energy___triangle_3.npy",
+      "dtype": "f64",
+      "shape": [
+        0,
+        2
+      ],
+      "axes": [
+        "entry",
+        "component"
+      ],
+      "layout": "table",
+      "sha256": "8465b982d07844d91218a2129afe27b20c2809a2de8727045d12fe515ef5c7e9",
+      "description": "internal driving_energy (law-local order)"
+    },
+    {
+      "name": "law/1/damage_energy/_triangle_3",
+      "file": "data/law__1__damage_energy___triangle_3.npy",
+      "dtype": "f64",
+      "shape": [
+        0,
+        4
+      ],
+      "axes": [
+        "entry",
+        "component"
+      ],
+      "layout": "table",
+      "sha256": "8825ff7dd3621950d9d249e0725e93ab26e2904d6d9eff4a45bd0630772b2c67",
+      "description": "internal damage_energy (law-local order)"
+    },
+    {
+      "name": "law/1/damage_energy_density/_triangle_3",
+      "file": "data/law__1__damage_energy_density___triangle_3.npy",
+      "dtype": "f64",
+      "shape": [
+        0,
+        1
+      ],
+      "axes": [
+        "entry",
+        "component"
+      ],
+      "layout": "table",
+      "sha256": "aa03397bf977ff4f544e8768afd91f3f4b876dc9732a7b9550ca82f5639b5ef4",
+      "description": "internal damage_energy_density (law-local order)"
+    },
+    {
+      "name": "law/1/dissipated_energy/_triangle_3",
+      "file": "data/law__1__dissipated_energy___triangle_3.npy",
+      "dtype": "f64",
+      "shape": [
+        0,
+        1
+      ],
+      "axes": [
+        "entry",
+        "component"
+      ],
+      "layout": "table",
+      "sha256": "aa03397bf977ff4f544e8768afd91f3f4b876dc9732a7b9550ca82f5639b5ef4",
+      "description": "internal dissipated_energy (law-local order)"
+    },
+    {
+      "name": "law/1/filter/_quadrangle_4",
+      "file": "data/law__1__filter___quadrangle_4.npy",
+      "dtype": "i64",
+      "shape": [
+        1
+      ],
+      "axes": [
+        "entry"
+      ],
+      "layout": "table",
+      "sha256": "f6df0000bed676f0a4b777e2a1d915b6608dab452e11737f82c685cebf0e8ba7",
+      "description": "element filter"
+    },
+    {
+      "name": "law/1/g_c/_quadrangle_4",
+      "file": "data/law__1__g_c___quadrangle_4.npy",
+      "dtype": "f64",
+      "shape": [
+        4,
+        1
+      ],
+      "axes": [
+        "entry",
+        "component"
+      ],
+      "layout": "table",
+      "sha256": "570fb84f87a07164d547643460abb171e98f5ba668157219f7a433d64cd09638",
+      "description": "internal g_c (law-local order)"
+    },
+    {
+      "name": "law/1/damage/_quadrangle_4",
+      "file": "data/law__1__damage___quadrangle_4.npy",
+      "dtype": "f64",
+      "shape": [
+        4,
+        1
+      ],
+      "axes": [
+        "entry",
+        "component"
+      ],
+      "layout": "table",
+      "sha256": "6d5e3abe20116a8920dbbec7ef69313e52241e1db35b590d207f8323d825cba1",
+      "description": "internal damage (law-local order)"
+    },
+    {
+      "name": "law/1/previous_damage/_quadrangle_4",
+      "file": "data/law__1__previous_damage___quadrangle_4.npy",
+      "dtype": "f64",
+      "shape": [
+        4,
+        1
+      ],
+      "axes": [
+        "entry",
+        "component"
+      ],
+      "layout": "table",
+      "sha256": "6d5e3abe20116a8920dbbec7ef69313e52241e1db35b590d207f8323d825cba1",
+      "description": "history of damage"
+    },
+    {
+      "name": "law/1/grad_d/_quadrangle_4",
+      "file": "data/law__1__grad_d___quadrangle_4.npy",
+      "dtype": "f64",
+      "shape": [
+        4,
+        2
+      ],
+      "axes": [
+        "entry",
+        "component"
+      ],
+      "layout": "table",
+      "sha256": "5615e4818b399b77639b3a50e62de2c8120a7b4716b52c395af2f1ea5b027a45",
+      "description": "internal grad_d (law-local order)"
+    },
+    {
+      "name": "law/1/phi/_quadrangle_4",
+      "file": "data/law__1__phi___quadrangle_4.npy",
+      "dtype": "f64",
+      "shape": [
+        4,
+        1
+      ],
+      "axes": [
+        "entry",
+        "component"
+      ],
+      "layout": "table",
+      "sha256": "c8a992044d2dbe20650dd0a4860908ab0ae37b09ee1a15f28e5e9c07a8d4df22",
+      "description": "internal phi (law-local order)"
+    },
+    {
+      "name": "law/1/previous_phi/_quadrangle_4",
+      "file": "data/law__1__previous_phi___quadrangle_4.npy",
+      "dtype": "f64",
+      "shape": [
+        4,
+        1
+      ],
+      "axes": [
+        "entry",
+        "component"
+      ],
+      "layout": "table",
+      "sha256": "6d5e3abe20116a8920dbbec7ef69313e52241e1db35b590d207f8323d825cba1",
+      "description": "history of phi"
+    },
+    {
+      "name": "law/1/strain/_quadrangle_4",
+      "file": "data/law__1__strain___quadrangle_4.npy",
+      "dtype": "f64",
+      "shape": [
+        4,
+        4
+      ],
+      "axes": [
+        "entry",
+        "component"
+      ],
+      "layout": "table",
+      "sha256": "4e7563b837242fbe6f48401c680d05597ffb9e5b46749232bc5ead408363898d",
+      "description": "internal strain (law-local order)"
+    },
+    {
+      "name": "law/1/driving_force/_quadrangle_4",
+      "file": "data/law__1__driving_force___quadrangle_4.npy",
+      "dtype": "f64",
+      "shape": [
+        4,
+        1
+      ],
+      "axes": [
+        "entry",
+        "component"
+      ],
+      "layout": "table",
+      "sha256": "ef4cb65959ac46d6ccd4014bc13e8ad1a3e70152c6337765ec602bc36d5e93d4",
+      "description": "internal driving_force (law-local order)"
+    },
+    {
+      "name": "law/1/driving_energy/_quadrangle_4",
+      "file": "data/law__1__driving_energy___quadrangle_4.npy",
+      "dtype": "f64",
+      "shape": [
+        4,
+        2
+      ],
+      "axes": [
+        "entry",
+        "component"
+      ],
+      "layout": "table",
+      "sha256": "5615e4818b399b77639b3a50e62de2c8120a7b4716b52c395af2f1ea5b027a45",
+      "description": "internal driving_energy (law-local order)"
+    },
+    {
+      "name": "law/1/damage_energy/_quadrangle_4",
+      "file": "data/law__1__damage_energy___quadrangle_4.npy",
+      "dtype": "f64",
+      "shape": [
+        4,
+        4
+      ],
+      "axes": [
+        "entry",
+        "component"
+      ],
+      "layout": "table",
+      "sha256": "f832ceecf2ce7246c7d71615f175de4cc962f788201b714b24994c8f5070111d",
+      "description": "internal damage_energy (law-local order)"
+    },
+    {
+      "name": "law/1/damage_energy_density/_quadrangle_4",
+      "file": "data/law__1__damage_energy_density___quadrangle_4.npy",
+      "dtype": "f64",
+      "shape": [
+        4,
+        1
+      ],
+      "axes": [
+        "entry",
+        "component"
+      ],
+      "layout": "table",
+      "sha256": "4027070048932a8f4f5eec60020f92e8fa4a2c7b39cd283804f82e30f7632a84",
+      "description": "internal damage_energy_density (law-local order)"
+    },
+    {
+      "name": "law/1/dissipated_energy/_quadrangle_4",
+      "file": "data/law__1__dissipated_energy___quadrangle_4.npy",
+      "dtype": "f64",
+      "shape": [
+        4,
+        1
+      ],
+      "axes": [
+        "entry",
+        "component"
+      ],
+      "layout": "table",
+      "sha256": "6d5e3abe20116a8920dbbec7ef69313e52241e1db35b590d207f8323d825cba1",
+      "description": "internal dissipated_energy (law-local order)"
+    },
+    {
+      "name": "K/rows",
+      "file": "data/K__rows.npy",
+      "dtype": "i64",
+      "shape": [
+        9
+      ],
+      "axes": [
+        "entry"
+      ],
+      "layout": "table",
+      "sha256": "33df145791dff92f70320842e27025ad7eded83b00dafdb537966ddbdcbadb3f",
+      "description": "SparseMatrixAIJ::getIRN - 1 (storage order)"
+    },
+    {
+      "name": "K/cols",
+      "file": "data/K__cols.npy",
+      "dtype": "i64",
+      "shape": [
+        9
+      ],
+      "axes": [
+        "entry"
+      ],
+      "layout": "table",
+      "sha256": "cfe5bf536cad652c94be6e6751a2d80cd8eb63c64ad5b458786c7c8cbc79495b",
+      "description": "SparseMatrixAIJ::getJCN - 1 (storage order)"
+    },
+    {
+      "name": "K/values",
+      "file": "data/K__values.npy",
+      "dtype": "f64",
+      "shape": [
+        9
+      ],
+      "axes": [
+        "entry"
+      ],
+      "layout": "table",
+      "sha256": "54c8d5698cbf8236af3d4c2a8bbd7564bf972cac2016bb80873546188105eb72",
+      "description": "SparseMatrixAIJ::getA (storage order)"
+    },
+    {
+      "name": "energy/element/_triangle_3",
+      "file": "data/energy__element___triangle_3.npy",
+      "dtype": "f64",
+      "shape": [
+        2
+      ],
+      "axes": [
+        "entry"
+      ],
+      "layout": "table",
+      "sha256": "3afed06dabc0d9764715404234454ed2e41c4e2dc175c1f257c5e76387176491",
+      "description": "getEnergy(\"dissipated\", element) of every element (mesh order)"
+    },
+    {
+      "name": "energy/element/_quadrangle_4",
+      "file": "data/energy__element___quadrangle_4.npy",
+      "dtype": "f64",
+      "shape": [
+        1
+      ],
+      "axes": [
+        "entry"
+      ],
+      "layout": "table",
+      "sha256": "02fcf6a2d17f32c6d543e461ca7153bb33744f77743d69e715d9cfbce788ca0c",
+      "description": "getEnergy(\"dissipated\", element) of every element (mesh order)"
+    },
+    {
+      "name": "energy/group",
+      "file": "data/energy__group.npy",
+      "dtype": "f64",
+      "shape": [
+        2
+      ],
+      "axes": [
+        "entry"
+      ],
+      "layout": "table",
+      "sha256": "3afed06dabc0d9764715404234454ed2e41c4e2dc175c1f257c5e76387176491",
+      "description": "getEnergy(\"dissipated\", group) (groups of energy_groups)"
+    }
+  ],
+  "tags": [
+    "model",
+    "phase_field"
+  ]
+}

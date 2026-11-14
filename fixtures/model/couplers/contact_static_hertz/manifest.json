@@ -1,0 +1,737 @@
+{
+  "format_version": 1,
+  "case_id": "model/couplers/contact_static_hertz",
+  "description": "examples/c++/contact_mechanics_model/hertz/contact_explicit_static.cc: CouplerSolidContact static (Newton, contact search in every corrector), 100 increments of -1e-4 on loading",
+  "status": "golden",
+  "generator": {
+    "probe": "couplers_probe",
+    "probe_version": "1",
+    "command": "oracle/probes/couplers/generate.sh "
+  },
+  "reference": {
+    "sha": "35a851780d0b9471d258ed53a003ae98aaa95ea0",
+    "describe": "v5.0.7-post1-554-g35a851780",
+    "patches": [
+      "modified:cmake/AkantuTestsMacros.cmake sha256=c280165a84912eab4bcc081b9eaaaa06aafdd83d4f48d982e11b0859abf9672f (reference sha256=36290de2ec8b111028138fe82029efa16501512241a5bc264fa30ff3e3239b9e)"
+    ]
+  },
+  "build": {
+  "config": "strict",
+  "compiler": "g++ (Debian 14.2.0-19) 14.2.0",
+  "cxx_flags": "-ffp-contract=off -DEIGEN_DONT_VECTORIZE -O2 -g -DNDEBUG -g3 -ggdb3 -flarge-source-files -std=c++20 -flto=auto -fno-fat-lto-objects -fPIC -frounding-math (actual flags of src/model/solid_mechanics/solid_mechanics_model.cc; warnings and non-FP -D defines omitted)",
+  "build_type": "RelWithDebInfo",
+  "arch": "x86_64",
+  "os": "Debian GNU/Linux 13 (trixie)",
+  "libraries": {
+    "eigen3": "3.4.0-5",
+    "boost": "1.83.0.2+b2",
+    "openmpi": "5.0.7-1",
+    "mumps": "5.7.3-3+b1",
+    "petsc": "3.22.5+dfsg1-2",
+    "scotch": "7.0.7-1",
+    "openblas": "0.3.29+ds-3",
+    "scalapack": "2.2.2-1",
+    "hdf5": "1.14.5+repack-3",
+    "gmsh": "4.13.1+ds1-6",
+    "pybind11": "2.13.6-2",
+    "numpy": "1:2.2.4+ds-1",
+    "scipy": "1.15.3-1",
+    "gcc": "4:14.2.0-1",
+    "gfortran": "4:14.2.0-1",
+    "oracle_image": "sha256:45122c213e9fa194b6b58dcc31fc23b5fa4f7c0f64d0a452e40ae072c51c5cdb",
+    "oracle_build_scripts": "e168f393291494c869fa759b3ad9ae4a371a0369",
+    "oracle_install_reference_sha": "35a851780d0b9471d258ed53a003ae98aaa95ea0",
+    "oracle_install_image": "sha256:45122c213e9fa194b6b58dcc31fc23b5fa4f7c0f64d0a452e40ae072c51c5cdb",
+    "sha256:libakantu.so.5.0.7": "5491d902b6f363e11b47d2dc1d0aff0597374e8ff785bbfe2bff534f38509e81",
+    "probe_tree_sha256": "7c6e107e38aa587223ccc5c0a1cebf94c1d3ba8171458bd33ecdbb7618c12869",
+    "probe_sources_commit": "bfd186024da3b9fea83a552f78b2b202e206620c",
+    "cmake_cxx_flags": "-ffp-contract=off -DEIGEN_DONT_VECTORIZE -O2 -g -DNDEBUG -g3 -ggdb3 -flarge-source-files",
+    "probe": "couplers_probe"
+  },
+  "probe_compile_command": "/usr/bin/c++ '-DAKANTU_PROBE_BUILD_TYPE=\"RelWithDebInfo\"' '-DAKANTU_PROBE_CONFIG=\"strict\"' '-DAKANTU_PROBE_CXX_FLAGS=\"-ffp-contract=off -DEIGEN_DONT_VECTORIZE  -O2 -g -DNDEBUG\"' -DBOOST_GRAPH_DYN_LINK -DBOOST_GRAPH_NO_LIB -DBOOST_REGEX_DYN_LINK -DBOOST_REGEX_NO_LIB -DCGAL_USE_GMPXX=1 -I/probes/couplers/../include -isystem /build/install-strict/include/akantu -isystem /opt/CGAL-5.6.2/include -isystem /usr/lib/x86_64-linux-gnu/openmpi/include -isystem /usr/lib/x86_64-linux-gnu/openmpi/include/openmpi -isystem /usr/lib/petscdir/petsc3.22/x86_64-linux-gnu-real/include -isystem /usr/include/scotch -isystem /build/install-strict/include/akantu_iterators -isystem /usr/include/eigen3 -isystem /build/install-strict/include/iohelper -O2 -g -DNDEBUG -std=gnu++20 -ffp-contract=off -DEIGEN_DONT_VECTORIZE -Wall -Wextra -pedantic -Wno-array-bounds -Wno-use-after-free -Wno-stringop-overread -DOMPI_SKIP_MPICXX -Wno-literal-suffix -frounding-math -o CMakeFiles/couplers_probe.dir/couplers_probe.cc.o -c /probes/couplers/couplers_probe.cc",
+  "probe_cxx_flags": "-DAKANTU_PROBE_BUILD_TYPE=\"RelWithDebInfo\" -DAKANTU_PROBE_CONFIG=\"strict\" -DAKANTU_PROBE_CXX_FLAGS=\"-ffp-contract=off -DEIGEN_DONT_VECTORIZE  -O2 -g -DNDEBUG\" -DBOOST_GRAPH_DYN_LINK -DBOOST_GRAPH_NO_LIB -DBOOST_REGEX_DYN_LINK -DBOOST_REGEX_NO_LIB -DCGAL_USE_GMPXX=1 -O2 -g -DNDEBUG -std=gnu++20 -ffp-contract=off -DEIGEN_DONT_VECTORIZE -Wall -Wextra -pedantic -Wno-array-bounds -Wno-use-after-free -Wno-stringop-overread -DOMPI_SKIP_MPICXX -Wno-literal-suffix -frounding-math"
+},
+  "created": "2026-11-11T04:38:08Z",
+  "inputs": [
+    {
+      "role": "mesh",
+      "path": "inputs/hertz.msh",
+      "source": "examples/c++/contact_mechanics_model/hertz/hertz.geo",
+      "sha256": "a6a42c298c8810475f287a1ec878d36408940c7963fe8d9118cd7cf3f34173d4"
+    },
+    {
+      "role": "material",
+      "path": "inputs/material.dat",
+      "source": "examples/c++/contact_mechanics_model/hertz/material.dat",
+      "sha256": "c10b734203ab4388a3b9cc3cdc7091a01972c46a25bc363d46d39721c295480d"
+    },
+    {
+      "role": "digests",
+      "path": "inputs/couplers_probe_contact_static_hertz_digests.txt",
+      "sha256": "fec0246adcb60f5db293df983932d8c389dac89e4a9812e08a5ba8df97c4b27a"
+    }
+  ],
+  "parameters": {
+    "steps": 100,
+    "increment": -0.0001,
+    "sparse_solver_type": "eigen",
+    "eigen_cache_sizes": "16384,524288,524288"
+  },
+  "storage": {
+    "mode": "committed",
+    "bytes": 421920
+  },
+  "quantities": [
+    {
+      "name": "step_0/displacement",
+      "file": "data/step_0__displacement.npy",
+      "dtype": "f64",
+      "shape": [
+        698,
+        2
+      ],
+      "axes": [
+        "entry",
+        "component"
+      ],
+      "layout": "table",
+      "sha256": "02acc8c31567de9d50ceab517d9cc068efdd2e38cc4bbe6e39209cfd999097c3",
+      "description": "displacement"
+    },
+    {
+      "name": "step_0/internal_force",
+      "file": "data/step_0__internal_force.npy",
+      "dtype": "f64",
+      "shape": [
+        698,
+        2
+      ],
+      "axes": [
+        "entry",
+        "component"
+      ],
+      "layout": "table",
+      "sha256": "adc0b13ecfb10312a01aabcdfc41d4d102babf33e4cfb25500efd59006cc62bf",
+      "description": "solid internal force"
+    },
+    {
+      "name": "step_0/contact_force",
+      "file": "data/step_0__contact_force.npy",
+      "dtype": "f64",
+      "shape": [
+        698,
+        2
+      ],
+      "axes": [
+        "entry",
+        "component"
+      ],
+      "layout": "table",
+      "sha256": "bd8e2cd630c6a4364fdaebc787fdd8b819e6c5279e44ef6e499338704c057a09",
+      "description": "contact force"
+    },
+    {
+      "name": "step_0/gaps",
+      "file": "data/step_0__gaps.npy",
+      "dtype": "f64",
+      "shape": [
+        698,
+        1
+      ],
+      "axes": [
+        "entry",
+        "component"
+      ],
+      "layout": "table",
+      "sha256": "0f7818dc3f2384f7452383dc085a99d8ed702b12a7d2ea7090b7c8b73f188461",
+      "description": "gaps"
+    },
+    {
+      "name": "step_0/normals",
+      "file": "data/step_0__normals.npy",
+      "dtype": "f64",
+      "shape": [
+        698,
+        2
+      ],
+      "axes": [
+        "entry",
+        "component"
+      ],
+      "layout": "table",
+      "sha256": "e27e1fa3703fbbb4d076649c76403b88f5d8579972996bc53172014cc3a6621c",
+      "description": "normals"
+    },
+    {
+      "name": "step_0/areas",
+      "file": "data/step_0__areas.npy",
+      "dtype": "f64",
+      "shape": [
+        698,
+        1
+      ],
+      "axes": [
+        "entry",
+        "component"
+      ],
+      "layout": "table",
+      "sha256": "027ad304229b034afc2b51c55c6638a01f6237e53166c3a6bc77e22872a0a847",
+      "description": "nodal areas"
+    },
+    {
+      "name": "step_1/displacement",
+      "file": "data/step_1__displacement.npy",
+      "dtype": "f64",
+      "shape": [
+        698,
+        2
+      ],
+      "axes": [
+        "entry",
+        "component"
+      ],
+      "layout": "table",
+      "sha256": "1b2c1c9ee959993241156fd5760f99db192a8b06346957db145c7fe9407fbe56",
+      "description": "displacement"
+    },
+    {
+      "name": "step_1/internal_force",
+      "file": "data/step_1__internal_force.npy",
+      "dtype": "f64",
+      "shape": [
+        698,
+        2
+      ],
+      "axes": [
+        "entry",
+        "component"
+      ],
+      "layout": "table",
+      "sha256": "2a221a57e6e543a37286fbba83cff722b47da744a9213cf705675857417b0a2d",
+      "description": "solid internal force"
+    },
+    {
+      "name": "step_1/contact_force",
+      "file": "data/step_1__contact_force.npy",
+      "dtype": "f64",
+      "shape": [
+        698,
+        2
+      ],
+      "axes": [
+        "entry",
+        "component"
+      ],
+      "layout": "table",
+      "sha256": "1e3870431ae02e75c36bf5c28320bbe1d769de17113c4f42970e0abe2284d48e",
+      "description": "contact force"
+    },
+    {
+      "name": "step_1/gaps",
+      "file": "data/step_1__gaps.npy",
+      "dtype": "f64",
+      "shape": [
+        698,
+        1
+      ],
+      "axes": [
+        "entry",
+        "component"
+      ],
+      "layout": "table",
+      "sha256": "d0d517326afcd107652fda60ea0ff7be6f0176b5ef6b39b253eb639668903db6",
+      "description": "gaps"
+    },
+    {
+      "name": "step_1/normals",
+      "file": "data/step_1__normals.npy",
+      "dtype": "f64",
+      "shape": [
+        698,
+        2
+      ],
+      "axes": [
+        "entry",
+        "component"
+      ],
+      "layout": "table",
+      "sha256": "a12dc000adf3695412047342ece609104d91bff59f33f76b525854dbd2ec9df5",
+      "description": "normals"
+    },
+    {
+      "name": "step_1/areas",
+      "file": "data/step_1__areas.npy",
+      "dtype": "f64",
+      "shape": [
+        698,
+        1
+      ],
+      "axes": [
+        "entry",
+        "component"
+      ],
+      "layout": "table",
+      "sha256": "6367d2a1e5108c57ad2d1e3a3a4a4b651dd5b0e9df90f1bf32c03c75aac7fcbe",
+      "description": "nodal areas"
+    },
+    {
+      "name": "step_2/displacement",
+      "file": "data/step_2__displacement.npy",
+      "dtype": "f64",
+      "shape": [
+        698,
+        2
+      ],
+      "axes": [
+        "entry",
+        "component"
+      ],
+      "layout": "table",
+      "sha256": "cb2ffbf8fdbb6f9a3a8b2e5f82ee6e8d60e2c1a1e303c6ce183ebdb85b191dd7",
+      "description": "displacement"
+    },
+    {
+      "name": "step_2/internal_force",
+      "file": "data/step_2__internal_force.npy",
+      "dtype": "f64",
+      "shape": [
+        698,
+        2
+      ],
+      "axes": [
+        "entry",
+        "component"
+      ],
+      "layout": "table",
+      "sha256": "ccce9d640770771f94432d46c3229eaa95120fed8cda8f5a05682764eb324bed",
+      "description": "solid internal force"
+    },
+    {
+      "name": "step_2/contact_force",
+      "file": "data/step_2__contact_force.npy",
+      "dtype": "f64",
+      "shape": [
+        698,
+        2
+      ],
+      "axes": [
+        "entry",
+        "component"
+      ],
+      "layout": "table",
+      "sha256": "189dab666e4cd31f6ae32a1a430ff44fd83943b287c484f32195b124e235b45c",
+      "description": "contact force"
+    },
+    {
+      "name": "step_2/gaps",
+      "file": "data/step_2__gaps.npy",
+      "dtype": "f64",
+      "shape": [
+        698,
+        1
+      ],
+      "axes": [
+        "entry",
+        "component"
+      ],
+      "layout": "table",
+      "sha256": "ca5a727bcbed4770d4363a48dcd9b684f1cf003bf4462f1181adad72e5648fec",
+      "description": "gaps"
+    },
+    {
+      "name": "step_2/normals",
+      "file": "data/step_2__normals.npy",
+      "dtype": "f64",
+      "shape": [
+        698,
+        2
+      ],
+      "axes": [
+        "entry",
+        "component"
+      ],
+      "layout": "table",
+      "sha256": "a12dc000adf3695412047342ece609104d91bff59f33f76b525854dbd2ec9df5",
+      "description": "normals"
+    },
+    {
+      "name": "step_2/areas",
+      "file": "data/step_2__areas.npy",
+      "dtype": "f64",
+      "shape": [
+        698,
+        1
+      ],
+      "axes": [
+        "entry",
+        "component"
+      ],
+      "layout": "table",
+      "sha256": "edb581cfa48c203410957137cc196169ff84958f88ecffd89407d28835b4ef60",
+      "description": "nodal areas"
+    },
+    {
+      "name": "step_10/displacement",
+      "file": "data/step_10__displacement.npy",
+      "dtype": "f64",
+      "shape": [
+        698,
+        2
+      ],
+      "axes": [
+        "entry",
+        "component"
+      ],
+      "layout": "table",
+      "sha256": "a35afdbd89ead3462f001c91d2f005e81a714e184577f475967573fe3bc00c98",
+      "description": "displacement"
+    },
+    {
+      "name": "step_10/internal_force",
+      "file": "data/step_10__internal_force.npy",
+      "dtype": "f64",
+      "shape": [
+        698,
+        2
+      ],
+      "axes": [
+        "entry",
+        "component"
+      ],
+      "layout": "table",
+      "sha256": "b3c9d6fcdf5bc08673db420b1c9bcf4c5b0630dd74745df89e43821067ae6601",
+      "description": "solid internal force"
+    },
+    {
+      "name": "step_10/contact_force",
+      "file": "data/step_10__contact_force.npy",
+      "dtype": "f64",
+      "shape": [
+        698,
+        2
+      ],
+      "axes": [
+        "entry",
+        "component"
+      ],
+      "layout": "table",
+      "sha256": "cbec8cac30c619f3b2ba142cd66afbba39ae503245a975b0677e45ff7013440d",
+      "description": "contact force"
+    },
+    {
+      "name": "step_10/gaps",
+      "file": "data/step_10__gaps.npy",
+      "dtype": "f64",
+      "shape": [
+        698,
+        1
+      ],
+      "axes": [
+        "entry",
+        "component"
+      ],
+      "layout": "table",
+      "sha256": "b6aba28543e0615d0a290678104949c44264652e64a70e6ec538134428570efc",
+      "description": "gaps"
+    },
+    {
+      "name": "step_10/normals",
+      "file": "data/step_10__normals.npy",
+      "dtype": "f64",
+      "shape": [
+        698,
+        2
+      ],
+      "axes": [
+        "entry",
+        "component"
+      ],
+      "layout": "table",
+      "sha256": "6b446c9bdc1a2234f462c367954960fa94093eeaa7327a89b6f635c17405e600",
+      "description": "normals"
+    },
+    {
+      "name": "step_10/areas",
+      "file": "data/step_10__areas.npy",
+      "dtype": "f64",
+      "shape": [
+        698,
+        1
+      ],
+      "axes": [
+        "entry",
+        "component"
+      ],
+      "layout": "table",
+      "sha256": "fc6216560f0dfbc7929b57159322f5841e0a1ea4ef9434474bca187e2edff048",
+      "description": "nodal areas"
+    },
+    {
+      "name": "step_50/displacement",
+      "file": "data/step_50__displacement.npy",
+      "dtype": "f64",
+      "shape": [
+        698,
+        2
+      ],
+      "axes": [
+        "entry",
+        "component"
+      ],
+      "layout": "table",
+      "sha256": "cdeb157642df4c5fbe1bc1ef29d0cac426f48df04d29dacd87140752d3ae2dd7",
+      "description": "displacement"
+    },
+    {
+      "name": "step_50/internal_force",
+      "file": "data/step_50__internal_force.npy",
+      "dtype": "f64",
+      "shape": [
+        698,
+        2
+      ],
+      "axes": [
+        "entry",
+        "component"
+      ],
+      "layout": "table",
+      "sha256": "975919d1d2c54c0023bae0593720163987ad6f35d5f529f20b430a0a23249be9",
+      "description": "solid internal force"
+    },
+    {
+      "name": "step_50/contact_force",
+      "file": "data/step_50__contact_force.npy",
+      "dtype": "f64",
+      "shape": [
+        698,
+        2
+      ],
+      "axes": [
+        "entry",
+        "component"
+      ],
+      "layout": "table",
+      "sha256": "469010d96f8d98219f2f834cc47680034d772ae0098aebc23c51dcc52cb85d0d",
+      "description": "contact force"
+    },
+    {
+      "name": "step_50/gaps",
+      "file": "data/step_50__gaps.npy",
+      "dtype": "f64",
+      "shape": [
+        698,
+        1
+      ],
+      "axes": [
+        "entry",
+        "component"
+      ],
+      "layout": "table",
+      "sha256": "6a0031f03483f83bd009c23de4b8d62b3fc2ba834170adebd6b7c65fc0cedc07",
+      "description": "gaps"
+    },
+    {
+      "name": "step_50/normals",
+      "file": "data/step_50__normals.npy",
+      "dtype": "f64",
+      "shape": [
+        698,
+        2
+      ],
+      "axes": [
+        "entry",
+        "component"
+      ],
+      "layout": "table",
+      "sha256": "aa912b759c56512916507646a3eec17c9f597a81ca6032b573657774d0d244a3",
+      "description": "normals"
+    },
+    {
+      "name": "step_50/areas",
+      "file": "data/step_50__areas.npy",
+      "dtype": "f64",
+      "shape": [
+        698,
+        1
+      ],
+      "axes": [
+        "entry",
+        "component"
+      ],
+      "layout": "table",
+      "sha256": "32010c62cb1d50cde561b71e3f4333987f1c4fc44bf2c7359a3f4247aa7ec17d",
+      "description": "nodal areas"
+    },
+    {
+      "name": "step_99/displacement",
+      "file": "data/step_99__displacement.npy",
+      "dtype": "f64",
+      "shape": [
+        698,
+        2
+      ],
+      "axes": [
+        "entry",
+        "component"
+      ],
+      "layout": "table",
+      "sha256": "5b5b2ecb9a643daa18154f0cf508d8bd63fa1c37162d491d15295a2904745b8a",
+      "description": "displacement"
+    },
+    {
+      "name": "step_99/internal_force",
+      "file": "data/step_99__internal_force.npy",
+      "dtype": "f64",
+      "shape": [
+        698,
+        2
+      ],
+      "axes": [
+        "entry",
+        "component"
+      ],
+      "layout": "table",
+      "sha256": "3be29ead09488973b6766635600a661f27a6232023fed3fc20ba916b7be6f455",
+      "description": "solid internal force"
+    },
+    {
+      "name": "step_99/contact_force",
+      "file": "data/step_99__contact_force.npy",
+      "dtype": "f64",
+      "shape": [
+        698,
+        2
+      ],
+      "axes": [
+        "entry",
+        "component"
+      ],
+      "layout": "table",
+      "sha256": "978af33ed09a1f9f6210e9102ffd47838f0df1bdb863c73eaa09847dc309ee6f",
+      "description": "contact force"
+    },
+    {
+      "name": "step_99/gaps",
+      "file": "data/step_99__gaps.npy",
+      "dtype": "f64",
+      "shape": [
+        698,
+        1
+      ],
+      "axes": [
+        "entry",
+        "component"
+      ],
+      "layout": "table",
+      "sha256": "b311008e5d5b4eb2fa01e068f3d7c8cd5038ad7a709f6077ce264ec47ab822c3",
+      "description": "gaps"
+    },
+    {
+      "name": "step_99/normals",
+      "file": "data/step_99__normals.npy",
+      "dtype": "f64",
+      "shape": [
+        698,
+        2
+      ],
+      "axes": [
+        "entry",
+        "component"
+      ],
+      "layout": "table",
+      "sha256": "234a5230efc30c701c6f31c4ea64ae73ddd1b8d4b0b7bc43a76af9e356206f7e",
+      "description": "normals"
+    },
+    {
+      "name": "step_99/areas",
+      "file": "data/step_99__areas.npy",
+      "dtype": "f64",
+      "shape": [
+        698,
+        1
+      ],
+      "axes": [
+        "entry",
+        "component"
+      ],
+      "layout": "table",
+      "sha256": "198e0e14d45022036117f503dab3b92033ff5e7a8125808838bd6b486c6a1819",
+      "description": "nodal areas"
+    },
+    {
+      "name": "newton/iterations",
+      "file": "data/newton__iterations.npy",
+      "dtype": "i64",
+      "shape": [
+        100
+      ],
+      "axes": [
+        "entry"
+      ],
+      "layout": "table",
+      "sha256": "baa635a870d17adba8c852e9102fafdb2f34ab409614e5970ab0b58578ba5dbe",
+      "description": "nb_iterations per step"
+    },
+    {
+      "name": "newton/error",
+      "file": "data/newton__error.npy",
+      "dtype": "f64",
+      "shape": [
+        100
+      ],
+      "axes": [
+        "entry"
+      ],
+      "layout": "table",
+      "sha256": "12bb858f391ebf405d8e863bbe7ebeed510f33fc5bb48eefaba5588650a1ba00",
+      "description": "error per step"
+    },
+    {
+      "name": "nb_contact_elements",
+      "file": "data/nb_contact_elements.npy",
+      "dtype": "i64",
+      "shape": [
+        100
+      ],
+      "axes": [
+        "entry"
+      ],
+      "layout": "table",
+      "sha256": "d0a29bde4223cce2f1fbab5db7d4ada6fc6b0c5dbc038a05bb6d0cbcdb2e1408",
+      "description": "contact elements after each step"
+    },
+    {
+      "name": "final/stress_upper",
+      "file": "data/final__stress_upper.npy",
+      "dtype": "f64",
+      "shape": [
+        6992
+      ],
+      "axes": [
+        "entry"
+      ],
+      "layout": "table",
+      "sha256": "34684fb79b62b09a45f6a781725a4d4bf4b83b50f4ddb5c398c3e95345cd8fc3",
+      "description": "stress of material upper (quadrangle_4)"
+    },
+    {
+      "name": "final/stress_lower",
+      "file": "data/final__stress_lower.npy",
+      "dtype": "f64",
+      "shape": [
+        2912
+      ],
+      "axes": [
+        "entry"
+      ],
+      "layout": "table",
+      "sha256": "cd0d5a41ca739387e6f9bd2964bb3ea2c402bc64a5f0b1e9b2961f9c793790ea",
+      "description": "stress of material lower (quadrangle_4)"
+    }
+  ],
+  "tags": [
+    "model",
+    "couplers",
+    "contact"
+  ]
+}

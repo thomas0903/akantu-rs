@@ -1,0 +1,210 @@
+# SPDX-License-Identifier: LGPL-3.0-or-later
+# Ported from Akantu (EPFL/LSMS): test/test_python_interface/test_pybind.py
+# (TEST-153). Unchanged test bodies (all upstream tests); the inputs
+# (mesh_dcb_2d.msh, elastic.dat) are the repository copies.
+__copyright__ = (
+    "Copyright (©) 2018-2023 EPFL (Ecole Polytechnique Fédérale de Lausanne)"
+    "Laboratory (LSMS - Laboratoire de Simulation en Mécanique des Solides)"
+)
+__license__ = "LGPLv3"
+
+
+import ctypes
+
+import akantu as aka
+import numpy as np
+import py11_akantu_test_common as aka_test
+import pytest
+
+
+def test_array_size():
+    ptr, array = aka_test.createArray(1000, 3)
+    assert array.shape == (1000, 3)
+
+
+def test_array_nocopy():
+    ptr, array = aka_test.createArray(1000, 3)
+    through_python = aka_test.getRawPointerArray(array)
+    assert ptr == through_python
+
+
+def test_modify_array():
+    ptr, array = aka_test.createArray(3, 3)
+    array[0, :] = (1.0, 2.0, 3.0)
+    array2 = aka_test.getArray(ptr)
+    assert np.linalg.norm(array - array2) < 1e-15
+
+    for i in [1, 2, 3]:
+        ptr, array = aka_test.createArray(10000, i)
+        array[:, :] = np.random.random((10000, i))
+        array2 = aka_test.getArray(ptr)
+        assert np.linalg.norm(array - array2) < 1e-15
+
+
+def test_array_copy():
+    ptr, array = aka_test.createArray(1000, 3)
+    array2 = aka_test.copyArray(ptr)
+    ptr2 = aka_test.getRawPointerArray(array2)
+    assert ptr != ptr2
+
+
+def test_vector_size():
+    ptr, vector = aka_test.createVector(3)
+    assert vector.shape == (3,)
+
+
+def test_vector_nocopy():
+    ptr, vector = aka_test.createVector(3)
+    assert ptr == vector.ctypes.data_as(ctypes.c_void_p).value
+
+
+def test_modify_vector():
+    ptr, vector = aka_test.createVector(3)
+    vector[:] = (1.0, 2.0, 3.0)
+    vector2 = aka_test.getVector(ptr)
+    assert np.linalg.norm(vector - vector2) < 1e-15
+
+    for i in np.arange(1, 10):
+        ptr, vector = aka_test.createVector(i)
+        vector[:] = np.random.random(i)
+        vector2 = aka_test.getVector(ptr)
+        assert np.linalg.norm(vector - vector2) < 1e-15
+
+
+def test_vector_copy():
+    ptr, vector = aka_test.createVector(1000)
+    vector2 = aka_test.copyVector(ptr)
+    ptr2 = aka_test.getRawPointerVector(vector2)
+    assert ptr != ptr2
+
+
+def test_matrix_size():
+    ptr, matrix = aka_test.createMatrix(3, 2)
+    assert matrix.shape == (3, 2)
+
+
+def test_matrix_nocopy():
+    ptr, matrix = aka_test.createMatrix(3, 2)
+    assert ptr == matrix.ctypes.data_as(ctypes.c_void_p).value
+
+
+def test_modify_matrix():
+    ptr, matrix = aka_test.createMatrix(2, 3)
+    matrix[0, :] = (1.0, 2.0, 3.0)
+    matrix2 = aka_test.getMatrix(ptr)
+    assert np.linalg.norm(matrix - matrix2) < 1e-15
+
+    for i in np.arange(1, 10):
+        for j in np.arange(1, 10):
+            ptr, matrix = aka_test.createMatrix(i, j)
+            matrix[:, :] = np.random.random((i, j))
+            matrix2 = aka_test.getMatrix(ptr)
+            assert np.linalg.norm(matrix - matrix2) < 1e-15
+
+
+def test_matrix_copy():
+    ptr, matrix = aka_test.createMatrix(10, 3)
+    matrix2 = aka_test.copyMatrix(ptr)
+    ptr2 = aka_test.getRawPointerMatrix(matrix2)
+    assert ptr != ptr2
+
+
+@pytest.fixture(autouse=True)
+def _dcb(upstream_dir):
+    from _paths import MESHES, PARSER_FIXTURES
+
+    upstream_dir(
+        **{
+            "mesh_dcb_2d.msh": MESHES
+            / "test/test_python_interface/mesh_dcb_2d.msh",
+            "elastic.dat": PARSER_FIXTURES
+            / "test/test_python_interface/elastic.dat",
+        }
+    )
+
+
+def test_multiple_init():
+    aka.parseInput("elastic.dat")
+    dcb_mesh = "mesh_dcb_2d.msh"
+
+    mesh = aka.Mesh(2)
+    mesh.read(dcb_mesh)
+    model = aka.SolidMechanicsModel(mesh)
+    model.initFull(aka.SolidMechanicsModelOptions(aka._static))
+    del model
+    del mesh
+
+    mesh = aka.Mesh(2)
+    mesh.read(dcb_mesh)
+    model = aka.SolidMechanicsModel(mesh)
+    model.initFull(aka.SolidMechanicsModelOptions(aka._static))
+    del model
+    del mesh
+
+
+def test_boundary_condition_functors():
+    class FixedValue(aka.DirichletFunctor):
+        def __init__(self, value, axis):
+            super().__init__(axis)
+            self.value = value
+            self.axis = int(axis)
+
+        def __call__(self, node, flags, primal, coord):
+            primal[self.axis] = self.value
+            flags[self.axis] = True
+
+    class FromStress(aka.NeumannFunctor):
+        def __init__(self, stress):
+            super().__init__()
+            self.stress = stress
+
+        def __call__(self, quad_point, dual, coord, normals):
+            dual[:] = np.dot(self.stress, normals)
+
+    aka.parseInput("elastic.dat")
+
+    mesh = aka.Mesh(2)
+    mesh.read("mesh_dcb_2d.msh")
+
+    model = aka.SolidMechanicsModel(mesh, 2)
+    model.initFull()
+
+    model.applyBC(FixedValue(0.0, aka._x), "edge")
+
+    stress = np.array([[1, 0], [0, 0]])
+
+    blocked_nodes = (
+        mesh.getElementGroup("edge").getNodeGroup().getNodes().flatten()
+    )
+    boundary = model.getBlockedDOFs()
+
+    # Testing that nodes are correctly blocked
+    for n in blocked_nodes:
+        assert boundary[n, 0]
+
+    boundary.fill(False)
+
+    model.applyBC(FromStress(stress), "edge")
+    force = model.getExternalForce()
+
+    # Checking that nodes have a force in the correct direction
+    for n in blocked_nodes:
+        assert force[n, 0] > 0
+
+    return 0
+
+
+def test_mesh_interface():
+    mesh = aka.Mesh(2)
+    mesh.read("mesh_dcb_2d.msh")
+
+    # Tests the getNbElement() function
+    if mesh.getNbElement(element_type=aka._quadrangle_8) != mesh.getNbElement(
+        spatial_dimension=2
+    ):
+        raise Exception(
+            "Number of elements wrong:  {0} != {1}".format(
+                mesh.getNbElement(element_type=aka._quadrangle_8),
+                mesh.getNbElement(2),
+            )
+        )

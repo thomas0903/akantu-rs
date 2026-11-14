@@ -1,0 +1,4549 @@
+{
+  "format_version": 1,
+  "case_id": "model/contact/adversarial_curved3d_friction",
+  "description": "review V71 adversarial, UD-001 zero-init oracle variant: curved3d.msh (warped quadrangle_4 master facets on z = -0.15 (x^2 + y^2)), mu = 0.3, epsilon_n = 1e3, epsilon_t = 2e3, rigid master; 24 prescribed sliding steps of the upper body (shift (0.13 + 0.025 s, 0.07 + 0.0125 s, -0.02 - 0.0015 min(s, 10))) across master facet boundaries: search and force assembly per step; slip moduli of the slaves in slip at the end",
+  "status": "golden",
+  "generator": {
+    "probe": "contact_probe",
+    "probe_version": "3",
+    "command": "oracle/probes/contact/generate.sh "
+  },
+  "reference": {
+    "sha": "35a851780d0b9471d258ed53a003ae98aaa95ea0",
+    "describe": "v5.0.7-post1-554-g35a851780",
+    "patches": [
+      "modified:cmake/AkantuTestsMacros.cmake sha256=c280165a84912eab4bcc081b9eaaaa06aafdd83d4f48d982e11b0859abf9672f (reference sha256=36290de2ec8b111028138fe82029efa16501512241a5bc264fa30ff3e3239b9e)",
+      "modified:src/model/contact_mechanics/contact_detector_inline_impl.hh sha256=e3f1c264ba047243dec4baf61a8da974e6a008860143f9f5be8241ed017d195b (reference sha256=439e0854359e7ed6519a37bb0cd1ed75569eeb99aada91ae1dd886319504f0d3)",
+      "modified:src/model/contact_mechanics/resolutions/resolution_penalty.cc sha256=3ec8b9eea307e4b0d3b12196bd6ae24ce621e2012beddf586d64a8e3e516d840 (reference sha256=bbb8ffbe847a97b7436f9fab04b6f33733fbae2e855cbf48bff7e5b9797043ba)"
+    ]
+  },
+  "build": {
+  "config": "strict",
+  "compiler": "g++ (Debian 14.2.0-19) 14.2.0",
+  "cxx_flags": "-ffp-contract=off -DEIGEN_DONT_VECTORIZE -O2 -g -DNDEBUG -g3 -ggdb3 -flarge-source-files -std=c++20 -flto=auto -fno-fat-lto-objects -fPIC -frounding-math (actual flags of src/model/solid_mechanics/solid_mechanics_model.cc; warnings and non-FP -D defines omitted)",
+  "build_type": "RelWithDebInfo",
+  "arch": "x86_64",
+  "os": "Debian GNU/Linux 13 (trixie)",
+  "libraries": {
+    "eigen3": "3.4.0-5",
+    "boost": "1.83.0.2+b2",
+    "openmpi": "5.0.7-1",
+    "mumps": "5.7.3-3+b1",
+    "petsc": "3.22.5+dfsg1-2",
+    "scotch": "7.0.7-1",
+    "openblas": "0.3.29+ds-3",
+    "scalapack": "2.2.2-1",
+    "hdf5": "1.14.5+repack-3",
+    "gmsh": "4.13.1+ds1-6",
+    "pybind11": "2.13.6-2",
+    "numpy": "1:2.2.4+ds-1",
+    "scipy": "1.15.3-1",
+    "gcc": "4:14.2.0-1",
+    "gfortran": "4:14.2.0-1",
+    "oracle_image": "sha256:45122c213e9fa194b6b58dcc31fc23b5fa4f7c0f64d0a452e40ae072c51c5cdb",
+    "oracle_build_scripts": "e168f393291494c869fa759b3ad9ae4a371a0369",
+    "oracle_install_reference_sha": "35a851780d0b9471d258ed53a003ae98aaa95ea0",
+    "oracle_install_image": "sha256:45122c213e9fa194b6b58dcc31fc23b5fa4f7c0f64d0a452e40ae072c51c5cdb",
+    "sha256:libakantu.so.5.0.7": "4a5fb7238a6b749ba636ae6a968aff5a5073162a81cc47055b2b254a2a9237d3",
+    "probe_tree_sha256": "af5fa06607c23b8cbfd6899bd89b45e362c15716d95ba2aafc6c79b1af0924f8",
+    "probe_sources_commit": "9f8d064b45e0b9da7a08c3bb942df1564bd015c1",
+    "cmake_cxx_flags": "-ffp-contract=off -DEIGEN_DONT_VECTORIZE -O2 -g -DNDEBUG -g3 -ggdb3 -flarge-source-files",
+    "probe": "contact_probe"
+  },
+  "probe_compile_command": "/usr/bin/c++ '-DAKANTU_PROBE_BUILD_TYPE=\"RelWithDebInfo\"' '-DAKANTU_PROBE_CONFIG=\"strict\"' '-DAKANTU_PROBE_CXX_FLAGS=\"-ffp-contract=off -DEIGEN_DONT_VECTORIZE  -O2 -g -DNDEBUG\"' -DBOOST_GRAPH_DYN_LINK -DBOOST_GRAPH_NO_LIB -DBOOST_REGEX_DYN_LINK -DBOOST_REGEX_NO_LIB -DCGAL_USE_GMPXX=1 -I/probes/contact/../include -isystem /build/install-strict/include/akantu -isystem /opt/CGAL-5.6.2/include -isystem /usr/lib/x86_64-linux-gnu/openmpi/include -isystem /usr/lib/x86_64-linux-gnu/openmpi/include/openmpi -isystem /usr/lib/petscdir/petsc3.22/x86_64-linux-gnu-real/include -isystem /usr/include/scotch -isystem /build/install-strict/include/akantu_iterators -isystem /usr/include/eigen3 -isystem /build/install-strict/include/iohelper -O2 -g -DNDEBUG -std=gnu++20 -ffp-contract=off -DEIGEN_DONT_VECTORIZE -Wall -Wextra -pedantic -Wno-array-bounds -Wno-use-after-free -Wno-stringop-overread -DOMPI_SKIP_MPICXX -Wno-literal-suffix -frounding-math -o CMakeFiles/contact_probe.dir/contact_probe.cc.o -c /probes/contact/contact_probe.cc",
+  "probe_cxx_flags": "-DAKANTU_PROBE_BUILD_TYPE=\"RelWithDebInfo\" -DAKANTU_PROBE_CONFIG=\"strict\" -DAKANTU_PROBE_CXX_FLAGS=\"-ffp-contract=off -DEIGEN_DONT_VECTORIZE  -O2 -g -DNDEBUG\" -DBOOST_GRAPH_DYN_LINK -DBOOST_GRAPH_NO_LIB -DBOOST_REGEX_DYN_LINK -DBOOST_REGEX_NO_LIB -DCGAL_USE_GMPXX=1 -O2 -g -DNDEBUG -std=gnu++20 -ffp-contract=off -DEIGEN_DONT_VECTORIZE -Wall -Wextra -pedantic -Wno-array-bounds -Wno-use-after-free -Wno-stringop-overread -DOMPI_SKIP_MPICXX -Wno-literal-suffix -frounding-math"
+},
+  "created": "2026-11-11T04:46:01Z",
+  "inputs": [
+    {
+      "role": "mesh",
+      "path": "inputs/curved3d.msh",
+      "source": "oracle/probes/contact/meshes/curved3d.geo (gmsh -3 -order 1)",
+      "sha256": "70780d63fa172a0f7a7b8e17ed51d84b336115beab38a4a1dd6bbe5e50897e6b"
+    },
+    {
+      "role": "material",
+      "path": "inputs/contact_probe_adversarial_friction.dat",
+      "sha256": "34c4c6acd83e1fdf33aedf105394d05ccf24e7f976845ad7c89f5f4e5a9e8897"
+    }
+  ],
+  "parameters": {
+    "oracle_variant": {
+      "patch": "oracle/patches/variants/ud001-contact-zero-init.patch",
+      "sha256": "143546021ac16611e8dd884f6203cc688b8ec2b7ca4b45bdd0461014529f31fa",
+      "defect": "UD-001"
+    },
+    "eigen_cache_sizes": [
+      16384,
+      524288,
+      524288
+    ],
+    "steps": 24
+  },
+  "storage": {
+    "mode": "committed",
+    "bytes": 496712
+  },
+  "quantities": [
+    {
+      "name": "positions",
+      "file": "data/positions.npy",
+      "dtype": "f64",
+      "shape": [
+        107,
+        3
+      ],
+      "axes": [
+        "node",
+        "component"
+      ],
+      "layout": "nodal",
+      "sha256": "f6122b631d68798e1b70ab6d146c0b0cedc59c58ef7c1edc6da86b7d8a39659f",
+      "description": "detector positions of step 0"
+    },
+    {
+      "name": "step_0/contact_elements/slave",
+      "file": "data/step_0__contact_elements__slave.npy",
+      "dtype": "i64",
+      "shape": [
+        1
+      ],
+      "axes": [
+        "entry"
+      ],
+      "layout": "table",
+      "sha256": "edde1c972ec27e60087865082b23252b75043f05299fd552c031fd664736a3b9",
+      "description": "slave node of each contact element"
+    },
+    {
+      "name": "step_0/contact_elements/master",
+      "file": "data/step_0__contact_elements__master.npy",
+      "dtype": "i64",
+      "shape": [
+        1
+      ],
+      "axes": [
+        "entry"
+      ],
+      "layout": "table",
+      "sha256": "8dc1caa6136c378e6ca865e89cdf5407fee376c2d6aee5af8f9d8ccdc4c8aaea",
+      "description": "master facet index (type in master_type)"
+    },
+    {
+      "name": "step_0/gaps",
+      "file": "data/step_0__gaps.npy",
+      "dtype": "f64",
+      "shape": [
+        107,
+        1
+      ],
+      "axes": [
+        "node",
+        "component"
+      ],
+      "layout": "nodal",
+      "sha256": "85b58342bedaf0a08e9f41d3dca8d39609a7c9bc1123c55ad2baf3689bdc581f",
+      "description": "gaps after search (penetration > 0)"
+    },
+    {
+      "name": "step_0/normals",
+      "file": "data/step_0__normals.npy",
+      "dtype": "f64",
+      "shape": [
+        107,
+        3
+      ],
+      "axes": [
+        "node",
+        "component"
+      ],
+      "layout": "nodal",
+      "sha256": "0aa3c47bfce904890fabfff01c974a04fd31af51a67af3240cc98dd62a204c49",
+      "description": "normals"
+    },
+    {
+      "name": "step_0/tangents",
+      "file": "data/step_0__tangents.npy",
+      "dtype": "f64",
+      "shape": [
+        107,
+        6
+      ],
+      "axes": [
+        "node",
+        "component"
+      ],
+      "layout": "nodal",
+      "sha256": "0fa3213df0324c665c979e6d815eafe9820d88e267c3a6f3d9679e7e0c369ba7",
+      "description": "tangents (dim x (dim-1) column-major)"
+    },
+    {
+      "name": "step_0/projections",
+      "file": "data/step_0__projections.npy",
+      "dtype": "f64",
+      "shape": [
+        107,
+        2
+      ],
+      "axes": [
+        "node",
+        "component"
+      ],
+      "layout": "nodal",
+      "sha256": "29d9e358bb422b186dede1a1fb338192c2b2ac41bd6f41adbf89fea531fc7fdf",
+      "description": "natural projections"
+    },
+    {
+      "name": "step_0/areas",
+      "file": "data/step_0__areas.npy",
+      "dtype": "f64",
+      "shape": [
+        107,
+        1
+      ],
+      "axes": [
+        "node",
+        "component"
+      ],
+      "layout": "nodal",
+      "sha256": "daec4665d6f9fcbb087561241ef38857d35ede07d2e07d2009133e94c375a07d",
+      "description": "nodal areas"
+    },
+    {
+      "name": "step_0/detector/distances",
+      "file": "data/step_0__detector__distances.npy",
+      "dtype": "f64",
+      "shape": [
+        3
+      ],
+      "axes": [
+        "entry"
+      ],
+      "layout": "table",
+      "sha256": "4c21b50cae396a5858f0e332ee3374ad8c1b9254f1cfdbd90c94dbac7a5d6ee6",
+      "description": "max_dd, min_dd, max_bb"
+    },
+    {
+      "name": "step_0/normal_force",
+      "file": "data/step_0__normal_force.npy",
+      "dtype": "f64",
+      "shape": [
+        107,
+        3
+      ],
+      "axes": [
+        "node",
+        "component"
+      ],
+      "layout": "nodal",
+      "sha256": "3eb475aa1869acf4e4c19156a76496a95e559b55451116d164ccaf997dc558f3",
+      "description": "normal_force"
+    },
+    {
+      "name": "step_0/tangential_force",
+      "file": "data/step_0__tangential_force.npy",
+      "dtype": "f64",
+      "shape": [
+        107,
+        3
+      ],
+      "axes": [
+        "node",
+        "component"
+      ],
+      "layout": "nodal",
+      "sha256": "fe508fea65352c0c8ccdd830373b323c09f04302e1a82fb6c38aa04db35a8fed",
+      "description": "tangential_force"
+    },
+    {
+      "name": "step_0/contact_state",
+      "file": "data/step_0__contact_state.npy",
+      "dtype": "i64",
+      "shape": [
+        107
+      ],
+      "axes": [
+        "node"
+      ],
+      "layout": "table",
+      "sha256": "0afbb15aeab2d6f9705b24b6e7e5ce554f6c489ec34acfe360f864202a4d9209",
+      "description": "contact state (0 no contact, 1 stick, 2 slip)"
+    },
+    {
+      "name": "step_0/tangential_tractions",
+      "file": "data/step_0__tangential_tractions.npy",
+      "dtype": "f64",
+      "shape": [
+        107,
+        2
+      ],
+      "axes": [
+        "node",
+        "component"
+      ],
+      "layout": "nodal",
+      "sha256": "68ed5eb07a6b6ced8148330e8d0dbb64e9052aaaa4ff65cdea6b6eec2cb1a278",
+      "description": "tangential tractions"
+    },
+    {
+      "name": "step_1/contact_elements/slave",
+      "file": "data/step_1__contact_elements__slave.npy",
+      "dtype": "i64",
+      "shape": [
+        1
+      ],
+      "axes": [
+        "entry"
+      ],
+      "layout": "table",
+      "sha256": "edde1c972ec27e60087865082b23252b75043f05299fd552c031fd664736a3b9",
+      "description": "slave node of each contact element"
+    },
+    {
+      "name": "step_1/contact_elements/master",
+      "file": "data/step_1__contact_elements__master.npy",
+      "dtype": "i64",
+      "shape": [
+        1
+      ],
+      "axes": [
+        "entry"
+      ],
+      "layout": "table",
+      "sha256": "8dc1caa6136c378e6ca865e89cdf5407fee376c2d6aee5af8f9d8ccdc4c8aaea",
+      "description": "master facet index (type in master_type)"
+    },
+    {
+      "name": "step_1/gaps",
+      "file": "data/step_1__gaps.npy",
+      "dtype": "f64",
+      "shape": [
+        107,
+        1
+      ],
+      "axes": [
+        "node",
+        "component"
+      ],
+      "layout": "nodal",
+      "sha256": "04749cab61ef678058263dbbb5fa239de2d34e6cd90170a73dc1491a52b1e3c0",
+      "description": "gaps after search (penetration > 0)"
+    },
+    {
+      "name": "step_1/normals",
+      "file": "data/step_1__normals.npy",
+      "dtype": "f64",
+      "shape": [
+        107,
+        3
+      ],
+      "axes": [
+        "node",
+        "component"
+      ],
+      "layout": "nodal",
+      "sha256": "bc07fb3d822309d569ab66daac2f2bff46744e2659f6d0b3852b4862ff482f9d",
+      "description": "normals"
+    },
+    {
+      "name": "step_1/tangents",
+      "file": "data/step_1__tangents.npy",
+      "dtype": "f64",
+      "shape": [
+        107,
+        6
+      ],
+      "axes": [
+        "node",
+        "component"
+      ],
+      "layout": "nodal",
+      "sha256": "eb162f9da8b7dc7134384874f9320c7637d3c796e5cf4483531ded53d8bdca45",
+      "description": "tangents (dim x (dim-1) column-major)"
+    },
+    {
+      "name": "step_1/projections",
+      "file": "data/step_1__projections.npy",
+      "dtype": "f64",
+      "shape": [
+        107,
+        2
+      ],
+      "axes": [
+        "node",
+        "component"
+      ],
+      "layout": "nodal",
+      "sha256": "cf29ddc496e0b0bedb3169c96d89eea3947a348d6e0570d10e5c973fb5990224",
+      "description": "natural projections"
+    },
+    {
+      "name": "step_1/areas",
+      "file": "data/step_1__areas.npy",
+      "dtype": "f64",
+      "shape": [
+        107,
+        1
+      ],
+      "axes": [
+        "node",
+        "component"
+      ],
+      "layout": "nodal",
+      "sha256": "23a3feb2f0135b1d38fde90226ff3819a0a707039b7b70deec52b6a2f55ab9a9",
+      "description": "nodal areas"
+    },
+    {
+      "name": "step_1/detector/distances",
+      "file": "data/step_1__detector__distances.npy",
+      "dtype": "f64",
+      "shape": [
+        3
+      ],
+      "axes": [
+        "entry"
+      ],
+      "layout": "table",
+      "sha256": "4c21b50cae396a5858f0e332ee3374ad8c1b9254f1cfdbd90c94dbac7a5d6ee6",
+      "description": "max_dd, min_dd, max_bb"
+    },
+    {
+      "name": "step_1/normal_force",
+      "file": "data/step_1__normal_force.npy",
+      "dtype": "f64",
+      "shape": [
+        107,
+        3
+      ],
+      "axes": [
+        "node",
+        "component"
+      ],
+      "layout": "nodal",
+      "sha256": "26e75fd71e01640958e1104503884aff0b9adb00f7734e278223d01766652e5e",
+      "description": "normal_force"
+    },
+    {
+      "name": "step_1/tangential_force",
+      "file": "data/step_1__tangential_force.npy",
+      "dtype": "f64",
+      "shape": [
+        107,
+        3
+      ],
+      "axes": [
+        "node",
+        "component"
+      ],
+      "layout": "nodal",
+      "sha256": "9c5a92be4afb948e133f648f0641dcab8e38d11485b4335074db7e8624d92425",
+      "description": "tangential_force"
+    },
+    {
+      "name": "step_1/contact_state",
+      "file": "data/step_1__contact_state.npy",
+      "dtype": "i64",
+      "shape": [
+        107
+      ],
+      "axes": [
+        "node"
+      ],
+      "layout": "table",
+      "sha256": "61b6842cf3a78a5503447a2f8612a572b3dc20dba643039cb8a9100e4852ea00",
+      "description": "contact state (0 no contact, 1 stick, 2 slip)"
+    },
+    {
+      "name": "step_1/tangential_tractions",
+      "file": "data/step_1__tangential_tractions.npy",
+      "dtype": "f64",
+      "shape": [
+        107,
+        2
+      ],
+      "axes": [
+        "node",
+        "component"
+      ],
+      "layout": "nodal",
+      "sha256": "203ceaa313a4a99e625892e65c38dfc72f544fbb7041933c19ab4b5272da5086",
+      "description": "tangential tractions"
+    },
+    {
+      "name": "step_2/contact_elements/slave",
+      "file": "data/step_2__contact_elements__slave.npy",
+      "dtype": "i64",
+      "shape": [
+        1
+      ],
+      "axes": [
+        "entry"
+      ],
+      "layout": "table",
+      "sha256": "edde1c972ec27e60087865082b23252b75043f05299fd552c031fd664736a3b9",
+      "description": "slave node of each contact element"
+    },
+    {
+      "name": "step_2/contact_elements/master",
+      "file": "data/step_2__contact_elements__master.npy",
+      "dtype": "i64",
+      "shape": [
+        1
+      ],
+      "axes": [
+        "entry"
+      ],
+      "layout": "table",
+      "sha256": "8dc1caa6136c378e6ca865e89cdf5407fee376c2d6aee5af8f9d8ccdc4c8aaea",
+      "description": "master facet index (type in master_type)"
+    },
+    {
+      "name": "step_2/gaps",
+      "file": "data/step_2__gaps.npy",
+      "dtype": "f64",
+      "shape": [
+        107,
+        1
+      ],
+      "axes": [
+        "node",
+        "component"
+      ],
+      "layout": "nodal",
+      "sha256": "70c3ac9980aa78ee1b1f1256841a5293ddbff534c2d36c54d584b42f97fea17d",
+      "description": "gaps after search (penetration > 0)"
+    },
+    {
+      "name": "step_2/normals",
+      "file": "data/step_2__normals.npy",
+      "dtype": "f64",
+      "shape": [
+        107,
+        3
+      ],
+      "axes": [
+        "node",
+        "component"
+      ],
+      "layout": "nodal",
+      "sha256": "52fe79793147ddf07441f4920fb4344549fd5b44427ba051b1b53a47f3e9a9e8",
+      "description": "normals"
+    },
+    {
+      "name": "step_2/tangents",
+      "file": "data/step_2__tangents.npy",
+      "dtype": "f64",
+      "shape": [
+        107,
+        6
+      ],
+      "axes": [
+        "node",
+        "component"
+      ],
+      "layout": "nodal",
+      "sha256": "e1e3541e05e158bda1f7504b5388754c1bb07feca002adda14a11eb1196b03ac",
+      "description": "tangents (dim x (dim-1) column-major)"
+    },
+    {
+      "name": "step_2/projections",
+      "file": "data/step_2__projections.npy",
+      "dtype": "f64",
+      "shape": [
+        107,
+        2
+      ],
+      "axes": [
+        "node",
+        "component"
+      ],
+      "layout": "nodal",
+      "sha256": "d9ca679553559af5726492d1fc7968cb05aa4f95025eda0bd213759360bc956d",
+      "description": "natural projections"
+    },
+    {
+      "name": "step_2/areas",
+      "file": "data/step_2__areas.npy",
+      "dtype": "f64",
+      "shape": [
+        107,
+        1
+      ],
+      "axes": [
+        "node",
+        "component"
+      ],
+      "layout": "nodal",
+      "sha256": "1d39670ab53123d6dacc9565f282858d3f945a808c4f25b861591b8b25b83e03",
+      "description": "nodal areas"
+    },
+    {
+      "name": "step_2/detector/distances",
+      "file": "data/step_2__detector__distances.npy",
+      "dtype": "f64",
+      "shape": [
+        3
+      ],
+      "axes": [
+        "entry"
+      ],
+      "layout": "table",
+      "sha256": "4c21b50cae396a5858f0e332ee3374ad8c1b9254f1cfdbd90c94dbac7a5d6ee6",
+      "description": "max_dd, min_dd, max_bb"
+    },
+    {
+      "name": "step_2/normal_force",
+      "file": "data/step_2__normal_force.npy",
+      "dtype": "f64",
+      "shape": [
+        107,
+        3
+      ],
+      "axes": [
+        "node",
+        "component"
+      ],
+      "layout": "nodal",
+      "sha256": "0b9c70a17c58937cd1737ca789d8b116ceb262707564b2c1d60d267b47fb91b7",
+      "description": "normal_force"
+    },
+    {
+      "name": "step_2/tangential_force",
+      "file": "data/step_2__tangential_force.npy",
+      "dtype": "f64",
+      "shape": [
+        107,
+        3
+      ],
+      "axes": [
+        "node",
+        "component"
+      ],
+      "layout": "nodal",
+      "sha256": "c0c21d4dc4e31e23ed07c53d72939e4bcf80caa1f36317583485a1cd61107e1f",
+      "description": "tangential_force"
+    },
+    {
+      "name": "step_2/contact_state",
+      "file": "data/step_2__contact_state.npy",
+      "dtype": "i64",
+      "shape": [
+        107
+      ],
+      "axes": [
+        "node"
+      ],
+      "layout": "table",
+      "sha256": "61b6842cf3a78a5503447a2f8612a572b3dc20dba643039cb8a9100e4852ea00",
+      "description": "contact state (0 no contact, 1 stick, 2 slip)"
+    },
+    {
+      "name": "step_2/tangential_tractions",
+      "file": "data/step_2__tangential_tractions.npy",
+      "dtype": "f64",
+      "shape": [
+        107,
+        2
+      ],
+      "axes": [
+        "node",
+        "component"
+      ],
+      "layout": "nodal",
+      "sha256": "47ae407f79af7e898fa007c9475b57e5234140e1072018e5e5bc12ea0ab00126",
+      "description": "tangential tractions"
+    },
+    {
+      "name": "step_3/contact_elements/slave",
+      "file": "data/step_3__contact_elements__slave.npy",
+      "dtype": "i64",
+      "shape": [
+        2
+      ],
+      "axes": [
+        "entry"
+      ],
+      "layout": "table",
+      "sha256": "3e73b59790e04a72f1508579b35016ade18723256538207b43577573556dfce8",
+      "description": "slave node of each contact element"
+    },
+    {
+      "name": "step_3/contact_elements/master",
+      "file": "data/step_3__contact_elements__master.npy",
+      "dtype": "i64",
+      "shape": [
+        2
+      ],
+      "axes": [
+        "entry"
+      ],
+      "layout": "table",
+      "sha256": "b46c5bac89c9ef7cb951561003bdc2611f104b3ae58815df3ea9a51b92a33136",
+      "description": "master facet index (type in master_type)"
+    },
+    {
+      "name": "step_3/gaps",
+      "file": "data/step_3__gaps.npy",
+      "dtype": "f64",
+      "shape": [
+        107,
+        1
+      ],
+      "axes": [
+        "node",
+        "component"
+      ],
+      "layout": "nodal",
+      "sha256": "772e9d2244d92c86605b0f3f11fddcb7e88c96df1094b96aed1972c1c6ce6887",
+      "description": "gaps after search (penetration > 0)"
+    },
+    {
+      "name": "step_3/normals",
+      "file": "data/step_3__normals.npy",
+      "dtype": "f64",
+      "shape": [
+        107,
+        3
+      ],
+      "axes": [
+        "node",
+        "component"
+      ],
+      "layout": "nodal",
+      "sha256": "6d5a918029c056e36b953ba433f95038877a7dbb0d7c03bd719eac298b1600c6",
+      "description": "normals"
+    },
+    {
+      "name": "step_3/tangents",
+      "file": "data/step_3__tangents.npy",
+      "dtype": "f64",
+      "shape": [
+        107,
+        6
+      ],
+      "axes": [
+        "node",
+        "component"
+      ],
+      "layout": "nodal",
+      "sha256": "89740447fda4c02e9b86da037eae482f6f0b8f99da9968f8fa6cf31cc9bde966",
+      "description": "tangents (dim x (dim-1) column-major)"
+    },
+    {
+      "name": "step_3/projections",
+      "file": "data/step_3__projections.npy",
+      "dtype": "f64",
+      "shape": [
+        107,
+        2
+      ],
+      "axes": [
+        "node",
+        "component"
+      ],
+      "layout": "nodal",
+      "sha256": "4561c7fb29a351e91e5dc665220cc181ae94d886ec16cbd01fc1511b04883376",
+      "description": "natural projections"
+    },
+    {
+      "name": "step_3/areas",
+      "file": "data/step_3__areas.npy",
+      "dtype": "f64",
+      "shape": [
+        107,
+        1
+      ],
+      "axes": [
+        "node",
+        "component"
+      ],
+      "layout": "nodal",
+      "sha256": "a5891fb34218e9527205a3aea262a21809f352f601229a7ebc17297e70c1f7e8",
+      "description": "nodal areas"
+    },
+    {
+      "name": "step_3/detector/distances",
+      "file": "data/step_3__detector__distances.npy",
+      "dtype": "f64",
+      "shape": [
+        3
+      ],
+      "axes": [
+        "entry"
+      ],
+      "layout": "table",
+      "sha256": "4c21b50cae396a5858f0e332ee3374ad8c1b9254f1cfdbd90c94dbac7a5d6ee6",
+      "description": "max_dd, min_dd, max_bb"
+    },
+    {
+      "name": "step_3/normal_force",
+      "file": "data/step_3__normal_force.npy",
+      "dtype": "f64",
+      "shape": [
+        107,
+        3
+      ],
+      "axes": [
+        "node",
+        "component"
+      ],
+      "layout": "nodal",
+      "sha256": "1b43ca84c85eb1390cea443a360d1c30973bedc998f330c028f9bbe2409984d3",
+      "description": "normal_force"
+    },
+    {
+      "name": "step_3/tangential_force",
+      "file": "data/step_3__tangential_force.npy",
+      "dtype": "f64",
+      "shape": [
+        107,
+        3
+      ],
+      "axes": [
+        "node",
+        "component"
+      ],
+      "layout": "nodal",
+      "sha256": "d915b92e09a7eeb9c29ad41d9d6bc83dc621706e0edf7bbfc56aa108608fe9d2",
+      "description": "tangential_force"
+    },
+    {
+      "name": "step_3/contact_state",
+      "file": "data/step_3__contact_state.npy",
+      "dtype": "i64",
+      "shape": [
+        107
+      ],
+      "axes": [
+        "node"
+      ],
+      "layout": "table",
+      "sha256": "61b6842cf3a78a5503447a2f8612a572b3dc20dba643039cb8a9100e4852ea00",
+      "description": "contact state (0 no contact, 1 stick, 2 slip)"
+    },
+    {
+      "name": "step_3/tangential_tractions",
+      "file": "data/step_3__tangential_tractions.npy",
+      "dtype": "f64",
+      "shape": [
+        107,
+        2
+      ],
+      "axes": [
+        "node",
+        "component"
+      ],
+      "layout": "nodal",
+      "sha256": "99f998a0f9444d5d3a9fb4aed87af86661c6849f92deae6231533714f8ea89bb",
+      "description": "tangential tractions"
+    },
+    {
+      "name": "step_4/contact_elements/slave",
+      "file": "data/step_4__contact_elements__slave.npy",
+      "dtype": "i64",
+      "shape": [
+        1
+      ],
+      "axes": [
+        "entry"
+      ],
+      "layout": "table",
+      "sha256": "edde1c972ec27e60087865082b23252b75043f05299fd552c031fd664736a3b9",
+      "description": "slave node of each contact element"
+    },
+    {
+      "name": "step_4/contact_elements/master",
+      "file": "data/step_4__contact_elements__master.npy",
+      "dtype": "i64",
+      "shape": [
+        1
+      ],
+      "axes": [
+        "entry"
+      ],
+      "layout": "table",
+      "sha256": "101a21f3ceee8084fbe9c7113d49b248a4ff2ffc291d857541ed5435eb239d51",
+      "description": "master facet index (type in master_type)"
+    },
+    {
+      "name": "step_4/gaps",
+      "file": "data/step_4__gaps.npy",
+      "dtype": "f64",
+      "shape": [
+        107,
+        1
+      ],
+      "axes": [
+        "node",
+        "component"
+      ],
+      "layout": "nodal",
+      "sha256": "0476ab3d5631ee89716d635457971e5881345834f9f0b32368873781399aafc3",
+      "description": "gaps after search (penetration > 0)"
+    },
+    {
+      "name": "step_4/normals",
+      "file": "data/step_4__normals.npy",
+      "dtype": "f64",
+      "shape": [
+        107,
+        3
+      ],
+      "axes": [
+        "node",
+        "component"
+      ],
+      "layout": "nodal",
+      "sha256": "a8932a01beaea6804d6f894cbcb01b1d7a1a1d0ef9ddb7c39ff7dd2fb5b203fe",
+      "description": "normals"
+    },
+    {
+      "name": "step_4/tangents",
+      "file": "data/step_4__tangents.npy",
+      "dtype": "f64",
+      "shape": [
+        107,
+        6
+      ],
+      "axes": [
+        "node",
+        "component"
+      ],
+      "layout": "nodal",
+      "sha256": "a057293f20c6857b995d23e7e04cf8cb3fd6e3c4ee22abd3d606764c024a6712",
+      "description": "tangents (dim x (dim-1) column-major)"
+    },
+    {
+      "name": "step_4/projections",
+      "file": "data/step_4__projections.npy",
+      "dtype": "f64",
+      "shape": [
+        107,
+        2
+      ],
+      "axes": [
+        "node",
+        "component"
+      ],
+      "layout": "nodal",
+      "sha256": "f78aa60d41c0a9dec0607a23f9dce68ba9a8dd4c65539a267d876d24d2ddfc14",
+      "description": "natural projections"
+    },
+    {
+      "name": "step_4/areas",
+      "file": "data/step_4__areas.npy",
+      "dtype": "f64",
+      "shape": [
+        107,
+        1
+      ],
+      "axes": [
+        "node",
+        "component"
+      ],
+      "layout": "nodal",
+      "sha256": "e2404dbe4399e10f7cf90464998da8a7f28b63d13f1272e9657362819e58a216",
+      "description": "nodal areas"
+    },
+    {
+      "name": "step_4/detector/distances",
+      "file": "data/step_4__detector__distances.npy",
+      "dtype": "f64",
+      "shape": [
+        3
+      ],
+      "axes": [
+        "entry"
+      ],
+      "layout": "table",
+      "sha256": "4c21b50cae396a5858f0e332ee3374ad8c1b9254f1cfdbd90c94dbac7a5d6ee6",
+      "description": "max_dd, min_dd, max_bb"
+    },
+    {
+      "name": "step_4/normal_force",
+      "file": "data/step_4__normal_force.npy",
+      "dtype": "f64",
+      "shape": [
+        107,
+        3
+      ],
+      "axes": [
+        "node",
+        "component"
+      ],
+      "layout": "nodal",
+      "sha256": "82c986c66d52467883df0be70868e2f0f1668ca00ff1674adb5379565661594d",
+      "description": "normal_force"
+    },
+    {
+      "name": "step_4/tangential_force",
+      "file": "data/step_4__tangential_force.npy",
+      "dtype": "f64",
+      "shape": [
+        107,
+        3
+      ],
+      "axes": [
+        "node",
+        "component"
+      ],
+      "layout": "nodal",
+      "sha256": "3b8a3b3974da6741a2a92b56aabea026d5cce964de0d8357eff032786cd4bd8e",
+      "description": "tangential_force"
+    },
+    {
+      "name": "step_4/contact_state",
+      "file": "data/step_4__contact_state.npy",
+      "dtype": "i64",
+      "shape": [
+        107
+      ],
+      "axes": [
+        "node"
+      ],
+      "layout": "table",
+      "sha256": "61b6842cf3a78a5503447a2f8612a572b3dc20dba643039cb8a9100e4852ea00",
+      "description": "contact state (0 no contact, 1 stick, 2 slip)"
+    },
+    {
+      "name": "step_4/tangential_tractions",
+      "file": "data/step_4__tangential_tractions.npy",
+      "dtype": "f64",
+      "shape": [
+        107,
+        2
+      ],
+      "axes": [
+        "node",
+        "component"
+      ],
+      "layout": "nodal",
+      "sha256": "d4797131a188eff3b5df117801dac1fa4706d200cfe67c157130d398b5ba39be",
+      "description": "tangential tractions"
+    },
+    {
+      "name": "step_5/contact_elements/slave",
+      "file": "data/step_5__contact_elements__slave.npy",
+      "dtype": "i64",
+      "shape": [
+        1
+      ],
+      "axes": [
+        "entry"
+      ],
+      "layout": "table",
+      "sha256": "edde1c972ec27e60087865082b23252b75043f05299fd552c031fd664736a3b9",
+      "description": "slave node of each contact element"
+    },
+    {
+      "name": "step_5/contact_elements/master",
+      "file": "data/step_5__contact_elements__master.npy",
+      "dtype": "i64",
+      "shape": [
+        1
+      ],
+      "axes": [
+        "entry"
+      ],
+      "layout": "table",
+      "sha256": "101a21f3ceee8084fbe9c7113d49b248a4ff2ffc291d857541ed5435eb239d51",
+      "description": "master facet index (type in master_type)"
+    },
+    {
+      "name": "step_5/gaps",
+      "file": "data/step_5__gaps.npy",
+      "dtype": "f64",
+      "shape": [
+        107,
+        1
+      ],
+      "axes": [
+        "node",
+        "component"
+      ],
+      "layout": "nodal",
+      "sha256": "a3f267b4edb007164ae95e65a6731fb59c654b2d9bd2d7e0da586349674b20b4",
+      "description": "gaps after search (penetration > 0)"
+    },
+    {
+      "name": "step_5/normals",
+      "file": "data/step_5__normals.npy",
+      "dtype": "f64",
+      "shape": [
+        107,
+        3
+      ],
+      "axes": [
+        "node",
+        "component"
+      ],
+      "layout": "nodal",
+      "sha256": "cfc8d27a7c4c01a2475b23ad9f68a56ff8fa5c6b84679d8559b39d1dbc3db40c",
+      "description": "normals"
+    },
+    {
+      "name": "step_5/tangents",
+      "file": "data/step_5__tangents.npy",
+      "dtype": "f64",
+      "shape": [
+        107,
+        6
+      ],
+      "axes": [
+        "node",
+        "component"
+      ],
+      "layout": "nodal",
+      "sha256": "13927732972d6386cd8b237612d6c22d75886b6872b4f7a59ba83da8af51fac3",
+      "description": "tangents (dim x (dim-1) column-major)"
+    },
+    {
+      "name": "step_5/projections",
+      "file": "data/step_5__projections.npy",
+      "dtype": "f64",
+      "shape": [
+        107,
+        2
+      ],
+      "axes": [
+        "node",
+        "component"
+      ],
+      "layout": "nodal",
+      "sha256": "dc88d539d92216725040f599a7df640b7304e702b9d7dcdc0d5bb647ef759981",
+      "description": "natural projections"
+    },
+    {
+      "name": "step_5/areas",
+      "file": "data/step_5__areas.npy",
+      "dtype": "f64",
+      "shape": [
+        107,
+        1
+      ],
+      "axes": [
+        "node",
+        "component"
+      ],
+      "layout": "nodal",
+      "sha256": "2dac1f5fd05eb926758dae8cb4d86dcbaeac02e2d924a83fd98dde969e9556cd",
+      "description": "nodal areas"
+    },
+    {
+      "name": "step_5/detector/distances",
+      "file": "data/step_5__detector__distances.npy",
+      "dtype": "f64",
+      "shape": [
+        3
+      ],
+      "axes": [
+        "entry"
+      ],
+      "layout": "table",
+      "sha256": "4c21b50cae396a5858f0e332ee3374ad8c1b9254f1cfdbd90c94dbac7a5d6ee6",
+      "description": "max_dd, min_dd, max_bb"
+    },
+    {
+      "name": "step_5/normal_force",
+      "file": "data/step_5__normal_force.npy",
+      "dtype": "f64",
+      "shape": [
+        107,
+        3
+      ],
+      "axes": [
+        "node",
+        "component"
+      ],
+      "layout": "nodal",
+      "sha256": "8fa96355bff276697afe5d3aa6f1ab1b35d3eb9bf5bba9ebd0c226c7f2e97176",
+      "description": "normal_force"
+    },
+    {
+      "name": "step_5/tangential_force",
+      "file": "data/step_5__tangential_force.npy",
+      "dtype": "f64",
+      "shape": [
+        107,
+        3
+      ],
+      "axes": [
+        "node",
+        "component"
+      ],
+      "layout": "nodal",
+      "sha256": "7d8c97ee36ef46968defeaeb97342f848e50502921313926e71f893b48556f78",
+      "description": "tangential_force"
+    },
+    {
+      "name": "step_5/contact_state",
+      "file": "data/step_5__contact_state.npy",
+      "dtype": "i64",
+      "shape": [
+        107
+      ],
+      "axes": [
+        "node"
+      ],
+      "layout": "table",
+      "sha256": "61b6842cf3a78a5503447a2f8612a572b3dc20dba643039cb8a9100e4852ea00",
+      "description": "contact state (0 no contact, 1 stick, 2 slip)"
+    },
+    {
+      "name": "step_5/tangential_tractions",
+      "file": "data/step_5__tangential_tractions.npy",
+      "dtype": "f64",
+      "shape": [
+        107,
+        2
+      ],
+      "axes": [
+        "node",
+        "component"
+      ],
+      "layout": "nodal",
+      "sha256": "20e27f69484d09c4fef8aa6a6fa56dedc03511053b4fbd5f0498da5d6afcad95",
+      "description": "tangential tractions"
+    },
+    {
+      "name": "step_6/contact_elements/slave",
+      "file": "data/step_6__contact_elements__slave.npy",
+      "dtype": "i64",
+      "shape": [
+        2
+      ],
+      "axes": [
+        "entry"
+      ],
+      "layout": "table",
+      "sha256": "1960db949d7a7bb86c6e42df3694c2ee9432fdffd6caf738f201b79e899120a5",
+      "description": "slave node of each contact element"
+    },
+    {
+      "name": "step_6/contact_elements/master",
+      "file": "data/step_6__contact_elements__master.npy",
+      "dtype": "i64",
+      "shape": [
+        2
+      ],
+      "axes": [
+        "entry"
+      ],
+      "layout": "table",
+      "sha256": "cbb86dd8d005f973189d638e373de2906bcd03a4de9e8c0522380f6a5403d8a5",
+      "description": "master facet index (type in master_type)"
+    },
+    {
+      "name": "step_6/gaps",
+      "file": "data/step_6__gaps.npy",
+      "dtype": "f64",
+      "shape": [
+        107,
+        1
+      ],
+      "axes": [
+        "node",
+        "component"
+      ],
+      "layout": "nodal",
+      "sha256": "fc9ffb187c4ae9ee9f23d897a9917a1abc5c91b7a1c48ede221db5a4cce1bc8a",
+      "description": "gaps after search (penetration > 0)"
+    },
+    {
+      "name": "step_6/normals",
+      "file": "data/step_6__normals.npy",
+      "dtype": "f64",
+      "shape": [
+        107,
+        3
+      ],
+      "axes": [
+        "node",
+        "component"
+      ],
+      "layout": "nodal",
+      "sha256": "f8ca0ab6e7f554a2fd1a24a1784c52fe2401424dc0b5a662b4db8512cceb9c37",
+      "description": "normals"
+    },
+    {
+      "name": "step_6/tangents",
+      "file": "data/step_6__tangents.npy",
+      "dtype": "f64",
+      "shape": [
+        107,
+        6
+      ],
+      "axes": [
+        "node",
+        "component"
+      ],
+      "layout": "nodal",
+      "sha256": "99291054c5171fefa059d5d50b479d58f009f0264c30789ced286312b029e333",
+      "description": "tangents (dim x (dim-1) column-major)"
+    },
+    {
+      "name": "step_6/projections",
+      "file": "data/step_6__projections.npy",
+      "dtype": "f64",
+      "shape": [
+        107,
+        2
+      ],
+      "axes": [
+        "node",
+        "component"
+      ],
+      "layout": "nodal",
+      "sha256": "897bbf194cedb8856cfd3b7a60b4551994eb6272436c6f2172fe4de413d9dc81",
+      "description": "natural projections"
+    },
+    {
+      "name": "step_6/areas",
+      "file": "data/step_6__areas.npy",
+      "dtype": "f64",
+      "shape": [
+        107,
+        1
+      ],
+      "axes": [
+        "node",
+        "component"
+      ],
+      "layout": "nodal",
+      "sha256": "4fcc086e8ba5ce277516053f57a1e9bf4cef89dc3367d426562a99d2fdd443df",
+      "description": "nodal areas"
+    },
+    {
+      "name": "step_6/detector/distances",
+      "file": "data/step_6__detector__distances.npy",
+      "dtype": "f64",
+      "shape": [
+        3
+      ],
+      "axes": [
+        "entry"
+      ],
+      "layout": "table",
+      "sha256": "4c21b50cae396a5858f0e332ee3374ad8c1b9254f1cfdbd90c94dbac7a5d6ee6",
+      "description": "max_dd, min_dd, max_bb"
+    },
+    {
+      "name": "step_6/normal_force",
+      "file": "data/step_6__normal_force.npy",
+      "dtype": "f64",
+      "shape": [
+        107,
+        3
+      ],
+      "axes": [
+        "node",
+        "component"
+      ],
+      "layout": "nodal",
+      "sha256": "dec930ad56a268a83fab7065bdffed6f07a690dcda49a26436784dad72351575",
+      "description": "normal_force"
+    },
+    {
+      "name": "step_6/tangential_force",
+      "file": "data/step_6__tangential_force.npy",
+      "dtype": "f64",
+      "shape": [
+        107,
+        3
+      ],
+      "axes": [
+        "node",
+        "component"
+      ],
+      "layout": "nodal",
+      "sha256": "def1fda907cee2739899a819d8544cab2120d80f986ebee2c6c989ac2a252537",
+      "description": "tangential_force"
+    },
+    {
+      "name": "step_6/contact_state",
+      "file": "data/step_6__contact_state.npy",
+      "dtype": "i64",
+      "shape": [
+        107
+      ],
+      "axes": [
+        "node"
+      ],
+      "layout": "table",
+      "sha256": "61b6842cf3a78a5503447a2f8612a572b3dc20dba643039cb8a9100e4852ea00",
+      "description": "contact state (0 no contact, 1 stick, 2 slip)"
+    },
+    {
+      "name": "step_6/tangential_tractions",
+      "file": "data/step_6__tangential_tractions.npy",
+      "dtype": "f64",
+      "shape": [
+        107,
+        2
+      ],
+      "axes": [
+        "node",
+        "component"
+      ],
+      "layout": "nodal",
+      "sha256": "e2bff85b82d64f088a99681dad6a2a649d22d0e31def398d8c29d27787823efc",
+      "description": "tangential tractions"
+    },
+    {
+      "name": "step_7/contact_elements/slave",
+      "file": "data/step_7__contact_elements__slave.npy",
+      "dtype": "i64",
+      "shape": [
+        2
+      ],
+      "axes": [
+        "entry"
+      ],
+      "layout": "table",
+      "sha256": "1960db949d7a7bb86c6e42df3694c2ee9432fdffd6caf738f201b79e899120a5",
+      "description": "slave node of each contact element"
+    },
+    {
+      "name": "step_7/contact_elements/master",
+      "file": "data/step_7__contact_elements__master.npy",
+      "dtype": "i64",
+      "shape": [
+        2
+      ],
+      "axes": [
+        "entry"
+      ],
+      "layout": "table",
+      "sha256": "cbb86dd8d005f973189d638e373de2906bcd03a4de9e8c0522380f6a5403d8a5",
+      "description": "master facet index (type in master_type)"
+    },
+    {
+      "name": "step_7/gaps",
+      "file": "data/step_7__gaps.npy",
+      "dtype": "f64",
+      "shape": [
+        107,
+        1
+      ],
+      "axes": [
+        "node",
+        "component"
+      ],
+      "layout": "nodal",
+      "sha256": "de27e878cdd628f4f8a1763a77559fd4dff91ad8cd08b37c5ce8a3adef47b0b0",
+      "description": "gaps after search (penetration > 0)"
+    },
+    {
+      "name": "step_7/normals",
+      "file": "data/step_7__normals.npy",
+      "dtype": "f64",
+      "shape": [
+        107,
+        3
+      ],
+      "axes": [
+        "node",
+        "component"
+      ],
+      "layout": "nodal",
+      "sha256": "84eee0099f0f6d990c62caac95f457a2ddc098f968fe99fe8299f53ceb3c9a14",
+      "description": "normals"
+    },
+    {
+      "name": "step_7/tangents",
+      "file": "data/step_7__tangents.npy",
+      "dtype": "f64",
+      "shape": [
+        107,
+        6
+      ],
+      "axes": [
+        "node",
+        "component"
+      ],
+      "layout": "nodal",
+      "sha256": "5bd5488a26b2d1fb16d27f2f4512bf097b1b10a776d619076313ae611465e86b",
+      "description": "tangents (dim x (dim-1) column-major)"
+    },
+    {
+      "name": "step_7/projections",
+      "file": "data/step_7__projections.npy",
+      "dtype": "f64",
+      "shape": [
+        107,
+        2
+      ],
+      "axes": [
+        "node",
+        "component"
+      ],
+      "layout": "nodal",
+      "sha256": "a6651ea7ae2bf9c3b257f2f0af8254a9697cfae54a0154f6e03befd1b888d03a",
+      "description": "natural projections"
+    },
+    {
+      "name": "step_7/areas",
+      "file": "data/step_7__areas.npy",
+      "dtype": "f64",
+      "shape": [
+        107,
+        1
+      ],
+      "axes": [
+        "node",
+        "component"
+      ],
+      "layout": "nodal",
+      "sha256": "fd1c160e2776f5dc08280f14ca178ff5354cf6f46f1840e8eff5f8408d86a2a3",
+      "description": "nodal areas"
+    },
+    {
+      "name": "step_7/detector/distances",
+      "file": "data/step_7__detector__distances.npy",
+      "dtype": "f64",
+      "shape": [
+        3
+      ],
+      "axes": [
+        "entry"
+      ],
+      "layout": "table",
+      "sha256": "4c21b50cae396a5858f0e332ee3374ad8c1b9254f1cfdbd90c94dbac7a5d6ee6",
+      "description": "max_dd, min_dd, max_bb"
+    },
+    {
+      "name": "step_7/normal_force",
+      "file": "data/step_7__normal_force.npy",
+      "dtype": "f64",
+      "shape": [
+        107,
+        3
+      ],
+      "axes": [
+        "node",
+        "component"
+      ],
+      "layout": "nodal",
+      "sha256": "6ac7eded666f44ba44b054e51c609d00d81df0ad2789364decec64fe677cd4e7",
+      "description": "normal_force"
+    },
+    {
+      "name": "step_7/tangential_force",
+      "file": "data/step_7__tangential_force.npy",
+      "dtype": "f64",
+      "shape": [
+        107,
+        3
+      ],
+      "axes": [
+        "node",
+        "component"
+      ],
+      "layout": "nodal",
+      "sha256": "4a54aedf9ea95f1c0dd846df2ee5573f6ddd10f3d77852462c3b1084d1b864cf",
+      "description": "tangential_force"
+    },
+    {
+      "name": "step_7/contact_state",
+      "file": "data/step_7__contact_state.npy",
+      "dtype": "i64",
+      "shape": [
+        107
+      ],
+      "axes": [
+        "node"
+      ],
+      "layout": "table",
+      "sha256": "53fc3343a72f7a42c445ac22050fcafbf11ddd5b49a2af7d268d7c67bbbdfc52",
+      "description": "contact state (0 no contact, 1 stick, 2 slip)"
+    },
+    {
+      "name": "step_7/tangential_tractions",
+      "file": "data/step_7__tangential_tractions.npy",
+      "dtype": "f64",
+      "shape": [
+        107,
+        2
+      ],
+      "axes": [
+        "node",
+        "component"
+      ],
+      "layout": "nodal",
+      "sha256": "3f5828682df541177a8f439f49b3843a2b1d1042cbb951550c9023476082a287",
+      "description": "tangential tractions"
+    },
+    {
+      "name": "step_8/contact_elements/slave",
+      "file": "data/step_8__contact_elements__slave.npy",
+      "dtype": "i64",
+      "shape": [
+        2
+      ],
+      "axes": [
+        "entry"
+      ],
+      "layout": "table",
+      "sha256": "1960db949d7a7bb86c6e42df3694c2ee9432fdffd6caf738f201b79e899120a5",
+      "description": "slave node of each contact element"
+    },
+    {
+      "name": "step_8/contact_elements/master",
+      "file": "data/step_8__contact_elements__master.npy",
+      "dtype": "i64",
+      "shape": [
+        2
+      ],
+      "axes": [
+        "entry"
+      ],
+      "layout": "table",
+      "sha256": "cbb86dd8d005f973189d638e373de2906bcd03a4de9e8c0522380f6a5403d8a5",
+      "description": "master facet index (type in master_type)"
+    },
+    {
+      "name": "step_8/gaps",
+      "file": "data/step_8__gaps.npy",
+      "dtype": "f64",
+      "shape": [
+        107,
+        1
+      ],
+      "axes": [
+        "node",
+        "component"
+      ],
+      "layout": "nodal",
+      "sha256": "ee253ab426b1ab46eee4f44368c9c9541561975c1552ece50b20905492250f38",
+      "description": "gaps after search (penetration > 0)"
+    },
+    {
+      "name": "step_8/normals",
+      "file": "data/step_8__normals.npy",
+      "dtype": "f64",
+      "shape": [
+        107,
+        3
+      ],
+      "axes": [
+        "node",
+        "component"
+      ],
+      "layout": "nodal",
+      "sha256": "4a0e28e8f33cebc95790d0ef3777c0eff668a146e551e7edcbb6ab5044dc4d2e",
+      "description": "normals"
+    },
+    {
+      "name": "step_8/tangents",
+      "file": "data/step_8__tangents.npy",
+      "dtype": "f64",
+      "shape": [
+        107,
+        6
+      ],
+      "axes": [
+        "node",
+        "component"
+      ],
+      "layout": "nodal",
+      "sha256": "3644554dbc24045a8cd80c62c367ecc9d30e695a0857dbe132bc087fcc07bf9e",
+      "description": "tangents (dim x (dim-1) column-major)"
+    },
+    {
+      "name": "step_8/projections",
+      "file": "data/step_8__projections.npy",
+      "dtype": "f64",
+      "shape": [
+        107,
+        2
+      ],
+      "axes": [
+        "node",
+        "component"
+      ],
+      "layout": "nodal",
+      "sha256": "3520b73f98ce39411390cf7acc2e283ca05c64e1698132d2f90559f324fe805c",
+      "description": "natural projections"
+    },
+    {
+      "name": "step_8/areas",
+      "file": "data/step_8__areas.npy",
+      "dtype": "f64",
+      "shape": [
+        107,
+        1
+      ],
+      "axes": [
+        "node",
+        "component"
+      ],
+      "layout": "nodal",
+      "sha256": "07efa921f313d9658e1cd12f87979a863faf4419f0e51619661cf793ca914a42",
+      "description": "nodal areas"
+    },
+    {
+      "name": "step_8/detector/distances",
+      "file": "data/step_8__detector__distances.npy",
+      "dtype": "f64",
+      "shape": [
+        3
+      ],
+      "axes": [
+        "entry"
+      ],
+      "layout": "table",
+      "sha256": "4c21b50cae396a5858f0e332ee3374ad8c1b9254f1cfdbd90c94dbac7a5d6ee6",
+      "description": "max_dd, min_dd, max_bb"
+    },
+    {
+      "name": "step_8/normal_force",
+      "file": "data/step_8__normal_force.npy",
+      "dtype": "f64",
+      "shape": [
+        107,
+        3
+      ],
+      "axes": [
+        "node",
+        "component"
+      ],
+      "layout": "nodal",
+      "sha256": "3147c974de653ef455bc3b8abdddfea4fbfc55d77bcc9f9e12fc47079337afb6",
+      "description": "normal_force"
+    },
+    {
+      "name": "step_8/tangential_force",
+      "file": "data/step_8__tangential_force.npy",
+      "dtype": "f64",
+      "shape": [
+        107,
+        3
+      ],
+      "axes": [
+        "node",
+        "component"
+      ],
+      "layout": "nodal",
+      "sha256": "25db613be10c3d75d6b18dce21a8e94c0c486c6909dfec3a89ee70e51d75073d",
+      "description": "tangential_force"
+    },
+    {
+      "name": "step_8/contact_state",
+      "file": "data/step_8__contact_state.npy",
+      "dtype": "i64",
+      "shape": [
+        107
+      ],
+      "axes": [
+        "node"
+      ],
+      "layout": "table",
+      "sha256": "53fc3343a72f7a42c445ac22050fcafbf11ddd5b49a2af7d268d7c67bbbdfc52",
+      "description": "contact state (0 no contact, 1 stick, 2 slip)"
+    },
+    {
+      "name": "step_8/tangential_tractions",
+      "file": "data/step_8__tangential_tractions.npy",
+      "dtype": "f64",
+      "shape": [
+        107,
+        2
+      ],
+      "axes": [
+        "node",
+        "component"
+      ],
+      "layout": "nodal",
+      "sha256": "3847666f9158fff98127d43394463bb1187770e5a65b49521679bfc2f6cf1109",
+      "description": "tangential tractions"
+    },
+    {
+      "name": "step_9/contact_elements/slave",
+      "file": "data/step_9__contact_elements__slave.npy",
+      "dtype": "i64",
+      "shape": [
+        2
+      ],
+      "axes": [
+        "entry"
+      ],
+      "layout": "table",
+      "sha256": "1960db949d7a7bb86c6e42df3694c2ee9432fdffd6caf738f201b79e899120a5",
+      "description": "slave node of each contact element"
+    },
+    {
+      "name": "step_9/contact_elements/master",
+      "file": "data/step_9__contact_elements__master.npy",
+      "dtype": "i64",
+      "shape": [
+        2
+      ],
+      "axes": [
+        "entry"
+      ],
+      "layout": "table",
+      "sha256": "cbb86dd8d005f973189d638e373de2906bcd03a4de9e8c0522380f6a5403d8a5",
+      "description": "master facet index (type in master_type)"
+    },
+    {
+      "name": "step_9/gaps",
+      "file": "data/step_9__gaps.npy",
+      "dtype": "f64",
+      "shape": [
+        107,
+        1
+      ],
+      "axes": [
+        "node",
+        "component"
+      ],
+      "layout": "nodal",
+      "sha256": "96d479bad48f29158212c8256f928b765f5485e0cb9d3ced623328a7bf7f9fa2",
+      "description": "gaps after search (penetration > 0)"
+    },
+    {
+      "name": "step_9/normals",
+      "file": "data/step_9__normals.npy",
+      "dtype": "f64",
+      "shape": [
+        107,
+        3
+      ],
+      "axes": [
+        "node",
+        "component"
+      ],
+      "layout": "nodal",
+      "sha256": "a7a17e4b609c8b0368b336f76fc766a12c676585133bfc0bb192fc7b6da5d981",
+      "description": "normals"
+    },
+    {
+      "name": "step_9/tangents",
+      "file": "data/step_9__tangents.npy",
+      "dtype": "f64",
+      "shape": [
+        107,
+        6
+      ],
+      "axes": [
+        "node",
+        "component"
+      ],
+      "layout": "nodal",
+      "sha256": "7cdc14cd3c7620cc79c2f069ae0eb1b067b470e16ba7059ad2fd5a79c56b0e28",
+      "description": "tangents (dim x (dim-1) column-major)"
+    },
+    {
+      "name": "step_9/projections",
+      "file": "data/step_9__projections.npy",
+      "dtype": "f64",
+      "shape": [
+        107,
+        2
+      ],
+      "axes": [
+        "node",
+        "component"
+      ],
+      "layout": "nodal",
+      "sha256": "6b369e7bf8a56f3286f54dff8f2c1387be2aea860b9bdda42e719c31b9e72dc9",
+      "description": "natural projections"
+    },
+    {
+      "name": "step_9/areas",
+      "file": "data/step_9__areas.npy",
+      "dtype": "f64",
+      "shape": [
+        107,
+        1
+      ],
+      "axes": [
+        "node",
+        "component"
+      ],
+      "layout": "nodal",
+      "sha256": "e6d65a32552af53904ba5e9024e656da50d6010eabc1d78f3b10bad559735b89",
+      "description": "nodal areas"
+    },
+    {
+      "name": "step_9/detector/distances",
+      "file": "data/step_9__detector__distances.npy",
+      "dtype": "f64",
+      "shape": [
+        3
+      ],
+      "axes": [
+        "entry"
+      ],
+      "layout": "table",
+      "sha256": "4c21b50cae396a5858f0e332ee3374ad8c1b9254f1cfdbd90c94dbac7a5d6ee6",
+      "description": "max_dd, min_dd, max_bb"
+    },
+    {
+      "name": "step_9/normal_force",
+      "file": "data/step_9__normal_force.npy",
+      "dtype": "f64",
+      "shape": [
+        107,
+        3
+      ],
+      "axes": [
+        "node",
+        "component"
+      ],
+      "layout": "nodal",
+      "sha256": "06fe9aa953e652cfd4d3676cec186ee62d20af58bfbef91baf36e5bf4844d591",
+      "description": "normal_force"
+    },
+    {
+      "name": "step_9/tangential_force",
+      "file": "data/step_9__tangential_force.npy",
+      "dtype": "f64",
+      "shape": [
+        107,
+        3
+      ],
+      "axes": [
+        "node",
+        "component"
+      ],
+      "layout": "nodal",
+      "sha256": "cb9479954da65c1ae4d87bd231092aad684da079b1dde1f78296becd24bdd835",
+      "description": "tangential_force"
+    },
+    {
+      "name": "step_9/contact_state",
+      "file": "data/step_9__contact_state.npy",
+      "dtype": "i64",
+      "shape": [
+        107
+      ],
+      "axes": [
+        "node"
+      ],
+      "layout": "table",
+      "sha256": "53fc3343a72f7a42c445ac22050fcafbf11ddd5b49a2af7d268d7c67bbbdfc52",
+      "description": "contact state (0 no contact, 1 stick, 2 slip)"
+    },
+    {
+      "name": "step_9/tangential_tractions",
+      "file": "data/step_9__tangential_tractions.npy",
+      "dtype": "f64",
+      "shape": [
+        107,
+        2
+      ],
+      "axes": [
+        "node",
+        "component"
+      ],
+      "layout": "nodal",
+      "sha256": "c71e280a7126c5dd8ec6a3d09e880491e2920acdd3cc6da21b28a11b2fda8cc2",
+      "description": "tangential tractions"
+    },
+    {
+      "name": "step_10/contact_elements/slave",
+      "file": "data/step_10__contact_elements__slave.npy",
+      "dtype": "i64",
+      "shape": [
+        2
+      ],
+      "axes": [
+        "entry"
+      ],
+      "layout": "table",
+      "sha256": "1960db949d7a7bb86c6e42df3694c2ee9432fdffd6caf738f201b79e899120a5",
+      "description": "slave node of each contact element"
+    },
+    {
+      "name": "step_10/contact_elements/master",
+      "file": "data/step_10__contact_elements__master.npy",
+      "dtype": "i64",
+      "shape": [
+        2
+      ],
+      "axes": [
+        "entry"
+      ],
+      "layout": "table",
+      "sha256": "cbb86dd8d005f973189d638e373de2906bcd03a4de9e8c0522380f6a5403d8a5",
+      "description": "master facet index (type in master_type)"
+    },
+    {
+      "name": "step_10/gaps",
+      "file": "data/step_10__gaps.npy",
+      "dtype": "f64",
+      "shape": [
+        107,
+        1
+      ],
+      "axes": [
+        "node",
+        "component"
+      ],
+      "layout": "nodal",
+      "sha256": "56043a95b4b0551e553c3fee3ab45d80f12e03ef03efcf0f1995cbc49c17c273",
+      "description": "gaps after search (penetration > 0)"
+    },
+    {
+      "name": "step_10/normals",
+      "file": "data/step_10__normals.npy",
+      "dtype": "f64",
+      "shape": [
+        107,
+        3
+      ],
+      "axes": [
+        "node",
+        "component"
+      ],
+      "layout": "nodal",
+      "sha256": "0618f66e4fd8d4e8da0440a4396db9ffacf1e714840d31325a9d721d727c1162",
+      "description": "normals"
+    },
+    {
+      "name": "step_10/tangents",
+      "file": "data/step_10__tangents.npy",
+      "dtype": "f64",
+      "shape": [
+        107,
+        6
+      ],
+      "axes": [
+        "node",
+        "component"
+      ],
+      "layout": "nodal",
+      "sha256": "c29620378f6df56735117ab28c49ca831a71a74185874c6f48bbb0d5d6f550b0",
+      "description": "tangents (dim x (dim-1) column-major)"
+    },
+    {
+      "name": "step_10/projections",
+      "file": "data/step_10__projections.npy",
+      "dtype": "f64",
+      "shape": [
+        107,
+        2
+      ],
+      "axes": [
+        "node",
+        "component"
+      ],
+      "layout": "nodal",
+      "sha256": "60d9a73f89411c89e95bb2c2e4d7e7b1025f5b5849dcb3639fbd8f7dc46326b8",
+      "description": "natural projections"
+    },
+    {
+      "name": "step_10/areas",
+      "file": "data/step_10__areas.npy",
+      "dtype": "f64",
+      "shape": [
+        107,
+        1
+      ],
+      "axes": [
+        "node",
+        "component"
+      ],
+      "layout": "nodal",
+      "sha256": "c30b17981a5f7c919051cad377a4e6162515ade77cca54d60daa92d904ed26d5",
+      "description": "nodal areas"
+    },
+    {
+      "name": "step_10/detector/distances",
+      "file": "data/step_10__detector__distances.npy",
+      "dtype": "f64",
+      "shape": [
+        3
+      ],
+      "axes": [
+        "entry"
+      ],
+      "layout": "table",
+      "sha256": "4c21b50cae396a5858f0e332ee3374ad8c1b9254f1cfdbd90c94dbac7a5d6ee6",
+      "description": "max_dd, min_dd, max_bb"
+    },
+    {
+      "name": "step_10/normal_force",
+      "file": "data/step_10__normal_force.npy",
+      "dtype": "f64",
+      "shape": [
+        107,
+        3
+      ],
+      "axes": [
+        "node",
+        "component"
+      ],
+      "layout": "nodal",
+      "sha256": "f74b50c7dbd7626f12909af8d862e2ee796d72ed7e97966ac298ef831af7ebec",
+      "description": "normal_force"
+    },
+    {
+      "name": "step_10/tangential_force",
+      "file": "data/step_10__tangential_force.npy",
+      "dtype": "f64",
+      "shape": [
+        107,
+        3
+      ],
+      "axes": [
+        "node",
+        "component"
+      ],
+      "layout": "nodal",
+      "sha256": "d7ee3c98818752684043264b7af56a8873128b2f37bb6a3a252e873ce3e5d443",
+      "description": "tangential_force"
+    },
+    {
+      "name": "step_10/contact_state",
+      "file": "data/step_10__contact_state.npy",
+      "dtype": "i64",
+      "shape": [
+        107
+      ],
+      "axes": [
+        "node"
+      ],
+      "layout": "table",
+      "sha256": "53fc3343a72f7a42c445ac22050fcafbf11ddd5b49a2af7d268d7c67bbbdfc52",
+      "description": "contact state (0 no contact, 1 stick, 2 slip)"
+    },
+    {
+      "name": "step_10/tangential_tractions",
+      "file": "data/step_10__tangential_tractions.npy",
+      "dtype": "f64",
+      "shape": [
+        107,
+        2
+      ],
+      "axes": [
+        "node",
+        "component"
+      ],
+      "layout": "nodal",
+      "sha256": "c7b122d2e96b2d65ac3c94aca2a4a9e253b71c97b61090078bd4ce7f2d656156",
+      "description": "tangential tractions"
+    },
+    {
+      "name": "step_11/contact_elements/slave",
+      "file": "data/step_11__contact_elements__slave.npy",
+      "dtype": "i64",
+      "shape": [
+        2
+      ],
+      "axes": [
+        "entry"
+      ],
+      "layout": "table",
+      "sha256": "1960db949d7a7bb86c6e42df3694c2ee9432fdffd6caf738f201b79e899120a5",
+      "description": "slave node of each contact element"
+    },
+    {
+      "name": "step_11/contact_elements/master",
+      "file": "data/step_11__contact_elements__master.npy",
+      "dtype": "i64",
+      "shape": [
+        2
+      ],
+      "axes": [
+        "entry"
+      ],
+      "layout": "table",
+      "sha256": "a95a7810ad55e75613fd729afd7a7e4df504e40f37b4827b398f5b66caa4dcc7",
+      "description": "master facet index (type in master_type)"
+    },
+    {
+      "name": "step_11/gaps",
+      "file": "data/step_11__gaps.npy",
+      "dtype": "f64",
+      "shape": [
+        107,
+        1
+      ],
+      "axes": [
+        "node",
+        "component"
+      ],
+      "layout": "nodal",
+      "sha256": "9b36a595155b856946f65c69f9e7c3976b2223513a228d11e33a305f1f4a95fb",
+      "description": "gaps after search (penetration > 0)"
+    },
+    {
+      "name": "step_11/normals",
+      "file": "data/step_11__normals.npy",
+      "dtype": "f64",
+      "shape": [
+        107,
+        3
+      ],
+      "axes": [
+        "node",
+        "component"
+      ],
+      "layout": "nodal",
+      "sha256": "64115178043b418c36f67b36227a6054071a473d78e8792c21aee64e383b3d40",
+      "description": "normals"
+    },
+    {
+      "name": "step_11/tangents",
+      "file": "data/step_11__tangents.npy",
+      "dtype": "f64",
+      "shape": [
+        107,
+        6
+      ],
+      "axes": [
+        "node",
+        "component"
+      ],
+      "layout": "nodal",
+      "sha256": "bbcf0937ff8a9a6016abab1a5357b2fd572b3274d5a470725f2304ab5556961a",
+      "description": "tangents (dim x (dim-1) column-major)"
+    },
+    {
+      "name": "step_11/projections",
+      "file": "data/step_11__projections.npy",
+      "dtype": "f64",
+      "shape": [
+        107,
+        2
+      ],
+      "axes": [
+        "node",
+        "component"
+      ],
+      "layout": "nodal",
+      "sha256": "ef4bbaf67cfb1942b02154c2acb96522dffa1803b41a4f7d56097444a9ac196e",
+      "description": "natural projections"
+    },
+    {
+      "name": "step_11/areas",
+      "file": "data/step_11__areas.npy",
+      "dtype": "f64",
+      "shape": [
+        107,
+        1
+      ],
+      "axes": [
+        "node",
+        "component"
+      ],
+      "layout": "nodal",
+      "sha256": "4801a25962e159e4cda46602d0919d74b6dcfe7e146be8c9b622475d6fa59d73",
+      "description": "nodal areas"
+    },
+    {
+      "name": "step_11/detector/distances",
+      "file": "data/step_11__detector__distances.npy",
+      "dtype": "f64",
+      "shape": [
+        3
+      ],
+      "axes": [
+        "entry"
+      ],
+      "layout": "table",
+      "sha256": "4c21b50cae396a5858f0e332ee3374ad8c1b9254f1cfdbd90c94dbac7a5d6ee6",
+      "description": "max_dd, min_dd, max_bb"
+    },
+    {
+      "name": "step_11/normal_force",
+      "file": "data/step_11__normal_force.npy",
+      "dtype": "f64",
+      "shape": [
+        107,
+        3
+      ],
+      "axes": [
+        "node",
+        "component"
+      ],
+      "layout": "nodal",
+      "sha256": "5c88a21868a3b66c5239563a88c30d5f38cc1c2b968c3a15b65b4b3ac69534f3",
+      "description": "normal_force"
+    },
+    {
+      "name": "step_11/tangential_force",
+      "file": "data/step_11__tangential_force.npy",
+      "dtype": "f64",
+      "shape": [
+        107,
+        3
+      ],
+      "axes": [
+        "node",
+        "component"
+      ],
+      "layout": "nodal",
+      "sha256": "bfb48445b47d2342528f7f61f28093f3a15859002bf2f91bf81ce7db00465121",
+      "description": "tangential_force"
+    },
+    {
+      "name": "step_11/contact_state",
+      "file": "data/step_11__contact_state.npy",
+      "dtype": "i64",
+      "shape": [
+        107
+      ],
+      "axes": [
+        "node"
+      ],
+      "layout": "table",
+      "sha256": "53fc3343a72f7a42c445ac22050fcafbf11ddd5b49a2af7d268d7c67bbbdfc52",
+      "description": "contact state (0 no contact, 1 stick, 2 slip)"
+    },
+    {
+      "name": "step_11/tangential_tractions",
+      "file": "data/step_11__tangential_tractions.npy",
+      "dtype": "f64",
+      "shape": [
+        107,
+        2
+      ],
+      "axes": [
+        "node",
+        "component"
+      ],
+      "layout": "nodal",
+      "sha256": "13779d4106ce7ad90fd5f5cb0c8f1a7239fc34354011dae9779774f39a9e5b52",
+      "description": "tangential tractions"
+    },
+    {
+      "name": "step_12/contact_elements/slave",
+      "file": "data/step_12__contact_elements__slave.npy",
+      "dtype": "i64",
+      "shape": [
+        2
+      ],
+      "axes": [
+        "entry"
+      ],
+      "layout": "table",
+      "sha256": "1960db949d7a7bb86c6e42df3694c2ee9432fdffd6caf738f201b79e899120a5",
+      "description": "slave node of each contact element"
+    },
+    {
+      "name": "step_12/contact_elements/master",
+      "file": "data/step_12__contact_elements__master.npy",
+      "dtype": "i64",
+      "shape": [
+        2
+      ],
+      "axes": [
+        "entry"
+      ],
+      "layout": "table",
+      "sha256": "a95a7810ad55e75613fd729afd7a7e4df504e40f37b4827b398f5b66caa4dcc7",
+      "description": "master facet index (type in master_type)"
+    },
+    {
+      "name": "step_12/gaps",
+      "file": "data/step_12__gaps.npy",
+      "dtype": "f64",
+      "shape": [
+        107,
+        1
+      ],
+      "axes": [
+        "node",
+        "component"
+      ],
+      "layout": "nodal",
+      "sha256": "8f6e3e850aa209ee48f129e1a64613278a756eeadf4ee3671853e5a546f89689",
+      "description": "gaps after search (penetration > 0)"
+    },
+    {
+      "name": "step_12/normals",
+      "file": "data/step_12__normals.npy",
+      "dtype": "f64",
+      "shape": [
+        107,
+        3
+      ],
+      "axes": [
+        "node",
+        "component"
+      ],
+      "layout": "nodal",
+      "sha256": "409c685d0d6aef3db9de1715cc72eb143536c02c6048ab765253ff8857f210db",
+      "description": "normals"
+    },
+    {
+      "name": "step_12/tangents",
+      "file": "data/step_12__tangents.npy",
+      "dtype": "f64",
+      "shape": [
+        107,
+        6
+      ],
+      "axes": [
+        "node",
+        "component"
+      ],
+      "layout": "nodal",
+      "sha256": "a0e20d27db8e633354203a63e14bbe6a3bb6bae0424a4c8eeba3ebd0210cd58e",
+      "description": "tangents (dim x (dim-1) column-major)"
+    },
+    {
+      "name": "step_12/projections",
+      "file": "data/step_12__projections.npy",
+      "dtype": "f64",
+      "shape": [
+        107,
+        2
+      ],
+      "axes": [
+        "node",
+        "component"
+      ],
+      "layout": "nodal",
+      "sha256": "76d016afc5248bdcf37f73d2f5afb077c5b32b99fd897140178e0d7fe602cbcc",
+      "description": "natural projections"
+    },
+    {
+      "name": "step_12/areas",
+      "file": "data/step_12__areas.npy",
+      "dtype": "f64",
+      "shape": [
+        107,
+        1
+      ],
+      "axes": [
+        "node",
+        "component"
+      ],
+      "layout": "nodal",
+      "sha256": "515fbe252122cf26fbff7a85f895f98cf339b942d3c317c4c7b782455cd5a2dc",
+      "description": "nodal areas"
+    },
+    {
+      "name": "step_12/detector/distances",
+      "file": "data/step_12__detector__distances.npy",
+      "dtype": "f64",
+      "shape": [
+        3
+      ],
+      "axes": [
+        "entry"
+      ],
+      "layout": "table",
+      "sha256": "4c21b50cae396a5858f0e332ee3374ad8c1b9254f1cfdbd90c94dbac7a5d6ee6",
+      "description": "max_dd, min_dd, max_bb"
+    },
+    {
+      "name": "step_12/normal_force",
+      "file": "data/step_12__normal_force.npy",
+      "dtype": "f64",
+      "shape": [
+        107,
+        3
+      ],
+      "axes": [
+        "node",
+        "component"
+      ],
+      "layout": "nodal",
+      "sha256": "b7e84b4c4f85fb1c7f16075ce129125ae3899380b4ba56abf95ab5e70afc464e",
+      "description": "normal_force"
+    },
+    {
+      "name": "step_12/tangential_force",
+      "file": "data/step_12__tangential_force.npy",
+      "dtype": "f64",
+      "shape": [
+        107,
+        3
+      ],
+      "axes": [
+        "node",
+        "component"
+      ],
+      "layout": "nodal",
+      "sha256": "550dd823b720181897366d7fddb5b4248816b9eedb7db5eac147e32e0e8dbec7",
+      "description": "tangential_force"
+    },
+    {
+      "name": "step_12/contact_state",
+      "file": "data/step_12__contact_state.npy",
+      "dtype": "i64",
+      "shape": [
+        107
+      ],
+      "axes": [
+        "node"
+      ],
+      "layout": "table",
+      "sha256": "53fc3343a72f7a42c445ac22050fcafbf11ddd5b49a2af7d268d7c67bbbdfc52",
+      "description": "contact state (0 no contact, 1 stick, 2 slip)"
+    },
+    {
+      "name": "step_12/tangential_tractions",
+      "file": "data/step_12__tangential_tractions.npy",
+      "dtype": "f64",
+      "shape": [
+        107,
+        2
+      ],
+      "axes": [
+        "node",
+        "component"
+      ],
+      "layout": "nodal",
+      "sha256": "717da63111039a98d9347f785003476277bc26462c990bf0313ad788cec71a85",
+      "description": "tangential tractions"
+    },
+    {
+      "name": "step_13/contact_elements/slave",
+      "file": "data/step_13__contact_elements__slave.npy",
+      "dtype": "i64",
+      "shape": [
+        2
+      ],
+      "axes": [
+        "entry"
+      ],
+      "layout": "table",
+      "sha256": "1960db949d7a7bb86c6e42df3694c2ee9432fdffd6caf738f201b79e899120a5",
+      "description": "slave node of each contact element"
+    },
+    {
+      "name": "step_13/contact_elements/master",
+      "file": "data/step_13__contact_elements__master.npy",
+      "dtype": "i64",
+      "shape": [
+        2
+      ],
+      "axes": [
+        "entry"
+      ],
+      "layout": "table",
+      "sha256": "a95a7810ad55e75613fd729afd7a7e4df504e40f37b4827b398f5b66caa4dcc7",
+      "description": "master facet index (type in master_type)"
+    },
+    {
+      "name": "step_13/gaps",
+      "file": "data/step_13__gaps.npy",
+      "dtype": "f64",
+      "shape": [
+        107,
+        1
+      ],
+      "axes": [
+        "node",
+        "component"
+      ],
+      "layout": "nodal",
+      "sha256": "f8ecbcc01c0bfdc7b07f18efae8f425ad3e52c05e617da4676a889156b6f6131",
+      "description": "gaps after search (penetration > 0)"
+    },
+    {
+      "name": "step_13/normals",
+      "file": "data/step_13__normals.npy",
+      "dtype": "f64",
+      "shape": [
+        107,
+        3
+      ],
+      "axes": [
+        "node",
+        "component"
+      ],
+      "layout": "nodal",
+      "sha256": "64115178043b418c36f67b36227a6054071a473d78e8792c21aee64e383b3d40",
+      "description": "normals"
+    },
+    {
+      "name": "step_13/tangents",
+      "file": "data/step_13__tangents.npy",
+      "dtype": "f64",
+      "shape": [
+        107,
+        6
+      ],
+      "axes": [
+        "node",
+        "component"
+      ],
+      "layout": "nodal",
+      "sha256": "2b7ba100d416e155fb501afba4dd7fdf89eb6acdbf25d96b0b6f033df94ba9c4",
+      "description": "tangents (dim x (dim-1) column-major)"
+    },
+    {
+      "name": "step_13/projections",
+      "file": "data/step_13__projections.npy",
+      "dtype": "f64",
+      "shape": [
+        107,
+        2
+      ],
+      "axes": [
+        "node",
+        "component"
+      ],
+      "layout": "nodal",
+      "sha256": "31a4ff8407e536eb838b35d1277a477257118ba475f6d770bf91b69ae0e62ddd",
+      "description": "natural projections"
+    },
+    {
+      "name": "step_13/areas",
+      "file": "data/step_13__areas.npy",
+      "dtype": "f64",
+      "shape": [
+        107,
+        1
+      ],
+      "axes": [
+        "node",
+        "component"
+      ],
+      "layout": "nodal",
+      "sha256": "55645ad003a199857c498402326916dcd725f21a139a5851a865555ec90bd635",
+      "description": "nodal areas"
+    },
+    {
+      "name": "step_13/detector/distances",
+      "file": "data/step_13__detector__distances.npy",
+      "dtype": "f64",
+      "shape": [
+        3
+      ],
+      "axes": [
+        "entry"
+      ],
+      "layout": "table",
+      "sha256": "4c21b50cae396a5858f0e332ee3374ad8c1b9254f1cfdbd90c94dbac7a5d6ee6",
+      "description": "max_dd, min_dd, max_bb"
+    },
+    {
+      "name": "step_13/normal_force",
+      "file": "data/step_13__normal_force.npy",
+      "dtype": "f64",
+      "shape": [
+        107,
+        3
+      ],
+      "axes": [
+        "node",
+        "component"
+      ],
+      "layout": "nodal",
+      "sha256": "a73db071c9d3a16422265b4c727462fef8a4e386474f7bf62de5d18bbf78543c",
+      "description": "normal_force"
+    },
+    {
+      "name": "step_13/tangential_force",
+      "file": "data/step_13__tangential_force.npy",
+      "dtype": "f64",
+      "shape": [
+        107,
+        3
+      ],
+      "axes": [
+        "node",
+        "component"
+      ],
+      "layout": "nodal",
+      "sha256": "0af9c5faaa88f58d36fc14a6f887f0a38800a59aa3a5c20801e3486a9a4e8ca6",
+      "description": "tangential_force"
+    },
+    {
+      "name": "step_13/contact_state",
+      "file": "data/step_13__contact_state.npy",
+      "dtype": "i64",
+      "shape": [
+        107
+      ],
+      "axes": [
+        "node"
+      ],
+      "layout": "table",
+      "sha256": "53fc3343a72f7a42c445ac22050fcafbf11ddd5b49a2af7d268d7c67bbbdfc52",
+      "description": "contact state (0 no contact, 1 stick, 2 slip)"
+    },
+    {
+      "name": "step_13/tangential_tractions",
+      "file": "data/step_13__tangential_tractions.npy",
+      "dtype": "f64",
+      "shape": [
+        107,
+        2
+      ],
+      "axes": [
+        "node",
+        "component"
+      ],
+      "layout": "nodal",
+      "sha256": "014a122f0b28eccf9b2ca112131ea2949af0c5c8dad0ccd851f42beb22f2bf38",
+      "description": "tangential tractions"
+    },
+    {
+      "name": "step_14/contact_elements/slave",
+      "file": "data/step_14__contact_elements__slave.npy",
+      "dtype": "i64",
+      "shape": [
+        2
+      ],
+      "axes": [
+        "entry"
+      ],
+      "layout": "table",
+      "sha256": "1960db949d7a7bb86c6e42df3694c2ee9432fdffd6caf738f201b79e899120a5",
+      "description": "slave node of each contact element"
+    },
+    {
+      "name": "step_14/contact_elements/master",
+      "file": "data/step_14__contact_elements__master.npy",
+      "dtype": "i64",
+      "shape": [
+        2
+      ],
+      "axes": [
+        "entry"
+      ],
+      "layout": "table",
+      "sha256": "a95a7810ad55e75613fd729afd7a7e4df504e40f37b4827b398f5b66caa4dcc7",
+      "description": "master facet index (type in master_type)"
+    },
+    {
+      "name": "step_14/gaps",
+      "file": "data/step_14__gaps.npy",
+      "dtype": "f64",
+      "shape": [
+        107,
+        1
+      ],
+      "axes": [
+        "node",
+        "component"
+      ],
+      "layout": "nodal",
+      "sha256": "60f32df67fc6cdc83fb54d7bd8df6f18d6671537ec9dc18e44ef9a2172e097e1",
+      "description": "gaps after search (penetration > 0)"
+    },
+    {
+      "name": "step_14/normals",
+      "file": "data/step_14__normals.npy",
+      "dtype": "f64",
+      "shape": [
+        107,
+        3
+      ],
+      "axes": [
+        "node",
+        "component"
+      ],
+      "layout": "nodal",
+      "sha256": "cd22fdb0e4de92e12514d03c10b229a25d146b54e946b8ccdb771fd931784f85",
+      "description": "normals"
+    },
+    {
+      "name": "step_14/tangents",
+      "file": "data/step_14__tangents.npy",
+      "dtype": "f64",
+      "shape": [
+        107,
+        6
+      ],
+      "axes": [
+        "node",
+        "component"
+      ],
+      "layout": "nodal",
+      "sha256": "dc94043e7f616bb40a00714f14f4af92816a2f3c093ab8dfc54673c999eb1a5e",
+      "description": "tangents (dim x (dim-1) column-major)"
+    },
+    {
+      "name": "step_14/projections",
+      "file": "data/step_14__projections.npy",
+      "dtype": "f64",
+      "shape": [
+        107,
+        2
+      ],
+      "axes": [
+        "node",
+        "component"
+      ],
+      "layout": "nodal",
+      "sha256": "a7f4b67d0ff250717cc2f0586bf2efdeda3b495480259a723a552d426e05a8c7",
+      "description": "natural projections"
+    },
+    {
+      "name": "step_14/areas",
+      "file": "data/step_14__areas.npy",
+      "dtype": "f64",
+      "shape": [
+        107,
+        1
+      ],
+      "axes": [
+        "node",
+        "component"
+      ],
+      "layout": "nodal",
+      "sha256": "033135ee3c4cd7caa9ca27519d0c3efa4c98e398190d6b1087570c60c64542be",
+      "description": "nodal areas"
+    },
+    {
+      "name": "step_14/detector/distances",
+      "file": "data/step_14__detector__distances.npy",
+      "dtype": "f64",
+      "shape": [
+        3
+      ],
+      "axes": [
+        "entry"
+      ],
+      "layout": "table",
+      "sha256": "4c21b50cae396a5858f0e332ee3374ad8c1b9254f1cfdbd90c94dbac7a5d6ee6",
+      "description": "max_dd, min_dd, max_bb"
+    },
+    {
+      "name": "step_14/normal_force",
+      "file": "data/step_14__normal_force.npy",
+      "dtype": "f64",
+      "shape": [
+        107,
+        3
+      ],
+      "axes": [
+        "node",
+        "component"
+      ],
+      "layout": "nodal",
+      "sha256": "17310654c84559ceaba226bcaafeeea513f7220170b360b6c9f1e0ba94dd0ab2",
+      "description": "normal_force"
+    },
+    {
+      "name": "step_14/tangential_force",
+      "file": "data/step_14__tangential_force.npy",
+      "dtype": "f64",
+      "shape": [
+        107,
+        3
+      ],
+      "axes": [
+        "node",
+        "component"
+      ],
+      "layout": "nodal",
+      "sha256": "8bae3330a79f6f75672cc1a3b603064182a15e72c8ef6ac2108f7d20822ec339",
+      "description": "tangential_force"
+    },
+    {
+      "name": "step_14/contact_state",
+      "file": "data/step_14__contact_state.npy",
+      "dtype": "i64",
+      "shape": [
+        107
+      ],
+      "axes": [
+        "node"
+      ],
+      "layout": "table",
+      "sha256": "53fc3343a72f7a42c445ac22050fcafbf11ddd5b49a2af7d268d7c67bbbdfc52",
+      "description": "contact state (0 no contact, 1 stick, 2 slip)"
+    },
+    {
+      "name": "step_14/tangential_tractions",
+      "file": "data/step_14__tangential_tractions.npy",
+      "dtype": "f64",
+      "shape": [
+        107,
+        2
+      ],
+      "axes": [
+        "node",
+        "component"
+      ],
+      "layout": "nodal",
+      "sha256": "9df8fb98488f887ed8d6aa837af86c382795b02b39a26077d37f1051ed010848",
+      "description": "tangential tractions"
+    },
+    {
+      "name": "step_15/contact_elements/slave",
+      "file": "data/step_15__contact_elements__slave.npy",
+      "dtype": "i64",
+      "shape": [
+        3
+      ],
+      "axes": [
+        "entry"
+      ],
+      "layout": "table",
+      "sha256": "1da62e55b5d91ce076b6d8eddaca2cf8faac7732dc427499b4f6e8006c9d5348",
+      "description": "slave node of each contact element"
+    },
+    {
+      "name": "step_15/contact_elements/master",
+      "file": "data/step_15__contact_elements__master.npy",
+      "dtype": "i64",
+      "shape": [
+        3
+      ],
+      "axes": [
+        "entry"
+      ],
+      "layout": "table",
+      "sha256": "5a11dad3244c855ab6c1179c487cd55f2815c6bfa0fddabfc70721bd36a24bba",
+      "description": "master facet index (type in master_type)"
+    },
+    {
+      "name": "step_15/gaps",
+      "file": "data/step_15__gaps.npy",
+      "dtype": "f64",
+      "shape": [
+        107,
+        1
+      ],
+      "axes": [
+        "node",
+        "component"
+      ],
+      "layout": "nodal",
+      "sha256": "d13d1227d8da15f4451257f3b45a089887c46a6440213699a2b597b5e7195544",
+      "description": "gaps after search (penetration > 0)"
+    },
+    {
+      "name": "step_15/normals",
+      "file": "data/step_15__normals.npy",
+      "dtype": "f64",
+      "shape": [
+        107,
+        3
+      ],
+      "axes": [
+        "node",
+        "component"
+      ],
+      "layout": "nodal",
+      "sha256": "53bde86f805b23334ebda9fc5bc359f7d87cb061558b805c8a471fe8df9eed10",
+      "description": "normals"
+    },
+    {
+      "name": "step_15/tangents",
+      "file": "data/step_15__tangents.npy",
+      "dtype": "f64",
+      "shape": [
+        107,
+        6
+      ],
+      "axes": [
+        "node",
+        "component"
+      ],
+      "layout": "nodal",
+      "sha256": "435f0c5050b3bc785c9a650b274954c94e97f1720c6d6b144762ea86b46174bc",
+      "description": "tangents (dim x (dim-1) column-major)"
+    },
+    {
+      "name": "step_15/projections",
+      "file": "data/step_15__projections.npy",
+      "dtype": "f64",
+      "shape": [
+        107,
+        2
+      ],
+      "axes": [
+        "node",
+        "component"
+      ],
+      "layout": "nodal",
+      "sha256": "f067ce4f2327f98e7c1bced364d6361d863d4ae1a52a82e32b8ce739ff040c09",
+      "description": "natural projections"
+    },
+    {
+      "name": "step_15/areas",
+      "file": "data/step_15__areas.npy",
+      "dtype": "f64",
+      "shape": [
+        107,
+        1
+      ],
+      "axes": [
+        "node",
+        "component"
+      ],
+      "layout": "nodal",
+      "sha256": "80b61375ca0831399290200f068305675827fbd1648486be418c73b4928750fc",
+      "description": "nodal areas"
+    },
+    {
+      "name": "step_15/detector/distances",
+      "file": "data/step_15__detector__distances.npy",
+      "dtype": "f64",
+      "shape": [
+        3
+      ],
+      "axes": [
+        "entry"
+      ],
+      "layout": "table",
+      "sha256": "4c21b50cae396a5858f0e332ee3374ad8c1b9254f1cfdbd90c94dbac7a5d6ee6",
+      "description": "max_dd, min_dd, max_bb"
+    },
+    {
+      "name": "step_15/normal_force",
+      "file": "data/step_15__normal_force.npy",
+      "dtype": "f64",
+      "shape": [
+        107,
+        3
+      ],
+      "axes": [
+        "node",
+        "component"
+      ],
+      "layout": "nodal",
+      "sha256": "0c193d325ebcca17b41833feb204fea331976322a4a8591e94aa11ce9c244e19",
+      "description": "normal_force"
+    },
+    {
+      "name": "step_15/tangential_force",
+      "file": "data/step_15__tangential_force.npy",
+      "dtype": "f64",
+      "shape": [
+        107,
+        3
+      ],
+      "axes": [
+        "node",
+        "component"
+      ],
+      "layout": "nodal",
+      "sha256": "d44067da7b08a008c42af158f11428eef75f8b9c5742630af8ae816881d5677f",
+      "description": "tangential_force"
+    },
+    {
+      "name": "step_15/contact_state",
+      "file": "data/step_15__contact_state.npy",
+      "dtype": "i64",
+      "shape": [
+        107
+      ],
+      "axes": [
+        "node"
+      ],
+      "layout": "table",
+      "sha256": "53fc3343a72f7a42c445ac22050fcafbf11ddd5b49a2af7d268d7c67bbbdfc52",
+      "description": "contact state (0 no contact, 1 stick, 2 slip)"
+    },
+    {
+      "name": "step_15/tangential_tractions",
+      "file": "data/step_15__tangential_tractions.npy",
+      "dtype": "f64",
+      "shape": [
+        107,
+        2
+      ],
+      "axes": [
+        "node",
+        "component"
+      ],
+      "layout": "nodal",
+      "sha256": "a8d381df23f4e35b929810a3b0e510a462069cdf22e717bd4a960ef503dec304",
+      "description": "tangential tractions"
+    },
+    {
+      "name": "step_16/contact_elements/slave",
+      "file": "data/step_16__contact_elements__slave.npy",
+      "dtype": "i64",
+      "shape": [
+        3
+      ],
+      "axes": [
+        "entry"
+      ],
+      "layout": "table",
+      "sha256": "1da62e55b5d91ce076b6d8eddaca2cf8faac7732dc427499b4f6e8006c9d5348",
+      "description": "slave node of each contact element"
+    },
+    {
+      "name": "step_16/contact_elements/master",
+      "file": "data/step_16__contact_elements__master.npy",
+      "dtype": "i64",
+      "shape": [
+        3
+      ],
+      "axes": [
+        "entry"
+      ],
+      "layout": "table",
+      "sha256": "5a11dad3244c855ab6c1179c487cd55f2815c6bfa0fddabfc70721bd36a24bba",
+      "description": "master facet index (type in master_type)"
+    },
+    {
+      "name": "step_16/gaps",
+      "file": "data/step_16__gaps.npy",
+      "dtype": "f64",
+      "shape": [
+        107,
+        1
+      ],
+      "axes": [
+        "node",
+        "component"
+      ],
+      "layout": "nodal",
+      "sha256": "a072085340eaedf2462a63ede134c43c897be81691522f6061d22fe57db7c7e0",
+      "description": "gaps after search (penetration > 0)"
+    },
+    {
+      "name": "step_16/normals",
+      "file": "data/step_16__normals.npy",
+      "dtype": "f64",
+      "shape": [
+        107,
+        3
+      ],
+      "axes": [
+        "node",
+        "component"
+      ],
+      "layout": "nodal",
+      "sha256": "b1e43b26bed472e361ac3965418ed66ddbafaf29518cfc3aa854ceef9189f6b3",
+      "description": "normals"
+    },
+    {
+      "name": "step_16/tangents",
+      "file": "data/step_16__tangents.npy",
+      "dtype": "f64",
+      "shape": [
+        107,
+        6
+      ],
+      "axes": [
+        "node",
+        "component"
+      ],
+      "layout": "nodal",
+      "sha256": "6ebfe8450c992bb75e80602071bdda5e497319f65ad8100c2a81c6f1bd3ca5bb",
+      "description": "tangents (dim x (dim-1) column-major)"
+    },
+    {
+      "name": "step_16/projections",
+      "file": "data/step_16__projections.npy",
+      "dtype": "f64",
+      "shape": [
+        107,
+        2
+      ],
+      "axes": [
+        "node",
+        "component"
+      ],
+      "layout": "nodal",
+      "sha256": "c294b91fa8d65064b380ed2a7ccf6426b1dca4aefdd8f55193ba5146272770b0",
+      "description": "natural projections"
+    },
+    {
+      "name": "step_16/areas",
+      "file": "data/step_16__areas.npy",
+      "dtype": "f64",
+      "shape": [
+        107,
+        1
+      ],
+      "axes": [
+        "node",
+        "component"
+      ],
+      "layout": "nodal",
+      "sha256": "0391d05d19c6009ebfffc7116e43214f19d1763741a3f06374b74913e905083d",
+      "description": "nodal areas"
+    },
+    {
+      "name": "step_16/detector/distances",
+      "file": "data/step_16__detector__distances.npy",
+      "dtype": "f64",
+      "shape": [
+        3
+      ],
+      "axes": [
+        "entry"
+      ],
+      "layout": "table",
+      "sha256": "4c21b50cae396a5858f0e332ee3374ad8c1b9254f1cfdbd90c94dbac7a5d6ee6",
+      "description": "max_dd, min_dd, max_bb"
+    },
+    {
+      "name": "step_16/normal_force",
+      "file": "data/step_16__normal_force.npy",
+      "dtype": "f64",
+      "shape": [
+        107,
+        3
+      ],
+      "axes": [
+        "node",
+        "component"
+      ],
+      "layout": "nodal",
+      "sha256": "90371963e220e1615ca99637ed7cb20eeb1b85d7f9802238184585318ec38588",
+      "description": "normal_force"
+    },
+    {
+      "name": "step_16/tangential_force",
+      "file": "data/step_16__tangential_force.npy",
+      "dtype": "f64",
+      "shape": [
+        107,
+        3
+      ],
+      "axes": [
+        "node",
+        "component"
+      ],
+      "layout": "nodal",
+      "sha256": "e6f8525e61a984ff7bd8049648b4f33dbb682e88d49c298fc4a680deef2115f9",
+      "description": "tangential_force"
+    },
+    {
+      "name": "step_16/contact_state",
+      "file": "data/step_16__contact_state.npy",
+      "dtype": "i64",
+      "shape": [
+        107
+      ],
+      "axes": [
+        "node"
+      ],
+      "layout": "table",
+      "sha256": "ad5112b5fa877fd93fad04258204284d0b62e6838a95a6195acdf128a902fc97",
+      "description": "contact state (0 no contact, 1 stick, 2 slip)"
+    },
+    {
+      "name": "step_16/tangential_tractions",
+      "file": "data/step_16__tangential_tractions.npy",
+      "dtype": "f64",
+      "shape": [
+        107,
+        2
+      ],
+      "axes": [
+        "node",
+        "component"
+      ],
+      "layout": "nodal",
+      "sha256": "88809e2887203130b5a6d3d02c79d508abc344d27499698b5a7333fb781fa331",
+      "description": "tangential tractions"
+    },
+    {
+      "name": "step_17/contact_elements/slave",
+      "file": "data/step_17__contact_elements__slave.npy",
+      "dtype": "i64",
+      "shape": [
+        3
+      ],
+      "axes": [
+        "entry"
+      ],
+      "layout": "table",
+      "sha256": "1da62e55b5d91ce076b6d8eddaca2cf8faac7732dc427499b4f6e8006c9d5348",
+      "description": "slave node of each contact element"
+    },
+    {
+      "name": "step_17/contact_elements/master",
+      "file": "data/step_17__contact_elements__master.npy",
+      "dtype": "i64",
+      "shape": [
+        3
+      ],
+      "axes": [
+        "entry"
+      ],
+      "layout": "table",
+      "sha256": "5a11dad3244c855ab6c1179c487cd55f2815c6bfa0fddabfc70721bd36a24bba",
+      "description": "master facet index (type in master_type)"
+    },
+    {
+      "name": "step_17/gaps",
+      "file": "data/step_17__gaps.npy",
+      "dtype": "f64",
+      "shape": [
+        107,
+        1
+      ],
+      "axes": [
+        "node",
+        "component"
+      ],
+      "layout": "nodal",
+      "sha256": "25ef10659d99380851510b87d31c6ad0b5909f6fad6486bafcfc564f6efb9eaf",
+      "description": "gaps after search (penetration > 0)"
+    },
+    {
+      "name": "step_17/normals",
+      "file": "data/step_17__normals.npy",
+      "dtype": "f64",
+      "shape": [
+        107,
+        3
+      ],
+      "axes": [
+        "node",
+        "component"
+      ],
+      "layout": "nodal",
+      "sha256": "2f006521e8485cf202cd00ecb49b7279797c05999a04c66cdf4a75ad54cf3721",
+      "description": "normals"
+    },
+    {
+      "name": "step_17/tangents",
+      "file": "data/step_17__tangents.npy",
+      "dtype": "f64",
+      "shape": [
+        107,
+        6
+      ],
+      "axes": [
+        "node",
+        "component"
+      ],
+      "layout": "nodal",
+      "sha256": "f1cf6dca04b5dc66c6c14a35e45124b52530e2f71c869684673003f1c1da3155",
+      "description": "tangents (dim x (dim-1) column-major)"
+    },
+    {
+      "name": "step_17/projections",
+      "file": "data/step_17__projections.npy",
+      "dtype": "f64",
+      "shape": [
+        107,
+        2
+      ],
+      "axes": [
+        "node",
+        "component"
+      ],
+      "layout": "nodal",
+      "sha256": "f620731fc09684c59b6268defe194b88709fb78a180746d1dd1c237129b0f126",
+      "description": "natural projections"
+    },
+    {
+      "name": "step_17/areas",
+      "file": "data/step_17__areas.npy",
+      "dtype": "f64",
+      "shape": [
+        107,
+        1
+      ],
+      "axes": [
+        "node",
+        "component"
+      ],
+      "layout": "nodal",
+      "sha256": "bd4fa9470a13550826465143d786cc1c82e4686be600ffba8b1414ab984bd4a3",
+      "description": "nodal areas"
+    },
+    {
+      "name": "step_17/detector/distances",
+      "file": "data/step_17__detector__distances.npy",
+      "dtype": "f64",
+      "shape": [
+        3
+      ],
+      "axes": [
+        "entry"
+      ],
+      "layout": "table",
+      "sha256": "4c21b50cae396a5858f0e332ee3374ad8c1b9254f1cfdbd90c94dbac7a5d6ee6",
+      "description": "max_dd, min_dd, max_bb"
+    },
+    {
+      "name": "step_17/normal_force",
+      "file": "data/step_17__normal_force.npy",
+      "dtype": "f64",
+      "shape": [
+        107,
+        3
+      ],
+      "axes": [
+        "node",
+        "component"
+      ],
+      "layout": "nodal",
+      "sha256": "bf206028ee2949b181ae982d1350bc3cf77e3ac82c0fc3f2e575386369eae5b3",
+      "description": "normal_force"
+    },
+    {
+      "name": "step_17/tangential_force",
+      "file": "data/step_17__tangential_force.npy",
+      "dtype": "f64",
+      "shape": [
+        107,
+        3
+      ],
+      "axes": [
+        "node",
+        "component"
+      ],
+      "layout": "nodal",
+      "sha256": "a93f557e30a2848da1fac8333a55da1ab29b52606d036c1fd01f51b0e15c583f",
+      "description": "tangential_force"
+    },
+    {
+      "name": "step_17/contact_state",
+      "file": "data/step_17__contact_state.npy",
+      "dtype": "i64",
+      "shape": [
+        107
+      ],
+      "axes": [
+        "node"
+      ],
+      "layout": "table",
+      "sha256": "ad5112b5fa877fd93fad04258204284d0b62e6838a95a6195acdf128a902fc97",
+      "description": "contact state (0 no contact, 1 stick, 2 slip)"
+    },
+    {
+      "name": "step_17/tangential_tractions",
+      "file": "data/step_17__tangential_tractions.npy",
+      "dtype": "f64",
+      "shape": [
+        107,
+        2
+      ],
+      "axes": [
+        "node",
+        "component"
+      ],
+      "layout": "nodal",
+      "sha256": "8fe18ed4fd06653a4efc425bd26fa4510280abdfb3912ae8759a8fb768e6a01d",
+      "description": "tangential tractions"
+    },
+    {
+      "name": "step_18/contact_elements/slave",
+      "file": "data/step_18__contact_elements__slave.npy",
+      "dtype": "i64",
+      "shape": [
+        2
+      ],
+      "axes": [
+        "entry"
+      ],
+      "layout": "table",
+      "sha256": "8d734b813c98245849c1669d189693905f01f0a89d17e5c26a2220368bc333b8",
+      "description": "slave node of each contact element"
+    },
+    {
+      "name": "step_18/contact_elements/master",
+      "file": "data/step_18__contact_elements__master.npy",
+      "dtype": "i64",
+      "shape": [
+        2
+      ],
+      "axes": [
+        "entry"
+      ],
+      "layout": "table",
+      "sha256": "f89f79d8322ef5319b84c8a2b677885cfcfae227e88a74908ecb4bd849231c03",
+      "description": "master facet index (type in master_type)"
+    },
+    {
+      "name": "step_18/gaps",
+      "file": "data/step_18__gaps.npy",
+      "dtype": "f64",
+      "shape": [
+        107,
+        1
+      ],
+      "axes": [
+        "node",
+        "component"
+      ],
+      "layout": "nodal",
+      "sha256": "a324dce09c6906841446b951d5ffa80e52fb0f1d941d1e99cefbfafa1daadd34",
+      "description": "gaps after search (penetration > 0)"
+    },
+    {
+      "name": "step_18/normals",
+      "file": "data/step_18__normals.npy",
+      "dtype": "f64",
+      "shape": [
+        107,
+        3
+      ],
+      "axes": [
+        "node",
+        "component"
+      ],
+      "layout": "nodal",
+      "sha256": "9a643965ff0d14b1aaada3549eea1271fe3ec6114c25687eac3d03372c930f9d",
+      "description": "normals"
+    },
+    {
+      "name": "step_18/tangents",
+      "file": "data/step_18__tangents.npy",
+      "dtype": "f64",
+      "shape": [
+        107,
+        6
+      ],
+      "axes": [
+        "node",
+        "component"
+      ],
+      "layout": "nodal",
+      "sha256": "32745fd17afe9c9e40caf5c3ac854cae2b7f1bc75cc05a0687547af8767b0214",
+      "description": "tangents (dim x (dim-1) column-major)"
+    },
+    {
+      "name": "step_18/projections",
+      "file": "data/step_18__projections.npy",
+      "dtype": "f64",
+      "shape": [
+        107,
+        2
+      ],
+      "axes": [
+        "node",
+        "component"
+      ],
+      "layout": "nodal",
+      "sha256": "3992b2a403d79ab492598afc5033b1685a7bea58ea35e7e31e0f66ce268b6e95",
+      "description": "natural projections"
+    },
+    {
+      "name": "step_18/areas",
+      "file": "data/step_18__areas.npy",
+      "dtype": "f64",
+      "shape": [
+        107,
+        1
+      ],
+      "axes": [
+        "node",
+        "component"
+      ],
+      "layout": "nodal",
+      "sha256": "255ccc817f42bf24d0687cb96f63a1a3e2bd28e67f01f85ac6d691a5161b870d",
+      "description": "nodal areas"
+    },
+    {
+      "name": "step_18/detector/distances",
+      "file": "data/step_18__detector__distances.npy",
+      "dtype": "f64",
+      "shape": [
+        3
+      ],
+      "axes": [
+        "entry"
+      ],
+      "layout": "table",
+      "sha256": "4c21b50cae396a5858f0e332ee3374ad8c1b9254f1cfdbd90c94dbac7a5d6ee6",
+      "description": "max_dd, min_dd, max_bb"
+    },
+    {
+      "name": "step_18/normal_force",
+      "file": "data/step_18__normal_force.npy",
+      "dtype": "f64",
+      "shape": [
+        107,
+        3
+      ],
+      "axes": [
+        "node",
+        "component"
+      ],
+      "layout": "nodal",
+      "sha256": "432abb4000631dfbe7e831206a9cd86418fc062c49437c0033d5025ea7958445",
+      "description": "normal_force"
+    },
+    {
+      "name": "step_18/tangential_force",
+      "file": "data/step_18__tangential_force.npy",
+      "dtype": "f64",
+      "shape": [
+        107,
+        3
+      ],
+      "axes": [
+        "node",
+        "component"
+      ],
+      "layout": "nodal",
+      "sha256": "a796169b3412765bc61a9fc4ebab8b6a66d73f2977e6a7086cebb83689fd6d69",
+      "description": "tangential_force"
+    },
+    {
+      "name": "step_18/contact_state",
+      "file": "data/step_18__contact_state.npy",
+      "dtype": "i64",
+      "shape": [
+        107
+      ],
+      "axes": [
+        "node"
+      ],
+      "layout": "table",
+      "sha256": "0ae7c1f70140255b649321a3808b4d10dc3ce02f06bb6c0ec4b551a0cb40bb38",
+      "description": "contact state (0 no contact, 1 stick, 2 slip)"
+    },
+    {
+      "name": "step_18/tangential_tractions",
+      "file": "data/step_18__tangential_tractions.npy",
+      "dtype": "f64",
+      "shape": [
+        107,
+        2
+      ],
+      "axes": [
+        "node",
+        "component"
+      ],
+      "layout": "nodal",
+      "sha256": "67e6840269b0c5a056a0e46226c88409041be9968320db48aea5716df7b1b25a",
+      "description": "tangential tractions"
+    },
+    {
+      "name": "step_19/contact_elements/slave",
+      "file": "data/step_19__contact_elements__slave.npy",
+      "dtype": "i64",
+      "shape": [
+        2
+      ],
+      "axes": [
+        "entry"
+      ],
+      "layout": "table",
+      "sha256": "8d734b813c98245849c1669d189693905f01f0a89d17e5c26a2220368bc333b8",
+      "description": "slave node of each contact element"
+    },
+    {
+      "name": "step_19/contact_elements/master",
+      "file": "data/step_19__contact_elements__master.npy",
+      "dtype": "i64",
+      "shape": [
+        2
+      ],
+      "axes": [
+        "entry"
+      ],
+      "layout": "table",
+      "sha256": "b46c5bac89c9ef7cb951561003bdc2611f104b3ae58815df3ea9a51b92a33136",
+      "description": "master facet index (type in master_type)"
+    },
+    {
+      "name": "step_19/gaps",
+      "file": "data/step_19__gaps.npy",
+      "dtype": "f64",
+      "shape": [
+        107,
+        1
+      ],
+      "axes": [
+        "node",
+        "component"
+      ],
+      "layout": "nodal",
+      "sha256": "405257a5ee5fc6d9eb592889dd1ff0be705a2cff50a915d2237bf15fd19132a9",
+      "description": "gaps after search (penetration > 0)"
+    },
+    {
+      "name": "step_19/normals",
+      "file": "data/step_19__normals.npy",
+      "dtype": "f64",
+      "shape": [
+        107,
+        3
+      ],
+      "axes": [
+        "node",
+        "component"
+      ],
+      "layout": "nodal",
+      "sha256": "d2632ea2bf32cbf4ce98ce87f1eb67d9a90c3ba1d1a3c5cb995dea0573ad2bdc",
+      "description": "normals"
+    },
+    {
+      "name": "step_19/tangents",
+      "file": "data/step_19__tangents.npy",
+      "dtype": "f64",
+      "shape": [
+        107,
+        6
+      ],
+      "axes": [
+        "node",
+        "component"
+      ],
+      "layout": "nodal",
+      "sha256": "6abba5af4798aa3f144fdbb7c7d0801b7123d0decb6229d176ca8c6c7556aa23",
+      "description": "tangents (dim x (dim-1) column-major)"
+    },
+    {
+      "name": "step_19/projections",
+      "file": "data/step_19__projections.npy",
+      "dtype": "f64",
+      "shape": [
+        107,
+        2
+      ],
+      "axes": [
+        "node",
+        "component"
+      ],
+      "layout": "nodal",
+      "sha256": "a13f59a6a5887ef1feedadddcce110426e25a53c6fb44d109f83d2360ac0fa2b",
+      "description": "natural projections"
+    },
+    {
+      "name": "step_19/areas",
+      "file": "data/step_19__areas.npy",
+      "dtype": "f64",
+      "shape": [
+        107,
+        1
+      ],
+      "axes": [
+        "node",
+        "component"
+      ],
+      "layout": "nodal",
+      "sha256": "d8e2ca40180322ae0292f4a0ce3de18f0c166522989ed65dc3131fe8776bbc0f",
+      "description": "nodal areas"
+    },
+    {
+      "name": "step_19/detector/distances",
+      "file": "data/step_19__detector__distances.npy",
+      "dtype": "f64",
+      "shape": [
+        3
+      ],
+      "axes": [
+        "entry"
+      ],
+      "layout": "table",
+      "sha256": "4c21b50cae396a5858f0e332ee3374ad8c1b9254f1cfdbd90c94dbac7a5d6ee6",
+      "description": "max_dd, min_dd, max_bb"
+    },
+    {
+      "name": "step_19/normal_force",
+      "file": "data/step_19__normal_force.npy",
+      "dtype": "f64",
+      "shape": [
+        107,
+        3
+      ],
+      "axes": [
+        "node",
+        "component"
+      ],
+      "layout": "nodal",
+      "sha256": "29d4a300b24c50f5be25edea0be1d2ddcb72b87aa9a4970ff6e379a9c363739e",
+      "description": "normal_force"
+    },
+    {
+      "name": "step_19/tangential_force",
+      "file": "data/step_19__tangential_force.npy",
+      "dtype": "f64",
+      "shape": [
+        107,
+        3
+      ],
+      "axes": [
+        "node",
+        "component"
+      ],
+      "layout": "nodal",
+      "sha256": "dfcce319ccac58c0b66417eef0ca984c88e238e6fe38a60893923cc444bf97fb",
+      "description": "tangential_force"
+    },
+    {
+      "name": "step_19/contact_state",
+      "file": "data/step_19__contact_state.npy",
+      "dtype": "i64",
+      "shape": [
+        107
+      ],
+      "axes": [
+        "node"
+      ],
+      "layout": "table",
+      "sha256": "0ae7c1f70140255b649321a3808b4d10dc3ce02f06bb6c0ec4b551a0cb40bb38",
+      "description": "contact state (0 no contact, 1 stick, 2 slip)"
+    },
+    {
+      "name": "step_19/tangential_tractions",
+      "file": "data/step_19__tangential_tractions.npy",
+      "dtype": "f64",
+      "shape": [
+        107,
+        2
+      ],
+      "axes": [
+        "node",
+        "component"
+      ],
+      "layout": "nodal",
+      "sha256": "10eecb79bfcdc8e41e06e41c23004fe793204c32e196c5fa82960ab84f71341f",
+      "description": "tangential tractions"
+    },
+    {
+      "name": "step_20/contact_elements/slave",
+      "file": "data/step_20__contact_elements__slave.npy",
+      "dtype": "i64",
+      "shape": [
+        2
+      ],
+      "axes": [
+        "entry"
+      ],
+      "layout": "table",
+      "sha256": "8d734b813c98245849c1669d189693905f01f0a89d17e5c26a2220368bc333b8",
+      "description": "slave node of each contact element"
+    },
+    {
+      "name": "step_20/contact_elements/master",
+      "file": "data/step_20__contact_elements__master.npy",
+      "dtype": "i64",
+      "shape": [
+        2
+      ],
+      "axes": [
+        "entry"
+      ],
+      "layout": "table",
+      "sha256": "b46c5bac89c9ef7cb951561003bdc2611f104b3ae58815df3ea9a51b92a33136",
+      "description": "master facet index (type in master_type)"
+    },
+    {
+      "name": "step_20/gaps",
+      "file": "data/step_20__gaps.npy",
+      "dtype": "f64",
+      "shape": [
+        107,
+        1
+      ],
+      "axes": [
+        "node",
+        "component"
+      ],
+      "layout": "nodal",
+      "sha256": "79a221e48f6a8b4119a104bb6673be511012df793ec560579637daf5e2daea2e",
+      "description": "gaps after search (penetration > 0)"
+    },
+    {
+      "name": "step_20/normals",
+      "file": "data/step_20__normals.npy",
+      "dtype": "f64",
+      "shape": [
+        107,
+        3
+      ],
+      "axes": [
+        "node",
+        "component"
+      ],
+      "layout": "nodal",
+      "sha256": "a2fedd356607be13c72bdfec794ccf82f537461600370dbc5d1c0229a483d016",
+      "description": "normals"
+    },
+    {
+      "name": "step_20/tangents",
+      "file": "data/step_20__tangents.npy",
+      "dtype": "f64",
+      "shape": [
+        107,
+        6
+      ],
+      "axes": [
+        "node",
+        "component"
+      ],
+      "layout": "nodal",
+      "sha256": "54fd10647f942042838b850be6a633608d5309884752cce5b6062521876b6648",
+      "description": "tangents (dim x (dim-1) column-major)"
+    },
+    {
+      "name": "step_20/projections",
+      "file": "data/step_20__projections.npy",
+      "dtype": "f64",
+      "shape": [
+        107,
+        2
+      ],
+      "axes": [
+        "node",
+        "component"
+      ],
+      "layout": "nodal",
+      "sha256": "fd95ec125c676439ec7b182d41ba93d99fda56b80f3756f996639d8e1bb04394",
+      "description": "natural projections"
+    },
+    {
+      "name": "step_20/areas",
+      "file": "data/step_20__areas.npy",
+      "dtype": "f64",
+      "shape": [
+        107,
+        1
+      ],
+      "axes": [
+        "node",
+        "component"
+      ],
+      "layout": "nodal",
+      "sha256": "d30b8fd43d1f26c9319e487b2d313fb1a56ce9386b8ac1be7b34ddeedd37cde0",
+      "description": "nodal areas"
+    },
+    {
+      "name": "step_20/detector/distances",
+      "file": "data/step_20__detector__distances.npy",
+      "dtype": "f64",
+      "shape": [
+        3
+      ],
+      "axes": [
+        "entry"
+      ],
+      "layout": "table",
+      "sha256": "4c21b50cae396a5858f0e332ee3374ad8c1b9254f1cfdbd90c94dbac7a5d6ee6",
+      "description": "max_dd, min_dd, max_bb"
+    },
+    {
+      "name": "step_20/normal_force",
+      "file": "data/step_20__normal_force.npy",
+      "dtype": "f64",
+      "shape": [
+        107,
+        3
+      ],
+      "axes": [
+        "node",
+        "component"
+      ],
+      "layout": "nodal",
+      "sha256": "2d798839429c4fc8e17b9aef181c390f898c48086c6e2f9a566685f5df2e15a0",
+      "description": "normal_force"
+    },
+    {
+      "name": "step_20/tangential_force",
+      "file": "data/step_20__tangential_force.npy",
+      "dtype": "f64",
+      "shape": [
+        107,
+        3
+      ],
+      "axes": [
+        "node",
+        "component"
+      ],
+      "layout": "nodal",
+      "sha256": "aa386ed66ff1773deae081591bf167e3f28d01700703208b906906dbf9637914",
+      "description": "tangential_force"
+    },
+    {
+      "name": "step_20/contact_state",
+      "file": "data/step_20__contact_state.npy",
+      "dtype": "i64",
+      "shape": [
+        107
+      ],
+      "axes": [
+        "node"
+      ],
+      "layout": "table",
+      "sha256": "0ae7c1f70140255b649321a3808b4d10dc3ce02f06bb6c0ec4b551a0cb40bb38",
+      "description": "contact state (0 no contact, 1 stick, 2 slip)"
+    },
+    {
+      "name": "step_20/tangential_tractions",
+      "file": "data/step_20__tangential_tractions.npy",
+      "dtype": "f64",
+      "shape": [
+        107,
+        2
+      ],
+      "axes": [
+        "node",
+        "component"
+      ],
+      "layout": "nodal",
+      "sha256": "bfee80c2646eb4f4f0cabe7000cb997849ad057779cabd0c92ecff7860cca553",
+      "description": "tangential tractions"
+    },
+    {
+      "name": "step_21/contact_elements/slave",
+      "file": "data/step_21__contact_elements__slave.npy",
+      "dtype": "i64",
+      "shape": [
+        2
+      ],
+      "axes": [
+        "entry"
+      ],
+      "layout": "table",
+      "sha256": "8d734b813c98245849c1669d189693905f01f0a89d17e5c26a2220368bc333b8",
+      "description": "slave node of each contact element"
+    },
+    {
+      "name": "step_21/contact_elements/master",
+      "file": "data/step_21__contact_elements__master.npy",
+      "dtype": "i64",
+      "shape": [
+        2
+      ],
+      "axes": [
+        "entry"
+      ],
+      "layout": "table",
+      "sha256": "b46c5bac89c9ef7cb951561003bdc2611f104b3ae58815df3ea9a51b92a33136",
+      "description": "master facet index (type in master_type)"
+    },
+    {
+      "name": "step_21/gaps",
+      "file": "data/step_21__gaps.npy",
+      "dtype": "f64",
+      "shape": [
+        107,
+        1
+      ],
+      "axes": [
+        "node",
+        "component"
+      ],
+      "layout": "nodal",
+      "sha256": "5cfc54e00256606e089fbfc0e3f41a77dfcb3939795170165053f4a36bed23cb",
+      "description": "gaps after search (penetration > 0)"
+    },
+    {
+      "name": "step_21/normals",
+      "file": "data/step_21__normals.npy",
+      "dtype": "f64",
+      "shape": [
+        107,
+        3
+      ],
+      "axes": [
+        "node",
+        "component"
+      ],
+      "layout": "nodal",
+      "sha256": "24fc7c99e01bf2d99598b5ab9c5816e56c3ebb070511a5cbbfbe62a1867133ae",
+      "description": "normals"
+    },
+    {
+      "name": "step_21/tangents",
+      "file": "data/step_21__tangents.npy",
+      "dtype": "f64",
+      "shape": [
+        107,
+        6
+      ],
+      "axes": [
+        "node",
+        "component"
+      ],
+      "layout": "nodal",
+      "sha256": "f9496ed9ea65f328b44a9506c95b6e60257ea5bd02ba88156847ba36d3bdcb14",
+      "description": "tangents (dim x (dim-1) column-major)"
+    },
+    {
+      "name": "step_21/projections",
+      "file": "data/step_21__projections.npy",
+      "dtype": "f64",
+      "shape": [
+        107,
+        2
+      ],
+      "axes": [
+        "node",
+        "component"
+      ],
+      "layout": "nodal",
+      "sha256": "11b6b2e8304e6bfb8028fd158864c2f94418d363a2e22275a1cf4b463b61e304",
+      "description": "natural projections"
+    },
+    {
+      "name": "step_21/areas",
+      "file": "data/step_21__areas.npy",
+      "dtype": "f64",
+      "shape": [
+        107,
+        1
+      ],
+      "axes": [
+        "node",
+        "component"
+      ],
+      "layout": "nodal",
+      "sha256": "b0657add7a0fb3c235bdd1369f3b1fa1d73cfbe0f13fec220f4cf5a284f73fc3",
+      "description": "nodal areas"
+    },
+    {
+      "name": "step_21/detector/distances",
+      "file": "data/step_21__detector__distances.npy",
+      "dtype": "f64",
+      "shape": [
+        3
+      ],
+      "axes": [
+        "entry"
+      ],
+      "layout": "table",
+      "sha256": "4c21b50cae396a5858f0e332ee3374ad8c1b9254f1cfdbd90c94dbac7a5d6ee6",
+      "description": "max_dd, min_dd, max_bb"
+    },
+    {
+      "name": "step_21/normal_force",
+      "file": "data/step_21__normal_force.npy",
+      "dtype": "f64",
+      "shape": [
+        107,
+        3
+      ],
+      "axes": [
+        "node",
+        "component"
+      ],
+      "layout": "nodal",
+      "sha256": "5574ad5e814e6d6bfd5bcd4f6ad67956df71f1a5fd73efd73ae41575a57f30eb",
+      "description": "normal_force"
+    },
+    {
+      "name": "step_21/tangential_force",
+      "file": "data/step_21__tangential_force.npy",
+      "dtype": "f64",
+      "shape": [
+        107,
+        3
+      ],
+      "axes": [
+        "node",
+        "component"
+      ],
+      "layout": "nodal",
+      "sha256": "2e75b65630142523f47da30382114a3f89d1725fdaed8f454a05f9e2c3cfd590",
+      "description": "tangential_force"
+    },
+    {
+      "name": "step_21/contact_state",
+      "file": "data/step_21__contact_state.npy",
+      "dtype": "i64",
+      "shape": [
+        107
+      ],
+      "axes": [
+        "node"
+      ],
+      "layout": "table",
+      "sha256": "0ae7c1f70140255b649321a3808b4d10dc3ce02f06bb6c0ec4b551a0cb40bb38",
+      "description": "contact state (0 no contact, 1 stick, 2 slip)"
+    },
+    {
+      "name": "step_21/tangential_tractions",
+      "file": "data/step_21__tangential_tractions.npy",
+      "dtype": "f64",
+      "shape": [
+        107,
+        2
+      ],
+      "axes": [
+        "node",
+        "component"
+      ],
+      "layout": "nodal",
+      "sha256": "c327a62ed4d216ccaa8803f1081703641354115a2edd79ae2a559f0961323116",
+      "description": "tangential tractions"
+    },
+    {
+      "name": "step_22/contact_elements/slave",
+      "file": "data/step_22__contact_elements__slave.npy",
+      "dtype": "i64",
+      "shape": [
+        2
+      ],
+      "axes": [
+        "entry"
+      ],
+      "layout": "table",
+      "sha256": "8d734b813c98245849c1669d189693905f01f0a89d17e5c26a2220368bc333b8",
+      "description": "slave node of each contact element"
+    },
+    {
+      "name": "step_22/contact_elements/master",
+      "file": "data/step_22__contact_elements__master.npy",
+      "dtype": "i64",
+      "shape": [
+        2
+      ],
+      "axes": [
+        "entry"
+      ],
+      "layout": "table",
+      "sha256": "b46c5bac89c9ef7cb951561003bdc2611f104b3ae58815df3ea9a51b92a33136",
+      "description": "master facet index (type in master_type)"
+    },
+    {
+      "name": "step_22/gaps",
+      "file": "data/step_22__gaps.npy",
+      "dtype": "f64",
+      "shape": [
+        107,
+        1
+      ],
+      "axes": [
+        "node",
+        "component"
+      ],
+      "layout": "nodal",
+      "sha256": "d52ca58052970ab2e23c34059ff19c7fc552cc4f32ca1cd8853cb403525a86a5",
+      "description": "gaps after search (penetration > 0)"
+    },
+    {
+      "name": "step_22/normals",
+      "file": "data/step_22__normals.npy",
+      "dtype": "f64",
+      "shape": [
+        107,
+        3
+      ],
+      "axes": [
+        "node",
+        "component"
+      ],
+      "layout": "nodal",
+      "sha256": "22a1e12c361e97417340f7035de2120f374895460c5d131f65071ea0611361d5",
+      "description": "normals"
+    },
+    {
+      "name": "step_22/tangents",
+      "file": "data/step_22__tangents.npy",
+      "dtype": "f64",
+      "shape": [
+        107,
+        6
+      ],
+      "axes": [
+        "node",
+        "component"
+      ],
+      "layout": "nodal",
+      "sha256": "04f8b902ced5de79bc21103174f818fcf5349e88cb96306adb091172311a464c",
+      "description": "tangents (dim x (dim-1) column-major)"
+    },
+    {
+      "name": "step_22/projections",
+      "file": "data/step_22__projections.npy",
+      "dtype": "f64",
+      "shape": [
+        107,
+        2
+      ],
+      "axes": [
+        "node",
+        "component"
+      ],
+      "layout": "nodal",
+      "sha256": "b8fc365e040babf741c9dfc4c5b1f41564ef3ebc3e4859a3f29d0bb075706402",
+      "description": "natural projections"
+    },
+    {
+      "name": "step_22/areas",
+      "file": "data/step_22__areas.npy",
+      "dtype": "f64",
+      "shape": [
+        107,
+        1
+      ],
+      "axes": [
+        "node",
+        "component"
+      ],
+      "layout": "nodal",
+      "sha256": "2dac1f5fd05eb926758dae8cb4d86dcbaeac02e2d924a83fd98dde969e9556cd",
+      "description": "nodal areas"
+    },
+    {
+      "name": "step_22/detector/distances",
+      "file": "data/step_22__detector__distances.npy",
+      "dtype": "f64",
+      "shape": [
+        3
+      ],
+      "axes": [
+        "entry"
+      ],
+      "layout": "table",
+      "sha256": "4c21b50cae396a5858f0e332ee3374ad8c1b9254f1cfdbd90c94dbac7a5d6ee6",
+      "description": "max_dd, min_dd, max_bb"
+    },
+    {
+      "name": "step_22/normal_force",
+      "file": "data/step_22__normal_force.npy",
+      "dtype": "f64",
+      "shape": [
+        107,
+        3
+      ],
+      "axes": [
+        "node",
+        "component"
+      ],
+      "layout": "nodal",
+      "sha256": "002d3eb36c35f00c70c47080c5175145f31168cb076a4cabb458284caf7394d4",
+      "description": "normal_force"
+    },
+    {
+      "name": "step_22/tangential_force",
+      "file": "data/step_22__tangential_force.npy",
+      "dtype": "f64",
+      "shape": [
+        107,
+        3
+      ],
+      "axes": [
+        "node",
+        "component"
+      ],
+      "layout": "nodal",
+      "sha256": "e1fc7922f9f374aea6eb3b73519aa6fbb3410308be24fffc35d7ee640a45723a",
+      "description": "tangential_force"
+    },
+    {
+      "name": "step_22/contact_state",
+      "file": "data/step_22__contact_state.npy",
+      "dtype": "i64",
+      "shape": [
+        107
+      ],
+      "axes": [
+        "node"
+      ],
+      "layout": "table",
+      "sha256": "0ae7c1f70140255b649321a3808b4d10dc3ce02f06bb6c0ec4b551a0cb40bb38",
+      "description": "contact state (0 no contact, 1 stick, 2 slip)"
+    },
+    {
+      "name": "step_22/tangential_tractions",
+      "file": "data/step_22__tangential_tractions.npy",
+      "dtype": "f64",
+      "shape": [
+        107,
+        2
+      ],
+      "axes": [
+        "node",
+        "component"
+      ],
+      "layout": "nodal",
+      "sha256": "f7e18462da3658714b348b935486ae16b45c9d3486b8a074d6a5157bca92eadf",
+      "description": "tangential tractions"
+    },
+    {
+      "name": "step_23/contact_elements/slave",
+      "file": "data/step_23__contact_elements__slave.npy",
+      "dtype": "i64",
+      "shape": [
+        2
+      ],
+      "axes": [
+        "entry"
+      ],
+      "layout": "table",
+      "sha256": "8d734b813c98245849c1669d189693905f01f0a89d17e5c26a2220368bc333b8",
+      "description": "slave node of each contact element"
+    },
+    {
+      "name": "step_23/contact_elements/master",
+      "file": "data/step_23__contact_elements__master.npy",
+      "dtype": "i64",
+      "shape": [
+        2
+      ],
+      "axes": [
+        "entry"
+      ],
+      "layout": "table",
+      "sha256": "b46c5bac89c9ef7cb951561003bdc2611f104b3ae58815df3ea9a51b92a33136",
+      "description": "master facet index (type in master_type)"
+    },
+    {
+      "name": "step_23/gaps",
+      "file": "data/step_23__gaps.npy",
+      "dtype": "f64",
+      "shape": [
+        107,
+        1
+      ],
+      "axes": [
+        "node",
+        "component"
+      ],
+      "layout": "nodal",
+      "sha256": "56d32c6cfa81f96fe6eaa3c48035404a07366add2c3829b060fe90fbb83be57c",
+      "description": "gaps after search (penetration > 0)"
+    },
+    {
+      "name": "step_23/normals",
+      "file": "data/step_23__normals.npy",
+      "dtype": "f64",
+      "shape": [
+        107,
+        3
+      ],
+      "axes": [
+        "node",
+        "component"
+      ],
+      "layout": "nodal",
+      "sha256": "d2632ea2bf32cbf4ce98ce87f1eb67d9a90c3ba1d1a3c5cb995dea0573ad2bdc",
+      "description": "normals"
+    },
+    {
+      "name": "step_23/tangents",
+      "file": "data/step_23__tangents.npy",
+      "dtype": "f64",
+      "shape": [
+        107,
+        6
+      ],
+      "axes": [
+        "node",
+        "component"
+      ],
+      "layout": "nodal",
+      "sha256": "7b1080a0fdcfa11a523ca80f37bf022e0348444abf58ca96013f3fecde2e3831",
+      "description": "tangents (dim x (dim-1) column-major)"
+    },
+    {
+      "name": "step_23/projections",
+      "file": "data/step_23__projections.npy",
+      "dtype": "f64",
+      "shape": [
+        107,
+        2
+      ],
+      "axes": [
+        "node",
+        "component"
+      ],
+      "layout": "nodal",
+      "sha256": "fcefd546d163721764b10b9466de8515ff9130ba3dfdfc4edd2b71181fc0b720",
+      "description": "natural projections"
+    },
+    {
+      "name": "step_23/areas",
+      "file": "data/step_23__areas.npy",
+      "dtype": "f64",
+      "shape": [
+        107,
+        1
+      ],
+      "axes": [
+        "node",
+        "component"
+      ],
+      "layout": "nodal",
+      "sha256": "cfca84e1a955c7c30c282d8f8f5d6bdcbc3551450fb102f891db40ad26f5db65",
+      "description": "nodal areas"
+    },
+    {
+      "name": "step_23/detector/distances",
+      "file": "data/step_23__detector__distances.npy",
+      "dtype": "f64",
+      "shape": [
+        3
+      ],
+      "axes": [
+        "entry"
+      ],
+      "layout": "table",
+      "sha256": "4c21b50cae396a5858f0e332ee3374ad8c1b9254f1cfdbd90c94dbac7a5d6ee6",
+      "description": "max_dd, min_dd, max_bb"
+    },
+    {
+      "name": "step_23/normal_force",
+      "file": "data/step_23__normal_force.npy",
+      "dtype": "f64",
+      "shape": [
+        107,
+        3
+      ],
+      "axes": [
+        "node",
+        "component"
+      ],
+      "layout": "nodal",
+      "sha256": "048ce24f52b121f0128e02ecb50b604dd1ae58de7cc980983ccba6b27c6f7c52",
+      "description": "normal_force"
+    },
+    {
+      "name": "step_23/tangential_force",
+      "file": "data/step_23__tangential_force.npy",
+      "dtype": "f64",
+      "shape": [
+        107,
+        3
+      ],
+      "axes": [
+        "node",
+        "component"
+      ],
+      "layout": "nodal",
+      "sha256": "f92bc801895e27d46c32f256d12fd8edaf0bbf9e1a8aedf1e24087342f5b6f73",
+      "description": "tangential_force"
+    },
+    {
+      "name": "step_23/contact_state",
+      "file": "data/step_23__contact_state.npy",
+      "dtype": "i64",
+      "shape": [
+        107
+      ],
+      "axes": [
+        "node"
+      ],
+      "layout": "table",
+      "sha256": "0ae7c1f70140255b649321a3808b4d10dc3ce02f06bb6c0ec4b551a0cb40bb38",
+      "description": "contact state (0 no contact, 1 stick, 2 slip)"
+    },
+    {
+      "name": "step_23/tangential_tractions",
+      "file": "data/step_23__tangential_tractions.npy",
+      "dtype": "f64",
+      "shape": [
+        107,
+        2
+      ],
+      "axes": [
+        "node",
+        "component"
+      ],
+      "layout": "nodal",
+      "sha256": "08f39575af620a8600ea4d35674aa9cb7640709b782fd36b846843bf35d9a788",
+      "description": "tangential tractions"
+    },
+    {
+      "name": "slip/slaves",
+      "file": "data/slip__slaves.npy",
+      "dtype": "i64",
+      "shape": [
+        2
+      ],
+      "axes": [
+        "entry"
+      ],
+      "layout": "table",
+      "sha256": "8d734b813c98245849c1669d189693905f01f0a89d17e5c26a2220368bc333b8",
+      "description": "slaves in slip after the last step"
+    },
+    {
+      "name": "slip/moduli",
+      "file": "data/slip__moduli.npy",
+      "dtype": "f64",
+      "shape": [
+        450
+      ],
+      "axes": [
+        "entry"
+      ],
+      "layout": "table",
+      "sha256": "8d0baaf89797d6eb059a25f9c3d04608a8314d7d11ed7b06ef0b468d9fa6c4db",
+      "description": "concatenated column-major nd x nd slip moduli (computeTangentialModuli)"
+    }
+  ]
+}

@@ -1,0 +1,48 @@
+{
+  "format_version": 1,
+  "description": "Reviewed allow-list of oracle quantities that may be excluded from golden fixtures because the reference output is not deterministic. drop_nondeterministic.py aborts on any other run-to-run difference. Changing this file needs an independent review (docs/NUMERICAL_VALIDATION.md).",
+  "entries": [
+    {
+      "case_id": "mesh_io/test_model/test_contact_mechanics_model/test_detector/data/cohesive_strait_2D",
+      "quantity": "mesh_data/tag_2/_segment_2",
+      "defect": "UD-064",
+      "reason": "Gmsh 2.x reader appends tag j only for elements that have a j-th tag (src/io/mesh_io/mesh_io_msh.cc ~l.400): with differing tag counts per element type the tag_j array is misaligned and its tail uninitialised",
+      "evidence": "_segment_2 elements of this mesh carry 2 and 4 tags; the six named exclusions were justified by an independent review of the oracle harness (November 2026)"
+    },
+    {
+      "case_id": "mesh_io/test_model/test_contact_mechanics_model/test_detector/data/cohesive_strait_2D",
+      "quantity": "mesh_data/tag_3/_segment_2",
+      "defect": "UD-064",
+      "reason": "as mesh_data/tag_2/_segment_2 (same element type, tag index 3)",
+      "evidence": "_segment_2 elements of this mesh carry 2 and 4 tags"
+    },
+    {
+      "case_id": "mesh_io/test_model/test_contact_mechanics_model/test_detector/data/cohesive_strait_2D",
+      "quantity": "mesh_data/tag_5/_triangle_3",
+      "defect": "UD-064",
+      "reason": "Gmsh 2.x tag_j misalignment (see tag_2/_segment_2), tag index 5 of _triangle_3",
+      "evidence": "_triangle_3 elements of this mesh carry 5 and 6 tags"
+    },
+    {
+      "case_id": "mesh_io/test_model/test_solid_mechanics_model/test_cohesive/data/cohesive_strait_2D",
+      "quantity": "mesh_data/tag_2/_segment_2",
+      "defect": "UD-064",
+      "reason": "Gmsh 2.x tag_j misalignment (see the test_detector copy of this mesh)",
+      "evidence": "_segment_2 elements of this mesh carry 2 and 4 tags"
+    },
+    {
+      "case_id": "mesh_io/test_model/test_solid_mechanics_model/test_cohesive/data/cohesive_strait_2D",
+      "quantity": "mesh_data/tag_3/_segment_2",
+      "defect": "UD-064",
+      "reason": "Gmsh 2.x tag_j misalignment (see the test_detector copy of this mesh)",
+      "evidence": "_segment_2 elements of this mesh carry 2 and 4 tags"
+    },
+    {
+      "case_id": "mesh_io/test_model/test_solid_mechanics_model/test_cohesive/data/cohesive_strait_2D",
+      "quantity": "mesh_data/tag_5/_triangle_3",
+      "defect": "UD-064",
+      "reason": "Gmsh 2.x tag_j misalignment (see the test_detector copy of this mesh)",
+      "evidence": "_triangle_3 elements of this mesh carry 5 and 6 tags"
+    }
+  ]
+}

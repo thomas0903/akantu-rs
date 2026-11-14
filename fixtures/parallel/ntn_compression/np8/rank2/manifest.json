@@ -1,0 +1,906 @@
+{
+  "format_version": 1,
+  "case_id": "parallel/ntn_compression/np8/rank2",
+  "description": "TestNTNFrictionFixture.TestCompression setting on a distributed mesh with NTNBaseContact::initParallel(), rank view",
+  "status": "golden",
+  "generator": {
+    "probe": "par4_probe",
+    "probe_version": "2",
+    "command": "oracle/probes/par4/generate.sh "
+  },
+  "reference": {
+    "sha": "35a851780d0b9471d258ed53a003ae98aaa95ea0",
+    "describe": "v5.0.7-post1-554-g35a851780",
+    "patches": [
+      "modified:cmake/AkantuTestsMacros.cmake sha256=c280165a84912eab4bcc081b9eaaaa06aafdd83d4f48d982e11b0859abf9672f (reference sha256=36290de2ec8b111028138fe82029efa16501512241a5bc264fa30ff3e3239b9e)"
+    ]
+  },
+  "build": {
+  "config": "strict",
+  "compiler": "g++ (Debian 14.2.0-19) 14.2.0",
+  "cxx_flags": "-ffp-contract=off -DEIGEN_DONT_VECTORIZE -DEIGEN_NO_CPUID -DEIGEN_DEFAULT_L1_CACHE_SIZE=16384 -DEIGEN_DEFAULT_L2_CACHE_SIZE=524288 -DEIGEN_DEFAULT_L3_CACHE_SIZE=524288 -O2 -g -DNDEBUG -g3 -ggdb3 -flarge-source-files -std=c++20 -flto=auto -fno-fat-lto-objects -fPIC -frounding-math (actual flags of src/model/solid_mechanics/solid_mechanics_model.cc; warnings and non-FP -D defines omitted)",
+  "build_type": "RelWithDebInfo",
+  "arch": "x86_64",
+  "os": "Debian GNU/Linux 13 (trixie)",
+  "libraries": {"eigen_cache_sizes_measured": "16384,524288,524288 (Eigen::l1/l2/l3CacheSize() read at run time in the probe process, D-050)", 
+    "eigen3": "3.4.0-5",
+    "boost": "1.83.0.2+b2",
+    "openmpi": "5.0.7-1",
+    "mumps": "5.7.3-3+b1",
+    "petsc": "3.22.5+dfsg1-2",
+    "scotch": "7.0.7-1",
+    "openblas": "0.3.29+ds-3",
+    "scalapack": "2.2.2-1",
+    "hdf5": "1.14.5+repack-3",
+    "gmsh": "4.13.1+ds1-6",
+    "pybind11": "2.13.6-2",
+    "numpy": "1:2.2.4+ds-1",
+    "scipy": "1.15.3-1",
+    "gcc": "4:14.2.0-1",
+    "gfortran": "4:14.2.0-1",
+    "oracle_image": "sha256:2da26d87e063f3c88264f589cf73381feff583eeaa7770d2e01ae034651d59f5",
+    "oracle_build_scripts": "cca6e460cd3430bf0180262e7ebe26be762112e9",
+    "oracle_install_reference_sha": "35a851780d0b9471d258ed53a003ae98aaa95ea0",
+    "oracle_install_image": "sha256:2da26d87e063f3c88264f589cf73381feff583eeaa7770d2e01ae034651d59f5",
+    "openblas_coretype": "Haswell",
+    "openblas_num_threads": "1",
+    "eigen_cache_sizes": "16384,524288,524288 (compile-time pin of the library and of the probe translation unit: EIGEN_NO_CPUID + defaults, D-050)",
+    "host_cpu": "AMD EPYC 9455 48-Core Processor",
+    "x86_64_level": "v3",
+    "sha256:libakantu.so.5.0.7": "554ecfc7838d8c8aa3955f37f2efb556a7f09426083b74af262ffdcccff657ff",
+    "probe_tree_sha256": "5275213ba39805dec6716ea8e5f7ec46ad556a33ef30cf35060df71c0657e9af",
+    "probe_sources_commit": "7a7fce34c7dc7c7c8e82d67162171fca55a15c6c",
+    "cmake_cxx_flags": "-ffp-contract=off -DEIGEN_DONT_VECTORIZE -DEIGEN_NO_CPUID -DEIGEN_DEFAULT_L1_CACHE_SIZE=16384 -DEIGEN_DEFAULT_L2_CACHE_SIZE=524288 -DEIGEN_DEFAULT_L3_CACHE_SIZE=524288 -O2 -g -DNDEBUG -g3 -ggdb3 -flarge-source-files",
+    "probe": "par4_probe"
+  },
+  "probe_compile_command": "/usr/bin/c++ '-DAKANTU_PROBE_BUILD_TYPE=\"RelWithDebInfo\"' '-DAKANTU_PROBE_CONFIG=\"strict\"' '-DAKANTU_PROBE_CXX_FLAGS=\"-ffp-contract=off -DEIGEN_DONT_VECTORIZE -DEIGEN_NO_CPUID -DEIGEN_DEFAULT_L1_CACHE_SIZE=16384 -DEIGEN_DEFAULT_L2_CACHE_SIZE=524288 -DEIGEN_DEFAULT_L3_CACHE_SIZE=524288  -O2 -g -DNDEBUG\"' -DBOOST_GRAPH_DYN_LINK -DBOOST_GRAPH_NO_LIB -DBOOST_REGEX_DYN_LINK -DBOOST_REGEX_NO_LIB -DCGAL_USE_GMPXX=1 -I/probes/par4/../include -isystem /build/install-strict/include/akantu -isystem /opt/CGAL-5.6.2/include -isystem /usr/lib/x86_64-linux-gnu/openmpi/include -isystem /usr/lib/x86_64-linux-gnu/openmpi/include/openmpi -isystem /usr/lib/petscdir/petsc3.22/x86_64-linux-gnu-real/include -isystem /usr/include/scotch -isystem /build/install-strict/include/akantu_iterators -isystem /usr/include/eigen3 -isystem /build/install-strict/include/iohelper -O2 -g -DNDEBUG -std=gnu++20 -ffp-contract=off -DEIGEN_DONT_VECTORIZE -DEIGEN_NO_CPUID -DEIGEN_DEFAULT_L1_CACHE_SIZE=16384 -DEIGEN_DEFAULT_L2_CACHE_SIZE=524288 -DEIGEN_DEFAULT_L3_CACHE_SIZE=524288 -Wall -Wextra -pedantic -Wno-array-bounds -Wno-use-after-free -Wno-stringop-overread -DOMPI_SKIP_MPICXX -Wno-literal-suffix -frounding-math -o CMakeFiles/par4_probe.dir/par4_probe.cc.o -c /probes/par4/par4_probe.cc",
+  "probe_cxx_flags": "-DAKANTU_PROBE_BUILD_TYPE=\"RelWithDebInfo\" -DAKANTU_PROBE_CONFIG=\"strict\" -DAKANTU_PROBE_CXX_FLAGS=\"-ffp-contract=off -DEIGEN_DONT_VECTORIZE -DEIGEN_NO_CPUID -DEIGEN_DEFAULT_L1_CACHE_SIZE=16384 -DEIGEN_DEFAULT_L2_CACHE_SIZE=524288 -DEIGEN_DEFAULT_L3_CACHE_SIZE=524288  -O2 -g -DNDEBUG\" -DBOOST_GRAPH_DYN_LINK -DBOOST_GRAPH_NO_LIB -DBOOST_REGEX_DYN_LINK -DBOOST_REGEX_NO_LIB -DCGAL_USE_GMPXX=1 -O2 -g -DNDEBUG -std=gnu++20 -ffp-contract=off -DEIGEN_DONT_VECTORIZE -DEIGEN_NO_CPUID -DEIGEN_DEFAULT_L1_CACHE_SIZE=16384 -DEIGEN_DEFAULT_L2_CACHE_SIZE=524288 -DEIGEN_DEFAULT_L3_CACHE_SIZE=524288 -Wall -Wextra -pedantic -Wno-array-bounds -Wno-use-after-free -Wno-stringop-overread -DOMPI_SKIP_MPICXX -Wno-literal-suffix -frounding-math"
+},
+  "created": "2026-11-12T14:19:55Z",
+  "inputs": [
+    {
+      "role": "mesh",
+      "path": "inputs/ntn_test_compression.msh",
+      "source": "upstream:extra_packages/traction-at-split-node-contact/test/test_ntn_model/ntn_test_compression.msh",
+      "sha256": "7112cbfe95cba9c63e41088dbdd3e5281facd5c4994cddf5e131ab50bb10f645"
+    },
+    {
+      "role": "material",
+      "path": "inputs/material_ntn_friction_slip_weakening.dat",
+      "source": "upstream:extra_packages/traction-at-split-node-contact/test/test_ntn_model/data/material_ntn_friction_slip_weakening.dat",
+      "sha256": "bae7f1c1175b27f654b28efbe8d14dce84a23b485a50c299de8e71479766abca"
+    }
+  ],
+  "parameters": {
+    "oracle_pin/eigen_cache_sizes": "16384 524288 524288",
+    "oracle_pin/openblas_coretype": "Haswell",
+    "oracle_pin/openblas_num_threads": "1"
+  },
+  "storage": {
+    "mode": "committed",
+    "bytes": 32920
+  },
+  "quantities": [
+    {
+      "name": "init/conn/_quadrangle_4/not_ghost",
+      "file": "data/init__conn___quadrangle_4__not_ghost.npy",
+      "dtype": "i64",
+      "shape": [
+        32,
+        4
+      ],
+      "axes": [
+        "entry",
+        "component"
+      ],
+      "layout": "table",
+      "sha256": "f75b67045a18d54e7f363c9a3d46ce4cae2a6c98edbd933a82b32050783311aa",
+      "description": "global connectivity of every element (mesh order)",
+      "tolerance_class": "exact"
+    },
+    {
+      "name": "init/conn/_quadrangle_4/ghost",
+      "file": "data/init__conn___quadrangle_4__ghost.npy",
+      "dtype": "i64",
+      "shape": [
+        42,
+        4
+      ],
+      "axes": [
+        "entry",
+        "component"
+      ],
+      "layout": "table",
+      "sha256": "60ac38ca00f48c20edc4390dd40074762fe34c29a2d0a3d8de78539e35aef359",
+      "description": "global connectivity of every element (mesh order)",
+      "tolerance_class": "exact"
+    },
+    {
+      "name": "init/ghost_counters/_quadrangle_4",
+      "file": "data/init__ghost_counters___quadrangle_4.npy",
+      "dtype": "i64",
+      "shape": [
+        42
+      ],
+      "axes": [
+        "entry"
+      ],
+      "layout": "table",
+      "sha256": "d506781b8c38a0a31bf6466be8d3b1a2d9e7596d74170303fc610202a0be4a1b",
+      "description": "ghost counter of every ghost element",
+      "tolerance_class": "exact"
+    },
+    {
+      "name": "init/node_global_ids",
+      "file": "data/init__node_global_ids.npy",
+      "dtype": "i64",
+      "shape": [
+        104
+      ],
+      "axes": [
+        "entry"
+      ],
+      "layout": "table",
+      "sha256": "893881b58e39ea0d79acbf9b6c0c25690bfcb885f5be24bac5eaca6f7104cefc",
+      "description": "global id of every local node",
+      "tolerance_class": "exact"
+    },
+    {
+      "name": "init/node_flags",
+      "file": "data/init__node_flags.npy",
+      "dtype": "i64",
+      "shape": [
+        104
+      ],
+      "axes": [
+        "entry"
+      ],
+      "layout": "table",
+      "sha256": "9e705711cc3ceeac919d221c6a611dc53be3713d66b8ad335c73853cadf1c7f4",
+      "description": "NodeFlag bits of every local node",
+      "tolerance_class": "exact"
+    },
+    {
+      "name": "init/node_pranks",
+      "file": "data/init__node_pranks.npy",
+      "dtype": "i64",
+      "shape": [
+        104
+      ],
+      "axes": [
+        "entry"
+      ],
+      "layout": "table",
+      "sha256": "e19f3fb1e0658ec26fc3db3bdd1d37801f5107ae51559eeb0dd586c908efc846",
+      "description": "owner rank of every local node (-1: none)",
+      "tolerance_class": "exact"
+    },
+    {
+      "name": "init/nodes",
+      "file": "data/init__nodes.npy",
+      "dtype": "f64",
+      "shape": [
+        104,
+        2
+      ],
+      "axes": [
+        "entry",
+        "component"
+      ],
+      "layout": "table",
+      "sha256": "4340a4e4b269be8e23acd0ad241e339ddddd4b5258b68816a9e87d2ef001bb20",
+      "description": "coordinates of every local node",
+      "tolerance_class": "exact"
+    },
+    {
+      "name": "contact/slaves",
+      "file": "data/contact__slaves.npy",
+      "dtype": "i64",
+      "shape": [
+        4
+      ],
+      "axes": [
+        "entry"
+      ],
+      "layout": "table",
+      "sha256": "0a532caf87801e33ddcb5cded16dbbc1e7a38bd7b4c0480e722e1c4f58a12515",
+      "description": "local ids of the contact nodes",
+      "tolerance_class": "exact"
+    },
+    {
+      "name": "contact/slaves_global",
+      "file": "data/contact__slaves_global.npy",
+      "dtype": "i64",
+      "shape": [
+        4
+      ],
+      "axes": [
+        "entry"
+      ],
+      "layout": "table",
+      "sha256": "c08203344d2b8cc41754d23e91972e683689e4a68d5fd92550489c1af72a0930",
+      "description": "global ids of the contact nodes",
+      "tolerance_class": "exact"
+    },
+    {
+      "name": "contact/masters",
+      "file": "data/contact__masters.npy",
+      "dtype": "i64",
+      "shape": [
+        4
+      ],
+      "axes": [
+        "entry"
+      ],
+      "layout": "table",
+      "sha256": "12707c33fdea0a5f27aa44759444c053bcee3d8653ac0568d077adcc1dacb566",
+      "description": "local ids of the masters",
+      "tolerance_class": "exact"
+    },
+    {
+      "name": "contact/masters_global",
+      "file": "data/contact__masters_global.npy",
+      "dtype": "i64",
+      "shape": [
+        4
+      ],
+      "axes": [
+        "entry"
+      ],
+      "layout": "table",
+      "sha256": "f22d0fe8596f075f290f7607f5ca74a7fe1c7b73726dbd517be86a4f09a2f8d8",
+      "description": "global ids of the masters",
+      "tolerance_class": "exact"
+    },
+    {
+      "name": "contact/filtered/send/1",
+      "file": "data/contact__filtered__send__1.npy",
+      "dtype": "i64",
+      "shape": [
+        2,
+        3
+      ],
+      "axes": [
+        "entry",
+        "component"
+      ],
+      "layout": "table",
+      "sha256": "e042f6322c21fbc0e9b3a1cc24f237afc8b0656a22e14763424ff6fd048684ba",
+      "description": "scheme entries (type enum, element, ghost type), scheme order",
+      "tolerance_class": "exact"
+    },
+    {
+      "name": "contact/filtered/send/3",
+      "file": "data/contact__filtered__send__3.npy",
+      "dtype": "i64",
+      "shape": [
+        2,
+        3
+      ],
+      "axes": [
+        "entry",
+        "component"
+      ],
+      "layout": "table",
+      "sha256": "acb4ad7d4f45ad02f8b037f0806ed61807e4bd4bfadaf4c0f2675d2d7594c2a3",
+      "description": "scheme entries (type enum, element, ghost type), scheme order",
+      "tolerance_class": "exact"
+    },
+    {
+      "name": "contact/filtered/recv/1",
+      "file": "data/contact__filtered__recv__1.npy",
+      "dtype": "i64",
+      "shape": [
+        2,
+        3
+      ],
+      "axes": [
+        "entry",
+        "component"
+      ],
+      "layout": "table",
+      "sha256": "4a691f16cefc457944aff6e1113ecd63c2bc8f0977aeffeb167e3221072ee74a",
+      "description": "scheme entries (type enum, element, ghost type), scheme order",
+      "tolerance_class": "exact"
+    },
+    {
+      "name": "contact/filtered/recv/3",
+      "file": "data/contact__filtered__recv__3.npy",
+      "dtype": "i64",
+      "shape": [
+        2,
+        3
+      ],
+      "axes": [
+        "entry",
+        "component"
+      ],
+      "layout": "table",
+      "sha256": "1ed1dffb58286586afa6e59e985ee651407d135605c7b70aa362c57f1b00090a",
+      "description": "scheme entries (type enum, element, ghost type), scheme order",
+      "tolerance_class": "exact"
+    },
+    {
+      "name": "contact/normals_init",
+      "file": "data/contact__normals_init.npy",
+      "dtype": "f64",
+      "shape": [
+        4,
+        2
+      ],
+      "axes": [
+        "entry",
+        "component"
+      ],
+      "layout": "table",
+      "sha256": "55cd3ee29d8fa13b133a72f432ee75fae14da1d2dc2b55399e3b0e36ee544c43",
+      "description": "normals after the solver callback's updateNormals (before initParallel)",
+      "tolerance_class": "exact"
+    },
+    {
+      "name": "contact/impedance",
+      "file": "data/contact__impedance.npy",
+      "dtype": "f64",
+      "shape": [
+        4,
+        1
+      ],
+      "axes": [
+        "entry",
+        "component"
+      ],
+      "layout": "table",
+      "sha256": "c93c442d4cde6101dbecee09dd2d918e18b9b2361b3cde82485b95f41670e671",
+      "description": "impedance",
+      "tolerance_class": "exact"
+    },
+    {
+      "name": "contact/lumped_boundary_slaves",
+      "file": "data/contact__lumped_boundary_slaves.npy",
+      "dtype": "f64",
+      "shape": [
+        4,
+        1
+      ],
+      "axes": [
+        "entry",
+        "component"
+      ],
+      "layout": "table",
+      "sha256": "e3758d32a5c0ca39384f1feb96290954b9108786feb998e20fb1657cfeb5bb66",
+      "description": "lumped boundary",
+      "tolerance_class": "exact"
+    },
+    {
+      "name": "exchange/cf_nodal/displacement",
+      "file": "data/exchange__cf_nodal__displacement.npy",
+      "dtype": "f64",
+      "shape": [
+        104,
+        2
+      ],
+      "axes": [
+        "entry",
+        "component"
+      ],
+      "layout": "table",
+      "sha256": "58dc8a39e47f3d01efd5b4ef9388958fb7a5a4b3ebc2413b3f98ca32ff84be06",
+      "description": "after synchronize(_cf_nodal)",
+      "tolerance_class": "exact"
+    },
+    {
+      "name": "exchange/cf_nodal/velocity",
+      "file": "data/exchange__cf_nodal__velocity.npy",
+      "dtype": "f64",
+      "shape": [
+        104,
+        2
+      ],
+      "axes": [
+        "entry",
+        "component"
+      ],
+      "layout": "table",
+      "sha256": "799782bc382d975fa6a1f21578c4107ca46b7f8368524e72d5637f59fe7fc944",
+      "description": "after synchronize(_cf_nodal)",
+      "tolerance_class": "exact"
+    },
+    {
+      "name": "exchange/cf_nodal/current_position",
+      "file": "data/exchange__cf_nodal__current_position.npy",
+      "dtype": "f64",
+      "shape": [
+        104,
+        2
+      ],
+      "axes": [
+        "entry",
+        "component"
+      ],
+      "layout": "table",
+      "sha256": "4340a4e4b269be8e23acd0ad241e339ddddd4b5258b68816a9e87d2ef001bb20",
+      "description": "getCurrentPosition() after synchronize(_cf_nodal)",
+      "tolerance_class": "exact"
+    },
+    {
+      "name": "exchange/cf_incr/increment",
+      "file": "data/exchange__cf_incr__increment.npy",
+      "dtype": "f64",
+      "shape": [
+        104,
+        2
+      ],
+      "axes": [
+        "entry",
+        "component"
+      ],
+      "layout": "table",
+      "sha256": "3d1b32a2bb0058558e8f3906c889c73540823bb096659fe0b9c3cdd0827bfee2",
+      "description": "after synchronize(_cf_incr)",
+      "tolerance_class": "exact"
+    },
+    {
+      "name": "time_step",
+      "file": "data/time_step.npy",
+      "dtype": "f64",
+      "shape": [
+        1
+      ],
+      "axes": [
+        "entry"
+      ],
+      "layout": "table",
+      "sha256": "3bdb085a9baa0542780a18131a7ade3b0562237c8573a4b96220b01b5b491b3f"
+    },
+    {
+      "name": "step19/displacement",
+      "file": "data/step19__displacement.npy",
+      "dtype": "f64",
+      "shape": [
+        104,
+        2
+      ],
+      "axes": [
+        "entry",
+        "component"
+      ],
+      "layout": "table",
+      "sha256": "3a3d80fc650af61bb016163b6d5352808d451a1ee5226044dc4c9217b76354d7",
+      "description": "every local node",
+      "tolerance_class": "exact"
+    },
+    {
+      "name": "step19/velocity",
+      "file": "data/step19__velocity.npy",
+      "dtype": "f64",
+      "shape": [
+        104,
+        2
+      ],
+      "axes": [
+        "entry",
+        "component"
+      ],
+      "layout": "table",
+      "sha256": "d116b9474873d086ad2bd4245058e473864ade198136abb3b481e81ba5f83cf6",
+      "description": "every local node",
+      "tolerance_class": "exact"
+    },
+    {
+      "name": "step19/contact_pressure",
+      "file": "data/step19__contact_pressure.npy",
+      "dtype": "f64",
+      "shape": [
+        4,
+        2
+      ],
+      "axes": [
+        "entry",
+        "component"
+      ],
+      "layout": "table",
+      "sha256": "fd9d2db2fca46f5aa79032ed19fd5887779999a3aadc7ff01dd426e4284cd95b",
+      "description": "contact",
+      "tolerance_class": "exact"
+    },
+    {
+      "name": "step19/normals",
+      "file": "data/step19__normals.npy",
+      "dtype": "f64",
+      "shape": [
+        4,
+        2
+      ],
+      "axes": [
+        "entry",
+        "component"
+      ],
+      "layout": "table",
+      "sha256": "55cd3ee29d8fa13b133a72f432ee75fae14da1d2dc2b55399e3b0e36ee544c43",
+      "description": "contact",
+      "tolerance_class": "exact"
+    },
+    {
+      "name": "step19/is_in_contact",
+      "file": "data/step19__is_in_contact.npy",
+      "dtype": "i64",
+      "shape": [
+        4
+      ],
+      "axes": [
+        "entry"
+      ],
+      "layout": "table",
+      "sha256": "508957bece47595b32f56ffb01037287cbf70adfc91a2a9ce8ae4858d8dfaf9e",
+      "description": "contact",
+      "tolerance_class": "exact"
+    },
+    {
+      "name": "step19/friction_traction",
+      "file": "data/step19__friction_traction.npy",
+      "dtype": "f64",
+      "shape": [
+        4,
+        2
+      ],
+      "axes": [
+        "entry",
+        "component"
+      ],
+      "layout": "table",
+      "sha256": "c8eaa96f81a995ba590750f445b05df5ae4a3c1b6cae2c8cf0ea101b31180b02",
+      "description": "friction",
+      "tolerance_class": "exact"
+    },
+    {
+      "name": "step19/slip",
+      "file": "data/step19__slip.npy",
+      "dtype": "f64",
+      "shape": [
+        4,
+        1
+      ],
+      "axes": [
+        "entry",
+        "component"
+      ],
+      "layout": "table",
+      "sha256": "3c5205cfd290d736673f5f2239a34298c5639aed4ec526a88bfd947c90b32db5",
+      "description": "friction",
+      "tolerance_class": "exact"
+    },
+    {
+      "name": "step19/is_sticking",
+      "file": "data/step19__is_sticking.npy",
+      "dtype": "i64",
+      "shape": [
+        4
+      ],
+      "axes": [
+        "entry"
+      ],
+      "layout": "table",
+      "sha256": "c805d648ad9d6437ea9c7ec32c8ee6db3d53a030224a6a83b0e395712699fb4f",
+      "description": "friction",
+      "tolerance_class": "exact"
+    },
+    {
+      "name": "step39/displacement",
+      "file": "data/step39__displacement.npy",
+      "dtype": "f64",
+      "shape": [
+        104,
+        2
+      ],
+      "axes": [
+        "entry",
+        "component"
+      ],
+      "layout": "table",
+      "sha256": "574183e0ebb8d0cd7c92a862ffb160b4a21322d1459cebf9d9c96a89a6da7d8b",
+      "description": "every local node",
+      "tolerance_class": "exact"
+    },
+    {
+      "name": "step39/velocity",
+      "file": "data/step39__velocity.npy",
+      "dtype": "f64",
+      "shape": [
+        104,
+        2
+      ],
+      "axes": [
+        "entry",
+        "component"
+      ],
+      "layout": "table",
+      "sha256": "5bb11103edd3880120fca155815f7c74f82956223fdfe3b3b681e93e82c01c65",
+      "description": "every local node",
+      "tolerance_class": "exact"
+    },
+    {
+      "name": "step39/contact_pressure",
+      "file": "data/step39__contact_pressure.npy",
+      "dtype": "f64",
+      "shape": [
+        4,
+        2
+      ],
+      "axes": [
+        "entry",
+        "component"
+      ],
+      "layout": "table",
+      "sha256": "11646446dc0ad869b6de2f2660249a15061fd0dca44d049a6ce3968b3d4bcca8",
+      "description": "contact",
+      "tolerance_class": "exact"
+    },
+    {
+      "name": "step39/normals",
+      "file": "data/step39__normals.npy",
+      "dtype": "f64",
+      "shape": [
+        4,
+        2
+      ],
+      "axes": [
+        "entry",
+        "component"
+      ],
+      "layout": "table",
+      "sha256": "55cd3ee29d8fa13b133a72f432ee75fae14da1d2dc2b55399e3b0e36ee544c43",
+      "description": "contact",
+      "tolerance_class": "exact"
+    },
+    {
+      "name": "step39/is_in_contact",
+      "file": "data/step39__is_in_contact.npy",
+      "dtype": "i64",
+      "shape": [
+        4
+      ],
+      "axes": [
+        "entry"
+      ],
+      "layout": "table",
+      "sha256": "508957bece47595b32f56ffb01037287cbf70adfc91a2a9ce8ae4858d8dfaf9e",
+      "description": "contact",
+      "tolerance_class": "exact"
+    },
+    {
+      "name": "step39/friction_traction",
+      "file": "data/step39__friction_traction.npy",
+      "dtype": "f64",
+      "shape": [
+        4,
+        2
+      ],
+      "axes": [
+        "entry",
+        "component"
+      ],
+      "layout": "table",
+      "sha256": "15419f5173e43594128b3ae25b4151ea2c20c45a0cfc101f2742aa7765c35bb1",
+      "description": "friction",
+      "tolerance_class": "exact"
+    },
+    {
+      "name": "step39/slip",
+      "file": "data/step39__slip.npy",
+      "dtype": "f64",
+      "shape": [
+        4,
+        1
+      ],
+      "axes": [
+        "entry",
+        "component"
+      ],
+      "layout": "table",
+      "sha256": "671966c9702e1f7c1eddb9d32387340be8e38bd619e8f65a04b6808468b1b487",
+      "description": "friction",
+      "tolerance_class": "exact"
+    },
+    {
+      "name": "step39/is_sticking",
+      "file": "data/step39__is_sticking.npy",
+      "dtype": "i64",
+      "shape": [
+        4
+      ],
+      "axes": [
+        "entry"
+      ],
+      "layout": "table",
+      "sha256": "c805d648ad9d6437ea9c7ec32c8ee6db3d53a030224a6a83b0e395712699fb4f",
+      "description": "friction",
+      "tolerance_class": "exact"
+    },
+    {
+      "name": "step59/displacement",
+      "file": "data/step59__displacement.npy",
+      "dtype": "f64",
+      "shape": [
+        104,
+        2
+      ],
+      "axes": [
+        "entry",
+        "component"
+      ],
+      "layout": "table",
+      "sha256": "8694cb71682e24c89939a552706baf07de216dcaddca7ae0c4294e999dc636b7",
+      "description": "every local node",
+      "tolerance_class": "exact"
+    },
+    {
+      "name": "step59/velocity",
+      "file": "data/step59__velocity.npy",
+      "dtype": "f64",
+      "shape": [
+        104,
+        2
+      ],
+      "axes": [
+        "entry",
+        "component"
+      ],
+      "layout": "table",
+      "sha256": "83866044aaef7c59c7452347dcb43c3ed9a86d43cfba141c6309e148dd0cc9d1",
+      "description": "every local node",
+      "tolerance_class": "exact"
+    },
+    {
+      "name": "step59/contact_pressure",
+      "file": "data/step59__contact_pressure.npy",
+      "dtype": "f64",
+      "shape": [
+        4,
+        2
+      ],
+      "axes": [
+        "entry",
+        "component"
+      ],
+      "layout": "table",
+      "sha256": "221125c9b9345254d934f26d049b7f917e4a0c16a58b6ff9966545046cf8c33e",
+      "description": "contact",
+      "tolerance_class": "exact"
+    },
+    {
+      "name": "step59/normals",
+      "file": "data/step59__normals.npy",
+      "dtype": "f64",
+      "shape": [
+        4,
+        2
+      ],
+      "axes": [
+        "entry",
+        "component"
+      ],
+      "layout": "table",
+      "sha256": "55cd3ee29d8fa13b133a72f432ee75fae14da1d2dc2b55399e3b0e36ee544c43",
+      "description": "contact",
+      "tolerance_class": "exact"
+    },
+    {
+      "name": "step59/is_in_contact",
+      "file": "data/step59__is_in_contact.npy",
+      "dtype": "i64",
+      "shape": [
+        4
+      ],
+      "axes": [
+        "entry"
+      ],
+      "layout": "table",
+      "sha256": "508957bece47595b32f56ffb01037287cbf70adfc91a2a9ce8ae4858d8dfaf9e",
+      "description": "contact",
+      "tolerance_class": "exact"
+    },
+    {
+      "name": "step59/friction_traction",
+      "file": "data/step59__friction_traction.npy",
+      "dtype": "f64",
+      "shape": [
+        4,
+        2
+      ],
+      "axes": [
+        "entry",
+        "component"
+      ],
+      "layout": "table",
+      "sha256": "6281cf14e0e2f9233dd543ee5e33c1c47a5d6f8b3683b51b4abcc5d302416d3d",
+      "description": "friction",
+      "tolerance_class": "exact"
+    },
+    {
+      "name": "step59/slip",
+      "file": "data/step59__slip.npy",
+      "dtype": "f64",
+      "shape": [
+        4,
+        1
+      ],
+      "axes": [
+        "entry",
+        "component"
+      ],
+      "layout": "table",
+      "sha256": "79c2001936fc51d9ee034de57a9eeb169c778db63ca9f444e3f73268ea4f2633",
+      "description": "friction",
+      "tolerance_class": "exact"
+    },
+    {
+      "name": "step59/is_sticking",
+      "file": "data/step59__is_sticking.npy",
+      "dtype": "i64",
+      "shape": [
+        4
+      ],
+      "axes": [
+        "entry"
+      ],
+      "layout": "table",
+      "sha256": "c805d648ad9d6437ea9c7ec32c8ee6db3d53a030224a6a83b0e395712699fb4f",
+      "description": "friction",
+      "tolerance_class": "exact"
+    },
+    {
+      "name": "final/external_work_rank",
+      "file": "data/final__external_work_rank.npy",
+      "dtype": "f64",
+      "shape": [
+        1,
+        2
+      ],
+      "axes": [
+        "entry",
+        "component"
+      ],
+      "layout": "table",
+      "sha256": "29b68e0a668cfe583cd292560dc1d9296df310262bce2f80d52434536fb18d53",
+      "description": "this rank's accumulated work before the allReduce (probe version 2)",
+      "tolerance_class": "exact"
+    },
+    {
+      "name": "final/external_work",
+      "file": "data/final__external_work.npy",
+      "dtype": "f64",
+      "shape": [
+        1,
+        2
+      ],
+      "axes": [
+        "entry",
+        "component"
+      ],
+      "layout": "table",
+      "sha256": "b03dbf9bbdfd39974420e11e00d6a1ff0a7daf813a364424152ebfdb733b9390",
+      "description": "allReduce(_sum) of the work",
+      "tolerance_class": "exact"
+    },
+    {
+      "name": "final/global_contact_pressure",
+      "file": "data/final__global_contact_pressure.npy",
+      "dtype": "f64",
+      "shape": [
+        104,
+        2
+      ],
+      "axes": [
+        "entry",
+        "component"
+      ],
+      "layout": "table",
+      "sha256": "af66850b0fe89d949cd1a5127271913bda56673045910f1ff50ab1b004063efb",
+      "description": "every local node",
+      "tolerance_class": "exact"
+    }
+  ],
+  "tags": [
+    "parallel"
+  ]
+}

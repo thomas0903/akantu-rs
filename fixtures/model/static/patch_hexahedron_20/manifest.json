@@ -1,0 +1,340 @@
+{
+  "format_version": 1,
+  "case_id": "model/static/patch_hexahedron_20",
+  "description": "SolidMechanicsModel static run on test/test_model/patch_tests/data/_hexahedron_20.msh (3D)",
+  "status": "golden",
+  "generator": {
+    "probe": "model_probe",
+    "probe_version": "3",
+    "command": "oracle/scripts/generate-fixtures.sh --config strict model:model/explicit/patch_hexahedron_8 model:model/explicit/patch_triangle_3 model:model/implicit_dynamic/patch_triangle_6_plastic model:model/layout/stress_sentinel_hexahedron_8 model:model/layout/stress_sentinel_quadrangle_8 model:model/static/loaded_quadrangle_4 model:model/static/loaded_tetrahedron_4 model:model/static/patch_hexahedron_20 model:model/static/patch_quadrangle_8 model:model/static/patch_tetrahedron_4 model:model/static/patch_triangle_3"
+  },
+  "reference": {
+    "sha": "35a851780d0b9471d258ed53a003ae98aaa95ea0",
+    "describe": "v5.0.7-post1-554-g35a851780",
+    "patches": [
+      "modified:cmake/AkantuTestsMacros.cmake sha256=c280165a84912eab4bcc081b9eaaaa06aafdd83d4f48d982e11b0859abf9672f (reference sha256=36290de2ec8b111028138fe82029efa16501512241a5bc264fa30ff3e3239b9e)"
+    ]
+  },
+  "build": {
+    "config": "strict",
+    "compiler": "g++ (Debian 14.2.0-19) 14.2.0",
+    "cxx_flags": "-ffp-contract=off -DEIGEN_DONT_VECTORIZE -DEIGEN_NO_CPUID -DEIGEN_DEFAULT_L1_CACHE_SIZE=16384 -DEIGEN_DEFAULT_L2_CACHE_SIZE=524288 -DEIGEN_DEFAULT_L3_CACHE_SIZE=524288 -O2 -g -DNDEBUG -g3 -ggdb3 -flarge-source-files -std=c++20 -flto=auto -fno-fat-lto-objects -fPIC -frounding-math (actual flags of src/model/solid_mechanics/solid_mechanics_model.cc; warnings and non-FP -D defines omitted)",
+    "build_type": "RelWithDebInfo",
+    "arch": "x86_64",
+    "os": "Debian GNU/Linux 13 (trixie)",
+    "libraries": {
+      "eigen3": "3.4.0-5",
+      "boost": "1.83.0.2+b2",
+      "openmpi": "5.0.7-1",
+      "mumps": "5.7.3-3+b1",
+      "petsc": "3.22.5+dfsg1-2",
+      "scotch": "7.0.7-1",
+      "openblas": "0.3.29+ds-3",
+      "scalapack": "2.2.2-1",
+      "hdf5": "1.14.5+repack-3",
+      "gmsh": "4.13.1+ds1-6",
+      "pybind11": "2.13.6-2",
+      "numpy": "1:2.2.4+ds-1",
+      "scipy": "1.15.3-1",
+      "gcc": "4:14.2.0-1",
+      "gfortran": "4:14.2.0-1",
+      "oracle_image": "sha256:2da26d87e063f3c88264f589cf73381feff583eeaa7770d2e01ae034651d59f5",
+      "oracle_build_scripts": "cca6e460cd3430bf0180262e7ebe26be762112e9",
+      "oracle_install_reference_sha": "35a851780d0b9471d258ed53a003ae98aaa95ea0",
+      "oracle_install_image": "sha256:2da26d87e063f3c88264f589cf73381feff583eeaa7770d2e01ae034651d59f5",
+      "openblas_coretype": "Haswell",
+      "openblas_num_threads": "1",
+      "eigen_cache_sizes": "16384,524288,524288 (EIGEN_NO_CPUID, D-050)",
+      "host_cpu": "AMD EPYC 9455 48-Core Processor",
+      "sha256:libakantu.so.5.0.7": "554ecfc7838d8c8aa3955f37f2efb556a7f09426083b74af262ffdcccff657ff",
+      "probe_tree_sha256": "b41a789c29e3669e17c6fb821b88bd1356b935f76b11cdd9f627bca49588db25",
+      "probe_sources_commit": "cca6e460cd3430bf0180262e7ebe26be762112e9",
+      "cmake_cxx_flags": "-ffp-contract=off -DEIGEN_DONT_VECTORIZE -DEIGEN_NO_CPUID -DEIGEN_DEFAULT_L1_CACHE_SIZE=16384 -DEIGEN_DEFAULT_L2_CACHE_SIZE=524288 -DEIGEN_DEFAULT_L3_CACHE_SIZE=524288 -O2 -g -DNDEBUG -g3 -ggdb3 -flarge-source-files",
+      "python": "3.13.5",
+      "sha256:py11_akantu.cpython-313-x86_64-linux-gnu.so": "8d0c2b8c0582e788685912c2097aa1c3e1dac1d2ec7d363f74b16e16603e4ff6"
+    },
+    "probe_compile_command": "python3 /probes/python/model_probe.py (akantu module /build/install-strict/share/akantu-oracle/python/akantu)",
+    "probe_cxx_flags": "n/a: Python probe, no probe translation unit; the numerical kernels run inside libakantu compiled with cxx_flags"
+  },
+  "created": "2026-11-11T04:49:12Z",
+  "inputs": [
+    {
+      "role": "mesh",
+      "path": "inputs/_hexahedron_20.msh",
+      "sha256": "5b3e6d387cf0dc3c359ace9474c38dcc4b689866674195e3e79fd13f37efef60",
+      "source": "upstream:test/test_model/patch_tests/data/_hexahedron_20.msh"
+    },
+    {
+      "role": "material",
+      "path": "inputs/material.dat",
+      "sha256": "839e1e80210c5add213ec98e4f8861505cd9c8fcd5ccc61cbb4382295d86f011",
+      "source": "generated:model_probe.py"
+    }
+  ],
+  "parameters": {
+    "probe_semantics": "tensors [..., row, col] = M(row, col) (per-tuple transpose of the column-major binding buffer); static residual = f_ext + f_int",
+    "spatial_dimension": 3,
+    "dirichlet": "affine u = A X + b on bounding-box faces",
+    "A": [
+      [
+        0.001,
+        0.0002,
+        -0.00015
+      ],
+      [
+        -0.0003,
+        0.0005,
+        0.0001
+      ],
+      [
+        0.00025,
+        -0.0001,
+        0.0008
+      ]
+    ],
+    "b": [
+      0.0001,
+      -0.0002,
+      0.0003
+    ],
+    "solver": {
+      "type": "newton_raphson",
+      "type_source": "SolidMechanicsModel::getDefaultSolverOptions (solid_mechanics_model.cc:146-160), bindings class NonLinearSolverNewtonRaphson",
+      "max_iterations": 2,
+      "threshold": 1e-12,
+      "convergence_type": "solution"
+    },
+    "nb_iterations": 2,
+    "error": 4.020867102614181e-19,
+    "K": {
+      "shape": [
+        243,
+        243
+      ],
+      "symmetric_storage": true,
+      "dof_numbering": "DOFManager equation numbering, node*dim+component in serial",
+      "source": "SparseMatrixAIJ getIRN/getJCN/getA (bit-exact, 0-based)"
+    },
+    "conditioning": {
+      "cond2_K_free": 10.544776840120468,
+      "free_dofs": 21,
+      "norm2_K_free": 617151616750.2772,
+      "backward_error": 1.259748275296901e-16,
+      "residual_norm_free": 5.368955499896801e-08,
+      "method": "numpy SVD / 2-norms of K[free, free] assembled from the bit-exact AIJ triplets; backward error |K_ff u_f - (f_f - K_fb u_b)| / (|K_ff| |u_f| + |rhs|) in the 2-norm (probe-side numpy arithmetic)"
+    }
+  },
+  "storage": {
+    "mode": "committed",
+    "bytes": 293291
+  },
+  "quantities": [
+    {
+      "name": "blocked_dofs",
+      "file": "data/blocked_dofs.npy",
+      "dtype": "bool",
+      "shape": [
+        81,
+        3
+      ],
+      "axes": [
+        "node",
+        "component"
+      ],
+      "layout": "nodal",
+      "sha256": "97c0c3ec6b06178234bb553ccd4117e2b844b618403a4f69d7322d14e90be6e6",
+      "tolerance_class": "exact"
+    },
+    {
+      "name": "displacement",
+      "file": "data/displacement.npy",
+      "dtype": "f64",
+      "shape": [
+        81,
+        3
+      ],
+      "axes": [
+        "node",
+        "component"
+      ],
+      "layout": "nodal",
+      "sha256": "f2ffc7dfd8afb99e63ea5eee6f8515962bb6cc163836d91863ba57e923203af1",
+      "tolerance_class": "linear_solve",
+      "description": "solution (exact field: A X + b)"
+    },
+    {
+      "name": "external_force",
+      "file": "data/external_force.npy",
+      "dtype": "f64",
+      "shape": [
+        81,
+        3
+      ],
+      "axes": [
+        "node",
+        "component"
+      ],
+      "layout": "nodal",
+      "sha256": "50223b2b292533c93a48066415057ee27bb9ae909db6496c143bcfb618d18ba9",
+      "tolerance_class": "exact"
+    },
+    {
+      "name": "internal_force",
+      "file": "data/internal_force.npy",
+      "dtype": "f64",
+      "shape": [
+        81,
+        3
+      ],
+      "axes": [
+        "node",
+        "component"
+      ],
+      "layout": "nodal",
+      "sha256": "345e514f2d86095de84404a96e04318ddc6ea337237382867a6275f50bb7ae78",
+      "tolerance_class": "linear_solve"
+    },
+    {
+      "name": "residual",
+      "file": "data/residual.npy",
+      "dtype": "f64",
+      "shape": [
+        81,
+        3
+      ],
+      "axes": [
+        "node",
+        "component"
+      ],
+      "layout": "nodal",
+      "sha256": "345e514f2d86095de84404a96e04318ddc6ea337237382867a6275f50bb7ae78",
+      "tolerance_class": "linear_solve",
+      "description": "static residual f_ext + f_int as assembled by SolidMechanicsModel::assembleResidual (both coefficients +1); ~0 on free DOFs at equilibrium, reactions on blocked DOFs"
+    },
+    {
+      "name": "grad_u/_hexahedron_20",
+      "file": "data/grad_u___hexahedron_20.npy",
+      "dtype": "f64",
+      "shape": [
+        8,
+        8,
+        3,
+        3
+      ],
+      "axes": [
+        "element",
+        "quad",
+        "row",
+        "col"
+      ],
+      "layout": "quadrature",
+      "sha256": "0fc425dddc36224b9aee33ce2d04d52727406de1a903ace22296c93de92d35df",
+      "element_type": "_hexahedron_20",
+      "tolerance_class": "linear_solve",
+      "description": "material 0 displacement gradient du_row/dX_col per integration point (asymmetric for these cases: checks the tensor layout)"
+    },
+    {
+      "name": "stress/_hexahedron_20",
+      "file": "data/stress___hexahedron_20.npy",
+      "dtype": "f64",
+      "shape": [
+        8,
+        8,
+        3,
+        3
+      ],
+      "axes": [
+        "element",
+        "quad",
+        "row",
+        "col"
+      ],
+      "layout": "quadrature",
+      "sha256": "4028b3a2ef06bd1367a4a653a41282cbb8f56d9b4a949ba2ad7fc94c61f63aec",
+      "element_type": "_hexahedron_20",
+      "tolerance_class": "linear_solve",
+      "description": "material 0 stress sigma(row, col) per integration point (element order of its element filter)"
+    },
+    {
+      "name": "K/rows",
+      "file": "data/K__rows.npy",
+      "dtype": "i64",
+      "shape": [
+        11304
+      ],
+      "axes": [
+        "nnz"
+      ],
+      "layout": "matrix",
+      "sha256": "fe5dbc6dc07662790fa019de4670ce3b2cb6b2315b2f9c6ce6af9b7e284b84ec",
+      "tolerance_class": "exact"
+    },
+    {
+      "name": "K/cols",
+      "file": "data/K__cols.npy",
+      "dtype": "i64",
+      "shape": [
+        11304
+      ],
+      "axes": [
+        "nnz"
+      ],
+      "layout": "matrix",
+      "sha256": "e67273883e72bbc55effb9502d6d23d12b1437807aca17e56e26e96f32851e2a",
+      "tolerance_class": "exact"
+    },
+    {
+      "name": "K/values",
+      "file": "data/K__values.npy",
+      "dtype": "f64",
+      "shape": [
+        11304
+      ],
+      "axes": [
+        "nnz"
+      ],
+      "layout": "matrix",
+      "sha256": "64f74c2a5e91263abf622acf67907059bb04b44f860e4697b3b6a86705adeea5",
+      "tolerance_class": "kernel",
+      "description": "stiffness matrix entries (bit-exact AIJ storage)"
+    },
+    {
+      "name": "mesh/nodes",
+      "file": "data/mesh__nodes.npy",
+      "dtype": "f64",
+      "shape": [
+        81,
+        3
+      ],
+      "axes": [
+        "node",
+        "spatial_dim"
+      ],
+      "layout": "nodal",
+      "sha256": "156fc31dcbd8ab42d101cab46bf1a5f815251ebb238ba732b2048ce2cad74a0c",
+      "tolerance_class": "exact",
+      "description": "node coordinates as read"
+    },
+    {
+      "name": "mesh/connectivity/_hexahedron_20",
+      "file": "data/mesh__connectivity___hexahedron_20.npy",
+      "dtype": "i64",
+      "shape": [
+        8,
+        20
+      ],
+      "axes": [
+        "element",
+        "node_local"
+      ],
+      "layout": "elemental",
+      "sha256": "0087b4500f208d0f3ba00d8f0258ac33bcf7f6b120023f2460ee74ae2109a02c",
+      "element_type": "_hexahedron_20",
+      "tolerance_class": "exact"
+    }
+  ],
+  "tags": [
+    "model",
+    "static"
+  ]
+}

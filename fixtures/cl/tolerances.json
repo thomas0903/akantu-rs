@@ -1,0 +1,17 @@
+{
+  "format_version": 1,
+  "rules": [
+    {
+      "quantity": "s*/*",
+      "justification": "Bitwise: random internal values are draws of the replicated libstdc++ engine/distributions (D-006, NV section 12 R0) in the replicated upstream allocation order; a single different draw or order shifts every later value.",
+      "evidence": "2026-11-10: crates/akantu-model/tests/random_internal_matches_oracle.rs compares every value bit for bit (516 values, 7 steps) and the 4 next engine values (macOS arm64); x86_64 Linux reproduced by an independent review; smm_2d_mixed (x86_64 oracle): 72 values and the next 4 engine values, bitwise; x86_64 Linux: replay by an independent review; regenerated smm_2d (79/79 arrays) and smm_2d_mixed (13/13) on the x86_64 oracle, byte-identical in 3 runs",
+      "reviewed_by": "independent review during the port, November 2026"
+    },
+    {
+      "quantity": "next_draws",
+      "justification": "Exact integers: raw engine values; equality proves the same total number of engine calls.",
+      "evidence": "2026-11-10: crates/akantu-model/tests/random_internal_matches_oracle.rs compares every value bit for bit (516 values, 7 steps) and the 4 next engine values (macOS arm64); x86_64 Linux: replay by an independent review; regenerated smm_2d (79/79 arrays) and smm_2d_mixed (13/13) on the x86_64 oracle, byte-identical in 3 runs",
+      "reviewed_by": "independent review during the port, November 2026"
+    }
+  ]
+}

@@ -1,0 +1,59 @@
+{
+  "format_version": 1,
+  "rules": [
+    {
+      "quantity": "model/kinetic_energy",
+      "case": "parallel/smm_explicit_*",
+      "justification": "Exact (D-039 form): the port's per-rank contributions (`local_energy`) folded in rank order give the port's value, and folded in the association observed for the oracle's Open MPI 5.0.7 at this rank count give the recorded value, bit for bit; NativeMpi bitwise. No tolerance. Observed associations (one node, default MCA selection; docs/MPI_VALIDATION.md): 1 rank e0; 2 ranks e0+e1; 4 ranks (e0+e1)+(e2+e3); 8 ranks ((e0+e1)+(e2+e3))+((e4+e5)+(e6+e7)); a rank count without an observed association is refused by the test, not guessed. The association is a fact about the recorded fixtures, used only to check data recorded with it; the port relies on its own rank order (D-039).",
+      "evidence": "2026-11-13: crates/akantu-solid/tests/par_oracle/mod.rs energies_match, run by parallel_oracle.rs (local world: smm_explicit_cube_n4 at 1/2/4/8 ranks, smm_explicit_two_laws_cube_n4 at 1/2/4; every one of the 40 steps exact for both energies at every count; the port's rank-ordered bits differ from the record, through the association only, at 10 (kinetic) / 9 (potential) steps at 4 ranks and 14 / 20 at 8 ranks, max rel 1.861e-16 / 1.530e-16, two laws at 4 ranks 7 / 10 steps, 1.239e-16 / 9.934e-17) and by mpi_smm (real MPI, ReductionPolicy::RankOrdered and NativeMpi, par tier at 1/2/4/8 ranks); unit test energy_folds_and_the_exact_energy_check (other rank counts refused, a one-ulp change of one contribution rejected). Replaces the earlier 4-rank rule rel 1e-15 and the proposed 8-rank rule rel 1e-15, because the test is exact at every count.",
+      "reviewed_by": "independent review during the port, November 2026"
+    },
+    {
+      "quantity": "model/potential_energy",
+      "case": "parallel/smm_explicit_*",
+      "justification": "Exact (D-039 form): the port's per-rank contributions (`local_energy`) folded in rank order give the port's value, and folded in the association observed for the oracle's Open MPI 5.0.7 at this rank count give the recorded value, bit for bit; NativeMpi bitwise. No tolerance. Observed associations (one node, default MCA selection; docs/MPI_VALIDATION.md): 1 rank e0; 2 ranks e0+e1; 4 ranks (e0+e1)+(e2+e3); 8 ranks ((e0+e1)+(e2+e3))+((e4+e5)+(e6+e7)); a rank count without an observed association is refused by the test, not guessed. The association is a fact about the recorded fixtures, used only to check data recorded with it; the port relies on its own rank order (D-039).",
+      "evidence": "2026-11-13: crates/akantu-solid/tests/par_oracle/mod.rs energies_match, run by parallel_oracle.rs (local world: smm_explicit_cube_n4 at 1/2/4/8 ranks, smm_explicit_two_laws_cube_n4 at 1/2/4; every one of the 40 steps exact for both energies at every count; the port's rank-ordered bits differ from the record, through the association only, at 10 (kinetic) / 9 (potential) steps at 4 ranks and 14 / 20 at 8 ranks, max rel 1.861e-16 / 1.530e-16, two laws at 4 ranks 7 / 10 steps, 1.239e-16 / 9.934e-17) and by mpi_smm (real MPI, ReductionPolicy::RankOrdered and NativeMpi, par tier at 1/2/4/8 ranks); unit test energy_folds_and_the_exact_energy_check (other rank counts refused, a one-ulp change of one contribution rejected). Replaces the earlier 4-rank rule rel 1e-15 and the proposed 8-rank rule rel 1e-15, because the test is exact at every count.",
+      "reviewed_by": "independent review during the port, November 2026"
+    },
+    {
+      "quantity": "model/displacement",
+      "case": "parallel/smm_static_cube_n3/*",
+      "rel": 1e-12,
+      "scale": "max_abs",
+      "justification": "Linear static solve of a 3x3x3 Kuhn Tet4 cube (192 DOFs before Dirichlet): oracle MUMPS (parallel, centralised analysis), port faer LU centralised on rank 0 (D-040); both backward stable (backward error <= ~10 u). The element-level assembly is bitwise (same partition, same ghost order) but the distributed K is summed over ranks in a different order by the two backends. Measured max rel difference 1.9e-16 at 1 and 2 ranks: a >= 5000x margin. Conditioning (computed by crates/akantu-solid/tests/par_static_conditioning.rs): K restricted to the 144 free DOFs (z = 0 clamped) has cond2 = 4.076e2 (lambda_max 2.8126, lambda_min 6.9004e-3; power and inverse iteration on the dense matrix assembled by the port at 1 rank, par_static_conditioning.rs; dense symmetric eigenvalues of the same matrix, parallel_oracle.rs::smm_static_cube_n3_tolerance_bound_inputs: 4.076e2); normwise backward errors ||f - K u||2 / (||K||2 ||u||2 + ||f||2), residuals in double-double: 4.02e-17 (port, faer), 3.74e-17 and 4.22e-17 (aarch64 oracle MUMPS solutions of np1 and np2, against the same K; 3.62e-17 and 3.82e-17 for the x86_64 goldens). A-priori bound on the max-norm relative difference of two solutions (each within 2 cond2 eta of the exact solution, Higham Thm 7.2, so the difference within 2 cond2 (eta1 + eta2)): sqrt(144) * 2 * cond2 * (eta_port + eta_oracle) <= 12 * 2 * 407.6 * (4.02e-17 + 4.22e-17) = 8.06e-13 < 1e-12 (the worst pair, np2; the np1 pair: 7.59e-13; with the x86_64 goldens the worst pair gives 7.66e-13); measured 1.912e-16 (np1 and np2; x86_64 goldens: <= 1.920e-16).",
+      "evidence": "2026-11-11: crates/akantu-solid/tests/parallel_oracle.rs (smm_static_cube_n3_matches_the_oracle; measured 1.912e-16 at 1 and 2 ranks against the aarch64 values (now the variants/aarch64-auto of the three cases), x86_64 identical; against the x86_64 goldens (OPENBLAS_CORETYPE=Haswell, D-073, on an x86_64 host): 1.912e-16 at 1 rank, 1.912e-16 / 1.920e-16 on the two ranks of np2); bound inputs computed by two committed tests: parallel_oracle.rs::smm_static_cube_n3_tolerance_bound_inputs (np1 pair, bound asserted < 1e-12) and par_static_conditioning.rs::pa2_04_static_cube_conditioning_supports_the_tolerance (np1 and np2 pairs, worst-pair bound asserted < 1e-12 and measured <= bound; backward errors reported, not asserted)",
+      "reviewed_by": "independent review during the port, November 2026"
+    },
+    {
+      "quantity": "model/internal_force",
+      "case": "parallel/smm_static_cube_n3/*",
+      "rel": 1e-12,
+      "scale": "max_abs",
+      "justification": "Internal force B^T sigma(u) at the solved displacement: carries the solve difference of model/displacement (linear map, same conditioning).",
+      "evidence": "DOCUMENTATION ONLY (2026-11-11): recorded in the fixtures, not compared by any test (the displacement is)",
+      "reviewed_by": "independent review during the port, November 2026"
+    },
+    {
+      "quantity": "model/potential_energy",
+      "case": "parallel/smm_static_cube_n3/*",
+      "rel": 1e-12,
+      "scale": "max_abs",
+      "justification": "Energy at the solved displacement (quadratic in u): twice the relative displacement difference at most, plus the reduction order.",
+      "evidence": "DOCUMENTATION ONLY (2026-11-11): recorded in the fixtures, not compared by any test (the displacement is)",
+      "reviewed_by": "independent review during the port, November 2026"
+    },
+    {
+      "quantity": "final/external_work",
+      "case": "parallel/ntn_compression/np8/*",
+      "justification": "Exact, in the form of the D-039 amendment: upstream's getExternalWork() is allReduce(_sum) of the ranks' accumulated works. The association of MPI_Allreduce observed for the oracle's Open MPI 5.0.7 (one node, default MCA) depends on the rank count (rank order at 2 and 3 ranks, pairwise at 4 and 8, mixed at 5 to 7); at 8 ranks it differs from the port's rank-order fold by one ulp per component for this case. Probe version 2 records each rank's work (final/external_work_rank). The port's per-rank work is compared bitwise with the recorded one; its global value must equal the recorded value bitwise or, under the rank-ordered policy, the rank-order fold of the recorded per-rank works exactly; the recorded value must equal the fold of the recorded per-rank works in the observed association; under ReductionPolicy::NativeMpi only the bitwise value is accepted (an observation for this Open MPI build and one node, not a cross-implementation promise, D-039). No tolerance.",
+      "evidence": "2026-11-13: crates/akantu-ntn-contact/tests/par_ntn/mod.rs external_work_matches (ntn_parallel.rs local world 1/2/4/8; mpi_ntn real MPI 1/2/4/8 x3, both policies); upstream's eight per-rank works equal the port's bitwise and its MPI_Allreduce equals their pairwise sum bitwise. The recorded global value is checked against the fold of the recorded per-rank works in the observed association (par_common::oracle_allreduce_fold), in the local world (fast tier) and under real MPI; mutation (the rank-order fold instead) fails at 8 ranks.",
+      "reviewed_by": "independent review during the port, November 2026"
+    },
+    {
+      "quantity": "*",
+      "justification": "Distributed topology (connectivities in local ids, node global ids, flags, owner ranks, synchronizer schemes, ghost counters, groups, the Int mesh data tag_0/tag_1, Scotch and MeshData parts (distribution_cube_msh, distribution_adv2d)) and copied coordinates (nodes/coordinates of every distributed case: copies of the read mesh's coordinates in the distributed local order) are exact integers/copies; the explicit run's nodal fields (u, v, a, lumped mass, f_int) and time step at 1, 2, 4 and 8 ranks and its per-step energies at 1 and 2 ranks are bit-identical (at more ranks the per-step energies follow the exact D-039 rule above): same partition (prescribed from the oracle's single-thread seeded Scotch, or the MeshData partition), same local numbering, same ghost order (canonical rank order on both sides, probe patch), same kernels. Any difference is a distribution, numbering or kernel defect.",
+      "evidence": "2026-11-11: crates/akantu-mesh/tests/parallel_oracle.rs (incl. distribution_adv2d_matches_the_oracle_in_compat, UD-231 compat), crates/akantu-solid/tests/parallel_oracle.rs (local world) and mpi_distribution/mpi_smm (real MPI 1/2/4), all bitwise; distribution_adv2d added later and re-checked (local world and real MPI x3 on x86_64, UD-231 compat); parallel_oracle.rs passes locally, MPI tier on an x86_64 host 176 PASS. The rule was split once into nodes/coordinates, '* @ parallel/distribution_*' and this remainder (indices [5], [6], [7]) and collapsed back into this one exact rule at [5]; nothing loosened: all three were exact.",
+      "reviewed_by": "independent review during the port, November 2026"
+    }
+  ]
+}

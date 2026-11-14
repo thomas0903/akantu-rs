@@ -1,0 +1,901 @@
+{
+  "format_version": 1,
+  "case_id": "model/smm_fd/mixed_quad8_tri6_fd_fd_linear",
+  "description": "review V47 Appendix A (FD-01): quadrangle_8 material a (finite deformation) + triangle_6 material b (finite deformation) by physical name, FromSameDim / FromHigherDim loads in two steps, _linear non-linear solver (Eigen sparse solver)",
+  "status": "golden",
+  "generator": {
+    "probe": "smm_fd_probe",
+    "probe_version": "1",
+    "command": "SMM_PROBE_BIN=smm_fd_probe SMM_PROBE_CASES=mixed_quad8_tri6_fd_fd_linear oracle/probes/smm/generate.sh (two runs, then two with SMM_PROBE_STAGE_ONLY=1: 4 identical runs)"
+  },
+  "reference": {
+    "sha": "35a851780d0b9471d258ed53a003ae98aaa95ea0",
+    "describe": "v5.0.7-post1-554-g35a851780",
+    "patches": [
+      "modified:cmake/AkantuTestsMacros.cmake sha256=c280165a84912eab4bcc081b9eaaaa06aafdd83d4f48d982e11b0859abf9672f (reference sha256=36290de2ec8b111028138fe82029efa16501512241a5bc264fa30ff3e3239b9e)"
+    ]
+  },
+  "build": {
+  "config": "strict",
+  "compiler": "g++ (Debian 14.2.0-19) 14.2.0",
+  "cxx_flags": "-ffp-contract=off -DEIGEN_DONT_VECTORIZE -O2 -g -DNDEBUG -g3 -ggdb3 -flarge-source-files -std=c++20 -flto=auto -fno-fat-lto-objects -fPIC -frounding-math (actual flags of src/model/solid_mechanics/solid_mechanics_model.cc; warnings and non-FP -D defines omitted)",
+  "build_type": "RelWithDebInfo",
+  "arch": "x86_64",
+  "os": "Debian GNU/Linux 13 (trixie)",
+  "libraries": {
+    "eigen3": "3.4.0-5",
+    "boost": "1.83.0.2+b2",
+    "openmpi": "5.0.7-1",
+    "mumps": "5.7.3-3+b1",
+    "petsc": "3.22.5+dfsg1-2",
+    "scotch": "7.0.7-1",
+    "openblas": "0.3.29+ds-3",
+    "scalapack": "2.2.2-1",
+    "hdf5": "1.14.5+repack-3",
+    "gmsh": "4.13.1+ds1-6",
+    "pybind11": "2.13.6-2",
+    "numpy": "1:2.2.4+ds-1",
+    "scipy": "1.15.3-1",
+    "gcc": "4:14.2.0-1",
+    "gfortran": "4:14.2.0-1",
+    "oracle_image": "sha256:45122c213e9fa194b6b58dcc31fc23b5fa4f7c0f64d0a452e40ae072c51c5cdb",
+    "oracle_build_scripts": "e168f393291494c869fa759b3ad9ae4a371a0369",
+    "oracle_install_reference_sha": "35a851780d0b9471d258ed53a003ae98aaa95ea0",
+    "oracle_install_image": "sha256:45122c213e9fa194b6b58dcc31fc23b5fa4f7c0f64d0a452e40ae072c51c5cdb",
+    "sha256:libakantu.so.5.0.7": "5491d902b6f363e11b47d2dc1d0aff0597374e8ff785bbfe2bff534f38509e81",
+    "probe_tree_sha256": "b21e71f614b0b3bf5c1cf0d835f74455d8bf8241b754115ef99a6ea80a843272",
+    "probe_sources_commit": "e4bcc5393627af11a9160735f2a0fa4e048d8deb",
+    "cmake_cxx_flags": "-ffp-contract=off -DEIGEN_DONT_VECTORIZE -O2 -g -DNDEBUG -g3 -ggdb3 -flarge-source-files",
+    "probe": "smm_fd_probe",
+    "eigen_cache_sizes": "unpinned: Eigen's run-time CPU query on the generating host (AMD EPYC 9455; the D-050 pin was not yet in the oracle tooling), so by D-050 (3) these data were diagnostic until confirmed",
+    "provenance_note_d050": "an independent review regenerated all three mixed_quad8_tri6 cases (stage-only) on another CPU (AMD Ryzen 7 9700X), unpinned and with Eigen::setCpuCacheSizes(16384, 524288, 524288) injected into the probe (D-050 pin): 157/157 .npy files byte-identical with the committed ones (28-DOF systems, below Eigen's blocking sizes); the data are unchanged, only this provenance note and generator.command were added"
+  },
+  "probe_compile_command": "/usr/bin/c++ '-DAKANTU_PROBE_BUILD_TYPE=\"RelWithDebInfo\"' '-DAKANTU_PROBE_CONFIG=\"strict\"' '-DAKANTU_PROBE_CXX_FLAGS=\"-ffp-contract=off -DEIGEN_DONT_VECTORIZE  -O2 -g -DNDEBUG\"' -DBOOST_GRAPH_DYN_LINK -DBOOST_GRAPH_NO_LIB -DBOOST_REGEX_DYN_LINK -DBOOST_REGEX_NO_LIB -DCGAL_USE_GMPXX=1 -I/probes/smm/../include -isystem /build/install-strict/include/akantu -isystem /opt/CGAL-5.6.2/include -isystem /usr/lib/x86_64-linux-gnu/openmpi/include -isystem /usr/lib/x86_64-linux-gnu/openmpi/include/openmpi -isystem /usr/lib/petscdir/petsc3.22/x86_64-linux-gnu-real/include -isystem /usr/include/scotch -isystem /build/install-strict/include/akantu_iterators -isystem /usr/include/eigen3 -isystem /build/install-strict/include/iohelper -O2 -g -DNDEBUG -std=gnu++20 -ffp-contract=off -DEIGEN_DONT_VECTORIZE -Wall -Wextra -pedantic -Wno-array-bounds -Wno-use-after-free -Wno-stringop-overread -DOMPI_SKIP_MPICXX -Wno-literal-suffix -frounding-math -o CMakeFiles/smm_fd_probe.dir/smm_fd_probe.cc.o -c /probes/smm/smm_fd_probe.cc",
+  "probe_cxx_flags": "-DAKANTU_PROBE_BUILD_TYPE=\"RelWithDebInfo\" -DAKANTU_PROBE_CONFIG=\"strict\" -DAKANTU_PROBE_CXX_FLAGS=\"-ffp-contract=off -DEIGEN_DONT_VECTORIZE  -O2 -g -DNDEBUG\" -DBOOST_GRAPH_DYN_LINK -DBOOST_GRAPH_NO_LIB -DBOOST_REGEX_DYN_LINK -DBOOST_REGEX_NO_LIB -DCGAL_USE_GMPXX=1 -O2 -g -DNDEBUG -std=gnu++20 -ffp-contract=off -DEIGEN_DONT_VECTORIZE -Wall -Wextra -pedantic -Wno-array-bounds -Wno-use-after-free -Wno-stringop-overread -DOMPI_SKIP_MPICXX -Wno-literal-suffix -frounding-math"
+},
+  "created": "2026-11-11T03:18:09Z",
+  "inputs": [
+    {
+      "role": "mesh",
+      "path": "inputs/smm_fd_probe_mixed.msh",
+      "source": "generated:smm_fd_probe.cc (review V47 Appendix A mixed.msh)",
+      "sha256": "6b11bac27d00607557878ecae5df7a2d77a38ede6c5d27f24e01e8c240b8d13b"
+    },
+    {
+      "role": "material",
+      "path": "inputs/smm_fd_probe_mixed.dat",
+      "source": "generated:smm_fd_probe.cc",
+      "sha256": "bef40402354a1cee985fb852bb4f403b3c60e0b9d8f059ca65104c6899e174f3"
+    }
+  ],
+  "parameters": {
+    "spatial_dimension": 2,
+    "material_selector": "MeshDataMaterialSelector<std::string>(physical_names)",
+    "non_linear_solver": "linear",
+    "step1/K/symmetric": true,
+    "step1/K/size": 28,
+    "step1/K/nnz": 250,
+    "step1/K/coords_sha256": "694d0674c86b3bd74f23cf6b24ff61429182417233ff5f4d10bca8c3981996b2",
+    "step1/K/values_sha256": "3e9ef94488c11e80a87f1ccb7b65c9f46812362e2048559f43c6134cb503361a",
+    "step1/m0/types": [
+      "_triangle_6",
+      "_quadrangle_8"
+    ],
+    "step1/m0/finite_deformation": true,
+    "step1/m1/types": [
+      "_triangle_6",
+      "_quadrangle_8"
+    ],
+    "step1/m1/finite_deformation": true,
+    "step2/K/symmetric": true,
+    "step2/K/size": 28,
+    "step2/K/nnz": 250,
+    "step2/K/coords_sha256": "694d0674c86b3bd74f23cf6b24ff61429182417233ff5f4d10bca8c3981996b2",
+    "step2/K/values_sha256": "45533ce98c326aa41ecf3fe696c3b4d557fdf28a2ec231f6882c7aabe1ad6bbd",
+    "step2/m0/types": [
+      "_triangle_6",
+      "_quadrangle_8"
+    ],
+    "step2/m0/finite_deformation": true,
+    "step2/m1/types": [
+      "_triangle_6",
+      "_quadrangle_8"
+    ],
+    "step2/m1/finite_deformation": true
+  },
+  "storage": {
+    "mode": "committed",
+    "bytes": 22212
+  },
+  "quantities": [
+    {
+      "name": "load_factors",
+      "file": "data/load_factors.npy",
+      "dtype": "f64",
+      "shape": [
+        2
+      ],
+      "axes": [
+        "entry"
+      ],
+      "layout": "table",
+      "sha256": "a87e91791e9d03807dc76043efbe3db9946d8f38d8d5288a112eb74101e49e23",
+      "description": "lambda of the two load steps"
+    },
+    {
+      "name": "blocked_dofs",
+      "file": "data/blocked_dofs.npy",
+      "dtype": "u8",
+      "shape": [
+        14,
+        2
+      ],
+      "axes": [
+        "entry",
+        "component"
+      ],
+      "layout": "table",
+      "sha256": "0da4c68df83b0bfb2ce3bfbd4c430603d870c4004a7ba17bdfe3a14adaf28d89",
+      "description": "left blocked, bottom y blocked"
+    },
+    {
+      "name": "step1/external_force",
+      "file": "data/step1__external_force.npy",
+      "dtype": "f64",
+      "shape": [
+        14,
+        2
+      ],
+      "axes": [
+        "entry",
+        "component"
+      ],
+      "layout": "table",
+      "sha256": "c4d546b32b93b357a325b680c0b58c5d68f4ff6d032a3599e08fb9b41a7e9045",
+      "description": "f_ext of the step"
+    },
+    {
+      "name": "step1/displacement",
+      "file": "data/step1__displacement.npy",
+      "dtype": "f64",
+      "shape": [
+        14,
+        2
+      ],
+      "axes": [
+        "entry",
+        "component"
+      ],
+      "layout": "table",
+      "sha256": "c6ae8452dc46cab47118b175b0305c83e14d5fb63aad1d3a011d71f8468c72cf",
+      "description": "solution"
+    },
+    {
+      "name": "step1/internal_force",
+      "file": "data/step1__internal_force.npy",
+      "dtype": "f64",
+      "shape": [
+        14,
+        2
+      ],
+      "axes": [
+        "entry",
+        "component"
+      ],
+      "layout": "table",
+      "sha256": "5588d604e43bfd534853ab607825d15bfb91c462438cbef200c74c249947a09d",
+      "description": "internal force"
+    },
+    {
+      "name": "step1/K/rows",
+      "file": "data/step1__K__rows.npy",
+      "dtype": "i64",
+      "shape": [
+        250
+      ],
+      "axes": [
+        "entry"
+      ],
+      "layout": "table",
+      "sha256": "64af9d4e25521b0167b5f74c4e9784d5a7f64aa73bc6c0ccf454fc440a052407",
+      "description": "SparseMatrixAIJ::getIRN - 1 (storage order)"
+    },
+    {
+      "name": "step1/K/cols",
+      "file": "data/step1__K__cols.npy",
+      "dtype": "i64",
+      "shape": [
+        250
+      ],
+      "axes": [
+        "entry"
+      ],
+      "layout": "table",
+      "sha256": "df0c3e38e919408dc9239e8ff952f8a133c4937b486dec1f2fa353c34185c757",
+      "description": "SparseMatrixAIJ::getJCN - 1 (storage order)"
+    },
+    {
+      "name": "step1/K/values",
+      "file": "data/step1__K__values.npy",
+      "dtype": "f64",
+      "shape": [
+        250
+      ],
+      "axes": [
+        "entry"
+      ],
+      "layout": "table",
+      "sha256": "3191762a73830819e5bdf76b56d3511105ef971eb5de7572d76ff56ac2b316ae",
+      "description": "SparseMatrixAIJ::getA (storage order)"
+    },
+    {
+      "name": "step1/m0/stress/_triangle_6",
+      "file": "data/step1__m0__stress___triangle_6.npy",
+      "dtype": "f64",
+      "shape": [
+        0,
+        4
+      ],
+      "axes": [
+        "entry",
+        "component"
+      ],
+      "layout": "table",
+      "sha256": "8825ff7dd3621950d9d249e0725e93ab26e2904d6d9eff4a45bd0630772b2c67",
+      "description": "material stress per quadrature point, raw column-major dim x dim tuples"
+    },
+    {
+      "name": "step1/m0/grad_u/_triangle_6",
+      "file": "data/step1__m0__grad_u___triangle_6.npy",
+      "dtype": "f64",
+      "shape": [
+        0,
+        4
+      ],
+      "axes": [
+        "entry",
+        "component"
+      ],
+      "layout": "table",
+      "sha256": "8825ff7dd3621950d9d249e0725e93ab26e2904d6d9eff4a45bd0630772b2c67",
+      "description": "material grad_u per quadrature point, raw column-major dim x dim tuples"
+    },
+    {
+      "name": "step1/m0/piola_kirchhoff_2/_triangle_6",
+      "file": "data/step1__m0__piola_kirchhoff_2___triangle_6.npy",
+      "dtype": "f64",
+      "shape": [
+        0,
+        4
+      ],
+      "axes": [
+        "entry",
+        "component"
+      ],
+      "layout": "table",
+      "sha256": "8825ff7dd3621950d9d249e0725e93ab26e2904d6d9eff4a45bd0630772b2c67",
+      "description": "second Piola-Kirchhoff stress per quadrature point, raw column-major tuples"
+    },
+    {
+      "name": "step1/m0/filter/_triangle_6",
+      "file": "data/step1__m0__filter___triangle_6.npy",
+      "dtype": "i64",
+      "shape": [
+        0
+      ],
+      "axes": [
+        "entry"
+      ],
+      "layout": "table",
+      "sha256": "e734dac55ea9fbbe782af2d8c02c3c5992131906228afb2aaaf137d6f3ed74db",
+      "description": "element filter of the material"
+    },
+    {
+      "name": "step1/m0/stress/_quadrangle_8",
+      "file": "data/step1__m0__stress___quadrangle_8.npy",
+      "dtype": "f64",
+      "shape": [
+        4,
+        4
+      ],
+      "axes": [
+        "entry",
+        "component"
+      ],
+      "layout": "table",
+      "sha256": "86bc174f29dcbf28ff5a3fe69ab0b4e9f2b9272423278365048dcce2a305fb8b",
+      "description": "material stress per quadrature point, raw column-major dim x dim tuples"
+    },
+    {
+      "name": "step1/m0/grad_u/_quadrangle_8",
+      "file": "data/step1__m0__grad_u___quadrangle_8.npy",
+      "dtype": "f64",
+      "shape": [
+        4,
+        4
+      ],
+      "axes": [
+        "entry",
+        "component"
+      ],
+      "layout": "table",
+      "sha256": "a8c714e64c37687402d190c35ca1c52dcad698d2bcfe211c5cf0933dd622df32",
+      "description": "material grad_u per quadrature point, raw column-major dim x dim tuples"
+    },
+    {
+      "name": "step1/m0/piola_kirchhoff_2/_quadrangle_8",
+      "file": "data/step1__m0__piola_kirchhoff_2___quadrangle_8.npy",
+      "dtype": "f64",
+      "shape": [
+        4,
+        4
+      ],
+      "axes": [
+        "entry",
+        "component"
+      ],
+      "layout": "table",
+      "sha256": "b6b5bfa433795e5cfe8f7d2f67ee079911174fabd1bd391171332f47a7818f83",
+      "description": "second Piola-Kirchhoff stress per quadrature point, raw column-major tuples"
+    },
+    {
+      "name": "step1/m0/filter/_quadrangle_8",
+      "file": "data/step1__m0__filter___quadrangle_8.npy",
+      "dtype": "i64",
+      "shape": [
+        1
+      ],
+      "axes": [
+        "entry"
+      ],
+      "layout": "table",
+      "sha256": "f6df0000bed676f0a4b777e2a1d915b6608dab452e11737f82c685cebf0e8ba7",
+      "description": "element filter of the material"
+    },
+    {
+      "name": "step1/m1/stress/_triangle_6",
+      "file": "data/step1__m1__stress___triangle_6.npy",
+      "dtype": "f64",
+      "shape": [
+        6,
+        4
+      ],
+      "axes": [
+        "entry",
+        "component"
+      ],
+      "layout": "table",
+      "sha256": "e0e2a7c25541501ce89e179393d3c034b8320c42bae513127cefbc0b0598d98b",
+      "description": "material stress per quadrature point, raw column-major dim x dim tuples"
+    },
+    {
+      "name": "step1/m1/grad_u/_triangle_6",
+      "file": "data/step1__m1__grad_u___triangle_6.npy",
+      "dtype": "f64",
+      "shape": [
+        6,
+        4
+      ],
+      "axes": [
+        "entry",
+        "component"
+      ],
+      "layout": "table",
+      "sha256": "ec37fbca4a2c8c496f3dacce11cd68e0de380d9cb777a0e806349e51f43b2d63",
+      "description": "material grad_u per quadrature point, raw column-major dim x dim tuples"
+    },
+    {
+      "name": "step1/m1/piola_kirchhoff_2/_triangle_6",
+      "file": "data/step1__m1__piola_kirchhoff_2___triangle_6.npy",
+      "dtype": "f64",
+      "shape": [
+        6,
+        4
+      ],
+      "axes": [
+        "entry",
+        "component"
+      ],
+      "layout": "table",
+      "sha256": "a420b451662a2176ed705a8f3b36c609f9471b4dbab0dcf5aa40e09ceaa6c0e5",
+      "description": "second Piola-Kirchhoff stress per quadrature point, raw column-major tuples"
+    },
+    {
+      "name": "step1/m1/filter/_triangle_6",
+      "file": "data/step1__m1__filter___triangle_6.npy",
+      "dtype": "i64",
+      "shape": [
+        2
+      ],
+      "axes": [
+        "entry"
+      ],
+      "layout": "table",
+      "sha256": "edf57b3e7cc4d837db7a3b400e84ffa2cc07b6adc347edef9feabbc11c5183cb",
+      "description": "element filter of the material"
+    },
+    {
+      "name": "step1/m1/stress/_quadrangle_8",
+      "file": "data/step1__m1__stress___quadrangle_8.npy",
+      "dtype": "f64",
+      "shape": [
+        0,
+        4
+      ],
+      "axes": [
+        "entry",
+        "component"
+      ],
+      "layout": "table",
+      "sha256": "8825ff7dd3621950d9d249e0725e93ab26e2904d6d9eff4a45bd0630772b2c67",
+      "description": "material stress per quadrature point, raw column-major dim x dim tuples"
+    },
+    {
+      "name": "step1/m1/grad_u/_quadrangle_8",
+      "file": "data/step1__m1__grad_u___quadrangle_8.npy",
+      "dtype": "f64",
+      "shape": [
+        0,
+        4
+      ],
+      "axes": [
+        "entry",
+        "component"
+      ],
+      "layout": "table",
+      "sha256": "8825ff7dd3621950d9d249e0725e93ab26e2904d6d9eff4a45bd0630772b2c67",
+      "description": "material grad_u per quadrature point, raw column-major dim x dim tuples"
+    },
+    {
+      "name": "step1/m1/piola_kirchhoff_2/_quadrangle_8",
+      "file": "data/step1__m1__piola_kirchhoff_2___quadrangle_8.npy",
+      "dtype": "f64",
+      "shape": [
+        0,
+        4
+      ],
+      "axes": [
+        "entry",
+        "component"
+      ],
+      "layout": "table",
+      "sha256": "8825ff7dd3621950d9d249e0725e93ab26e2904d6d9eff4a45bd0630772b2c67",
+      "description": "second Piola-Kirchhoff stress per quadrature point, raw column-major tuples"
+    },
+    {
+      "name": "step1/m1/filter/_quadrangle_8",
+      "file": "data/step1__m1__filter___quadrangle_8.npy",
+      "dtype": "i64",
+      "shape": [
+        0
+      ],
+      "axes": [
+        "entry"
+      ],
+      "layout": "table",
+      "sha256": "e734dac55ea9fbbe782af2d8c02c3c5992131906228afb2aaaf137d6f3ed74db",
+      "description": "element filter of the material"
+    },
+    {
+      "name": "step2/external_force",
+      "file": "data/step2__external_force.npy",
+      "dtype": "f64",
+      "shape": [
+        14,
+        2
+      ],
+      "axes": [
+        "entry",
+        "component"
+      ],
+      "layout": "table",
+      "sha256": "5fd39302daaeff62e41498e6e6178458c8da32f5aebdf6edd99fc22fbc9194ef",
+      "description": "f_ext of the step"
+    },
+    {
+      "name": "step2/displacement",
+      "file": "data/step2__displacement.npy",
+      "dtype": "f64",
+      "shape": [
+        14,
+        2
+      ],
+      "axes": [
+        "entry",
+        "component"
+      ],
+      "layout": "table",
+      "sha256": "d9c82efca6dc9cc5592a7bdeb434a291a0e67569a0d25dda10646db5e12dcf01",
+      "description": "solution"
+    },
+    {
+      "name": "step2/internal_force",
+      "file": "data/step2__internal_force.npy",
+      "dtype": "f64",
+      "shape": [
+        14,
+        2
+      ],
+      "axes": [
+        "entry",
+        "component"
+      ],
+      "layout": "table",
+      "sha256": "2fd518460c9932da7f784707bf8066aadb324b42c9f59ef121ce34c9562b5505",
+      "description": "internal force"
+    },
+    {
+      "name": "step2/K/rows",
+      "file": "data/step2__K__rows.npy",
+      "dtype": "i64",
+      "shape": [
+        250
+      ],
+      "axes": [
+        "entry"
+      ],
+      "layout": "table",
+      "sha256": "64af9d4e25521b0167b5f74c4e9784d5a7f64aa73bc6c0ccf454fc440a052407",
+      "description": "SparseMatrixAIJ::getIRN - 1 (storage order)"
+    },
+    {
+      "name": "step2/K/cols",
+      "file": "data/step2__K__cols.npy",
+      "dtype": "i64",
+      "shape": [
+        250
+      ],
+      "axes": [
+        "entry"
+      ],
+      "layout": "table",
+      "sha256": "df0c3e38e919408dc9239e8ff952f8a133c4937b486dec1f2fa353c34185c757",
+      "description": "SparseMatrixAIJ::getJCN - 1 (storage order)"
+    },
+    {
+      "name": "step2/K/values",
+      "file": "data/step2__K__values.npy",
+      "dtype": "f64",
+      "shape": [
+        250
+      ],
+      "axes": [
+        "entry"
+      ],
+      "layout": "table",
+      "sha256": "9f3d4db2efa1ce463c41197de46ae6dc3014ea2e648cb56a0fcafd2c54fb379d",
+      "description": "SparseMatrixAIJ::getA (storage order)"
+    },
+    {
+      "name": "step2/m0/stress/_triangle_6",
+      "file": "data/step2__m0__stress___triangle_6.npy",
+      "dtype": "f64",
+      "shape": [
+        0,
+        4
+      ],
+      "axes": [
+        "entry",
+        "component"
+      ],
+      "layout": "table",
+      "sha256": "8825ff7dd3621950d9d249e0725e93ab26e2904d6d9eff4a45bd0630772b2c67",
+      "description": "material stress per quadrature point, raw column-major dim x dim tuples"
+    },
+    {
+      "name": "step2/m0/grad_u/_triangle_6",
+      "file": "data/step2__m0__grad_u___triangle_6.npy",
+      "dtype": "f64",
+      "shape": [
+        0,
+        4
+      ],
+      "axes": [
+        "entry",
+        "component"
+      ],
+      "layout": "table",
+      "sha256": "8825ff7dd3621950d9d249e0725e93ab26e2904d6d9eff4a45bd0630772b2c67",
+      "description": "material grad_u per quadrature point, raw column-major dim x dim tuples"
+    },
+    {
+      "name": "step2/m0/piola_kirchhoff_2/_triangle_6",
+      "file": "data/step2__m0__piola_kirchhoff_2___triangle_6.npy",
+      "dtype": "f64",
+      "shape": [
+        0,
+        4
+      ],
+      "axes": [
+        "entry",
+        "component"
+      ],
+      "layout": "table",
+      "sha256": "8825ff7dd3621950d9d249e0725e93ab26e2904d6d9eff4a45bd0630772b2c67",
+      "description": "second Piola-Kirchhoff stress per quadrature point, raw column-major tuples"
+    },
+    {
+      "name": "step2/m0/filter/_triangle_6",
+      "file": "data/step2__m0__filter___triangle_6.npy",
+      "dtype": "i64",
+      "shape": [
+        0
+      ],
+      "axes": [
+        "entry"
+      ],
+      "layout": "table",
+      "sha256": "e734dac55ea9fbbe782af2d8c02c3c5992131906228afb2aaaf137d6f3ed74db",
+      "description": "element filter of the material"
+    },
+    {
+      "name": "step2/m0/stress/_quadrangle_8",
+      "file": "data/step2__m0__stress___quadrangle_8.npy",
+      "dtype": "f64",
+      "shape": [
+        4,
+        4
+      ],
+      "axes": [
+        "entry",
+        "component"
+      ],
+      "layout": "table",
+      "sha256": "86bc174f29dcbf28ff5a3fe69ab0b4e9f2b9272423278365048dcce2a305fb8b",
+      "description": "material stress per quadrature point, raw column-major dim x dim tuples"
+    },
+    {
+      "name": "step2/m0/grad_u/_quadrangle_8",
+      "file": "data/step2__m0__grad_u___quadrangle_8.npy",
+      "dtype": "f64",
+      "shape": [
+        4,
+        4
+      ],
+      "axes": [
+        "entry",
+        "component"
+      ],
+      "layout": "table",
+      "sha256": "ddd01a0a1d3a2b53ee821379ecabb6b693f66cfaeb8e0f3300af4d45d80180f7",
+      "description": "material grad_u per quadrature point, raw column-major dim x dim tuples"
+    },
+    {
+      "name": "step2/m0/piola_kirchhoff_2/_quadrangle_8",
+      "file": "data/step2__m0__piola_kirchhoff_2___quadrangle_8.npy",
+      "dtype": "f64",
+      "shape": [
+        4,
+        4
+      ],
+      "axes": [
+        "entry",
+        "component"
+      ],
+      "layout": "table",
+      "sha256": "3637574b0b3c86c8228e38cfff08ec346eb2127759e01b8bdca5c447cae34890",
+      "description": "second Piola-Kirchhoff stress per quadrature point, raw column-major tuples"
+    },
+    {
+      "name": "step2/m0/filter/_quadrangle_8",
+      "file": "data/step2__m0__filter___quadrangle_8.npy",
+      "dtype": "i64",
+      "shape": [
+        1
+      ],
+      "axes": [
+        "entry"
+      ],
+      "layout": "table",
+      "sha256": "f6df0000bed676f0a4b777e2a1d915b6608dab452e11737f82c685cebf0e8ba7",
+      "description": "element filter of the material"
+    },
+    {
+      "name": "step2/m1/stress/_triangle_6",
+      "file": "data/step2__m1__stress___triangle_6.npy",
+      "dtype": "f64",
+      "shape": [
+        6,
+        4
+      ],
+      "axes": [
+        "entry",
+        "component"
+      ],
+      "layout": "table",
+      "sha256": "e0e2a7c25541501ce89e179393d3c034b8320c42bae513127cefbc0b0598d98b",
+      "description": "material stress per quadrature point, raw column-major dim x dim tuples"
+    },
+    {
+      "name": "step2/m1/grad_u/_triangle_6",
+      "file": "data/step2__m1__grad_u___triangle_6.npy",
+      "dtype": "f64",
+      "shape": [
+        6,
+        4
+      ],
+      "axes": [
+        "entry",
+        "component"
+      ],
+      "layout": "table",
+      "sha256": "e3aa00c9065a4f4a8b06d929192b661d9215fd62e65f2638c0cdd54107f9e7d3",
+      "description": "material grad_u per quadrature point, raw column-major dim x dim tuples"
+    },
+    {
+      "name": "step2/m1/piola_kirchhoff_2/_triangle_6",
+      "file": "data/step2__m1__piola_kirchhoff_2___triangle_6.npy",
+      "dtype": "f64",
+      "shape": [
+        6,
+        4
+      ],
+      "axes": [
+        "entry",
+        "component"
+      ],
+      "layout": "table",
+      "sha256": "e4cef8f9480d31eab1f643e9a46437c00203d7728fc0c4f5b391b277ac14182b",
+      "description": "second Piola-Kirchhoff stress per quadrature point, raw column-major tuples"
+    },
+    {
+      "name": "step2/m1/filter/_triangle_6",
+      "file": "data/step2__m1__filter___triangle_6.npy",
+      "dtype": "i64",
+      "shape": [
+        2
+      ],
+      "axes": [
+        "entry"
+      ],
+      "layout": "table",
+      "sha256": "edf57b3e7cc4d837db7a3b400e84ffa2cc07b6adc347edef9feabbc11c5183cb",
+      "description": "element filter of the material"
+    },
+    {
+      "name": "step2/m1/stress/_quadrangle_8",
+      "file": "data/step2__m1__stress___quadrangle_8.npy",
+      "dtype": "f64",
+      "shape": [
+        0,
+        4
+      ],
+      "axes": [
+        "entry",
+        "component"
+      ],
+      "layout": "table",
+      "sha256": "8825ff7dd3621950d9d249e0725e93ab26e2904d6d9eff4a45bd0630772b2c67",
+      "description": "material stress per quadrature point, raw column-major dim x dim tuples"
+    },
+    {
+      "name": "step2/m1/grad_u/_quadrangle_8",
+      "file": "data/step2__m1__grad_u___quadrangle_8.npy",
+      "dtype": "f64",
+      "shape": [
+        0,
+        4
+      ],
+      "axes": [
+        "entry",
+        "component"
+      ],
+      "layout": "table",
+      "sha256": "8825ff7dd3621950d9d249e0725e93ab26e2904d6d9eff4a45bd0630772b2c67",
+      "description": "material grad_u per quadrature point, raw column-major dim x dim tuples"
+    },
+    {
+      "name": "step2/m1/piola_kirchhoff_2/_quadrangle_8",
+      "file": "data/step2__m1__piola_kirchhoff_2___quadrangle_8.npy",
+      "dtype": "f64",
+      "shape": [
+        0,
+        4
+      ],
+      "axes": [
+        "entry",
+        "component"
+      ],
+      "layout": "table",
+      "sha256": "8825ff7dd3621950d9d249e0725e93ab26e2904d6d9eff4a45bd0630772b2c67",
+      "description": "second Piola-Kirchhoff stress per quadrature point, raw column-major tuples"
+    },
+    {
+      "name": "step2/m1/filter/_quadrangle_8",
+      "file": "data/step2__m1__filter___quadrangle_8.npy",
+      "dtype": "i64",
+      "shape": [
+        0
+      ],
+      "axes": [
+        "entry"
+      ],
+      "layout": "table",
+      "sha256": "e734dac55ea9fbbe782af2d8c02c3c5992131906228afb2aaaf137d6f3ed74db",
+      "description": "element filter of the material"
+    },
+    {
+      "name": "cauchy/m0/stress/_triangle_6",
+      "file": "data/cauchy__m0__stress___triangle_6.npy",
+      "dtype": "f64",
+      "shape": [
+        0,
+        4
+      ],
+      "axes": [
+        "entry",
+        "component"
+      ],
+      "layout": "table",
+      "sha256": "8825ff7dd3621950d9d249e0725e93ab26e2904d6d9eff4a45bd0630772b2c67",
+      "description": "stress internal after Material::onDump (Cauchy stress for finite deformation)"
+    },
+    {
+      "name": "cauchy/m0/stress/_quadrangle_8",
+      "file": "data/cauchy__m0__stress___quadrangle_8.npy",
+      "dtype": "f64",
+      "shape": [
+        4,
+        4
+      ],
+      "axes": [
+        "entry",
+        "component"
+      ],
+      "layout": "table",
+      "sha256": "b2e4d2d130733ffe044d6cefd68cf0d65c2ab2aaf63d1046ee03f786de565ec5",
+      "description": "stress internal after Material::onDump (Cauchy stress for finite deformation)"
+    },
+    {
+      "name": "cauchy/m1/stress/_triangle_6",
+      "file": "data/cauchy__m1__stress___triangle_6.npy",
+      "dtype": "f64",
+      "shape": [
+        6,
+        4
+      ],
+      "axes": [
+        "entry",
+        "component"
+      ],
+      "layout": "table",
+      "sha256": "6bd88f5f48d777b218f16103c9619b0a4ca0c52accd067a39cd6a2281a7e5e74",
+      "description": "stress internal after Material::onDump (Cauchy stress for finite deformation)"
+    },
+    {
+      "name": "cauchy/m1/stress/_quadrangle_8",
+      "file": "data/cauchy__m1__stress___quadrangle_8.npy",
+      "dtype": "f64",
+      "shape": [
+        0,
+        4
+      ],
+      "axes": [
+        "entry",
+        "component"
+      ],
+      "layout": "table",
+      "sha256": "8825ff7dd3621950d9d249e0725e93ab26e2904d6d9eff4a45bd0630772b2c67",
+      "description": "stress internal after Material::onDump (Cauchy stress for finite deformation)"
+    },
+    {
+      "name": "energy/potential",
+      "file": "data/energy__potential.npy",
+      "dtype": "f64",
+      "shape": [
+        1
+      ],
+      "axes": [
+        "entry"
+      ],
+      "layout": "table",
+      "sha256": "91ad5714243e30b219ca9f6c91642a8390d11d8b87e291e9a9ddb8490618960a",
+      "description": "getEnergy(\"potential\")"
+    }
+  ],
+  "tags": [
+    "model",
+    "smm",
+    "finite_deformation"
+  ]
+}

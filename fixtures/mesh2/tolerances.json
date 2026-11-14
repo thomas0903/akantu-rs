@@ -1,0 +1,11 @@
+{
+  "format_version": 1,
+  "rules": [
+    {
+      "quantity": "*",
+      "justification": "Mesh container (oracle/probes/mesh2): every recorded quantity is an integer (element counts, type lists, connectivities, facet connectivities, group lists, Scotch permutations and partitions), a bit copy of a coordinate read from a mesh file or of a value written by the probe (type-map default values, filter values 1000 e + 10 q + c + type/4, all exactly representable), or the bytes of a file written by upstream (VTU/PVTU, Graphviz, Scotch .grf/.msh/.map, .xyz text). The port reproduces the reference iteration order and formatting, so bit/byte identity is required; no floating-point arithmetic other than exact copies and the barycentres of GeomIniFile.xyz / the dumped displacement x (c + 1) + 0.5 (same operation order, compared as printed text) enters the comparison.",
+      "reviewed_by": "independent review during the port, November 2026",
+      "evidence": "Accepted by an independent review, which checked the %.6g emulation against C printf on 600,021 inputs. 46 cases (24 original and 22 adversarial cases) generated on x86_64 with the pinned strict install (READY cca6e460), three identical runs (D-035)."
+    }
+  ]
+}

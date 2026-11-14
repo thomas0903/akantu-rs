@@ -1,0 +1,442 @@
+{
+  "format_version": 1,
+  "case_id": "model/ntn_contact/law_lswnh__none",
+  "description": "probe scenario: compression then tangential traction ramp, linear_slip_weakening_no_healing / no_regularisation",
+  "status": "golden",
+  "generator": {
+    "probe": "ntn_probe",
+    "probe_version": "1",
+    "command": "oracle/probes/ntn_contact/generate.sh "
+  },
+  "reference": {
+    "sha": "35a851780d0b9471d258ed53a003ae98aaa95ea0",
+    "describe": "v5.0.7-post1-554-g35a851780",
+    "patches": [
+      "modified:cmake/AkantuTestsMacros.cmake sha256=c280165a84912eab4bcc081b9eaaaa06aafdd83d4f48d982e11b0859abf9672f (reference sha256=36290de2ec8b111028138fe82029efa16501512241a5bc264fa30ff3e3239b9e)"
+    ]
+  },
+  "build": {
+  "config": "strict",
+  "compiler": "g++ (Debian 14.2.0-19) 14.2.0",
+  "cxx_flags": "-ffp-contract=off -DEIGEN_DONT_VECTORIZE -O2 -g -DNDEBUG -g3 -ggdb3 -flarge-source-files -std=c++20 -flto=auto -fno-fat-lto-objects -fPIC -frounding-math (actual flags of src/model/solid_mechanics/solid_mechanics_model.cc; warnings and non-FP -D defines omitted)",
+  "build_type": "RelWithDebInfo",
+  "arch": "x86_64",
+  "os": "Debian GNU/Linux 13 (trixie)",
+  "libraries": {
+    "eigen3": "3.4.0-5",
+    "boost": "1.83.0.2+b2",
+    "openmpi": "5.0.7-1",
+    "mumps": "5.7.3-3+b1",
+    "petsc": "3.22.5+dfsg1-2",
+    "scotch": "7.0.7-1",
+    "openblas": "0.3.29+ds-3",
+    "scalapack": "2.2.2-1",
+    "hdf5": "1.14.5+repack-3",
+    "gmsh": "4.13.1+ds1-6",
+    "pybind11": "2.13.6-2",
+    "numpy": "1:2.2.4+ds-1",
+    "scipy": "1.15.3-1",
+    "gcc": "4:14.2.0-1",
+    "gfortran": "4:14.2.0-1",
+    "oracle_image": "sha256:45122c213e9fa194b6b58dcc31fc23b5fa4f7c0f64d0a452e40ae072c51c5cdb",
+    "oracle_build_scripts": "e168f393291494c869fa759b3ad9ae4a371a0369",
+    "oracle_install_reference_sha": "35a851780d0b9471d258ed53a003ae98aaa95ea0",
+    "oracle_install_image": "sha256:45122c213e9fa194b6b58dcc31fc23b5fa4f7c0f64d0a452e40ae072c51c5cdb",
+    "sha256:libakantu.so.5.0.7": "5491d902b6f363e11b47d2dc1d0aff0597374e8ff785bbfe2bff534f38509e81",
+    "probe_tree_sha256": "813e466d8007b01041a7f7fb5319f689f2a5ef999f09e8068c64e899a792867a",
+    "probe_sources_commit": "48664b660462491e40a04cd421d091cf196ad0c5",
+    "cmake_cxx_flags": "-ffp-contract=off -DEIGEN_DONT_VECTORIZE -O2 -g -DNDEBUG -g3 -ggdb3 -flarge-source-files",
+    "probe": "ntn_probe"
+  },
+  "probe_compile_command": "/usr/bin/c++ '-DAKANTU_PROBE_BUILD_TYPE=\"RelWithDebInfo\"' '-DAKANTU_PROBE_CONFIG=\"strict\"' '-DAKANTU_PROBE_CXX_FLAGS=\"-ffp-contract=off -DEIGEN_DONT_VECTORIZE  -O2 -g -DNDEBUG\"' -DBOOST_GRAPH_DYN_LINK -DBOOST_GRAPH_NO_LIB -DBOOST_REGEX_DYN_LINK -DBOOST_REGEX_NO_LIB -DCGAL_USE_GMPXX=1 -I/probes/ntn_contact/../include -isystem /build/install-strict/include/akantu -isystem /opt/CGAL-5.6.2/include -isystem /usr/lib/x86_64-linux-gnu/openmpi/include -isystem /usr/lib/x86_64-linux-gnu/openmpi/include/openmpi -isystem /usr/lib/petscdir/petsc3.22/x86_64-linux-gnu-real/include -isystem /usr/include/scotch -isystem /build/install-strict/include/akantu_iterators -isystem /usr/include/eigen3 -isystem /build/install-strict/include/iohelper -O2 -g -DNDEBUG -std=gnu++20 -ffp-contract=off -DEIGEN_DONT_VECTORIZE -Wall -Wextra -pedantic -Wno-array-bounds -Wno-use-after-free -Wno-stringop-overread -DOMPI_SKIP_MPICXX -Wno-literal-suffix -frounding-math -o CMakeFiles/ntn_probe.dir/ntn_probe.cc.o -c /probes/ntn_contact/ntn_probe.cc",
+  "probe_cxx_flags": "-DAKANTU_PROBE_BUILD_TYPE=\"RelWithDebInfo\" -DAKANTU_PROBE_CONFIG=\"strict\" -DAKANTU_PROBE_CXX_FLAGS=\"-ffp-contract=off -DEIGEN_DONT_VECTORIZE  -O2 -g -DNDEBUG\" -DBOOST_GRAPH_DYN_LINK -DBOOST_GRAPH_NO_LIB -DBOOST_REGEX_DYN_LINK -DBOOST_REGEX_NO_LIB -DCGAL_USE_GMPXX=1 -O2 -g -DNDEBUG -std=gnu++20 -ffp-contract=off -DEIGEN_DONT_VECTORIZE -Wall -Wextra -pedantic -Wno-array-bounds -Wno-use-after-free -Wno-stringop-overread -DOMPI_SKIP_MPICXX -Wno-literal-suffix -frounding-math"
+},
+  "created": "2026-11-11T03:04:45Z",
+  "inputs": [
+    {
+      "role": "mesh",
+      "path": "inputs/ntn_test_compression.msh",
+      "source": "upstream:extra_packages/traction-at-split-node-contact/test/test_ntn_model/ntn_test_compression.msh",
+      "sha256": "7112cbfe95cba9c63e41088dbdd3e5281facd5c4994cddf5e131ab50bb10f645"
+    },
+    {
+      "role": "material",
+      "path": "inputs/law_lswnh__none.dat",
+      "source": "probe-generated",
+      "sha256": "3040c4b59cc4385ce528dacf354cd976e9234ed030524c4faade56b103984539"
+    }
+  ],
+  "parameters": {
+    "law": "linear_slip_weakening_no_healing",
+    "regularisation": "no_regularisation",
+    "time_step": 3.6606010435192365e-06,
+    "nb_steps": 150,
+    "shear_start": 40,
+    "shear_increment": 4000.0,
+    "normal_traction": -1000000.0,
+    "friction_printself": "NTNFriction [\nNTNFricLawLinearSlipWeakeningNoHealing [\nNTNFricLawLinearSlipWeakening [\nNTNFricLawCoulomb [\nNTNFricRegRubinAmpuero [\nNTNFricRegNoRegularisation [\nNTNBaseFriction [\n"
+  },
+  "storage": {
+    "mode": "committed",
+    "bytes": 207224
+  },
+  "steps": {
+    "recorded": [
+      0,
+      1,
+      2,
+      3,
+      4,
+      5,
+      6,
+      7,
+      8,
+      9,
+      10,
+      11,
+      12,
+      13,
+      14,
+      15,
+      16,
+      17,
+      18,
+      19,
+      20,
+      21,
+      22,
+      23,
+      24,
+      25,
+      26,
+      27,
+      28,
+      29,
+      30,
+      31,
+      32,
+      33,
+      34,
+      35,
+      36,
+      37,
+      38,
+      39,
+      40,
+      41,
+      42,
+      43,
+      44,
+      45,
+      46,
+      47,
+      48,
+      49,
+      50,
+      51,
+      52,
+      53,
+      54,
+      55,
+      56,
+      57,
+      58,
+      59,
+      60,
+      61,
+      62,
+      63,
+      64,
+      65,
+      66,
+      67,
+      68,
+      69,
+      70,
+      71,
+      72,
+      73,
+      74,
+      75,
+      76,
+      77,
+      78,
+      79,
+      80,
+      81,
+      82,
+      83,
+      84,
+      85,
+      86,
+      87,
+      88,
+      89,
+      90,
+      91,
+      92,
+      93,
+      94,
+      95,
+      96,
+      97,
+      98,
+      99,
+      100,
+      101,
+      102,
+      103,
+      104,
+      105,
+      106,
+      107,
+      108,
+      109,
+      110,
+      111,
+      112,
+      113,
+      114,
+      115,
+      116,
+      117,
+      118,
+      119,
+      120,
+      121,
+      122,
+      123,
+      124,
+      125,
+      126,
+      127,
+      128,
+      129,
+      130,
+      131,
+      132,
+      133,
+      134,
+      135,
+      136,
+      137,
+      138,
+      139,
+      140,
+      141,
+      142,
+      143,
+      144,
+      145,
+      146,
+      147,
+      148,
+      149
+    ],
+    "dt": 3.6606010435192365e-06
+  },
+  "quantities": [
+    {
+      "name": "time_step",
+      "file": "data/time_step.npy",
+      "dtype": "f64",
+      "shape": [
+        1
+      ],
+      "axes": [
+        "entry"
+      ],
+      "layout": "table",
+      "sha256": "3bdb085a9baa0542780a18131a7ade3b0562237c8573a4b96220b01b5b491b3f"
+    },
+    {
+      "name": "contact_pressure",
+      "file": "data/contact_pressure.npy",
+      "dtype": "f64",
+      "shape": [
+        150,
+        11,
+        2
+      ],
+      "axes": [
+        "step",
+        "entry",
+        "component"
+      ],
+      "layout": "table",
+      "sha256": "6726b51933e82678d6afb21631452ec1d875241695a78ffa212f4e716db4b846"
+    },
+    {
+      "name": "cumulative_slip",
+      "file": "data/cumulative_slip.npy",
+      "dtype": "f64",
+      "shape": [
+        150,
+        11,
+        1
+      ],
+      "axes": [
+        "step",
+        "entry",
+        "component"
+      ],
+      "layout": "table",
+      "sha256": "75eb05d571a926c6a98e2d43ccf1bf7378d82a76c0ad859f4c3d6711556083a5"
+    },
+    {
+      "name": "external_work",
+      "file": "data/external_work.npy",
+      "dtype": "f64",
+      "shape": [
+        150,
+        2
+      ],
+      "axes": [
+        "step",
+        "component"
+      ],
+      "layout": "table",
+      "sha256": "1c294711ab6f54fa4d109925a12f806d0e46973c847c4ccf68270447543a6f3e"
+    },
+    {
+      "name": "friction_state",
+      "file": "data/friction_state.npy",
+      "dtype": "f64",
+      "shape": [
+        150,
+        11,
+        1
+      ],
+      "axes": [
+        "step",
+        "entry",
+        "component"
+      ],
+      "layout": "table",
+      "sha256": "2cad4a25dcf6864cbcf2ff94f2a0609c278ace4afede0951a00c82e62c979c45"
+    },
+    {
+      "name": "friction_traction",
+      "file": "data/friction_traction.npy",
+      "dtype": "f64",
+      "shape": [
+        150,
+        11,
+        2
+      ],
+      "axes": [
+        "step",
+        "entry",
+        "component"
+      ],
+      "layout": "table",
+      "sha256": "30f44d30391259f2970dc7185cda179619ab1f29012f9b0c98d53b44b5810b0a"
+    },
+    {
+      "name": "frictional_strength",
+      "file": "data/frictional_strength.npy",
+      "dtype": "f64",
+      "shape": [
+        150,
+        11,
+        1
+      ],
+      "axes": [
+        "step",
+        "entry",
+        "component"
+      ],
+      "layout": "table",
+      "sha256": "b696fc658be7f744a9e8945580222cce696e7e2a62886239f36d5eba61310dcb"
+    },
+    {
+      "name": "is_in_contact",
+      "file": "data/is_in_contact.npy",
+      "dtype": "f64",
+      "shape": [
+        150,
+        11,
+        1
+      ],
+      "axes": [
+        "step",
+        "entry",
+        "component"
+      ],
+      "layout": "table",
+      "sha256": "eaf4ce7451395501cef80a4c2cc9147b678036276184ad966dbec723f5c2a67a"
+    },
+    {
+      "name": "is_sticking",
+      "file": "data/is_sticking.npy",
+      "dtype": "f64",
+      "shape": [
+        150,
+        11,
+        1
+      ],
+      "axes": [
+        "step",
+        "entry",
+        "component"
+      ],
+      "layout": "table",
+      "sha256": "b29b632441c2512f3f1b62207db4ff8fad0bcbd25112cf214bba55d5444f9a96"
+    },
+    {
+      "name": "slip",
+      "file": "data/slip.npy",
+      "dtype": "f64",
+      "shape": [
+        150,
+        11,
+        1
+      ],
+      "axes": [
+        "step",
+        "entry",
+        "component"
+      ],
+      "layout": "table",
+      "sha256": "78e5f2b4ee08ada6c37b043855df27c501c312c29a80bad19bd66bcbf0729c13"
+    },
+    {
+      "name": "slip_velocity_norm",
+      "file": "data/slip_velocity_norm.npy",
+      "dtype": "f64",
+      "shape": [
+        150,
+        11,
+        1
+      ],
+      "axes": [
+        "step",
+        "entry",
+        "component"
+      ],
+      "layout": "table",
+      "sha256": "1ef1e45fe7ce58c5164f6464be324862d8f6507d324d743386289173cd13a500"
+    },
+    {
+      "name": "displacement_every_10",
+      "file": "data/displacement_every_10.npy",
+      "dtype": "f64",
+      "shape": [
+        15,
+        242,
+        2
+      ],
+      "axes": [
+        "sample",
+        "entry",
+        "component"
+      ],
+      "layout": "table",
+      "sha256": "409aa34d53b23a2450a47e4ca485684d91479f575e831d5ae666c051024ae229"
+    }
+  ],
+  "tags": [
+    "model",
+    "ntn_contact"
+  ]
+}

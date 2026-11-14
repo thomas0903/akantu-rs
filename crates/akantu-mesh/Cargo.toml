@@ -1,0 +1,47 @@
+# SPDX-License-Identifier: LGPL-3.0-or-later
+[package]
+name = "akantu-mesh"
+description = "Mesh, groups, mesh data, mesh events, mesh utilities, distribution and mesh synchronizers (port of src/mesh, src/mesh_utils, mesh-specific src/synchronizer)"
+version.workspace = true
+edition.workspace = true
+rust-version.workspace = true
+license.workspace = true
+repository.workspace = true
+authors.workspace = true
+homepage.workspace = true
+keywords.workspace = true
+categories.workspace = true
+publish = false
+
+[features]
+# Real-MPI test binaries: scripts/mpi/run-par-tests.sh (Docker).
+mpi = ["akantu-comm/mpi"]
+# Scotch graph partitioning (MUTIL-014, PART-003): C shim via `cc`, links
+# libscotch (Docker image docker/scotch only).
+scotch = ["dep:cc"]
+
+[dependencies]
+akantu-core.workspace = true
+akantu-comm.workspace = true
+
+[build-dependencies]
+cc = { workspace = true, optional = true }
+
+[dev-dependencies]
+# integration tests read the oracle's input meshes with the (verified) readers
+akantu-io.workspace = true
+akantu-validation.workspace = true
+serde_json.workspace = true
+
+[lints]
+workspace = true
+
+[[test]]
+name = "mpi_distribution"
+harness = false
+required-features = ["mpi"]
+
+[[test]]
+name = "mpi_synchronizers"
+harness = false
+required-features = ["mpi"]

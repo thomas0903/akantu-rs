@@ -1,0 +1,24 @@
+akantu-rs oracle patch 0001 — test registration: dereference MPIEXEC_MAX_NUMPROCS
+
+Upstream: akantu 35a851780d0b9471d258ed53a003ae98aaa95ea0, cmake/AkantuTestsMacros.cmake
+Bug: `set(N MPIEXEC_MAX_NUMPROCS)` stores the *name* of the variable, so the
+following `while(N GREATER 1)` is never true and every PARALLEL test without
+an explicit PARALLEL_LEVEL is registered with 1 MPI rank only (FindMPI always
+defines MPIEXEC_MAX_NUMPROCS, so the ProcessorCount branch is never taken).
+Fix: dereference the variable. Combined with MPIEXEC_MAX_NUMPROCS=8 in
+oracle/configs/common.cmake such tests are registered with 8, 4, 2 and 1
+ranks (names <test>_8, <test>_4, <test>_2, <test>; the 1-rank name is
+unchanged from upstream). Affects test registration only, no library code.
+See docs/DECISIONS.md (D-033) and docs/ORACLE_BUILD.md.
+
+--- a/cmake/AkantuTestsMacros.cmake	2026-11-09 16:51:32
++++ b/cmake/AkantuTestsMacros.cmake	2026-11-09 16:51:32
+@@ -558,7 +558,7 @@
+     else()
+       set(_procs)
+       if(MPIEXEC_MAX_NUMPROCS)
+-        set(N MPIEXEC_MAX_NUMPROCS)
++        set(N ${MPIEXEC_MAX_NUMPROCS})
+       else()
+         include(ProcessorCount)
+         ProcessorCount(N)
