@@ -9,8 +9,8 @@ Small C++ and Python programs running upstream's own classes recorded 2,023
 golden fixture cases. The Rust tests compare the port with them bit for bit
 wherever the computation allows it, and under a written tolerance elsewhere.
 Of the 1,045 rows of the feature parity matrix, 1,019 are Verified and 26
-are approved exceptions; none is open. The port was written by AI coding agents directed by one
-person; `05-ai-setup.md` ("How the work was organised") describes how.
+are approved exceptions; none is open. The port was written by AI coding agents directed by
+Thomas Molinari; `05-ai-setup.md` ("How the work was organised") describes how.
 
 ## Summary
 

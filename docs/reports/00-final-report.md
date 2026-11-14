@@ -12,7 +12,7 @@ comparisons with the C++ library are bit for bit. On the JOSS cohesive
 benchmark at full size (4.39 million tetrahedra, 64 cores) the port took
 0.875 times the C++ run time (one run each). Comparing the two codes
 produced a register of 596 defects and quirks of the C++ library. AI coding
-agents, directed by one person, wrote the port in six days (9 to 14
+agents, directed by Thomas Molinari, wrote the port in six days (9 to 14
 November 2026). The Akantu developers have not reviewed or endorsed the
 port. Apart from one round on the explicit step it has not been optimised,
 it has no C API, and it refuses a few configurations on several ranks.
@@ -178,7 +178,7 @@ The full list is in `docs/VALIDATION_SUMMARY.md`.
 
 ## How the work was done
 
-One person wrote the brief and decided scope, budgets and licence
+Thomas Molinari wrote the brief and decided scope, budgets and licence
 questions. AI coding agents did the rest between 9 and 14 November 2026: an
 orchestrator agent planned the work, briefed subagents and merged their
 branches, and subagents implemented, reviewed each other's branches and ran

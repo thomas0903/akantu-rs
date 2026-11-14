@@ -34,7 +34,7 @@ manual's [differences](docs/manual/src/differences.md) page describes how
 the port differs from the C++ library and the switches that restore
 upstream's behaviour.
 
-The port was written by AI coding agents under human direction; each
+The port was written by AI coding agents directed by Thomas Molinari; each
 feature was reviewed before its merge by an agent that had not written it.
 The reports for the Akantu team in [`docs/reports/`](docs/reports/)
 describe how: the final
