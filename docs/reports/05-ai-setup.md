@@ -11,7 +11,8 @@ with one brief) and 180 numbered reviews went through this process in six
 days. At the end 1,016 of the 1,045 rows of the parity matrix were Verified
 (with Rust tests, a golden fixture or an analytical reference, a justified
 tolerance and an independent review), and 26 were exceptions the user
-approved. Metered cloud compute cost about $85 by the
+approved. The last three, CI rows, became Verified after publication, when
+every job of the delivered CI passed on the public repository (1,019). Metered cloud compute cost about $85 by the
 project's own estimates (AWS about $68, Vultr about $14.7, boat.dev about
 $2 beyond its $20 monthly membership); sign-up credits covered the AWS and
 Vultr parts. The models ran on two flat subscriptions, Claude at $200 per
@@ -132,7 +133,7 @@ file-based memory outside the repository.
 | boat.dev sandboxes (rented x86_64 Ubuntu virtual machines with Docker; 4 vCPU / 8 GB or 8 vCPU / 16 GB) | Every full build, test tier, oracle run, fixture campaign and benchmark from 11 November; agents created their own sandboxes |
 | AWS EC2 (orchestrator only) | The full-size cohesive benchmark (734,594 nodes, 4,392,183 tetrahedra) on a 64-core, 512 GiB instance, and an eight-node run |
 | Vultr (orchestrator only, from 13 November) | 32-vCPU hosts that ran the merge gate's tiers in parallel |
-| GitHub Actions | The delivered CI, run once on 14 November and then disabled |
+| GitHub Actions | The delivered CI, run once on 14 November on the private repository and then disabled; after publication, the same day, run once on the public repository with every job green |
 
 Until 11 November the oracle and all fixtures came from aarch64 Linux. The
 user then asked whether upstream runs on x86_64. It does (its CI images and
@@ -177,7 +178,7 @@ records, small fixes).
 | Decisions | 119; 36 name the user as their source |
 | Blockers | 32 opened and 32 closed by 14 November, 22:00; the aarch64 comparisons of MUMPS and PETSc records found later are handled by decision D-121 (`docs/PLATFORMS.md`) |
 | boat.dev sandboxes | 280 in the ledger |
-| Parity rows Verified | 0 on 9 Nov, 106 on 10 Nov, 336 by the end of 11 Nov, 941 at 21:30 on 12 Nov, 1,016 at 20:23 on 13 Nov |
+| Parity rows Verified | 0 on 9 Nov, 106 on 10 Nov, 336 by the end of 11 Nov, 941 at 21:30 on 12 Nov, 1,016 at 20:23 on 13 Nov, 1,019 after the first CI runs on the public repository on 14 Nov |
 
 ![Compute cost by provider](figures/ai-cost.svg)
 
@@ -186,7 +187,7 @@ records, small fixes).
 | AWS EC2 | Full-size run on 12 Nov (7.07 h on demand, plus a spot instance reclaimed after 3 minutes); rerun on 13 Nov; eight hosts for 4.42 h on 13 Nov | about $68 | $150 |
 | Vultr | Two 32-vCPU gate hosts (2.9 h and 10.4 h) and short CPU tests | about $14.7 | $250 |
 | boat.dev | All 555 included hours of the plan (8-vCPU sandboxes count double), extra starts at $0.03 | about $2 from the wallet, plus the $20 monthly membership | $50 beyond the membership |
-| GitHub Actions | One run of every job | about 1,280 runner minutes of the account's monthly allowance | none set |
+| GitHub Actions | One run of every job on the private repository, then one on the public repository | about 1,280 runner minutes of the account's monthly allowance for the first; the second is free on a public repository | none set |
 | The user's Mac | Agents, editing, the aarch64 oracle | not costed | none |
 | Claude subscription (Ultra plan) | The orchestrator and all Claude agents | $200 per month, flat | the plan's weekly usage allowance |
 | ChatGPT subscription (Plus plan) | The GPT-6.1 Sol reviews of the first days | $20 per month, flat | the plan's usage allowance |
@@ -267,7 +268,8 @@ picked the test binary by its position in cargo's output, whose order is
 not fixed, and an audit command that set an environment variable outside
 the container and so shortened the benchmark replays. The first runs on
 GitHub failed six jobs for three reasons never seen on boat.dev (a clean
-cargo registry, the NumPy difference, a 2-vCPU runner). On AWS the first
+cargo registry, the NumPy difference, a 2-vCPU runner); with the fixes,
+every job passed on the public repository. On AWS the first
 spot instance was reclaimed three minutes into the full-size session and
 the run continued on demand; the C++ point at 8 ranks was skipped under the
 session's budget rule.

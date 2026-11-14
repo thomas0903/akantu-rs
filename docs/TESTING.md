@@ -552,17 +552,56 @@ runs, 0 failed), replayed the 23 CI jobs and regenerated five fixture cases
 byte-identically on the pinned x86_64 oracle. Nothing has run above 8 ranks
 here (the full-size and multi-node runs are described in `docs/BENCHMARKS.md`).
 
-The workflows ran once on GitHub, on 14 November 2026 (2-vCPU Linux
-runners of the then private repository). Of 29 jobs, 21 passed; six failed
-for three reasons; the documentation deployment (`docs:deploy`) failed
-because GitHub Pages was off; the macOS wheel job was cancelled at its time
-limit of 60 minutes. The six failures: the licence test ran
-`cargo tree --offline` against a registry that lacked packages the test build
-never downloads (`fast`, the two `exportall` jobs and `coverage`); two Python
-example comparisons depend on NumPy's AVX-512F `exp` kernel (`python`); one
-scenario's work did not fit its 20 s deadlines under valgrind on 2 vCPUs
-(`memcheck (mpi)`). The tiers now run `cargo fetch --locked` first, the
-two cases skip on CPUs without AVX-512F (`numpy_avx512f`), the scenario gets a
-60 s deadline under memcheck, and the wheel jobs' limits were raised to 90 and
-150 minutes. The changed jobs passed when replayed; nothing has run on GitHub
-since, so the rows CI-001, CI-014 and CI-024 stay open (D-118, D-119).
+Before publication the workflows ran once on GitHub, on 14 November 2026,
+on the 2-vCPU runners of the then private repository: 21 of 29 jobs passed,
+six failed for three reasons the replays had not shown (an offline
+`cargo tree` against an incomplete registry, two Python example comparisons
+that need NumPy's AVX-512F `exp` kernel, a memcheck deadline at 2 vCPUs), the
+documentation deployment failed because GitHub Pages was off, and the macOS
+wheel job was cancelled at its limit of 60 minutes. The tiers now run
+`cargo fetch --locked` first, the two cases skip on CPUs without AVX-512F
+(`numpy_avx512f`), the scenario gets a 60 s deadline under memcheck and the
+wheel jobs' limits are 90 and 150 minutes (D-118, D-119).
+
+The first runs on the public repository followed the same day. From 18:20 to
+19:32 UTC every workflow was started once by manual dispatch on `main` at
+commit `f0877f053`, on GitHub's standard runners (`ubuntu-24.04` with 4 vCPU
+and 16 GB; `macos-15` on arm64 for the macOS wheel). All 30 jobs passed at
+their first attempt and none was rerun. The runs are public in the
+repository's Actions tab under the run ids below; each job's artifact keeps
+its `summary.json` and step logs for 7 to 14 days.
+
+| Workflow (run id) | Job | Minutes | Result |
+|---|---|---:|---|
+| `fast` (43626005524) | `fast` | 35 | `CI: PASS`; 494 result lines, 3,769 passed, 0 failed, 25 ignored; 462 of 462 test binaries and 27 doc-test sections accounted for |
+| | `msrv` | 2 | pass |
+| | `selftest` | 1 | pass |
+| `docs` (43626054675) | `rustdoc` | 1 | pass |
+| | `manual` | 1 | pass |
+| | `site` | 47 | pass; the manual, the Rust API and the Python API in one site |
+| | `deploy` | under 1 | deployed; served at <https://thomas0903.github.io/akantu-rs/> |
+| `features` (43626061497) | `features` | 10 | 102 checks, 0 failed |
+| | `gates` | 21 | 22 of the 23 lines (the facade line runs in `facade-release`); the 9 `cargo test` lines gave 180 result lines, 1,399 passed, 0 failed |
+| | `facade-release` | 14 | 37 result lines, 270 passed, 0 failed |
+| | `exportall` | 23 | the same counts as `fast` |
+| `medium` (43626068416) | `mpi` | 8 | 245 runs at 1 / 2 / 4 ranks (78 / 78 / 77, 12 without a rank count), 0 failed; performance gate met |
+| | `par` | 9 | 8 binaries per rank count, 145 / 167 / 165 scenarios passed at 1 / 2 / 4 ranks, 0 failed |
+| | `mumps` | 12 | 15 launches at 1 / 2 / 4 ranks and the two regression suites, 0 failed; 1 oracle comparison |
+| | `petsc` | 8 | 20 oracle comparisons, 0 failed |
+| | `examples` | 5 | pass |
+| | `release` | 16 | six runs, 123 result lines, 1,172 passed, 0 failed |
+| | `exportall` | 30 | the same counts as `fast` |
+| `python` (43626074948) | `python` | 46 | pytest 306 passed and 3 skipped with greenlet, 300 passed and 9 skipped without; on the runner's Intel Xeon 6975P-C (AVX-512F) `dynamics` and `custom_material` were compared, `eigen_modes` and `eigen_modes_eigen` skipped (SciPy 1.18.1, the oracle's is 1.15.3); pdoc built |
+| `packaging` (43626081603) | `detect` | under 1 | pass |
+| | `crates-dry-run` | 3 | 27 members listed, the downstream consumer and the minimal versions checked |
+| | `wheel-linux` | 70 | manylinux_2_28 wheel imported on CPython 3.9 and 3.13; pytest 304 passed and 5 skipped with greenlet, 298 passed and 11 skipped without (AMD EPYC 7763, no AVX-512F: `dynamics` and `custom_material` skipped) |
+| | `wheel-macos` | 51 | arm64 wheel built and imported in 208 s; pytest 302 passed and 7 skipped with greenlet, 296 passed and 13 skipped without; `wheel` tier `CI: PASS` after 3,044 s |
+| `memcheck` (43626087936) | `mpi` | 11 | 36 runs under valgrind, 0 failed; the planted defect detected |
+| | `mumps` | 7 | 15 runs, 0 failed; the planted defect detected |
+| | `petsc` | 7 | 4 runs, 0 failed; the planted defect detected |
+| `coverage` (43626094060) | `coverage` | 35 | 87.35 % of lines, 82.88 % of functions, 87.32 % of regions |
+| `distro` (43626100455) | `ubuntu-22-04` | 39 | `features` 85 checks passed, 18 not applicable (MUMPS and PETSc); `test` with the same counts as `fast` |
+| `expensive` (43626107422) | `ranks-8` | 13 | `mpi` at 8 ranks: 88 runs (76 at 8 ranks, 12 without a rank count), 0 failed; `par` at 8 ranks: 8 binaries, 123 scenarios passed, 0 failed |
+| | `miri` | 2 | pass |
+
+With these runs the rows CI-001, CI-014 and CI-024 are *Verified*.

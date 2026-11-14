@@ -15,8 +15,8 @@ it. Like Akantu, it is free software under the LGPL-3.0-or-later.
 <!-- BEGIN GENERATED: parity-stats (scripts/parity/stats.py --update) -->
 The feature parity matrix
 [`docs/FEATURE_PARITY.md`](docs/FEATURE_PARITY.md) has 1,066 rows, 21 of
-them superseded by finer rows. Of the other 1,045: 1,016 *Verified* and 26
-approved exceptions (99.7 % together), 3 *Implemented, unverified*, 0 *In
+them superseded by finer rows. Of the other 1,045: 1,019 *Verified* and 26
+approved exceptions (100.0 % together), 0 *Implemented, unverified*, 0 *In
 progress*, 0 *Blocked* and 0 *Not started*.
 <!-- END GENERATED: parity-stats -->
 
@@ -24,10 +24,10 @@ A row is *Verified* when differential tests compare the port with golden
 fixtures recorded from the C++ library (bit for bit, or within a tolerance
 justified in writing), independent mathematical checks apply where they can
 (patch tests, closed forms, convergence rates), and a reviewer who did not
-write the code has accepted the evidence. The three open rows concern the
-GitHub CI (CI-001, CI-014, CI-024) and close when the delivered workflows,
-the macOS wheel job and the documentation deployment have run green on
-GitHub. What is validated less (packages that do not compile upstream,
+write the code has accepted the evidence. Every job of the CI, including
+the macOS wheel and the documentation deployment, ran green on GitHub on
+14 November 2026 ([`docs/TESTING.md`](docs/TESTING.md), "State at
+release"). What is validated less (packages that do not compile upstream,
 configurations refused by default, comparisons weaker than bit identity) is
 listed in [`docs/VALIDATION_SUMMARY.md`](docs/VALIDATION_SUMMARY.md). The
 manual's [differences](docs/manual/src/differences.md) page describes how
@@ -137,6 +137,8 @@ the fixtures were first recorded on aarch64 Linux. The details are in
 | [`CONTRIBUTING.md`](CONTRIBUTING.md), [`docs/MAINTAINING.md`](docs/MAINTAINING.md) | how to contribute and how to keep the evidence current |
 
 The API reference is built with `cargo doc --workspace --no-deps --open`.
+The manual and the Rust and Python API documentation of `main` are served
+at <https://thomas0903.github.io/akantu-rs/>.
 
 ## Licence
 

@@ -8,9 +8,8 @@ checked against the C++ library itself, which this report calls the oracle.
 Small C++ and Python programs running upstream's own classes recorded 2,023
 golden fixture cases. The Rust tests compare the port with them bit for bit
 wherever the computation allows it, and under a written tolerance elsewhere.
-Of the 1,045 rows of the feature parity matrix, 1,016 are Verified and 26
-are approved exceptions. The other 3 concern the GitHub CI and carry no
-numerical claim. The port was written by AI coding agents directed by one
+Of the 1,045 rows of the feature parity matrix, 1,019 are Verified and 26
+are approved exceptions; none is open. The port was written by AI coding agents directed by one
 person; `05-ai-setup.md` ("How the work was organised") describes how.
 
 ## Summary
@@ -20,22 +19,26 @@ person; `05-ai-setup.md` ("How the work was organised") describes how.
 | Upstream | Akantu `35a85178`: 535 `.hh`/`.cc` files, about 107,000 lines in `src/` (`docs/REFERENCE.md`) |
 | Port | 27 crates (a crate is Rust's unit of compilation and packaging, roughly one library); 514,305 lines of Rust in 1,002 files under `crates/` on 15 November 2026: 263,511 in `src/` (with in-file unit tests and documentation comments), 240,811 in `tests/`, the rest examples and build scripts (`docs/reports/data/crates.csv`) |
 | Licence | LGPL-3.0-or-later. Two opt-in features, both off by default, make a binary GPL-3.0-or-later: `cgal` (and `igfem`, which needs it), and `petsc` when linked against Debian's PETSc (see "What the port offers") |
-| Parity matrix | 1,066 rows, 21 superseded by finer rows. Of the other 1,045: 1,016 Verified, 26 approved exceptions, 3 *Implemented, unverified* (CI-001, CI-014, CI-024); none in progress, blocked or not started (`scripts/parity/stats.py`) |
+| Parity matrix | 1,066 rows, 21 superseded by finer rows. Of the other 1,045: 1,019 Verified, 26 approved exceptions; none implemented but unverified, in progress, blocked or not started (`scripts/parity/stats.py`) |
 | Fixtures | 2,023 case directories, plus 62 recorded C++ example runs, 31 Python example runs and 16 dumper directories (`docs/VALIDATION_SUMMARY.md`) |
 | Tests | 3,769 passed, 0 failed, 25 ignored on the published tree, in the 462 test binaries of a default workspace run, plus the documentation tests of the 27 crates; 87.86 % line coverage in a whole-workspace run (`docs/TESTING.md`). The 462 binaries are 433 of the 472 integration-test files (the other 39 need a feature that is off by default, such as `mpi` or `cgal`) and the unit tests of the 27 libraries and 2 binaries |
 | Upstream defects | 596 register entries (`docs/UPSTREAM_DEFECTS.md`; report `03-upstream-defects.md`) |
 
 ![Rows of the feature parity matrix by area and status](figures/parity-by-area.svg)
 
-The three open rows close when the delivered workflows run green on GitHub
-(every job, the macOS arm64 wheel, the documentation deployment). They ran
-once, on 14 November 2026. Of 29 jobs, 21 passed and six failed, for three
-reasons (`docs/TESTING.md`). The documentation deployment failed because
-GitHub Pages was off, and the macOS wheel job was stopped at its 60-minute
-limit. The fixed jobs passed when replayed outside GitHub and
-have not run on GitHub since. The replay covers 23 jobs, counting each
-matrix leg as one; the macOS wheel and the deployment can run only on
-GitHub.
+At delivery three CI rows (CI-001, CI-014, CI-024) were still open: they
+needed the delivered workflows green on GitHub (every job, the macOS arm64
+wheel, the documentation deployment). The workflows first ran on 14
+November 2026, while the repository was private. Of 29 jobs, 21 passed and
+six failed, for three reasons (`docs/TESTING.md`). The documentation
+deployment failed because GitHub Pages was off, and the macOS wheel job was
+stopped at its 60-minute limit. The fixed jobs passed when replayed outside
+GitHub; the replay covers 23 jobs, counting each matrix leg as one, and the
+macOS wheel and the deployment can run only on GitHub. After publication,
+the same day, every workflow ran once on the public repository on GitHub's
+4-vCPU runners and all 30 jobs passed, including the macOS wheel (51
+minutes) and the deployment of the documentation site. The three rows
+became Verified.
 
 ## How the port was made
 
@@ -153,7 +156,7 @@ exceptions); the 51 examples are all Verified.
 | merge gate | fast, plus formatting, lints as errors, every test binary accounted for, and 23 builds with optional features or in release mode | x86_64 Linux, project Docker images |
 | medium | real MPI at 1, 2 and 4 ranks; the parallel oracle cases at their recorded rank counts; MUMPS and PETSc at 1, 2 and 4 ranks | same |
 | expensive | MPI at 1, 2, 4 and 8 ranks, three repetitions; release replays of the benchmark crate; full-size and multi-node runs | cloud machines |
-| delivered CI | 23 jobs, among them valgrind memcheck of the MPI, MUMPS and PETSc code and Miri on the `unsafe` code | replayed outside GitHub; on GitHub once |
+| delivered CI | 23 jobs, among them valgrind memcheck of the MPI, MUMPS and PETSc code and Miri on the `unsafe` code | replayed outside GitHub; all 30 jobs green on GitHub on the public repository |
 
 The check of the finished port ran on 13 and 14 November 2026 on one commit,
 and every tier of the merge gate passed. After the cleanup for publication,

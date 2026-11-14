@@ -30,30 +30,31 @@ apply, on the branch of a pull request that needs them (`docs/MAINTAINING.md`).
 | `expensive.yml` | manual only | `ranks-8`, `miri` |
 
 What each job runs, with its measured wall times: first on an 8-vCPU x86_64
-Linux machine where the job's command was replayed, then on a 2-vCPU GitHub
-runner of a private repository (first runs, 2026-11-14). No job has been timed
-on the 4-vCPU runner of a public repository.
+Linux machine where the job's command was replayed, then on GitHub's standard
+runner of the public repository (`ubuntu-24.04`, 4 vCPU and 16 GB;
+`macos-15` arm64 for `wheel-macos`), in the first runs of 14 November 2026
+(`docs/TESTING.md`, "State at release").
 
-| Job | What runs | Time (8 vCPU; GitHub 2 vCPU) |
+| Job | What runs | Time (8-vCPU replay; GitHub) |
 |---|---|---|
-| `fast` | the `docker/mpi` image, then `run-all.sh --backend docker --preset fast` (lint, test, fixtures, parity, licence) | 1,064 s; 2,650 s |
-| `selftest` | `ci/selftest.sh` with shellcheck, PyYAML, jq and actionlint (from its digest-pinned image) | 36 s; 73 s |
-| `msrv` | `cargo check` with the toolchain of `workspace.package.rust-version` | 134 s; 167 s |
-| `rustdoc` | `cargo doc --workspace --no-deps` with `-D warnings` (HTML artifact, 7 days) | 53 s; 100 s |
-| `manual` | `mdbook build docs/manual` with mdBook 0.4.40 (HTML artifact, 7 days) | not measured |
-| `site`, `deploy` | the manual, rustdoc and the `python` preset (wheel, both pytest runs, pdoc), assembled by `ci/github/pages-site.sh`; the GitHub Pages deployment | 2,969 s, not replayable; 3,069 s, failed (Pages not enabled) |
-| `features` | the feature matrix in the MUMPS image (PETSc checks in the PETSc image) | 424 s; 992 s |
-| `gates` | every line of `ci/tools/feature-gates.txt` in the MPI image | 1,208 s; 2,295 s |
-| `facade-release` | the facade's release run (`CI_RELEASE_ONLY=facade`) | not measured; 1,249 s |
-| `exportall` | the workspace tests with `akantu-core/export-all` | 773 s on 4 vCPU; 3,119 s |
-| `medium` | mpi, par, mumps, petsc, release and examples legs; exportall leg | 341, 365, 429, 371, 693, 119 s, exportall as above; 637, 1,030, 1,093, 822, 1,748, 576, 3,195 s |
-| `python` | the `python` preset on the host: maturin abi3 wheel, `import akantu`, pytest with and without greenlet, pdoc (artifact, 7 days) | 3,170 s; 4,288 s |
-| `crates-dry-run` | version check, `cargo package --list` per member with a downstream consumer, direct minimal versions | 149 s; 283 s |
-| `wheel-linux`, `wheel-macos` | the `wheel` tier in the digest-pinned manylinux_2_28 image (CPython 3.9 and 3.13 imports, both pytest runs) and on `macos-15` arm64; wheels kept 14 days | 3,255 s, not replayable; 3,037 s, cancelled at its former 60-minute limit |
-| `memcheck` | valgrind memcheck of the FFI code (`ci/README.md`, tier `memcheck`) | 501, 331, 157 s; 1,197 (failed, fixed since), 693, 570 s |
-| `coverage` | `cargo llvm-cov` 0.9.1 over the workspace tests in the MPI image; report only | 2,270 s; stopped at a failure after 2,442 s (fixed since) |
-| `ubuntu-22-04` | `features` and `test` in a digest-pinned `ubuntu:22.04` container on an `ubuntu-24.04` runner (`ci/github/distro-run.sh`), with Ubuntu's Open MPI 4.1, Scotch 6 and Python; MUMPS and PETSc declared not applicable; diagnostic (`continue-on-error`) | 1,407 s; 2,751 s |
-| `ranks-8`, `miri` | the `mpi` and `par` tiers at 8 ranks, oversubscribed; Miri | 637 s, 177 s; 1,099 s, 179 s |
+| `fast` | the `docker/mpi` image, then `run-all.sh --backend docker --preset fast` (lint, test, fixtures, parity, licence) | 1,064 s; 2,126 s |
+| `selftest` | `ci/selftest.sh` with shellcheck, PyYAML, jq and actionlint (from its digest-pinned image) | 36 s; 76 s |
+| `msrv` | `cargo check` with the toolchain of `workspace.package.rust-version` | 134 s; 138 s |
+| `rustdoc` | `cargo doc --workspace --no-deps` with `-D warnings` (HTML artifact, 7 days) | 53 s; 72 s |
+| `manual` | `mdbook build docs/manual` with mdBook 0.4.40 (HTML artifact, 7 days) | not measured; 86 s |
+| `site`, `deploy` | the manual, rustdoc and the `python` preset (wheel, both pytest runs, pdoc), assembled by `ci/github/pages-site.sh`; the GitHub Pages deployment | 2,969 s, not replayable; 2,820 s, 11 s |
+| `features` | the feature matrix in the MUMPS image (PETSc checks in the PETSc image) | 424 s; 603 s |
+| `gates` | every line of `ci/tools/feature-gates.txt` in the MPI image | 1,208 s; 1,268 s |
+| `facade-release` | the facade's release run (`CI_RELEASE_ONLY=facade`) | not measured; 879 s |
+| `exportall` | the workspace tests with `akantu-core/export-all` | 773 s on 4 vCPU; 1,433 s |
+| `medium` | mpi, par, mumps, petsc, release and examples legs; exportall leg | 341, 365, 429, 371, 693, 119 s, exportall as above; 521, 578, 775, 489, 997, 323, 1,815 s |
+| `python` | the `python` preset on the host: maturin abi3 wheel, `import akantu`, pytest with and without greenlet, pdoc (artifact, 7 days) | 3,170 s; 2,774 s |
+| `crates-dry-run` | version check, `cargo package --list` per member with a downstream consumer, direct minimal versions | 149 s; 186 s |
+| `wheel-linux`, `wheel-macos` | the `wheel` tier in the digest-pinned manylinux_2_28 image (CPython 3.9 and 3.13 imports, both pytest runs) and on `macos-15` arm64; wheels kept 14 days | 3,255 s, not replayable; 4,242 s, 3,075 s |
+| `memcheck` | valgrind memcheck of the FFI code (`ci/README.md`, tier `memcheck`) | 501, 331, 157 s; 714, 420, 440 s |
+| `coverage` | `cargo llvm-cov` 0.9.1 over the workspace tests in the MPI image; report only | 2,270 s; 2,125 s |
+| `ubuntu-22-04` | `features` and `test` in a digest-pinned `ubuntu:22.04` container on an `ubuntu-24.04` runner (`ci/github/distro-run.sh`), with Ubuntu's Open MPI 4.1, Scotch 6 and Python; MUMPS and PETSc declared not applicable; diagnostic (`continue-on-error`) | 1,407 s; 2,366 s |
+| `ranks-8`, `miri` | the `mpi` and `par` tiers at 8 ranks, oversubscribed; Miri | 637 s, 177 s; 819 s, 140 s |
 
 Each job uploads its `summary.json`, step logs and reports as an artifact
 (`if: always()`, so a failed or cancelled job keeps them).
@@ -85,16 +86,16 @@ took about 1,940 s on the slower Linux runner.
 
 ### Runner minutes
 
-Estimates from the times above; the 4-vCPU runner of a public repository has
-not been measured, so each figure is a range between the 8-vCPU replay and the
-2-vCPU GitHub run.
+The sums of the measured job times above (first runs on the public
+repository, 14 November 2026), before GitHub rounds each job up to a whole
+minute. A cold image cache adds the image builds to every job that needs one.
 
 | Event | Jobs | Runner minutes |
 |---|---|---|
-| each push to a pull request | `fast`, `selftest`, `msrv`, `rustdoc`, `manual` | about 22 to 50, plus `manual` (a few minutes; not measured); the wait is set by `fast` (18 to 44 min) |
-| each push to `main` | the same, plus `site` and `deploy` | about 71 to 101, plus `manual` |
-| each week | `features`, `medium`, `python`, `packaging`, `memcheck`, `coverage`, `distro` | about 300 to 535 Linux minutes (5 to 9 hours), plus at least 118 macOS minutes for `wheel-macos` (two pytest runs of at least 57 min each; its first run was cancelled) |
-| manual | `expensive` | about 14 to 21 |
+| each push to a pull request | `fast`, `selftest`, `msrv`, `rustdoc`, `manual` | about 42; the wait is set by `fast` (35 min) |
+| each push to `main` | the same, plus `site` and `deploy` | about 89; the wait is set by `rustdoc`, `site` and `deploy`, which run in sequence (49 min) |
+| each week | `features`, `medium`, `python`, `packaging`, `memcheck`, `coverage`, `distro` | about 383 Linux minutes (6.4 hours) and 51 macOS minutes for `wheel-macos`; the longest job is `wheel-linux` (71 min) |
+| manual | `expensive` | about 16 |
 
 Standard runners are free for public repositories. On a private repository
 the plan's minutes are consumed (Linux ×1, macOS ×10).
@@ -212,10 +213,16 @@ runner.
   entry per image set and Dockerfile hash. There are four image sets (`mpi`;
   `mpi scotch mumps`; `mpi mumps petsc`; `mpi scotch mumps petsc`), each a
   `docker save` tar of images of 3.7 to 4.4 GB that share the MPI image's
-  layers, besides the cargo-registry entries. Together they probably exceed
-  the repository's cache quota (10 GB on GitHub Free); GitHub then evicts the
-  oldest entries, and a pull request whose `mpi` entry was evicted by a weekly
-  job builds the image again. The cache sizes on GitHub were not measured. The base image is pinned by digest, apt is
+  layers, besides the cargo-registry entries. After the first runs the
+  repository's cache list held the four image sets at 774, 815, 959 and
+  959 MiB (in the order above), the cargo registry at 6 MiB and mdBook at
+  4 MiB: about 3.4 GiB for `main`, 4.2 GiB with the entries of the first pull
+  request, within the repository's cache quota (10 GB on GitHub Free). When
+  the quota is reached GitHub evicts the oldest entries, and a pull request
+  whose `mpi` entry was evicted builds the image again. In the first runs the
+  cache was cold: the jobs of one image set all built the images in
+  parallel, and only the first to finish could save the entry ("Unable to
+  reserve cache" in the others' logs). The base image is pinned by digest, apt is
   not version-pinned (D-034), so the image ids differ from the ones recorded
   in `docker/*/image-id.txt`; they are printed and kept in `provenance.txt`.
   Publishing the images to a registry would remove that difference and needs a
@@ -225,10 +232,14 @@ runner.
   where NumPy uses its AVX-512F `exp` kernel (key `numpy_avx512f`,
   `docs/TESTING.md`); a green `python` job does not show that they were
   compared. The `environment` step and the skip check's `note:` lines of each
-  run say whether they ran.
-- Minutes. The first run of every job, on a private repository, used 670
-  Linux minutes and 61 macOS minutes (billed as 610). Estimates for regular use
-  are in "Runner minutes" above.
+  run say whether they ran. In the first runs on the public repository the
+  `python` job had an Intel Xeon 6975P-C with AVX-512F (both cases compared)
+  and `wheel-linux` an AMD EPYC 7763 without it (both skipped).
+- Minutes. The first run of every job, on the then private repository, used
+  670 Linux minutes and 61 macOS minutes (billed as 610). The first runs on
+  the public repository took 487 Linux minutes and 51 macOS minutes of job
+  time, free on a public repository. Figures for regular use are in "Runner
+  minutes" above.
 - Memcheck margins. The memcheck `mpi` leg passed on a 2-vCPU runner only after
   `mpi_progress/delayed_sender_completes` got a 60 s deadline under valgrind.
   `mpi_progress/serialized_progress` passed at a 0.5-CPU cap (28 s for the
@@ -254,7 +265,9 @@ runner.
   `.github/ISSUE_TEMPLATE/cpp-difference.yml` applies.
 - Pages: Settings → Pages → Build and deployment → Source = "GitHub Actions"
   before the first push that runs `docs.yml` on `main`; otherwise the `deploy`
-  job fails at `actions/configure-pages` ("Get Pages site failed"). The
+  job fails at `actions/configure-pages` ("Get Pages site failed"). Set on the
+  public repository on 14 November 2026; the site is served at
+  <https://thomas0903.github.io/akantu-rs/>. The
   `github-pages` environment is created by the first deployment; a custom
   deployment-branch rule must allow `main`.
 - Actions policy: allow GitHub-owned actions, or these by commit SHA:
@@ -322,10 +335,14 @@ volume and the runner's container caps.
 ## State
 
 Every job's command passed when replayed on the release commit
-(`docs/TESTING.md`, "State at release"). On GitHub every job has run once, on
-14 November 2026: of 29 jobs, 21 passed; six failed for three reasons; the
-documentation deployment failed because GitHub Pages was off; the macOS wheel
-job was cancelled at its time limit. The fixes have been replayed but not yet
-run on GitHub. The parity rows CI-001 (every job green on GitHub), CI-014 (the macOS
-wheel job) and CI-024 (the Pages deployment) wait for such runs
-(`ci/MAPPING.md`).
+(`docs/TESTING.md`, "State at release"). On 14 November 2026 every workflow
+was dispatched once on `main` of the public repository (commit `f0877f053`;
+the ten runs are listed in `docs/TESTING.md` and public in the Actions tab),
+and all 30 jobs passed at their first attempt, including `wheel-macos` and
+the Pages deployment. A run
+on the then private repository earlier that day had 21 of 29 jobs green; its
+causes were fixed before publication. The parity rows CI-001, CI-014 and
+CI-024 are *Verified* on these runs (`ci/MAPPING.md`). The first Dependabot
+pull request failed `selftest` as designed until its bumps were copied into
+`ci/github/` (`docs/MAINTAINING.md`, "Updating a dependency without changing
+results").

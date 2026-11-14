@@ -802,27 +802,22 @@ Effort: about a week. Risks: none.
 
 ### 7.4 Small documentation defects
 
-Two of the three defects found at the scan are fixed: the generated block
+Done. The three defects found at the scan are fixed: the generated block
 `availability-placeholders` of `docs/manual/src/getting-started.md` no
-longer prints a sentence with an empty list, and the crate documentation of
-`akantu-capi` states what it exports (1.4). Still open:
-`cargo doc -p akantu --no-deps` (built without a warning in 38 s at the
-scan) documents only the facade, whose modules are re-exports; the full
-reference needs `--workspace`, and its deployment (parity row CI-024) is
-open.
-
-Proposal: deploy the workspace rustdoc next to the manual
-(`ci/github/docs.yml` builds it in the `rustdoc` job).
-
-Benefits: readers of the manual and API reference.
-
-Effort: hours. Risks: none.
+longer prints a sentence with an empty list, the crate documentation of
+`akantu-capi` states what it exports (1.4), and the workspace rustdoc is
+deployed. At the scan `cargo doc -p akantu --no-deps` (built without a
+warning in 38 s) documented only the facade, whose modules are re-exports,
+and the full reference needs `--workspace`. Since the first runs on the
+public repository (14 November 2026, parity row CI-024) `docs.yml` deploys
+the workspace rustdoc next to the manual and the Python API, at
+<https://thomas0903.github.io/akantu-rs/>.
 
 ## The ten to do first
 
 | Rank | Finding | Section | Effort | Main beneficiary |
 |---|---|---|---|---|
-| 1 | Small documentation defects, the `akantu-capi` text and a README with a quick start (done for the public tree, except the rustdoc deployment) | 7.4, 1.4, 7.2 | hours | every new reader |
+| 1 | Small documentation defects, the `akantu-capi` text and a README with a quick start (done for the public tree) | 7.4, 1.4, 7.2 | hours | every new reader |
 | 2 | One switch for upstream compatibility, also from the input file | 2.1 | about a week | C++ users, testers |
 | 3 | A procedure and tooling for following upstream | 6.1 | about a week | maintainers of the port |
 | 4 | Version policy and crate metadata (the changelog exists) | 6.2 | a day | Rust users |

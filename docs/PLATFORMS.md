@@ -22,7 +22,7 @@ how to rerun each line.
 |---|---|---|
 | x86_64 Linux (glibc; Debian trixie images, Ubuntu 22.04 and 24.04 hosts) | reference platform: oracle fixtures, bitwise parity claims, reference runs of every tier | every tier, and the release check (`docs/TESTING.md`, "State at release") |
 | aarch64 Linux (glibc; the same Debian trixie images built for arm64) | supported; every tier runs; one MUMPS scenario and five PETSc scenarios do not compare values with the C++ reference (their records exist for x86_64 only, D-121); one PETSc self-consistency check is a known failure | the runs below (Docker on an Apple M4 Pro); the aarch64 oracle values of the nine MUMPS cases are kept as platform variants (D-073) |
-| macOS arm64 (Apple silicon) | supported for development and for the Python wheel; no MPI back-end tested; last-bit differences of the system libm where the port calls it (below) | the runs below (native, Apple M4 Pro); the GitHub macOS wheel job has not completed a run (D-118) |
+| macOS arm64 (Apple silicon) | supported for development and for the Python wheel; no MPI back-end tested; last-bit differences of the system libm where the port calls it (below) | the runs below (native, Apple M4 Pro); the GitHub job `packaging.yml:wheel-macos` on `macos-15` (Apple M1, virtual), green on 14 November 2026 in run 43626081603: with greenlet 302 / 0 / 7 skipped, without 296 / 0 / 13 skipped, the counts of the native run (`docs/TESTING.md`, "State at release") |
 | other platforms (Windows, macOS x86_64, other CPUs) | not tested | none |
 
 ## Results on ARM

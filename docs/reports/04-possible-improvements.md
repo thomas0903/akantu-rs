@@ -189,8 +189,8 @@ examples unchanged. What stops it from being a drop-in replacement:
 - Model-level runs on several ranks (F1.1, above).
 - No wheels are published, and the distribution name is upstream's own
   PyPI name, so a name has to be agreed with the Akantu maintainers (F3.1).
-  The delivered CI builds wheels for Linux x86_64 and macOS arm64 (the
-  macOS job has not yet passed on GitHub). Linux aarch64 is a small
+  The delivered CI builds and tests wheels for Linux x86_64 and macOS arm64
+  (both jobs green on GitHub on 14 November 2026). Linux aarch64 is a small
   addition; Windows has never been tried.
 - No type stubs (F3.2, 2 to 4 days).
 - Behaviour stricter than upstream's: topology views become read-only once

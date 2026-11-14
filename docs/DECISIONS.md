@@ -2058,11 +2058,21 @@ the macOS wheel job was cancelled at its time limit. None of the six
 failures had shown in replays on machines that had built the project
 before (`docs/TESTING.md`, "State at release").
 
+The rows closed the same day: every workflow was dispatched once on `main`
+of the public repository (commit `f0877f053`) and all 30 jobs passed,
+including `packaging:wheel-macos` and `docs:deploy`. CI-001, CI-014 and
+CI-024 are *Verified* on these runs.
+
 ## D-119: Fixes of the first runs shown off GitHub only
 
 The causes of the first runs' failures were established and fixed off
-GitHub, and the changed jobs passed when replayed. No job has run on GitHub
-since, so these fixes do not close CI-001, CI-014 or CI-024 (D-118).
+GitHub, and the changed jobs passed when replayed. No job ran again on
+GitHub before publication, so these fixes alone did not close CI-001,
+CI-014 or CI-024 (D-118). The first runs on the public repository, the same
+day, passed every job that had failed or been cancelled (`fast`, both
+`exportall` jobs, `coverage`, `python`, `memcheck (mpi)`, `deploy` and
+`wheel-macos`) with the fixes as they were replayed (Pages was enabled for
+`deploy`).
 
 ## D-121: Oracle comparisons of BLAS-backed solvers by platform
 

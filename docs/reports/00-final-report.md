@@ -4,8 +4,8 @@ akantu-rs (here "the port") is a Rust port of the Akantu finite-element
 library at upstream commit `35a851780d0b9471d258ed53a003ae98aaa95ea0` (30
 October 2026). It covers the core library, the extra packages, MPI
 parallelism and the Python package. Of the 1,045 rows of its feature parity
-matrix, 1,016 are Verified and 26 are approved exceptions; the 3 open rows
-concern the GitHub CI and carry no numerical claim. A row is Verified when
+matrix, 1,019 are Verified and 26 are approved exceptions; no row is open.
+A row is Verified when
 it has Rust tests, a golden fixture from the C++ library or an analytical
 reference, a justified tolerance and an independent review. Most
 comparisons with the C++ library are bit for bit. On the JOSS cohesive
@@ -55,7 +55,7 @@ details are in `docs/NUMERICAL_VALIDATION.md` and `docs/TOLERANCE_LEDGER.md`.
 
 | Quantity | Value | Source |
 |---|---|---|
-| Parity rows | 1,016 Verified, 26 approved exceptions, 3 open (CI-001, CI-014, CI-024) of 1,045 | `docs/FEATURE_PARITY.md` |
+| Parity rows | 1,019 Verified, 26 approved exceptions of 1,045 | `docs/FEATURE_PARITY.md` |
 | Upstream tests and examples | 182 test rows (177 Verified, 5 exceptions), 51 example rows (all Verified) | `01-migration-and-features.md` |
 | Golden fixtures | 2,023 cases, plus 62 C++ example runs, 31 Python example runs, 16 dumper directories | `docs/VALIDATION_SUMMARY.md` |
 | Workspace tests on the published tree | 3,769 passed, 0 failed, 25 ignored, in 462 test binaries (final gate, 14 November 2026) | `docs/TESTING.md` |
@@ -78,12 +78,16 @@ self-consistency check of the optional PETSc tier, between one and several
 ranks, exceeds its bound on aarch64 (2.0e-14 against 1e-14) and is
 documented in `docs/PLATFORMS.md` as a known failure.
 
-The workflows of the delivered CI ran once on GitHub on 14 November 2026.
-Of 29 jobs, 21 passed and six failed, for three reasons
-(`docs/TESTING.md`). The documentation deployment failed because GitHub
-Pages was off, and the macOS wheel job was stopped at its 60-minute limit. The fixed jobs
-passed when replayed outside GitHub and have not run on GitHub since, which
-is why the three CI rows are open.
+The workflows of the delivered CI ran once on GitHub on 14 November 2026,
+while the repository was private. Of 29 jobs, 21 passed and six failed, for
+three reasons (`docs/TESTING.md`). The documentation deployment failed
+because GitHub Pages was off, and the macOS wheel job was stopped at its
+60-minute limit. The fixed jobs passed when replayed outside GitHub, so
+three CI rows (CI-001, CI-014, CI-024) were open at delivery. After
+publication, the same day, every workflow ran once on the public repository
+and all 30 jobs passed, among them the macOS arm64 wheel and the deployment
+of the documentation to <https://thomas0903.github.io/akantu-rs/>; the three
+rows became Verified.
 
 ## Performance against C++
 

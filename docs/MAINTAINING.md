@@ -257,6 +257,18 @@ only. When you accept one, copy the changed workflow from `.github/workflows/`
 to `ci/github/` (or make the change there and copy it back): `ci/selftest.sh`
 requires the two to be identical.
 
+The first Dependabot pull request (14 November 2026, four action bumps)
+showed what this means in practice: Dependabot changes only
+`.github/workflows/`, so the pull request's `selftest` job fails until the
+same bump is copied into `ci/github/`. Mirror it on the pull request's
+branch, update the list of pinned versions under "Repository settings" in
+`ci/github/README.md`, run `ci/selftest.sh`, and commit:
+
+```sh
+gh pr checkout <number>
+cp .github/workflows/*.yml ci/github/
+```
+
 ## Cutting a release
 
 1. Choose the version (semantic versioning; before 1.0 a change of default

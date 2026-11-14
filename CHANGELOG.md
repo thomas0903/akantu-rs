@@ -15,13 +15,15 @@ The initial public state.
 - A Rust port of the Akantu finite-element library at upstream commit
   `35a85178` (`v5.0.7-post1-554-g35a851780`), in 27 crates with the facade
   crate `akantu`.
-- Of the 1,045 rows of the feature parity matrix, 1,016 are verified and 26
-  are approved exceptions; 3 CI rows wait for green runs on GitHub
-  (`docs/FEATURE_PARITY.md`). On 14 November 2026 the workflows ran once on
-  GitHub: of 29 jobs, 21 passed; six failed for three reasons; the
-  documentation deployment failed because GitHub Pages was off; the macOS
-  wheel job was cancelled at its time limit. The causes were fixed and the
-  changed jobs replayed off GitHub (`docs/TESTING.md`, "State at release").
+- Of the 1,045 rows of the feature parity matrix, 1,019 are verified and 26
+  are approved exceptions (`docs/FEATURE_PARITY.md`). On 14 November 2026
+  every workflow of the CI ran once on the public repository and all 30
+  jobs passed, among them the macOS arm64 wheel and the documentation
+  deployment (`docs/TESTING.md`, "State at release"). An earlier run on the
+  then private repository had failures whose causes were fixed before
+  publication.
+- The user manual and the Rust and Python API documentation, deployed from
+  `main` to <https://thomas0903.github.io/akantu-rs/>.
 - The models of upstream: solid mechanics (static, explicit and implicit
   dynamics, finite deformation), cohesive elements, contact mechanics, heat
   diffusion, phase field, structural mechanics, the embedded interface, the

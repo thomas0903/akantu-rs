@@ -130,7 +130,7 @@ manual dispatch. Still open from the proposal: a cargo registry or target
 cache (the only `actions/cache` entries hold Docker images, and the
 target of 21 to 27 GB does not fit GitHub's 10 GB cache, see 2.3) and
 parallel pytest (`pytest-xdist`; the `python` job took 4,288 s on a 2-vCPU
-runner).
+runner and 2,774 s on the 4-vCPU runner of the public repository).
 
 ### 1.8 Licence headers outside Rust
 
