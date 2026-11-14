@@ -31,12 +31,12 @@ jobs:
       matrix:
         tier: [mpi, par, mumps, petsc, release, examples, exportall]
     steps:
-      - uses: actions/checkout@de0fac2e4500dabe0009e67214ff5f5447ce83dd # v6.0.2
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
         with:
           persist-credentials: false
       - name: Free disk space on the runner (project images and the cargo target volume are large)
         run: ci/github/free-disk.sh
-      - uses: actions/cache@668228422ae6a00e4ad889ee87cd7109ec5666a7 # v5.0.4
+      - uses: actions/cache@55cc8345863c7cc4c66a329aec7e433d2d1c52a9 # v6.1.0
         with:
           path: ~/akantu-images
           key: images-v3-mpi-scotch-mumps-petsc-${{ hashFiles('docker/mpi/Dockerfile', 'docker/scotch/Dockerfile', 'docker/mumps/Dockerfile', 'docker/petsc/Dockerfile') }}
@@ -44,7 +44,7 @@ jobs:
       - name: Tier ${{ matrix.tier }}
         run: ci/run-all.sh --backend docker --tiers ${{ matrix.tier }} --out "$RUNNER_TEMP/ci-out"
       - if: always()
-        uses: actions/upload-artifact@bbbca2ddaa5d8feaa63e36b76fdaad77386f024f # v7.0.0
+        uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9 # v7.0.2
         with:
           name: ci-medium-${{ matrix.tier }}
           path: ${{ runner.temp }}/ci-out

@@ -258,8 +258,8 @@ runner.
   `github-pages` environment is created by the first deployment; a custom
   deployment-branch rule must allow `main`.
 - Actions policy: allow GitHub-owned actions, or these by commit SHA:
-  `actions/checkout` v6.0.2, `actions/cache` v5.0.4,
-  `actions/upload-artifact` v7.0.0, `actions/configure-pages` v5.0.0,
+  `actions/checkout` v7.0.1, `actions/cache` v6.1.0,
+  `actions/upload-artifact` v7.0.2, `actions/configure-pages` v6.0.0,
   `actions/upload-pages-artifact` v5.0.0, `actions/deploy-pages` v5.0.1. All
   six SHAs equal their release tags (`git ls-remote --tags
   https://github.com/actions/<name>`, 2026-11-14). Dependabot
