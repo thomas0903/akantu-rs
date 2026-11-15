@@ -20,6 +20,12 @@ The user manual (`docs/manual`) adapts parts of the Akantu manual
 (`doc/dev-doc/manual`, © 2020-2023 EPFL/LSMS, LGPLv3); see
 `docs/manual/NOTICE`.
 
+The project's mark (`assets/icon.svg`, `docs/manual/theme/favicon.svg`) is
+derived from the Akantu logo (`doc/dev-doc/_static/logo_only_akantu.svg` of
+the reference): the letter "A" on an orange tile is redrawn from it, and a
+gear ring is added. It marks the port as a derivative of Akantu and does not
+mean that the Akantu developers endorse it.
+
 ## Third-party source code included in akantu-rs
 
 ### IOHelper 1.1.1 (LGPL-3.0-or-later)
