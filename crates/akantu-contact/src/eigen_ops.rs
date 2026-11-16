@@ -17,22 +17,16 @@
 //! the few fixed-size spots (`Vector<Real, 3>` cross products) use the
 //! halving tree. Matrices are column-major slices with explicit extents.
 //!
-//! Products go through prepared `akantu_core::eigen_kernels::SliceProduct`s
-//! memoised per shape ([`matmul`]); `SliceProduct::eval` gives the bits of
-//! `akantu_fe::eigen::product_slices`. The only operation not covered by
-//! them is
+//! The only operation not covered by `akantu_fe::eigen::product_slices` is
 //! a GEMV whose left operand carries a scalar factor (`s * A.transpose() *
 //! v`): Eigen's `blas_traits` extract `s` and the kernel computes
 //! `res_i += s · (Σ_j a_ij v_j)` into a zeroed destination
 //! ([`gemv_scaled`]).
 
-use std::cell::RefCell;
-
 use akantu_core::eigen_gebp::{Order, gemv_into};
-use akantu_core::eigen_kernels::SliceProduct;
 use akantu_core::eigen_order::{Reduction, sum_from_zero};
-use akantu_core::{Error, Real, Result};
-use akantu_fe::eigen::{Dims, normalize as eigen_normalize, prepare};
+use akantu_core::{Real, Result};
+use akantu_fe::eigen::{Dims, normalize as eigen_normalize, product_slices};
 
 /// `a.dot(b)` on run-time sized operands (sequential from the first term).
 #[inline]
@@ -123,45 +117,6 @@ pub(crate) fn matmul(
     rt: bool,
     out: &mut [Real],
 ) -> Result<()> {
-    let p = prepared((a_rows, a_cols, lt, b_rows, b_cols, rt))?;
-    // the checks and messages of `akantu_fe::eigen::product_slices`
-    for (context, need, got) in [
-        ("eigen::product_slices: lhs", p.lhs_len(), a.len()),
-        ("eigen::product_slices: rhs", p.rhs_len(), b.len()),
-        ("eigen::product: result", p.out_len(), out.len()),
-    ] {
-        if got < need {
-            return Err(Error::DimensionMismatch {
-                context,
-                expected: need,
-                got,
-            });
-        }
-    }
-    p.eval(a, b, out)
-}
-
-/// Shape of a [`matmul`]: the two operands' storage extents and transpose
-/// flags.
-type MatmulShape = (usize, usize, bool, usize, usize, bool);
-
-/// Most shapes kept per thread (the contact expressions use a handful:
-/// dimension ≤ 3, at most `MAX_FACET_NODES` nodes).
-const PREPARED_CAPACITY: usize = 64;
-
-thread_local! {
-    /// The prepared products of the shapes this thread has evaluated: the
-    /// route, strides and lengths are decided once per shape
-    /// (`SliceProduct::eval` gives the bits of `product_slices`).
-    static PREPARED: RefCell<Vec<(MatmulShape, SliceProduct)>> = const { RefCell::new(Vec::new()) };
-}
-
-/// The prepared product of `shape` (memoised per thread).
-fn prepared(shape: MatmulShape) -> Result<SliceProduct> {
-    if let Some(p) = PREPARED.with_borrow(|v| v.iter().find(|(k, _)| *k == shape).map(|e| e.1)) {
-        return Ok(p);
-    }
-    let (a_rows, a_cols, lt, b_rows, b_cols, rt) = shape;
     let mut l = Dims::dynamic(a_rows, a_cols);
     if lt {
         l = l.t();
@@ -170,13 +125,7 @@ fn prepared(shape: MatmulShape) -> Result<SliceProduct> {
     if rt {
         r = r.t();
     }
-    let p = prepare(l, r)?;
-    PREPARED.with_borrow_mut(|v| {
-        if v.len() < PREPARED_CAPACITY {
-            v.push((shape, p));
-        }
-    });
-    Ok(p)
+    product_slices(l, r, a, b, out).map(|_| ())
 }
 
 /// Outer product `u * v.transpose()` of two run-time column vectors
@@ -359,68 +308,5 @@ mod tests {
         let mut out = [0.0; 2];
         gemv_scaled_transposed(2.0, &a, 3, 2, &x, &mut out);
         assert_eq!(out, [2.0 * (1.0 + 1.5 - 5.0), 2.0 * (2.0 + 2.0 - 6.0)]);
-    }
-
-    /// `matmul` (prepared products, memoised per shape) against
-    /// `akantu_fe::eigen::product_slices`, the route it replaces: every shape
-    /// of the contact expressions (dimension 2 and 3, 2 to 8 facet nodes,
-    /// both transpose flags), random values with signed zeros, infinities,
-    /// NaNs and subnormals; bitwise (NaN sign: the rule of
-    /// `akantu_core::bitwise_testing::same`).
-    #[test]
-    fn prepared_matmul_matches_product_slices() {
-        let mut seed = 0x2545_f491_4f6c_dd1d_u64;
-        let specials = [
-            0.0,
-            -0.0,
-            Real::INFINITY,
-            Real::NEG_INFINITY,
-            Real::NAN,
-            5e-324,
-            -1e-310,
-        ];
-        let value = |seed: &mut u64| {
-            let r = rng(seed);
-            if r < 0.05 {
-                #[allow(clippy::cast_possible_truncation, clippy::cast_sign_loss)] // index
-                let k = ((r / 0.05) * specials.len() as Real) as usize;
-                specials[k.min(specials.len() - 1)]
-            } else {
-                rng(seed) * 4.0 - 2.0
-            }
-        };
-        for _ in 0..3 {
-            for m in 1..=3 {
-                for k in 1..=8 {
-                    for n in 1..=3 {
-                        for (lt, rt) in [(false, false), (true, false), (false, true), (true, true)]
-                        {
-                            let (ar, ac) = if lt { (k, m) } else { (m, k) };
-                            let (br, bc) = if rt { (n, k) } else { (k, n) };
-                            let a: Vec<Real> = (0..ar * ac).map(|_| value(&mut seed)).collect();
-                            let b: Vec<Real> = (0..br * bc).map(|_| value(&mut seed)).collect();
-                            let mut x = vec![7.0; m * n];
-                            let mut y = vec![7.0; m * n];
-                            matmul(&a, ar, ac, lt, &b, br, bc, rt, &mut x).unwrap();
-                            let mut l = Dims::dynamic(ar, ac);
-                            if lt {
-                                l = l.t();
-                            }
-                            let mut r = Dims::dynamic(br, bc);
-                            if rt {
-                                r = r.t();
-                            }
-                            akantu_fe::eigen::product_slices(l, r, &a, &b, &mut y).unwrap();
-                            for (u, v) in x.iter().zip(&y) {
-                                assert!(
-                                    akantu_core::bitwise_testing::same(*u, *v),
-                                    "{m}x{k}x{n} {lt} {rt}: {u} {v}"
-                                );
-                            }
-                        }
-                    }
-                }
-            }
-        }
     }
 }
