@@ -19,7 +19,6 @@
 use akantu_core::{Array, Element, ElementKind, ElementType, Error, GhostType, Real, Result};
 use akantu_mesh::Mesh;
 
-use super::ops::integrate_with_jacobians;
 use super::{Block, FeEngine, compute_jacobians, multiply_by_weights};
 use crate::eigen::{self, Dims};
 use crate::element_class::{ElementClass, LagrangeElement};
@@ -204,11 +203,27 @@ impl FeEngine {
             for q in 0..nq {
                 E::compute_shapes(rule.point(q, nd), &mut shapes[q * nn..(q + 1) * nn]);
             }
-            let mut local = Array::try_zeros(ne * nq, lmat * lmat)?;
+            let l2 = lmat * lmat;
+            // Jacobians times weights (independent of the point matrices)
+            let ids: Vec<usize> = (0..ne).collect();
+            let mut jac = vec![0.0; ne * nq];
+            compute_jacobians::<E>(&block, &rule, kind, &ids, &ids, &mut jac)?;
+            multiply_by_weights(&mut jac, &rule.weights, &ids);
+            // `Nt * N` per point and `∫ = local · J` per element (the
+            // operands of `integrate_with_jacobians`), decided once; each
+            // element's point matrices are integrated as soon as they are
+            // computed (same products, same per-element integration: the
+            // elements are independent), so only one element's `nq` point
+            // matrices are held at a time
+            let point = eigen::prepare(Dims::dynamic(lmat, nb_dof), Dims::dynamic(nb_dof, lmat))?;
+            let integral = eigen::prepare(Dims::dynamic(l2, nq), Dims::new(nq, 1, false, true))?;
+            let mut out = Array::new(l2);
+            super::prepare_out(&mut out, ne, l2)?;
+            let mut local = vec![0.0; nq * l2];
             let mut nv = vec![0.0; nb_dof * lmat];
             let mut nt = vec![0.0; lmat * nb_dof];
             let fs = field.as_slice();
-            let lo = local.as_mut_slice();
+            let o = out.as_mut_slice();
             for e in 0..ne {
                 for q in 0..nq {
                     let s = &shapes[q * nn..(q + 1) * nn];
@@ -226,21 +241,10 @@ impl FeEngine {
                             nt[i + d * lmat] = nv[d + i * nb_dof] * rho[d];
                         }
                     }
-                    eigen::product_slices(
-                        Dims::dynamic(lmat, nb_dof),
-                        Dims::dynamic(nb_dof, lmat),
-                        &nt,
-                        &nv,
-                        &mut lo[t * lmat * lmat..(t + 1) * lmat * lmat],
-                    )?;
+                    point.eval(&nt, &nv, &mut local[q * l2..(q + 1) * l2])?;
                 }
+                integral.eval(&local, &jac[e * nq..(e + 1) * nq], &mut o[e * l2..(e + 1) * l2])?;
             }
-            let ids: Vec<usize> = (0..ne).collect();
-            let mut jac = vec![0.0; ne * nq];
-            compute_jacobians::<E>(&block, &rule, kind, &ids, &ids, &mut jac)?;
-            multiply_by_weights(&mut jac, &rule.weights, &ids);
-            let mut out = Array::new(lmat * lmat);
-            integrate_with_jacobians(local.as_slice(), lmat * lmat, nq, |e| &jac[e * nq..(e + 1) * nq], ne, &mut out)?;
             Ok(out)
         }, else Err(Error::UnsupportedElementType { ty, context: "field_matrix_elemental" }))
     }

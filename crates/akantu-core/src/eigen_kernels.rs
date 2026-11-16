@@ -23,6 +23,7 @@
 //! | `Coeff(Tree)`, depth `k ≤ 27` | one monomorphised kernel per `k` (match on `k`) | halving tree of `k` terms (`eigen_order::redux_tree`), straight-line |
 //! | `Coeff(Sequential)` | loop over the depth, columns of the result | `t0 + t1 + …` (`redux_seq`) |
 //! | `Gebp { kc }` with depth `k < 8` (no peeled part) | loop over the depth | `0 + (((0 + t0) + t1) + …)`, the `gebp` micro-kernel's chain from `+0` and its write into the zeroed destination |
+//! | `Gemv` over the left operand, depth `k < 128` (no column blocks) | the same loop, one result column | the same: `c = 0; c = c + a(i, l)·x(l)`, then `out(i) = 0 + c` |
 //! | every other route | [`crate::eigen_gebp::eval_routed`] | unchanged |
 //!
 //! Each kernel computes the terms `fl(lhs(i, l) · rhs(l, j))` and adds them
@@ -40,7 +41,9 @@
 //! transposes; likewise the right operand. The result is written
 //! column-major into the first `rows · cols` entries of the output.
 
-use crate::eigen_gebp::{self, GEBP_PK, Order, ProductShape, Reduction, Route};
+use crate::eigen_gebp::{
+    self, GEBP_PK, GEMV_BLOCKING_MIN_DEPTH, GemvMatrix, Order, ProductShape, Reduction, Route,
+};
 use crate::eigen_order as eo;
 use crate::error::{Error, Result};
 use crate::types::Real;
@@ -178,6 +181,18 @@ impl SliceProduct {
                     coeff_seq_colmajor(m, k, n, a, (b, bl, bj), out);
                 } else {
                     coeff_seq(m, k, n, (a, ai, al), (b, bl, bj), out);
+                }
+            }
+            // GEMV over the left operand without depth blocking: `c = 0;
+            // c = c + a(i, l)·x(l)`, then `out(i) = 0 + c` (both kernels)
+            Route::Gemv {
+                matrix: GemvMatrix::Lhs,
+                ..
+            } if k < GEMV_BLOCKING_MIN_DEPTH => {
+                if ai == 1 {
+                    gebp_shallow_colmajor(m, k, 1, a, (b, bl, bj), out);
+                } else {
+                    gebp_shallow(m, k, 1, (a, ai, al), (b, bl, bj), out);
                 }
             }
             Route::Gebp { kc } if k < GEBP_PK && kc >= k => {
@@ -406,7 +421,7 @@ mod tests {
             (50, 7, 50),
             (49, 8, 2),
         ]);
-        let mut a = vec![0.0; 4096];
+        let mut a = vec![0.0; 32768];
         let mut b = vec![0.0; 4096];
         let mut got = vec![0.0; 4096];
         let mut want = vec![0.0; 4096];

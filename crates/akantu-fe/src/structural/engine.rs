@@ -1222,25 +1222,15 @@ impl StructuralFeEngine {
         )?;
         prepare_out(out, d.len(), nc * nc)?;
         let mut btd = vec![0.0; nc * ns];
+        let p_btd = eigen::prepare(Dims::dynamic(ns, nc).t(), Dims::dynamic(ns, ns))?;
+        let p_btdb = eigen::prepare(Dims::dynamic(nc, ns), Dims::dynamic(ns, nc))?;
         let (bs, ds, os) = (b.as_slice(), d.as_slice(), out.as_mut_slice());
         for (pos, &e) in ids.iter().enumerate() {
             for q in 0..nq {
                 let (s, t) = (e * nq + q, pos * nq + q);
                 let bq = &bs[s * ns * nc..(s + 1) * ns * nc];
-                eigen::product_slices(
-                    Dims::dynamic(ns, nc).t(),
-                    Dims::dynamic(ns, ns),
-                    bq,
-                    &ds[t * ns * ns..(t + 1) * ns * ns],
-                    &mut btd,
-                )?;
-                eigen::product_slices(
-                    Dims::dynamic(nc, ns),
-                    Dims::dynamic(ns, nc),
-                    &btd,
-                    bq,
-                    &mut os[t * nc * nc..(t + 1) * nc * nc],
-                )?;
+                p_btd.eval(bq, &ds[t * ns * ns..(t + 1) * ns * ns], &mut btd)?;
+                p_btdb.eval(&btd, bq, &mut os[t * nc * nc..(t + 1) * nc * nc])?;
             }
         }
         Ok(())

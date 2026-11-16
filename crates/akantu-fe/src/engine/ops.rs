@@ -581,6 +581,9 @@ impl FeEngine {
                 let mut bfull = MatrixX::zeros(dim, nn);
                 let mut bv = MatrixX::zeros(ts, n);
                 let mut btd = vec![0.0; n * ts];
+                // (Bᵀ · D) into a dynamic temporary, then · B
+                let p_btd = eigen::prepare(Dims::dynamic(ts, n).t(), Dims::dynamic(ts, ts))?;
+                let p_btdb = eigen::prepare(Dims::dynamic(n, ts), Dims::dynamic(ts, n))?;
                 let (ds, os) = (d.as_slice(), out.as_mut_slice());
                 for (pos, &e) in ids.iter().enumerate() {
                     for q in 0..nq {
@@ -591,21 +594,8 @@ impl FeEngine {
                         let t = pos * nq + q;
                         let dq = &ds[t * ts * ts..(t + 1) * ts * ts];
                         let b = bv.as_slice();
-                        // (Bᵀ · D) into a dynamic temporary, then · B
-                        eigen::product_slices(
-                            Dims::dynamic(ts, n).t(),
-                            Dims::dynamic(ts, ts),
-                            b,
-                            dq,
-                            &mut btd,
-                        )?;
-                        eigen::product_slices(
-                            Dims::dynamic(n, ts),
-                            Dims::dynamic(ts, n),
-                            &btd,
-                            b,
-                            &mut os[t * n * n..(t + 1) * n * n],
-                        )?;
+                        p_btd.eval(b, dq, &mut btd)?;
+                        p_btdb.eval(&btd, b, &mut os[t * n * n..(t + 1) * n * n])?;
                     }
                 }
                 Ok(())
@@ -620,26 +610,16 @@ impl FeEngine {
                 )?;
                 prepare_out(out, d.len(), nn * nn)?;
                 let mut btd = vec![0.0; nn * dim];
+                let p_btd = eigen::prepare(Dims::dynamic(dim, nn).t(), Dims::dynamic(dim, dim))?;
+                let p_btdb = eigen::prepare(Dims::dynamic(nn, dim), Dims::dynamic(dim, nn))?;
                 let (ds, os) = (d.as_slice(), out.as_mut_slice());
                 for (pos, &e) in ids.iter().enumerate() {
                     for q in 0..nq {
                         let b = &bs[(e * nq + q) * bsz..(e * nq + q + 1) * bsz];
                         let t = pos * nq + q;
                         let dq = &ds[t * dim * dim..(t + 1) * dim * dim];
-                        eigen::product_slices(
-                            Dims::dynamic(dim, nn).t(),
-                            Dims::dynamic(dim, dim),
-                            b,
-                            dq,
-                            &mut btd,
-                        )?;
-                        eigen::product_slices(
-                            Dims::dynamic(nn, dim),
-                            Dims::dynamic(dim, nn),
-                            &btd,
-                            b,
-                            &mut os[t * nn * nn..(t + 1) * nn * nn],
-                        )?;
+                        p_btd.eval(b, dq, &mut btd)?;
+                        p_btdb.eval(&btd, b, &mut os[t * nn * nn..(t + 1) * nn * nn])?;
                     }
                 }
                 Ok(())
