@@ -50,9 +50,9 @@
 //!   (symmetric/general eigen-solvers used by materials and dumpers).
 
 // `unsafe` is confined to the native FFI edges (`mumps`, feature `mumps`;
-// `petsc`, feature `petsc`); without those features the crate forbids it.
-#![cfg_attr(not(any(feature = "mumps", feature = "petsc")), forbid(unsafe_code))]
-#![cfg_attr(any(feature = "mumps", feature = "petsc"), deny(unsafe_code))]
+// `petsc`, feature `petsc`) and to the run-time instruction-set dispatch of
+// the SparseLU dense kernels (`eigen_sparse_lu::simd`); `UNSAFE.md`.
+#![deny(unsafe_code)]
 #![warn(missing_docs)]
 
 pub mod centralize;
