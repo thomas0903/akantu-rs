@@ -85,8 +85,8 @@ fn scatter_block(
     key: (usize, ElementType, GhostType),
     scatters: &mut std::collections::HashMap<(usize, ElementType, GhostType), ScatterEntry>,
 ) -> Result<()> {
-    if !exec.is_parallel() {
-        return DofManager::assemble_elemental_array_local_view(
+    let serial = |f_int: &mut ArrayMut<'_, Real>| {
+        DofManager::assemble_elemental_array_local_view(
             mesh,
             r_e.view(),
             f_int.view_mut(),
@@ -94,23 +94,25 @@ fn scatter_block(
             ghost,
             -1.0,
             Some(filter),
-        );
+        )
+    };
+    // the serial routine's early return, before any access to the block
+    if !exec.is_parallel() || (mesh.nb_element(ty, ghost) == 0 && r_e.is_empty()) {
+        return serial(f_int);
     }
     let conn = mesh.connectivity(ty, ghost)?;
     let nnpe = conn.nb_component();
     let nb_nodes = f_int.len();
     let nb_dof = r_e.nb_component().checked_div(nnpe).unwrap_or(0);
-    if nnpe == 0 || !r_e.nb_component().is_multiple_of(nnpe) || f_int.nb_component() != nb_dof {
-        // the serial routine reports the mismatch
-        return DofManager::assemble_elemental_array_local_view(
-            mesh,
-            r_e.view(),
-            f_int.view_mut(),
-            ty,
-            ghost,
-            -1.0,
-            Some(filter),
-        );
+    // every size the serial routine checks: on a mismatch it reports it,
+    // with its own error
+    if nnpe == 0
+        || !r_e.nb_component().is_multiple_of(nnpe)
+        || f_int.nb_component() != nb_dof
+        || r_e.len() != filter.len()
+    {
+        drop(conn);
+        return serial(f_int);
     }
     let revision = mesh.revision();
     let exported = mesh.connectivities().shared(ty, ghost)?.is_exported();
@@ -129,12 +131,17 @@ fn scatter_block(
         }
     });
     if !valid {
+        // an element or node out of range: the serial routine reports it
+        let Ok(table) = NodeScatter::new(cs, nnpe, fl, nb_nodes) else {
+            drop(conn);
+            return serial(f_int);
+        };
         scatters.insert(
             key,
             ScatterEntry {
                 revision,
                 filter: filter.to_vec(),
-                table: NodeScatter::new(cs, nnpe, fl, nb_nodes)?,
+                table,
             },
         );
     }
@@ -907,4 +914,89 @@ pub(crate) fn elemental_stiffness_of(
         out.push((ty, filter, k_e));
     }
     Ok(out)
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+    use akantu_core::exec::{Exec, ExecPolicy, Grain};
+    use akantu_mesh::MeshAccessor;
+
+    /// Two triangles; nodal array of 4 nodes × 2 components.
+    fn two_triangles() -> Mesh {
+        let mut m = Mesh::new(2, "m").unwrap();
+        {
+            let mut a = MeshAccessor::new(&mut m);
+            for x in [[0.0, 0.0], [1.0, 0.0], [1.0, 1.0], [0.0, 1.0]] {
+                a.push_node(&x).unwrap();
+            }
+            let mut c = a.connectivity_mut(ElementType::Triangle3, GhostType::NotGhost);
+            c.push_tuple(&[0, 1, 2]);
+            c.push_tuple(&[0, 2, 3]);
+        }
+        m
+    }
+
+    fn run(
+        exec: &Exec,
+        mesh: &Mesh,
+        r_e: &Array<Real>,
+        ty: ElementType,
+        filter: &[Idx],
+    ) -> (Result<()>, Vec<Real>) {
+        let mut f = akantu_core::SharedArray::new(Array::zeros(4, 2));
+        let mut guard = f.write().unwrap();
+        let mut scatters = std::collections::HashMap::new();
+        let r = scatter_block(
+            exec,
+            mesh,
+            r_e,
+            &mut guard,
+            ty,
+            GhostType::NotGhost,
+            filter,
+            (0, ty, GhostType::NotGhost),
+            &mut scatters,
+        );
+        (r, guard.as_slice().to_vec())
+    }
+
+    /// The threaded scatter returns what the serial routine returns: `Ok`
+    /// for an empty block of a type the mesh does not have (before any
+    /// access to its connectivity), the same error for a wrong number of
+    /// element vectors or an element out of range, the same values
+    /// otherwise.
+    #[test]
+    fn threaded_scatter_matches_the_serial_routine_on_edge_cases() {
+        let mesh = two_triangles();
+        let serial = Exec::serial();
+        let threaded = Exec::new(
+            ExecPolicy::serial()
+                .with_threads(2)
+                .unwrap()
+                .with_grain(Grain::Finest),
+        )
+        .unwrap();
+        let empty = Array::new(6);
+        let one = Array::from_vec((0..6).map(Real::from).collect(), 6).unwrap();
+        let two = Array::from_vec((0..12).map(Real::from).collect(), 6).unwrap();
+        let cases: [(&Array<Real>, ElementType, &[Idx]); 4] = [
+            (&empty, ElementType::Tetrahedron4, &[]),
+            (&one, ElementType::Triangle3, &[0, 1]),
+            (&one, ElementType::Triangle3, &[5]),
+            (&two, ElementType::Triangle3, &[1, 0]),
+        ];
+        for (r_e, ty, filter) in cases {
+            let (rs, vs) = run(&serial, &mesh, r_e, ty, filter);
+            let (rt, vt) = run(&threaded, &mesh, r_e, ty, filter);
+            assert_eq!(
+                rs.as_ref().map_err(ToString::to_string),
+                rt.as_ref().map_err(ToString::to_string),
+                "{ty:?} {filter:?}"
+            );
+            if rs.is_ok() {
+                assert_eq!(vs, vt);
+            }
+        }
+    }
 }
