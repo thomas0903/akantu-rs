@@ -1,0 +1,229 @@
+# Profile of suite case setup_tet10
+
+binary: /home/user/akantu-rs/target/release/suite_solid (fbbd93f860169f3a)
+command: taskset -c 2 /home/user/akantu-rs/target/release/suite_solid --case setup_tet10 --size m --reps 3
+perf: perf record -F 499 --call-graph dwarf,16384
+cpu: AMD EPYC 4585PX 16-Core Processor
+date_utc: 2026-11-16T07:23:04Z
+commit: c698395e8
+
+## Phases of the profiled run (seconds, calls)
+
+mesh                         0.0047 s       1 calls
+init_explicit                0.0591 s       1 calls
+shape_functions              0.0760 s       3 calls
+mass_lumped                  0.0025 s       3 calls
+init_implicit                0.0476 s       1 calls
+mass_consistent              8.0808 s       3 calls
+stiffness_assembly           2.8189 s       3 calls
+mesh                         0.0005 s       1 calls
+init_explicit                0.0314 s       1 calls
+shape_functions              0.0715 s       3 calls
+mass_lumped                  0.0024 s       3 calls
+init_implicit                0.0294 s       1 calls
+mass_consistent              5.8599 s       3 calls
+stiffness_assembly           4.8976 s       3 calls
+mesh                         0.0008 s       1 calls
+init_explicit                0.0410 s       1 calls
+shape_functions              0.1161 s       3 calls
+mass_lumped                  0.0036 s       3 calls
+init_implicit                0.0382 s       1 calls
+mass_consistent              6.0947 s       3 calls
+stiffness_assembly           3.5200 s       3 calls
+
+## Top 25 symbols, self time
+
+    39.90%  [.] <akantu_linalg::sparse::SparseMatrixAij>::resolve_block
+    18.44%  [.] akantu_core::eigen_gebp::product_into::<akantu_fe::eigen::product_slices::{closure#1}, akantu_fe::eigen::product_slices::{closure#2}>
+     4.15%  [.] akantu_fe::engine::fast::integrate::<<akantu_fe::engine::FeEngine>::field_matrix_elemental::{closure#2}>
+     4.04%  [.] <akantu_linalg::sparse::SparseMatrixAij>::add_to_profile
+     2.83%  [.] <akantu_linalg::sparse::SparseMatrixAij>::add_values
+     2.66%  [.] <std::hash::random::RandomState as core::hash::BuildHasher>::hash_one::<&(i64, i64)>
+     2.18%  [.] <std::hash::random::DefaultHasher as core::hash::Hasher>::write
+     1.79%  [k] _raw_spin_lock
+     1.63%  [.] akantu_core::eigen_order::redux_tree::<akantu_core::eigen_gebp::eval_product<akantu_fe::eigen::product_slices::{closure#1}, akantu_fe::eigen::product_slices::{closure#2}>::{closure#0}>
+     1.46%  [.] 0x00000000001a1d7a
+     1.30%  [.] <akantu_core::array::Array<f64>>::try_filled
+     1.20%  [k] clear_page_erms
+     1.15%  [.] akantu_fe::engine::fast::integrate::<<akantu_fe::engine::FeEngine>::integrate::{closure#0}>
+     0.89%  [.] <hashbrown::map::HashMap<(i64, i64), usize, std::hash::random::RandomState>>::insert
+     0.82%  [k] folio_remove_rmap_ptes
+     0.81%  [k] rmqueue_bulk
+     0.77%  [k] __rcu_read_lock
+     0.75%  [k] try_charge_memcg
+     0.74%  [k] down_read_trylock
+     0.71%  [k] mas_walk
+     0.67%  [k] asm_sysvec_apic_timer_interrupt
+     0.61%  [k] __count_memcg_events
+     0.51%  [.] <akantu_core::array_storage::ArrayStorage<f64>>::try_resize
+     0.44%  [k] __free_one_page
+     0.43%  [k] mem_cgroup_commit_charge
+
+## Top 25 symbols, inclusive time (children)
+
+    95.76%     0.00%  [.] 0xffffffffffffffff
+    95.31%     0.00%  [.] akantu_bench::suite_solid::setup::run
+    59.67%     0.00%  [.] <akantu_bench::suite::Ctx>::repeat_impl::<akantu_bench::suite_solid::setup::run::{closure#5}>
+    59.67%     0.00%  [.] <akantu_bench::suite::Ctx>::repeat::<akantu_bench::suite_solid::setup::run::{closure#5}> (inlined)
+    59.67%     0.00%  [.] <akantu_solver::dof_manager::DofManager>::collective::<(), <akantu_solid::model::SolidMechanicsModel>::assemble_mass::{closure#0}>
+    59.67%     0.00%  [.] <akantu_solid::model::SolidMechanicsModel>::assemble_mass::{closure#0} (inlined)
+    59.67%     0.00%  [.] akantu_bench::suite_solid::setup::run::{closure#5} (inlined)
+    59.67%     0.00%  [.] <akantu_solid::model::SolidMechanicsPhysics>::assemble_mass
+    54.25%     0.01%  [.] <akantu_solver::dof_manager::DofManager>::assemble_elemental_matrices_to_matrix
+    46.46%     0.01%  [.] <akantu_solver::backend::AijBackend as akantu_solver::backend::LinearSystemBackend>::add_values
+    46.45%     2.83%  [.] <akantu_linalg::sparse::SparseMatrixAij>::add_values
+    43.59%    39.90%  [.] <akantu_linalg::sparse::SparseMatrixAij>::resolve_block
+    42.84%     0.00%  [.] <hashbrown::map::HashMap<(i64, i64), usize, std::hash::random::RandomState>>::get::<(i64, i64)> (inlined)
+    42.84%     0.00%  [.] <std::collections::hash::map::HashMap<(i64, i64), usize>>::get::<(i64, i64)> (inlined)
+    39.63%     0.00%  [.] <hashbrown::raw::RawTable<((i64, i64), usize)>>::get::<hashbrown::map::equivalent_key<(i64, i64), (i64, i64), usize>::{closure#0}> (inlined)
+    39.63%     0.00%  [.] <hashbrown::raw::RawTable<((i64, i64), usize)>>::find::<hashbrown::map::equivalent_key<(i64, i64), (i64, i64), usize>::{closure#0}> (inlined)
+    39.63%     0.00%  [.] <hashbrown::raw::RawTableInner>::find_inner (inlined)
+    34.77%     0.00%  [.] <akantu_bench::suite::Ctx>::repeat_impl::<akantu_bench::suite_solid::setup::run::{closure#6}>
+    34.77%     0.00%  [.] <akantu_bench::suite::Ctx>::repeat::<akantu_bench::suite_solid::setup::run::{closure#6}> (inlined)
+    34.77%     0.00%  [.] <akantu_solver::dof_manager::DofManager>::collective::<(), <akantu_solid::model::SolidMechanicsModel>::assemble_stiffness_matrix::{closure#0}>
+    34.77%     0.00%  [.] <akantu_solid::model::SolidMechanicsModel>::assemble_stiffness_matrix::{closure#0} (inlined)
+    34.77%     0.00%  [.] akantu_bench::suite_solid::setup::run::{closure#6} (inlined)
+    34.77%     0.00%  [.] <akantu_solid::model::SolidMechanicsPhysics>::assemble_stiffness_matrix
+    34.77%     0.00%  [.] <akantu_solid::model::SolidMechanicsModel>::assemble_stiffness_matrix
+    30.58%     0.36%  [.] <akantu_fe::engine::FeEngine>::field_matrix_elemental
+
+## Call chains (callers of the hottest self-time symbols, entries above 2 %)
+
+    39.90%  [.] <akantu_linalg::sparse::SparseMatrixAij>::resolve_block
+            |
+            |--20.07%--core::intrinsics::likely (inlined)
+            |          <hashbrown::raw::RawTableInner>::find_inner (inlined)
+            |          <hashbrown::raw::RawTable<((i64, i64), usize)>>::find::<hashbrown::map::equivalent_key<(i64, i64), (i64, i64), usize>::{closure#0}> (inlined)
+            |          <hashbrown::raw::RawTable<((i64, i64), usize)>>::get::<hashbrown::map::equivalent_key<(i64, i64), (i64, i64), usize>::{closure#0}> (inlined)
+            |          <hashbrown::map::HashMap<(i64, i64), usize, std::hash::random::RandomState>>::get::<(i64, i64)> (inlined)
+            |          <std::collections::hash::map::HashMap<(i64, i64), usize>>::get::<(i64, i64)> (inlined)
+            |          <akantu_linalg::sparse::SparseMatrixAij>::resolve_block
+            |          <akantu_linalg::sparse::SparseMatrixAij>::add_values
+            |          <akantu_solver::backend::AijBackend as akantu_solver::backend::LinearSystemBackend>::add_values
+            |          <akantu_solver::dof_manager::DofManager>::assemble_elemental_matrices_to_matrix
+            |          |
+            |          |--10.87%--<akantu_solid::model::SolidMechanicsPhysics>::assemble_mass
+            |          |          <akantu_solid::model::SolidMechanicsModel>::assemble_mass::{closure#0} (inlined)
+            |          |          <akantu_solver::dof_manager::DofManager>::collective::<(), <akantu_solid::model::SolidMechanicsModel>::assemble_mass::{closure#0}>
+            |          |          akantu_bench::suite_solid::setup::run::{closure#5} (inlined)
+            |          |          <akantu_bench::suite::Ctx>::repeat_impl::<akantu_bench::suite_solid::setup::run::{closure#5}>
+            |          |          <akantu_bench::suite::Ctx>::repeat::<akantu_bench::suite_solid::setup::run::{closure#5}> (inlined)
+            |          |          akantu_bench::suite_solid::setup::run
+            |          |          0xffffffffffffffff
+            |          |
+            |           --9.20%--<akantu_solid::model::SolidMechanicsPhysics>::assemble_stiffness_matrix
+            |                     <akantu_solid::model::SolidMechanicsModel>::assemble_stiffness_matrix::{closure#0} (inlined)
+            |                     <akantu_solver::dof_manager::DofManager>::collective::<(), <akantu_solid::model::SolidMechanicsModel>::assemble_stiffness_matrix::{closure#0}>
+            |                     <akantu_solid::model::SolidMechanicsModel>::assemble_stiffness_matrix
+            |                     akantu_bench::suite_solid::setup::run::{closure#6} (inlined)
+            |                     <akantu_bench::suite::Ctx>::repeat_impl::<akantu_bench::suite_solid::setup::run::{closure#6}>
+            |                     <akantu_bench::suite::Ctx>::repeat::<akantu_bench::suite_solid::setup::run::{closure#6}> (inlined)
+            |                     akantu_bench::suite_solid::setup::run
+            |                     0xffffffffffffffff
+            |
+             --17.65%--core::core_arch::x86::sse2::_mm_movemask_epi8 (inlined)
+                       <hashbrown::control::group::sse2::Group>::match_tag (inlined)
+                       <hashbrown::raw::RawTableInner>::find_inner (inlined)
+                       <hashbrown::raw::RawTable<((i64, i64), usize)>>::find::<hashbrown::map::equivalent_key<(i64, i64), (i64, i64), usize>::{closure#0}> (inlined)
+                       <hashbrown::raw::RawTable<((i64, i64), usize)>>::get::<hashbrown::map::equivalent_key<(i64, i64), (i64, i64), usize>::{closure#0}> (inlined)
+                       <hashbrown::map::HashMap<(i64, i64), usize, std::hash::random::RandomState>>::get::<(i64, i64)> (inlined)
+                       <std::collections::hash::map::HashMap<(i64, i64), usize>>::get::<(i64, i64)> (inlined)
+                       <akantu_linalg::sparse::SparseMatrixAij>::resolve_block
+                       <akantu_linalg::sparse::SparseMatrixAij>::add_values
+                       <akantu_solver::backend::AijBackend as akantu_solver::backend::LinearSystemBackend>::add_values
+                       <akantu_solver::dof_manager::DofManager>::assemble_elemental_matrices_to_matrix
+                       |
+                       |--9.51%--<akantu_solid::model::SolidMechanicsPhysics>::assemble_mass
+                       |          <akantu_solid::model::SolidMechanicsModel>::assemble_mass::{closure#0} (inlined)
+                       |          <akantu_solver::dof_manager::DofManager>::collective::<(), <akantu_solid::model::SolidMechanicsModel>::assemble_mass::{closure#0}>
+                       |          akantu_bench::suite_solid::setup::run::{closure#5} (inlined)
+                       |          <akantu_bench::suite::Ctx>::repeat_impl::<akantu_bench::suite_solid::setup::run::{closure#5}>
+                       |          <akantu_bench::suite::Ctx>::repeat::<akantu_bench::suite_solid::setup::run::{closure#5}> (inlined)
+                       |          akantu_bench::suite_solid::setup::run
+                       |          0xffffffffffffffff
+                       |
+                        --8.14%--<akantu_solid::model::SolidMechanicsPhysics>::assemble_stiffness_matrix
+                                  <akantu_solid::model::SolidMechanicsModel>::assemble_stiffness_matrix::{closure#0} (inlined)
+                                  <akantu_solver::dof_manager::DofManager>::collective::<(), <akantu_solid::model::SolidMechanicsModel>::assemble_stiffness_matrix::{closure#0}>
+                                  <akantu_solid::model::SolidMechanicsModel>::assemble_stiffness_matrix
+                                  akantu_bench::suite_solid::setup::run::{closure#6} (inlined)
+                                  <akantu_bench::suite::Ctx>::repeat_impl::<akantu_bench::suite_solid::setup::run::{closure#6}>
+                                  <akantu_bench::suite::Ctx>::repeat::<akantu_bench::suite_solid::setup::run::{closure#6}> (inlined)
+                                  akantu_bench::suite_solid::setup::run
+                                  0xffffffffffffffff
+    18.44%  [.] akantu_core::eigen_gebp::product_into::<akantu_fe::eigen::product_slices::{closure#1}, akantu_fe::eigen::product_slices::{closure#2}>
+            |
+            |--6.98%--akantu_core::eigen_gebp::gebp_into::<akantu_fe::eigen::product_slices::{closure#1}, akantu_fe::eigen::product_slices::{closure#2}> (inlined)
+            |          akantu_core::eigen_gebp::eval_product::<akantu_fe::eigen::product_slices::{closure#1}, akantu_fe::eigen::product_slices::{closure#2}> (inlined)
+            |          akantu_core::eigen_gebp::product_into::<akantu_fe::eigen::product_slices::{closure#1}, akantu_fe::eigen::product_slices::{closure#2}>
+            |          akantu_fe::eigen::product::<akantu_fe::eigen::product_slices::{closure#1}, akantu_fe::eigen::product_slices::{closure#2}> (inlined)
+            |          akantu_fe::eigen::product_slices
+            |          |
+            |           --5.38%--<akantu_fe::engine::FeEngine>::field_matrix_elemental
+            |                     <akantu_solid::model::SolidMechanicsPhysics>::assemble_mass
+            |                     <akantu_solid::model::SolidMechanicsModel>::assemble_mass::{closure#0} (inlined)
+            |                     <akantu_solver::dof_manager::DofManager>::collective::<(), <akantu_solid::model::SolidMechanicsModel>::assemble_mass::{closure#0}>
+            |                     akantu_bench::suite_solid::setup::run::{closure#5} (inlined)
+            |                     <akantu_bench::suite::Ctx>::repeat_impl::<akantu_bench::suite_solid::setup::run::{closure#5}>
+            |                     <akantu_bench::suite::Ctx>::repeat::<akantu_bench::suite_solid::setup::run::{closure#5}> (inlined)
+            |                     akantu_bench::suite_solid::setup::run
+            |                     0xffffffffffffffff
+            |
+            |--3.96%--akantu_fe::eigen::product_slices::{closure#1} (inlined)
+            |          |
+            |           --3.93%--akantu_core::eigen_gebp::gebp_into::<akantu_fe::eigen::product_slices::{closure#1}, akantu_fe::eigen::product_slices::{closure#2}>::{closure#0} (inlined)
+            |                     akantu_core::eigen_gebp::gebp_into::<akantu_fe::eigen::product_slices::{closure#1}, akantu_fe::eigen::product_slices::{closure#2}> (inlined)
+            |                     akantu_core::eigen_gebp::eval_product::<akantu_fe::eigen::product_slices::{closure#1}, akantu_fe::eigen::product_slices::{closure#2}> (inlined)
+            |                     akantu_core::eigen_gebp::product_into::<akantu_fe::eigen::product_slices::{closure#1}, akantu_fe::eigen::product_slices::{closure#2}>
+            |                     akantu_fe::eigen::product::<akantu_fe::eigen::product_slices::{closure#1}, akantu_fe::eigen::product_slices::{closure#2}> (inlined)
+            |                     akantu_fe::eigen::product_slices
+            |                     |
+            |                      --2.66%--<akantu_fe::engine::FeEngine>::field_matrix_elemental
+            |                                <akantu_solid::model::SolidMechanicsPhysics>::assemble_mass
+            |                                <akantu_solid::model::SolidMechanicsModel>::assemble_mass::{closure#0} (inlined)
+            |                                <akantu_solver::dof_manager::DofManager>::collective::<(), <akantu_solid::model::SolidMechanicsModel>::assemble_mass::{closure#0}>
+            |                                akantu_bench::suite_solid::setup::run::{closure#5} (inlined)
+            |                                <akantu_bench::suite::Ctx>::repeat_impl::<akantu_bench::suite_solid::setup::run::{closure#5}>
+            |                                <akantu_bench::suite::Ctx>::repeat::<akantu_bench::suite_solid::setup::run::{closure#5}> (inlined)
+            |                                akantu_bench::suite_solid::setup::run
+            |                                0xffffffffffffffff
+            |
+             --3.49%--akantu_fe::eigen::product_slices::{closure#2} (inlined)
+                       |
+                        --3.48%--akantu_core::eigen_gebp::gebp_into::<akantu_fe::eigen::product_slices::{closure#1}, akantu_fe::eigen::product_slices::{closure#2}>::{closure#0} (inlined)
+                                  akantu_core::eigen_gebp::gebp_into::<akantu_fe::eigen::product_slices::{closure#1}, akantu_fe::eigen::product_slices::{closure#2}> (inlined)
+                                  akantu_core::eigen_gebp::eval_product::<akantu_fe::eigen::product_slices::{closure#1}, akantu_fe::eigen::product_slices::{closure#2}> (inlined)
+                                  akantu_core::eigen_gebp::product_into::<akantu_fe::eigen::product_slices::{closure#1}, akantu_fe::eigen::product_slices::{closure#2}>
+                                  akantu_fe::eigen::product::<akantu_fe::eigen::product_slices::{closure#1}, akantu_fe::eigen::product_slices::{closure#2}> (inlined)
+                                  akantu_fe::eigen::product_slices
+                                  |
+                                   --2.38%--<akantu_fe::engine::FeEngine>::field_matrix_elemental
+                                             <akantu_solid::model::SolidMechanicsPhysics>::assemble_mass
+                                             <akantu_solid::model::SolidMechanicsModel>::assemble_mass::{closure#0} (inlined)
+                                             <akantu_solver::dof_manager::DofManager>::collective::<(), <akantu_solid::model::SolidMechanicsModel>::assemble_mass::{closure#0}>
+                                             akantu_bench::suite_solid::setup::run::{closure#5} (inlined)
+                                             <akantu_bench::suite::Ctx>::repeat_impl::<akantu_bench::suite_solid::setup::run::{closure#5}>
+                                             <akantu_bench::suite::Ctx>::repeat::<akantu_bench::suite_solid::setup::run::{closure#5}> (inlined)
+                                             akantu_bench::suite_solid::setup::run
+                                             0xffffffffffffffff
+     4.15%  [.] akantu_fe::engine::fast::integrate::<<akantu_fe::engine::FeEngine>::field_matrix_elemental::{closure#2}>
+            |
+             --4.05%--akantu_fe::engine::fast::integrate::<<akantu_fe::engine::FeEngine>::field_matrix_elemental::{closure#0}> (inlined)
+                       akantu_fe::engine::ops::integrate_with_jacobians::<<akantu_fe::engine::FeEngine>::field_matrix_elemental::{closure#8}>
+                       <akantu_fe::engine::FeEngine>::field_matrix_elemental
+                       <akantu_solid::model::SolidMechanicsPhysics>::assemble_mass
+                       <akantu_solid::model::SolidMechanicsModel>::assemble_mass::{closure#0} (inlined)
+                       <akantu_solver::dof_manager::DofManager>::collective::<(), <akantu_solid::model::SolidMechanicsModel>::assemble_mass::{closure#0}>
+                       akantu_bench::suite_solid::setup::run::{closure#5} (inlined)
+                       <akantu_bench::suite::Ctx>::repeat_impl::<akantu_bench::suite_solid::setup::run::{closure#5}>
+                       <akantu_bench::suite::Ctx>::repeat::<akantu_bench::suite_solid::setup::run::{closure#5}> (inlined)
+                       akantu_bench::suite_solid::setup::run
+                       0xffffffffffffffff
+     4.04%  [.] <akantu_linalg::sparse::SparseMatrixAij>::add_to_profile
+     2.83%  [.] <akantu_linalg::sparse::SparseMatrixAij>::add_values
+            |
+             --2.49%--<akantu_linalg::sparse::SparseMatrixAij>::add_values
+                       <akantu_solver::backend::AijBackend as akantu_solver::backend::LinearSystemBackend>::add_values
+                       <akantu_solver::dof_manager::DofManager>::assemble_elemental_matrices_to_matrix
+     2.66%  [.] <std::hash::random::RandomState as core::hash::BuildHasher>::hash_one::<&(i64, i64)>
+     2.18%  [.] <std::hash::random::DefaultHasher as core::hash::Hasher>::write

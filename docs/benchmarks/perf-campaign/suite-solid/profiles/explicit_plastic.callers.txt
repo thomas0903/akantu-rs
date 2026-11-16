@@ -1,0 +1,137 @@
+# Deep call chains of suite case explicit_plastic (perf record -F 299 --call-graph dwarf,65528; libraries named)
+## Self time by library and symbol
+     8.38%  suite_solid        [.] akantu_core::eigen_order::redux_tree::<<[[f64; 2]; 2] as akantu_core::tensor::MatrixExt<2, 2>>::double_dot::{closure#0}>
+     7.01%  suite_solid        [.] akantu_solid::materials::plastic::j2_small_strain_quad::<3>
+     5.08%  suite_solid        [.] akantu_fe::engine::fast::btd
+     4.97%  suite_solid        [.] akantu_fe::engine::fast::gradient::<akantu_fe::element_class::types::Tetrahedron4>
+     4.54%  libc.so.6          [.] 0x00000000001a16c6
+     4.49%  [kernel.kallsyms]  [k] clear_page_erms
+     4.23%  suite_solid        [.] akantu_core::eigen_order::redux_tree::<<[[f64; 2]; 2] as akantu_core::tensor::MatrixExt<2, 2>>::squared_norm::{closure#0}>
+     4.05%  [kernel.kallsyms]  [k] asm_exc_page_fault
+     3.84%  libc.so.6          [.] 0x00000000001a16db
+     3.70%  suite_solid        [.] akantu_fe::engine::fast::integrate::<<akantu_fe::engine::FeEngine>::integrate::{closure#0}>
+     3.08%  [kernel.kallsyms]  [k] folio_remove_rmap_ptes
+     2.68%  libc.so.6          [.] 0x00000000001a16cd
+     2.44%  suite_solid        [.] akantu_solid::material::grad_u_in_place
+     2.24%  suite_solid        [.] <akantu_solver::dof_manager::DofManager>::assemble_elemental_array_local_view
+     1.96%  [kernel.kallsyms]  [k] __rcu_read_lock
+     1.86%  libc.so.6          [.] 0x00000000001a176b
+     1.79%  libc.so.6          [.] 0x00000000001a16d4
+     1.76%  [kernel.kallsyms]  [k] mas_walk
+     1.73%  [kernel.kallsyms]  [k] __raw_callee_save___pv_queued_spin_unlock
+     1.45%  [kernel.kallsyms]  [k] _raw_spin_lock
+     1.39%  [kernel.kallsyms]  [k] __count_memcg_events
+     1.30%  libc.so.6          [.] 0x00000000001a1779
+     1.16%  [kernel.kallsyms]  [k] asm_sysvec_apic_timer_interrupt
+     1.07%  libc.so.6          [.] 0x00000000001a177f
+     0.88%  suite_solid        [.] <akantu_solid::materials::plastic::MaterialLinearIsotropicHardening<3>>::j2_block
+     0.80%  [kernel.kallsyms]  [k] cgroup_rstat_updated
+     0.79%  libc.so.6          [.] 0x00000000001a1772
+     0.74%  libc.so.6          [.] 0x00000000001a1852
+     0.72%  [kernel.kallsyms]  [k] blk_cgroup_congested
+     0.72%  [kernel.kallsyms]  [k] mem_cgroup_commit_charge
+## Caller chains (self time, entries above 3 %)
+     8.38%  suite_solid        [.] akantu_core::eigen_order::redux_tree::<<[[f64; 2]; 2] as akantu_core::tensor::MatrixExt<2, 2>>::double_dot::{closure#0}>
+            |
+             --8.00%--akantu_core::eigen_order::redux_tree::<<[[f64; 2]; 2] as akantu_core::tensor::MatrixExt<2, 2>>::double_dot::{closure#0}> (inlined)
+                       |
+                        --7.44%--akantu_core::eigen_order::redux_tree::<<[[f64; 2]; 2] as akantu_core::tensor::MatrixExt<2, 2>>::double_dot::{closure#0}> (inlined)
+                                  |
+                                   --6.49%--akantu_core::eigen_order::redux_tree::<<[[f64; 2]; 2] as akantu_core::tensor::MatrixExt<2, 2>>::double_dot::{closure#0}> (inlined)
+                                             |
+                                              --3.60%--<akantu_core::eigen_order::Reduction>::reduce::<<[[f64; 3]; 3] as akantu_core::tensor::MatrixExt<3, 3>>::double_dot::{closure#0}> (inlined)
+                                                        <akantu_core::eigen_order::Reduction>::sum::<<[[f64; 3]; 3] as akantu_core::tensor::MatrixExt<3, 3>>::double_dot::{closure#0}> (inlined)
+                                                        akantu_core::eigen_order::sum::<<[[f64; 3]; 3] as akantu_core::tensor::MatrixExt<3, 3>>::double_dot::{closure#0}> (inlined)
+                                                        <[[f64; 3]; 3] as akantu_core::tensor::MatrixExt<3, 3>>::double_dot (inlined)
+     7.01%  suite_solid        [.] akantu_solid::materials::plastic::j2_small_strain_quad::<3>
+            |
+             --3.52%--core::ptr::copy_nonoverlapping::<f64> (inlined)
+                       core::slice::copy_from_slice_impl::<f64> (inlined)
+                       <[f64]>::copy_from_slice (inlined)
+                       akantu_solid::materials::plastic::j2_small_strain_quad::<3>
+                       <akantu_solid::materials::plastic::MaterialLinearIsotropicHardening<3>>::j2_block (inlined)
+                       <akantu_solid::materials::plastic::MaterialLinearIsotropicHardening<3> as akantu_solid::material::Material>::compute_stress
+                       <akantu_solid::materials::plastic::MaterialLinearIsotropicHardening<3> as akantu_solid::material::Material>::compute_all_stresses
+                       |
+                        --3.04%--<akantu_solid::model::SolidMechanicsPhysics>::assemble_internal_forces::{closure#2} (inlined)
+                                  core::iter::traits::iterator::Iterator::try_for_each::call::<&mut alloc::boxed::Box<dyn akantu_solid::material::Material>, core::result::Result<(), akantu_core::error::Error>, <akantu_solid::model::SolidMechanicsPhysics>::assemble_internal_forces::{closure#2}>::{closure#0} (inlined)
+                                  <core::slice::iter::IterMut<alloc::boxed::Box<dyn akantu_solid::material::Material>> as core::iter::traits::iterator::Iterator>::try_fold::<(), core::iter::traits::iterator::Iterator::try_for_each::call<&mut alloc::boxed::Box<dyn akantu_solid::material::Material>, core::result::Result<(), akantu_core::error::Error>, <akantu_solid::model::SolidMechanicsPhysics>::assemble_internal_forces::{closure#2}>::{closure#0}, core::result::Result<(), akantu_core::error::Error>> (inlined)
+                                  <core::slice::iter::IterMut<alloc::boxed::Box<dyn akantu_solid::material::Material>> as core::iter::traits::iterator::Iterator>::try_for_each::<<akantu_solid::model::SolidMechanicsPhysics>::assemble_internal_forces::{closure#2}, core::result::Result<(), akantu_core::error::Error>> (inlined)
+                                  <akantu_solid::model::SolidMechanicsPhysics>::assemble_internal_forces
+     5.08%  suite_solid        [.] akantu_fe::engine::fast::btd
+            |
+             --3.67%--akantu_fe::engine::fast::btd_impl::<3, 3> (inlined)
+                       akantu_fe::engine::fast::btd
+                       <akantu_fe::engine::FeEngine>::compute_btd
+                       akantu_solid::model::assembly::assemble_internal_forces_of
+                       <akantu_solid::model::SolidMechanicsPhysics>::assemble_internal_forces
+     4.97%  suite_solid        [.] akantu_fe::engine::fast::gradient::<akantu_fe::element_class::types::Tetrahedron4>
+     4.54%  libc.so.6          [.] 0x00000000001a16c6
+            |
+            ---0x7714535a16c6
+               core::ptr::copy_nonoverlapping::<f64> (inlined)
+     4.49%  [kernel.kallsyms]  [k] clear_page_erms
+            |
+            ---clear_page_erms
+               get_page_from_freelist
+               __alloc_pages
+               alloc_pages_mpol
+               |
+                --4.46%--vma_alloc_folio
+                          alloc_anon_folio
+                          do_anonymous_page
+                          handle_pte_fault
+                          __handle_mm_fault
+                          handle_mm_fault
+                          do_user_addr_fault
+                          exc_page_fault
+                          asm_exc_page_fault
+     4.23%  suite_solid        [.] akantu_core::eigen_order::redux_tree::<<[[f64; 2]; 2] as akantu_core::tensor::MatrixExt<2, 2>>::squared_norm::{closure#0}>
+            |
+             --4.08%--akantu_core::eigen_order::redux_tree::<<[[f64; 2]; 2] as akantu_core::tensor::MatrixExt<2, 2>>::squared_norm::{closure#0}>
+                       |
+                        --3.85%--akantu_core::eigen_order::redux_tree::<<[[f64; 2]; 2] as akantu_core::tensor::MatrixExt<2, 2>>::squared_norm::{closure#0}>
+                                  |
+                                   --3.60%--akantu_core::eigen_order::redux_tree::<<[[f64; 2]; 2] as akantu_core::tensor::MatrixExt<2, 2>>::squared_norm::{closure#0}>
+     4.05%  [kernel.kallsyms]  [k] asm_exc_page_fault
+            |
+            ---asm_exc_page_fault
+     3.84%  libc.so.6          [.] 0x00000000001a16db
+            |
+            ---0x7714535a16db
+               core::ptr::copy_nonoverlapping::<f64> (inlined)
+     3.70%  suite_solid        [.] akantu_fe::engine::fast::integrate::<<akantu_fe::engine::FeEngine>::integrate::{closure#0}>
+     3.08%  [kernel.kallsyms]  [k] folio_remove_rmap_ptes
+            |
+            ---folio_remove_rmap_ptes
+               zap_pte_range
+               zap_pmd_range.isra.0
+               unmap_page_range
+               unmap_single_vma
+               unmap_vmas
+               unmap_region
+               do_vmi_align_munmap
+               |
+                --3.05%--__do_sys_brk
+                          __x64_sys_brk
+                          x64_sys_call
+                          do_syscall_64
+                          entry_SYSCALL_64_after_hwframe
+                          brk
+                          __sbrk
+                          __default_morecore
+                          0x7714534aaba3
+                          cfree
+                          alloc::alloc::dealloc_nonnull (inlined)
+                          <alloc::alloc::Global>::deallocate_impl_runtime (inlined)
+                          <alloc::alloc::Global>::deallocate_impl (inlined)
+                          <alloc::alloc::Global as core::alloc::Allocator>::deallocate (inlined)
+                          <alloc::raw_vec::RawVecInner>::deallocate (inlined)
+                          <alloc::raw_vec::RawVec<f64> as core::ops::drop::Drop>::drop (inlined)
+                          core::ptr::drop_glue::<alloc::raw_vec::RawVec<f64>> (inlined)
+                          core::ptr::drop_glue::<alloc::vec::Vec<f64>> (inlined)
+                          core::ptr::drop_glue::<akantu_core::array_storage::ArrayStorage<f64>>
+                          core::ptr::drop_glue::<akantu_core::array::Array<f64>>
+                          <akantu_solid::materials::plastic::MaterialLinearIsotropicHardening<3>>::j2_block (inlined)
+                          <akantu_solid::materials::plastic::MaterialLinearIsotropicHardening<3> as akantu_solid::material::Material>::compute_stress
+                          <akantu_solid::materials::plastic::MaterialLinearIsotropicHardening<3> as akantu_solid::material::Material>::compute_all_stresses

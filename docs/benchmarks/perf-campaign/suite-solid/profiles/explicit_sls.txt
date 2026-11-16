@@ -1,0 +1,396 @@
+# Profile of suite case explicit_sls
+
+binary: /home/user/akantu-rs/target/release/suite_solid (fbbd93f860169f3a)
+command: taskset -c 2 /home/user/akantu-rs/target/release/suite_solid --case explicit_sls --size m --loop-seconds 10
+perf: perf record -F 499 --call-graph dwarf,16384
+cpu: AMD EPYC 4585PX 16-Core Processor
+date_utc: 2026-11-16T07:15:15Z
+commit: c698395e8
+
+## Phases of the profiled run (seconds, calls)
+
+mesh                         0.0021 s       1 calls
+init                         0.0558 s       1 calls
+stable_time_step             0.0183 s       5 calls
+solve_step                  12.3069 s     480 calls
+predictor                    0.0002 s     480 calls
+residual                    10.7037 s     480 calls
+lumped_matrix                0.0004 s     480 calls
+corrector                    0.0003 s     480 calls
+step_hooks                   1.3622 s     960 calls
+step_rest                    0.2384 s     480 calls
+internal_forces              0.5370 s      24 calls
+stresses                     0.4547 s      24 calls
+energies                     0.1934 s      24 calls
+
+## Top 25 symbols, self time
+
+    12.43%  [.] akantu_core::eigen_order::redux_tree::<<[[f64; 2]; 2] as akantu_core::tensor::MatrixExt<2, 2>>::double_dot::{closure#0}>
+     6.05%  [k] clear_page_erms
+     6.04%  [k] down_read_trylock
+     5.04%  [.] <akantu_solid::materials::sls_deviatoric::MaterialStandardLinearSolidDeviatoric<3> as akantu_solid::material::Material>::compute_stress
+     4.47%  [k] folio_remove_rmap_ptes
+     4.23%  [.] akantu_fe::engine::fast::gradient::<akantu_fe::element_class::types::Tetrahedron4>
+     4.10%  [.] akantu_fe::engine::fast::btd
+     3.52%  [k] _raw_spin_lock
+     2.87%  [.] <akantu_solver::dof_manager::DofManager>::assemble_elemental_array_local_view
+     2.83%  [.] 0x00000000001a16c6
+     2.72%  [.] akantu_fe::engine::fast::integrate::<<akantu_fe::engine::FeEngine>::integrate::{closure#0}>
+     2.71%  [k] __pte_offset_map
+     2.57%  [.] 0x00000000001a1779
+     2.38%  [k] asm_exc_page_fault
+     2.26%  [.] 0x00000000001a177f
+     2.20%  [k] __raw_callee_save___pv_queued_spin_unlock
+     2.17%  [.] 0x00000000001a16ef
+     2.07%  [.] 0x00000000001a16db
+     1.99%  [.] akantu_solid::material::grad_u_in_place
+     1.92%  [.] 0x00000000001a1794
+     1.74%  [.] 0x00000000001a16cd
+     1.48%  [k] folio_add_lru
+     1.38%  [.] 0x00000000001a16d4
+     1.31%  [.] 0x00000000001a176b
+     1.20%  [k] zap_pte_range
+
+## Top 25 symbols, inclusive time (children)
+
+    51.41%     0.00%  [.] akantu_bench::suite_solid::explicit::run
+    46.75%     0.00%  [.] <akantu_solid::model::SolidMechanicsPhysics>::assemble_internal_forces
+    45.89%     0.00%  [.] <akantu_bench::suite::Ctx>::repeat_impl::<akantu_bench::suite_solid::common::timed_steps<akantu_bench::suite_solid::explicit::run::{closure#3}>::{closure#0}>
+    45.89%     0.00%  [.] <akantu_bench::suite::Ctx>::repeat_primary::<akantu_bench::suite_solid::common::timed_steps<akantu_bench::suite_solid::explicit::run::{closure#3}>::{closure#0}> (inlined)
+    45.89%     0.00%  [.] <akantu_solver::dof_manager::DofManager>::collective::<(), <akantu_solver::non_linear_lumped::NonLinearSolverLumped as akantu_solver::non_linear::NonLinearSolver>::solve::{closure#0}>
+    45.89%     0.00%  [.] akantu_bench::suite_solid::common::timed_steps::<akantu_bench::suite_solid::explicit::run::{closure#3}>
+    45.89%     0.00%  [.] akantu_bench::suite_solid::common::timed_steps::<akantu_bench::suite_solid::explicit::run::{closure#3}>::{closure#0} (inlined)
+    45.89%     0.00%  [.] <akantu_solver::time_step::TimeStepSolver>::solve_step (inlined)
+    45.89%     0.00%  [.] <akantu_solver::model_solver::ModelSolver>::solve_step
+    45.89%     0.00%  [.] <akantu_solver::model_solver::ModelSolver>::solve_step_intercepted
+    45.89%     0.00%  [.] <akantu_solver::non_linear_lumped::NonLinearSolverLumped as akantu_solver::non_linear::NonLinearSolver>::solve
+    45.86%     0.00%  [.] <akantu_solver::non_linear_lumped::NonLinearSolverLumped as akantu_solver::non_linear::NonLinearSolver>::solve::{closure#0} (inlined)
+    44.91%     0.00%  [.] <akantu_solver::dof_manager::DofManager>::step::<(), <akantu_solver::non_linear_lumped::NonLinearSolverLumped as akantu_solver::non_linear::NonLinearSolver>::solve::{closure#0}::{closure#2}> (inlined)
+    44.89%     0.00%  [.] <akantu_solver::non_linear_lumped::NonLinearSolverLumped as akantu_solver::non_linear::NonLinearSolver>::solve::{closure#0}::{closure#2} (inlined)
+    44.89%     0.00%  [.] <akantu_solver::time_step::Adapter as akantu_solver::callback::SolverCallback>::assemble_residual
+    44.57%     0.01%  [.] <akantu_bench::suite_solid::common::StepSplit as akantu_solver::callback::InterceptCallback>::assemble_residual
+    44.57%     0.00%  [.] <akantu_bench::suite_solid::common::StepSplit>::time::<<akantu_bench::suite_solid::common::StepSplit as akantu_solver::callback::InterceptCallback>::assemble_residual::{closure#0}> (inlined)
+    44.57%     0.00%  [.] <akantu_solver::dof_manager::DofManager>::step::<(), <akantu_solver::non_linear_newton_raphson::NonLinearSolverNewtonRaphson>::assemble_residual::{closure#2}>
+    44.57%     0.00%  [.] akantu_solver::time_step::model_step::<(), <akantu_solver::time_step::Adapter as akantu_solver::callback::SolverCallback>::assemble_residual::{closure#0}> (inlined)
+    44.57%     0.00%  [.] <akantu_solver::non_linear_newton_raphson::NonLinearSolverNewtonRaphson>::assemble_residual::{closure#2} (inlined)
+    44.57%     0.00%  [.] <akantu_solver::callback::Intercept as akantu_solver::callback::SolverCallback>::assemble_residual
+    44.56%     0.00%  [.] <akantu_bench::suite_solid::common::StepSplit as akantu_solver::callback::InterceptCallback>::assemble_residual::{closure#0} (inlined)
+    44.56%     0.00%  [.] <akantu_solid::model::SolidMechanicsPhysics>::assemble_residual
+    36.55%     0.00%  [.] <core::slice::iter::IterMut<alloc::boxed::Box<dyn akantu_solid::material::Material>> as core::iter::traits::iterator::Iterator>::try_for_each::<<akantu_solid::model::SolidMechanicsPhysics>::assemble_internal_forces::{closure#2}, core::result::Result<(), akantu_core::error::Error>> (inlined)
+    36.55%     0.00%  [.] <core::slice::iter::IterMut<alloc::boxed::Box<dyn akantu_solid::material::Material>> as core::iter::traits::iterator::Iterator>::try_fold::<(), core::iter::traits::iterator::Iterator::try_for_each::call<&mut alloc::boxed::Box<dyn akantu_solid::material::Material>, core::result::Result<(), akantu_core::error::Error>, <akantu_solid::model::SolidMechanicsPhysics>::assemble_internal_forces::{closure#2}>::{closure#0}, core::result::Result<(), akantu_core::error::Error>> (inlined)
+
+## Call chains (callers of the hottest self-time symbols, entries above 2 %)
+
+    12.43%  [.] akantu_core::eigen_order::redux_tree::<<[[f64; 2]; 2] as akantu_core::tensor::MatrixExt<2, 2>>::double_dot::{closure#0}>
+            |
+             --11.93%--akantu_core::eigen_order::redux_tree::<<[[f64; 2]; 2] as akantu_core::tensor::MatrixExt<2, 2>>::double_dot::{closure#0}> (inlined)
+                       |
+                        --11.78%--akantu_core::eigen_order::redux_tree::<<[[f64; 2]; 2] as akantu_core::tensor::MatrixExt<2, 2>>::double_dot::{closure#0}> (inlined)
+                                  |
+                                   --11.21%--akantu_core::eigen_order::redux_tree::<<[[f64; 2]; 2] as akantu_core::tensor::MatrixExt<2, 2>>::double_dot::{closure#0}> (inlined)
+                                             |
+                                             |--6.44%--akantu_core::eigen_order::redux_tree::<<[[f64; 2]; 2] as akantu_core::tensor::MatrixExt<2, 2>>::double_dot::{closure#0}> (inlined)
+                                             |          |
+                                             |           --6.26%--<akantu_core::eigen_order::Reduction>::reduce::<<[[f64; 3]; 3] as akantu_core::tensor::MatrixExt<3, 3>>::double_dot::{closure#0}> (inlined)
+                                             |                     <akantu_core::eigen_order::Reduction>::sum::<<[[f64; 3]; 3] as akantu_core::tensor::MatrixExt<3, 3>>::double_dot::{closure#0}> (inlined)
+                                             |                     akantu_core::eigen_order::sum::<<[[f64; 3]; 3] as akantu_core::tensor::MatrixExt<3, 3>>::double_dot::{closure#0}> (inlined)
+                                             |                     <[[f64; 3]; 3] as akantu_core::tensor::MatrixExt<3, 3>>::double_dot (inlined)
+                                             |                     |
+                                             |                      --5.96%--<akantu_solid::materials::sls_deviatoric::SlsConstants>::on_quad::<3> (inlined)
+                                             |                                <akantu_solid::materials::sls_deviatoric::MaterialStandardLinearSolidDeviatoric<3> as akantu_solid::material::Material>::compute_stress
+                                             |                                <akantu_solid::materials::sls_deviatoric::MaterialStandardLinearSolidDeviatoric<3> as akantu_solid::material::Material>::compute_all_stresses
+                                             |                                |
+                                             |                                 --5.75%--<akantu_solid::model::SolidMechanicsPhysics>::assemble_internal_forces::{closure#2} (inlined)
+                                             |                                           core::iter::traits::iterator::Iterator::try_for_each::call::<&mut alloc::boxed::Box<dyn akantu_solid::material::Material>, core::result::Result<(), akantu_core::error::Error>, <akantu_solid::model::SolidMechanicsPhysics>::assemble_internal_forces::{closure#2}>::{closure#0} (inlined)
+                                             |                                           <core::slice::iter::IterMut<alloc::boxed::Box<dyn akantu_solid::material::Material>> as core::iter::traits::iterator::Iterator>::try_fold::<(), core::iter::traits::iterator::Iterator::try_for_each::call<&mut alloc::boxed::Box<dyn akantu_solid::material::Material>, core::result::Result<(), akantu_core::error::Error>, <akantu_solid::model::SolidMechanicsPhysics>::assemble_internal_forces::{closure#2}>::{closure#0}, core::result::Result<(), akantu_core::error::Error>> (inlined)
+                                             |                                           <core::slice::iter::IterMut<alloc::boxed::Box<dyn akantu_solid::material::Material>> as core::iter::traits::iterator::Iterator>::try_for_each::<<akantu_solid::model::SolidMechanicsPhysics>::assemble_internal_forces::{closure#2}, core::result::Result<(), akantu_core::error::Error>> (inlined)
+                                             |                                           <akantu_solid::model::SolidMechanicsPhysics>::assemble_internal_forces
+                                             |                                           |
+                                             |                                            --5.38%--<akantu_solid::model::SolidMechanicsPhysics>::assemble_residual
+                                             |                                                      <akantu_bench::suite_solid::common::StepSplit as akantu_solver::callback::InterceptCallback>::assemble_residual::{closure#0} (inlined)
+                                             |                                                      <akantu_bench::suite_solid::common::StepSplit>::time::<<akantu_bench::suite_solid::common::StepSplit as akantu_solver::callback::InterceptCallback>::assemble_residual::{closure#0}> (inlined)
+                                             |                                                      <akantu_bench::suite_solid::common::StepSplit as akantu_solver::callback::InterceptCallback>::assemble_residual
+                                             |                                                      <akantu_solver::callback::Intercept as akantu_solver::callback::SolverCallback>::assemble_residual
+                                             |                                                      <akantu_solver::non_linear_newton_raphson::NonLinearSolverNewtonRaphson>::assemble_residual::{closure#2} (inlined)
+                                             |                                                      <akantu_solver::dof_manager::DofManager>::step::<(), <akantu_solver::non_linear_newton_raphson::NonLinearSolverNewtonRaphson>::assemble_residual::{closure#2}>
+                                             |                                                      akantu_solver::time_step::model_step::<(), <akantu_solver::time_step::Adapter as akantu_solver::callback::SolverCallback>::assemble_residual::{closure#0}> (inlined)
+                                             |                                                      <akantu_solver::time_step::Adapter as akantu_solver::callback::SolverCallback>::assemble_residual
+                                             |                                                      <akantu_solver::non_linear_lumped::NonLinearSolverLumped as akantu_solver::non_linear::NonLinearSolver>::solve::{closure#0}::{closure#2} (inlined)
+                                             |                                                      <akantu_solver::dof_manager::DofManager>::step::<(), <akantu_solver::non_linear_lumped::NonLinearSolverLumped as akantu_solver::non_linear::NonLinearSolver>::solve::{closure#0}::{closure#2}> (inlined)
+                                             |                                                      <akantu_solver::non_linear_lumped::NonLinearSolverLumped as akantu_solver::non_linear::NonLinearSolver>::solve::{closure#0} (inlined)
+                                             |                                                      <akantu_solver::dof_manager::DofManager>::collective::<(), <akantu_solver::non_linear_lumped::NonLinearSolverLumped as akantu_solver::non_linear::NonLinearSolver>::solve::{closure#0}>
+                                             |                                                      <akantu_solver::non_linear_lumped::NonLinearSolverLumped as akantu_solver::non_linear::NonLinearSolver>::solve
+                                             |                                                      <akantu_solver::time_step::TimeStepSolver>::solve_step (inlined)
+                                             |                                                      <akantu_solver::model_solver::ModelSolver>::solve_step
+                                             |                                                      <akantu_solver::model_solver::ModelSolver>::solve_step_intercepted
+                                             |                                                      <akantu_solid::model::SolidMechanicsModel>::solve_step_intercepted
+                                             |                                                      akantu_bench::suite_solid::common::timed_steps::<akantu_bench::suite_solid::explicit::run::{closure#3}>::{closure#0} (inlined)
+                                             |                                                      <akantu_bench::suite::Ctx>::repeat_impl::<akantu_bench::suite_solid::common::timed_steps<akantu_bench::suite_solid::explicit::run::{closure#3}>::{closure#0}>
+                                             |                                                      <akantu_bench::suite::Ctx>::repeat_primary::<akantu_bench::suite_solid::common::timed_steps<akantu_bench::suite_solid::explicit::run::{closure#3}>::{closure#0}> (inlined)
+                                             |                                                      akantu_bench::suite_solid::common::timed_steps::<akantu_bench::suite_solid::explicit::run::{closure#3}>
+                                             |                                                      akantu_bench::suite_solid::explicit::run
+                                             |                                                      0xffffffffffffffff
+                                             |
+                                              --4.76%--<akantu_core::eigen_order::Reduction>::reduce::<<[[f64; 3]; 3] as akantu_core::tensor::MatrixExt<3, 3>>::double_dot::{closure#0}> (inlined)
+                                                        <akantu_core::eigen_order::Reduction>::sum::<<[[f64; 3]; 3] as akantu_core::tensor::MatrixExt<3, 3>>::double_dot::{closure#0}> (inlined)
+                                                        akantu_core::eigen_order::sum::<<[[f64; 3]; 3] as akantu_core::tensor::MatrixExt<3, 3>>::double_dot::{closure#0}> (inlined)
+                                                        <[[f64; 3]; 3] as akantu_core::tensor::MatrixExt<3, 3>>::double_dot (inlined)
+                                                        |
+                                                         --4.41%--<akantu_solid::materials::sls_deviatoric::SlsConstants>::on_quad::<3> (inlined)
+                                                                   <akantu_solid::materials::sls_deviatoric::MaterialStandardLinearSolidDeviatoric<3> as akantu_solid::material::Material>::compute_stress
+                                                                   <akantu_solid::materials::sls_deviatoric::MaterialStandardLinearSolidDeviatoric<3> as akantu_solid::material::Material>::compute_all_stresses
+                                                                   |
+                                                                    --4.14%--<akantu_solid::model::SolidMechanicsPhysics>::assemble_internal_forces::{closure#2} (inlined)
+                                                                              core::iter::traits::iterator::Iterator::try_for_each::call::<&mut alloc::boxed::Box<dyn akantu_solid::material::Material>, core::result::Result<(), akantu_core::error::Error>, <akantu_solid::model::SolidMechanicsPhysics>::assemble_internal_forces::{closure#2}>::{closure#0} (inlined)
+                                                                              <core::slice::iter::IterMut<alloc::boxed::Box<dyn akantu_solid::material::Material>> as core::iter::traits::iterator::Iterator>::try_fold::<(), core::iter::traits::iterator::Iterator::try_for_each::call<&mut alloc::boxed::Box<dyn akantu_solid::material::Material>, core::result::Result<(), akantu_core::error::Error>, <akantu_solid::model::SolidMechanicsPhysics>::assemble_internal_forces::{closure#2}>::{closure#0}, core::result::Result<(), akantu_core::error::Error>> (inlined)
+                                                                              <core::slice::iter::IterMut<alloc::boxed::Box<dyn akantu_solid::material::Material>> as core::iter::traits::iterator::Iterator>::try_for_each::<<akantu_solid::model::SolidMechanicsPhysics>::assemble_internal_forces::{closure#2}, core::result::Result<(), akantu_core::error::Error>> (inlined)
+                                                                              <akantu_solid::model::SolidMechanicsPhysics>::assemble_internal_forces
+                                                                              |
+                                                                               --3.90%--<akantu_solid::model::SolidMechanicsPhysics>::assemble_residual
+                                                                                         <akantu_bench::suite_solid::common::StepSplit as akantu_solver::callback::InterceptCallback>::assemble_residual::{closure#0} (inlined)
+                                                                                         <akantu_bench::suite_solid::common::StepSplit>::time::<<akantu_bench::suite_solid::common::StepSplit as akantu_solver::callback::InterceptCallback>::assemble_residual::{closure#0}> (inlined)
+                                                                                         <akantu_bench::suite_solid::common::StepSplit as akantu_solver::callback::InterceptCallback>::assemble_residual
+                                                                                         <akantu_solver::callback::Intercept as akantu_solver::callback::SolverCallback>::assemble_residual
+                                                                                         <akantu_solver::non_linear_newton_raphson::NonLinearSolverNewtonRaphson>::assemble_residual::{closure#2} (inlined)
+                                                                                         <akantu_solver::dof_manager::DofManager>::step::<(), <akantu_solver::non_linear_newton_raphson::NonLinearSolverNewtonRaphson>::assemble_residual::{closure#2}>
+                                                                                         akantu_solver::time_step::model_step::<(), <akantu_solver::time_step::Adapter as akantu_solver::callback::SolverCallback>::assemble_residual::{closure#0}> (inlined)
+                                                                                         <akantu_solver::time_step::Adapter as akantu_solver::callback::SolverCallback>::assemble_residual
+                                                                                         <akantu_solver::non_linear_lumped::NonLinearSolverLumped as akantu_solver::non_linear::NonLinearSolver>::solve::{closure#0}::{closure#2} (inlined)
+                                                                                         <akantu_solver::dof_manager::DofManager>::step::<(), <akantu_solver::non_linear_lumped::NonLinearSolverLumped as akantu_solver::non_linear::NonLinearSolver>::solve::{closure#0}::{closure#2}> (inlined)
+                                                                                         <akantu_solver::non_linear_lumped::NonLinearSolverLumped as akantu_solver::non_linear::NonLinearSolver>::solve::{closure#0} (inlined)
+                                                                                         <akantu_solver::dof_manager::DofManager>::collective::<(), <akantu_solver::non_linear_lumped::NonLinearSolverLumped as akantu_solver::non_linear::NonLinearSolver>::solve::{closure#0}>
+                                                                                         <akantu_solver::non_linear_lumped::NonLinearSolverLumped as akantu_solver::non_linear::NonLinearSolver>::solve
+                                                                                         <akantu_solver::time_step::TimeStepSolver>::solve_step (inlined)
+                                                                                         <akantu_solver::model_solver::ModelSolver>::solve_step
+                                                                                         <akantu_solver::model_solver::ModelSolver>::solve_step_intercepted
+                                                                                         <akantu_solid::model::SolidMechanicsModel>::solve_step_intercepted
+                                                                                         akantu_bench::suite_solid::common::timed_steps::<akantu_bench::suite_solid::explicit::run::{closure#3}>::{closure#0} (inlined)
+                                                                                         <akantu_bench::suite::Ctx>::repeat_impl::<akantu_bench::suite_solid::common::timed_steps<akantu_bench::suite_solid::explicit::run::{closure#3}>::{closure#0}>
+                                                                                         <akantu_bench::suite::Ctx>::repeat_primary::<akantu_bench::suite_solid::common::timed_steps<akantu_bench::suite_solid::explicit::run::{closure#3}>::{closure#0}> (inlined)
+                                                                                         akantu_bench::suite_solid::common::timed_steps::<akantu_bench::suite_solid::explicit::run::{closure#3}>
+                                                                                         akantu_bench::suite_solid::explicit::run
+                                                                                         0xffffffffffffffff
+     6.05%  [k] clear_page_erms
+            |
+            ---get_page_from_freelist
+               __alloc_pages
+               alloc_pages_mpol
+               |
+                --6.02%--vma_alloc_folio
+                          alloc_anon_folio
+                          do_anonymous_page
+                          handle_pte_fault
+                          __handle_mm_fault
+                          handle_mm_fault
+                          do_user_addr_fault
+                          exc_page_fault
+                          asm_exc_page_fault
+                          |
+                          |--2.83%--<akantu_solid::materials::sls_deviatoric::MaterialStandardLinearSolidDeviatoric<3> as akantu_solid::material::Material>::compute_stress
+                          |          <akantu_solid::materials::sls_deviatoric::MaterialStandardLinearSolidDeviatoric<3> as akantu_solid::material::Material>::compute_all_stresses
+                          |          |
+                          |           --2.68%--<akantu_solid::model::SolidMechanicsPhysics>::assemble_internal_forces::{closure#2} (inlined)
+                          |                     core::iter::traits::iterator::Iterator::try_for_each::call::<&mut alloc::boxed::Box<dyn akantu_solid::material::Material>, core::result::Result<(), akantu_core::error::Error>, <akantu_solid::model::SolidMechanicsPhysics>::assemble_internal_forces::{closure#2}>::{closure#0} (inlined)
+                          |                     <core::slice::iter::IterMut<alloc::boxed::Box<dyn akantu_solid::material::Material>> as core::iter::traits::iterator::Iterator>::try_fold::<(), core::iter::traits::iterator::Iterator::try_for_each::call<&mut alloc::boxed::Box<dyn akantu_solid::material::Material>, core::result::Result<(), akantu_core::error::Error>, <akantu_solid::model::SolidMechanicsPhysics>::assemble_internal_forces::{closure#2}>::{closure#0}, core::result::Result<(), akantu_core::error::Error>> (inlined)
+                          |                     <core::slice::iter::IterMut<alloc::boxed::Box<dyn akantu_solid::material::Material>> as core::iter::traits::iterator::Iterator>::try_for_each::<<akantu_solid::model::SolidMechanicsPhysics>::assemble_internal_forces::{closure#2}, core::result::Result<(), akantu_core::error::Error>> (inlined)
+                          |                     <akantu_solid::model::SolidMechanicsPhysics>::assemble_internal_forces
+                          |                     |
+                          |                      --2.59%--<akantu_solid::model::SolidMechanicsPhysics>::assemble_residual
+                          |                                <akantu_bench::suite_solid::common::StepSplit as akantu_solver::callback::InterceptCallback>::assemble_residual::{closure#0} (inlined)
+                          |                                <akantu_bench::suite_solid::common::StepSplit>::time::<<akantu_bench::suite_solid::common::StepSplit as akantu_solver::callback::InterceptCallback>::assemble_residual::{closure#0}> (inlined)
+                          |                                <akantu_bench::suite_solid::common::StepSplit as akantu_solver::callback::InterceptCallback>::assemble_residual
+                          |                                <akantu_solver::callback::Intercept as akantu_solver::callback::SolverCallback>::assemble_residual
+                          |                                <akantu_solver::non_linear_newton_raphson::NonLinearSolverNewtonRaphson>::assemble_residual::{closure#2} (inlined)
+                          |                                <akantu_solver::dof_manager::DofManager>::step::<(), <akantu_solver::non_linear_newton_raphson::NonLinearSolverNewtonRaphson>::assemble_residual::{closure#2}>
+                          |                                akantu_solver::time_step::model_step::<(), <akantu_solver::time_step::Adapter as akantu_solver::callback::SolverCallback>::assemble_residual::{closure#0}> (inlined)
+                          |                                <akantu_solver::time_step::Adapter as akantu_solver::callback::SolverCallback>::assemble_residual
+                          |                                <akantu_solver::non_linear_lumped::NonLinearSolverLumped as akantu_solver::non_linear::NonLinearSolver>::solve::{closure#0}::{closure#2} (inlined)
+                          |                                <akantu_solver::dof_manager::DofManager>::step::<(), <akantu_solver::non_linear_lumped::NonLinearSolverLumped as akantu_solver::non_linear::NonLinearSolver>::solve::{closure#0}::{closure#2}> (inlined)
+                          |                                <akantu_solver::non_linear_lumped::NonLinearSolverLumped as akantu_solver::non_linear::NonLinearSolver>::solve::{closure#0} (inlined)
+                          |                                <akantu_solver::dof_manager::DofManager>::collective::<(), <akantu_solver::non_linear_lumped::NonLinearSolverLumped as akantu_solver::non_linear::NonLinearSolver>::solve::{closure#0}>
+                          |                                <akantu_solver::non_linear_lumped::NonLinearSolverLumped as akantu_solver::non_linear::NonLinearSolver>::solve
+                          |                                <akantu_solver::time_step::TimeStepSolver>::solve_step (inlined)
+                          |                                <akantu_solver::model_solver::ModelSolver>::solve_step
+                          |                                <akantu_solver::model_solver::ModelSolver>::solve_step_intercepted
+                          |                                <akantu_solid::model::SolidMechanicsModel>::solve_step_intercepted
+                          |                                akantu_bench::suite_solid::common::timed_steps::<akantu_bench::suite_solid::explicit::run::{closure#3}>::{closure#0} (inlined)
+                          |                                <akantu_bench::suite::Ctx>::repeat_impl::<akantu_bench::suite_solid::common::timed_steps<akantu_bench::suite_solid::explicit::run::{closure#3}>::{closure#0}>
+                          |                                <akantu_bench::suite::Ctx>::repeat_primary::<akantu_bench::suite_solid::common::timed_steps<akantu_bench::suite_solid::explicit::run::{closure#3}>::{closure#0}> (inlined)
+                          |                                akantu_bench::suite_solid::common::timed_steps::<akantu_bench::suite_solid::explicit::run::{closure#3}>
+                          |                                akantu_bench::suite_solid::explicit::run
+                          |                                0xffffffffffffffff
+                          |
+                           --2.03%--0x7b58667a16e2
+     6.04%  [k] down_read_trylock
+            |
+            ---do_user_addr_fault
+               exc_page_fault
+               asm_exc_page_fault
+               |
+                --2.94%--<akantu_solid::materials::sls_deviatoric::MaterialStandardLinearSolidDeviatoric<3> as akantu_solid::material::Material>::compute_stress
+                          <akantu_solid::materials::sls_deviatoric::MaterialStandardLinearSolidDeviatoric<3> as akantu_solid::material::Material>::compute_all_stresses
+                          |
+                           --2.78%--<akantu_solid::model::SolidMechanicsPhysics>::assemble_internal_forces::{closure#2} (inlined)
+                                     core::iter::traits::iterator::Iterator::try_for_each::call::<&mut alloc::boxed::Box<dyn akantu_solid::material::Material>, core::result::Result<(), akantu_core::error::Error>, <akantu_solid::model::SolidMechanicsPhysics>::assemble_internal_forces::{closure#2}>::{closure#0} (inlined)
+                                     <core::slice::iter::IterMut<alloc::boxed::Box<dyn akantu_solid::material::Material>> as core::iter::traits::iterator::Iterator>::try_fold::<(), core::iter::traits::iterator::Iterator::try_for_each::call<&mut alloc::boxed::Box<dyn akantu_solid::material::Material>, core::result::Result<(), akantu_core::error::Error>, <akantu_solid::model::SolidMechanicsPhysics>::assemble_internal_forces::{closure#2}>::{closure#0}, core::result::Result<(), akantu_core::error::Error>> (inlined)
+                                     <core::slice::iter::IterMut<alloc::boxed::Box<dyn akantu_solid::material::Material>> as core::iter::traits::iterator::Iterator>::try_for_each::<<akantu_solid::model::SolidMechanicsPhysics>::assemble_internal_forces::{closure#2}, core::result::Result<(), akantu_core::error::Error>> (inlined)
+                                     <akantu_solid::model::SolidMechanicsPhysics>::assemble_internal_forces
+                                     |
+                                      --2.69%--<akantu_solid::model::SolidMechanicsPhysics>::assemble_residual
+                                                <akantu_bench::suite_solid::common::StepSplit as akantu_solver::callback::InterceptCallback>::assemble_residual::{closure#0} (inlined)
+                                                <akantu_bench::suite_solid::common::StepSplit>::time::<<akantu_bench::suite_solid::common::StepSplit as akantu_solver::callback::InterceptCallback>::assemble_residual::{closure#0}> (inlined)
+                                                <akantu_bench::suite_solid::common::StepSplit as akantu_solver::callback::InterceptCallback>::assemble_residual
+                                                <akantu_solver::callback::Intercept as akantu_solver::callback::SolverCallback>::assemble_residual
+                                                <akantu_solver::non_linear_newton_raphson::NonLinearSolverNewtonRaphson>::assemble_residual::{closure#2} (inlined)
+                                                <akantu_solver::dof_manager::DofManager>::step::<(), <akantu_solver::non_linear_newton_raphson::NonLinearSolverNewtonRaphson>::assemble_residual::{closure#2}>
+                                                akantu_solver::time_step::model_step::<(), <akantu_solver::time_step::Adapter as akantu_solver::callback::SolverCallback>::assemble_residual::{closure#0}> (inlined)
+                                                <akantu_solver::time_step::Adapter as akantu_solver::callback::SolverCallback>::assemble_residual
+                                                <akantu_solver::non_linear_lumped::NonLinearSolverLumped as akantu_solver::non_linear::NonLinearSolver>::solve::{closure#0}::{closure#2} (inlined)
+                                                <akantu_solver::dof_manager::DofManager>::step::<(), <akantu_solver::non_linear_lumped::NonLinearSolverLumped as akantu_solver::non_linear::NonLinearSolver>::solve::{closure#0}::{closure#2}> (inlined)
+                                                <akantu_solver::non_linear_lumped::NonLinearSolverLumped as akantu_solver::non_linear::NonLinearSolver>::solve::{closure#0} (inlined)
+                                                <akantu_solver::dof_manager::DofManager>::collective::<(), <akantu_solver::non_linear_lumped::NonLinearSolverLumped as akantu_solver::non_linear::NonLinearSolver>::solve::{closure#0}>
+                                                <akantu_solver::non_linear_lumped::NonLinearSolverLumped as akantu_solver::non_linear::NonLinearSolver>::solve
+                                                <akantu_solver::time_step::TimeStepSolver>::solve_step (inlined)
+                                                <akantu_solver::model_solver::ModelSolver>::solve_step
+                                                <akantu_solver::model_solver::ModelSolver>::solve_step_intercepted
+                                                <akantu_solid::model::SolidMechanicsModel>::solve_step_intercepted
+                                                akantu_bench::suite_solid::common::timed_steps::<akantu_bench::suite_solid::explicit::run::{closure#3}>::{closure#0} (inlined)
+                                                <akantu_bench::suite::Ctx>::repeat_impl::<akantu_bench::suite_solid::common::timed_steps<akantu_bench::suite_solid::explicit::run::{closure#3}>::{closure#0}>
+                                                <akantu_bench::suite::Ctx>::repeat_primary::<akantu_bench::suite_solid::common::timed_steps<akantu_bench::suite_solid::explicit::run::{closure#3}>::{closure#0}> (inlined)
+                                                akantu_bench::suite_solid::common::timed_steps::<akantu_bench::suite_solid::explicit::run::{closure#3}>
+                                                akantu_bench::suite_solid::explicit::run
+                                                0xffffffffffffffff
+     5.04%  [.] <akantu_solid::materials::sls_deviatoric::MaterialStandardLinearSolidDeviatoric<3> as akantu_solid::material::Material>::compute_stress
+            |
+             --2.72%--<akantu_solid::materials::sls_deviatoric::SlsConstants>::on_quad::<3>::{closure#0}::{closure#0} (inlined)
+                       <core::ops::try_trait::NeverShortCircuit<f64>>::wrap_mut_1::<usize, <akantu_solid::materials::sls_deviatoric::SlsConstants>::on_quad<3>::{closure#0}::{closure#0}>::{closure#0} (inlined)
+                       core::array::try_from_fn_erased::<core::ops::try_trait::NeverShortCircuit<f64>, <core::ops::try_trait::NeverShortCircuit<f64>>::wrap_mut_1<usize, <akantu_solid::materials::sls_deviatoric::SlsConstants>::on_quad<3>::{closure#0}::{closure#0}>::{closure#0}> (inlined)
+                       core::array::try_from_fn::<core::ops::try_trait::NeverShortCircuit<f64>, 3, <core::ops::try_trait::NeverShortCircuit<f64>>::wrap_mut_1<usize, <akantu_solid::materials::sls_deviatoric::SlsConstants>::on_quad<3>::{closure#0}::{closure#0}>::{closure#0}> (inlined)
+                       core::array::from_fn::<f64, 3, <akantu_solid::materials::sls_deviatoric::SlsConstants>::on_quad<3>::{closure#0}::{closure#0}> (inlined)
+                       <akantu_solid::materials::sls_deviatoric::SlsConstants>::on_quad::<3>::{closure#0} (inlined)
+                       <core::ops::try_trait::NeverShortCircuit<[f64; 3]>>::wrap_mut_1::<usize, <akantu_solid::materials::sls_deviatoric::SlsConstants>::on_quad<3>::{closure#0}>::{closure#0} (inlined)
+                       core::array::try_from_fn_erased::<core::ops::try_trait::NeverShortCircuit<[f64; 3]>, <core::ops::try_trait::NeverShortCircuit<[f64; 3]>>::wrap_mut_1<usize, <akantu_solid::materials::sls_deviatoric::SlsConstants>::on_quad<3>::{closure#0}>::{closure#0}> (inlined)
+                       core::array::try_from_fn::<core::ops::try_trait::NeverShortCircuit<[f64; 3]>, 3, <core::ops::try_trait::NeverShortCircuit<[f64; 3]>>::wrap_mut_1<usize, <akantu_solid::materials::sls_deviatoric::SlsConstants>::on_quad<3>::{closure#0}>::{closure#0}> (inlined)
+                       core::array::from_fn::<[f64; 3], 3, <akantu_solid::materials::sls_deviatoric::SlsConstants>::on_quad<3>::{closure#0}> (inlined)
+                       <akantu_solid::materials::sls_deviatoric::SlsConstants>::on_quad::<3> (inlined)
+                       <akantu_solid::materials::sls_deviatoric::MaterialStandardLinearSolidDeviatoric<3> as akantu_solid::material::Material>::compute_stress
+                       <akantu_solid::materials::sls_deviatoric::MaterialStandardLinearSolidDeviatoric<3> as akantu_solid::material::Material>::compute_all_stresses
+                       |
+                        --2.57%--<akantu_solid::model::SolidMechanicsPhysics>::assemble_internal_forces::{closure#2} (inlined)
+                                  core::iter::traits::iterator::Iterator::try_for_each::call::<&mut alloc::boxed::Box<dyn akantu_solid::material::Material>, core::result::Result<(), akantu_core::error::Error>, <akantu_solid::model::SolidMechanicsPhysics>::assemble_internal_forces::{closure#2}>::{closure#0} (inlined)
+                                  <core::slice::iter::IterMut<alloc::boxed::Box<dyn akantu_solid::material::Material>> as core::iter::traits::iterator::Iterator>::try_fold::<(), core::iter::traits::iterator::Iterator::try_for_each::call<&mut alloc::boxed::Box<dyn akantu_solid::material::Material>, core::result::Result<(), akantu_core::error::Error>, <akantu_solid::model::SolidMechanicsPhysics>::assemble_internal_forces::{closure#2}>::{closure#0}, core::result::Result<(), akantu_core::error::Error>> (inlined)
+                                  <core::slice::iter::IterMut<alloc::boxed::Box<dyn akantu_solid::material::Material>> as core::iter::traits::iterator::Iterator>::try_for_each::<<akantu_solid::model::SolidMechanicsPhysics>::assemble_internal_forces::{closure#2}, core::result::Result<(), akantu_core::error::Error>> (inlined)
+                                  <akantu_solid::model::SolidMechanicsPhysics>::assemble_internal_forces
+                                  |
+                                   --2.38%--<akantu_solid::model::SolidMechanicsPhysics>::assemble_residual
+                                             <akantu_bench::suite_solid::common::StepSplit as akantu_solver::callback::InterceptCallback>::assemble_residual::{closure#0} (inlined)
+                                             <akantu_bench::suite_solid::common::StepSplit>::time::<<akantu_bench::suite_solid::common::StepSplit as akantu_solver::callback::InterceptCallback>::assemble_residual::{closure#0}> (inlined)
+                                             <akantu_bench::suite_solid::common::StepSplit as akantu_solver::callback::InterceptCallback>::assemble_residual
+                                             <akantu_solver::callback::Intercept as akantu_solver::callback::SolverCallback>::assemble_residual
+                                             <akantu_solver::non_linear_newton_raphson::NonLinearSolverNewtonRaphson>::assemble_residual::{closure#2} (inlined)
+                                             <akantu_solver::dof_manager::DofManager>::step::<(), <akantu_solver::non_linear_newton_raphson::NonLinearSolverNewtonRaphson>::assemble_residual::{closure#2}>
+                                             akantu_solver::time_step::model_step::<(), <akantu_solver::time_step::Adapter as akantu_solver::callback::SolverCallback>::assemble_residual::{closure#0}> (inlined)
+                                             <akantu_solver::time_step::Adapter as akantu_solver::callback::SolverCallback>::assemble_residual
+                                             <akantu_solver::non_linear_lumped::NonLinearSolverLumped as akantu_solver::non_linear::NonLinearSolver>::solve::{closure#0}::{closure#2} (inlined)
+                                             <akantu_solver::dof_manager::DofManager>::step::<(), <akantu_solver::non_linear_lumped::NonLinearSolverLumped as akantu_solver::non_linear::NonLinearSolver>::solve::{closure#0}::{closure#2}> (inlined)
+                                             <akantu_solver::non_linear_lumped::NonLinearSolverLumped as akantu_solver::non_linear::NonLinearSolver>::solve::{closure#0} (inlined)
+                                             <akantu_solver::dof_manager::DofManager>::collective::<(), <akantu_solver::non_linear_lumped::NonLinearSolverLumped as akantu_solver::non_linear::NonLinearSolver>::solve::{closure#0}>
+                                             <akantu_solver::non_linear_lumped::NonLinearSolverLumped as akantu_solver::non_linear::NonLinearSolver>::solve
+                                             <akantu_solver::time_step::TimeStepSolver>::solve_step (inlined)
+                                             <akantu_solver::model_solver::ModelSolver>::solve_step
+                                             <akantu_solver::model_solver::ModelSolver>::solve_step_intercepted
+                                             <akantu_solid::model::SolidMechanicsModel>::solve_step_intercepted
+                                             akantu_bench::suite_solid::common::timed_steps::<akantu_bench::suite_solid::explicit::run::{closure#3}>::{closure#0} (inlined)
+                                             <akantu_bench::suite::Ctx>::repeat_impl::<akantu_bench::suite_solid::common::timed_steps<akantu_bench::suite_solid::explicit::run::{closure#3}>::{closure#0}>
+                                             <akantu_bench::suite::Ctx>::repeat_primary::<akantu_bench::suite_solid::common::timed_steps<akantu_bench::suite_solid::explicit::run::{closure#3}>::{closure#0}> (inlined)
+                                             akantu_bench::suite_solid::common::timed_steps::<akantu_bench::suite_solid::explicit::run::{closure#3}>
+                                             akantu_bench::suite_solid::explicit::run
+                                             0xffffffffffffffff
+     4.47%  [k] folio_remove_rmap_ptes
+            |
+            ---zap_pte_range
+               zap_pmd_range.isra.0
+               unmap_page_range
+               unmap_single_vma
+               unmap_vmas
+               unmap_region
+               do_vmi_align_munmap
+               |
+                --4.46%--__do_sys_brk
+                          __x64_sys_brk
+                          x64_sys_call
+                          do_syscall_64
+                          entry_SYSCALL_64_after_hwframe
+                          brk
+                          __default_morecore
+                          0x7b58666aaba3
+                          cfree
+                          alloc::alloc::dealloc_nonnull (inlined)
+                          <alloc::alloc::Global>::deallocate_impl_runtime (inlined)
+                          <alloc::alloc::Global>::deallocate_impl (inlined)
+                          <alloc::alloc::Global as core::alloc::Allocator>::deallocate (inlined)
+                          <alloc::raw_vec::RawVecInner>::deallocate (inlined)
+                          <alloc::raw_vec::RawVec<f64> as core::ops::drop::Drop>::drop (inlined)
+                          core::ptr::drop_glue::<alloc::raw_vec::RawVec<f64>> (inlined)
+                          core::ptr::drop_glue::<alloc::vec::Vec<f64>> (inlined)
+                          |
+                          |--2.24%--<akantu_solid::materials::sls_deviatoric::MaterialStandardLinearSolidDeviatoric<3> as akantu_solid::material::Material>::compute_stress
+                          |          |
+                          |           --2.08%--cfree
+                          |
+                           --2.22%--core::ptr::drop_glue::<akantu_core::array_storage::ArrayStorage<f64>>
+                                     0x16a7d8f
+     4.23%  [.] akantu_fe::engine::fast::gradient::<akantu_fe::element_class::types::Tetrahedron4>
+     4.10%  [.] akantu_fe::engine::fast::btd
+            |
+             --2.92%--akantu_fe::engine::fast::btd_impl::<3, 3> (inlined)
+                       akantu_fe::engine::fast::btd
+                       <akantu_fe::engine::FeEngine>::compute_btd
+                       akantu_solid::model::assembly::assemble_internal_forces_of
+                       <akantu_solid::model::SolidMechanicsPhysics>::assemble_internal_forces
+                       |
+                        --2.69%--<akantu_solid::model::SolidMechanicsPhysics>::assemble_residual
+                                  <akantu_bench::suite_solid::common::StepSplit as akantu_solver::callback::InterceptCallback>::assemble_residual::{closure#0} (inlined)
+                                  <akantu_bench::suite_solid::common::StepSplit>::time::<<akantu_bench::suite_solid::common::StepSplit as akantu_solver::callback::InterceptCallback>::assemble_residual::{closure#0}> (inlined)
+                                  <akantu_bench::suite_solid::common::StepSplit as akantu_solver::callback::InterceptCallback>::assemble_residual
+                                  <akantu_solver::callback::Intercept as akantu_solver::callback::SolverCallback>::assemble_residual
+                                  <akantu_solver::non_linear_newton_raphson::NonLinearSolverNewtonRaphson>::assemble_residual::{closure#2} (inlined)
+                                  <akantu_solver::dof_manager::DofManager>::step::<(), <akantu_solver::non_linear_newton_raphson::NonLinearSolverNewtonRaphson>::assemble_residual::{closure#2}>
+                                  akantu_solver::time_step::model_step::<(), <akantu_solver::time_step::Adapter as akantu_solver::callback::SolverCallback>::assemble_residual::{closure#0}> (inlined)
+                                  <akantu_solver::time_step::Adapter as akantu_solver::callback::SolverCallback>::assemble_residual
+                                  <akantu_solver::non_linear_lumped::NonLinearSolverLumped as akantu_solver::non_linear::NonLinearSolver>::solve::{closure#0}::{closure#2} (inlined)
+                                  <akantu_solver::dof_manager::DofManager>::step::<(), <akantu_solver::non_linear_lumped::NonLinearSolverLumped as akantu_solver::non_linear::NonLinearSolver>::solve::{closure#0}::{closure#2}> (inlined)
+                                  <akantu_solver::non_linear_lumped::NonLinearSolverLumped as akantu_solver::non_linear::NonLinearSolver>::solve::{closure#0} (inlined)
+                                  <akantu_solver::dof_manager::DofManager>::collective::<(), <akantu_solver::non_linear_lumped::NonLinearSolverLumped as akantu_solver::non_linear::NonLinearSolver>::solve::{closure#0}>
+                                  <akantu_solver::non_linear_lumped::NonLinearSolverLumped as akantu_solver::non_linear::NonLinearSolver>::solve
+                                  <akantu_solver::time_step::TimeStepSolver>::solve_step (inlined)
+                                  <akantu_solver::model_solver::ModelSolver>::solve_step
+                                  <akantu_solver::model_solver::ModelSolver>::solve_step_intercepted
+                                  <akantu_solid::model::SolidMechanicsModel>::solve_step_intercepted
+                                  akantu_bench::suite_solid::common::timed_steps::<akantu_bench::suite_solid::explicit::run::{closure#3}>::{closure#0} (inlined)
+                                  <akantu_bench::suite::Ctx>::repeat_impl::<akantu_bench::suite_solid::common::timed_steps<akantu_bench::suite_solid::explicit::run::{closure#3}>::{closure#0}>
+                                  <akantu_bench::suite::Ctx>::repeat_primary::<akantu_bench::suite_solid::common::timed_steps<akantu_bench::suite_solid::explicit::run::{closure#3}>::{closure#0}> (inlined)
+                                  akantu_bench::suite_solid::common::timed_steps::<akantu_bench::suite_solid::explicit::run::{closure#3}>
+                                  akantu_bench::suite_solid::explicit::run
+                                  0xffffffffffffffff
+     3.52%  [k] _raw_spin_lock
+            |
+             --3.46%--do_anonymous_page
+                       handle_pte_fault
+                       __handle_mm_fault
+                       handle_mm_fault
+                       do_user_addr_fault
+                       exc_page_fault
+                       asm_exc_page_fault
+     2.87%  [.] <akantu_solver::dof_manager::DofManager>::assemble_elemental_array_local_view
+     2.83%  [.] 0x00000000001a16c6
+     2.72%  [.] akantu_fe::engine::fast::integrate::<<akantu_fe::engine::FeEngine>::integrate::{closure#0}>
+     2.71%  [k] __pte_offset_map
+     2.57%  [.] 0x00000000001a1779
+     2.38%  [k] asm_exc_page_fault
+     2.26%  [.] 0x00000000001a177f
+     2.20%  [k] __raw_callee_save___pv_queued_spin_unlock
+            |
+             --2.10%--_raw_spin_unlock
+     2.17%  [.] 0x00000000001a16ef
+     2.07%  [.] 0x00000000001a16db
