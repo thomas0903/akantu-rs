@@ -47,7 +47,7 @@ while [ $# -gt 0 ]; do
     *) echo "run_ab.sh: unknown argument $1" >&2; usage ;;
   esac
 done
-[ -n "$out" ] && [ -n "$size" ] && [ -n "$reps" ] && [ -n "$cases" ] && [ ${#variants[@]} -ge 1 ] || usage
+if [ -z "$out" ] || [ -z "$size" ] || [ -z "$reps" ] || [ -z "$cases" ] || [ ${#variants[@]} -lt 1 ]; then usage; fi
 
 names=(); bins=()
 for v in "${variants[@]}"; do
