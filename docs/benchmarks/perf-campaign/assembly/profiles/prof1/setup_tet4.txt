@@ -1,0 +1,220 @@
+# Profile of suite case setup_tet4
+
+binary: ~/w/assembly/bin/a1_solid (3ae9b05bc19c15e1)
+command: taskset -c 2 ~/w/assembly/bin/a1_solid --case setup_tet4 --size m --reps 3
+perf: perf record -F 499 --call-graph dwarf,16384
+cpu: INTEL(R) XEON(R) PLATINUM 8581C CPU @ 2.30GHz
+date_utc: 2026-11-16T10:16:36Z
+commit: d208746c0
+
+## Phases of the profiled run (seconds, calls)
+
+mesh                         0.0057 s       1 calls
+init_explicit                0.1132 s       1 calls
+shape_functions              0.1907 s       3 calls
+mass_lumped                  0.0772 s       3 calls
+init_implicit                0.1043 s       1 calls
+mass_consistent              3.2248 s       3 calls
+stiffness_assembly           1.4028 s       3 calls
+mesh                         0.0031 s       1 calls
+init_explicit                0.0993 s       1 calls
+shape_functions              0.1934 s       3 calls
+mass_lumped                  0.0455 s       3 calls
+init_implicit                0.0993 s       1 calls
+mass_consistent              3.1885 s       3 calls
+stiffness_assembly           1.4019 s       3 calls
+mesh                         0.0027 s       1 calls
+init_explicit                0.0978 s       1 calls
+shape_functions              0.1962 s       3 calls
+mass_lumped                  0.0450 s       3 calls
+init_implicit                0.1064 s       1 calls
+mass_consistent              3.2473 s       3 calls
+stiffness_assembly           1.4364 s       3 calls
+
+## Top 25 symbols, self time
+
+    30.34%  [.] akantu_core::eigen_gebp::product_into::<akantu_fe::eigen::product_slices::{closure#1}, akantu_fe::eigen::product_slices::{closure#2}>
+     7.21%  [k] _raw_spin_lock
+     6.14%  [.] <akantu_linalg::sparse::SparseMatrixAij>::add_to_profile
+     6.10%  [k] do_user_addr_fault
+     5.76%  [.] akantu_core::eigen_order::redux_tree::<akantu_core::eigen_gebp::eval_product<akantu_fe::eigen::product_slices::{closure#1}, akantu_fe::eigen::product_slices::{closure#2}>::{closure#0}>
+     5.11%  [.] akantu_fe::engine::fast::integrate::<<akantu_fe::engine::FeEngine>::field_matrix_elemental::{closure#10}>
+     3.23%  [.] <akantu_linalg::sparse::SparseMatrixAij>::resolve_block_positions
+     3.19%  [.] <akantu_linalg::sparse::SparseMatrixAij>::add_values_cached
+     2.94%  [.] <akantu_linalg::sparse::SparseMatrixAij>::resolve_block
+     2.56%  [k] _raw_spin_unlock_irqrestore
+     1.99%  [.] <akantu_core::array::Array<f64>>::try_filled
+     1.88%  [k] pfn_pte
+     1.59%  [.] akantu_fe::engine::fast::integrate::<<akantu_fe::engine::FeEngine>::integrate::{closure#0}>
+     1.43%  [.] akantu_fe::eigen::lu_factor
+     1.35%  [.] <akantu_core::array_storage::ArrayStorage<f64>>::try_resize
+     1.06%  [.] <akantu_fe::engine::FeEngine>::field_matrix_elemental
+     1.06%  [k] do_anonymous_page
+     0.98%  [.] <akantu_linalg::sparse::SparseMatrixAij>::add_values
+     0.90%  [.] akantu_core::eigen_gebp::route
+     0.81%  [k] zap_present_ptes.constprop.0
+     0.74%  [.] akantu_fe::eigen::product_slices
+     0.72%  [k] __rmqueue_pcplist
+     0.67%  [.] <akantu_solver::dof_manager::DofManager>::element_equations
+     0.50%  [.] <hashbrown::raw::RawTable<((i64, i64), usize)>>::reserve_rehash::<hashbrown::map::make_hasher<(i64, i64), usize, core::hash::BuildHasherDefault<akantu_linalg::int_hash::IntHasher>>::{closure#0}>
+     0.41%  [k] kernel_init_pages
+
+## Top 25 symbols, inclusive time (children)
+
+    30.39%    30.30%  [.] akantu_core::eigen_gebp::product_into::<akantu_fe::eigen::product_slices::{closure#1}, akantu_fe::eigen::product_slices::{closure#2}>
+    30.17%     0.00%  [.] akantu_core::eigen_gebp::eval_product::<akantu_fe::eigen::product_slices::{closure#1}, akantu_fe::eigen::product_slices::{closure#2}> (inlined)
+    28.80%     0.00%  [.] akantu_core::eigen_gebp::gebp_into::<akantu_fe::eigen::product_slices::{closure#1}, akantu_fe::eigen::product_slices::{closure#2}> (inlined)
+    23.48%     0.02%  [.] exc_page_fault
+    23.48%     0.00%  [.] asm_exc_page_fault
+    23.43%     6.10%  [.] do_user_addr_fault
+    16.83%     0.12%  [.] handle_mm_fault
+    16.60%     0.35%  [.] __handle_mm_fault
+    16.45%     0.00%  [.] 0x00000008000278ce
+    16.21%     0.03%  [.] handle_pte_fault
+    15.24%     0.00%  [.] akantu_core::eigen_gebp::gebp_into::<akantu_fe::eigen::product_slices::{closure#1}, akantu_fe::eigen::product_slices::{closure#2}>::{closure#0} (inlined)
+    14.20%     1.06%  [.] do_anonymous_page
+    13.62%     1.99%  [.] <akantu_core::array::Array<f64>>::try_filled
+    13.62%     0.00%  [.] <alloc::vec::Vec<f64>>::extend_with (inlined)
+    13.62%     0.00%  [.] <alloc::vec::Vec<f64>>::resize (inlined)
+    13.59%     0.00%  [.] core::ptr::write::<f64> (inlined)
+    10.35%     1.35%  [.] <akantu_core::array_storage::ArrayStorage<f64>>::try_resize
+    10.35%     0.00%  [.] <alloc::vec::Vec<f64>>::extend_with (inlined)
+    10.35%     0.00%  [.] <alloc::vec::Vec<f64>>::resize (inlined)
+    10.32%     0.00%  [.] core::ptr::write::<f64> (inlined)
+     7.91%     0.00%  [.] 0x000000000001ffff
+     7.57%     0.00%  [.] akantu_fe::eigen::product_slices::{closure#1} (inlined)
+     7.21%     7.21%  [k] _raw_spin_lock
+     6.18%     6.14%  [.] <akantu_linalg::sparse::SparseMatrixAij>::add_to_profile
+     5.97%     0.01%  [.] <akantu_solver::dof_manager::DofManager>::element_list
+
+## Call chains (callers of the hottest self-time symbols, entries above 2 %)
+
+    30.34%  [.] akantu_core::eigen_gebp::product_into::<akantu_fe::eigen::product_slices::{closure#1}, akantu_fe::eigen::product_slices::{closure#2}>
+            |
+            |--7.92%--akantu_core::eigen_gebp::gebp_into::<akantu_fe::eigen::product_slices::{closure#1}, akantu_fe::eigen::product_slices::{closure#2}> (inlined)
+            |          akantu_core::eigen_gebp::eval_product::<akantu_fe::eigen::product_slices::{closure#1}, akantu_fe::eigen::product_slices::{closure#2}> (inlined)
+            |          akantu_core::eigen_gebp::product_into::<akantu_fe::eigen::product_slices::{closure#1}, akantu_fe::eigen::product_slices::{closure#2}>
+            |          |
+            |           --4.03%--0x8000278ce
+            |
+            |--7.57%--akantu_fe::eigen::product_slices::{closure#1} (inlined)
+            |          |
+            |           --7.33%--akantu_core::eigen_gebp::gebp_into::<akantu_fe::eigen::product_slices::{closure#1}, akantu_fe::eigen::product_slices::{closure#2}>::{closure#0} (inlined)
+            |                     akantu_core::eigen_gebp::gebp_into::<akantu_fe::eigen::product_slices::{closure#1}, akantu_fe::eigen::product_slices::{closure#2}> (inlined)
+            |                     akantu_core::eigen_gebp::eval_product::<akantu_fe::eigen::product_slices::{closure#1}, akantu_fe::eigen::product_slices::{closure#2}> (inlined)
+            |                     akantu_core::eigen_gebp::product_into::<akantu_fe::eigen::product_slices::{closure#1}, akantu_fe::eigen::product_slices::{closure#2}>
+            |                     |
+            |                     |--4.82%--0x8000278ce
+            |                     |
+            |                      --2.25%--0x1ffff
+            |
+            |--5.41%--akantu_fe::eigen::product_slices::{closure#2} (inlined)
+            |          |
+            |           --5.36%--akantu_core::eigen_gebp::gebp_into::<akantu_fe::eigen::product_slices::{closure#1}, akantu_fe::eigen::product_slices::{closure#2}>::{closure#0} (inlined)
+            |                     akantu_core::eigen_gebp::gebp_into::<akantu_fe::eigen::product_slices::{closure#1}, akantu_fe::eigen::product_slices::{closure#2}> (inlined)
+            |                     akantu_core::eigen_gebp::eval_product::<akantu_fe::eigen::product_slices::{closure#1}, akantu_fe::eigen::product_slices::{closure#2}> (inlined)
+            |                     akantu_core::eigen_gebp::product_into::<akantu_fe::eigen::product_slices::{closure#1}, akantu_fe::eigen::product_slices::{closure#2}>
+            |                     |
+            |                      --3.80%--0x8000278ce
+            |
+            |--3.23%--<usize as core::cmp::PartialOrd>::lt (inlined)
+            |          <core::ops::range::Range<usize> as core::iter::range::RangeIteratorImpl>::spec_next (inlined)
+            |          <core::ops::range::Range<usize> as core::iter::traits::iterator::Iterator>::next (inlined)
+            |          |
+            |           --3.05%--akantu_core::eigen_gebp::gebp_into::<akantu_fe::eigen::product_slices::{closure#1}, akantu_fe::eigen::product_slices::{closure#2}> (inlined)
+            |                     akantu_core::eigen_gebp::eval_product::<akantu_fe::eigen::product_slices::{closure#1}, akantu_fe::eigen::product_slices::{closure#2}> (inlined)
+            |                     akantu_core::eigen_gebp::product_into::<akantu_fe::eigen::product_slices::{closure#1}, akantu_fe::eigen::product_slices::{closure#2}>
+            |
+            |--2.54%--akantu_core::eigen_gebp::gebp_into::<akantu_fe::eigen::product_slices::{closure#1}, akantu_fe::eigen::product_slices::{closure#2}>::{closure#0} (inlined)
+            |          akantu_core::eigen_gebp::gebp_into::<akantu_fe::eigen::product_slices::{closure#1}, akantu_fe::eigen::product_slices::{closure#2}> (inlined)
+            |          akantu_core::eigen_gebp::eval_product::<akantu_fe::eigen::product_slices::{closure#1}, akantu_fe::eigen::product_slices::{closure#2}> (inlined)
+            |          akantu_core::eigen_gebp::product_into::<akantu_fe::eigen::product_slices::{closure#1}, akantu_fe::eigen::product_slices::{closure#2}>
+            |
+             --2.24%--<core::ops::range::Range<usize> as core::iter::range::RangeIteratorImpl>::spec_next (inlined)
+                       <core::ops::range::Range<usize> as core::iter::traits::iterator::Iterator>::next (inlined)
+                       |
+                        --2.15%--akantu_core::eigen_gebp::gebp_into::<akantu_fe::eigen::product_slices::{closure#1}, akantu_fe::eigen::product_slices::{closure#2}> (inlined)
+                                  akantu_core::eigen_gebp::eval_product::<akantu_fe::eigen::product_slices::{closure#1}, akantu_fe::eigen::product_slices::{closure#2}> (inlined)
+                                  akantu_core::eigen_gebp::product_into::<akantu_fe::eigen::product_slices::{closure#1}, akantu_fe::eigen::product_slices::{closure#2}>
+     7.21%  [k] _raw_spin_lock
+            |
+             --7.18%--do_anonymous_page
+                       handle_pte_fault
+                       __handle_mm_fault
+                       handle_mm_fault
+                       do_user_addr_fault
+                       exc_page_fault
+                       asm_exc_page_fault
+                       |
+                        --6.51%--core::ptr::write::<f64> (inlined)
+                                  <alloc::vec::Vec<f64>>::extend_with (inlined)
+                                  <alloc::vec::Vec<f64>>::resize (inlined)
+                                  |
+                                  |--3.73%--<akantu_core::array::Array<f64>>::try_filled
+                                  |
+                                   --2.78%--<akantu_core::array_storage::ArrayStorage<f64>>::try_resize
+     6.14%  [.] <akantu_linalg::sparse::SparseMatrixAij>::add_to_profile
+            |
+             --2.36%--<akantu_linalg::sparse::SparseMatrixAij>::bump_profile (inlined)
+                       <akantu_linalg::sparse::SparseMatrixAij>::add_to_profile
+                       alloc::alloc::alloc (inlined)
+                       <alloc::alloc::Global>::alloc_impl_runtime (inlined)
+                       <alloc::alloc::Global>::alloc_impl (inlined)
+                       <alloc::alloc::Global as core::alloc::Allocator>::allocate (inlined)
+                       <alloc::raw_vec::RawVecInner>::try_allocate_in (inlined)
+                       <alloc::raw_vec::RawVecInner>::with_capacity_in (inlined)
+                       <alloc::raw_vec::RawVec<usize>>::with_capacity_in (inlined)
+                       <alloc::vec::Vec<usize>>::with_capacity_in (inlined)
+                       <alloc::vec::Vec<usize>>::with_capacity (inlined)
+                       <alloc::vec::Vec<usize> as alloc::vec::spec_from_iter_nested::SpecFromIterNested<usize, core::ops::range::Range<usize>>>::from_iter (inlined)
+                       <alloc::vec::Vec<usize> as alloc::vec::spec_from_iter::SpecFromIter<usize, core::ops::range::Range<usize>>>::from_iter (inlined)
+                       <alloc::vec::Vec<usize> as core::iter::traits::collect::FromIterator<usize>>::from_iter::<core::ops::range::Range<usize>> (inlined)
+                       <core::ops::range::Range<usize> as core::iter::traits::iterator::Iterator>::collect::<alloc::vec::Vec<usize>> (inlined)
+                       <akantu_solver::dof_manager::DofManager>::element_list
+     6.10%  [k] do_user_addr_fault
+            |
+            ---exc_page_fault
+               asm_exc_page_fault
+               |
+                --5.25%--core::ptr::write::<f64> (inlined)
+                          |
+                           --5.25%--<alloc::vec::Vec<f64>>::extend_with (inlined)
+                                     <alloc::vec::Vec<f64>>::resize (inlined)
+                                     |
+                                     |--3.02%--<akantu_core::array::Array<f64>>::try_filled (inlined)
+                                     |
+                                      --2.23%--<akantu_core::array_storage::ArrayStorage<f64>>::try_resize
+     5.76%  [.] akantu_core::eigen_order::redux_tree::<akantu_core::eigen_gebp::eval_product<akantu_fe::eigen::product_slices::{closure#1}, akantu_fe::eigen::product_slices::{closure#2}>::{closure#0}>
+            |
+             --2.93%--akantu_core::eigen_order::redux_tree::<akantu_core::eigen_gebp::eval_product<akantu_fe::eigen::product_slices::{closure#1}, akantu_fe::eigen::product_slices::{closure#2}>::{closure#0}>
+     5.11%  [.] akantu_fe::engine::fast::integrate::<<akantu_fe::engine::FeEngine>::field_matrix_elemental::{closure#10}>
+            |
+             --4.94%--akantu_fe::engine::fast::integrate::<<akantu_fe::engine::FeEngine>::field_matrix_elemental::{closure#10}>
+     3.23%  [.] <akantu_linalg::sparse::SparseMatrixAij>::resolve_block_positions
+            |
+             --2.15%--core::intrinsics::likely (inlined)
+                       <hashbrown::raw::RawTableInner>::find_inner (inlined)
+                       <hashbrown::raw::RawTable<((i64, i64), usize)>>::find::<hashbrown::map::equivalent_key<(i64, i64), (i64, i64), usize>::{closure#0}> (inlined)
+                       <hashbrown::raw::RawTable<((i64, i64), usize)>>::get::<hashbrown::map::equivalent_key<(i64, i64), (i64, i64), usize>::{closure#0}> (inlined)
+                       <hashbrown::map::HashMap<(i64, i64), usize, core::hash::BuildHasherDefault<akantu_linalg::int_hash::IntHasher>>>::get::<(i64, i64)> (inlined)
+                       <std::collections::hash::map::HashMap<(i64, i64), usize, core::hash::BuildHasherDefault<akantu_linalg::int_hash::IntHasher>>>::get::<(i64, i64)> (inlined)
+                       <akantu_linalg::sparse::SparseMatrixAij>::resolve_block_positions
+     3.19%  [.] <akantu_linalg::sparse::SparseMatrixAij>::add_values_cached
+            |
+             --2.72%--<akantu_linalg::sparse::SparseMatrixAij>::add_values_cached
+                       |
+                        --2.67%--alloc::alloc::dealloc_nonnull (inlined)
+                                  <alloc::alloc::Global>::deallocate_impl_runtime (inlined)
+                                  <alloc::alloc::Global>::deallocate_impl (inlined)
+                                  <alloc::alloc::Global as core::alloc::Allocator>::deallocate (inlined)
+                                  <alloc::raw_vec::RawVecInner>::deallocate (inlined)
+                                  <alloc::raw_vec::RawVec<u8> as core::ops::drop::Drop>::drop (inlined)
+                                  core::ptr::drop_glue::<alloc::raw_vec::RawVec<u8>> (inlined)
+                                  core::ptr::drop_glue::<alloc::vec::Vec<u8>> (inlined)
+                                  core::ptr::drop_glue::<alloc::string::String> (inlined)
+                                  core::ptr::drop_glue::<(alloc::string::String, alloc::string::String, akantu_core::element_type::ElementType, akantu_core::element_type::GhostType)> (inlined)
+                                  <alloc::collections::btree::map::BTreeMap<(alloc::string::String, alloc::string::String, akantu_core::element_type::ElementType, akantu_core::element_type::GhostType), akantu_linalg::sparse::BlockPositionCache>>::remove::<(alloc::string::String, alloc::string::String, akantu_core::element_type::ElementType, akantu_core::element_type::GhostType)>::{closure#0} (inlined)
+                                  <core::option::Option<((alloc::string::String, alloc::string::String, akantu_core::element_type::ElementType, akantu_core::element_type::GhostType), akantu_linalg::sparse::BlockPositionCache)>>::map::<akantu_linalg::sparse::BlockPositionCache, <alloc::collections::btree::map::BTreeMap<(alloc::string::String, alloc::string::String, akantu_core::element_type::ElementType, akantu_core::element_type::GhostType), akantu_linalg::sparse::BlockPositionCache>>::remove<(alloc::string::String, alloc::string::String, akantu_core::element_type::ElementType, akantu_core::element_type::GhostType)>::{closure#0}> (inlined)
+                                  <alloc::collections::btree::map::BTreeMap<(alloc::string::String, alloc::string::String, akantu_core::element_type::ElementType, akantu_core::element_type::GhostType), akantu_linalg::sparse::BlockPositionCache>>::remove::<(alloc::string::String, alloc::string::String, akantu_core::element_type::ElementType, akantu_core::element_type::GhostType)>
+     2.94%  [.] <akantu_linalg::sparse::SparseMatrixAij>::resolve_block
+     2.56%  [k] _raw_spin_unlock_irqrestore

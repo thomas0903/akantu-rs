@@ -416,6 +416,28 @@ The tables above use the baseline build. Builds with `-C target-cpu`
 `panic = "abort"` and PGO give the same bits (section "Build
 configuration").
 
+### Distribution and the communication layer (performance campaign, 2026-11-17)
+
+Measured on an 8-vCPU AMD EPYC Milan development machine, before
+(`24f73b94e`) and after (`818a43195`), interleaved, 5 repetitions; every
+digest identical at 1, 2, 4 and 8 ranks. Details, raw data and what
+remains: `docs/benchmarks/perf-campaign/distribution/README.md`.
+
+| Case | Before | After | Ratio |
+|---|---|---|---|
+| Partition (Scotch with the dual graph), 1,296,000 Tet4, 2 / 8 ranks | 6.51 / 7.46 s | 1.92 / 2.65 s | 0.30 / 0.37 |
+| Distribution, 1,296,000 Tet4, 2 / 8 ranks | 8.48 / 11.72 s | 2.84 / 3.26 s | 0.34 / 0.28 |
+| Explicit step, 162,000 Tet4, 2 / 8 ranks | 13.2 / 8.2 ms | 10.1 / 5.7 ms | 0.88 / 0.79 |
+| Two energies, 162,000 Tet4, 1 rank | 17.4 ms | 14.7 ms | 0.79 |
+| `all_reduce` of 2 reals, 8 ranks | 10.6 µs | 6.2 µs | 0.52 |
+| Explicit step of a 32-triangle model, serial communicator | 8.1 µs | 5.1 µs | 0.63 |
+
+The part of the distributed explicit step that does not shrink with the
+rank count is memory traffic (four independent one-rank runs at once each
+slow by 1.5 to 1.7 times) and, on that machine, unequal vCPU speed under
+load; the communication and its bookkeeping were about 20 % of rank 0's
+step at 4 ranks before the changes.
+
 ## Static solves and solvers
 
 ### The SparseLU translation against upstream's SparseLU

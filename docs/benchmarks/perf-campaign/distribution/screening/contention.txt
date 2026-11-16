@@ -1,0 +1,10 @@
+# Memory-bandwidth contention of the explicit step (before: 3cf66fdba, suite_setup
+# explicit_step_dist_tet4 --size m, one rank per process, independent processes started
+# together, each pinned to one vCPU with docker --cpuset-cpus). Development VM, AMD EPYC
+# Milan, 8 vCPUs; 2026-11-16 (UTC). solve_step and energies in ms per call.
+alone:        cpu0 solve_step 12.928 energies 15.276
+4 concurrent: cpu0 18.671 / 15.869   cpu1 19.278 / 15.568   cpu2 21.969 / 16.436   cpu3 21.858 / 15.638
+8 concurrent: cpu0 35.984 / 19.702   cpu1 51.942 / 17.080   cpu2 22.875 / 18.118   cpu3 38.080 / 18.043
+              cpu4 51.599 / 16.947   cpu5 45.368 / 17.396   cpu6 50.087 / 16.628   cpu7 27.730 / 16.637
+# The step (memory-bound) slows 1.5-1.7x with 4 concurrent copies and 1.8-4x with 8; the
+# energies (compute-bound: sort, per-point products) hardly move.

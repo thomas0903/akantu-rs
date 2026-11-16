@@ -1,0 +1,92 @@
+# Profile of suite case contact_implicit_static_quad4
+
+binary: ~/w/assembly/bin/a1_models (10e695a6b6a8223a)
+command: taskset -c 2 ~/w/assembly/bin/a1_models --case contact_implicit_static_quad4 --size m --loop-seconds 6
+perf: perf record -F 499 --call-graph dwarf,16384
+cpu: INTEL(R) XEON(R) PLATINUM 8581C CPU @ 2.30GHz
+date_utc: 2026-11-16T10:18:11Z
+commit: d208746c0
+
+## Phases of the profiled run (seconds, calls)
+
+mesh                         0.0107 s       1 calls
+init                         0.0112 s       1 calls
+solve_step                   6.6837 s      20 calls
+
+## Top 25 symbols, self time
+
+    21.56%  [.] akantu_linalg::eigen_sparse_lu::dense::sparselu_gemm
+    16.58%  [.] akantu_linalg::eigen_sparse_lu::kernels::panel_bmod
+     7.47%  [.] akantu_core::eigen_gebp::product_into::<akantu_fe::eigen::product_slices::{closure#1}, akantu_fe::eigen::product_slices::{closure#2}>
+     7.00%  [.] akantu_linalg::eigen_sparse_lu::kernels::dfs_kernel
+     6.85%  [k] do_user_addr_fault
+     2.68%  [.] akantu_linalg::eigen_sparse_lu::kernels::copy_to_ucol
+     2.37%  [.] <akantu_linalg::direct::CscMatrix>::from_triplets
+     2.29%  [.] <akantu_linalg::sparse::SparseMatrixAij>::resolve_block_positions
+     2.27%  [.] 0x00000000001a1efa
+     2.21%  [.] akantu_linalg::eigen_sparse_lu::kernels::kernel_bmod
+     1.67%  [k] _raw_spin_lock
+     1.56%  [.] <akantu_linalg::eigen_sparse_lu::SparseLu>::solve
+     1.56%  [.] 0x00000000001a19d2
+     1.51%  [.] akantu_linalg::eigen_sparse_lu::dense::trsm_unit_lower
+     1.41%  [.] akantu_linalg::eigen_sparse_lu::kernels::column_dfs
+     1.33%  [k] _raw_spin_unlock_irqrestore
+     1.33%  [.] akantu_linalg::eigen_sparse_lu::kernels::prune_l
+     0.99%  [.] akantu_linalg::eigen_sparse_lu::kernels::pivot_l
+     0.96%  [.] akantu_linalg::eigen_sparse_lu::kernels::panel_dfs
+     0.86%  [.] akantu_linalg::eigen_sparse_lu::kernels::column_bmod
+     0.68%  [.] <akantu_linalg::direct::CscMatrix>::from_aij
+     0.68%  [.] <core::iter::adapters::chain::Chain<core::slice::iter::Iter<f64>, core::slice::iter::Iter<f64>> as core::iter::traits::iterator::Iterator>::find::<<akantu_linalg::eigen_sparse_lu::SparseLu>::factorize::{closure#0}>
+     0.68%  [.] akantu_linalg::eigen_sparse_lu::dense::gemv_in_place
+     0.68%  [.] akantu_linalg::eigen_sparse_lu::dense::trsv_unit_lower
+     0.57%  [.] <akantu_core::array_storage::ArrayStorage<f64>>::try_resize
+
+## Top 25 symbols, inclusive time (children)
+
+    21.56%    21.56%  [.] akantu_linalg::eigen_sparse_lu::dense::sparselu_gemm
+    16.58%    16.58%  [.] akantu_linalg::eigen_sparse_lu::kernels::panel_bmod
+    13.25%     0.00%  [.] asm_exc_page_fault
+    13.23%     0.00%  [.] exc_page_fault
+    13.17%     6.85%  [.] do_user_addr_fault
+     7.47%     7.47%  [.] akantu_core::eigen_gebp::product_into::<akantu_fe::eigen::product_slices::{closure#1}, akantu_fe::eigen::product_slices::{closure#2}>
+     7.00%     7.00%  [.] akantu_linalg::eigen_sparse_lu::kernels::dfs_kernel
+     6.93%     0.00%  [.] 0x000078435a7a19d2
+     6.87%     0.03%  [.] realloc
+     6.82%     0.00%  [.] 0x000078435a6ad147
+     6.40%     0.00%  [.] 0x000078435a7a1efa
+     6.07%     0.08%  [.] handle_mm_fault
+     5.88%     0.18%  [.] __handle_mm_fault
+     5.65%     0.05%  [.] handle_pte_fault
+     4.97%     0.23%  [.] do_anonymous_page
+     2.68%     2.68%  [.] akantu_linalg::eigen_sparse_lu::kernels::copy_to_ucol
+     2.37%     2.37%  [.] <akantu_linalg::direct::CscMatrix>::from_triplets
+     2.29%     2.29%  [.] <akantu_linalg::sparse::SparseMatrixAij>::resolve_block_positions
+     2.27%     2.27%  [.] 0x00000000001a1efa
+     2.21%     2.21%  [.] akantu_linalg::eigen_sparse_lu::kernels::kernel_bmod
+     1.67%     1.67%  [k] _raw_spin_lock
+     1.56%     1.56%  [.] <akantu_linalg::eigen_sparse_lu::SparseLu>::solve
+     1.56%     1.56%  [.] 0x00000000001a19d2
+     1.56%     0.08%  [.] cfree
+     1.51%     1.51%  [.] akantu_linalg::eigen_sparse_lu::dense::trsm_unit_lower
+
+## Call chains (callers of the hottest self-time symbols, entries above 2 %)
+
+    21.56%  [.] akantu_linalg::eigen_sparse_lu::dense::sparselu_gemm
+    16.58%  [.] akantu_linalg::eigen_sparse_lu::kernels::panel_bmod
+     7.47%  [.] akantu_core::eigen_gebp::product_into::<akantu_fe::eigen::product_slices::{closure#1}, akantu_fe::eigen::product_slices::{closure#2}>
+     7.00%  [.] akantu_linalg::eigen_sparse_lu::kernels::dfs_kernel
+     6.85%  [k] do_user_addr_fault
+            |
+             --6.82%--exc_page_fault
+                       asm_exc_page_fault
+                       |
+                       |--3.10%--0x78435a7a19d2
+                       |          0x78435a6ad147
+                       |          realloc
+                       |
+                        --2.29%--0x78435a7a1efa
+     2.68%  [.] akantu_linalg::eigen_sparse_lu::kernels::copy_to_ucol
+     2.37%  [.] <akantu_linalg::direct::CscMatrix>::from_triplets
+     2.29%  [.] <akantu_linalg::sparse::SparseMatrixAij>::resolve_block_positions
+     2.27%  [.] 0x00000000001a1efa
+     2.21%  [.] akantu_linalg::eigen_sparse_lu::kernels::kernel_bmod
