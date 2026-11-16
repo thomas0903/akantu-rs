@@ -19,6 +19,10 @@ change of default results or of a public API raises the minor version.
   the query (rounding artefacts of queries lying in the plane of a distant
   face or on the line of a distant edge); with the default tiled assembly
   the interface mesh is the same.
+- `akantu_contact::geometry::OutwardFrame::CurrentCached`,
+  `OutwardCache` and `orthogonal_projection_in`: outward directions of the
+  facets memoised for one set of positions; the contact detector uses them
+  within a search (identical normals).
 - `akantu_fe::engine::PointInterpolation`
   (`ElementalFieldInterpolation::point_interpolation`): the value of one
   interpolation point of one element of an elemental-field interpolation
