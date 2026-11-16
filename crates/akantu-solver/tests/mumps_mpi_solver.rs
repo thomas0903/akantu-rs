@@ -572,34 +572,35 @@ fn partitioned_bar_auto_is_mumps(c: &Communicator) -> Outcome {
 /// again and gives the bits of the run that kept everything (same ranks,
 /// same input order).
 fn release_factorization_mumps(c: &Communicator) -> Outcome {
-    let solve_twice =
-        |release: bool| -> std::result::Result<(Vec<(i64, [Real; 3])>, usize), String> {
-            let e2s = |e: akantu_core::Error| e.to_string();
-            let (mut model, mut ms) = build(c, Setup::StaticLinearSolver, SparseSolverType::Mumps);
-            ms.solve_step(&mut model, None).map_err(e2s)?;
-            let mut left = usize::MAX;
-            if release {
-                ms.dof_manager.release_factorization("J").map_err(e2s)?;
-                ms.dof_manager.release_matrix("J").map_err(e2s)?;
-                ms.dof_manager.release_matrix("K").map_err(e2s)?;
-                model.release_stiffness();
-                left = ms.dof_manager.matrix("J").map_err(e2s)?.nnz()
-                    + ms.dof_manager.matrix("K").map_err(e2s)?.nnz();
-            }
-            for f in &mut model.forces {
-                *f *= 2.0;
-            }
-            ms.solve_step(&mut model, None).map_err(e2s)?;
-            let u_g = ms.dof_manager.dofs("disp").map_err(e2s)?;
-            let u = u_g.as_slice();
-            let state = model
-                .global_ids
-                .iter()
-                .enumerate()
-                .map(|(k, &g)| (g, [u[k], 0.0, 0.0]))
-                .collect();
-            Ok((state, left))
-        };
+    /// Displacements by global node and the entries left after the release.
+    type Solved = std::result::Result<(Vec<(i64, [Real; 3])>, usize), String>;
+    let solve_twice = |release: bool| -> Solved {
+        let e2s = |e: akantu_core::Error| e.to_string();
+        let (mut model, mut ms) = build(c, Setup::StaticLinearSolver, SparseSolverType::Mumps);
+        ms.solve_step(&mut model, None).map_err(e2s)?;
+        let mut left = usize::MAX;
+        if release {
+            ms.dof_manager.release_factorization("J").map_err(e2s)?;
+            ms.dof_manager.release_matrix("J").map_err(e2s)?;
+            ms.dof_manager.release_matrix("K").map_err(e2s)?;
+            model.release_stiffness();
+            left = ms.dof_manager.matrix("J").map_err(e2s)?.nnz()
+                + ms.dof_manager.matrix("K").map_err(e2s)?.nnz();
+        }
+        for f in &mut model.forces {
+            *f *= 2.0;
+        }
+        ms.solve_step(&mut model, None).map_err(e2s)?;
+        let u_g = ms.dof_manager.dofs("disp").map_err(e2s)?;
+        let u = u_g.as_slice();
+        let state = model
+            .global_ids
+            .iter()
+            .enumerate()
+            .map(|(k, &g)| (g, [u[k], 0.0, 0.0]))
+            .collect();
+        Ok((state, left))
+    };
     let (kept, _) = solve_twice(false)?;
     let (released, left) = solve_twice(true)?;
     ensure!(
