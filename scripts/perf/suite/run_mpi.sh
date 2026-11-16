@@ -34,7 +34,7 @@ while [ $# -gt 0 ]; do
     *) echo "run_mpi.sh: unknown argument $1" >&2; exit 2 ;;
   esac
 done
-[ -n "$out" ] && [ -n "$bin" ] && [ -n "$cases" ] || { sed -n 8,11p "$0" >&2; exit 2; }
+if [ -z "$out" ] || [ -z "$bin" ] || [ -z "$cases" ]; then sed -n 8,11p "$0" >&2; exit 2; fi
 [ -x "$bin" ] || { echo "run_mpi.sh: $bin is not an executable file" >&2; exit 2; }
 bindir="$(cd "$(dirname "$bin")" && pwd)"; binname="$(basename "$bin")"
 IFS=, read -r -a case_list <<<"$cases"
