@@ -2295,9 +2295,7 @@ impl SharedMesh {
         // edit itself cannot be undone; the flag cleared above makes every
         // later mutation run the full check, which reports the same
         // inconsistency at stage 1).
-        if let Err(e) = crate::utils::check_facet_mesh_consistency(&g) {
-            return Err(e);
-        }
+        crate::utils::check_facet_mesh_consistency(&g)?;
         // exactly one revision per set-up operation, whether or not `op`
         // advanced it itself
         g.revision = before + 1;

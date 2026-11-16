@@ -579,4 +579,108 @@ mod grid {
             );
         }
     }
+
+    /// One replaced row of a 6x6 grid (120 facet rows, threshold 15): the
+    /// restricted path is taken, and every single bad edit is refused.
+    #[test]
+    fn one_bad_edit_per_dataset_is_refused_on_the_restricted_path() {
+        let bad = [
+            Op::S2e {
+                el: 3,
+                bad: Some(10_000),
+            },
+            Op::E2s {
+                el: 5,
+                bad: Some(10_000),
+            },
+            Op::M2f {
+                el: 7,
+                bad: Some(10_000),
+            },
+            Op::Append { t: 10_000 },
+        ];
+        for op in bad {
+            for full in [true, false] {
+                let d = checked(6, full);
+                let fp = d.read().unwrap().state_fingerprint();
+                let r = d.mutate(&mut [], |tx| apply(tx, std::slice::from_ref(&op)), None);
+                assert!(r.is_err(), "{op:?} full={full}: accepted");
+                assert_eq!(d.read().unwrap().state_fingerprint(), fp);
+            }
+        }
+    }
+
+    /// Random sequences of transactions (valid and invalid edits through the
+    /// journaled API, several per transaction, rollbacks): both check modes give
+    /// the same verdict and the same state at every step.
+    #[test]
+    fn restricted_and_full_checks_agree_on_random_transaction_sequences() {
+        let mut rng = Rng(0x1234_5678_9abc_def1);
+        let mut restricted_rejections = 0;
+        for seed in 0..60 {
+            let n = 6;
+            let a = checked(n, true);
+            let b = checked(n, false);
+            for step in 0..25 {
+                let (nt, ns) = {
+                    let m = b.read().unwrap();
+                    (
+                        m.nb_element(T::Triangle3, NG),
+                        m.mesh_facets().unwrap().nb_element(T::Segment2, NG),
+                    )
+                };
+                let wide = rng.below(4) == 0;
+                let k = 1 + rng.below(if wide { 30 } else { 4 });
+                let mut ops = Vec::new();
+                for _ in 0..k {
+                    let invalid = rng.below(12) == 0;
+                    let bad_t = invalid.then(|| nt + rng.below(3));
+                    let bad_s = invalid.then(|| ns + rng.below(3));
+                    ops.push(match rng.below(5) {
+                        0 => Op::S2e {
+                            el: rng.below(nt),
+                            bad: bad_s,
+                        },
+                        1 => Op::E2s {
+                            el: rng.below(ns),
+                            bad: bad_t,
+                        },
+                        2 => Op::M2f {
+                            el: rng.below(nt),
+                            bad: bad_s,
+                        },
+                        3 => Op::Append {
+                            t: bad_t.unwrap_or_else(|| rng.below(nt)),
+                        },
+                        _ => {
+                            if rng.below(3) == 0 {
+                                Op::Fail
+                            } else {
+                                Op::S2e {
+                                    el: rng.below(nt),
+                                    bad: None,
+                                }
+                            }
+                        }
+                    });
+                }
+                let ra = a.mutate(&mut [], |tx| apply(tx, &ops), None);
+                let rb = b.mutate(&mut [], |tx| apply(tx, &ops), None);
+                assert_eq!(
+                    ra.is_ok(),
+                    rb.is_ok(),
+                    "seed {seed} step {step} {ops:?}: full {ra:?} restricted {rb:?}"
+                );
+                if rb.is_err() && !ops.iter().any(|o| matches!(o, Op::Fail)) {
+                    restricted_rejections += 1;
+                }
+                assert_eq!(
+                    a.read().unwrap().state_fingerprint(),
+                    b.read().unwrap().state_fingerprint(),
+                    "seed {seed} step {step}"
+                );
+            }
+        }
+        assert!(restricted_rejections > 20, "{restricted_rejections}");
+    }
 }
