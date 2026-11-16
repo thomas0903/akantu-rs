@@ -535,8 +535,9 @@ impl<const DIM: usize> Material for MaterialPhaseField<DIM> {
             None
         };
         let work = DamageWork::new(&options, thermal.as_deref());
+        let exec = crate::material::points_exec(self, ctx);
         self.damage
-            .update_energies::<DIM>(self.elastic.base(), ty, work)
+            .update_energies::<DIM>(exec, self.elastic.base(), ty, work)
     }
 
     fn push_wave_speed(&self, element: Element) -> Result<Real> {

@@ -937,8 +937,10 @@ impl<const DIM: usize> Material for MaterialDruckerPrager<DIM> {
         )
     }
 
-    fn update_energies(&mut self, _ctx: &LawContext<'_>, ty: ElementType) -> Result<()> {
-        self.plastic.update_energies::<DIM>(self.elastic.base(), ty)
+    fn update_energies(&mut self, ctx: &LawContext<'_>, ty: ElementType) -> Result<()> {
+        let exec = crate::material::points_exec(self, ctx);
+        self.plastic
+            .update_energies::<DIM>(exec, self.elastic.base(), ty)
     }
 
     fn push_wave_speed(&self, element: Element) -> Result<Real> {

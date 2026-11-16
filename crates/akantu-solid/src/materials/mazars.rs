@@ -723,7 +723,10 @@ where
             ));
         }
         if self.options_ref().damage_thermal_refresh {
-            self.parent.elastic_mut().compute_thermal(ty, ghost)?;
+            let exec = crate::material::points_exec(self, ctx);
+            self.parent
+                .elastic_mut()
+                .compute_thermal_with(exec, ty, ghost)?;
         }
         let previous_sigma = match &self.effective_stress {
             Some(es) if self.options_ref().plastic_mazars_effective_stress => {
@@ -790,7 +793,8 @@ where
     /// Upstream `MaterialDamage::updateEnergies`: the parent's update
     /// (plastic work), `computePotentialEnergy`, the dissipated energy.
     fn update_energies(&mut self, ctx: &LawContext<'_>, ty: ElementType) -> Result<()> {
-        self.parent.parent_update_energies(ty)?;
+        self.parent
+            .parent_update_energies(crate::material::points_exec(self, ctx), ty)?;
         self.compute_potential_energy(ctx, ty)?;
         let options = self.parent.elastic().options;
         let thermal = if super::damage::thermal_work_enabled(&options) {
@@ -799,8 +803,9 @@ where
             None
         };
         let work = super::damage::DamageWork::new(&options, thermal.as_deref());
+        let exec = crate::material::points_exec(self, ctx);
         self.damage
-            .update_energies::<DIM>(self.parent.base(), ty, work)
+            .update_energies::<DIM>(exec, self.parent.base(), ty, work)
     }
 
     fn push_wave_speed(&self, element: Element) -> Result<Real> {

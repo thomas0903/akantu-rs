@@ -172,7 +172,7 @@ macro_rules! impl_damage_law {
             /// Upstream `MaterialDamage::updateEnergies`.
             fn update_energies(
                 &mut self,
-                _ctx: &akantu_model::constitutive_law::LawContext<'_>,
+                ctx: &akantu_model::constitutive_law::LawContext<'_>,
                 ty: akantu_core::ElementType,
             ) -> akantu_core::Result<()> {
                 use akantu_solid::materials::damage as dmg;
@@ -189,8 +189,9 @@ macro_rules! impl_damage_law {
                     None
                 };
                 let work = dmg::DamageWork::new(&options, thermal.as_deref());
+                let exec = akantu_solid::material::points_exec(self, ctx);
                 self.damage
-                    .update_energies::<DIM>(self.elastic.base(), ty, work)
+                    .update_energies::<DIM>(exec, self.elastic.base(), ty, work)
             }
 
             fn push_wave_speed(

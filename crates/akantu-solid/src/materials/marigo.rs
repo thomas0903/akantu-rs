@@ -343,7 +343,8 @@ impl<const DIM: usize> Material for MaterialMarigo<DIM> {
             ));
         }
         if self.elastic.options.damage_thermal_refresh {
-            self.elastic.compute_thermal(ty, ghost)?;
+            let exec = crate::material::points_exec(self, ctx);
+            self.elastic.compute_thermal_with(exec, ty, ghost)?;
         }
         let committed = self.elastic.options.committed_trial_state;
         let constants = self.elastic.constants();
@@ -507,8 +508,9 @@ impl<const DIM: usize> Material for MaterialMarigo<DIM> {
             None
         };
         let work = super::damage::DamageWork::new(&options, thermal.as_deref());
+        let exec = crate::material::points_exec(self, ctx);
         self.damage
-            .update_energies::<DIM>(self.elastic.base(), ty, work)
+            .update_energies::<DIM>(exec, self.elastic.base(), ty, work)
     }
 
     fn push_wave_speed(&self, element: Element) -> Result<Real> {

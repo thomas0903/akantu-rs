@@ -890,3 +890,51 @@ fn neohookean_error_path_is_bitwise_for_every_thread_count() {
 fn neohookean_plane_stress_error_path_is_bitwise_for_every_thread_count() {
     check_law_error(&NEOHOOKEAN_PLANE_STRESS, "neohookean");
 }
+
+#[test]
+fn plastic_law_is_bitwise_for_every_thread_count() {
+    check_law(&LawCase {
+        name: "plastic_linear_isotropic_hardening",
+        dat: |_| {
+            "material plastic_linear_isotropic_hardening [\n  name = body\n  rho = 2500\n  \
+             E = 70e9\n  nu = 0.22\n  h = 5e9\n  sigma_y = 2e7\n]\n"
+                .into()
+        },
+        amp: 1e-3,
+        steps: 6,
+        active: "inelastic_strain",
+    });
+}
+
+/// The plastic parent's return and the damage loop, with a thermal strain
+/// (the per-block thermal refresh and the thermal work of the energies).
+#[test]
+fn plastic_mazars_law_is_bitwise_for_every_thread_count() {
+    check_law(&LawCase {
+        name: "plastic_mazars",
+        dat: |_| {
+            "material plastic_mazars [\n  name = body\n  rho = 2500\n  E = 70e9\n  nu = 0.22\n  \
+             h = 5e9\n  sigma_y = 2e7\n  K0 = 1e-4\n  At = 1.15\n  Bt = 10000\n  Ac = 0.8\n  \
+             Bc = 1391.3\n  beta = 1.0\n  alpha = 1e-5\n  delta_T = 20\n]\n"
+                .into()
+        },
+        amp: 1e-3,
+        steps: 6,
+        active: "damage",
+    });
+}
+
+#[test]
+fn marigo_thermal_law_is_bitwise_for_every_thread_count() {
+    check_law(&LawCase {
+        name: "marigo with a thermal strain",
+        dat: |_| {
+            "material marigo [\n  name = body\n  rho = 2500\n  E = 70e9\n  nu = 0.22\n  \
+             Yd = 1e3\n  Sd = 1e5\n  alpha = 1e-5\n  delta_T = 20\n]\n"
+                .into()
+        },
+        amp: 1e-3,
+        steps: 6,
+        active: "damage",
+    });
+}
