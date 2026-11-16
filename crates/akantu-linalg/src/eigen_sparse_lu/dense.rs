@@ -169,19 +169,34 @@ pub(crate) fn gemv_in_place(
     r_off: usize,
     alpha: f64,
 ) {
-    let block = gemv_block_cols(cols, lda);
-    let mut j2 = 0;
-    while j2 < cols {
-        let jend = (j2 + block).min(cols);
-        for i in 0..rows {
-            let mut c = 0.0;
-            for j in j2..jend {
-                c += a[a_off + i + j * lda] * v[x_off + j];
-            }
-            let r = &mut v[r_off + i];
-            *r = c * alpha + *r;
-        }
-        j2 = jend;
+    if rows == 0 {
+        return;
+    }
+    debug_assert!(x_off + cols <= r_off || r_off + rows <= x_off);
+    if x_off + cols <= r_off {
+        let (lo, hi) = v.split_at_mut(r_off);
+        super::simd::gemv(
+            rows,
+            cols,
+            a,
+            a_off,
+            lda,
+            &lo[x_off..x_off + cols],
+            &mut hi[..rows],
+            alpha,
+        );
+    } else {
+        let (lo, hi) = v.split_at_mut(x_off);
+        super::simd::gemv(
+            rows,
+            cols,
+            a,
+            a_off,
+            lda,
+            &hi[..cols],
+            &mut lo[r_off..r_off + rows],
+            alpha,
+        );
     }
 }
 
@@ -199,17 +214,100 @@ pub(crate) fn gemv(
     r_off: usize,
     alpha: f64,
 ) {
+    if rows == 0 {
+        return;
+    }
+    super::simd::gemv(
+        rows,
+        cols,
+        a,
+        a_off,
+        lda,
+        &x[x_off..x_off + cols],
+        &mut res[r_off..r_off + rows],
+        alpha,
+    );
+}
+
+/// The column-major GEMV `res += α·A·x` (`A(i, j) = a[a_off + i + j·lda]`,
+/// `x` and `res` exact length) with Eigen's per-entry sequence: per block
+/// of [`gemv_block_cols`] columns, `c = 0; c = c + A(i, j)·x(j)` for the
+/// block's `j` in order, then `res(i) = c·α + res(i)`. Eigen walks the rows
+/// one by one; the rows are independent, so this runs them in tiles of `MR`
+/// (then 16, 8, 4, 2, 1) rows, each lane with that sequence, reading `A` column
+/// by column (`tests::gemv_matches_reference_bitwise`).
+#[allow(clippy::too_many_arguments)] // BLAS-style kernel signature
+#[inline(always)]
+pub(super) fn gemv_tiles<const MR: usize>(
+    rows: usize,
+    cols: usize,
+    a: &[f64],
+    a_off: usize,
+    lda: usize,
+    x: &[f64],
+    res: &mut [f64],
+    alpha: f64,
+) {
     let block = gemv_block_cols(cols, lda);
+    let x = &x[..cols];
+    let res = &mut res[..rows];
+    let mut i = 0;
+    while i + MR <= rows {
+        gemv_tile::<MR>(i, cols, block, a, a_off, lda, x, res, alpha);
+        i += MR;
+    }
+    if MR > 16 && i + 16 <= rows {
+        gemv_tile::<16>(i, cols, block, a, a_off, lda, x, res, alpha);
+        i += 16;
+    }
+    if MR > 8 && i + 8 <= rows {
+        gemv_tile::<8>(i, cols, block, a, a_off, lda, x, res, alpha);
+        i += 8;
+    }
+    if MR > 4 && i + 4 <= rows {
+        gemv_tile::<4>(i, cols, block, a, a_off, lda, x, res, alpha);
+        i += 4;
+    }
+    if i + 2 <= rows {
+        gemv_tile::<2>(i, cols, block, a, a_off, lda, x, res, alpha);
+        i += 2;
+    }
+    if i < rows {
+        gemv_tile::<1>(i, cols, block, a, a_off, lda, x, res, alpha);
+    }
+}
+
+/// Rows `i..i + MR` of [`gemv_tiles`].
+#[allow(clippy::too_many_arguments)] // BLAS-style kernel signature
+#[inline(always)]
+fn gemv_tile<const MR: usize>(
+    i: usize,
+    cols: usize,
+    block: usize,
+    a: &[f64],
+    a_off: usize,
+    lda: usize,
+    x: &[f64],
+    res: &mut [f64],
+    alpha: f64,
+) {
+    let out: &mut [f64; MR] = (&mut res[i..i + MR])
+        .try_into()
+        .unwrap_or_else(|_| unreachable!());
     let mut j2 = 0;
     while j2 < cols {
         let jend = (j2 + block).min(cols);
-        for i in 0..rows {
-            let mut c = 0.0;
-            for j in j2..jend {
-                c += a[a_off + i + j * lda] * x[x_off + j];
+        let mut c = [0.0f64; MR];
+        for (j, &xj) in x.iter().enumerate().take(jend).skip(j2) {
+            let col: &[f64; MR] = a[a_off + i + j * lda..][..MR]
+                .try_into()
+                .unwrap_or_else(|_| unreachable!());
+            for r in 0..MR {
+                c[r] = c[r] + col[r] * xj;
             }
-            let r = &mut res[r_off + i];
-            *r = c * alpha + *r;
+        }
+        for r in 0..MR {
+            out[r] = c[r] * alpha + out[r];
         }
         j2 = jend;
     }
@@ -415,35 +513,6 @@ pub(crate) fn trsm_kc(depth: usize, rows: usize, cols: usize) -> usize {
     }
 }
 
-/// `gebp` accumulation of one result entry over `depth` products `t(l)`
-/// for a result column that the `1 × nr` micro-kernel handles (`full` =
-/// column index below `(cols / nr)·nr`): even and odd `l` accumulate
-/// separately up to the peeled depth, then `c + d`, then the remainder;
-/// other columns accumulate sequentially. Both start from `+0`.
-fn gebp_acc(depth: usize, full: bool, t: impl Fn(usize) -> f64) -> f64 {
-    if full {
-        let peeled = depth & !(GEBP_PK - 1);
-        let (mut c, mut d) = (0.0, 0.0);
-        let mut l = 0;
-        while l < peeled {
-            c += t(l);
-            d += t(l + 1);
-            l += 2;
-        }
-        let mut c = c + d;
-        for l in peeled..depth {
-            c += t(l);
-        }
-        c
-    } else {
-        let mut c = 0.0;
-        for l in 0..depth {
-            c += t(l);
-        }
-        c
-    }
-}
-
 /// `triangular_solve_matrix<double, …, OnTheLeft, Lower|UnitDiag,
 /// ColMajor (tri), ColMajor (other)>`: solves `L X = B` in place for the
 /// `size × cols` block `X(i, j) = o[o_off + i + j·ldo]`, `L(i, j) =
@@ -500,17 +569,19 @@ pub(crate) fn trsm_unit_lower(
                 let start_block = k2 + k1;
                 if length_target > 0 {
                     let start_target = k2 + k1 + apw;
-                    for jj in 0..acols {
-                        let j = j2 + jj;
-                        for tt in 0..length_target {
-                            let row = start_target + tt;
-                            let c = gebp_acc(apw, jj < full_cols, |l| {
-                                tri(row, start_block + l) * o[o_off + (start_block + l) + j * ldo]
-                            });
-                            let r = &mut o[o_off + row + j * ldo];
-                            *r = c * -1.0 + *r;
-                        }
-                    }
+                    gebp_minus(
+                        apw,
+                        start_block,
+                        start_target..start_target + length_target,
+                        j2..j2 + acols,
+                        full_cols,
+                        t,
+                        t_off,
+                        ldt,
+                        o,
+                        o_off,
+                        ldo,
+                    );
                 }
                 k1 += TRSM_SMALL_PANEL;
             }
@@ -518,16 +589,146 @@ pub(crate) fn trsm_unit_lower(
         }
         // R2 -= A21 * B (rows below the kc block)
         let full_cols = (cols / GEBP_NR) * GEBP_NR;
-        for row in (k2 + kc).min(size)..size {
-            for j in 0..cols {
-                let c = gebp_acc(akc, j < full_cols, |l| {
-                    tri(row, k2 + l) * o[o_off + (k2 + l) + j * ldo]
-                });
-                let r = &mut o[o_off + row + j * ldo];
-                *r = c * -1.0 + *r;
-            }
+        let below = (k2 + kc).min(size);
+        if below < size {
+            gebp_minus(
+                akc,
+                k2,
+                below..size,
+                0..cols,
+                full_cols,
+                t,
+                t_off,
+                ldt,
+                o,
+                o_off,
+                ldo,
+            );
         }
         k2 += kc;
+    }
+}
+
+/// The `gebp` update `o(row, j) = c·(−1) + o(row, j)` of [`trsm_unit_lower`]
+/// for `row ∈ rows`, `j ∈ cols`, with `c` = [`gebp_acc`] over the `depth`
+/// products `t(row, k0 + l)·o(k0 + l, j)` (`full` for the first
+/// `full_cols` columns of `cols`). The rows are independent and the
+/// right-hand values `o(k0 + l, j)` lie outside `rows`: the update runs
+/// over tiles of rows, each lane with [`gebp_acc`]'s sequence
+/// (`tests::trsm_matches_reference_bitwise`).
+#[allow(clippy::too_many_arguments)] // BLAS-style kernel signature
+fn gebp_minus(
+    depth: usize,
+    k0: usize,
+    rows: std::ops::Range<usize>,
+    cols: std::ops::Range<usize>,
+    full_cols: usize,
+    t: &[f64],
+    t_off: usize,
+    ldt: usize,
+    o: &mut [f64],
+    o_off: usize,
+    ldo: usize,
+) {
+    debug_assert!(rows.start >= k0 + depth || rows.end <= k0);
+    const XMAX: usize = 128;
+    let mut xbuf = [0.0f64; XMAX];
+    let mut xheap = Vec::new();
+    let x: &mut [f64] = if depth <= XMAX {
+        &mut xbuf[..depth]
+    } else {
+        xheap.resize(depth, 0.0);
+        &mut xheap
+    };
+    let tcol = &t[t_off..];
+    for (jj, j) in cols.enumerate() {
+        let full = jj < full_cols;
+        x.copy_from_slice(&o[o_off + k0 + j * ldo..][..depth]);
+        let ocol = &mut o[o_off + j * ldo..];
+        let mut row = rows.start;
+        while row + 8 <= rows.end {
+            gebp_minus_tile::<8>(
+                depth,
+                full,
+                tcol,
+                row + k0 * ldt,
+                ldt,
+                x,
+                &mut ocol[row..row + 8],
+            );
+            row += 8;
+        }
+        if row + 4 <= rows.end {
+            gebp_minus_tile::<4>(
+                depth,
+                full,
+                tcol,
+                row + k0 * ldt,
+                ldt,
+                x,
+                &mut ocol[row..row + 4],
+            );
+            row += 4;
+        }
+        while row < rows.end {
+            gebp_minus_tile::<1>(
+                depth,
+                full,
+                tcol,
+                row + k0 * ldt,
+                ldt,
+                x,
+                &mut ocol[row..=row],
+            );
+            row += 1;
+        }
+    }
+}
+
+/// `MR` rows of [`gebp_minus`]: `t(r, l) = t[t0 + r + l·ldt]`, `x(l)`.
+#[inline(always)]
+fn gebp_minus_tile<const MR: usize>(
+    depth: usize,
+    full: bool,
+    t: &[f64],
+    t0: usize,
+    ldt: usize,
+    x: &[f64],
+    out: &mut [f64],
+) {
+    let tl = |l: usize| -> &[f64; MR] {
+        t[t0 + l * ldt..][..MR]
+            .try_into()
+            .unwrap_or_else(|_| unreachable!())
+    };
+    let mut c = [0.0f64; MR];
+    let mut l = 0;
+    if full {
+        let peeled = depth & !(GEBP_PK - 1);
+        let mut dd = [0.0f64; MR];
+        while l < peeled {
+            let (t0v, t1v) = (tl(l), tl(l + 1));
+            let (x0, x1) = (x[l], x[l + 1]);
+            for r in 0..MR {
+                c[r] += t0v[r] * x0;
+                dd[r] += t1v[r] * x1;
+            }
+            l += 2;
+        }
+        for r in 0..MR {
+            c[r] = c[r] + dd[r];
+        }
+    }
+    while l < depth {
+        let tv = tl(l);
+        let xl = x[l];
+        for r in 0..MR {
+            c[r] += tv[r] * xl;
+        }
+        l += 1;
+    }
+    for r in 0..MR {
+        out[r] = c[r] * -1.0 + out[r];
     }
 }
 
@@ -535,6 +736,17 @@ pub(crate) fn trsm_unit_lower(
 /// size 1 and `RK = 2`: `C += A·B` where, per entry, the depth is consumed
 /// in blocks of two, `c = (c + a0·b0) + a1·b1`, and an odd last term is
 /// added as `c + b·a` (the `rd` tail).
+///
+/// Each entry's sequence is therefore `c ← c + a(i,k)·b(k,j)` for `k` in
+/// order, then `c ← c + b(d−1,j)·a(i,d−1)` when `d` is odd. The entries are
+/// independent, so the kernel computes them in register tiles of
+/// `MR` rows × up to [`GEMM_NR`] columns (the tile's `k` loop runs over
+/// the whole depth, `a` read column by column, contiguous), with exactly
+/// that sequence per entry: every product and every sum is a separate
+/// IEEE operation (Rust never contracts `a * b + c` into an FMA), so the
+/// result is bitwise the one of the entry-by-entry loop
+/// (`tests::gemm_matches_reference_bitwise`).
+#[cfg(test)] // the callers all use `sparselu_gemm_into_zero`
 #[allow(clippy::too_many_arguments)] // BLAS-style kernel signature
 pub(crate) fn sparselu_gemm(
     m: usize,
@@ -550,36 +762,612 @@ pub(crate) fn sparselu_gemm(
     c_off: usize,
     ldc: usize,
 ) {
-    const RK: usize = 2;
-    let d_end = (d / RK) * RK;
-    let rd = d - d_end;
-    for j in 0..n {
-        for i in 0..m {
-            let mut acc = c[c_off + i + j * ldc];
-            let mut k = 0;
-            while k < d_end {
-                for l in 0..RK {
-                    acc += a[a_off + i + (k + l) * lda] * b[b_off + (k + l) + j * ldb];
-                }
-                k += RK;
-            }
-            if rd > 0 {
-                let term =
-                    |l: usize| b[b_off + d_end + l + j * ldb] * a[a_off + i + (d_end + l) * lda];
-                let mut s = term(0);
-                for l in 1..rd {
-                    s += term(l);
-                }
-                acc += s;
-            }
-            c[c_off + i + j * ldc] = acc;
+    gemm_tiles::<4, false, false>(m, n, d, a, a_off, lda, b, b_off, ldb, c, c_off, ldc);
+}
+
+/// [`sparselu_gemm`] on a destination that the caller would have set to
+/// `+0.0` first: the accumulators start at `+0.0` without reading `C`, and
+/// every entry of the `m × n` block is written. Bitwise the same as
+/// zero-filling `C` and calling [`sparselu_gemm`]. The widest instruction
+/// set of the CPU is chosen at run time (`simd::gemm_into_zero`); this is
+/// the portable instance (SSE2 on x86-64, NEON on aarch64).
+#[allow(clippy::too_many_arguments)] // BLAS-style kernel signature
+pub(crate) fn sparselu_gemm_into_zero(
+    m: usize,
+    n: usize,
+    d: usize,
+    a: &[f64],
+    a_off: usize,
+    lda: usize,
+    b: &[f64],
+    b_off: usize,
+    ldb: usize,
+    c: &mut [f64],
+    c_off: usize,
+    ldc: usize,
+) {
+    gemm_tiles::<4, true, false>(m, n, d, a, a_off, lda, b, b_off, ldb, c, c_off, ldc);
+}
+
+/// Columns of a register tile of [`sparselu_gemm`].
+const GEMM_NR: usize = 4;
+
+/// The tiled `C (+)= A·B` with register tiles of `MR` rows (`MR` = 4, 8 or
+/// 16: eight independent accumulator vectors of two, four or eight lanes)
+/// × [`GEMM_NR`] columns. `FMA` (fast mode, `simd::gemm_into_zero_fma`):
+/// each term `c + a·b` as one fused multiply-add, which changes the bits;
+/// only instantiated in functions compiled with the `fma` feature.
+#[allow(clippy::too_many_arguments)] // BLAS-style kernel signature
+#[inline(always)]
+pub(super) fn gemm_tiles<const MR: usize, const ZERO: bool, const FMA: bool>(
+    m: usize,
+    n: usize,
+    d: usize,
+    a: &[f64],
+    a_off: usize,
+    lda: usize,
+    b: &[f64],
+    b_off: usize,
+    ldb: usize,
+    c: &mut [f64],
+    c_off: usize,
+    ldc: usize,
+) {
+    if m == 0 || n == 0 {
+        return;
+    }
+    let mut i = 0;
+    while i + MR <= m {
+        gemm_rows::<MR, ZERO, FMA>(n, d, a, a_off + i, lda, b, b_off, ldb, c, c_off + i, ldc);
+        i += MR;
+    }
+    if MR > 8 && i + 8 <= m {
+        gemm_rows::<8, ZERO, FMA>(n, d, a, a_off + i, lda, b, b_off, ldb, c, c_off + i, ldc);
+        i += 8;
+    }
+    if MR > 4 && i + 4 <= m {
+        gemm_rows::<4, ZERO, FMA>(n, d, a, a_off + i, lda, b, b_off, ldb, c, c_off + i, ldc);
+        i += 4;
+    }
+    if i + 2 <= m {
+        gemm_rows::<2, ZERO, FMA>(n, d, a, a_off + i, lda, b, b_off, ldb, c, c_off + i, ldc);
+        i += 2;
+    }
+    if i < m {
+        gemm_rows::<1, ZERO, FMA>(n, d, a, a_off + i, lda, b, b_off, ldb, c, c_off + i, ldc);
+    }
+}
+
+/// `MR` rows of all `n` columns, in tiles of [`GEMM_NR`] columns (the
+/// `MR × d` strip of `A` stays in the L1 cache across the column tiles).
+#[allow(clippy::too_many_arguments)] // BLAS-style kernel signature
+#[inline(always)]
+fn gemm_rows<const MR: usize, const ZERO: bool, const FMA: bool>(
+    n: usize,
+    d: usize,
+    a: &[f64],
+    a_off: usize,
+    lda: usize,
+    b: &[f64],
+    b_off: usize,
+    ldb: usize,
+    c: &mut [f64],
+    c_off: usize,
+    ldc: usize,
+) {
+    let mut j = 0;
+    if MR == 16 {
+        // 16 × 8 tiles: sixteen accumulator vectors of the 32 AVX-512 registers
+        while j + 8 <= n {
+            gemm_tile::<MR, 8, ZERO, FMA>(
+                d,
+                a,
+                a_off,
+                lda,
+                b,
+                b_off + j * ldb,
+                ldb,
+                c,
+                c_off + j * ldc,
+                ldc,
+            );
+            j += 8;
         }
+    }
+    while j + GEMM_NR <= n {
+        gemm_tile::<MR, GEMM_NR, ZERO, FMA>(
+            d,
+            a,
+            a_off,
+            lda,
+            b,
+            b_off + j * ldb,
+            ldb,
+            c,
+            c_off + j * ldc,
+            ldc,
+        );
+        j += GEMM_NR;
+    }
+    let (bj, cj) = (b_off + j * ldb, c_off + j * ldc);
+    match n - j {
+        3 => gemm_tile::<MR, 3, ZERO, FMA>(d, a, a_off, lda, b, bj, ldb, c, cj, ldc),
+        2 => gemm_tile::<MR, 2, ZERO, FMA>(d, a, a_off, lda, b, bj, ldb, c, cj, ldc),
+        1 => gemm_tile::<MR, 1, ZERO, FMA>(d, a, a_off, lda, b, bj, ldb, c, cj, ldc),
+        _ => {}
+    }
+}
+
+/// One `MR × NR` tile: `c(r, jn) = c[c_off + r + jn·ldc]`, `a(r, k) =
+/// a[a_off + r + k·lda]`, `b(k, jn) = b[b_off + k + jn·ldb]`.
+#[allow(clippy::too_many_arguments)] // BLAS-style kernel signature
+#[inline(always)]
+fn gemm_tile<const MR: usize, const NR: usize, const ZERO: bool, const FMA: bool>(
+    d: usize,
+    a: &[f64],
+    a_off: usize,
+    lda: usize,
+    b: &[f64],
+    b_off: usize,
+    ldb: usize,
+    c: &mut [f64],
+    c_off: usize,
+    ldc: usize,
+) {
+    // the columns of B, each `d` long
+    let bcols: [&[f64]; NR] = std::array::from_fn(|jn| &b[b_off + jn * ldb..][..d]);
+    let d_end = d & !1;
+    let mut acc = [[0.0f64; MR]; NR];
+    if !ZERO {
+        for (jn, accj) in acc.iter_mut().enumerate() {
+            accj.copy_from_slice(&c[c_off + jn * ldc..][..MR]);
+        }
+    }
+    for k in 0..d_end {
+        let ak: &[f64; MR] = a[a_off + k * lda..][..MR]
+            .try_into()
+            .unwrap_or_else(|_| unreachable!());
+        for (accj, bc) in acc.iter_mut().zip(&bcols) {
+            let bk = bc[k];
+            for r in 0..MR {
+                if FMA {
+                    // fast mode only (not Eigen's sequence): one rounding
+                    accj[r] = ak[r].mul_add(bk, accj[r]);
+                } else {
+                    accj[r] = accj[r] + ak[r] * bk;
+                }
+            }
+        }
+    }
+    if d_end < d {
+        // the `rd` tail: `c + b·a`
+        let ak: &[f64; MR] = a[a_off + d_end * lda..][..MR]
+            .try_into()
+            .unwrap_or_else(|_| unreachable!());
+        for (accj, bc) in acc.iter_mut().zip(&bcols) {
+            let bk = bc[d_end];
+            for r in 0..MR {
+                if FMA {
+                    accj[r] = bk.mul_add(ak[r], accj[r]);
+                } else {
+                    accj[r] = accj[r] + bk * ak[r];
+                }
+            }
+        }
+    }
+    for (jn, accj) in acc.iter().enumerate() {
+        c[c_off + jn * ldc..][..MR].copy_from_slice(accj);
     }
 }
 
 #[cfg(test)]
 mod tests {
     use super::*;
+    use akantu_core::bitwise_testing::{Values, same};
+
+    /// The entry-by-entry `sparselu_gemm` the tiled kernel replaced (the
+    /// reference of the bitwise property test).
+    #[allow(clippy::too_many_arguments)]
+    fn sparselu_gemm_reference(
+        m: usize,
+        n: usize,
+        d: usize,
+        a: &[f64],
+        a_off: usize,
+        lda: usize,
+        b: &[f64],
+        b_off: usize,
+        ldb: usize,
+        c: &mut [f64],
+        c_off: usize,
+        ldc: usize,
+    ) {
+        const RK: usize = 2;
+        let d_end = (d / RK) * RK;
+        let rd = d - d_end;
+        for j in 0..n {
+            for i in 0..m {
+                let mut acc = c[c_off + i + j * ldc];
+                let mut k = 0;
+                while k < d_end {
+                    for l in 0..RK {
+                        acc += a[a_off + i + (k + l) * lda] * b[b_off + (k + l) + j * ldb];
+                    }
+                    k += RK;
+                }
+                if rd > 0 {
+                    let term = |l: usize| {
+                        b[b_off + d_end + l + j * ldb] * a[a_off + i + (d_end + l) * lda]
+                    };
+                    let mut s = term(0);
+                    for l in 1..rd {
+                        s += term(l);
+                    }
+                    acc += s;
+                }
+                c[c_off + i + j * ldc] = acc;
+            }
+        }
+    }
+
+    /// Shapes and offsets of the random cases (xorshift64*).
+    pub(super) struct Gen(pub u64);
+    impl Gen {
+        pub fn next_u64(&mut self) -> u64 {
+            self.0 ^= self.0 >> 12;
+            self.0 ^= self.0 << 25;
+            self.0 ^= self.0 >> 27;
+            self.0.wrapping_mul(0x2545_F491_4F6C_DD1D)
+        }
+        pub fn below(&mut self, n: usize) -> usize {
+            (self.next_u64() % n as u64) as usize
+        }
+    }
+
+    /// The values of one case, by the project's rule (D-046 / D-051,
+    /// `akantu_core::bitwise_testing`): in the default mode special values
+    /// with default NaNs only, compared with [`same`]; in the payload mode
+    /// finite values and one NaN with a payload, compared bit for bit.
+    pub(super) struct Draws {
+        v: Values,
+        payload: bool,
+    }
+    impl Draws {
+        pub fn new(seed: u64) -> Self {
+            Self {
+                v: Values::new(seed),
+                payload: false,
+            }
+        }
+        /// Starts a case of `total` draws; even cases use the payload mode.
+        pub fn case(&mut self, g: &mut Gen, case: usize, total: usize) {
+            self.payload = case.is_multiple_of(2) && total > 0;
+            if self.payload {
+                self.v.payload_at(1 + g.below(total) as u64);
+            } else {
+                self.v.default_mode();
+            }
+        }
+        pub fn vec(&mut self, n: usize) -> Vec<f64> {
+            let mut out = vec![0.0; n];
+            self.v.fill(&mut out);
+            out
+        }
+        pub fn eq(&self, x: f64, y: f64) -> bool {
+            if self.payload {
+                x.to_bits() == y.to_bits()
+            } else {
+                same(x, y)
+            }
+        }
+    }
+
+    /// `gebp_acc` of the reference `trsm_unit_lower`.
+    fn gebp_acc(depth: usize, full: bool, t: impl Fn(usize) -> f64) -> f64 {
+        if full {
+            let peeled = depth & !(GEBP_PK - 1);
+            let (mut c, mut d) = (0.0, 0.0);
+            let mut l = 0;
+            while l < peeled {
+                c += t(l);
+                d += t(l + 1);
+                l += 2;
+            }
+            let mut c = c + d;
+            for l in peeled..depth {
+                c += t(l);
+            }
+            c
+        } else {
+            let mut c = 0.0;
+            for l in 0..depth {
+                c += t(l);
+            }
+            c
+        }
+    }
+
+    /// The row-by-row `trsm_unit_lower` that the row-tiled one replaced.
+    #[allow(clippy::too_many_arguments)] // BLAS-style kernel signature
+    fn trsm_unit_lower_reference(
+        size: usize,
+        cols: usize,
+        t: &[f64],
+        t_off: usize,
+        ldt: usize,
+        o: &mut [f64],
+        o_off: usize,
+        ldo: usize,
+    ) {
+        if size == 0 {
+            return;
+        }
+        let tri = |i: usize, j: usize| t[t_off + i + j * ldt];
+        let kc = trsm_kc(size, size, cols);
+        let subcols = if cols > 0 {
+            L2 / (4 * SCALAR * ldo.max(size))
+        } else {
+            0
+        };
+        let subcols = ((subcols / GEBP_NR) * GEBP_NR).max(GEBP_NR);
+        let mut k2 = 0;
+        while k2 < size {
+            let akc = (size - k2).min(kc);
+            let mut j2 = 0;
+            while j2 < cols {
+                let acols = (cols - j2).min(subcols);
+                let full_cols = (acols / GEBP_NR) * GEBP_NR;
+                let mut k1 = 0;
+                while k1 < akc {
+                    let apw = (akc - k1).min(TRSM_SMALL_PANEL);
+                    // tr solve of the small panel (unit diagonal: a = 1)
+                    for k in 0..apw {
+                        let i = k2 + k1 + k;
+                        let rs = apw - k - 1;
+                        let s = i + 1;
+                        for j in j2..j2 + acols {
+                            let oij = &mut o[o_off + i + j * ldo];
+                            *oij *= 1.0;
+                            let b = *oij;
+                            for i3 in 0..rs {
+                                let r = &mut o[o_off + (s + i3) + j * ldo];
+                                *r -= b * tri(s + i3, i);
+                            }
+                        }
+                    }
+                    // gebp update of the rows below the panel, inside the kc block
+                    let length_target = akc - k1 - apw;
+                    let start_block = k2 + k1;
+                    if length_target > 0 {
+                        let start_target = k2 + k1 + apw;
+                        for jj in 0..acols {
+                            let j = j2 + jj;
+                            for tt in 0..length_target {
+                                let row = start_target + tt;
+                                let c = gebp_acc(apw, jj < full_cols, |l| {
+                                    tri(row, start_block + l)
+                                        * o[o_off + (start_block + l) + j * ldo]
+                                });
+                                let r = &mut o[o_off + row + j * ldo];
+                                *r = c * -1.0 + *r;
+                            }
+                        }
+                    }
+                    k1 += TRSM_SMALL_PANEL;
+                }
+                j2 += subcols;
+            }
+            // R2 -= A21 * B (rows below the kc block)
+            let full_cols = (cols / GEBP_NR) * GEBP_NR;
+            for row in (k2 + kc).min(size)..size {
+                for j in 0..cols {
+                    let c = gebp_acc(akc, j < full_cols, |l| {
+                        tri(row, k2 + l) * o[o_off + (k2 + l) + j * ldo]
+                    });
+                    let r = &mut o[o_off + row + j * ldo];
+                    *r = c * -1.0 + *r;
+                }
+            }
+            k2 += kc;
+        }
+    }
+
+    #[test]
+    fn trsm_matches_reference_bitwise() {
+        let mut g = Gen(0x0123_4567_89AB_CDEF);
+        let mut dr = Draws::new(0x0123_4567_89AB_CDEF);
+        for case in 0..1200 {
+            // sizes around the kc split (96 / 128) and the panel widths
+            let size = match case % 5 {
+                0 => g.below(10),
+                1 => 90 + g.below(50),
+                _ => g.below(70),
+            };
+            let cols = g.below(18);
+            let ldt = size + g.below(5);
+            let ldo = size + g.below(3);
+            let (to, oo) = (g.below(4), g.below(4));
+            let (lt, lo) = (to + ldt * size.max(1) + 1, oo + ldo * cols.max(1) + size);
+            dr.case(&mut g, case, lt + lo);
+            let t = dr.vec(lt);
+            let o0 = dr.vec(lo);
+            let mut o1 = o0.clone();
+            let mut o2 = o0.clone();
+            trsm_unit_lower_reference(size, cols, &t, to, ldt, &mut o1, oo, ldo);
+            trsm_unit_lower(size, cols, &t, to, ldt, &mut o2, oo, ldo);
+            for (x, y) in o1.iter().zip(&o2) {
+                assert!(
+                    dr.eq(*x, *y),
+                    "case {case}: size={size} cols={cols}: {x:e} {y:e}"
+                );
+            }
+        }
+    }
+
+    /// The row-by-row GEMV the tiled one replaced (separate buffers).
+    #[allow(clippy::too_many_arguments)]
+    fn gemv_reference(
+        rows: usize,
+        cols: usize,
+        a: &[f64],
+        a_off: usize,
+        lda: usize,
+        x: &[f64],
+        x_off: usize,
+        res: &mut [f64],
+        r_off: usize,
+        alpha: f64,
+    ) {
+        let block = gemv_block_cols(cols, lda);
+        let mut j2 = 0;
+        while j2 < cols {
+            let jend = (j2 + block).min(cols);
+            for i in 0..rows {
+                let mut c = 0.0;
+                for j in j2..jend {
+                    c += a[a_off + i + j * lda] * x[x_off + j];
+                }
+                let r = &mut res[r_off + i];
+                *r = c * alpha + *r;
+            }
+            j2 = jend;
+        }
+    }
+
+    #[test]
+    fn gemv_matches_reference_bitwise() {
+        let mut g = Gen(0x2545_F491_4F6C_DD1D);
+        let mut dr = Draws::new(0x2545_F491_4F6C_DD1D);
+        for case in 0..4000 {
+            let rows = g.below(80);
+            // around the block rule: < 128 one block, else 16 or 4 columns
+            let cols = if case % 7 == 0 {
+                120 + g.below(40)
+            } else {
+                g.below(30)
+            };
+            let lda = rows
+                + if case % 11 == 0 {
+                    4000 + g.below(200)
+                } else {
+                    g.below(4)
+                };
+            let ao = g.below(4);
+            let alpha = [1.0, -1.0, 0.5][g.below(3)];
+            let la = ao + lda * cols.max(1) + rows;
+            dr.case(&mut g, case, la + cols + 3 + rows + 2 + rows + cols + 5);
+            let a = dr.vec(la);
+            // separate buffers
+            let x = dr.vec(cols + 3);
+            let r0 = dr.vec(rows + 2);
+            let mut r1 = r0.clone();
+            gemv_reference(
+                rows,
+                cols,
+                &a,
+                ao,
+                lda,
+                &x,
+                1,
+                &mut r1,
+                2.min(r0.len() - rows),
+                alpha,
+            );
+            for isa in super::super::simd::available() {
+                let mut r2 = r0.clone();
+                let ro = 2.min(r0.len() - rows);
+                super::super::simd::gemv_with(
+                    isa,
+                    rows,
+                    cols,
+                    &a,
+                    ao,
+                    lda,
+                    &x[1..1 + cols],
+                    &mut r2[ro..ro + rows],
+                    alpha,
+                );
+                for (u, v) in r1.iter().zip(&r2) {
+                    assert!(
+                        dr.eq(*u, *v),
+                        "case {case} {isa:?}: rows={rows} cols={cols}"
+                    );
+                }
+            }
+            // one buffer, x before and after the result
+            let v0 = dr.vec(rows + cols + 5);
+            for x_first in [true, false] {
+                let (xo, ro) = if x_first {
+                    (1, cols + 3)
+                } else {
+                    (rows + 4, 0)
+                };
+                let mut v1 = v0.clone();
+                let xs = v0[xo..xo + cols].to_vec();
+                gemv_reference(rows, cols, &a, ao, lda, &xs, 0, &mut v1, ro, alpha);
+                let mut v2 = v0.clone();
+                gemv_in_place(rows, cols, &a, ao, lda, &mut v2, xo, ro, alpha);
+                for (u, v) in v1.iter().zip(&v2) {
+                    assert!(
+                        dr.eq(*u, *v),
+                        "case {case} in place: rows={rows} cols={cols}"
+                    );
+                }
+            }
+        }
+    }
+
+    #[test]
+    fn gemm_matches_reference_bitwise() {
+        let mut g = Gen(0x9E37_79B9_7F4A_7C15);
+        let mut dr = Draws::new(0x9E37_79B9_7F4A_7C15);
+        for case in 0..4000 {
+            let m = g.below(70);
+            let n = g.below(19);
+            let d = g.below(23);
+            let lda = m + g.below(4);
+            let ldb = d + g.below(3);
+            let ldc = m + g.below(3);
+            let (ao, bo, co) = (g.below(5), g.below(5), g.below(5));
+            let (la, lb) = (ao + lda * d.max(1) + m, bo + ldb * n.max(1) + d);
+            // slack after the last column of C as well
+            let lc = co + ldc * n.max(1) + m + g.below(4);
+            dr.case(&mut g, case, la + lb + lc);
+            let a = dr.vec(la);
+            let b = dr.vec(lb);
+            let c0 = dr.vec(lc);
+            let mut c1 = c0.clone();
+            let mut c2 = c0.clone();
+            sparselu_gemm_reference(m, n, d, &a, ao, lda, &b, bo, ldb, &mut c1, co, ldc);
+            sparselu_gemm(m, n, d, &a, ao, lda, &b, bo, ldb, &mut c2, co, ldc);
+            for (x, y) in c1.iter().zip(&c2) {
+                assert!(dr.eq(*x, *y), "case {case}: m={m} n={n} d={d}: {x:e} {y:e}");
+            }
+            // the zero-destination variants equal a zero fill of the block
+            // + the reference; the whole array is compared (the rows from
+            // `m` to `ldc` and the slack before and after stay as they were)
+            let mut z1 = c0.clone();
+            for j in 0..n {
+                z1[co + j * ldc..co + j * ldc + m].fill(0.0);
+            }
+            sparselu_gemm_reference(m, n, d, &a, ao, lda, &b, bo, ldb, &mut z1, co, ldc);
+            // every instruction-set instance this CPU runs
+            for isa in super::super::simd::available() {
+                let mut z2 = c0.clone();
+                super::super::simd::gemm_into_zero_with(
+                    isa, m, n, d, &a, ao, lda, &b, bo, ldb, &mut z2, co, ldc,
+                );
+                for (k, (x, y)) in z2.iter().zip(&z1).enumerate() {
+                    assert!(dr.eq(*x, *y), "case {case} {isa:?}: entry {k}");
+                }
+            }
+            let mut z2 = c0.clone();
+            sparselu_gemm_into_zero(m, n, d, &a, ao, lda, &b, bo, ldb, &mut z2, co, ldc);
+            for (k, (x, y)) in z2.iter().zip(&z1).enumerate() {
+                assert!(dr.eq(*x, *y), "case {case}: entry {k}");
+            }
+        }
+    }
 
     #[test]
     fn kc_rule_with_kc_factor_4() {

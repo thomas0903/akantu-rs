@@ -169,6 +169,7 @@ impl DiffusionPhysics {
                     ghost,
                     self.upstream_compat.empty_filter_returns,
                     &mut f_int,
+                    &mut self.flow_scratch,
                 )?;
             }
             drop(f_int);
@@ -301,6 +302,8 @@ impl DiffusionPhysics {
 ///
 /// * An empty block is skipped; with `empty_filter_returns` the routine
 ///   returns instead, as upstream (UD-276).
+/// * `scratch` holds the per-point and per-element arrays between calls
+///   (every entry is rewritten by `computeBtD` / `integrate`).
 /// * Upstream calls `computeBtD` **without** the element filter
 ///   (`diffusion_law.cc:63`): for a law that does not own every element of
 ///   the type in mesh order its zip runs over the whole type and reads /
@@ -313,10 +316,12 @@ pub(crate) fn assemble_internal_flow_of(
     ghost: GhostType,
     empty_filter_returns: bool,
     f_int: &mut ArrayMut<'_, Real>,
+    scratch: &mut (Array<Real>, Array<Real>),
 ) -> Result<()> {
     let base = law.base();
+    let (bt_d_gu, int_bt_d_gu) = scratch;
     for ty in base.filter_types(ghost) {
-        let filter = base.filter(ty, ghost).to_vec();
+        let filter = base.filter(ty, ghost);
         if filter.is_empty() {
             if empty_filter_returns {
                 return Ok(());
@@ -325,17 +330,8 @@ pub(crate) fn assemble_internal_flow_of(
         }
         let nn = ty.nb_nodes_per_element();
         let d_grad_u = base.d_grad_u.get(ty, ghost)?;
-        let mut bt_d_gu = Array::new(nn);
-        fe.compute_btd(d_grad_u.view(), &mut bt_d_gu, ty, ghost, Some(&filter))?;
-        let mut int_bt_d_gu = Array::new(nn);
-        fe.integrate(
-            bt_d_gu.view(),
-            &mut int_bt_d_gu,
-            nn,
-            ty,
-            ghost,
-            Some(&filter),
-        )?;
+        fe.compute_btd(d_grad_u.view(), bt_d_gu, ty, ghost, Some(filter))?;
+        fe.integrate(bt_d_gu.view(), int_bt_d_gu, nn, ty, ghost, Some(filter))?;
         DofManager::assemble_elemental_array_local_view(
             mesh,
             int_bt_d_gu.view(),
@@ -343,7 +339,7 @@ pub(crate) fn assemble_internal_flow_of(
             ty,
             ghost,
             -1.0,
-            Some(&filter),
+            Some(filter),
         )?;
     }
     Ok(())

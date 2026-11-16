@@ -306,18 +306,44 @@ impl DiffusionLawBase {
             return Ok(());
         }
         let fe = ctx.fe()?;
-        let filter = self.filter(ty, ghost).to_vec();
-        let mut out = Array::new(self.spatial_dimension);
-        fe.gradient_on_integration_points(
-            ctx.mesh(),
-            ctx.diffusion.view(),
-            &mut out,
-            1,
-            ty,
-            ghost,
-            Some(&filter),
-        )?;
-        store_block(&mut self.grad_u, ty, ghost, out)?;
+        let filter = self
+            .element_filter
+            .get(ty, ghost)
+            .map(Array::as_slice)
+            .unwrap_or(&[]);
+        let sized = match fe.nb_integration_points(ty, ghost) {
+            Ok(nq) => {
+                self.grad_u.exists(ty, ghost)
+                    && self.grad_u.get(ty, ghost)?.len() == filter.len() * nq
+            }
+            Err(_) => false,
+        };
+        if sized {
+            // the block already has the gradient's shape: computed in place
+            // (the same values; no temporary array and copy per call)
+            let mut block = self.grad_u.get_mut(ty, ghost)?;
+            fe.gradient_on_integration_points_view(
+                ctx.mesh(),
+                ctx.diffusion.view(),
+                block.view_mut(),
+                1,
+                ty,
+                ghost,
+                Some(filter),
+            )?;
+        } else {
+            let mut out = Array::new(self.spatial_dimension);
+            fe.gradient_on_integration_points(
+                ctx.mesh(),
+                ctx.diffusion.view(),
+                &mut out,
+                1,
+                ty,
+                ghost,
+                Some(filter),
+            )?;
+            store_block(&mut self.grad_u, ty, ghost, out)?;
+        }
         self.grad_u_release
             .insert(block_key(ty, ghost), ctx.release);
         Ok(())
