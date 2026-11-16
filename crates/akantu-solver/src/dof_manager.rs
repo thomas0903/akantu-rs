@@ -283,7 +283,7 @@ impl DofData {
         let e = *self
             .local_equation_numbers
             .get(k)
-            .ok_or_else(|| Error::OutOfRange {
+            .ok_or(Error::OutOfRange {
                 what: "dof",
                 index: k,
                 len: self.local_equation_numbers.len(),

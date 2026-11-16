@@ -245,6 +245,12 @@ pub struct SparseMatrixAij {
     /// Process-unique identity of the current profile (port extension;
     /// see [`SparseMatrixAij::profile_identity`]).
     profile_stamp: ProfileStamp,
+    /// Identity of the current *entry positions*: drawn afresh whenever an
+    /// existing entry may move or change its key (construction, clone,
+    /// `clear_profile`, `copy_profile`, promotion), but not when entries
+    /// are appended, which leaves every existing position valid
+    /// ([`BlockPositionCache`]).
+    position_epoch: ProfileStamp,
     /// Reusable scratch for `add_values` (no per-element allocation).
     scratch: Vec<usize>,
     /// Largest stored coordinate (row or column), `-1` without entries
@@ -270,6 +276,7 @@ impl SparseMatrixAij {
             profile_release: 1,
             value_release: 1,
             profile_stamp: ProfileStamp::fresh(),
+            position_epoch: ProfileStamp::fresh(),
             scratch: Vec::new(),
             max_coord: -1,
         }
@@ -610,10 +617,11 @@ impl SparseMatrixAij {
     /// errors and the promotion of [`SymmetryPolicy::PromoteOnUnsymmetric`]
     /// are exactly those of `add_values(rows, cols, values, values_type)`:
     /// the cache only replaces the profile lookups of a block whose
-    /// equations, matrix profile ([`SparseMatrixAij::profile_identity`]),
-    /// order and selection mode equal those the positions were resolved
-    /// for. Positions are stored from the second assembly round
-    /// ([`BlockPositionCache::begin`]) with an unchanged profile, so a
+    /// equations, entry positions (unchanged since the positions were
+    /// resolved, up to appended entries: an appended entry moves no other
+    /// one), order and selection mode equal those the positions were
+    /// resolved for. Positions are stored from the second assembly round
+    /// ([`BlockPositionCache::begin`]) with unchanged positions, so a
     /// one-shot assembly costs no memory; see [`BlockPositionCache`] for
     /// the memory a stored slot takes.
     pub fn add_values_cached(
@@ -627,7 +635,7 @@ impl SparseMatrixAij {
     ) -> Result<()> {
         let (nr, nc) = (rows.len(), cols.len());
         let symmetric = self.matrix_type == MatrixType::Symmetric;
-        let usable = cache.stamp == self.profile_stamp.0
+        let usable = cache.stamp == self.position_epoch.0
             && values.len() == nr * nc
             && !(symmetric && values_type == MatrixType::Symmetric && nr != nc)
             && !(symmetric
@@ -762,6 +770,7 @@ impl SparseMatrixAij {
         self.matrix_type = MatrixType::Unsymmetric;
         self.promoted = true;
         self.bump_profile();
+        self.position_epoch = ProfileStamp::fresh();
         self.bump_values(1);
     }
 
@@ -919,6 +928,7 @@ impl SparseMatrixAij {
         self.size = other.size;
         self.profile_release = other.profile_release;
         self.profile_stamp = ProfileStamp::fresh();
+        self.position_epoch = ProfileStamp::fresh();
         self.bump_values(1);
     }
 
@@ -951,6 +961,7 @@ impl SparseMatrixAij {
     /// The effective symmetry (an agreed promotion) is kept.
     pub fn clear_profile(&mut self) {
         self.max_coord = -1;
+        self.position_epoch = ProfileStamp::fresh();
         self.irn.clear();
         self.jcn.clear();
         self.a.clear();
@@ -1460,13 +1471,15 @@ const SKIP: u32 = u32::MAX;
 /// symmetric matrix, `n²` otherwise. For example 360 bytes per `Tetrahedron4`
 /// element of a 3-D solid (12 equations, 78 pairs), 1.3 kB per
 /// `Hexahedron8` (24 equations, 300 pairs), so 360 MB and 1.3 GB per 10⁶
-/// elements. Nothing is stored before the second assembly round with an
-/// unchanged profile, and the storage is released when the profile changes.
+/// elements. Nothing is stored before the second assembly round with
+/// unchanged entry positions (entries appended to the profile do not
+/// count as a change), and the storage is released when they change
+/// (`clear_profile`, `copy_profile`, promotion, another matrix object).
 #[derive(Clone, Debug, Default)]
 pub struct BlockPositionCache {
-    /// Profile identity the positions belong to (0: none).
+    /// Position epoch of the matrix the positions belong to (0: none).
     stamp: u64,
-    /// Assembly rounds begun with this profile after the first one.
+    /// Assembly rounds begun with this epoch after the first one.
     rounds: u32,
     /// Matrix order, selection mode and block shape of the stored slots.
     size: GlobalIdx,
@@ -1493,10 +1506,10 @@ impl BlockPositionCache {
     }
 
     /// Start an assembly round into `matrix` (call before the element loop):
-    /// a changed profile releases the stored positions; positions are
-    /// stored from the second round with the same profile on.
+    /// moved entry positions release the stored ones; positions are
+    /// stored from the second round with unchanged positions on.
     pub fn begin(&mut self, matrix: &SparseMatrixAij) {
-        let stamp = matrix.profile_stamp.0;
+        let stamp = matrix.position_epoch.0;
         if stamp == self.stamp {
             self.rounds = self.rounds.saturating_add(1);
         } else {

@@ -43,13 +43,10 @@ impl Hasher for IntHasher {
     }
 
     fn write(&mut self, bytes: &[u8]) {
-        let mut chunks = bytes.chunks_exact(8);
-        for c in &mut chunks {
-            let mut b = [0u8; 8];
-            b.copy_from_slice(c);
-            self.mix(u64::from_le_bytes(b));
+        let (chunks, rest) = bytes.as_chunks::<8>();
+        for c in chunks {
+            self.mix(u64::from_le_bytes(*c));
         }
-        let rest = chunks.remainder();
         if !rest.is_empty() {
             let mut b = [0u8; 8];
             b[..rest.len()].copy_from_slice(rest);

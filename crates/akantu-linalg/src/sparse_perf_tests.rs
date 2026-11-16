@@ -12,8 +12,11 @@
 use super::*;
 use crate::layout::{EquationOwnership, NoReduction};
 
-/// xorshift64* (deterministic test input).
-struct Rng(u64);
+/// xorshift64* (deterministic test input). `special` in 1/1000: the share
+/// of special values (signed zeros, infinities, NaN, subnormals, huge);
+/// kept small, or accumulated entries all become NaN and hide wrong
+/// positions.
+struct Rng(u64, u64);
 
 impl Rng {
     fn next(&mut self) -> u64 {
@@ -38,7 +41,7 @@ impl Rng {
             -2.2e-308,
             1e308,
         ];
-        if self.below(4) == 0 {
+        if self.below(1000) < self.1 as usize {
             SPECIAL[self.below(SPECIAL.len())]
         } else {
             (self.next() >> 11) as Real / (1u64 << 53) as Real * 4.0 - 2.0
@@ -71,9 +74,8 @@ fn same_result(a: &Result<()>, b: &Result<()>, what: &str) {
     }
 }
 
-/// One element block: equations (some `>= size`, some repeated).
-fn element(rng: &mut Rng, n: GlobalIdx) -> Vec<GlobalIdx> {
-    let nb = 1 + rng.below(5);
+/// One element block of `nb` equations (some `>= size`, some repeated).
+fn element_of(rng: &mut Rng, n: GlobalIdx, nb: usize) -> Vec<GlobalIdx> {
     (0..nb)
         .map(|_| {
             let g = rng.below(usize::try_from(n).unwrap() + 3);
@@ -118,9 +120,18 @@ fn cached_element_assembly_is_add_values() {
     for (seed, &(mt, vt, policy)) in combos.iter().enumerate() {
         let mut stored = false;
         for trial in 0..20u64 {
-            let mut rng = Rng((0x9e37_79b9 ^ ((seed as u64) << 32) ^ trial.wrapping_mul(7919)) | 1);
+            // half of the trials without special values (exact detection
+            // of a wrong position), half with them
+            let special = if trial % 4 < 2 { 0 } else { 30 };
+            let mut rng = Rng(
+                (0x9e37_79b9 ^ ((seed as u64) << 32) ^ trial.wrapping_mul(7919)) | 1,
+                special,
+            );
             let n: GlobalIdx = 6 + GlobalIdx::try_from(rng.below(10)).unwrap();
-            let mut elems: Vec<Vec<GlobalIdx>> = (0..8).map(|_| element(&mut rng, n)).collect();
+            // one block size per trial (one element type), 1 to 5 equations
+            let nb = 1 + (trial as usize / 4) % 5;
+            let mut elems: Vec<Vec<GlobalIdx>> =
+                (0..8).map(|_| element_of(&mut rng, n, nb)).collect();
             let mut plain = SparseMatrixAij::new("K", n, mt);
             plain.set_symmetry_policy(policy);
             // profile every element but (sometimes) the last one
@@ -142,11 +153,21 @@ fn cached_element_assembly_is_add_values() {
                         let k = rng.below(profiled);
                         elems[k] = elems[(k + 1) % profiled].clone();
                     }
-                    4 => {
-                        // a profile change between rounds
+                    4 if trial % 2 == 0 => {
+                        // an appended entry (existing positions stay valid)
                         let (i, j) = (rng.below(3) as GlobalIdx, rng.below(3) as GlobalIdx);
                         plain.add(i, j, 0.25).unwrap();
                         cached.add(i, j, 0.25).unwrap();
+                    }
+                    4 => {
+                        // the profile rebuilt in another order: every
+                        // position may move
+                        for m in [&mut plain, &mut cached] {
+                            m.clear_profile();
+                            for e in elems[..profiled].iter().rev() {
+                                m.add_block_to_profile(e, e).unwrap();
+                            }
+                        }
                     }
                     5 => {
                         plain.set_size(n - 1);
@@ -175,11 +196,11 @@ fn cached_element_assembly_is_add_values() {
 /// slot whose rows/columns layout changes, use the cache correctly.
 #[test]
 fn cached_rectangular_blocks() {
-    let mut rng = Rng(42);
+    let mut rng = Rng(42, 30);
     let n = 9;
     let mut plain = SparseMatrixAij::new("K", n, MatrixType::Unsymmetric);
     let blocks: Vec<(Vec<GlobalIdx>, Vec<GlobalIdx>)> = (0..6)
-        .map(|_| (element(&mut rng, n), element(&mut rng, n)))
+        .map(|_| (element_of(&mut rng, n, 3), element_of(&mut rng, n, 2)))
         .collect();
     for (r, c) in &blocks {
         plain.add_block_to_profile(r, c).unwrap();
@@ -300,7 +321,7 @@ fn mat_vec_and_boundary_match_the_reference() {
     assert!(!general.is_identity());
     for (layout, n) in [(&identity, 12), (&general, 11)] {
         for trial in 0..40u64 {
-            let mut rng = Rng(trial * 31 + 7);
+            let mut rng = Rng(trial * 31 + 7, 30);
             let ty = if trial % 2 == 0 {
                 MatrixType::Symmetric
             } else {
@@ -358,7 +379,7 @@ fn matrix_sums_match_entry_by_entry_adds() {
     for trial in 0..30u64 {
         for &ts in &types {
             for &td in &types {
-                let mut rng = Rng(trial * 977 + 3);
+                let mut rng = Rng(trial * 977 + 3, 30);
                 let src = random_matrix(&mut rng, 10, ts, 30);
                 let mut dst = SparseMatrixAij::new("J", 10, td);
                 dst.copy_profile(&src);
@@ -406,7 +427,7 @@ fn copy_profile_matches_the_rebuild() {
     for trial in 0..30u64 {
         for &ts in &types {
             for &td in &types {
-                let mut rng = Rng(trial * 131 + 5);
+                let mut rng = Rng(trial * 131 + 5, 30);
                 let src = random_matrix(&mut rng, 9, ts, 25);
                 let mut dst = random_matrix(&mut rng, 9, td, 10);
                 for twice in 0..2 {
