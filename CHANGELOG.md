@@ -78,7 +78,7 @@ change of default results or of a public API raises the minor version.
   `grad_u` or the stress block does not have `dim × dim` components per
   point (before, such a block was processed in chunks of the wrong size).
 - The explicit step of `SolidMechanicsModel` is faster with bitwise
-  identical results at every thread count and SIMD level (0.60–0.84 of
+  identical results at every thread count and SIMD level (0.52–0.83 of
   its time at one thread on an AMD EPYC 7B13, per mesh in
   `docs/benchmarks/perf-campaign/explicit/README.md`): the FE gradient,
   `BᵀD`, integration and finite-deformation residual kernels check their
