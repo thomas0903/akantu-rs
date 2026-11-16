@@ -410,6 +410,11 @@ mod tests {
 
     const SPIN: Duration = Duration::from_millis(5);
 
+    /// Repetitions: fewer under Miri (an interpreter).
+    fn reps(n: usize) -> usize {
+        if cfg!(miri) { n.div_ceil(10).max(2) } else { n }
+    }
+
     /// A panic payload whose `Drop` panics.
     struct Bomb;
 
@@ -430,7 +435,7 @@ mod tests {
     fn panicking_payload_drops_never_leave_a_region_open() {
         for (threads, spin) in [(2, SPIN), (4, SPIN), (8, Duration::ZERO)] {
             let pool = SpinPool::new(threads).unwrap();
-            for _ in 0..20 {
+            for _ in 0..reps(20) {
                 let writes = AtomicU32::new(0);
                 let r = catch_unwind(AssertUnwindSafe(|| {
                     pool.run(16, spin, &|_| {
@@ -468,7 +473,7 @@ mod tests {
     #[test]
     fn zero_spin_parks_and_still_runs_every_part() {
         let pool = SpinPool::new(4).unwrap();
-        for _ in 0..50 {
+        for _ in 0..reps(50) {
             let hits: Vec<AtomicU32> = (0..24).map(|_| AtomicU32::new(0)).collect();
             pool.run(24, Duration::ZERO, &|p| {
                 hits[p].fetch_add(1, Ordering::Relaxed);
@@ -516,7 +521,7 @@ mod tests {
         std::thread::scope(|sc| {
             for _ in 0..4 {
                 sc.spawn(|| {
-                    for _ in 0..200 {
+                    for _ in 0..reps(200) {
                         pool.run(8, SPIN, &|_| {
                             total.fetch_add(1, Ordering::Relaxed);
                         });
@@ -524,7 +529,7 @@ mod tests {
                 });
             }
         });
-        assert_eq!(total.load(Ordering::Relaxed), 4 * 200 * 8);
+        assert_eq!(total.load(Ordering::Relaxed), 4 * reps(200) as u32 * 8);
     }
 
     #[test]
