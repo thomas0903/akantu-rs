@@ -157,8 +157,12 @@ fn cube_root(v: Real) -> Real {
 /// distant one. Upstream's AABB tree (its box test) does not report the
 /// distant primitive either, and keeps the grid's element (the
 /// CGAL-compatible tree of `akantu-geometry-cgal` gives the same pieces on
-/// such queries). Non-finite coordinates in the
-/// primitives (at build) or in a query make that query a full scan; so does
+/// such queries). The same holds for the scan's `CGAL_error()` on a
+/// degenerate primitive (collinear vertices) lying on the query's line: the
+/// grid returns the error only when such a primitive is a candidate. Non-finite coordinates in the
+/// primitives (at build) or in a query, and a zero-length segment (its
+/// result, an error or nothing, depends on every primitive coplanar with
+/// the point), make that query a full scan; so does
 /// a grid whose cell items would exceed `u32` or 64 per primitive and cell
 /// on average (the index then scans every query).
 #[derive(Clone, Debug, Default)]
@@ -550,7 +554,16 @@ impl TriangleIndex for GridIndex {
         out: &mut Vec<(TriangleSegmentIntersection, UInt)>,
     ) -> Result<()> {
         let grid = match &self.grid {
-            Some(g) if finite3(&query.source) && finite3(&query.target) => g,
+            // a zero-length query is a full scan: the scan's result for it
+            // depends on whether any primitive is coplanar with the point
+            // (the `CGAL_error()` branch of the coplanar case), near or not
+            Some(g)
+                if finite3(&query.source)
+                    && finite3(&query.target)
+                    && query.source != query.target =>
+            {
+                g
+            }
             _ => {
                 for p in &self.primitives {
                     if let Some(i) = triangle_segment_intersection(&p.triangle, query)? {

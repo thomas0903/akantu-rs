@@ -14,7 +14,9 @@
 use akantu_core::Real;
 use akantu_geometry::factory::TrianglePrimitive;
 use akantu_geometry::index::{GridIndex, LinearScan, TriangleIndex};
-use akantu_geometry::intersections::TriangleSegmentIntersection;
+use akantu_geometry::intersections::{
+    TriangleSegmentIntersection, ray_triangle_do_intersect, triangle_segment_intersection,
+};
 use akantu_geometry::kernel::{Point3, Ray3, Segment3, Triangle3};
 
 /// xorshift64*: deterministic test inputs.
@@ -308,8 +310,7 @@ fn compare<T: std::fmt::Debug, K: PartialEq>(
     scan: &[T],
     grid: &[T],
     key: impl Fn(&T) -> K,
-    prim_of: impl Fn(&T) -> usize,
-    far: impl Fn(usize) -> bool,
+    far: impl Fn(&T) -> bool,
     what: &str,
 ) -> usize {
     let mut j = 0;
@@ -318,10 +319,7 @@ fn compare<T: std::fmt::Debug, K: PartialEq>(
         if j < grid.len() && key(s) == key(&grid[j]) {
             j += 1;
         } else {
-            assert!(
-                far(prim_of(s)),
-                "{what}: report {s:?} missing from the grid"
-            );
+            assert!(far(s), "{what}: report {s:?} missing from the grid");
             dropped += 1;
         }
     }
@@ -333,52 +331,92 @@ fn check(prims: &[TrianglePrimitive], qs: &[Segment3]) -> (usize, usize, usize) 
     let scan = LinearScan::build(prims).unwrap();
     let grid = GridIndex::build(prims).unwrap();
     let delta = grid.margin().unwrap();
-    let pos = |id: u32| prims.iter().position(|p| p.id == id).unwrap();
     let (mut hits, mut rays, mut dropped) = (0, 0, 0);
     for q in qs {
         let mut a = Vec::new();
         let mut b = Vec::new();
         let ra = scan.all_intersections(q, &mut a);
         let rb = grid.all_intersections(q, &mut b);
-        assert_eq!(ra.is_ok(), rb.is_ok(), "{q:?}");
-        // a primitive is far when every primitive with its id is
-        let far = |id: u32, a: Point3, b: Point3| {
-            prims
+        if ra.is_err() && rb.is_ok() {
+            // the scan stopped at the `CGAL_error()` branch on a primitive
+            // the grid does not test: a degenerate primitive on the query's
+            // line, which must be far from the query
+            let first = prims
                 .iter()
-                .filter(|p| p.id == id)
-                .all(|p| segment_triangle(v(a), v(b), &tri(p)) > delta)
+                .find(|p| triangle_segment_intersection(&p.triangle, q).is_err())
+                .unwrap();
+            let d = segment_triangle(v(q.source), v(q.target), &tri(first));
+            assert!(
+                d > delta,
+                "{q:?}: the scan's error comes from {first:?} at {d}"
+            );
+            dropped += 1;
+            continue;
+        }
+        assert_eq!(format!("{ra:?}"), format!("{rb:?}"), "{q:?}");
+        if ra.is_err() {
+            // both stopped at the `CGAL_error()` branch (the partial outputs
+            // are discarded by every caller)
+            continue;
+        }
+        // primitives producing a report (same element id, same
+        // intersection), split by their distance to the query
+        let producers = |x: &(TriangleSegmentIntersection, u32)| {
+            let (mut near, mut far) = (0, 0);
+            for p in prims.iter().filter(|p| p.id == x.1) {
+                let produces = triangle_segment_intersection(&p.triangle, q)
+                    .ok()
+                    .flatten()
+                    .is_some_and(|y| report_key(&(y, x.1)) == report_key(x));
+                if produces {
+                    if segment_triangle(v(q.source), v(q.target), &tri(p)) > delta {
+                        far += 1;
+                    } else {
+                        near += 1;
+                    }
+                }
+            }
+            (near, far)
         };
+        // a missing report is explained by a distant producer; the grid
+        // keeps one report per near producer
         dropped += compare(
             &a,
             &b,
             report_key,
-            |x| pos(x.1),
-            |i| far(prims[i].id, q.source, q.target),
+            |x| producers(x).1 > 0,
             &format!("{q:?}"),
         );
+        for x in &a {
+            let kept = b.iter().filter(|y| report_key(y) == report_key(x)).count();
+            assert!(kept >= producers(x).0, "{q:?}: {x:?}");
+        }
         hits += a.len();
         for r in [Ray3::new(q.source, q.target), Ray3::new(q.target, q.source)] {
             let mut a = Vec::new();
             let mut b = Vec::new();
             scan.all_intersected_primitives(&r, &mut a);
             grid.all_intersected_primitives(&r, &mut b);
-            // far from the ray: farther than the margin from every point of
-            // it inside the mesh box (checked as: not hit by the ray's
-            // segment grown by the margin; conservative test below)
-            let far_ray = |id: u32| {
-                prims
+            // the element's primitives hit by the ray, split by distance
+            let producers = |id: u32| {
+                let hit: Vec<&TrianglePrimitive> = prims
                     .iter()
-                    .filter(|p| p.id == id)
-                    .all(|p| ray_gap(p, &r) > delta)
+                    .filter(|p| p.id == id && ray_triangle_do_intersect(&p.triangle, &r))
+                    .collect();
+                let near = hit.iter().filter(|p| ray_gap(p, &r) <= delta).count();
+                (near, hit.len() - near)
             };
             dropped += compare(
                 &a,
                 &b,
                 |&id| id,
-                |&id| pos(id),
-                |i| far_ray(prims[i].id),
+                |&id| producers(id).1 > 0,
                 &format!("{r:?}"),
             );
+            for &id in &a {
+                let kept = b.iter().filter(|&&j| j == id).count();
+                assert!(kept >= producers(id).0, "{r:?}: {id}");
+            }
             rays += a.len();
         }
     }
@@ -535,4 +573,100 @@ fn check_scan_only(prims: &[TrianglePrimitive], qs: &[Segment3]) {
             b.iter().map(report_key).collect::<Vec<_>>()
         );
     }
+}
+
+/// Zero-length queries (inside, outside, on the planes of faces, far away)
+/// give the scan's result, its error included; degenerate rays too.
+#[test]
+fn grid_index_zero_length_queries_are_the_scans() {
+    let mut rng = Rng(41);
+    for (prims, nodes, dim) in [
+        {
+            let (p, n) = tet_faces(4, 0.1, 0.0, &mut rng);
+            (p, n, 3)
+        },
+        {
+            let (p, n) = tri_mesh(10, 0.1, 0.0, &mut rng);
+            (p, n, 2)
+        },
+    ] {
+        let mut points: Vec<Point3> = nodes.clone();
+        for _ in 0..200 {
+            let z = if dim == 3 {
+                2.0 * rng.unit() - 0.5
+            } else {
+                0.0
+            };
+            points.push(Point3::new(
+                2.0 * rng.unit() - 0.5,
+                2.0 * rng.unit() - 0.5,
+                z,
+            ));
+        }
+        // outside the mesh on the planes of its faces (z = 0.1 k, x = y)
+        for k in 0..5 {
+            #[allow(clippy::cast_precision_loss)] // small counts
+            let c = 0.1 * k as Real;
+            points.push(Point3::new(3.0, -2.0, if dim == 3 { c } else { 0.0 }));
+            points.push(Point3::new(
+                5.0 + c,
+                5.0 + c,
+                if dim == 3 { 0.2 } else { 0.0 },
+            ));
+        }
+        let scan = LinearScan::build(&prims).unwrap();
+        let grid = GridIndex::build(&prims).unwrap();
+        let mut errors = 0;
+        for p in points {
+            let q = Segment3::new(p, p);
+            let (mut a, mut b) = (Vec::new(), Vec::new());
+            let ra = scan.all_intersections(&q, &mut a);
+            let rb = grid.all_intersections(&q, &mut b);
+            assert_eq!(format!("{ra:?}"), format!("{rb:?}"), "{q:?}");
+            assert_eq!(format!("{a:?}"), format!("{b:?}"), "{q:?}");
+            errors += usize::from(ra.is_err());
+            let r = Ray3::new(p, p);
+            let (mut a, mut b) = (Vec::new(), Vec::new());
+            scan.all_intersected_primitives(&r, &mut a);
+            grid.all_intersected_primitives(&r, &mut b);
+            assert_eq!(a, b, "{r:?}");
+        }
+        assert!(errors > 0, "dimension {dim}");
+    }
+}
+
+/// Degenerate primitives (zero-area faces: repeated or collinear vertices,
+/// a point) among regular ones: the grid's reports follow the rule of
+/// `check` (the scan's, minus distant noise).
+#[test]
+fn grid_index_degenerate_primitives() {
+    let mut rng = Rng(43);
+    let (mut prims, nodes) = tri_mesh(12, 0.1, 0.2, &mut rng);
+    let n = prims.len();
+    for k in (0..n).step_by(7) {
+        let t = prims[k].triangle;
+        prims[k].triangle = match k % 3 {
+            0 => Triangle3::new(t.v[0], t.v[0], t.v[1]),
+            1 => {
+                let m = Point3::new(
+                    0.5 * (t.v[0].x + t.v[1].x),
+                    0.5 * (t.v[0].y + t.v[1].y),
+                    0.0,
+                );
+                Triangle3::new(t.v[0], m, t.v[1])
+            }
+            _ => Triangle3::new(t.v[2], t.v[2], t.v[2]),
+        };
+    }
+    let qs = queries(&nodes, 2, 1.2, 0.1, &mut rng);
+    let (hits, rays, _) = check(&prims, &qs);
+    assert!(hits > 500 && rays > 500, "{hits} {rays}");
+    let (mut prims3, nodes3) = tet_faces(4, 0.1, 0.3, &mut rng);
+    for k in (0..prims3.len()).step_by(5) {
+        let t = prims3[k].triangle;
+        prims3[k].triangle = Triangle3::new(t.v[0], t.v[1], t.v[1]);
+    }
+    let qs = queries(&nodes3, 3, 0.4, 0.1, &mut rng);
+    let (hits, rays, _) = check(&prims3, &qs);
+    assert!(hits > 500 && rays > 500, "{hits} {rays}");
 }
