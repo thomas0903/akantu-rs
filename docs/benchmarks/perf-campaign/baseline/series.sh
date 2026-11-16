@@ -13,21 +13,22 @@
 #                                 (one tjob for the rounds not yet done)
 #   series.sh explicit-digests    the state digests of the three programs (bjob)
 #   series.sh driver STEPS        cohesive driver h = 0.12, port vs C++ strict,
-#                                 1 rank, materials cohesive + elastic, 5 rotated
-#                                 repetitions (STEPS <= 500: one tjob; else one
-#                                 tjob per repetition)
+#                                 1 rank, materials cohesive + elastic, rotated
+#                                 repetitions (STEPS <= 500: 5 in one tjob; else 3,
+#                                 one tjob each)
 #   series.sh static              static solve h = 0.12, 1 rank: C++ MUMPS,
 #                                 C++ SparseLU, port MUMPS, port SparseLU; 5
 #                                 rotated repetitions in one tjob
 #   series.sh scaling STEPS       cohesive benchmark h = 0.06 at 1, 2, 4, 8 ranks,
 #                                 C++ strict and port, MUMPS, same partition, 3 reps
 #                                 (one xjob per repetition, all four points)
+#   series.sh scaling-analyze STEPS   the tables of the scaling series
 #
 # Environment (defaults): OUT (~/w/infra/data), BASE (~/baseline: meshes/,
 # port-*/, cpp-bin/), PORT_DIR (BASE/port-59dd2229: `port` = explicit_step_timing,
 # `bench` = host cohesive_extrinsic), RUST_BIN (the MPI+MUMPS driver inside
 # the akantu-rs-mumps:dev image, in the volume akantu-rs-mpi-target:
-# /target/infra-bench/release/cohesive_extrinsic), PIN_CPU (2: serial runs on
+# /target/baseline-59dd2229/cohesive_extrinsic), PIN_CPU (2: serial runs on
 # that core, inside the tjob cores 0-3), LABEL (infra: job label prefix).
 set -euo pipefail
 here="$(cd "$(dirname "$0")" && pwd)"
@@ -35,7 +36,7 @@ repo="$(cd "${here}/../../../.." && pwd)"
 OUT="${OUT:-$HOME/w/infra/data}"
 BASE="${BASE:-$HOME/baseline}"
 PORT_DIR="${PORT_DIR:-$BASE/port-59dd2229}"
-export RUST_BIN="${RUST_BIN:-/target/infra-bench/release/cohesive_extrinsic}"
+export RUST_BIN="${RUST_BIN:-/target/baseline-59dd2229/cohesive_extrinsic}"
 PIN="${PIN_CPU:-2}"
 L="${LABEL:-infra}"
 mkdir -p "$OUT"
@@ -72,7 +73,9 @@ case "${1:-}" in
   driver)
     steps="${2:?steps}"
     d="$OUT/driver-s$steps"; mkdir -p "$d"
-    if [ "$steps" -le 500 ]; then groups="1:5"; else groups="1:1 2:1 3:1 4:1 5:1"; fi
+    # the full schedule: a C++ cohesive run takes about 13 min here, so three
+    # repetitions, one tjob each (about 22 min)
+    if [ "$steps" -le 500 ]; then groups="1:5"; else groups="1:1 2:1 3:1"; fi
     for g in $groups; do
       first=${g%%:*} n=${g##*:}
       [ -e "$d/reps$first+$n.ok" ] && { say "driver s$steps reps $first+$n: done, skipped"; continue; }
@@ -123,6 +126,10 @@ case "${1:-}" in
         || say "scaling s$steps rep $k: the series reported a failure"
       say "scaling s$steps rep $k: done"
     done
+    "$0" scaling-analyze "$steps" ;;
+  scaling-analyze)
+    steps="${2:?steps}"
+    d="$OUT/scaling"
     exp=(); [ "$steps" -le 500 ] || exp=(--expect-insertion)
     python3 -I "$repo/crates/akantu-bench/scripts/scaling_analyze.py" "$d" "$L-scal-s$steps" \
       --strong 0.06 ${exp[@]+"${exp[@]}"} > "$d/$L-scal-s$steps-analysis.log" 2>&1 || true
