@@ -78,7 +78,7 @@ mod kernels;
 mod simd;
 
 use akantu_core::enums::{MatrixType, SparseSolverType};
-use akantu_core::exec::{Exec, FastToken};
+use akantu_core::exec::{Exec, FastToken, SimdToken};
 use akantu_core::{Error, Real, Result};
 
 use crate::direct::{
@@ -141,7 +141,7 @@ pub struct SparseLu {
     work: Option<Box<Work>>,
     spare_glu: Option<Glu>,
     /// Fast mode ([`SparseLu::set_fast_mode`]).
-    fma: bool,
+    fast: Option<FastToken>,
     /// Executor of the factorisation's threaded kernels
     /// ([`SparseLu::set_exec`]; default serial).
     exec: Exec,
@@ -208,7 +208,7 @@ impl SparseLu {
     /// `destroy_internal_data` (the DOF manager's `release_solvers`,
     /// `set_solver`) resets it to the bitwise default.
     pub fn set_fast_mode(&mut self, fast: Option<FastToken>) {
-        self.fma = fast.is_some();
+        self.fast = fast;
     }
 
     /// The executor of the following factorisations (D-123; default
@@ -276,7 +276,8 @@ impl SparseLu {
         glu.reset(n);
         let mut wk = self.work.take().unwrap_or_default();
         wk.reset(m, n, PANEL_SIZE, MAXSUPER as usize);
-        wk.fma = self.fma;
+        wk.fast = self.fast;
+        wk.simd = kernels::Simd(self.exec.simd_token());
         let mut relax_end = vec![EMPTY; n];
         kernels::relax_snode(n, &self.etree, RELAX, &mut relax_end);
         let mut perm_r = vec![EMPTY; m];
@@ -430,8 +431,9 @@ impl SparseLu {
             xv[perm_r[i] as usize] = bi;
         }
         if n > 0 {
-            solve_l(n, g, xv, work);
-            solve_u(n, g, xv);
+            let simd = self.exec.simd_token();
+            solve_l(simd, n, g, xv, work);
+            solve_u(simd, n, g, xv);
         }
         if let Some(i) = xv.iter().position(|v| !v.is_finite()) {
             return Err(arithmetic_range_failure(
@@ -449,7 +451,7 @@ impl SparseLu {
 /// `MappedSuperNodalMatrix::solveInPlace` for one right-hand side.
 #[allow(clippy::explicit_counter_loop)] // keeps Eigen's `iptr` counter
 /// `work`: `n` zeros (left zero).
-fn solve_l(n: usize, g: &Glu, x: &mut [f64], work: &mut [f64]) {
+fn solve_l(simd: SimdToken, n: usize, g: &Glu, x: &mut [f64], work: &mut [f64]) {
     let nsuper = g.supno[n] as usize;
     for k in 0..=nsuper {
         let fsupc = g.xsup[k] as usize;
@@ -468,9 +470,10 @@ fn solve_l(n: usize, g: &Glu, x: &mut [f64], work: &mut [f64]) {
         } else {
             let luptr = g.xlusup[fsupc] as usize;
             let lda = g.xlusup[fsupc + 1] as usize - luptr;
-            dense::trsv_unit_lower(nsupc, &g.lusup, luptr, lda, x, fsupc);
+            dense::trsv_unit_lower(simd, nsupc, &g.lusup, luptr, lda, x, fsupc);
             work[..nrow].fill(0.0);
             dense::gemv_product(
+                simd,
                 nrow,
                 nsupc,
                 &g.lusup,
@@ -494,7 +497,7 @@ fn solve_l(n: usize, g: &Glu, x: &mut [f64], work: &mut [f64]) {
 }
 
 /// `SparseLUMatrixUReturnType::solveInPlace` for one right-hand side.
-fn solve_u(n: usize, g: &Glu, x: &mut [f64]) {
+fn solve_u(simd: SimdToken, n: usize, g: &Glu, x: &mut [f64]) {
     let nsuper = g.supno[n];
     let mut k = nsuper;
     while k >= 0 {
@@ -506,7 +509,7 @@ fn solve_u(n: usize, g: &Glu, x: &mut [f64]) {
         if nsupc == 1 {
             x[fsupc] /= g.lusup[luptr];
         } else {
-            dense::trsv_upper(nsupc, &g.lusup, luptr, lda, x, fsupc);
+            dense::trsv_upper(simd, nsupc, &g.lusup, luptr, lda, x, fsupc);
         }
         for jcol in fsupc..fsupc + nsupc {
             let (p0, p1) = (g.xusub[jcol] as usize, g.xusub[jcol + 1] as usize);
@@ -744,7 +747,7 @@ mod tests {
         assert!(diff <= 1e-12 * norm, "relative difference {}", diff / norm);
         // the FMA kernels ran where the CPU has them (else the bitwise ones)
         let bits = |x: &[f64]| x.iter().map(|v| v.to_bits()).collect::<Vec<_>>();
-        if super::simd::fma_available() {
+        if fast().is_some_and(super::simd::fma_instance) {
             assert_ne!(bits(&x0), bits(&x1), "the fast mode did not change any bit");
         } else {
             assert_eq!(bits(&x0), bits(&x1));

@@ -6,98 +6,44 @@
 // from. This file has no Eigen counterpart: it selects the instruction set
 // of the kernels at run time.
 
-//! Run-time choice of the instruction set of the SparseLU dense kernels.
+//! The instruction-set instances of the SparseLU dense kernels and their
+//! dispatch on the executor's SIMD level (D-123, `akantu_core::exec`).
 //!
 //! The kernels of `dense` are written once, with per-entry operation
 //! sequences that do not depend on the vector width (independent entries in
 //! the lanes, a separate multiply and add per term, no FMA: Rust never
-//! contracts `a * b + c`, and the `fma` target feature is never enabled
-//! here, except in the explicit fast mode `gemm_into_zero_fma`). This
-//! module compiles them a second and third time with AVX and
-//! AVX-512F enabled and calls the widest instance the CPU supports, so the
-//! results are bitwise those of the portable instance on every CPU
-//! (`dense::tests` compare every instance the test machine supports with
-//! the reference kernels).
+//! contracts `a * b + c`, and the `fma` target feature is enabled only in
+//! the explicit fast mode `gemm_into_zero_fma`). This module compiles them
+//! a second and third time with AVX and AVX-512F enabled; a call takes the
+//! executor's [`SimdToken`] (its level: `AKANTU_SIMD`, `ExecPolicy::with_simd`,
+//! else the detected one) and runs the instance of that level:
 //!
-//! Test and benchmark hook, not a supported setting: the environment
-//! variable `AKANTU_SPARSELU_ISA=portable` (read once per process) forces
-//! the portable instance, for A/B timing of the instances. The instances
-//! give the same bits, so it never changes a result.
+//! | `SimdLevel` | instance |
+//! |---|---|
+//! | `Avx512` | AVX-512F, 16-row gemm tiles, 32-row GEMV tiles |
+//! | `Avx2` | AVX, 8-row gemm tiles, 16-row GEMV tiles |
+//! | `Scalar`, `Neon` | the portable code (SSE2 on x86-64, NEON on aarch64), 4 / 8 rows |
 //!
-//! Every `unsafe` block here calls a `#[target_feature]` function after
-//! `is_x86_feature_detected!` returned true for that feature (`UNSAFE.md`,
-//! class L6).
+//! Every instance gives the bits of the portable one (`dense::tests` run
+//! every supported level against the reference kernels). The fast mode
+//! uses the [`FastToken`]'s level (AVX-512F + FMA, AVX2 + FMA; the bitwise
+//! kernels on the other levels).
+//!
+//! Every `unsafe` block here calls a `#[target_feature]` function of the
+//! token's level: a token exists only for a level the CPU supports
+//! (`UNSAFE.md`, class L6).
 
-use std::sync::OnceLock;
+#[cfg(any(target_arch = "x86_64", test))]
+use akantu_core::exec::SimdLevel;
+use akantu_core::exec::{FastToken, SimdToken};
 
 use super::dense;
 
-/// The instruction-set instances of the kernels.
-#[derive(Clone, Copy, Debug, PartialEq, Eq)]
-#[cfg_attr(not(target_arch = "x86_64"), allow(dead_code))] // x86-64 instances
-pub(crate) enum Isa {
-    /// The baseline of the target (SSE2 on x86-64, NEON on aarch64).
-    Portable,
-    /// x86-64 with AVX (256-bit vectors).
-    Avx,
-    /// x86-64 with AVX-512F (512-bit vectors).
-    Avx512,
-}
-
-/// The widest instance this CPU runs, or `Portable` when the environment
-/// variable `AKANTU_SPARSELU_ISA` is `portable` (the module's test and
-/// benchmark hook).
-pub(crate) fn isa() -> Isa {
-    static ISA: OnceLock<Isa> = OnceLock::new();
-    *ISA.get_or_init(|| {
-        if std::env::var("AKANTU_SPARSELU_ISA").is_ok_and(|v| v == "portable") {
-            return Isa::Portable;
-        }
-        available().last().copied().unwrap_or(Isa::Portable)
-    })
-}
-
-/// Every instance this CPU can run, narrowest first.
-pub(crate) fn available() -> Vec<Isa> {
-    #[allow(unused_mut)] // only x86-64 adds instances
-    let mut v = vec![Isa::Portable];
-    #[cfg(target_arch = "x86_64")]
-    {
-        if std::arch::is_x86_feature_detected!("avx") {
-            v.push(Isa::Avx);
-        }
-        if std::arch::is_x86_feature_detected!("avx512f") {
-            v.push(Isa::Avx512);
-        }
-    }
-    v
-}
-
-/// [`dense::sparselu_gemm_into_zero`] with the instance [`isa`].
+/// `C = 0; C += A·B` ([`dense::gemm_tiles`] with a zero destination) with
+/// the instance of `simd`'s level.
 #[allow(clippy::too_many_arguments)] // BLAS-style kernel signature
-#[inline]
 pub(crate) fn gemm_into_zero(
-    m: usize,
-    n: usize,
-    d: usize,
-    a: &[f64],
-    a_off: usize,
-    lda: usize,
-    b: &[f64],
-    b_off: usize,
-    ldb: usize,
-    c: &mut [f64],
-    c_off: usize,
-    ldc: usize,
-) {
-    gemm_into_zero_with(isa(), m, n, d, a, a_off, lda, b, b_off, ldb, c, c_off, ldc);
-}
-
-/// [`dense::sparselu_gemm_into_zero`] with a given instance; an instance the
-/// CPU does not support runs the portable one.
-#[allow(clippy::too_many_arguments)] // BLAS-style kernel signature
-pub(crate) fn gemm_into_zero_with(
-    isa: Isa,
+    simd: SimdToken,
     m: usize,
     n: usize,
     d: usize,
@@ -112,55 +58,35 @@ pub(crate) fn gemm_into_zero_with(
     ldc: usize,
 ) {
     #[cfg(target_arch = "x86_64")]
-    match isa {
-        Isa::Avx512 if std::arch::is_x86_feature_detected!("avx512f") => {
-            // SAFETY: the CPU supports AVX-512F (checked in the match guard);
-            // `x86::gemm_avx512` has no precondition beyond its target feature
-            // (safe code, bounds-checked slices).
+    match simd.level() {
+        SimdLevel::Avx512 => {
+            // SAFETY: the token proves that the CPU supports AVX-512F;
+            // `x86::gemm_avx512` has no precondition beyond its target
+            // feature (safe code, bounds-checked slices).
             return unsafe {
                 x86::gemm_avx512(m, n, d, a, a_off, lda, b, b_off, ldb, c, c_off, ldc)
             };
         }
-        Isa::Avx if std::arch::is_x86_feature_detected!("avx") => {
-            // SAFETY: the CPU supports AVX (checked in the match guard);
+        SimdLevel::Avx2 => {
+            // SAFETY: the token proves AVX2 (which includes AVX);
             // `x86::gemm_avx` has no precondition beyond its target feature.
             return unsafe { x86::gemm_avx(m, n, d, a, a_off, lda, b, b_off, ldb, c, c_off, ldc) };
         }
-        _ => {}
+        SimdLevel::Scalar | SimdLevel::Neon => {}
     }
     #[cfg(not(target_arch = "x86_64"))]
-    let _ = isa;
+    let _ = simd;
     dense::sparselu_gemm_into_zero(m, n, d, a, a_off, lda, b, b_off, ldb, c, c_off, ldc);
 }
 
-/// The fast mode of [`gemm_into_zero`] (`SparseLu::set_fast_mode`):
-/// every term as a fused multiply-add (one rounding instead of two), so the
-/// result differs from Eigen's in the last bits. Needs AVX-512F or AVX2
-/// with FMA; on other CPUs it is [`gemm_into_zero`] (bitwise).
+/// FAST MODE (`SparseLu::set_fast_mode`): [`gemm_into_zero`] with every
+/// term as a fused multiply-add (one rounding instead of two), so the
+/// result differs from Eigen's in the last bits. The instance of the
+/// token's level: AVX-512F + FMA, AVX2 + FMA; on the other levels the
+/// bitwise kernel.
 #[allow(clippy::too_many_arguments)] // BLAS-style kernel signature
 pub(crate) fn gemm_into_zero_fma(
-    m: usize,
-    n: usize,
-    d: usize,
-    a: &[f64],
-    a_off: usize,
-    lda: usize,
-    b: &[f64],
-    b_off: usize,
-    ldb: usize,
-    c: &mut [f64],
-    c_off: usize,
-    ldc: usize,
-) {
-    gemm_into_zero_fma_with(isa(), m, n, d, a, a_off, lda, b, b_off, ldb, c, c_off, ldc);
-}
-
-/// [`gemm_into_zero_fma`] with the FMA instance of a given width:
-/// `Avx512` (AVX-512F + FMA), `Avx` (AVX2 + FMA); an instance the CPU does
-/// not support, or `Portable`, runs [`gemm_into_zero_with`] (bitwise).
-#[allow(clippy::too_many_arguments)] // BLAS-style kernel signature
-pub(crate) fn gemm_into_zero_fma_with(
-    isa: Isa,
+    fast: FastToken,
     m: usize,
     n: usize,
     d: usize,
@@ -175,46 +101,51 @@ pub(crate) fn gemm_into_zero_fma_with(
     ldc: usize,
 ) {
     #[cfg(target_arch = "x86_64")]
-    {
-        let fma = std::arch::is_x86_feature_detected!("fma");
-        if isa == Isa::Avx512 && fma && std::arch::is_x86_feature_detected!("avx512f") {
-            // SAFETY: the CPU supports AVX-512F and FMA (checked on the
-            // line above); the callee has no other precondition.
+    match fast.simd().level() {
+        SimdLevel::Avx512 => {
+            // SAFETY: the token proves AVX-512F with AVX2 and FMA3; the
+            // callee has no other precondition.
             return unsafe {
                 x86::gemm_avx512_fma(m, n, d, a, a_off, lda, b, b_off, ldb, c, c_off, ldc)
             };
         }
-        if isa != Isa::Portable && fma && std::arch::is_x86_feature_detected!("avx2") {
-            // SAFETY: the CPU supports AVX2 and FMA (checked on the line
-            // above).
+        SimdLevel::Avx2 => {
+            // SAFETY: the token proves AVX2 with FMA3.
             return unsafe {
                 x86::gemm_avx2_fma(m, n, d, a, a_off, lda, b, b_off, ldb, c, c_off, ldc)
             };
         }
+        SimdLevel::Scalar | SimdLevel::Neon => {}
     }
-    gemm_into_zero_with(isa, m, n, d, a, a_off, lda, b, b_off, ldb, c, c_off, ldc);
+    gemm_into_zero(
+        fast.simd(),
+        m,
+        n,
+        d,
+        a,
+        a_off,
+        lda,
+        b,
+        b_off,
+        ldb,
+        c,
+        c_off,
+        ldc,
+    );
 }
 
-/// Whether [`gemm_into_zero_fma`] runs an FMA instance on this CPU.
+/// Whether [`gemm_into_zero_fma`] runs an FMA instance for `fast`.
 #[cfg(test)]
-pub(crate) fn fma_available() -> bool {
-    #[cfg(target_arch = "x86_64")]
-    {
-        std::arch::is_x86_feature_detected!("fma")
-            && (std::arch::is_x86_feature_detected!("avx512f")
-                || std::arch::is_x86_feature_detected!("avx2"))
-    }
-    #[cfg(not(target_arch = "x86_64"))]
-    {
-        false
-    }
+pub(crate) fn fma_instance(fast: FastToken) -> bool {
+    matches!(fast.simd().level(), SimdLevel::Avx512 | SimdLevel::Avx2)
 }
 
-/// [`gemm_into_zero_fma`] when `fma`, else [`gemm_into_zero`].
+/// [`gemm_into_zero_fma`] with `fast`, else [`gemm_into_zero`].
 #[allow(clippy::too_many_arguments)] // BLAS-style kernel signature
 #[inline]
 pub(crate) fn gemm_into_zero_mode(
-    fma: bool,
+    simd: SimdToken,
+    fast: Option<FastToken>,
     m: usize,
     n: usize,
     d: usize,
@@ -228,35 +159,19 @@ pub(crate) fn gemm_into_zero_mode(
     c_off: usize,
     ldc: usize,
 ) {
-    if fma {
-        gemm_into_zero_fma(m, n, d, a, a_off, lda, b, b_off, ldb, c, c_off, ldc);
-    } else {
-        gemm_into_zero(m, n, d, a, a_off, lda, b, b_off, ldb, c, c_off, ldc);
+    match fast {
+        Some(fast) => {
+            gemm_into_zero_fma(fast, m, n, d, a, a_off, lda, b, b_off, ldb, c, c_off, ldc)
+        }
+        None => gemm_into_zero(simd, m, n, d, a, a_off, lda, b, b_off, ldb, c, c_off, ldc),
     }
 }
 
 /// [`dense::gemv_tiles`] (`res += α·A·x`, Eigen's GEMV sequence per row)
-/// with the instance [`isa`].
+/// with the instance of `simd`'s level.
 #[allow(clippy::too_many_arguments)] // BLAS-style kernel signature
-#[inline]
 pub(crate) fn gemv(
-    rows: usize,
-    cols: usize,
-    a: &[f64],
-    a_off: usize,
-    lda: usize,
-    x: &[f64],
-    res: &mut [f64],
-    alpha: f64,
-) {
-    gemv_with(isa(), rows, cols, a, a_off, lda, x, res, alpha);
-}
-
-/// [`gemv`] with a given instance; an instance the CPU does not support runs
-/// the portable one.
-#[allow(clippy::too_many_arguments)] // BLAS-style kernel signature
-pub(crate) fn gemv_with(
-    isa: Isa,
+    simd: SimdToken,
     rows: usize,
     cols: usize,
     a: &[f64],
@@ -267,22 +182,22 @@ pub(crate) fn gemv_with(
     alpha: f64,
 ) {
     #[cfg(target_arch = "x86_64")]
-    match isa {
-        Isa::Avx512 if std::arch::is_x86_feature_detected!("avx512f") => {
-            // SAFETY: the CPU supports AVX-512F (checked in the match guard);
-            // `x86::gemv_avx512` has no precondition beyond its target feature
-            // (safe code, bounds-checked slices).
+    match simd.level() {
+        SimdLevel::Avx512 => {
+            // SAFETY: the token proves that the CPU supports AVX-512F;
+            // `x86::gemv_avx512` has no precondition beyond its target
+            // feature (safe code, bounds-checked slices).
             return unsafe { x86::gemv_avx512(rows, cols, a, a_off, lda, x, res, alpha) };
         }
-        Isa::Avx if std::arch::is_x86_feature_detected!("avx") => {
-            // SAFETY: the CPU supports AVX (checked in the match guard);
+        SimdLevel::Avx2 => {
+            // SAFETY: the token proves AVX2 (which includes AVX);
             // `x86::gemv_avx` has no precondition beyond its target feature.
             return unsafe { x86::gemv_avx(rows, cols, a, a_off, lda, x, res, alpha) };
         }
-        _ => {}
+        SimdLevel::Scalar | SimdLevel::Neon => {}
     }
     #[cfg(not(target_arch = "x86_64"))]
-    let _ = isa;
+    let _ = simd;
     dense::gemv_tiles::<8>(rows, cols, a, a_off, lda, x, res, alpha);
 }
 
@@ -405,59 +320,59 @@ mod x86 {
 
 #[cfg(test)]
 mod tests {
+    use akantu_core::exec::{Exec, ExecPolicy, Precision, SimdLevel};
+
     /// Each FMA instance against a scalar reference with the same sequence
     /// per entry (`c = fma(a, b, c)` for `k` in order, the tail
     /// `fma(b, a, c)`), bit for bit, on finite inputs: `f64::mul_add` is
     /// the correctly rounded fused multiply-add on every platform.
     #[test]
     fn fma_instances_match_a_scalar_fused_reference() {
-        #[cfg(target_arch = "x86_64")]
-        {
-            use akantu_core::bitwise_testing::Values;
-            let mut v = Values::new(0x51AB_1E5E_ED00_0001);
-            let mut ran = 0;
-            for case in 0..400usize {
-                let (m, n, d) = (1 + case % 37, 1 + case % 11, case % 21);
-                let lda = m + case % 3;
-                let mut a = vec![0.0; lda * d.max(1) + m];
-                let mut b = vec![0.0; d * n + 1];
-                (a.iter_mut().chain(b.iter_mut())).for_each(|x| *x = v.finite());
-                let d_end = d & !1;
-                let mut want = vec![0.0; m * n];
-                for j in 0..n {
-                    for i in 0..m {
-                        let mut c = 0.0f64;
-                        for k in 0..d_end {
-                            c = a[i + k * lda].mul_add(b[k + j * d], c);
-                        }
-                        if d_end < d {
-                            c = b[d_end + j * d].mul_add(a[i + d_end * lda], c);
-                        }
-                        want[i + j * m] = c;
+        use akantu_core::bitwise_testing::Values;
+        // a fast token of every supported level with an FMA instance
+        let tokens: Vec<_> = SimdLevel::supported()
+            .into_iter()
+            .filter_map(|level| {
+                let policy = ExecPolicy::serial()
+                    .with_precision(Precision::Fast)
+                    .with_simd(level)
+                    .ok()?;
+                Exec::new(policy).ok()?.fast_token()
+            })
+            .filter(|&t| super::fma_instance(t))
+            .collect();
+        let mut v = Values::new(0x51AB_1E5E_ED00_0001);
+        for case in 0..400usize {
+            let (m, n, d) = (1 + case % 37, 1 + case % 11, case % 21);
+            let lda = m + case % 3;
+            let mut a = vec![0.0; lda * d.max(1) + m];
+            let mut b = vec![0.0; d * n + 1];
+            (a.iter_mut().chain(b.iter_mut())).for_each(|x| *x = v.finite());
+            let d_end = d & !1;
+            let mut want = vec![0.0; m * n];
+            for j in 0..n {
+                for i in 0..m {
+                    let mut c = 0.0f64;
+                    for k in 0..d_end {
+                        c = a[i + k * lda].mul_add(b[k + j * d], c);
                     }
-                }
-                let fma = std::arch::is_x86_feature_detected!("fma");
-                let mut kernels = Vec::new();
-                if fma && std::arch::is_x86_feature_detected!("avx512f") {
-                    kernels.push(super::Isa::Avx512);
-                }
-                if fma && std::arch::is_x86_feature_detected!("avx2") {
-                    kernels.push(super::Isa::Avx);
-                }
-                for &isa in &kernels {
-                    let mut got = vec![f64::NAN; m * n];
-                    super::gemm_into_zero_fma_with(
-                        isa, m, n, d, &a, 0, lda, &b, 0, d, &mut got, 0, m,
-                    );
-                    for (x, y) in got.iter().zip(&want) {
-                        assert_eq!(x.to_bits(), y.to_bits(), "{isa:?} FMA case {case}");
+                    if d_end < d {
+                        c = b[d_end + j * d].mul_add(a[i + d_end * lda], c);
                     }
-                    ran += 1;
+                    want[i + j * m] = c;
                 }
             }
-            if std::arch::is_x86_feature_detected!("fma") {
-                assert!(ran > 0);
+            for &fast in &tokens {
+                let mut got = vec![f64::NAN; m * n];
+                super::gemm_into_zero_fma(fast, m, n, d, &a, 0, lda, &b, 0, d, &mut got, 0, m);
+                for (x, y) in got.iter().zip(&want) {
+                    assert_eq!(x.to_bits(), y.to_bits(), "{fast:?} case {case}");
+                }
             }
+        }
+        // every x86-64 CPU with AVX2 has an FMA instance to test
+        if SimdLevel::Avx2.is_supported() {
+            assert!(!tokens.is_empty());
         }
     }
 }

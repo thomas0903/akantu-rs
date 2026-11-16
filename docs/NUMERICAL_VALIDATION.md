@@ -957,7 +957,7 @@ translation, and `auto` resolves as upstream (MUMPS when registered, else
 (UD-061); the port's default writes 17 digits and round-trips exactly.
 
 The dense kernels of the translation run in register tiles and, on x86-64,
-in AVX or AVX-512F instances chosen at run time (`eigen_sparse_lu::simd`):
+in AVX or AVX-512F instances selected by the executor's SIMD level (`eigen_sparse_lu::simd`, `AKANTU_SIMD`):
 every result entry keeps the strict build's sequence of separate
 multiplications and additions, so the default path stays bitwise
 (property tests of every instance against the scalar kernels by the rule

@@ -140,6 +140,8 @@
 // numbers; NaN propagation follows the written operand order).
 #![allow(clippy::assign_op_pattern, clippy::neg_multiply)]
 
+use akantu_core::exec::SimdToken;
+
 /// `EIGEN_TUNE_TRIANGULAR_PANEL_WIDTH` (`Core/arch/Default/Settings.h`: 8).
 const TRSV_PANEL: usize = 8;
 /// `max(gebp_traits::mr, gebp_traits::nr)` for scalar `double`.
@@ -159,6 +161,7 @@ const SCALAR: usize = std::mem::size_of::<f64>();
 /// a[a_off + i + j·lda]`.
 #[allow(clippy::too_many_arguments)] // BLAS-style kernel signature
 pub(crate) fn gemv_in_place(
+    simd: SimdToken,
     rows: usize,
     cols: usize,
     a: &[f64],
@@ -176,6 +179,7 @@ pub(crate) fn gemv_in_place(
     if x_off + cols <= r_off {
         let (lo, hi) = v.split_at_mut(r_off);
         super::simd::gemv(
+            simd,
             rows,
             cols,
             a,
@@ -188,6 +192,7 @@ pub(crate) fn gemv_in_place(
     } else {
         let (lo, hi) = v.split_at_mut(x_off);
         super::simd::gemv(
+            simd,
             rows,
             cols,
             a,
@@ -203,6 +208,7 @@ pub(crate) fn gemv_in_place(
 /// Same kernel with the vector and the result in different buffers.
 #[allow(clippy::too_many_arguments)] // BLAS-style kernel signature
 pub(crate) fn gemv(
+    simd: SimdToken,
     rows: usize,
     cols: usize,
     a: &[f64],
@@ -218,6 +224,7 @@ pub(crate) fn gemv(
         return;
     }
     super::simd::gemv(
+        simd,
         rows,
         cols,
         a,
@@ -341,6 +348,7 @@ pub(crate) fn dot(n: usize, a: impl Fn(usize) -> f64, b: impl Fn(usize) -> f64) 
 /// inner product when `rows == 1`, the column-major GEMV otherwise.
 #[allow(clippy::too_many_arguments)] // BLAS-style kernel signature
 pub(crate) fn gemv_product_in_place(
+    simd: SimdToken,
     rows: usize,
     cols: usize,
     a: &[f64],
@@ -355,13 +363,14 @@ pub(crate) fn gemv_product_in_place(
         let d = dot(cols, |k| a[a_off + k * lda], |k| v[x_off + k]);
         v[r_off] += alpha * d;
     } else {
-        gemv_in_place(rows, cols, a, a_off, lda, v, x_off, r_off, alpha);
+        gemv_in_place(simd, rows, cols, a, a_off, lda, v, x_off, r_off, alpha);
     }
 }
 
 /// Separate-buffer variant of [`gemv_product_in_place`].
 #[allow(clippy::too_many_arguments)] // BLAS-style kernel signature
 pub(crate) fn gemv_product(
+    simd: SimdToken,
     rows: usize,
     cols: usize,
     a: &[f64],
@@ -377,7 +386,7 @@ pub(crate) fn gemv_product(
         let d = dot(cols, |k| a[a_off + k * lda], |k| x[x_off + k]);
         res[r_off] += alpha * d;
     } else {
-        gemv(rows, cols, a, a_off, lda, x, x_off, res, r_off, alpha);
+        gemv(simd, rows, cols, a, a_off, lda, x, x_off, res, r_off, alpha);
     }
 }
 
@@ -385,6 +394,7 @@ pub(crate) fn gemv_product(
 /// solves `L x = b` in place for `x = v[x_off..x_off+n]`, `L(i, j) =
 /// a[a_off + i + j·lda]` (unit diagonal, not read).
 pub(crate) fn trsv_unit_lower(
+    simd: SimdToken,
     n: usize,
     a: &[f64],
     a_off: usize,
@@ -411,6 +421,7 @@ pub(crate) fn trsv_unit_lower(
         let r = n - end_block;
         if r > 0 {
             gemv_in_place(
+                simd,
                 r,
                 apw,
                 a,
@@ -429,6 +440,7 @@ pub(crate) fn trsv_unit_lower(
 /// `triangular_solve_vector<…, OnTheLeft, Upper, ColMajor>` (non-unit
 /// diagonal: `x_i /= U(i, i)`, skipped when `x_i == 0`).
 pub(crate) fn trsv_upper(
+    simd: SimdToken,
     n: usize,
     a: &[f64],
     a_off: usize,
@@ -456,6 +468,7 @@ pub(crate) fn trsv_upper(
         let r = start_block;
         if r > 0 {
             gemv_in_place(
+                simd,
                 r,
                 apw,
                 a,
@@ -1273,11 +1286,12 @@ mod tests {
                 2.min(r0.len() - rows),
                 alpha,
             );
-            for isa in super::super::simd::available() {
+            for level in akantu_core::exec::SimdLevel::supported() {
+                let tok = level.token().unwrap();
                 let mut r2 = r0.clone();
                 let ro = 2.min(r0.len() - rows);
-                super::super::simd::gemv_with(
-                    isa,
+                super::super::simd::gemv(
+                    tok,
                     rows,
                     cols,
                     &a,
@@ -1290,7 +1304,7 @@ mod tests {
                 for (u, v) in r1.iter().zip(&r2) {
                     assert!(
                         dr.eq(*u, *v),
-                        "case {case} {isa:?}: rows={rows} cols={cols}"
+                        "case {case} {level:?}: rows={rows} cols={cols}"
                     );
                 }
             }
@@ -1306,7 +1320,18 @@ mod tests {
                 let xs = v0[xo..xo + cols].to_vec();
                 gemv_reference(rows, cols, &a, ao, lda, &xs, 0, &mut v1, ro, alpha);
                 let mut v2 = v0.clone();
-                gemv_in_place(rows, cols, &a, ao, lda, &mut v2, xo, ro, alpha);
+                gemv_in_place(
+                    SimdToken::detected(),
+                    rows,
+                    cols,
+                    &a,
+                    ao,
+                    lda,
+                    &mut v2,
+                    xo,
+                    ro,
+                    alpha,
+                );
                 for (u, v) in v1.iter().zip(&v2) {
                     assert!(
                         dr.eq(*u, *v),
@@ -1352,13 +1377,14 @@ mod tests {
             }
             sparselu_gemm_reference(m, n, d, &a, ao, lda, &b, bo, ldb, &mut z1, co, ldc);
             // every instruction-set instance this CPU runs
-            for isa in super::super::simd::available() {
+            for level in akantu_core::exec::SimdLevel::supported() {
+                let tok = level.token().unwrap();
                 let mut z2 = c0.clone();
-                super::super::simd::gemm_into_zero_with(
-                    isa, m, n, d, &a, ao, lda, &b, bo, ldb, &mut z2, co, ldc,
+                super::super::simd::gemm_into_zero(
+                    tok, m, n, d, &a, ao, lda, &b, bo, ldb, &mut z2, co, ldc,
                 );
                 for (k, (x, y)) in z2.iter().zip(&z1).enumerate() {
-                    assert!(dr.eq(*x, *y), "case {case} {isa:?}: entry {k}");
+                    assert!(dr.eq(*x, *y), "case {case} {level:?}: entry {k}");
                 }
             }
             let mut z2 = c0.clone();
@@ -1406,7 +1432,7 @@ mod tests {
                 b[i] += l[i + j * n] * x[j];
             }
         }
-        trsv_unit_lower(n, &l, 0, n, &mut b, 0);
+        trsv_unit_lower(SimdToken::detected(), n, &l, 0, n, &mut b, 0);
         for (bi, xi) in b.iter().zip(&x) {
             assert!((bi - xi).abs() < 1e-12);
         }
@@ -1416,7 +1442,7 @@ mod tests {
                 bu[i] += u[i + j * n] * x[j];
             }
         }
-        trsv_upper(n, &u, 0, n, &mut bu, 0);
+        trsv_upper(SimdToken::detected(), n, &u, 0, n, &mut bu, 0);
         for (bi, xi) in bu.iter().zip(&x) {
             assert!((bi - xi).abs() < 1e-11, "{bi} {xi}");
         }
