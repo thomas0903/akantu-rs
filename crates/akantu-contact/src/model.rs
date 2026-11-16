@@ -692,6 +692,12 @@ impl ContactMechanicsModel {
         self.search_keeping_history()
     }
 
+    /// Cell size rule of the detection grid
+    /// ([`crate::GridSpacing`]; default upstream's).
+    pub fn set_grid_spacing(&mut self, spacing: crate::GridSpacing) {
+        self.detector.grid_spacing = spacing;
+    }
+
     /// [`ContactMechanicsModel::search`] without the leading
     /// [`ContactMechanicsModel::save_previous_state`]: the `previous_*`
     /// history keeps its values. Its arrays are only **extended** to the

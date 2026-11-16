@@ -31,7 +31,7 @@ change of default results or of a public API raises the minor version.
   rule (√2 · the largest in-radius of every facet around a master node);
   `ContactSurface` takes the contact-surface facets only, for meshes whose
   side facets are much larger than the surface facets (the closest master
-  node found can then differ).
+  node found can then differ); `ContactMechanicsModel::set_grid_spacing`.
 - `akantu_fe::engine::PointInterpolation`
   (`ElementalFieldInterpolation::point_interpolation`): the value of one
   interpolation point of one element of an elemental-field interpolation
