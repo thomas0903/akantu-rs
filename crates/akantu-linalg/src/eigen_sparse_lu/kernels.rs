@@ -437,14 +437,18 @@ pub(crate) struct Glu {
 
 /// Makes `v` at least `len` long (Eigen's `expand`, which grows by 1.5×
 /// and leaves the new entries uninitialised). The length grows to `len`
-/// exactly and the capacity by `Vec`'s amortised doubling, so only the
+/// plus at most [`GROW_CHUNK`] entries (the column DFS appends one row at a
+/// time) and the capacity by `Vec`'s amortised doubling, so only about the
 /// entries in use are ever written (resident); every entry is written
 /// before it is read.
 fn grow<T: Clone + Default>(v: &mut Vec<T>, len: usize) {
     if v.len() < len {
-        v.resize(len, T::default());
+        v.resize(len.max(v.len() + GROW_CHUNK), T::default());
     }
 }
+
+/// The least growth of [`grow`].
+const GROW_CHUNK: usize = 4096;
 
 fn u(i: i64) -> usize {
     debug_assert!(i >= 0, "negative index {i}");
