@@ -13,9 +13,9 @@
 #                                 (one tjob for the rounds not yet done)
 #   series.sh explicit-digests    the state digests of the three programs (bjob)
 #   series.sh driver STEPS        cohesive driver h = 0.12, port vs C++ strict,
-#                                 1 rank, materials cohesive + elastic, 5 rotated
-#                                 repetitions (STEPS <= 500: one tjob; else two:
-#                                 repetitions 1-3 and 4-5)
+#                                 1 rank, materials cohesive + elastic, rotated
+#                                 repetitions (STEPS <= 500: 5 in one tjob; else 3,
+#                                 one tjob each)
 #   series.sh static              static solve h = 0.12, 1 rank: C++ MUMPS,
 #                                 C++ SparseLU, port MUMPS, port SparseLU; 5
 #                                 rotated repetitions in one tjob
@@ -73,7 +73,9 @@ case "${1:-}" in
   driver)
     steps="${2:?steps}"
     d="$OUT/driver-s$steps"; mkdir -p "$d"
-    if [ "$steps" -le 500 ]; then groups="1:5"; else groups="1:3 4:2"; fi
+    # the full schedule: a C++ cohesive run takes about 13 min here, so three
+    # repetitions, one tjob each (about 22 min)
+    if [ "$steps" -le 500 ]; then groups="1:5"; else groups="1:1 2:1 3:1"; fi
     for g in $groups; do
       first=${g%%:*} n=${g##*:}
       [ -e "$d/reps$first+$n.ok" ] && { say "driver s$steps reps $first+$n: done, skipped"; continue; }
