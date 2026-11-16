@@ -1,0 +1,90 @@
+# Profile of suite case structural_beam3_frame_static
+
+binary: ~/w/gebp/bin/before-models (69609d587869272d)
+command: taskset -c 3 ~/w/gebp/bin/before-models --case structural_beam3_frame_static --size m --loop-seconds 4
+perf: perf record -F 499 --call-graph dwarf,16384
+cpu: AMD EPYC 9B45
+date_utc: 2026-11-16T11:23:43Z
+commit: 184dbb6e5
+
+## Phases of the profiled run (seconds, calls)
+
+mesh                         0.0002 s       1 calls
+init                         0.0200 s       1 calls
+assemble_stiffness           4.0549 s     110 calls
+solve_step                   4.5118 s       1 calls
+
+## Top 25 symbols, self time
+
+    42.69%  [.] akantu_linalg::eigen_sparse_lu::dense::sparselu_gemm
+    23.60%  [.] <akantu_linalg::sparse::SparseMatrixAij>::resolve_block
+    13.55%  [.] akantu_core::eigen_gebp::product_into::<akantu_fe::eigen::product_slices::{closure#1}, akantu_fe::eigen::product_slices::{closure#2}>
+     3.41%  [.] <std::hash::random::DefaultHasher as core::hash::Hasher>::write
+     3.34%  [.] akantu_linalg::eigen_sparse_lu::kernels::panel_bmod
+     2.72%  [.] <std::hash::random::RandomState as core::hash::BuildHasher>::hash_one::<&(i64, i64)>
+     2.20%  [.] akantu_linalg::eigen_sparse_lu::dense::trsm_unit_lower
+     2.04%  [.] <akantu_linalg::sparse::SparseMatrixAij>::add_values
+     0.76%  [.] <akantu_core::array_storage::ArrayStorage<f64>>::try_resize
+     0.60%  [.] akantu_linalg::eigen_sparse_lu::kernels::dfs_kernel
+     0.41%  [.] <akantu_solver::dof_manager::DofManager>::element_equations
+     0.27%  [.] <akantu_fe::structural::engine::StructuralFeEngine>::compute_btdb
+     0.27%  [.] <akantu_linalg::sparse::SparseMatrixAij>::add_to_profile
+     0.27%  [.] akantu_core::eigen_gebp::route
+     0.25%  [.] akantu_fe::eigen::product_slices
+     0.23%  [.] core::ptr::drop_glue::<akantu_core::error::Error>
+     0.21%  [.] akantu_linalg::eigen_sparse_lu::dense::gemv_product
+     0.18%  [k] _raw_spin_lock
+     0.16%  [.] akantu_linalg::eigen_sparse_lu::colamd::colamd_ordering
+     0.16%  [.] akantu_linalg::eigen_sparse_lu::kernels::copy_to_ucol
+     0.14%  [.] <akantu_linalg::eigen_sparse_lu::SparseLu>::solve
+     0.14%  [.] akantu_linalg::eigen_sparse_lu::dense::gemv_in_place
+     0.14%  [.] akantu_linalg::eigen_sparse_lu::kernels::column_dfs
+     0.14%  [k] do_user_addr_fault
+     0.14%  [.] 0x00000000001a1f4e
+
+## Top 25 symbols, inclusive time (children)
+
+    42.69%    42.69%  [.] akantu_linalg::eigen_sparse_lu::dense::sparselu_gemm
+    23.60%    23.60%  [.] <akantu_linalg::sparse::SparseMatrixAij>::resolve_block
+    13.57%    13.55%  [.] akantu_core::eigen_gebp::product_into::<akantu_fe::eigen::product_slices::{closure#1}, akantu_fe::eigen::product_slices::{closure#2}>
+     4.28%     0.00%  [.] <hashbrown::map::HashMap<(i64, i64), usize, std::hash::random::RandomState>>::get::<(i64, i64)> (inlined)
+     4.28%     0.00%  [.] <hashbrown::raw::RawTable<((i64, i64), usize)>>::find::<hashbrown::map::equivalent_key<(i64, i64), (i64, i64), usize>::{closure#0}> (inlined)
+     4.28%     0.00%  [.] <hashbrown::raw::RawTable<((i64, i64), usize)>>::get::<hashbrown::map::equivalent_key<(i64, i64), (i64, i64), usize>::{closure#0}> (inlined)
+     4.28%     0.00%  [.] <hashbrown::raw::RawTableInner>::find_inner (inlined)
+     4.28%     0.00%  [.] <std::collections::hash::map::HashMap<(i64, i64), usize>>::get::<(i64, i64)> (inlined)
+     3.57%     0.00%  [.] core::intrinsics::likely (inlined)
+     3.41%     3.41%  [.] <std::hash::random::DefaultHasher as core::hash::Hasher>::write
+     3.34%     3.34%  [.] akantu_linalg::eigen_sparse_lu::kernels::panel_bmod
+     2.82%     0.00%  [.] akantu_core::eigen_gebp::eval_product::<akantu_fe::eigen::product_slices::{closure#1}, akantu_fe::eigen::product_slices::{closure#2}> (inlined)
+     2.72%     2.72%  [.] <std::hash::random::RandomState as core::hash::BuildHasher>::hash_one::<&(i64, i64)>
+     2.49%     0.00%  [.] akantu_core::eigen_gebp::gebp_into::<akantu_fe::eigen::product_slices::{closure#1}, akantu_fe::eigen::product_slices::{closure#2}> (inlined)
+     2.20%     2.20%  [.] akantu_linalg::eigen_sparse_lu::dense::trsm_unit_lower
+     2.04%     2.04%  [.] <akantu_linalg::sparse::SparseMatrixAij>::add_values
+     1.67%     0.00%  [.] akantu_core::eigen_gebp::gebp_into::<akantu_fe::eigen::product_slices::{closure#1}, akantu_fe::eigen::product_slices::{closure#2}>::{closure#0} (inlined)
+     1.10%     0.00%  [.] akantu_fe::eigen::product_slices::{closure#1} (inlined)
+     0.92%     0.00%  [.] <akantu_structural::model::StructuralMechanicsPhysics>::assemble_stiffness_matrix
+     0.87%     0.00%  [.] 0x000000000000000f
+     0.82%     0.76%  [.] <akantu_core::array_storage::ArrayStorage<f64>>::try_resize
+     0.69%     0.14%  [.] do_user_addr_fault
+     0.69%     0.00%  [.] asm_exc_page_fault
+     0.69%     0.00%  [.] exc_page_fault
+     0.64%     0.00%  [.] <core::hash::sip::Hasher<core::hash::sip::Sip13Rounds> as core::hash::Hasher>::write (inlined)
+
+## Call chains (callers of the hottest self-time symbols, entries above 2 %)
+
+    42.69%  [.] akantu_linalg::eigen_sparse_lu::dense::sparselu_gemm
+    23.60%  [.] <akantu_linalg::sparse::SparseMatrixAij>::resolve_block
+            |
+             --3.57%--core::intrinsics::likely (inlined)
+                       <hashbrown::raw::RawTableInner>::find_inner (inlined)
+                       <hashbrown::raw::RawTable<((i64, i64), usize)>>::find::<hashbrown::map::equivalent_key<(i64, i64), (i64, i64), usize>::{closure#0}> (inlined)
+                       <hashbrown::raw::RawTable<((i64, i64), usize)>>::get::<hashbrown::map::equivalent_key<(i64, i64), (i64, i64), usize>::{closure#0}> (inlined)
+                       <hashbrown::map::HashMap<(i64, i64), usize, std::hash::random::RandomState>>::get::<(i64, i64)> (inlined)
+                       <std::collections::hash::map::HashMap<(i64, i64), usize>>::get::<(i64, i64)> (inlined)
+                       <akantu_linalg::sparse::SparseMatrixAij>::resolve_block
+    13.55%  [.] akantu_core::eigen_gebp::product_into::<akantu_fe::eigen::product_slices::{closure#1}, akantu_fe::eigen::product_slices::{closure#2}>
+     3.41%  [.] <std::hash::random::DefaultHasher as core::hash::Hasher>::write
+     3.34%  [.] akantu_linalg::eigen_sparse_lu::kernels::panel_bmod
+     2.72%  [.] <std::hash::random::RandomState as core::hash::BuildHasher>::hash_one::<&(i64, i64)>
+     2.20%  [.] akantu_linalg::eigen_sparse_lu::dense::trsm_unit_lower
+     2.04%  [.] <akantu_linalg::sparse::SparseMatrixAij>::add_values
