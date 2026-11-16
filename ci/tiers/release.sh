@@ -8,7 +8,10 @@
 # runs documented per area in docs/TESTING.md (overflow checks and
 # debug assertions differ, and some cases run only optimised):
 #   cohesive (all fixture cases), linalg, solid 3-D implicit dynamics,
-#   core + parser, dumpers, and the facade crate (the examples' whole runs).
+#   core + parser, dumpers, and the facade crate (the examples' whole runs);
+#   and akantu-solid + akantu-solver at 3 threads, finest grain (the
+#   thread-count invariant of D-123; the `test` tier repeats only
+#   exec_threads.rs and the solid fixture tests with threads).
 #
 # Each run is judged like the `test` tier: its own
 # `--no-run` build, then `cargo test --release`, then
@@ -42,10 +45,12 @@ if ! ci_have python3; then
   exit $?
 fi
 kf="$tooling/known-failures.txt"
+release_env=()
 sha="$( (sha256sum < "$kf" || shasum -a 256 < "$kf") 2> /dev/null)"
 echo "baseline=$kf sha256=${sha%% *}" > "$(ci_file baseline.txt)"
 
 # release_run <name> <spec,spec,...> <cargo test selection words...>
+#   (the array release_env holds extra VAR=value words for both cargo runs)
 #   spec: PKG or PKG:test=A,B (ci/tools/release_scope.py); the selection is
 #   what follows `cargo test --release --locked` (e.g. -p akantu-linalg).
 release_run() {
@@ -60,8 +65,8 @@ release_run() {
   d="$(ci_file "$name")"
   mkdir -p "$d"
   ci_step "$name:metadata" --stdout "$d/metadata.full.json" -- cargo metadata --no-deps --format-version 1 --locked
-  ci_step "$name:build" --stdout "$d/test-artifacts.jsonl" -- env COH_ALL=1 cargo test --release --locked --no-run --message-format=json "$@"
-  ci_step "$name:test" --ok-exit "0 101" -- env COH_ALL=1 cargo test --release --locked --no-fail-fast "$@"
+  ci_step "$name:build" --stdout "$d/test-artifacts.jsonl" -- env COH_ALL=1 ${release_env[@]+"${release_env[@]}"} cargo test --release --locked --no-run --message-format=json "$@"
+  ci_step "$name:test" --ok-exit "0 101" -- env COH_ALL=1 ${release_env[@]+"${release_env[@]}"} cargo test --release --locked --no-fail-fast "$@"
   if [ "$CI_DRY_RUN" = 1 ]; then
     ci_skip "$name:analyze" "dry run"
     return 0
@@ -89,5 +94,8 @@ release_run core-parser akantu-core,akantu-parser -p akantu-core -p akantu-parse
 # optimised builds (gate line `cargo test --release -p akantu`).
 # The `gates` tier skips that line.
 release_run facade akantu -p akantu
+release_env=(AKANTU_NUM_THREADS=3 AKANTU_EXEC_GRAIN=finest)
+release_run threads akantu-solid,akantu-solver -p akantu-solid -p akantu-solver
+release_env=()
 release_run dumpers "akantu-io:test=dump_oracle;test_dumper;dump_smm;dump_properties;dump_review_regressions" -p akantu-io --test dump_oracle --test test_dumper --test dump_smm --test dump_properties --test dump_review_regressions
 ci_tier_end
