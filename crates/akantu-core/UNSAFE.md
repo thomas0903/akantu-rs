@@ -1,11 +1,37 @@
 # `unsafe` in `akantu-core`
 
-**This crate contains no `unsafe` code**: `src/lib.rs` has
-`#![forbid(unsafe_code)]`, and `scripts/unsafe_inventory.py --check` (run by
-`cargo test -p akantu-validation --test unsafe_inventory`) finds no site in
-its sources, tests or examples (it would then require a site table here).
-A plain text search for `unsafe` finds one line: the `forbid(unsafe_code)`
-attribute itself.
+`src/lib.rs` has `#![deny(unsafe_code)]`. The only module that allows it is
+`src/exec/simd.rs` (D-123): the example kernel of the SIMD dispatch
+convention, whose `#[target_feature]` versions are `unsafe fn`s called from
+one dispatch point. Every site is listed below (`scripts/unsafe_inventory.py
+--check`, run by `cargo test -p akantu-validation --test unsafe_inventory`;
+`--update-lines` after an edit that only moves code). Each row is pinned to
+a fingerprint of its site's code in `UNSAFE.fingerprints`.
+
+**Counts**: `unsafe fn` 3, block 6 (on one architecture at a time: x86-64
+compiles the AVX2 and AVX-512 sites, aarch64 the NEON sites).
+
+## Site table
+
+The invariant common to every site: a `SimdToken` of a level exists only
+when the CPU reports the level's target feature (`SimdLevel::token` and
+`SimdToken::detected` are the only constructors; the field is private).
+
+### src/exec/simd.rs
+
+| Id | Line | Site | What it does | Invariant (its `SAFETY:` comment) | Established by | Test |
+|---|---|---|---|---|---|---|
+| CO-01 | 168 | `fn scaled_add` block 1 | calls the AVX-512F version | CPU has avx512f; equal lengths | `SimdToken` constructors; `assert_eq!` of the lengths | `exec::simd::tests::every_level_gives_the_scalar_bits` |
+| CO-02 | 174 | `fn scaled_add` block 2 | calls the AVX2 version | CPU has avx2; equal lengths | as CO-01 | as CO-01 |
+| CO-03 | 180 | `fn scaled_add` block 3 | calls the NEON version | CPU has neon; equal lengths | as CO-01 | as CO-01 (aarch64) |
+| CO-04 | 196 | `fn scaled_add_avx2` fn 1 | `#[target_feature(enable = "avx2")]` version | caller guarantees avx2 | CO-02 | as CO-01 |
+| CO-05 | 207 | `fn scaled_add_avx2` block 1 | unaligned 4-wide loads, multiply, add, store | `i + 4 ≤ len` of both slices | loop bound `body = n − n % 4`, `n = min(len)` | as CO-01 |
+| CO-06 | 219 | `fn scaled_add_avx512` fn 1 | `#[target_feature(enable = "avx512f")]` version | caller guarantees avx512f | CO-01 | as CO-01 |
+| CO-07 | 230 | `fn scaled_add_avx512` block 1 | unaligned 8-wide loads, multiply, add, store | `i + 8 ≤ len` of both slices | loop bound `body = n − n % 8` | as CO-01 |
+| CO-08 | 242 | `fn scaled_add_neon` fn 1 | `#[target_feature(enable = "neon")]` version | caller guarantees neon | CO-03 | as CO-01 (aarch64) |
+| CO-09 | 252 | `fn scaled_add_neon` block 1 | 2-wide loads, multiply, add, store | `i + 2 ≤ len` of both slices | loop bound `body = n − n % 2` | as CO-01 (aarch64) |
+
+## Guarantees the `unsafe` code of other crates relies on
 
 It matters to the inventory anyway: **its safe code establishes the
 invariants that the `unsafe` code of `akantu-python` relies on**

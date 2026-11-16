@@ -47,9 +47,12 @@
 //! | [`spatial_grid`] | `aka_grid_dynamic.hh` (`SpatialGrid<T>`) |
 //! | [`circular_array`] | `aka_circular_array.hh` (`CircularArray<T>`) |
 //! | [`strings`] | `aka_common_inline_impl.hh` (`to_lower`, `trim`, `printMemorySize`) |
+//! | [`exec`] | none: precision mode, threads and SIMD level of the kernels (D-123) |
 //! | [`version`] | `aka_config.hh.in` / `aka_config.cc.in` (`AKANTU_VERSION_*`, `getVersion`) |
 
-#![forbid(unsafe_code)]
+// `unsafe` is denied everywhere except the SIMD kernels of `exec::simd`
+// (each block listed in UNSAFE.md).
+#![deny(unsafe_code)]
 #![warn(missing_docs)]
 
 pub mod array;
@@ -70,6 +73,7 @@ pub mod element_type_map;
 pub mod element_type_map_shared;
 pub mod enums;
 pub mod error;
+pub mod exec;
 pub mod glibc_libm;
 pub mod math;
 pub mod node_flag;
