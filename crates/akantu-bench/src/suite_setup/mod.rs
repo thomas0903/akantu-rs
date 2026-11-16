@@ -173,6 +173,11 @@ pub fn cases() -> Vec<Case> {
             io::parser_dat,
         ),
         serial(
+            "parser_chain",
+            "evaluate the last of a chain of parameters that each refer twice to the previous one (variable re-evaluation)",
+            io::parser_chain,
+        ),
+        serial(
             "dump_paraview_tet4",
             "ParaView dump of an elastic model (displacement, velocity, stress, strain): VTU per dump",
             io::dump_paraview_tet4,
