@@ -562,4 +562,132 @@ mod tests {
         );
         assert_eq!(out, [3.0; 4]);
     }
+
+    /// The fast-mode variants stay within the summation error bound
+    /// `γ_k Σ |a_il b_lj|` of the exact-order kernels (both satisfy it, so
+    /// they differ by at most `2 γ_k Σ |a_il b_lj|`).
+    #[test]
+    fn fast_mode_variants_within_the_summation_bound() {
+        let mut v = Values::new(0xfa57_0de5);
+        let u = Real::EPSILON / 2.0;
+        let mut a = vec![0.0; 64 * 64];
+        let mut at = vec![0.0; 64 * 64];
+        let mut b = vec![0.0; 64 * 64];
+        let mut fast = vec![0.0; 64 * 64];
+        let mut exact = vec![0.0; 64 * 64];
+        for &(m, k, n) in &[
+            (3, 3, 3),
+            (30, 6, 30),
+            (30, 6, 6),
+            (3, 10, 3),
+            (6, 6, 1),
+            (24, 3, 24),
+            (5, 27, 5),
+            (2, 64, 2),
+        ] {
+            for _ in 0..300 {
+                for x in a[..m * k].iter_mut().chain(&mut b[..k * n]) {
+                    *x = v.finite();
+                }
+                for i in 0..m {
+                    for l in 0..k {
+                        at[l + i * k] = a[i + l * m];
+                    }
+                }
+                let gamma = (k as Real) * u / (1.0 - (k as Real) * u);
+                let p = SliceProduct::new(ProductShape::dynamic(m, k, n)).unwrap();
+                p.eval(&a, &b, &mut exact).unwrap();
+                fast_mode::gemm_colmajor(m, k, n, &a, &b, &mut fast);
+                let mut fast_tn = vec![0.0; m * n];
+                fast_mode::gemm_tn(m, k, n, &at, &b, &mut fast_tn);
+                for j in 0..n {
+                    for i in 0..m {
+                        let abs: Real = (0..k).map(|l| (a[i + l * m] * b[l + j * k]).abs()).sum();
+                        let bound = 2.0 * gamma * abs * (1.0 + 4.0 * u) + Real::MIN_POSITIVE;
+                        let e = exact[i + j * m];
+                        for f in [fast[i + j * m], fast_tn[i + j * m]] {
+                            assert!(
+                                (f - e).abs() <= bound,
+                                "{m}x{k}x{n}: {f:e} vs {e:e}, bound {bound:e}"
+                            );
+                        }
+                    }
+                }
+            }
+        }
+    }
+}
+
+/// Order-free variants of the hottest product classes, for the fast mode
+/// (D-122: **not** bitwise; off by default). Nothing in the library calls
+/// them yet: the global switch (D-123, `akantu-core::exec`) lands with
+/// another work package, which can route the callers listed in
+/// `docs/benchmarks/perf-campaign/small-products/README.md` here.
+///
+/// The variants reassociate each coefficient's sum into independent
+/// partial sums (four accumulators over the depth, combined pairwise), so
+/// the compiler can keep several additions in flight and vectorise across
+/// the depth; they use no FMA (`mul_add` without the `fma` target feature
+/// compiles to a slow software routine on the x86-64 baseline). Error
+/// bound of each coefficient (Higham, Theorem 3.1 with any summation
+/// order): `|ŝ − s| ≤ γ_k Σ_l |a_il b_lj|`, `γ_k = k·u/(1 − k·u)`, the
+/// same bound as the exact-order kernels; the results differ from them in
+/// the last bits.
+pub mod fast_mode {
+    use crate::types::Real;
+
+    /// Dot product `Σ a_l·b_l` with four partial sums (order-free).
+    #[inline]
+    #[must_use]
+    pub fn dot(a: &[Real], b: &[Real]) -> Real {
+        let n = a.len().min(b.len());
+        let (a, b) = (&a[..n], &b[..n]);
+        let mut acc = [0.0; 4];
+        let (ca, ra) = a.as_chunks::<4>();
+        let (cb, rb) = b.as_chunks::<4>();
+        for (x, y) in ca.iter().zip(cb) {
+            for r in 0..4 {
+                acc[r] += x[r] * y[r];
+            }
+        }
+        let mut tail = 0.0;
+        for (x, y) in ra.iter().zip(rb) {
+            tail += x * y;
+        }
+        ((acc[0] + acc[1]) + (acc[2] + acc[3])) + tail
+    }
+
+    /// `out = lhs · rhs` for column-major `m × k` and `k × n` operands
+    /// (`out` column-major `m × n`), each coefficient a [`dot`] of a row of
+    /// `lhs` (gathered) and a column of `rhs`. Order-free.
+    ///
+    /// # Panics
+    /// If a slice is shorter than its matrix or `k > 64`.
+    pub fn gemm_colmajor(m: usize, k: usize, n: usize, a: &[Real], b: &[Real], out: &mut [Real]) {
+        assert!(k <= 64, "fast_mode::gemm_colmajor: depth {k} > 64");
+        let mut row = [0.0; 64];
+        for i in 0..m {
+            for (l, x) in row.iter_mut().enumerate().take(k) {
+                *x = a[i + l * m];
+            }
+            for j in 0..n {
+                out[i + j * m] = dot(&row[..k], &b[j * k..(j + 1) * k]);
+            }
+        }
+    }
+
+    /// `out = lhsᵀ · rhs` with `lhs` stored column-major `k × m` (the
+    /// upstream `B.transpose() * D` operand): each coefficient is a [`dot`]
+    /// of two contiguous columns. Order-free.
+    ///
+    /// # Panics
+    /// If a slice is shorter than its matrix.
+    pub fn gemm_tn(m: usize, k: usize, n: usize, at: &[Real], b: &[Real], out: &mut [Real]) {
+        for j in 0..n {
+            let bj = &b[j * k..(j + 1) * k];
+            for i in 0..m {
+                out[i + j * m] = dot(&at[i * k..(i + 1) * k], bj);
+            }
+        }
+    }
 }
