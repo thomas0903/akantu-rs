@@ -15,4 +15,6 @@ for ((k=0; k<n; k++)); do
   printf '{"label":"%s","rep":%s,"order":%s,"binary":"%s","sha256":"%s","start":"%s","loadavg":"%s","cpu":"%s"}\n' \
     "$label" "$rep" "$k" "$bin" "$sha" "$(date -u +%FT%TZ)" "$(cut -d' ' -f1-3 /proc/loadavg)" "$cpu" > run.json
   taskset -c 3 /usr/bin/time -v $bin --aka_input_file $inp > out.txt 2> err.txt; echo $? > exit
+  # no home-directory paths in recorded data
+  sed -i "s#$HOME#~#g" run.json err.txt
 done
