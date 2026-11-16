@@ -99,7 +99,7 @@ case "${1:-}" in
     d="$OUT/scaling"; mkdir -p "$d"
     say "scaling s$steps: start"
     env OUT="$d" PIN_CPUS_FROM=0 SKIP_DONE=1 C1PREP_LOCK="$HOME/w/infra/c1prep.lock" \
-      CAMPAIGN_WRAPPER="tjob $L-scaling --" \
+      CAMPAIGN_WRAPPER="$here/jobwrap.sh $L-scaling" \
       bash "$repo/crates/akantu-bench/scripts/scaling_series.sh" "$L-scal-s$steps" "$steps" 3 \
       "0.06:1 0.06:2 0.06:4 0.06:8" "cpp rust" || say "scaling: series reported a failure"
     exp=(); [ "$steps" -le 500 ] || exp=(--expect-insertion)
