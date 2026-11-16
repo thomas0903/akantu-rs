@@ -3783,6 +3783,97 @@ mod perf_tests {
         }
     }
 
+    /// Bits of every `facet_stress` value after `interpolate_stress`, every
+    /// value set to a sentinel before.
+    fn facet_stress_bits(model: &mut SolidMechanicsModelCohesive) -> Vec<u64> {
+        model.ext.facet_stress.fill(-7.25);
+        model.interpolate_stress().unwrap();
+        model
+            .ext
+            .facet_stress
+            .as_map()
+            .iter_all()
+            .flat_map(|(_, _, a)| a.as_slice().iter().map(|x| x.to_bits()))
+            .collect()
+    }
+
+    /// The stress copy plan patched after each insertion equals a plan
+    /// rebuilt from the mesh (blocks and fused pairs), and the facet
+    /// stresses written with it equal those written after every plan was
+    /// dropped (rebuilt), bit for bit, side values of the doubled facets
+    /// included (public state, never checked again). Random loading
+    /// sequences with insertions on the 3-D and 2-D fixture meshes. Runs
+    /// in release builds too, where the debug comparison of
+    /// `patch_stress_plans` is compiled out.
+    #[test]
+    fn patched_copy_plans_are_the_rebuilt_ones() {
+        let mut state = 0x9e37_79b9_7f4a_7c15_u64;
+        let mut unit = || {
+            state ^= state << 13;
+            state ^= state >> 7;
+            state ^= state << 17;
+            Real::from(u32::try_from(state >> 40).unwrap()) / Real::from(1u32 << 24)
+        };
+        for (file, dim) in [
+            ("_cohesive_3d_6_tetrahedron_4.msh", 3),
+            ("_cohesive_2d_4_triangle_3.msh", 2),
+        ] {
+            for sequence in 0..4 {
+                let (mut model, mesh) = fixture_model(file, dim);
+                model.interpolate_stress().unwrap();
+                let mut patched = 0;
+                for round in 0..10 {
+                    let scale = 1e-3 * (1.0 + 4.0 * unit()) * Real::from(round + 1);
+                    set_wobbly_displacement(&mut model, dim, scale);
+                    {
+                        // a random perturbation per node
+                        let mut u_g = model.smm.displacement_mut().unwrap();
+                        for x in u_g.as_mut_slice() {
+                            *x += 1e-4 * (unit() - 0.5);
+                        }
+                    }
+                    model.assemble_internal_forces().unwrap();
+                    let before = model.ext.stats.inserted;
+                    model.check_cohesive_stress().unwrap();
+                    if model.ext.stats.inserted == before {
+                        continue;
+                    }
+                    let m = mesh.read().unwrap();
+                    let fm = m.mesh_facets().unwrap();
+                    let stress_size = dim * dim;
+                    for (&i, plan) in &model.ext.stress_plans {
+                        if plan.blocks.is_empty() {
+                            continue;
+                        }
+                        if plan.revision == m.revision() {
+                            patched += 1;
+                        }
+                        let law = model.smm.physics.materials.law(i).unwrap();
+                        let filter = &law.base().element_filter;
+                        let types = law.base().filter_types(GhostType::NotGhost);
+                        let interp = &model.ext.stress_interpolation[&i];
+                        let fresh =
+                            build_stress_plan(fm, filter, &types, interp, stress_size).unwrap();
+                        assert_eq!(plan.blocks, fresh.blocks, "{file} {sequence} {round}");
+                        if let Some(f) = &plan.fused {
+                            assert_eq!(
+                                f,
+                                &build_fused(&fresh, filter, interp, stress_size),
+                                "{file} {sequence} {round}: fused pairs"
+                            );
+                        }
+                    }
+                    drop(m);
+                    let with_patched = facet_stress_bits(&mut model);
+                    model.ext.stress_plans.clear();
+                    let with_rebuilt = facet_stress_bits(&mut model);
+                    assert_eq!(with_patched, with_rebuilt, "{file} {sequence} {round}");
+                }
+                assert!(patched > 0, "{file} {sequence}: no patched plan checked");
+            }
+        }
+    }
+
     /// A non-uniform displacement field (stresses differ between elements).
     fn set_wobbly_displacement(model: &mut SolidMechanicsModelCohesive, dim: usize, scale: Real) {
         let mesh = model.smm.physics.base.mesh.clone();
