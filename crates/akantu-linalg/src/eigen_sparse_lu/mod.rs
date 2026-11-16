@@ -72,6 +72,10 @@ mod colamd;
 mod dense;
 mod etree;
 mod kernels;
+// Run-time instruction-set dispatch of the dense kernels: calls of
+// `#[target_feature]` functions after the CPU check (`UNSAFE.md`).
+#[allow(unsafe_code)]
+mod simd;
 
 use akantu_core::enums::{MatrixType, SparseSolverType};
 use akantu_core::{Error, Real, Result};

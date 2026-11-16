@@ -642,7 +642,7 @@ fn gebp_minus_tile<const MR: usize>(
 /// Each entry's sequence is therefore `c ← c + a(i,k)·b(k,j)` for `k` in
 /// order, then `c ← c + b(d−1,j)·a(i,d−1)` when `d` is odd. The entries are
 /// independent, so the kernel computes them in register tiles of
-/// [`GEMM_MR`] rows × up to [`GEMM_NR`] columns (the tile's `k` loop runs over
+/// `MR` rows × up to [`GEMM_NR`] columns (the tile's `k` loop runs over
 /// the whole depth, `a` read column by column, contiguous), with exactly
 /// that sequence per entry: every product and every sum is a separate
 /// IEEE operation (Rust never contracts `a * b + c` into an FMA), so the
@@ -664,13 +664,15 @@ pub(crate) fn sparselu_gemm(
     c_off: usize,
     ldc: usize,
 ) {
-    gemm_tiles::<false>(m, n, d, a, a_off, lda, b, b_off, ldb, c, c_off, ldc);
+    gemm_tiles::<4, false>(m, n, d, a, a_off, lda, b, b_off, ldb, c, c_off, ldc);
 }
 
 /// [`sparselu_gemm`] on a destination that the caller would have set to
 /// `+0.0` first: the accumulators start at `+0.0` without reading `C`, and
 /// every entry of the `m × n` block is written. Bitwise the same as
-/// zero-filling `C` and calling [`sparselu_gemm`].
+/// zero-filling `C` and calling [`sparselu_gemm`]. The widest instruction
+/// set of the CPU is chosen at run time (`simd::gemm_into_zero`); this is
+/// the portable instance (SSE2 on x86-64, NEON on aarch64).
 #[allow(clippy::too_many_arguments)] // BLAS-style kernel signature
 pub(crate) fn sparselu_gemm_into_zero(
     m: usize,
@@ -686,17 +688,18 @@ pub(crate) fn sparselu_gemm_into_zero(
     c_off: usize,
     ldc: usize,
 ) {
-    gemm_tiles::<true>(m, n, d, a, a_off, lda, b, b_off, ldb, c, c_off, ldc);
+    gemm_tiles::<4, true>(m, n, d, a, a_off, lda, b, b_off, ldb, c, c_off, ldc);
 }
 
-/// Rows of a register tile of [`sparselu_gemm`].
-const GEMM_MR: usize = 4;
 /// Columns of a register tile of [`sparselu_gemm`].
 const GEMM_NR: usize = 4;
 
+/// The tiled `C (+)= A·B` with register tiles of `MR` rows (`MR` = 4, 8 or
+/// 16: eight independent accumulator vectors of two, four or eight lanes)
+/// × [`GEMM_NR`] columns.
 #[allow(clippy::too_many_arguments)] // BLAS-style kernel signature
 #[inline(always)]
-fn gemm_tiles<const ZERO: bool>(
+pub(super) fn gemm_tiles<const MR: usize, const ZERO: bool>(
     m: usize,
     n: usize,
     d: usize,
@@ -719,19 +722,19 @@ fn gemm_tiles<const ZERO: bool>(
         let bj = b_off + j * ldb;
         let cj = c_off + j * ldc;
         match nr {
-            4 => gemm_cols::<4, ZERO>(m, d, a, a_off, lda, b, bj, ldb, c, cj, ldc),
-            3 => gemm_cols::<3, ZERO>(m, d, a, a_off, lda, b, bj, ldb, c, cj, ldc),
-            2 => gemm_cols::<2, ZERO>(m, d, a, a_off, lda, b, bj, ldb, c, cj, ldc),
-            _ => gemm_cols::<1, ZERO>(m, d, a, a_off, lda, b, bj, ldb, c, cj, ldc),
+            4 => gemm_cols::<MR, 4, ZERO>(m, d, a, a_off, lda, b, bj, ldb, c, cj, ldc),
+            3 => gemm_cols::<MR, 3, ZERO>(m, d, a, a_off, lda, b, bj, ldb, c, cj, ldc),
+            2 => gemm_cols::<MR, 2, ZERO>(m, d, a, a_off, lda, b, bj, ldb, c, cj, ldc),
+            _ => gemm_cols::<MR, 1, ZERO>(m, d, a, a_off, lda, b, bj, ldb, c, cj, ldc),
         }
         j += nr;
     }
 }
 
-/// All rows of `NR` columns: tiles of [`GEMM_MR`] rows, then 4, 2, 1.
+/// All rows of `NR` columns: tiles of `MR` rows, then 8, 4, 2, 1.
 #[allow(clippy::too_many_arguments)] // BLAS-style kernel signature
 #[inline(always)]
-fn gemm_cols<const NR: usize, const ZERO: bool>(
+fn gemm_cols<const MR: usize, const NR: usize, const ZERO: bool>(
     m: usize,
     d: usize,
     a: &[f64],
@@ -747,9 +750,17 @@ fn gemm_cols<const NR: usize, const ZERO: bool>(
     // the columns of B, each `d` long
     let bcols: [&[f64]; NR] = std::array::from_fn(|jn| &b[b_off + jn * ldb..][..d]);
     let mut i = 0;
-    while i + GEMM_MR <= m {
-        gemm_tile::<GEMM_MR, NR, ZERO>(d, a, a_off + i, lda, &bcols, c, c_off + i, ldc);
-        i += GEMM_MR;
+    while i + MR <= m {
+        gemm_tile::<MR, NR, ZERO>(d, a, a_off + i, lda, &bcols, c, c_off + i, ldc);
+        i += MR;
+    }
+    if MR > 8 && i + 8 <= m {
+        gemm_tile::<8, NR, ZERO>(d, a, a_off + i, lda, &bcols, c, c_off + i, ldc);
+        i += 8;
+    }
+    if MR > 4 && i + 4 <= m {
+        gemm_tile::<4, NR, ZERO>(d, a, a_off + i, lda, &bcols, c, c_off + i, ldc);
+        i += 4;
     }
     if i + 2 <= m {
         gemm_tile::<2, NR, ZERO>(d, a, a_off + i, lda, &bcols, c, c_off + i, ldc);
@@ -1049,7 +1060,7 @@ mod tests {
         let mut g = Gen(0x9E37_79B9_7F4A_7C15);
         for case in 0..4000 {
             let specials = case % 3 == 0;
-            let m = g.below(40);
+            let m = g.below(70);
             let n = g.below(19);
             let d = g.below(23);
             let lda = m + g.below(4);
@@ -1076,6 +1087,19 @@ mod tests {
                 z1[co + j * ldc..co + j * ldc + m].fill(0.0);
             }
             sparselu_gemm_reference(m, n, d, &a, ao, lda, &b, bo, ldb, &mut z1, co, ldc);
+            // every instruction-set instance this CPU runs
+            for isa in super::super::simd::available() {
+                let mut z2 = c0.clone();
+                super::super::simd::gemm_into_zero_with(
+                    isa, m, n, d, &a, ao, lda, &b, bo, ldb, &mut z2, co, ldc,
+                );
+                for j in 0..n {
+                    z2[co + j * ldc..co + j * ldc + m]
+                        .iter()
+                        .zip(&z1[co + j * ldc..co + j * ldc + m])
+                        .for_each(|(x, y)| assert!(same_bits(*x, *y), "case {case} {isa:?}"));
+                }
+            }
             sparselu_gemm_into_zero(m, n, d, &a, ao, lda, &b, bo, ldb, &mut z2, co, ldc);
             for j in 0..n {
                 z2[co + j * ldc..co + j * ldc + m]

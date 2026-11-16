@@ -851,7 +851,7 @@ fn kernel_bmod(
     luptr += segsize;
     let (useg, l) = tempv.split_at_mut(segsize);
     // `l = 0; l += B·u` (Eigen zero-fills `l`, then `sparselu_gemm`)
-    dense::sparselu_gemm_into_zero(
+    super::simd::gemm_into_zero(
         nrow, 1, segsize, lusup, luptr, lda, useg, 0, segsize, l, 0, nrow,
     );
     let mut isub = lptr + no_zeros;
@@ -931,7 +931,7 @@ pub(crate) fn panel_bmod(m: usize, w: usize, jcol: usize, nseg: i64, wk: &mut Wo
             let ldl = nr;
             let (tu, tl) = wk.tempv.split_at_mut(w * ldu);
             // `L = 0; L += B·U` (Eigen zero-fills `L`, then `sparselu_gemm`)
-            dense::sparselu_gemm_into_zero(
+            super::simd::gemm_into_zero(
                 nr, u_cols, ur, &glu.lusup, luptr, lda, tu, 0, ldu, tl, 0, ldl,
             );
             // scatter U (assignments) and L (one subtraction per entry; the
