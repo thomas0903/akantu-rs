@@ -46,6 +46,18 @@ change of default results or of a public API raises the minor version.
   inlined, fixed-size tensor products select their route at compile time,
   the FE products of slices run fixed-order kernels (one per route and
   depth class), and the FE per-element loops decide each product once.
+- Constitutive laws and the heat law are faster with bitwise identical
+  results: the `EigenSolver` eigenvalues of fixed-size matrices up to
+  4 × 4 (`akantu_linalg::dense::eig_fixed`, `eig3_fixed`,
+  `eig_vectors_fixed`; Mazars' principal strains) run the Hessenberg
+  reduction and the Francis iteration on stack arrays; the Maxwell and
+  anisotropic laws use constant-size Voigt products and the Maxwell
+  branch factors are computed once per block; the fixed-size matrix
+  inverse no longer allocates; the heat law computes `∇u` and `D∇u` in
+  place, skips the interpolation of the temperature when the
+  conductivity cannot depend on it (`conductivity_variation = 0`, finite
+  temperatures) and keeps its temporary arrays between steps
+  (`docs/benchmarks/perf-campaign/laws/`).
 - `akantu_fe::eigen::product_slices` checks the operands' inner
   dimension before the slice lengths: a call with both wrong now reports
   the inner-dimension mismatch (still `Error::DimensionMismatch`, with
