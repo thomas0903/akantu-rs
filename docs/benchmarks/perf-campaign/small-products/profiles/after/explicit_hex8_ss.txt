@@ -1,0 +1,145 @@
+# Profile of suite case explicit_hex8_ss
+
+binary: ~/w/gebp/bin/final-solid (183c6b69e2f07f7d)
+command: taskset -c 3 ~/w/gebp/bin/final-solid --case explicit_hex8_ss --size m --loop-seconds 4
+perf: perf record -F 499 --call-graph dwarf,16384
+cpu: AMD EPYC 9B45
+date_utc: 2026-11-16T11:19:49Z
+commit: 184dbb6e5
+
+## Phases of the profiled run (seconds, calls)
+
+mesh                         0.0087 s       1 calls
+init                         0.3549 s       1 calls
+stable_time_step             0.0303 s       5 calls
+solve_step                   5.9901 s     100 calls
+predictor                    0.0000 s     100 calls
+residual                     4.8856 s     100 calls
+lumped_matrix                0.0001 s     100 calls
+corrector                    0.0000 s     100 calls
+step_hooks                   0.8013 s     200 calls
+step_rest                    0.3030 s     100 calls
+internal_forces              0.4620 s      10 calls
+stresses                     0.2111 s      10 calls
+energies                     0.5368 s      10 calls
+
+## Top 25 symbols, self time
+
+    22.43%  [.] akantu_fe::engine::fast::btd
+    17.60%  [.] akantu_fe::engine::fast::gradient::<akantu_fe::element_class::types::Hexahedron8>
+     9.92%  [.] akantu_fe::engine::fast::integrate::<<akantu_fe::engine::FeEngine>::integrate::{closure#0}>
+     6.53%  [.] <akantu_solid::materials::elastic::MaterialElastic<3> as akantu_solid::material::Material>::compute_stress
+     6.22%  [.] akantu_solid::material::grad_u_in_place
+     3.82%  [.] <akantu_solver::dof_manager::DofManager>::assemble_elemental_array_local_view
+     2.85%  [k] do_user_addr_fault
+     2.50%  [.] 0x00000000001a1ad0
+     2.40%  [.] 0x00000000001a1ac9
+     1.86%  [.] 0x00000000001a1ac2
+     1.58%  [.] 0x00000000001a1abb
+     1.27%  [k] _raw_spin_lock
+     1.01%  [.] <akantu_solid::materials::elastic::MaterialElastic<3>>::compute_thermal
+     0.99%  [k] _raw_spin_unlock_irqrestore
+     0.99%  [.] akantu_bench::suite_solid::common::digest
+     0.94%  [k] __rmqueue_pcplist
+     0.94%  [.] akantu_core::eigen_kernels::coeff_seq_unrolled
+     0.92%  [k] zap_present_ptes.constprop.0
+     0.78%  [.] 0x00000000001a18eb
+     0.75%  [.] akantu_fe::eigen::lu_factor
+     0.71%  [.] <akantu_solver::dof_manager::DofManager>::assemble_to_residual
+     0.68%  [.] <akantu_solid::materials::elastic::MaterialElastic<3>>::point_energy
+     0.66%  [.] <akantu_solver::integration_scheme::NewmarkBeta as akantu_solver::integration_scheme::IntegrationScheme>::predictor
+     0.64%  [.] <akantu_solver::integration_scheme::NewmarkBeta as akantu_solver::integration_scheme::IntegrationScheme>::corrector
+     0.54%  [.] <akantu_solid::model::SolidMechanicsPhysics>::external_work_increment
+
+## Top 25 symbols, inclusive time (children)
+
+    22.43%    22.43%  [.] akantu_fe::engine::fast::btd
+    20.12%     0.00%  [.] akantu_fe::engine::fast::btd_impl::<3, 3> (inlined)
+    17.60%    17.60%  [.] akantu_fe::engine::fast::gradient::<akantu_fe::element_class::types::Hexahedron8>
+    14.32%     0.00%  [.] akantu_fe::engine::fast::gradient_impl::<akantu_fe::element_class::types::Hexahedron8, 3> (inlined)
+    14.32%     0.00%  [.] akantu_fe::engine::ops::gradient_kernel::<akantu_fe::element_class::types::Hexahedron8>
+    10.15%     9.92%  [.] akantu_fe::engine::fast::integrate::<<akantu_fe::engine::FeEngine>::integrate::{closure#0}>
+     9.66%     0.00%  [.] <[f64] as core::slice::CloneFromSpec<f64>>::spec_clone_from (inlined)
+     9.66%     0.00%  [.] <[f64]>::clone_from_slice (inlined)
+     9.66%     0.00%  [.] <akantu_core::array::Array<f64>>::copy_from (inlined)
+     9.66%     0.00%  [.] akantu_model::internal_field::save_blocks::<f64> (inlined)
+     9.66%     0.00%  [.] core::ptr::copy_nonoverlapping::<f64> (inlined)
+     9.66%     0.00%  [.] core::slice::copy_from_slice_impl::<f64> (inlined)
+     9.09%     0.00%  [.] 0xffffffffffffff17
+     7.37%     0.00%  [.] asm_exc_page_fault
+     7.37%     0.00%  [.] exc_page_fault
+     7.35%     2.85%  [.] do_user_addr_fault
+     6.43%     0.00%  [.] <akantu_model::internal_field::InternalField<f64>>::save_current_values
+     6.22%     6.22%  [.] akantu_solid::material::grad_u_in_place
+     5.70%     0.00%  [.] akantu_core::eigen_unrolled::seq_sum (inlined)
+     5.42%     0.00%  [.] 0x0000000000007ffe
+     5.28%     0.00%  [.] <akantu_solid::materials::elastic::ElasticConstants<3>>::stress_on_quad (inlined)
+     5.09%     0.00%  [.] akantu_solid::model::assembly::assemble_internal_forces_of
+     5.04%     0.00%  [.] <akantu_solid::material::MaterialBase>::filter_types (inlined)
+     5.04%     0.00%  [.] <alloc::vec::Vec<akantu_core::element_type::ElementType> as alloc::vec::spec_from_iter::SpecFromIter<akantu_core::element_type::ElementType, core::iter::adapters::filter::Filter<core::array::iter::IntoIter<akantu_core::element_type::ElementType, 26>, <akantu_core::element_type_map::ElementTypeMap<akantu_core::array::Array<i32>>>::element_types::{closure#0}>>>::from_iter (inlined)
+     5.04%     0.00%  [.] <alloc::vec::Vec<akantu_core::element_type::ElementType> as core::iter::traits::collect::FromIterator<akantu_core::element_type::ElementType>>::from_iter::<core::iter::adapters::filter::Filter<core::array::iter::IntoIter<akantu_core::element_type::ElementType, 26>, <akantu_core::element_type_map::ElementTypeMap<akantu_core::array::Array<i32>>>::element_types::{closure#0}>> (inlined)
+
+## Call chains (callers of the hottest self-time symbols, entries above 2 %)
+
+    22.43%  [.] akantu_fe::engine::fast::btd
+            |
+            |--12.25%--akantu_fe::engine::fast::btd_impl::<3, 3> (inlined)
+            |          akantu_fe::engine::fast::btd
+            |
+             --5.70%--akantu_core::eigen_unrolled::seq_sum (inlined)
+                       akantu_fe::engine::fast::btd_impl::<3, 3> (inlined)
+                       akantu_fe::engine::fast::btd
+    17.60%  [.] akantu_fe::engine::fast::gradient::<akantu_fe::element_class::types::Hexahedron8>
+            |
+            |--8.01%--akantu_fe::engine::fast::gradient_impl::<akantu_fe::element_class::types::Hexahedron8, 3> (inlined)
+            |          akantu_fe::engine::fast::gradient::<akantu_fe::element_class::types::Hexahedron8>
+            |          akantu_fe::engine::ops::gradient_kernel::<akantu_fe::element_class::types::Hexahedron8>
+            |
+             --2.00%--akantu_core::eigen_unrolled::tree_l3 (inlined)
+                       akantu_core::eigen_unrolled::tree_l4 (inlined)
+                       akantu_core::eigen_unrolled::tree_l5 (inlined)
+                       akantu_core::eigen_unrolled::tree_sum (inlined)
+                       akantu_fe::engine::fast::gradient_impl::<akantu_fe::element_class::types::Hexahedron8, 3> (inlined)
+                       akantu_fe::engine::fast::gradient::<akantu_fe::element_class::types::Hexahedron8>
+                       akantu_fe::engine::ops::gradient_kernel::<akantu_fe::element_class::types::Hexahedron8>
+     9.92%  [.] akantu_fe::engine::fast::integrate::<<akantu_fe::engine::FeEngine>::integrate::{closure#0}>
+            |
+             --7.68%--akantu_fe::engine::fast::integrate::<<akantu_fe::engine::FeEngine>::integrate::{closure#0}>
+                       |
+                        --7.59%--0xffffffffffffff17
+     6.53%  [.] <akantu_solid::materials::elastic::MaterialElastic<3> as akantu_solid::material::Material>::compute_stress
+     6.22%  [.] akantu_solid::material::grad_u_in_place
+            |
+             --4.81%--akantu_solid::material::grad_u_in_place
+                       |
+                        --4.71%--<alloc::vec::Vec<akantu_core::element_type::ElementType> as alloc::vec::spec_from_iter::SpecFromIter<akantu_core::element_type::ElementType, core::iter::adapters::filter::Filter<core::array::iter::IntoIter<akantu_core::element_type::ElementType, 26>, <akantu_core::element_type_map::ElementTypeMap<akantu_core::array::Array<i32>>>::element_types::{closure#0}>>>::from_iter (inlined)
+                                  <alloc::vec::Vec<akantu_core::element_type::ElementType> as core::iter::traits::collect::FromIterator<akantu_core::element_type::ElementType>>::from_iter::<core::iter::adapters::filter::Filter<core::array::iter::IntoIter<akantu_core::element_type::ElementType, 26>, <akantu_core::element_type_map::ElementTypeMap<akantu_core::array::Array<i32>>>::element_types::{closure#0}>> (inlined)
+                                  <core::iter::adapters::filter::Filter<core::array::iter::IntoIter<akantu_core::element_type::ElementType, 26>, <akantu_core::element_type_map::ElementTypeMap<akantu_core::array::Array<i32>>>::element_types::{closure#0}> as core::iter::traits::iterator::Iterator>::collect::<alloc::vec::Vec<akantu_core::element_type::ElementType>> (inlined)
+                                  <akantu_solid::material::MaterialBase>::filter_types (inlined)
+                                  akantu_solid::model::assembly::assemble_internal_forces_of
+     3.82%  [.] <akantu_solver::dof_manager::DofManager>::assemble_elemental_array_local_view
+            |
+             --2.24%--akantu_solver::dof_manager::assembly::scatter_add::<3, <akantu_solver::dof_manager::DofManager>::assemble_elemental_array_local_view::{closure#1}> (inlined)
+                       <akantu_solver::dof_manager::DofManager>::assemble_elemental_array_local_view
+     2.85%  [k] do_user_addr_fault
+            |
+            ---exc_page_fault
+               asm_exc_page_fault
+     2.50%  [.] 0x00000000001a1ad0
+            |
+             --2.36%--core::ptr::copy_nonoverlapping::<f64> (inlined)
+                       core::slice::copy_from_slice_impl::<f64> (inlined)
+                       <[f64] as core::slice::CloneFromSpec<f64>>::spec_clone_from (inlined)
+                       <[f64]>::clone_from_slice (inlined)
+                       <akantu_core::array::Array<f64>>::copy_from (inlined)
+                       akantu_model::internal_field::save_blocks::<f64> (inlined)
+                       <akantu_model::internal_field::InternalField<f64>>::save_current_values
+     2.40%  [.] 0x00000000001a1ac9
+            |
+             --2.38%--core::ptr::copy_nonoverlapping::<f64> (inlined)
+                       core::slice::copy_from_slice_impl::<f64> (inlined)
+                       <[f64] as core::slice::CloneFromSpec<f64>>::spec_clone_from (inlined)
+                       <[f64]>::clone_from_slice (inlined)
+                       <akantu_core::array::Array<f64>>::copy_from (inlined)
+                       akantu_model::internal_field::save_blocks::<f64> (inlined)
+                       <akantu_model::internal_field::InternalField<f64>>::save_current_values

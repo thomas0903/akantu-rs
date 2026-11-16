@@ -1,0 +1,112 @@
+# Profile of suite case setup_tet10
+
+binary: ~/w/gebp/bin/before-solid (150e36efe78a51c9)
+command: taskset -c 3 ~/w/gebp/bin/before-solid --case setup_tet10 --size m --reps 3
+perf: perf record -F 499 --call-graph dwarf,16384
+cpu: AMD EPYC 9B45
+date_utc: 2026-11-16T11:22:12Z
+commit: 59e05aa3f
+
+## Phases of the profiled run (seconds, calls)
+
+mesh                         0.0009 s       1 calls
+init_explicit                0.0359 s       1 calls
+shape_functions              0.0847 s       3 calls
+mass_lumped                  0.0033 s       3 calls
+init_implicit                0.0381 s       1 calls
+mass_consistent              3.5140 s       3 calls
+stiffness_assembly           1.9091 s       3 calls
+mesh                         0.0005 s       1 calls
+init_explicit                0.0319 s       1 calls
+shape_functions              0.0809 s       3 calls
+mass_lumped                  0.0033 s       3 calls
+init_implicit                0.0319 s       1 calls
+mass_consistent              3.6016 s       3 calls
+stiffness_assembly           1.8902 s       3 calls
+mesh                         0.0005 s       1 calls
+init_explicit                0.0346 s       1 calls
+shape_functions              0.0914 s       3 calls
+mass_lumped                  0.0035 s       3 calls
+init_implicit                0.0335 s       1 calls
+mass_consistent              3.6101 s       3 calls
+stiffness_assembly           1.8541 s       3 calls
+
+## Top 25 symbols, self time
+
+    29.16%  [.] akantu_core::eigen_gebp::product_into::<akantu_fe::eigen::product_slices::{closure#1}, akantu_fe::eigen::product_slices::{closure#2}>
+    26.31%  [.] <akantu_linalg::sparse::SparseMatrixAij>::resolve_block
+     5.16%  [.] <akantu_linalg::sparse::SparseMatrixAij>::add_to_profile
+     3.57%  [k] do_user_addr_fault
+     3.51%  [.] akantu_core::eigen_order::redux_tree::<akantu_core::eigen_gebp::eval_product<akantu_fe::eigen::product_slices::{closure#1}, akantu_fe::eigen::product_slices::{closure#2}>::{closure#0}>
+     3.14%  [.] <std::hash::random::DefaultHasher as core::hash::Hasher>::write
+     3.08%  [k] _raw_spin_unlock_irqrestore
+     2.75%  [k] _raw_spin_lock
+     2.58%  [.] <std::hash::random::RandomState as core::hash::BuildHasher>::hash_one::<&(i64, i64)>
+     2.43%  [.] <akantu_linalg::sparse::SparseMatrixAij>::add_values
+     1.82%  [.] akantu_fe::engine::fast::integrate::<<akantu_fe::engine::FeEngine>::field_matrix_elemental::{closure#10}>
+     1.67%  [.] <akantu_core::array::Array<f64>>::try_filled
+     1.62%  [k] zap_present_ptes.constprop.0
+     1.19%  [k] __rmqueue_pcplist
+     0.76%  [.] 0x00000000001a1f47
+     0.58%  [.] <akantu_core::array_storage::ArrayStorage<f64>>::try_resize
+     0.54%  [.] akantu_fe::eigen::lu_factor
+     0.54%  [.] akantu_fe::engine::fast::integrate::<<akantu_fe::engine::FeEngine>::integrate::{closure#0}>
+     0.51%  [.] 0x00000000001a1f4e
+     0.50%  [.] 0x00000000001a1f5c
+     0.45%  [.] <akantu_fe::engine::FeEngine>::field_matrix_elemental
+     0.44%  [.] <hashbrown::map::HashMap<(i64, i64), usize, std::hash::random::RandomState>>::insert
+     0.41%  [k] kernel_init_pages
+     0.33%  [k] __handle_mm_fault
+     0.32%  [.] <hashbrown::raw::RawTable<((i64, i64), usize)>>::reserve_rehash::<hashbrown::map::make_hasher<(i64, i64), usize, std::hash::random::RandomState>::{closure#0}>
+
+## Top 25 symbols, inclusive time (children)
+
+    29.28%    29.16%  [.] akantu_core::eigen_gebp::product_into::<akantu_fe::eigen::product_slices::{closure#1}, akantu_fe::eigen::product_slices::{closure#2}>
+    26.31%    26.31%  [.] <akantu_linalg::sparse::SparseMatrixAij>::resolve_block
+    13.80%     0.00%  [.] asm_exc_page_fault
+    13.79%     0.00%  [.] exc_page_fault
+    13.77%     3.57%  [.] do_user_addr_fault
+     9.67%     0.11%  [.] handle_mm_fault
+     9.50%     0.33%  [.] __handle_mm_fault
+     9.14%     0.05%  [.] handle_pte_fault
+     8.96%     0.23%  [.] do_anonymous_page
+     5.16%     5.16%  [.] <akantu_linalg::sparse::SparseMatrixAij>::add_to_profile
+     3.88%     0.04%  [.] alloc_anon_folio
+     3.84%     0.00%  [.] cfree
+     3.82%     0.00%  [.] do_syscall_64
+     3.82%     0.00%  [.] do_vmi_align_munmap
+     3.82%     0.00%  [.] entry_SYSCALL_64_after_hwframe
+     3.82%     0.00%  [.] unmap_region
+     3.82%     0.00%  [.] vms_complete_munmap_vmas
+     3.82%     0.00%  [.] x64_sys_call
+     3.76%     0.00%  [.] __munmap
+     3.76%     0.00%  [.] __vm_munmap
+     3.76%     0.00%  [.] __x64_sys_munmap
+     3.76%     0.00%  [.] do_vmi_munmap
+     3.74%     0.00%  [.] unmap_page_range
+     3.74%     0.00%  [.] unmap_single_vma
+     3.74%     0.00%  [.] unmap_vmas
+
+## Call chains (callers of the hottest self-time symbols, entries above 2 %)
+
+    29.16%  [.] akantu_core::eigen_gebp::product_into::<akantu_fe::eigen::product_slices::{closure#1}, akantu_fe::eigen::product_slices::{closure#2}>
+    26.31%  [.] <akantu_linalg::sparse::SparseMatrixAij>::resolve_block
+     5.16%  [.] <akantu_linalg::sparse::SparseMatrixAij>::add_to_profile
+     3.57%  [k] do_user_addr_fault
+            |
+             --3.56%--exc_page_fault
+                       asm_exc_page_fault
+     3.51%  [.] akantu_core::eigen_order::redux_tree::<akantu_core::eigen_gebp::eval_product<akantu_fe::eigen::product_slices::{closure#1}, akantu_fe::eigen::product_slices::{closure#2}>::{closure#0}>
+     3.14%  [.] <std::hash::random::DefaultHasher as core::hash::Hasher>::write
+     3.08%  [k] _raw_spin_unlock_irqrestore
+     2.75%  [k] _raw_spin_lock
+            |
+             --2.73%--do_anonymous_page
+                       handle_pte_fault
+                       __handle_mm_fault
+                       handle_mm_fault
+                       do_user_addr_fault
+                       exc_page_fault
+                       asm_exc_page_fault
+     2.58%  [.] <std::hash::random::RandomState as core::hash::BuildHasher>::hash_one::<&(i64, i64)>
+     2.43%  [.] <akantu_linalg::sparse::SparseMatrixAij>::add_values

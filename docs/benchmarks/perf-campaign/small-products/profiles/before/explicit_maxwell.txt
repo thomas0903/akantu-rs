@@ -1,0 +1,159 @@
+# Profile of suite case explicit_maxwell
+
+binary: ~/w/gebp/bin/before-solid (150e36efe78a51c9)
+command: taskset -c 3 ~/w/gebp/bin/before-solid --case explicit_maxwell --size m --loop-seconds 4
+perf: perf record -F 499 --call-graph dwarf,16384
+cpu: AMD EPYC 9B45
+date_utc: 2026-11-16T11:23:01Z
+commit: 59e05aa3f
+
+## Phases of the profiled run (seconds, calls)
+
+mesh                         0.0022 s       1 calls
+init                         0.0576 s       1 calls
+stable_time_step             0.0227 s       5 calls
+solve_step                   4.2678 s      40 calls
+predictor                    0.0000 s      40 calls
+residual                     1.3437 s      40 calls
+lumped_matrix                0.0000 s      40 calls
+corrector                    0.0000 s      40 calls
+step_hooks                   2.9061 s      80 calls
+step_rest                    0.0177 s      40 calls
+internal_forces              0.2525 s       8 calls
+stresses                     0.2185 s       8 calls
+energies                     0.0347 s       8 calls
+
+## Top 25 symbols, self time
+
+    30.05%  [.] akantu_core::eigen_order::redux_tree::<akantu_solid::materials::maxwell::scaled_matvec::{closure#0}>
+    17.01%  [.] akantu_core::eigen_order::redux_tree::<akantu_solid::materials::maxwell::matvec::{closure#0}>
+     5.08%  [.] <akantu_solid::materials::maxwell::MaterialViscoelasticMaxwell<3>>::stress_on_quad
+     4.45%  [.] <akantu_solid::materials::maxwell::MaterialViscoelasticMaxwell<3>>::update_int_variables
+     3.52%  [.] akantu_core::random::libm::exp
+     3.11%  [k] do_user_addr_fault
+     2.19%  [k] _raw_spin_lock
+     2.15%  [.] akantu_solid::materials::maxwell::scaled_matvec
+     1.59%  [k] __rmqueue_pcplist
+     1.59%  [.] compiler_builtins::math::libm_math::arch::x86::fma::fma_with_fma
+     1.52%  [.] akantu_fe::engine::fast::gradient::<akantu_fe::element_class::types::Tetrahedron4>
+     1.44%  [k] zap_present_ptes.constprop.0
+     1.41%  [.] round
+     1.26%  [k] _raw_spin_unlock_irqrestore
+     1.15%  [.] <akantu_solver::dof_manager::DofManager>::assemble_elemental_array_local_view
+     1.15%  [.] 0x00000000001a1846
+     1.15%  [.] 0x00000000001a185b
+     1.07%  [.] akantu_fe::engine::fast::btd
+     1.04%  [.] <akantu_solid::materials::maxwell::MaterialViscoelasticMaxwell<3> as akantu_solid::material::Material>::compute_potential_energy
+     0.96%  [.] <akantu_solid::materials::maxwell::MaterialViscoelasticMaxwell<3> as akantu_solid::material::Material>::compute_stress
+     0.93%  [.] <akantu_solid::materials::maxwell::MaterialViscoelasticMaxwell<3> as akantu_solid::material::Material>::after_solve_step
+     0.89%  [.] akantu_core::eigen_order::redux_tree::<<akantu_solid::materials::maxwell::MaterialViscoelasticMaxwell<3>>::energy_on_quad::{closure#0}>
+     0.89%  [.] 0x00000000001a1854
+     0.67%  [.] 0x00000000001a184d
+     0.67%  [.] 0x00000000001a1876
+
+## Top 25 symbols, inclusive time (children)
+
+    30.05%    30.05%  [.] akantu_core::eigen_order::redux_tree::<akantu_solid::materials::maxwell::scaled_matvec::{closure#0}>
+    18.90%     2.15%  [.] akantu_solid::materials::maxwell::scaled_matvec
+    17.15%     0.00%  [.] <akantu_core::eigen_order::Reduction>::reduce::<akantu_solid::materials::maxwell::scaled_matvec::{closure#0}> (inlined)
+    17.15%     0.00%  [.] <akantu_core::eigen_order::Reduction>::sum::<akantu_solid::materials::maxwell::scaled_matvec::{closure#0}> (inlined)
+    17.15%     0.00%  [.] akantu_core::eigen_order::product_coeff::<akantu_solid::materials::maxwell::scaled_matvec::{closure#0}> (inlined)
+    17.01%    17.01%  [.] akantu_core::eigen_order::redux_tree::<akantu_solid::materials::maxwell::matvec::{closure#0}>
+    14.60%     0.93%  [.] <akantu_solid::materials::maxwell::MaterialViscoelasticMaxwell<3> as akantu_solid::material::Material>::after_solve_step
+    14.08%     5.04%  [.] <akantu_solid::materials::maxwell::MaterialViscoelasticMaxwell<3>>::stress_on_quad
+    14.01%     0.00%  [.] <akantu_solid::materials::maxwell::MaterialViscoelasticMaxwell<3>>::update_int_var_on_quad (inlined)
+    13.93%     4.37%  [.] <akantu_solid::materials::maxwell::MaterialViscoelasticMaxwell<3>>::update_int_variables
+    11.75%     0.00%  [.] asm_exc_page_fault
+    11.75%     0.00%  [.] exc_page_fault
+    11.71%     3.11%  [k] do_user_addr_fault
+    11.52%     0.00%  [.] akantu_solid::materials::maxwell::scaled_matvec::{closure#0} (inlined)
+     8.15%     0.11%  [.] handle_mm_fault
+     8.08%     0.33%  [.] __handle_mm_fault
+     7.67%     0.07%  [.] handle_pte_fault
+     7.34%     0.15%  [.] do_anonymous_page
+     6.22%     0.00%  [.] akantu_solid::materials::maxwell::matvec::{closure#0} (inlined)
+     4.89%     0.00%  [.] akantu_solid::materials::maxwell::matvec (inlined)
+     4.78%     3.52%  [.] akantu_core::random::libm::exp
+     4.78%     0.00%  [.] <akantu_core::eigen_order::Reduction>::reduce::<akantu_solid::materials::maxwell::matvec::{closure#0}> (inlined)
+     4.78%     0.00%  [.] <akantu_core::eigen_order::Reduction>::sum::<akantu_solid::materials::maxwell::matvec::{closure#0}> (inlined)
+     4.78%     0.00%  [.] akantu_core::eigen_order::product_coeff::<akantu_solid::materials::maxwell::matvec::{closure#0}> (inlined)
+     4.19%     1.04%  [.] <akantu_solid::materials::maxwell::MaterialViscoelasticMaxwell<3> as akantu_solid::material::Material>::compute_potential_energy
+
+## Call chains (callers of the hottest self-time symbols, entries above 2 %)
+
+    30.05%  [.] akantu_core::eigen_order::redux_tree::<akantu_solid::materials::maxwell::scaled_matvec::{closure#0}>
+            |
+            |--16.86%--akantu_core::eigen_order::redux_tree::<akantu_solid::materials::maxwell::scaled_matvec::{closure#0}>
+            |          |
+            |           --5.67%--akantu_core::eigen_order::redux_tree::<akantu_solid::materials::maxwell::scaled_matvec::{closure#0}>
+            |                     |
+            |                      --3.71%--akantu_core::eigen_order::redux_tree::<akantu_solid::materials::maxwell::scaled_matvec::{closure#0}>
+            |                                |
+            |                                 --3.15%--<akantu_core::eigen_order::Reduction>::reduce::<akantu_solid::materials::maxwell::scaled_matvec::{closure#0}> (inlined)
+            |                                           <akantu_core::eigen_order::Reduction>::sum::<akantu_solid::materials::maxwell::scaled_matvec::{closure#0}> (inlined)
+            |                                           akantu_core::eigen_order::product_coeff::<akantu_solid::materials::maxwell::scaled_matvec::{closure#0}> (inlined)
+            |                                           akantu_solid::materials::maxwell::scaled_matvec
+            |
+             --11.52%--akantu_solid::materials::maxwell::scaled_matvec::{closure#0} (inlined)
+                       akantu_core::eigen_order::redux_tree::<akantu_solid::materials::maxwell::scaled_matvec::{closure#0}>
+                       |
+                        --8.48%--akantu_core::eigen_order::redux_tree::<akantu_solid::materials::maxwell::scaled_matvec::{closure#0}>
+                                  akantu_core::eigen_order::redux_tree::<akantu_solid::materials::maxwell::scaled_matvec::{closure#0}>
+                                  |
+                                  |--4.78%--akantu_core::eigen_order::redux_tree::<akantu_solid::materials::maxwell::scaled_matvec::{closure#0}>
+                                  |          <akantu_core::eigen_order::Reduction>::reduce::<akantu_solid::materials::maxwell::scaled_matvec::{closure#0}> (inlined)
+                                  |          <akantu_core::eigen_order::Reduction>::sum::<akantu_solid::materials::maxwell::scaled_matvec::{closure#0}> (inlined)
+                                  |          akantu_core::eigen_order::product_coeff::<akantu_solid::materials::maxwell::scaled_matvec::{closure#0}> (inlined)
+                                  |          akantu_solid::materials::maxwell::scaled_matvec
+                                  |
+                                   --3.71%--<akantu_core::eigen_order::Reduction>::reduce::<akantu_solid::materials::maxwell::scaled_matvec::{closure#0}> (inlined)
+                                             <akantu_core::eigen_order::Reduction>::sum::<akantu_solid::materials::maxwell::scaled_matvec::{closure#0}> (inlined)
+                                             akantu_core::eigen_order::product_coeff::<akantu_solid::materials::maxwell::scaled_matvec::{closure#0}> (inlined)
+                                             akantu_solid::materials::maxwell::scaled_matvec
+    17.01%  [.] akantu_core::eigen_order::redux_tree::<akantu_solid::materials::maxwell::matvec::{closure#0}>
+            |
+            |--10.63%--akantu_core::eigen_order::redux_tree::<akantu_solid::materials::maxwell::matvec::{closure#0}>
+            |          |
+            |           --2.82%--akantu_core::eigen_order::redux_tree::<akantu_solid::materials::maxwell::matvec::{closure#0}>
+            |
+             --6.22%--akantu_solid::materials::maxwell::matvec::{closure#0} (inlined)
+                       akantu_core::eigen_order::redux_tree::<akantu_solid::materials::maxwell::matvec::{closure#0}>
+                       |
+                        --4.59%--akantu_core::eigen_order::redux_tree::<akantu_solid::materials::maxwell::matvec::{closure#0}>
+                                  akantu_core::eigen_order::redux_tree::<akantu_solid::materials::maxwell::matvec::{closure#0}>
+                                  |
+                                  |--2.30%--akantu_core::eigen_order::redux_tree::<akantu_solid::materials::maxwell::matvec::{closure#0}>
+                                  |          <akantu_core::eigen_order::Reduction>::reduce::<akantu_solid::materials::maxwell::matvec::{closure#0}> (inlined)
+                                  |          <akantu_core::eigen_order::Reduction>::sum::<akantu_solid::materials::maxwell::matvec::{closure#0}> (inlined)
+                                  |          akantu_core::eigen_order::product_coeff::<akantu_solid::materials::maxwell::matvec::{closure#0}> (inlined)
+                                  |          akantu_solid::materials::maxwell::matvec (inlined)
+                                  |
+                                   --2.30%--<akantu_core::eigen_order::Reduction>::reduce::<akantu_solid::materials::maxwell::matvec::{closure#0}> (inlined)
+                                             <akantu_core::eigen_order::Reduction>::sum::<akantu_solid::materials::maxwell::matvec::{closure#0}> (inlined)
+                                             akantu_core::eigen_order::product_coeff::<akantu_solid::materials::maxwell::matvec::{closure#0}> (inlined)
+                                             akantu_solid::materials::maxwell::matvec (inlined)
+     5.08%  [.] <akantu_solid::materials::maxwell::MaterialViscoelasticMaxwell<3>>::stress_on_quad
+            |
+            |--2.26%--<akantu_solid::materials::maxwell::MaterialViscoelasticMaxwell<3>>::stress_on_quad
+            |
+             --2.07%--<akantu_solid::materials::maxwell::MaterialViscoelasticMaxwell<3>>::branch_factors (inlined)
+                       <akantu_solid::materials::maxwell::MaterialViscoelasticMaxwell<3>>::stress_on_quad
+     4.45%  [.] <akantu_solid::materials::maxwell::MaterialViscoelasticMaxwell<3>>::update_int_variables
+            |
+             --2.00%--<akantu_solid::materials::maxwell::MaterialViscoelasticMaxwell<3>>::update_int_var_on_quad (inlined)
+                       <akantu_solid::materials::maxwell::MaterialViscoelasticMaxwell<3>>::update_int_variables
+     3.52%  [.] akantu_core::random::libm::exp
+     3.11%  [k] do_user_addr_fault
+            |
+            ---exc_page_fault
+               asm_exc_page_fault
+     2.19%  [k] _raw_spin_lock
+            |
+            ---do_anonymous_page
+               handle_pte_fault
+               __handle_mm_fault
+               handle_mm_fault
+               do_user_addr_fault
+               exc_page_fault
+               asm_exc_page_fault
+     2.15%  [.] akantu_solid::materials::maxwell::scaled_matvec

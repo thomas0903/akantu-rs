@@ -628,6 +628,7 @@ impl DofManager {
         sync: Option<akantu_comm::Synchronizer<Idx>>,
         periodic: Option<akantu_comm::Synchronizer<Idx>>,
     ) -> Result<()> {
+        self.numbering_generation = self.numbering_generation.wrapping_add(1);
         let Renumbering {
             families,
             eq_map,
