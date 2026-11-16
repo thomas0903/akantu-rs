@@ -620,6 +620,15 @@ fn release_factorization_mumps(c: &Communicator) -> Outcome {
     Ok(())
 }
 
+/// The release with a profile that grew after the first assembly and with
+/// a promoted `K` (`common::release::chain_solves`), MUMPS on every rank
+/// count (each rank holds a chain of generic DOFs of its own): after the
+/// release the next solve has `K`'s and `J`'s coordinates, values and the
+/// solution bit for bit (the same ranks, the same input order).
+fn release_grown_promoted_mumps(c: &Communicator) -> Outcome {
+    common::release::chain_release_keeps_the_bits(c, SparseSolverType::Mumps)
+}
+
 /// The manager-wide UD-216 switch
 /// (`UpstreamCompat::mumps_retry_with_solution_rhs`) drives the MUMPS
 /// solver of the manager's solves, through the real stack (DOF manager →
@@ -763,7 +772,7 @@ fn main() {
     let rank = control.rank();
     // `lr20_dbltrace_rank_files` first: upstream's dblTrace statics (the
     // first-call flag and the dump counter) are process-wide and fresh here
-    let scenarios: [Scenario; 7] = [
+    let scenarios: [Scenario; 8] = [
         (
             "lr20_dbltrace_rank_files",
             dbltrace_mpi::lr20_dbltrace_rank_files,
@@ -783,6 +792,7 @@ fn main() {
         ),
         ("ud216_manager_compat", ud216_manager_compat),
         ("release_factorization_mumps", release_factorization_mumps),
+        ("release_grown_promoted_mumps", release_grown_promoted_mumps),
     ];
     let mut failed = 0;
     for (name, f) in scenarios {

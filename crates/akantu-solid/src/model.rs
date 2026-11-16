@@ -2066,14 +2066,16 @@ impl SolidMechanicsModel {
     /// Release the memory of the static solver once the caller will not
     /// solve again with the current operator (port extension, not called by
     /// the library: upstream keeps the factors and the matrices for the
-    /// model's lifetime). Destroys the analysis and factorisation of `J`'s
-    /// sparse solver (MUMPS: its instance, an agreed collective) and the
-    /// storage of `J` and `K`. Results are unchanged: a later solve that
-    /// needs `K` assembles it again (whatever the laws report), rebuilds `J`
-    /// and analyses and factorises again. The rebuilt `K` has the entry
-    /// order of a first assembly; a profile that had grown since (entries
-    /// appended by contact) may come back in another order, and a later
-    /// solve may then differ in the last bits. Typical use: after the static
+    /// model's lifetime). Freed: the analysis and factorisation of `J`'s
+    /// sparse solver (MUMPS: its instance, an agreed collective), all of
+    /// `J` (it is rebuilt from `K`), and `K`'s values and lookup map. Kept:
+    /// `K`'s coordinates in their storage order (16 bytes per entry) and the
+    /// record of its profile. A later solve assembles `K` again (whatever
+    /// the laws report) into the kept profile, so every entry keeps its
+    /// position, rebuilds `J` from it and analyses and factorises again:
+    /// the results are bitwise those of a run without the release, also
+    /// for a profile that grew after the first assembly (contact) or a
+    /// matrix promoted to unsymmetric storage. Typical use: after the static
     /// preload of an explicit run. Do not call it between the steps of an
     /// implicit run: each step would pay a new assembly, analysis and
     /// factorisation.
@@ -2089,7 +2091,7 @@ impl SolidMechanicsModel {
             dm.release_matrix("J")?;
         }
         if dm.has_matrix("K") {
-            dm.release_matrix("K")?;
+            dm.release_matrix_values("K")?;
             self.physics.need_to_reassemble_stiffness = true;
         }
         Ok(())

@@ -47,11 +47,15 @@ change of default results or of a public API raises the minor version.
 - Release of the static solver's memory, off unless called (upstream
   keeps the factors): `SolidMechanicsModel::release_static_solver`
   (Python `SolidMechanicsModel.releaseStaticSolver`), built on
-  `DofManager::{release_factorization, release_matrix}`,
-  `LinearSystemBackend::{release_factorization, release_matrix_storage}`
-  (PETSc: not supported), `SparseDirectSolver::release_factorization`
-  (MUMPS: the collective `destroy`) and `SparseMatrixAij::release_storage`.
-  A later solve assembles, analyses and factorises again. The cohesive
+  `DofManager::{release_factorization, release_matrix,
+  release_matrix_values}`, `LinearSystemBackend::{release_factorization,
+  release_matrix_storage, release_matrix_values}` (PETSc: not supported),
+  `SparseDirectSolver::release_factorization` (MUMPS: the collective
+  `destroy`) and `SparseMatrixAij::{release_storage, release_values,
+  is_released}`. Freed: the factors, `J`, `K`'s values and lookup map;
+  kept: `K`'s coordinates and profile, so a later solve assembles,
+  analyses and factorises again with the results of a run without the
+  release, bit for bit. The cohesive
   benchmark driver uses it after the static preload with
   `rust_release_static_solver = true` (default false) and records
   `rss_after_release`. Manual: "Solver configuration", "Releasing the

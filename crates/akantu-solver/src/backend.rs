@@ -141,6 +141,16 @@ pub trait LinearSystemBackend: std::fmt::Debug + Send {
             self.kind()
         )))
     }
+    /// Release the values and the lookup map of matrix `id`, keeping its
+    /// profile (coordinates in storage order): the next assembly finds
+    /// every entry at its former position
+    /// ([`SparseMatrixAij::release_values`]). Default: not supported.
+    fn release_matrix_values(&mut self, id: &str) -> Result<()> {
+        Err(Error::Unsupported(format!(
+            "releasing the values of matrix '{id}' is not supported by the {:?} backend",
+            self.kind()
+        )))
+    }
     /// Release the storage of matrix `id` (profile, values, lookup map);
     /// the matrix stays declared and the next assembly profiles it again.
     /// `size` is the system order. Default:
@@ -976,6 +986,12 @@ impl LinearSystemBackend for AijBackend {
             Some(s) => s.release_factorization(),
             None => Ok(()),
         }
+    }
+    fn release_matrix_values(&mut self, id: &str) -> Result<()> {
+        self.get_mut(id)?.release_values();
+        self.analysed.remove(id);
+        self.central.remove(id);
+        Ok(())
     }
     fn release_matrix_storage(&mut self, id: &str, size: GlobalIdx) -> Result<()> {
         let m = self.get_mut(id)?;

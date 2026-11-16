@@ -20,6 +20,16 @@ fn release_then_resolve_eigen_and_faer() {
     }
 }
 
+/// A profile that grew after the first assembly (couplings appended, one
+/// of them later zero) and a promoted `K`: after the release the fourth
+/// solve has `K`'s and `J`'s coordinates, values and solution bit for bit.
+#[test]
+fn release_keeps_grown_and_promoted_profiles_bitwise() {
+    for sparse in [SparseSolverType::Eigen, SparseSolverType::Faer] {
+        common::release::chain_release_keeps_the_bits(&Communicator::serial(), sparse).unwrap();
+    }
+}
+
 #[test]
 fn release_inside_a_collective_operation_is_refused() {
     let mut dm = akantu_solver::DofManager::new("dm", Communicator::serial());

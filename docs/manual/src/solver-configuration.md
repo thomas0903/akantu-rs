@@ -361,17 +361,19 @@ that the next solve with the same matrix only back-substitutes; upstream
 keeps them for the model's lifetime, and so does the library by default.
 When no solve with that operator follows, for example after a static
 preload before an explicit loop, `SolidMechanicsModel::release_static_solver`
-(Python: `model.releaseStaticSolver()`) releases them: the analysis and
-factors of `J`'s sparse solver (MUMPS: its instance, destroyed collectively;
-the SparseLU translation and faer: their factors) and the storage of `J`
-and `K`. A later solve assembles `K`, rebuilds `J`, analyses and
-factorises again, with the same results. It is collective (every rank, the
-same program point, outside any other solver operation); the PETSc back-end
-returns a "not supported" error. Do not call it between the steps of an
-implicit run: each step would then pay a new assembly and factorisation.
-The rebuilt `K` has the entry order of a first assembly, so a profile that
-had grown since (contact couplings appended) can come back in another
-order, and the next solve can then differ in its last bits.
+(Python: `model.releaseStaticSolver()`) releases them. Freed: the analysis
+and factors of `J`'s sparse solver (MUMPS: its instance, destroyed
+collectively; the SparseLU translation and faer: their factors), all of `J`,
+and the values and lookup map of `K`. Kept: `K`'s coordinates in their
+storage order (16 bytes per stored entry) and the record of its profile. A
+later solve assembles `K` again into the kept profile, so every entry keeps
+its position (also when the profile grew after the first assembly, as with
+contact, or when `K` was promoted to unsymmetric storage), rebuilds `J` from
+it, analyses and factorises again, and gives the results of a run without
+the release, bit for bit. It is collective (every rank, the same program
+point, outside any other solver operation); the PETSc back-end returns a
+"not supported" error. Do not call it between the steps of an implicit run:
+each step would then pay a new assembly and factorisation.
 
 The cohesive benchmark driver (`cohesive_extrinsic`) does this after its
 static preload with `rust_release_static_solver = true` (default false),
@@ -410,7 +412,9 @@ model.solve_step(None)?;
 let u = model.displacement()?.as_slice().to_vec();
 
 model.release_static_solver()?;
-assert_eq!(model.dof_manager().matrix("K")?.nnz(), 0);
+let k = model.dof_manager().matrix("K")?;
+// values and lookup map freed, the coordinates kept
+assert!(k.is_released() && k.nnz() == 0 && !k.coo().0.is_empty());
 
 // the same load again: assembles and factorises again, and the
 // equilibrium is unchanged

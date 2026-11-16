@@ -1702,6 +1702,24 @@ impl DofManager {
         Ok(())
     }
 
+    /// Release the values and the lookup map of matrix `matrix_id` and its
+    /// cached element positions, keeping its profile: the coordinates in
+    /// storage order (16 bytes per entry) and the record of what was
+    /// profiled (port extension). The next assembly finds every entry at
+    /// its former position, so the matrix and every solve with it come
+    /// back bit for bit, whatever the history of the profile (entries
+    /// appended later, a promotion to unsymmetric storage). The caller
+    /// must make sure the matrix is assembled again before it is read
+    /// (see `SolidMechanicsModel::release_static_solver`); until then
+    /// products and solves with it return an error.
+    pub fn release_matrix_values(&mut self, matrix_id: &str) -> Result<()> {
+        self.check_poison()?;
+        self.check_matrix(matrix_id)?;
+        self.backend.release_matrix_values(matrix_id)?;
+        self.assembly_caches.retain(|k, _| k.0 != matrix_id);
+        Ok(())
+    }
+
     fn check_idle(&self, what: &str) -> Result<()> {
         self.check_poison()?;
         match self.active {

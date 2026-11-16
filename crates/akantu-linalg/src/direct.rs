@@ -585,6 +585,12 @@ impl CscMatrix {
         let n = usize::try_from(a.size())
             .map_err(|_| Error::invalid("matrix order exceeds the address space"))?;
         let (irn, jcn, vals) = a.coo();
+        if a.is_released() {
+            return Err(Error::invalid(format!(
+                "matrix '{}': its values are released (assemble it before solving)",
+                a.id()
+            )));
+        }
         let symmetric = a.matrix_type() == MatrixType::Symmetric;
         let mut triplets = Vec::with_capacity(vals.len() * if symmetric { 2 } else { 1 });
         let idx = |g: GlobalIdx| -> Result<usize> {

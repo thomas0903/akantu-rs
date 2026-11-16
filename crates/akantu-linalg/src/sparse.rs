@@ -256,6 +256,9 @@ pub struct SparseMatrixAij {
     /// Largest stored coordinate (row or column), `-1` without entries
     /// (stored coordinates are never negative).
     max_coord: GlobalIdx,
+    /// Values and lookup map released, coordinates kept
+    /// ([`SparseMatrixAij::release_values`]); revived by the next mutation.
+    released: bool,
 }
 
 impl SparseMatrixAij {
@@ -279,6 +282,7 @@ impl SparseMatrixAij {
             position_epoch: ProfileStamp::fresh(),
             scratch: Vec::new(),
             max_coord: -1,
+            released: false,
         }
     }
 
@@ -439,6 +443,7 @@ impl SparseMatrixAij {
     /// stores `(i, j)` as given and is appended; an existing key is reused
     /// whatever triangle it was first inserted from. Returns the position.
     pub fn add_to_profile(&mut self, i: GlobalIdx, j: GlobalIdx) -> Result<usize> {
+        self.revive();
         Self::check_coordinate(i)?;
         Self::check_coordinate(j)?;
         let key = self.key(i, j);
@@ -509,6 +514,7 @@ impl SparseMatrixAij {
         values: &[Real],
         values_type: MatrixType,
     ) -> Result<()> {
+        self.revive();
         let (nr, nc) = (rows.len(), cols.len());
         if self.would_promote(values_type) {
             return Err(Error::invalid(
@@ -600,6 +606,7 @@ impl SparseMatrixAij {
     /// asserts the entry exists and increments the value release because
     /// the caller may change it). Missing entries are an error.
     pub fn get_mut(&mut self, i: GlobalIdx, j: GlobalIdx) -> Result<&mut Real> {
+        self.revive();
         let k = self.position(i, j).ok_or_else(|| self.missing(i, j))?;
         self.bump_values(1);
         Ok(&mut self.a[k])
@@ -642,6 +649,7 @@ impl SparseMatrixAij {
         values: &[Real],
         values_type: MatrixType,
     ) -> Result<()> {
+        self.revive();
         let (nr, nc) = (rows.len(), cols.len());
         if values.len() != nr * nc {
             return Err(Error::DimensionMismatch {
@@ -729,6 +737,7 @@ impl SparseMatrixAij {
         values: &[Real],
         values_type: MatrixType,
     ) -> Result<()> {
+        self.revive();
         let (nr, nc) = (rows.len(), cols.len());
         let symmetric = self.matrix_type == MatrixType::Symmetric;
         let usable = cache.stamp == self.position_epoch.0
@@ -846,6 +855,7 @@ impl SparseMatrixAij {
     /// entry `(i, j)` gets a mirror `(j, i)` with the same value, appended in
     /// storage order; lookup keys become exact. Bumps both releases.
     pub fn promote_to_unsymmetric(&mut self) {
+        self.revive();
         if self.matrix_type != MatrixType::Symmetric {
             return;
         }
@@ -873,6 +883,7 @@ impl SparseMatrixAij {
 
     /// Set all values to `val`, keeping the profile (upstream `set`).
     pub fn set(&mut self, val: Real) {
+        self.revive();
         self.a.fill(val);
         self.bump_values(1);
     }
@@ -884,6 +895,7 @@ impl SparseMatrixAij {
 
     /// Multiply every value by `alpha` (upstream `mul`, `a *= alpha`).
     pub fn mul(&mut self, alpha: Real) {
+        self.revive();
         for v in &mut self.a {
             *v *= alpha;
         }
@@ -927,6 +939,8 @@ impl SparseMatrixAij {
                 "add_matrix: a matrix cannot be added to itself in place",
             ));
         }
+        b.check_not_released("add_matrix")?;
+        self.revive();
         if self.same_entries_as(b) {
             self.add_entrywise(b, alpha);
             return Ok(());
@@ -969,6 +983,8 @@ impl SparseMatrixAij {
                 "add_matrix: a matrix cannot be added to itself in place",
             ));
         }
+        b.check_not_released("add_matrix")?;
+        self.revive();
         let mirror =
             b.matrix_type == MatrixType::Symmetric && self.matrix_type != MatrixType::Symmetric;
         if !mirror && self.same_entries_as(b) {
@@ -998,6 +1014,7 @@ impl SparseMatrixAij {
             self.bump_values(1);
             return;
         }
+        self.revive();
         let same_rule = (self.matrix_type == MatrixType::Symmetric)
             == (other.matrix_type == MatrixType::Symmetric);
         if self.same_entries_as(other) {
@@ -1008,7 +1025,7 @@ impl SparseMatrixAij {
             self.irn.clone_from(&other.irn);
             self.jcn.clone_from(&other.jcn);
             self.max_coord = other.max_coord;
-            if same_rule && other.profile.len() == other.a.len() {
+            if same_rule && !other.released && other.profile.len() == other.a.len() {
                 // Same key rule and one key per entry in `other`: its map
                 // is the map the loop below would build.
                 self.profile.clone_from(&other.profile);
@@ -1033,6 +1050,8 @@ impl SparseMatrixAij {
     /// of entries (upstream `copyContent`: debug assertion + `memcpy`; a
     /// different count is an error here and nothing is modified).
     pub fn copy_content(&mut self, other: &SparseMatrixAij) -> Result<()> {
+        other.check_not_released("copy_content")?;
+        self.revive();
         if self.a.len() != other.a.len() {
             return Err(Error::DimensionMismatch {
                 context: "SparseMatrixAij::copy_content (profiles differ)",
@@ -1054,6 +1073,66 @@ impl SparseMatrixAij {
         self.size = size;
     }
 
+    /// Release the values and the lookup map, keeping the coordinates in
+    /// their storage order (16 bytes per entry; the values take 8 and the
+    /// map about 20 to 40). Port extension, for a matrix that will be
+    /// assembled again but not read before. The value release is
+    /// incremented; the profile, its release and the entry positions are
+    /// unchanged, so the next assembly finds every entry at its former
+    /// position and the matrix, its order and everything derived from it
+    /// (`copy_profile`, solver input) come back bit for bit. The first
+    /// mutation afterwards (`set`, `zero`, `add_*`, ...) revives the matrix
+    /// with zero values and the map rebuilt from the coordinates. While it
+    /// is released, [`SparseMatrixAij::nnz`] and the values are empty (its
+    /// coordinates stay readable through [`SparseMatrixAij::coo`]), lookups
+    /// find nothing and products or conversions that need the values
+    /// return an error.
+    pub fn release_values(&mut self) {
+        if self.released {
+            return;
+        }
+        self.a = Vec::new();
+        self.profile = IntHashMap::default();
+        self.scratch = Vec::new();
+        self.released = true;
+        self.bump_values(1);
+    }
+
+    /// `true` while the values are released
+    /// ([`SparseMatrixAij::release_values`]).
+    #[must_use]
+    pub fn is_released(&self) -> bool {
+        self.released
+    }
+
+    /// Undo [`SparseMatrixAij::release_values`]: zero values and the lookup
+    /// map rebuilt from the coordinates in storage order (a later entry with
+    /// the same key overwrites an earlier one, the rule every rebuild of the
+    /// map follows; with one key per entry it is the map that was freed).
+    fn revive(&mut self) {
+        if !self.released {
+            return;
+        }
+        self.released = false;
+        self.a = vec![0.0; self.irn.len()];
+        let mut map = IntHashMap::default();
+        map.reserve(self.irn.len());
+        for k in 0..self.irn.len() {
+            map.insert(self.key(self.irn[k], self.jcn[k]), k);
+        }
+        self.profile = map;
+    }
+
+    fn check_not_released(&self, what: &str) -> Result<()> {
+        if self.released {
+            return Err(Error::invalid(format!(
+                "{what}: the values of matrix '{}' are released (assemble it first)",
+                self.id
+            )));
+        }
+        Ok(())
+    }
+
     /// [`SparseMatrixAij::clear_profile`] that also returns the storage of
     /// the coordinates, the values and the lookup map to the allocator
     /// (`clear_profile` keeps their capacity for a profile of the same
@@ -1061,6 +1140,7 @@ impl SparseMatrixAij {
     /// after a one-shot solve); the next assembly profiles it again.
     pub fn release_storage(&mut self) {
         self.clear_profile();
+        self.released = false;
         self.irn = Vec::new();
         self.jcn = Vec::new();
         self.a = Vec::new();
@@ -1071,6 +1151,7 @@ impl SparseMatrixAij {
     /// Remove the profile (upstream `clearProfile`), keeping the order.
     /// The effective symmetry (an agreed promotion) is kept.
     pub fn clear_profile(&mut self) {
+        self.released = false;
         self.max_coord = -1;
         self.position_epoch = ProfileStamp::fresh();
         self.irn.clear();
@@ -1093,6 +1174,7 @@ impl SparseMatrixAij {
         blocked: &[bool],
         block_val: Real,
     ) -> Result<()> {
+        self.revive();
         if blocked.len() != layout.nb_local() {
             return Err(Error::DimensionMismatch {
                 context: "SparseMatrixAij::apply_boundary",
@@ -1148,6 +1230,7 @@ impl SparseMatrixAij {
         alpha: Real,
         beta: Real,
     ) -> Result<()> {
+        self.check_not_released("mat_vec_mul")?;
         let n = layout.nb_local();
         if x.len() != n || y.len() != n {
             return Err(Error::DimensionMismatch {
