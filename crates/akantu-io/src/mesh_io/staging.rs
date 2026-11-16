@@ -82,10 +82,39 @@ impl GroupBuild {
         self.optimize_nodes();
     }
 
-    /// Upstream `NodeGroup::optimize`.
+    /// Upstream `NodeGroup::optimize`: sorted, without duplicates.
     pub(crate) fn optimize_nodes(&mut self) {
-        self.nodes.sort_unstable();
-        self.nodes.dedup();
+        sort_unique(&mut self.nodes);
+    }
+}
+
+/// Sort `v` and remove duplicates (`sort_unstable` + `dedup`). A list of
+/// many entries over a small index range (a group's nodes, listed once per
+/// element) is sorted through a bitmap of the range: the same result.
+pub(crate) fn sort_unique(v: &mut Vec<Idx>) {
+    let (Some(&min), Some(&max)) = (v.iter().min(), v.iter().max()) else {
+        return;
+    };
+    let range = usize::try_from(i64::from(max) - i64::from(min)).unwrap_or(usize::MAX);
+    if min < 0 || range / 8 > v.len() {
+        v.sort_unstable();
+        v.dedup();
+        return;
+    }
+    let mut bits = vec![0u64; range / 64 + 1];
+    for &x in v.iter() {
+        let i = usize::try_from(x - min).unwrap_or(0);
+        bits[i / 64] |= 1 << (i % 64);
+    }
+    v.clear();
+    for (w, &word) in bits.iter().enumerate() {
+        let mut word = word;
+        while word != 0 {
+            let b = word.trailing_zeros() as usize;
+            word &= word - 1;
+            // `w * 64 + b <= range`, and `min + range = max` fits `Idx`
+            v.push(min + Idx::try_from(w * 64 + b).unwrap_or(0));
+        }
     }
 }
 
@@ -178,7 +207,11 @@ impl MeshBuild {
     /// Element group `name`, created with `dimension` if absent (upstream
     /// `createElementGroup` / `getElementGroup().addDimension`).
     pub(crate) fn group_mut(&mut self, name: &str, dimension: Option<usize>) -> &mut GroupBuild {
-        let g = self.element_groups.entry(name.to_owned()).or_default();
+        if !self.element_groups.contains_key(name) {
+            self.element_groups
+                .insert(name.to_owned(), GroupBuild::default());
+        }
+        let g = self.element_groups.get_mut(name).expect("inserted above");
         if let Some(d) = dimension {
             g.add_dimension(d);
         }
@@ -583,5 +616,39 @@ impl PreparedMesh {
         // manager as a whole.
         *mesh.groups_mut() = self.groups;
         Ok(())
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn sort_unique_matches_sort_dedup() {
+        let mut x = 0x2545_F491_u32;
+        for n in [0usize, 1, 2, 7, 100, 1000, 5000] {
+            for range in [1u32, 10, 1000, 100_000, 1 << 30] {
+                let mut v: Vec<Idx> = (0..n)
+                    .map(|_| {
+                        x ^= x << 13;
+                        x ^= x >> 17;
+                        x ^= x << 5;
+                        Idx::try_from(x % range).unwrap()
+                    })
+                    .collect();
+                let mut u = v.clone();
+                if n > 3 {
+                    v[1] = -5;
+                    v[2] = Idx::MAX;
+                }
+                for v in [&mut v, &mut u] {
+                    let mut w = v.clone();
+                    w.sort_unstable();
+                    w.dedup();
+                    sort_unique(v);
+                    assert_eq!(*v, w, "n = {n}, range = {range}");
+                }
+            }
+        }
     }
 }
