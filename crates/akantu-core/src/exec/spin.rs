@@ -33,7 +33,7 @@ use std::sync::{Arc, Condvar, Mutex};
 use std::time::{Duration, Instant};
 
 /// How long an idle worker spins before it parks.
-const SPIN_FOR: Duration = Duration::from_micros(500);
+const SPIN_FOR: Duration = Duration::from_millis(5);
 
 /// `state`: closed bit.
 const CLOSED: u64 = 1 << 63;

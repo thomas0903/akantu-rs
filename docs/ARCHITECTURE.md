@@ -944,7 +944,7 @@ users go through the Rust crates or the Python module (D-100).
 |---|---|
 | `Precision` | `Bitwise` (default): every result bit as the serial reference path; `Fast`: kernels marked `FAST MODE` may round differently (D-122) |
 | `ExecPolicy` | precision, thread count (default 1), `SimdToken`, `Grain`; a plain value. `ExecPolicy::process_default()` reads `AKANTU_NUM_THREADS`, `AKANTU_PRECISION`, `AKANTU_SIMD`, `AKANTU_EXEC_GRAIN` once, unless `set_process_default` was called first |
-| `Exec` | a policy with its thread pool (`exec/spin.rs`, one per thread count per process; the caller takes part, idle workers spin 200 µs then park); `for_each` / `try_for_each` / `for_each_bounds` run a closure on contiguous parts of one or several arrays (`Tuples`, `TuplesRef`, tuples of them); `sum_in_order` |
+| `Exec` | a policy with its thread pool (`exec/spin.rs`, one per thread count per process; the caller takes part, idle workers spin 5 ms then park); `for_each` / `try_for_each` / `for_each_bounds` run a closure on contiguous parts of one or several arrays (`Tuples`, `TuplesRef`, tuples of them); `sum_in_order` |
 | `NodeScatter` | per node, the positions `(element, local node)` that contribute to it, in the serial order; `scatter_add` with threads owning disjoint node ranges; `matches` checks it against a connectivity |
 | `SimdLevel`, `SimdToken`, `with_fma` | detected level, proof of support, the dispatch convention (`exec::simd`) |
 

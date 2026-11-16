@@ -2180,7 +2180,7 @@ tests against the default path.
 - **Pool: a small pool on `std::thread`** (`exec/spin.rs`), one per
   thread count per process, shared by all models: the caller takes part in
   the region, parts are claimed with an atomic counter, idle workers spin
-  for 200 µs and then park. Chosen over `rayon` by the measured cost of one
+  for 5 ms and then park. Chosen over `rayon` by the measured cost of one
   region (`scripts/perf/exec/pool-overhead`, AMD EPYC 9R14, 8 cores,
   `docs/benchmarks/perf-campaign/exec/`): an empty region costs 0.7–0.9 µs
   with this pool at 2–8 threads against 5.0–6.7 µs with `rayon` (its
