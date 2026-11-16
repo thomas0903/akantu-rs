@@ -10,8 +10,9 @@ campaign, 2026-11-16)".
   8 cores, 32 GiB, Ubuntu 24.04), timing jobs alone on cores 0–3 (serial
   runs pinned to core 3) while other jobs used cores 4–7; the 8-rank series
   with the whole machine alone.
-- Screening (`screening/`): an 8-core AMD EPYC Milan machine (Zen 3), not a
-  table source.
+- Screening (`screening/`, `parallel-bitwise/`): an 8-core AMD EPYC Milan
+  machine (Zen 3), quiet, the same method; the source of the larger-mesh
+  and MPI tables, named as such there.
 - Profiles (`profiles/`): shares only, from frame-pointer builds
   (`-C force-frame-pointers=yes`) on a boat.dev sandbox (serial) and on the
   screening machine (8 ranks), and flat profiles on the AWS machine.
@@ -43,9 +44,15 @@ rotated per repetition (`scripts/` holds the scripts as run).
 |---|---|---|
 | `h012-500` | `benchmarks/cohesive-perf/inputs/material-cohesive.dat`, mesh `fixtures/perf_cohesive/meshes/cube-h0.12.msh`, `max_steps = 500`, `energy_precision = 17` | 5 × 2 serial |
 | `h012-5000` | the same, full schedule (5000 steps; insertions from step 710) | 5 × 2 serial |
-| `h006-ns-200` | the same with the x86_64 `cube-h0.06.msh` (177,328 tetrahedra, sha256 `20523d2d…`), `rust_static_solve = false`, 200 steps | 5 × 2 serial |
-| `par-np8` | `h012-5000`'s input, 8 MPI ranks (Scotch, MUMPS) | 3 × 2 |
-| `screening/par/np{2,4,8}` | the same at 2, 4, 8 ranks on the screening machine | 5 × 2 each |
+| `screening/h006-ns-200` | the same with the x86_64 `cube-h0.06.msh` (177,328 tetrahedra, sha256 `20523d2d…`), `rust_static_solve = false`, 200 steps; screening machine | 5 × 2 serial |
+| `screening/par/np{2,4,8}` | `h012-5000`'s input at 2, 4, 8 MPI ranks (Scotch, MUMPS); screening machine | 5 × 2 each |
+| `parallel-bitwise/np{2,4,8}` | `h012-5000`'s input with `output_energy = true` and `rust_sparse_solver = eigen`; screening machine; digests in `digests.txt` (one copy of the identical files kept) | 1–2 × 2 each |
+
+`h012-500` and `h012-5000` ran on the AWS machine; the larger mesh and
+every MPI series ran on the screening machine only (the AWS timing lane was
+the bottleneck of the campaign; the orchestrator re-measures on AWS). The
+`out.txt` files and, in `screening/`, `insertions.csv` and `energies.csv`
+were not kept.
 
 Summaries: `python3 scripts/analyze.py <series>` (serial) and
 `python3 scripts/parana.py <root> <np>` (MPI).
