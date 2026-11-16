@@ -59,6 +59,7 @@ pub mod centralize;
 pub mod dense;
 pub mod direct;
 pub mod eigen_sparse_lu;
+pub mod int_hash;
 pub mod layout;
 pub mod matrix_market;
 #[cfg(feature = "mumps")]

@@ -250,7 +250,7 @@ pub(super) fn internal_forces(
     bt_s.try_resize(nb_points, 0.0)?;
     let (gs, ps, out) = (grad_u.as_slice(), pk2.as_slice(), bt_s.as_mut_slice());
     // The same statements on stack arrays (bitwise the same)
-    if fast::residuals(&s, table, &dsh, filter, gs, ps, out).is_none() {
+    if fast::residuals(fe.exec(), &s, table, &dsh, filter, gs, ps, out).is_none() {
         let mut scratch = Scratch::new(&s, s.ts);
         let mut s_voigt = vec![0.0; s.ts];
         let d2 = dim * dim;

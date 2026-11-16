@@ -12,6 +12,7 @@
 use std::sync::PoisonError;
 use std::sync::atomic::{AtomicBool, AtomicI64, Ordering};
 
+use akantu::core::exec::{ExecPolicy, Precision, SimdLevel};
 use akantu::core::random::{IdxSlot, RandomGenerator, atol, initial_seed};
 use akantu::core::{Element, ElementKind, ElementType, GhostType};
 use akantu::parser::SearchScope;
@@ -252,6 +253,75 @@ fn get_array_copy_mode() -> bool {
     arrays::copy_mode()
 }
 
+// --- execution policy (D-123) ---------------------------------------------------------
+
+/// The process default execution policy with `f` applied (models created
+/// afterwards take it; existing models keep theirs). An invalid environment
+/// variable does not prevent replacing it: the setters then start from
+/// [`ExecPolicy::serial`].
+fn update_exec_default(
+    py: Python<'_>,
+    f: impl FnOnce(ExecPolicy) -> akantu::core::Result<ExecPolicy>,
+) -> PyResult<()> {
+    let p = ExecPolicy::process_default().unwrap_or_else(|_| ExecPolicy::serial());
+    ExecPolicy::set_process_default(f(p).py_err(py)?);
+    Ok(())
+}
+
+/// `setNumThreads(n)` (port extension, D-123): threads per process of the
+/// models created afterwards (default 1, or `AKANTU_NUM_THREADS`). Results
+/// do not depend on it in the bitwise precision mode.
+#[pyfunction]
+#[pyo3(name = "setNumThreads")]
+fn set_num_threads(py: Python<'_>, n: usize) -> PyResult<()> {
+    update_exec_default(py, |p| p.with_threads(n))
+}
+
+/// `getNumThreads()` (port extension): the process default thread count.
+#[pyfunction]
+#[pyo3(name = "getNumThreads")]
+fn get_num_threads(py: Python<'_>) -> PyResult<usize> {
+    Ok(ExecPolicy::process_default().py_err(py)?.threads())
+}
+
+/// `setPrecision(mode)` (port extension, D-122/D-123): `"bitwise"` (default,
+/// every result bit as the reference path) or `"fast"` (kernels that may
+/// round differently), for the models created afterwards.
+#[pyfunction]
+#[pyo3(name = "setPrecision")]
+fn set_precision(py: Python<'_>, mode: &str) -> PyResult<()> {
+    let mode: Precision = mode.parse().py_err(py)?;
+    update_exec_default(py, |p| Ok(p.with_precision(mode)))
+}
+
+/// `getPrecision()` (port extension): `"bitwise"` or `"fast"`.
+#[pyfunction]
+#[pyo3(name = "getPrecision")]
+fn get_precision(py: Python<'_>) -> PyResult<&'static str> {
+    Ok(ExecPolicy::process_default().py_err(py)?.precision().name())
+}
+
+/// `setSimdLevel(level)` (port extension): `"scalar"`, `"avx2"`,
+/// `"avx512"`, `"neon"` (a level this CPU lacks raises), or `"auto"` (the
+/// detected one), for the models created afterwards.
+#[pyfunction]
+#[pyo3(name = "setSimdLevel")]
+fn set_simd_level(py: Python<'_>, level: &str) -> PyResult<()> {
+    let level: SimdLevel = if level.trim().eq_ignore_ascii_case("auto") {
+        SimdLevel::detected()
+    } else {
+        level.parse().py_err(py)?
+    };
+    update_exec_default(py, |p| p.with_simd(level))
+}
+
+/// `getSimdLevel()` (port extension): the process default SIMD level.
+#[pyfunction]
+#[pyo3(name = "getSimdLevel")]
+fn get_simd_level(py: Python<'_>) -> PyResult<&'static str> {
+    Ok(ExecPolicy::process_default().py_err(py)?.simd().name())
+}
+
 // --- Element -------------------------------------------------------------------------
 
 /// `Element(type, element, ghost_type=_not_ghost)` (PY-056).
@@ -336,6 +406,12 @@ pub(crate) fn register(m: &Bound<'_, PyModule>) -> PyResult<()> {
     m.add_function(wrap_pyfunction!(get_element_types, m)?)?;
     m.add_function(wrap_pyfunction!(set_array_copy_mode, m)?)?;
     m.add_function(wrap_pyfunction!(get_array_copy_mode, m)?)?;
+    m.add_function(wrap_pyfunction!(set_num_threads, m)?)?;
+    m.add_function(wrap_pyfunction!(get_num_threads, m)?)?;
+    m.add_function(wrap_pyfunction!(set_precision, m)?)?;
+    m.add_function(wrap_pyfunction!(get_precision, m)?)?;
+    m.add_function(wrap_pyfunction!(set_simd_level, m)?)?;
+    m.add_function(wrap_pyfunction!(get_simd_level, m)?)?;
     Ok(())
 }
 

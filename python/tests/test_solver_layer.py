@@ -650,3 +650,36 @@ def test_plain_solver_callback_pure_virtual_methods():
     with pytest.raises(RuntimeError, match="pure virtual"):
         plain.assembleResidual()
     plain.predictor()  # base no-op
+
+
+def _dcb_static(release):
+    """Two static solves of the DCB mesh (left edge clamped, the second
+    solve with twice the load); `release`: releaseStaticSolver() between
+    them (port extension)."""
+    mesh, model = static_model()
+    x = mesh.getNodes()
+    blocked = model.getBlockedDOFs()
+    blocked[:] = False
+    blocked[np.isclose(x[:, 0], x[:, 0].min()), :] = True
+    f = model.getExternalForce()
+    f[:] = 0
+    f[np.isclose(x[:, 0], x[:, 0].max()), 1] = 1.0
+    model.solveStep()
+    nnz = None
+    if release:
+        model.releaseStaticSolver()
+        dof = model.getDOFManager()
+        nnz = (dof.getMatrix("K").getA().shape[0],
+               dof.getMatrix("J").getA().shape[0])
+    f *= 2.0
+    model.solveStep()
+    return model.getDisplacement().copy(), nnz
+
+
+def test_release_static_solver_then_resolve():
+    kept, _ = _dcb_static(False)
+    released, nnz = _dcb_static(True)
+    assert nnz == (0, 0)
+    assert np.abs(kept).max() > 0
+    # the second solve assembles and factorises again: the same bits
+    assert np.array_equal(kept.view(np.uint64), released.view(np.uint64))
