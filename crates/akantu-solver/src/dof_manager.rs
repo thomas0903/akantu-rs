@@ -2512,11 +2512,16 @@ impl DofManager {
 fn gather_part(s: &mut [Real], eqs: &[Idx], x: &[Real]) -> Result<()> {
     for (s, &eq) in s.iter_mut().zip(eqs) {
         let e = akantu_core::try_to_usize(eq)?;
-        *s = *x.get(e).ok_or(Error::OutOfRange {
-            what: "local equation",
-            index: e,
-            len: x.len(),
-        })?;
+        // the error is built only on failure (`ok_or` built and dropped one
+        // per equation)
+        let Some(&v) = x.get(e) else {
+            return Err(Error::OutOfRange {
+                what: "local equation",
+                index: e,
+                len: x.len(),
+            });
+        };
+        *s = v;
     }
     Ok(())
 }

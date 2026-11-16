@@ -87,7 +87,7 @@ impl NodeScatter {
                 usize::try_from(n)
                     .ok()
                     .filter(|&u| u < nb_nodes)
-                    .ok_or(Error::OutOfRange {
+                    .ok_or_else(|| Error::OutOfRange {
                         what: "node",
                         index: usize::try_from(n).unwrap_or(usize::MAX),
                         len: nb_nodes,
