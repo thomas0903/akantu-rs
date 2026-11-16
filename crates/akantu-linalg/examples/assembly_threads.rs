@@ -147,7 +147,10 @@ fn main() {
     let span: Vec<(u32, u32)> = (0..elems.len())
         .map(|s| {
             let p = &pos[s * np..(s + 1) * np];
-            (*p.iter().min().expect("pairs"), *p.iter().max().expect("pairs"))
+            (
+                *p.iter().min().expect("pairs"),
+                *p.iter().max().expect("pairs"),
+            )
         })
         .collect();
 
