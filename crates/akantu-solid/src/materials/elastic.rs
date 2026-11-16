@@ -265,13 +265,8 @@ impl<const DIM: usize> MaterialElastic<DIM> {
     }
 
     /// Upstream `MaterialThermal<dim>::computeStress` for one block (also
-    /// the thermal pre-step of the laws deriving from `MaterialElastic`).
-    pub(crate) fn compute_thermal(&mut self, ty: ElementType, ghost: GhostType) -> Result<()> {
-        self.compute_thermal_with(akantu_core::exec::Exec::serial_ref(), ty, ghost)
-    }
-
-    /// [`Self::compute_thermal`] with the per-point loop split by `exec`
-    /// (every point from its own `ΔT`).
+    /// the thermal pre-step of the laws deriving from `MaterialElastic`),
+    /// the per-point loop split by `exec` (every point from its own `ΔT`).
     pub(crate) fn compute_thermal_with(
         &mut self,
         exec: &akantu_core::exec::Exec,

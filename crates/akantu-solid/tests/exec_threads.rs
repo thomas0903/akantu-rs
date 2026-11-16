@@ -1022,3 +1022,19 @@ fn anisotropic_damage_laws_are_bitwise_for_every_thread_count() {
 fn anisotropic_damage_error_path_is_bitwise_for_every_thread_count() {
     check_law_error(&ANISOTROPIC_DAMAGE_CORRECTED, "eig");
 }
+
+#[test]
+fn drucker_prager_law_is_bitwise_for_every_thread_count() {
+    check_law(&LawCase {
+        name: "plastic_drucker_prager",
+        dat: |_| {
+            "material plastic_drucker_prager [\n  name = body\n  rho = 3000\n  E = 25e9\n  \
+             nu = 0.2\n  phi = 30\n  fc = 1e7\n  alpha = 1e-5\n  delta_T = 10\n]\n"
+                .into()
+        },
+        amp: 1e-3,
+        steps: 6,
+        active: "inelastic_strain",
+        options: None,
+    });
+}
