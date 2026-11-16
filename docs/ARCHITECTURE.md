@@ -989,7 +989,13 @@ external-work increment's per-node terms (summed in node order,
 `model/energy.rs`); in `akantu-solver`, the Newmark-β predictor and
 corrector (`integration_scheme.rs`), the lumped solve (`r += M∘a`,
 `x = α·(b / m)`), the residual scatter through the inverse equation map
-and the solution gather (`dof_manager/assembly.rs`, `dof_manager.rs`).
+and the solution gather (`dof_manager/assembly.rs`, `dof_manager.rs`); in
+`akantu-linalg`, the large panel updates of the Eigen SparseLU
+translation (at least 65,536 multiply-adds: the product over strips of
+rows, the scatter over blocks of accumulator rows,
+`eigen_sparse_lu/kernels.rs`; the solver gets the DOF manager's executor
+before every solve, `SparseDirectSolver::set_exec`, and a new DOF manager
+takes the process default policy, `model_solver::new_dof_manager`).
 The per-node and per-equation loops split only into parts of at least
 131,072 nodes or 262,144 equations; below, they run serially.
 
