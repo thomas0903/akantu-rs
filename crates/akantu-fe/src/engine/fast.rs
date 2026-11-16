@@ -905,21 +905,41 @@ mod tests {
     use akantu_core::exec::{ExecPolicy, Grain, SimdLevel};
     use akantu_core::{Array, ElementType, GhostType, Idx};
 
-    /// An executor whose thread count (1 to 4) and SIMD level (every level
-    /// the CPU supports, the scalar one included) vary with the case and
-    /// that splits every batch as finely as it can, so the property tests
-    /// also cover the split batches and every instance of the lane kernels
-    /// (D-123).
-    fn test_exec(salt: usize) -> Exec {
+    /// An executor of SIMD level `level` whose thread count (1 to 4) varies
+    /// with the case and that splits every batch as finely as it can, so the
+    /// property tests also cover the split batches (D-123).
+    fn test_exec(salt: usize, level: SimdLevel) -> Exec {
         let n = 1 + salt % 4;
-        let levels = akantu_core::exec::SimdLevel::supported();
-        let level = levels[(salt / 4) % levels.len()];
         let p = ExecPolicy::serial()
             .with_threads(n)
             .unwrap()
             .with_simd(level)
             .unwrap();
         Exec::new(p.with_grain(Grain::Finest)).unwrap()
+    }
+
+    /// Run `kernel` once per SIMD level the CPU supports (the scalar level
+    /// first) into a fresh output of `len` NaNs: every level must take the
+    /// batch or decline it alike and give the scalar level's bits. Returns
+    /// the scalar level's output and answer.
+    fn every_level<T: PartialEq + std::fmt::Debug>(
+        salt: usize,
+        len: usize,
+        mut kernel: impl FnMut(&Exec, &mut [Real]) -> T,
+    ) -> (Vec<Real>, T) {
+        let mut first: Option<(Vec<Real>, T)> = None;
+        for level in SimdLevel::supported() {
+            let mut out = vec![Real::NAN; len];
+            let t = kernel(&test_exec(salt, level), &mut out);
+            match &first {
+                None => first = Some((out, t)),
+                Some((o, t0)) => {
+                    assert_eq!(&t, t0, "{level:?}: the kernel's answer differs");
+                    assert_bits(&out, o, &format!("{level:?} against the scalar level"));
+                }
+            }
+        }
+        first.expect("the scalar level is supported")
     }
 
     /// Deterministic test values. Default mode: special values (signed zeros,
@@ -1105,17 +1125,9 @@ mod tests {
         let dsh = v.vec(ne * nq * nd * nn);
         let ids = v.ids(ne);
         let tsz = nb_dof * nd;
-        let mut fast = vec![Real::NAN; ids.len() * nq * tsz];
-        let res = gradient::<E>(
-            &test_exec(ids.len()),
-            &block,
-            &u,
-            nb_dof,
-            &dsh,
-            nq,
-            &ids,
-            &mut fast,
-        );
+        let (fast, res) = every_level(ids.len(), ids.len() * nq * tsz, |ex, out| {
+            gradient::<E>(ex, &block, &u, nb_dof, &dsh, nq, &ids, out).map(|r| r.is_ok())
+        });
         let ud = Dims::new(nb_dof, nn, false, true);
         let bt = Dims::fixed(nd, nn).t();
         let tree = product_route(ud, bt) == Route::Coeff(Reduction::Tree);
@@ -1128,7 +1140,7 @@ mod tests {
             return (0, 0);
         };
         assert!(tree);
-        res.unwrap();
+        assert!(res);
         let mut general = vec![0.0; fast.len()];
         let mut ue = vec![0.0; nb_dof * nn];
         let bsz = nd * nn;
@@ -1203,7 +1215,7 @@ mod tests {
         type E = crate::element_class::types::Hexahedron8;
         let mut v = Values::new(0x5eed_0f9a_1de7);
         let (nn, nd, nq, nb_nodes, ne) = (8, 3, 8, 30, 50);
-        for round in 0..40 {
+        for _ in 0..40 {
             let conn: Vec<Idx> = (0..ne * nn)
                 .map(|_| (v.next_u64() % nb_nodes as u64) as Idx)
                 .collect();
@@ -1224,44 +1236,54 @@ mod tests {
             let dsh = v.vec(ne * nq * nd * nn);
             let ids = v.ids(ne);
             let minus = v.vec(ids.len() * nq * 9);
-            let level = SimdLevel::supported()[round % SimdLevel::supported().len()];
-            let simd = level.token().unwrap();
-            let mut a = vec![Real::NAN; minus.len()];
-            let mut b = vec![Real::NAN; minus.len()];
-            run_gradient(
-                None,
-                simd,
-                3,
-                Gradient {
-                    conn: block.conn(),
-                    u: &u,
-                    dshapes: &dsh,
-                    nq,
-                    ids: &ids,
-                    minus: &minus,
-                    out: &mut a,
-                    element: std::marker::PhantomData::<E>,
-                },
-            );
-            run_gradient(
-                None,
-                simd,
-                3,
-                Gradient {
-                    conn: block.conn(),
-                    u: &u,
-                    dshapes: &dsh,
-                    nq,
-                    ids: &ids,
-                    minus: &[],
-                    out: &mut b,
-                    element: std::marker::PhantomData::<E>,
-                },
-            );
-            for (o, m) in b.iter_mut().zip(&minus) {
-                *o -= *m;
+            // every level: against the subtraction afterwards and against
+            // the scalar level
+            let mut scalar: Option<Vec<Real>> = None;
+            for level in SimdLevel::supported() {
+                let simd = level.token().unwrap();
+                let mut a = vec![Real::NAN; minus.len()];
+                let mut b = vec![Real::NAN; minus.len()];
+                run_gradient(
+                    None,
+                    simd,
+                    3,
+                    Gradient {
+                        conn: block.conn(),
+                        u: &u,
+                        dshapes: &dsh,
+                        nq,
+                        ids: &ids,
+                        minus: &minus,
+                        out: &mut a,
+                        element: std::marker::PhantomData::<E>,
+                    },
+                );
+                run_gradient(
+                    None,
+                    simd,
+                    3,
+                    Gradient {
+                        conn: block.conn(),
+                        u: &u,
+                        dshapes: &dsh,
+                        nq,
+                        ids: &ids,
+                        minus: &[],
+                        out: &mut b,
+                        element: std::marker::PhantomData::<E>,
+                    },
+                );
+                for (o, m) in b.iter_mut().zip(&minus) {
+                    *o -= *m;
+                }
+                assert_bits(&a, &b, "gradient minus");
+                match &scalar {
+                    None => scalar = Some(a),
+                    Some(s0) => {
+                        assert_bits(&a, s0, &format!("gradient minus, {level:?} against scalar"));
+                    }
+                }
             }
-            assert_bits(&a, &b, "gradient minus");
         }
     }
 
@@ -1287,9 +1309,12 @@ mod tests {
             let mut out = vec![0.5; 9];
             // the kernel declines (the general path reports the error) and
             // writes nothing
-            let fast = gradient::<E>(&test_exec(salt), &block, &u, 3, &dsh, 1, &[0], &mut out);
-            assert!(fast.is_none());
-            assert_eq!(out, vec![0.5; 9]);
+            for level in SimdLevel::supported() {
+                let ex = test_exec(salt, level);
+                let fast = gradient::<E>(&ex, &block, &u, 3, &dsh, 1, &[0], &mut out);
+                assert!(fast.is_none());
+                assert_eq!(out, vec![0.5; 9]);
+            }
         }
     }
 
@@ -1317,19 +1342,9 @@ mod tests {
         let bs = v.vec(ne * nq * sdim * nn);
         let ds = v.vec(np * r * sdim);
         v.default_mode();
-        let mut fast = vec![Real::NAN; np * r * nn];
-        let done = btd(
-            &test_exec(ids.len()),
-            r,
-            sdim,
-            nn,
-            &ids,
-            nq,
-            &bs,
-            &ds,
-            &mut fast,
-        )
-        .is_some();
+        let (fast, done) = every_level(ids.len(), np * r * nn, |ex, out| {
+            btd(ex, r, sdim, nn, &ids, nq, &bs, &ds, out).is_some()
+        });
         let seq = product_route(Dims::dynamic(r, sdim), Dims::dynamic(sdim, nn))
             == Route::Coeff(Reduction::Sequential);
         let supported = matches!((r, sdim), (1, 1..=3) | (2, 2) | (3, 3));
@@ -1417,20 +1432,9 @@ mod tests {
         let jac = v.vec(ne * nq);
         v.default_mode();
         let nb_dof = r * nn;
-        let mut fast = vec![Real::NAN; ids.len() * nb_dof];
-        let done = btd_integrate(
-            &test_exec(ids.len()),
-            r,
-            sdim,
-            nn,
-            &ids,
-            nq,
-            &bs,
-            &ds,
-            &jac,
-            &mut fast,
-        )
-        .is_some();
+        let (fast, done) = every_level(ids.len(), ids.len() * nb_dof, |ex, out| {
+            btd_integrate(ex, r, sdim, nn, &ids, nq, &bs, &ds, &jac, out).is_some()
+        });
         let seq = product_route(Dims::dynamic(r, sdim), Dims::dynamic(sdim, nn))
             == Route::Coeff(Reduction::Sequential);
         let gemv = product_route(Dims::dynamic(nb_dof, nq), Dims::new(nq, 1, false, true))
@@ -1525,8 +1529,9 @@ mod tests {
         let jac = v.vec(ne * nq);
         v.default_mode();
         let jf = |pos: usize| &jac[pos * nq..(pos + 1) * nq];
-        let mut fast = vec![Real::NAN; ne * nb_dof];
-        let done = integrate(&test_exec(ne), &f, nb_dof, nq, &jf, ne, &mut fast).is_some();
+        let (fast, done) = every_level(ne, ne * nb_dof, |ex, out| {
+            integrate(ex, &f, nb_dof, nq, &jf, ne, out).is_some()
+        });
         assert_eq!(done, nb_dof > 1 && nq < 128, "nb_dof={nb_dof} nq={nq}");
         if !done {
             return (0, 0);
