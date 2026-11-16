@@ -255,6 +255,7 @@ fn fuse_block(
         last[e] = pos;
     }
     let u = |x: usize| u32::try_from(x).ok();
+    // Threading candidate (independent outputs): one entry per pair.
     let mut out = Vec::with_capacity(block.pairs.len());
     for &(src, dst) in &block.pairs {
         if src % stress_size != 0 {
@@ -338,6 +339,10 @@ fn build_stress_plan(
         let nfe = f2e.nb_component();
         let nq = nip / nfe.max(1);
         let first_block = plan.blocks.len();
+        // Threading candidate: the pairs of each element are independent;
+        // per-chunk vectors concatenated in filter order before
+        // `sort_by_destination` give the same plan (rebuilt after every
+        // insertion step).
         // last facet-type array looked up (one type per bulk type normally)
         let mut cached: Option<(ElementType, GhostType, &akantu_core::Array<Vec<Element>>)> = None;
         for &ge in elems {
@@ -450,6 +455,10 @@ fn interpolate_fused(
             .get_mut(block.facet, block.facet_ghost)?
             .as_mut_slice();
         let nq = block.nq;
+        // Threading candidate (WP-EXEC primitives, independent outputs):
+        // every pair writes only its own destination tuples (the plan holds
+        // one pair per destination), so any chunking of `pairs` keeps every
+        // bit; chunks by destination range keep the writes sequential.
         for p in pairs {
             let src = &fs[p.field as usize..p.field as usize + stress_size];
             for q in 0..nq {

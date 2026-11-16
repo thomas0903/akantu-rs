@@ -419,6 +419,12 @@ impl Linear {
                 } else {
                     filter.len()
                 };
+                // Threading candidate (WP-EXEC primitives): the norms and
+                // the decision of a facet read only that facet's data and
+                // write only its own insertion flag; the appended parameters
+                // (`prepared`, `new_sigmas`, `new_tractions`, `new_delta`)
+                // must keep the filter order: per-chunk buffers concatenated
+                // in chunk order.
                 for (k, &facet) in filter.iter().enumerate().take(nb_pairs) {
                     let facet = akantu_core::try_to_usize(facet)?;
                     if !facets_check.get(facet).copied().unwrap_or(false) {

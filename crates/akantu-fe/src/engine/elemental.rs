@@ -747,6 +747,9 @@ impl FeEngine {
             let o = o.as_mut_slice();
             let fs = f.as_slice();
             let mut coeff = vec![0.0; nq * nbc];
+            // Threading candidate (independent outputs): each element writes
+            // only its own `nip` tuples (duplicated filter ids write the same
+            // tuples: chunks must then keep the filter order of those ids).
             if let Some(kernel) = CoeffInterpolation::new(nq, nip, nbc) {
                 // the general loop below with both routes selected once
                 // (same operations in the same order, `CoeffInterpolation`)
