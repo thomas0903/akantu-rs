@@ -64,7 +64,11 @@ fn dat(dim: usize, variation: Real) -> String {
 
 /// Model on a unit square / cube of `cell` with `n` cells per direction.
 fn model(run: &mut Run, cell: Cell, n: usize, variation: Real) -> Result<HeatTransferModel> {
-    let dim = if matches!(cell, Cell::Tet4 | Cell::Hex8) { 3 } else { 2 };
+    let dim = if matches!(cell, Cell::Tet4 | Cell::Hex8) {
+        3
+    } else {
+        2
+    };
     let comm = run.comm.clone();
     let mut mesh = run.once("mesh", || {
         let mut msh = Msh::new(dim);
@@ -77,7 +81,12 @@ fn model(run: &mut Run, cell: Cell, n: usize, variation: Real) -> Result<HeatTra
     run.counts.elements = global_count(&comm, nb_elements(&mesh, dim))?;
     run.counts.nodes = global_count(&comm, nb_owned_nodes(&mesh))?;
     run.counts.dofs = run.counts.nodes;
-    HeatTransferModel::with_parser(SharedMesh::new(mesh), None, "heat_transfer", parser(&dat(dim, variation))?)
+    HeatTransferModel::with_parser(
+        SharedMesh::new(mesh),
+        None,
+        "heat_transfer",
+        parser(&dat(dim, variation))?,
+    )
 }
 
 /// Initial temperature 100, the nodes within `r` of the centre `c` held at
@@ -92,7 +101,10 @@ fn heat_source(model: &mut HeatTransferModel, c: [Real; 3], r: Real, walls: bool
     let mut b = vec![false; nb];
     for i in 0..nb {
         let x = &coords[i * dim..(i + 1) * dim];
-        let d: Real = (0..dim).map(|k| (x[k] - c[k]) * (x[k] - c[k])).sum::<Real>().sqrt();
+        let d: Real = (0..dim)
+            .map(|k| (x[k] - c[k]) * (x[k] - c[k]))
+            .sum::<Real>()
+            .sqrt();
         if d < r {
             b[i] = true;
             t[i] = 300.0;
@@ -138,7 +150,12 @@ fn explicit_tet4(run: &mut Run) -> Result<Digest> {
 
 fn explicit_quad4(run: &mut Run) -> Result<Digest> {
     let s = run.size();
-    explicit(run, Cell::Quad4, s.pick(16, 400, 1130), s.pick(10, 400, 400))
+    explicit(
+        run,
+        Cell::Quad4,
+        s.pick(16, 400, 1130),
+        s.pick(10, 400, 400),
+    )
 }
 
 fn implicit_hex8(run: &mut Run) -> Result<Digest> {
@@ -158,7 +175,11 @@ fn implicit_hex8(run: &mut Run) -> Result<Digest> {
     let mut iterations = 0i64;
     run.looped("solve_step", s.pick(2, 10, 10), |_| {
         model.solve_step(None)?;
-        if let ParamValue::Int(i) = model.solver.non_linear_solver(None)?.get_param("nb_iterations")? {
+        if let ParamValue::Int(i) = model
+            .solver
+            .non_linear_solver(None)?
+            .get_param("nb_iterations")?
+        {
             iterations += i;
         }
         Ok(())
@@ -172,7 +193,9 @@ fn implicit_hex8(run: &mut Run) -> Result<Digest> {
 fn static_tri6(run: &mut Run) -> Result<Digest> {
     let s = run.size();
     let mut model = model(run, Cell::Tri6, s.pick(8, 220, 620), 0.0)?;
-    run.once("init", || model.init_full(&ModelOptions::new(AnalysisMethod::Static)))?;
+    run.once("init", || {
+        model.init_full(&ModelOptions::new(AnalysisMethod::Static))
+    })?;
     heat_source(&mut model, [0.25, 0.25, 0.0], 0.1, true)?;
     run.looped("assemble_conductivity", s.pick(1, 5, 5), |_| {
         model.assemble_diffusivity_matrix()

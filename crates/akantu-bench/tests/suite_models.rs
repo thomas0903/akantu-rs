@@ -12,7 +12,10 @@ use std::process::Command;
 #[test]
 fn every_case_completes_and_repeats_its_digest() {
     let exe = env!("CARGO_BIN_EXE_suite_models");
-    let list = Command::new(exe).arg("--list").output().expect("suite_models --list");
+    let list = Command::new(exe)
+        .arg("--list")
+        .output()
+        .expect("suite_models --list");
     assert!(list.status.success());
     let names: Vec<String> = String::from_utf8(list.stdout)
         .unwrap()
@@ -40,7 +43,8 @@ fn every_case_completes_and_repeats_its_digest() {
             skipped.push(rest.split_whitespace().next().unwrap_or("").to_owned());
             continue;
         }
-        let v: serde_json::Value = serde_json::from_str(line).unwrap_or_else(|e| panic!("{line}: {e}"));
+        let v: serde_json::Value =
+            serde_json::from_str(line).unwrap_or_else(|e| panic!("{line}: {e}"));
         assert_eq!(v["suite"], "models");
         assert_eq!(v["size"], "s");
         assert!(v["seconds"].as_f64().unwrap() >= 0.0);
@@ -49,13 +53,19 @@ fn every_case_completes_and_repeats_its_digest() {
         let rep = v["rep"].as_u64().unwrap();
         let digest = v["digest"].as_str().unwrap().to_owned();
         assert_eq!(digest.len(), 16, "{line}");
-        seen.entry(case).or_default().entry(rep).or_default().push(digest);
+        seen.entry(case)
+            .or_default()
+            .entry(rep)
+            .or_default()
+            .push(digest);
     }
     for name in &names {
         if skipped.contains(name) {
             continue;
         }
-        let reps = seen.get(name).unwrap_or_else(|| panic!("no output for case {name}"));
+        let reps = seen
+            .get(name)
+            .unwrap_or_else(|| panic!("no output for case {name}"));
         assert_eq!(reps.len(), 2, "{name}: repetitions {reps:?}");
         let all: Vec<&String> = reps.values().flatten().collect();
         assert!(

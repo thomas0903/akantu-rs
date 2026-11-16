@@ -49,15 +49,31 @@ fn friction_quad4(run: &mut Run) -> Result<Digest> {
     let (l, h) = (1.0, 0.025 * ny as f64 / 25.0);
     let mesh = run.once("mesh", || {
         let mut msh = Msh::new(2);
-        msh.block(&Block::new("base", Cell::Quad4, [0.0; 3], [l, h, 0.0], [nx, ny, 1]));
-        msh.block(&Block::new("slider", Cell::Quad4, [0.0, h, 0.0], [l, h, 0.0], [nx, ny, 1]));
+        msh.block(&Block::new(
+            "base",
+            Cell::Quad4,
+            [0.0; 3],
+            [l, h, 0.0],
+            [nx, ny, 1],
+        ));
+        msh.block(&Block::new(
+            "slider",
+            Cell::Quad4,
+            [0.0, h, 0.0],
+            [l, h, 0.0],
+            [nx, ny, 1],
+        ));
         msh.read(&comm, "mesh")
     })?;
     run.counts.elements = nb_elements(&mesh, 2);
     run.counts.nodes = mesh.nb_nodes();
     run.counts.dofs = run.counts.nodes * 2;
-    let mut model =
-        SolidMechanicsModel::with_parser(SharedMesh::new(mesh), None, "solid_mechanics_model", parser(DAT)?)?;
+    let mut model = SolidMechanicsModel::with_parser(
+        SharedMesh::new(mesh),
+        None,
+        "solid_mechanics_model",
+        parser(DAT)?,
+    )?;
     model.set_material_selector(Box::new(ElementDataSelector::new("physical_names")));
     let mut solver = run.once("init", || {
         NtnContactSolverCallback::new(

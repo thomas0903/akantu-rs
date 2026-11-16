@@ -80,7 +80,11 @@ fn coupler(
     p: Real,
     method: AnalysisMethod,
 ) -> Result<CouplerSolidContact> {
-    let dim = if cell == Cell::Tet4 || cell == Cell::Hex8 { 3 } else { 2 };
+    let dim = if cell == Cell::Tet4 || cell == Cell::Hex8 {
+        3
+    } else {
+        2
+    };
     let comm = run.comm.clone();
     if comm.size() > 1 {
         return Err(akantu_core::Error::Unsupported(
@@ -94,7 +98,13 @@ fn coupler(
         let (lower, upper) = if dim == 2 {
             (
                 Block::new("lower", cell, [0.0; 3], [1.0, h, 0.0], [nl, depth, 1]),
-                Block::new("upper", cell, [d, h - p, 0.0], [1.0 - 2.0 * d, h, 0.0], [nu, depth, 1]),
+                Block::new(
+                    "upper",
+                    cell,
+                    [d, h - p, 0.0],
+                    [1.0 - 2.0 * d, h, 0.0],
+                    [nu, depth, 1],
+                ),
             )
         } else {
             (
@@ -110,8 +120,16 @@ fn coupler(
         };
         msh.block(&lower);
         msh.block(&upper);
-        msh.alias(dim - 1, if dim == 2 { "lower_ymax" } else { "lower_zmax" }, "lower_top");
-        msh.alias(dim - 1, if dim == 2 { "upper_ymin" } else { "upper_zmin" }, "upper_bottom");
+        msh.alias(
+            dim - 1,
+            if dim == 2 { "lower_ymax" } else { "lower_zmax" },
+            "lower_top",
+        );
+        msh.alias(
+            dim - 1,
+            if dim == 2 { "upper_ymin" } else { "upper_zmin" },
+            "upper_bottom",
+        );
         msh.read(&comm, "mesh")
     })?;
     run.counts.elements = nb_elements(&mesh, dim);
@@ -119,8 +137,12 @@ fn coupler(
     run.counts.dofs = run.counts.nodes * dim;
     let parser = parser(DAT)?;
     let selector = PhysicalSurfaceSelector::new(&mesh, &parser)?;
-    let mut c =
-        CouplerSolidContact::with_parser(SharedMesh::new(mesh), None, "coupler_solid_contact", parser)?;
+    let mut c = CouplerSolidContact::with_parser(
+        SharedMesh::new(mesh),
+        None,
+        "coupler_solid_contact",
+        parser,
+    )?;
     c.solid
         .set_material_selector(Box::new(ElementDataSelector::new("physical_names")));
     run.once("init", || c.init_full(&ModelOptions::new(method)))?;
@@ -129,7 +151,11 @@ fn coupler(
     let axes: &[SpatialDirection] = if dim == 2 {
         &[SpatialDirection::X, SpatialDirection::Y]
     } else {
-        &[SpatialDirection::X, SpatialDirection::Y, SpatialDirection::Z]
+        &[
+            SpatialDirection::X,
+            SpatialDirection::Y,
+            SpatialDirection::Z,
+        ]
     };
     let (bottom, top) = if dim == 2 {
         ("lower_ymin", "upper_ymax")
@@ -144,7 +170,10 @@ fn coupler(
 }
 
 fn digest(run: &Run, c: &CouplerSolidContact) -> Result<Digest> {
-    run.note(&format!("contact: {} contact elements at the end", c.contact.contact_elements().len()));
+    run.note(&format!(
+        "contact: {} contact elements at the end",
+        c.contact.contact_elements().len()
+    ));
     let mut d = Digest::new();
     d.reals(c.displacement()?.as_slice())
         .reals(c.contact.gaps().as_slice())
@@ -154,31 +183,61 @@ fn digest(run: &Run, c: &CouplerSolidContact) -> Result<Digest> {
 }
 
 fn search(run: &mut Run, cell: Cell, nl: usize, nu: usize, calls: usize) -> Result<Digest> {
-    let mut c = coupler(run, cell, nl, nu, 2, 1e-3, AnalysisMethod::ExplicitLumpedMass)?;
+    let mut c = coupler(
+        run,
+        cell,
+        nl,
+        nu,
+        2,
+        1e-3,
+        AnalysisMethod::ExplicitLumpedMass,
+    )?;
     // positions = X (u = 0)
     let x = c.solid.mesh().read()?.nodes().clone();
     c.contact.positions_mut().copy_from(&x)?;
     run.looped("search", calls, |_| c.contact.search())?;
     if c.contact.contact_elements().is_empty() {
-        return Err(akantu_core::Error::invalid("contact search found no contact"));
+        return Err(akantu_core::Error::invalid(
+            "contact search found no contact",
+        ));
     }
     digest(run, &c)
 }
 
 fn search_quad4(run: &mut Run) -> Result<Digest> {
     let s = run.size();
-    search(run, Cell::Quad4, s.pick(40, 40_000, 120_000), s.pick(30, 30_000, 90_000), s.pick(2, 20, 20))
+    search(
+        run,
+        Cell::Quad4,
+        s.pick(40, 40_000, 120_000),
+        s.pick(30, 30_000, 90_000),
+        s.pick(2, 20, 20),
+    )
 }
 
 fn search_tet4(run: &mut Run) -> Result<Digest> {
     let s = run.size();
-    search(run, Cell::Tet4, s.pick(6, 160, 450), s.pick(5, 120, 340), s.pick(2, 10, 10))
+    search(
+        run,
+        Cell::Tet4,
+        s.pick(6, 160, 450),
+        s.pick(5, 120, 340),
+        s.pick(2, 10, 10),
+    )
 }
 
 fn explicit_quad4(run: &mut Run) -> Result<Digest> {
     let s = run.size();
     let (nl, nu, depth) = s.pick((40, 30, 4), (1200, 900, 60), (3400, 2550, 170));
-    let mut c = coupler(run, Cell::Quad4, nl, nu, depth, 0.0, AnalysisMethod::ExplicitLumpedMass)?;
+    let mut c = coupler(
+        run,
+        Cell::Quad4,
+        nl,
+        nu,
+        depth,
+        0.0,
+        AnalysisMethod::ExplicitLumpedMass,
+    )?;
     let dt = run.once("stable_time_step", || c.stable_time_step())?;
     c.set_time_step(0.1 * dt, None)?;
     let inc = IncrementValue {
@@ -209,7 +268,12 @@ fn implicit_quad4(run: &mut Run) -> Result<Digest> {
     run.looped("solve_step", s.pick(2, 5, 5), |_| {
         c.apply_dirichlet_bc(&inc, "upper_ymax")?;
         c.solve_step(None)?;
-        if let ParamValue::Int(i) = c.solid.solver.non_linear_solver(None)?.get_param("nb_iterations")? {
+        if let ParamValue::Int(i) = c
+            .solid
+            .solver
+            .non_linear_solver(None)?
+            .get_param("nb_iterations")?
+        {
             iterations += i;
         }
         Ok(())
@@ -250,7 +314,13 @@ fn cohesive_contact_quad4(run: &mut Run) -> Result<Digest> {
     let (w, h) = (1.0, 0.1 * ny as Real / 40.0);
     let mesh = run.once("mesh", || {
         let mut msh = Msh::new(2);
-        msh.block(&Block::new("body", Cell::Quad4, [0.0; 3], [w, h, 0.0], [nx, ny, 1]));
+        msh.block(&Block::new(
+            "body",
+            Cell::Quad4,
+            [0.0; 3],
+            [w, h, 0.0],
+            [nx, ny, 1],
+        ));
         // the internal facets at mid-height (block nodes are numbered row
         // by row from 0)
         let phys = msh.physical(1, "interface");
@@ -293,8 +363,20 @@ fn cohesive_contact_quad4(run: &mut Run) -> Result<Digest> {
     let mut inserted = 0usize;
     run.looped("solve_step", steps, |i| {
         let v = if i < total / 3 { inc } else { -inc };
-        c.apply_dirichlet_bc(&IncrementValue { value: v, axis: SpatialDirection::Y }, "body_ymax")?;
-        c.apply_dirichlet_bc(&IncrementValue { value: -v, axis: SpatialDirection::Y }, "body_ymin")?;
+        c.apply_dirichlet_bc(
+            &IncrementValue {
+                value: v,
+                axis: SpatialDirection::Y,
+            },
+            "body_ymax",
+        )?;
+        c.apply_dirichlet_bc(
+            &IncrementValue {
+                value: -v,
+                axis: SpatialDirection::Y,
+            },
+            "body_ymin",
+        )?;
         c.solve_step(None)?;
         inserted += c.check_cohesive_stress()?;
         Ok(())

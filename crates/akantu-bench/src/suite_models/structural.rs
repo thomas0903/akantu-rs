@@ -81,7 +81,7 @@ fn frame(n: usize) -> Result<(Mesh, Vec<Real>)> {
             }
         }
         let mut c = acc.connectivity_mut(ElementType::BernoulliBeam3, GhostType::NotGhost);
-        for e in conn.chunks_exact(2) {
+        for e in conn.as_chunks::<2>().0 {
             c.push_tuple(e);
         }
         drop(c);
@@ -104,7 +104,11 @@ fn beam_material() -> StructuralMaterial {
 
 /// Frame model: base (`z = 0`) clamped, lateral and vertical loads on the
 /// top nodes.
-fn frame_model(run: &mut Run, n: usize, method: AnalysisMethod) -> Result<StructuralMechanicsModel> {
+fn frame_model(
+    run: &mut Run,
+    n: usize,
+    method: AnalysisMethod,
+) -> Result<StructuralMechanicsModel> {
     let (mesh, normals) = run.once("mesh", || frame(n))?;
     run.counts.elements = mesh.nb_element(ElementType::BernoulliBeam3, GhostType::NotGhost);
     run.counts.nodes = mesh.nb_nodes();
@@ -117,7 +121,7 @@ fn frame_model(run: &mut Run, n: usize, method: AnalysisMethod) -> Result<Struct
     let top = n as Real;
     {
         let mut b = model.blocked_dofs_mut()?;
-        for (node, x) in coords.chunks_exact(3).enumerate() {
+        for (node, x) in coords.as_chunks::<3>().0.iter().enumerate() {
             if x[2] == 0.0 {
                 b.as_mut_slice()[node * NDOF..(node + 1) * NDOF].fill(true);
             }
@@ -125,7 +129,7 @@ fn frame_model(run: &mut Run, n: usize, method: AnalysisMethod) -> Result<Struct
     }
     {
         let mut f = model.external_force_mut()?;
-        for (node, x) in coords.chunks_exact(3).enumerate() {
+        for (node, x) in coords.as_chunks::<3>().0.iter().enumerate() {
             if x[2] == top {
                 f.as_mut_slice()[node * NDOF] = 1e3;
                 f.as_mut_slice()[node * NDOF + 2] = -1e3;
@@ -198,7 +202,6 @@ fn plate_static(run: &mut Run) -> Result<Digest> {
         }
         drop(c);
         acc.make_ready()?;
-        drop(acc);
         Ok(mesh)
     })?;
     run.counts.elements = mesh.nb_element(ty, GhostType::NotGhost);
@@ -219,7 +222,7 @@ fn plate_static(run: &mut Run) -> Result<Digest> {
     {
         let mut b = model.blocked_dofs_mut()?;
         let b = b.as_mut_slice();
-        for (node, x) in coords.chunks_exact(3).enumerate() {
+        for (node, x) in coords.as_chunks::<3>().0.iter().enumerate() {
             if x[0] == 0.0 || x[1] == 0.0 || x[0] == 1.0 || x[1] == 1.0 {
                 b[node * NDOF..(node + 1) * NDOF].fill(true);
             }

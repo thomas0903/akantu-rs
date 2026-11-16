@@ -50,7 +50,7 @@ fn bars(dim: usize, nb: usize, k: usize) -> Msh {
     let mut msh = Msh::new(dim);
     let phys = msh.physical(1, "reinforcement");
     let pos = |b: usize| (b as Real + 0.5) / nb as Real + 0.0123;
-    let mut line = |msh: &mut Msh, a: [Real; 3], b: [Real; 3]| {
+    let line = |msh: &mut Msh, a: [Real; 3], b: [Real; 3]| {
         let mut prev = msh.node(a);
         for s in 1..=k {
             let t = s as Real / k as Real;
@@ -95,7 +95,10 @@ fn rebar(run: &mut Run, cell: Cell, n: usize, nb: usize, k: usize) -> Result<Dig
     let (mesh, reinforcement) = run.once("mesh", || {
         let mut msh = Msh::new(dim);
         msh.block(&Block::new("concrete", cell, [0.0; 3], [1.0; 3], [n; 3]));
-        Ok((msh.read(&comm, "mesh")?, bars(dim, nb, k).read(&comm, "reinforcement_mesh")?))
+        Ok((
+            msh.read(&comm, "mesh")?,
+            bars(dim, nb, k).read(&comm, "reinforcement_mesh")?,
+        ))
     })?;
     run.counts.elements = nb_elements(&mesh, dim) + nb_elements(&reinforcement, 1);
     run.counts.nodes = mesh.nb_nodes();
@@ -111,10 +114,16 @@ fn rebar(run: &mut Run, cell: Cell, n: usize, nb: usize, k: usize) -> Result<Dig
         model.init_full(&EmbeddedInterfaceModelOptions::new(AnalysisMethod::Static))
     })?;
     let fixed = |axis| FixedValue { value: 0.0, axis };
-    model.smm.apply_dirichlet_bc(&fixed(SpatialDirection::X), "concrete_xmin")?;
-    model.smm.apply_dirichlet_bc(&fixed(SpatialDirection::Y), "concrete_ymin")?;
+    model
+        .smm
+        .apply_dirichlet_bc(&fixed(SpatialDirection::X), "concrete_xmin")?;
+    model
+        .smm
+        .apply_dirichlet_bc(&fixed(SpatialDirection::Y), "concrete_ymin")?;
     if dim == 3 {
-        model.smm.apply_dirichlet_bc(&fixed(SpatialDirection::Z), "concrete_zmin")?;
+        model
+            .smm
+            .apply_dirichlet_bc(&fixed(SpatialDirection::Z), "concrete_zmin")?;
     }
     let mut force = vec![0.0; dim];
     force[1] = -1e6;
@@ -134,7 +143,9 @@ fn rebar(run: &mut Run, cell: Cell, n: usize, nb: usize, k: usize) -> Result<Dig
         let mesh_h = model.smm.mesh().clone();
         run.looped("intersect", calls, |_| {
             let mesh = mesh_h.read()?;
-            let imesh = model.intersector.construct_data(&mesh, model.primitive_mesh())?;
+            let imesh = model
+                .intersector
+                .construct_data(&mesh, model.primitive_mesh())?;
             nb_interface = imesh.nb_nodes();
             Ok(())
         })?;
@@ -144,9 +155,11 @@ fn rebar(run: &mut Run, cell: Cell, n: usize, nb: usize, k: usize) -> Result<Dig
     d.reals(model.smm.displacement()?.as_slice())
         .reals(model.smm.internal_force()?.as_slice())
         .ints([nb_interface as u64]);
-    run.looped("assemble_internal_forces", run.size().pick(1, 20, 20), |_| {
-        model.assemble_internal_forces()
-    })?;
+    run.looped(
+        "assemble_internal_forces",
+        run.size().pick(1, 20, 20),
+        |_| model.assemble_internal_forces(),
+    )?;
     run.looped("assemble_stiffness", run.size().pick(1, 5, 5), |_| {
         model.assemble_stiffness_matrix(true)
     })?;
@@ -155,10 +168,22 @@ fn rebar(run: &mut Run, cell: Cell, n: usize, nb: usize, k: usize) -> Result<Dig
 
 fn rebar_tri3(run: &mut Run) -> Result<Digest> {
     let s = run.size();
-    rebar(run, Cell::Tri3, s.pick(10, 300, 850), s.pick(3, 60, 170), s.pick(7, 400, 1100))
+    rebar(
+        run,
+        Cell::Tri3,
+        s.pick(10, 300, 850),
+        s.pick(3, 60, 170),
+        s.pick(7, 400, 1100),
+    )
 }
 
 fn rebar_tet4(run: &mut Run) -> Result<Digest> {
     let s = run.size();
-    rebar(run, Cell::Tet4, s.pick(4, 30, 60), s.pick(2, 10, 20), s.pick(5, 60, 120))
+    rebar(
+        run,
+        Cell::Tet4,
+        s.pick(4, 30, 60),
+        s.pick(2, 10, 20),
+        s.pick(5, 60, 120),
+    )
 }

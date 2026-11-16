@@ -18,7 +18,7 @@ use std::fmt::Write as _;
 
 use akantu_comm::Communicator;
 use akantu_core::enums::MeshIoType;
-use akantu_core::{Result, Real};
+use akantu_core::{Real, Result};
 use akantu_io::{ReadOptions, read_mesh_from_str};
 use akantu_mesh::Mesh;
 
@@ -71,15 +71,6 @@ impl Cell {
                 ],
                 3,
             ),
-        }
-    }
-    /// Number of cells of this type per grid cell.
-    #[must_use]
-    pub fn per_cell(self) -> usize {
-        match self {
-            Self::Tri3 | Self::Tri6 => 2,
-            Self::Quad4 | Self::Hex8 => 1,
-            Self::Tet4 => 6,
         }
     }
 }
@@ -138,7 +129,11 @@ impl Msh {
 
     /// Physical tag of `name` (created on first use).
     pub fn physical(&mut self, dim: usize, name: &str) -> usize {
-        if let Some(i) = self.physicals.iter().position(|(d, n)| *d == dim && n == name) {
+        if let Some(i) = self
+            .physicals
+            .iter()
+            .position(|(d, n)| *d == dim && n == name)
+        {
             return i + 1;
         }
         self.physicals.push((dim, name.to_owned()));
@@ -147,7 +142,11 @@ impl Msh {
 
     /// Rename the physical group `name` of dimension `dim` to `new_name`.
     pub fn alias(&mut self, dim: usize, name: &str, new_name: &str) {
-        if let Some(p) = self.physicals.iter_mut().find(|(d, n)| *d == dim && n == name) {
+        if let Some(p) = self
+            .physicals
+            .iter_mut()
+            .find(|(d, n)| *d == dim && n == name)
+        {
             p.1 = new_name.to_owned();
         }
     }
@@ -163,25 +162,17 @@ impl Msh {
         self.elements.push((ty, phys, nodes));
     }
 
-    /// Number of nodes so far.
-    #[must_use]
-    pub fn nb_nodes(&self) -> usize {
-        self.nodes.len()
-    }
-
-    /// Coordinates of a node.
-    #[must_use]
-    pub fn coords(&self, n: usize) -> [Real; 3] {
-        self.nodes[n]
-    }
-
     /// Add a block; returns the number of volume elements added.
     pub fn block(&mut self, b: &Block) -> usize {
         let dim = b.cell.dim();
         assert_eq!(dim, self.dim, "block dimension");
         let quadratic = b.cell == Cell::Tri6;
         let k = if quadratic { 2 } else { 1 };
-        let n = [b.n[0] * k, b.n[1] * k, if dim == 3 { b.n[2] * k } else { 0 }];
+        let n = [
+            b.n[0] * k,
+            b.n[1] * k,
+            if dim == 3 { b.n[2] * k } else { 0 },
+        ];
         let base = self.nodes.len();
         let id = |i: usize, j: usize, l: usize| base + (l * (n[1] + 1) + j) * (n[0] + 1) + i;
         for l in 0..=n[2] {
@@ -210,8 +201,12 @@ impl Msh {
                             id(i, j + 1, 0),
                         ]),
                         Cell::Tri3 => {
-                            let (a, bb, c, d) =
-                                (id(i, j, 0), id(i + 1, j, 0), id(i + 1, j + 1, 0), id(i, j + 1, 0));
+                            let (a, bb, c, d) = (
+                                id(i, j, 0),
+                                id(i + 1, j, 0),
+                                id(i + 1, j + 1, 0),
+                                id(i, j + 1, 0),
+                            );
                             cells.push(vec![a, bb, c]);
                             cells.push(vec![a, c, d]);
                         }

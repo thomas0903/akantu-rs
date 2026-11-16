@@ -244,12 +244,6 @@ impl Run {
         }
     }
 
-    /// Extra loop budget of `--loop-seconds` (profiling) or `false`.
-    #[must_use]
-    pub fn profiling(&self) -> bool {
-        self.opts.loop_seconds.is_some()
-    }
-
     /// JSON lines of the run (one per phase).
     #[must_use]
     pub fn json_lines(&self, case: &str, rep: usize, digest: &Digest) -> Vec<String> {
@@ -312,14 +306,6 @@ impl Digest {
     pub fn reals(&mut self, v: &[f64]) -> &mut Self {
         for x in v {
             self.bytes(&x.to_le_bytes());
-        }
-        self
-    }
-
-    /// Absorb booleans (one byte each).
-    pub fn bools(&mut self, v: &[bool]) -> &mut Self {
-        for &x in v {
-            self.bytes(&[u8::from(x)]);
         }
         self
     }
@@ -416,7 +402,11 @@ pub fn main(cases: &[Case], comm: impl FnOnce() -> Result<Communicator>) -> std:
         }
     };
     let mut out = match &opts.out {
-        Some(p) => match std::fs::OpenOptions::new().create(true).append(true).open(p) {
+        Some(p) => match std::fs::OpenOptions::new()
+            .create(true)
+            .append(true)
+            .open(p)
+        {
             Ok(f) => Some(f),
             Err(e) => {
                 eprintln!("suite_models: {}: {e}", p.display());

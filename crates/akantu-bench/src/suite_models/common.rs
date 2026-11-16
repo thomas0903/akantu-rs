@@ -75,7 +75,12 @@ pub fn gather_nodal<T: akantu_comm::CommData + Copy>(
 ///
 /// # Errors
 /// Communication errors.
-pub fn digest_nodal(d: &mut Digest, mesh: &Mesh, values: &[Real], nb_component: usize) -> Result<()> {
+pub fn digest_nodal(
+    d: &mut Digest,
+    mesh: &Mesh,
+    values: &[Real],
+    nb_component: usize,
+) -> Result<()> {
     if let Some(g) = gather_nodal(mesh, values, nb_component)? {
         d.reals(&g);
     }

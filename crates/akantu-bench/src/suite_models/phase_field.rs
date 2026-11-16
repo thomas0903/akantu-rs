@@ -72,14 +72,19 @@ fn staggered(run: &mut Run, cell: Cell, n: usize, load_steps: usize) -> Result<D
         parser(dat)?,
     )?;
     run.once("init", || {
-        c.solid.init_full(&ModelOptions::new(AnalysisMethod::Static))?;
-        c.phase.init_full(&ModelOptions::new(AnalysisMethod::Static))
+        c.solid
+            .init_full(&ModelOptions::new(AnalysisMethod::Static))?;
+        c.phase
+            .init_full(&ModelOptions::new(AnalysisMethod::Static))
     })?;
     let fixed = |axis| FixedValue { value: 0.0, axis };
-    c.solid.apply_dirichlet_bc(&fixed(SpatialDirection::Y), "body_ymin")?;
-    c.solid.apply_dirichlet_bc(&fixed(SpatialDirection::X), "body_xmin")?;
+    c.solid
+        .apply_dirichlet_bc(&fixed(SpatialDirection::Y), "body_ymin")?;
+    c.solid
+        .apply_dirichlet_bc(&fixed(SpatialDirection::X), "body_xmin")?;
     if dim == 3 {
-        c.solid.apply_dirichlet_bc(&fixed(SpatialDirection::Z), "body_zmin")?;
+        c.solid
+            .apply_dirichlet_bc(&fixed(SpatialDirection::Z), "body_zmin")?;
     }
     let increment = IncrementValue {
         value: if dim == 2 { 4e-4 } else { 1e-3 },
@@ -95,7 +100,7 @@ fn staggered(run: &mut Run, cell: Cell, n: usize, load_steps: usize) -> Result<D
     ];
     let mut t = [0.0f64; 5];
     let mut calls = 0;
-    let mut step = |c: &mut CouplerSolidPhaseField, t: &mut [f64; 5]| -> Result<()> {
+    let step = |c: &mut CouplerSolidPhaseField, t: &mut [f64; 5]| -> Result<()> {
         c.solid.apply_dirichlet_bc(&increment, "body_ymax")?;
         for _ in 0..nb_staggered {
             let t0 = Instant::now();
