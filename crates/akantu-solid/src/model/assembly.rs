@@ -608,26 +608,25 @@ impl SolidMechanicsPhysics {
                 // `_unsymmetric` blocks, UD-034) — upstream virtual
                 // `Material::assembleStiffnessMatrix`
                 match law.elemental_stiffness_custom(&ctx, GhostType::NotGhost) {
-                    Some(r) => (r?, false),
-                    None => (
-                        elemental_stiffness_with(
-                            law,
-                            &ctx,
-                            GhostType::NotGhost,
-                            subtract_eigen,
-                            scratch,
-                        )?
-                        .into_iter()
-                        .map(|(ty, filter, k_e)| (ty, filter, k_e, MatrixType::Symmetric))
-                        .collect(),
-                        true,
-                    ),
+                    Some(r) => r?.into_iter().map(|b| (b, false)).collect::<Vec<_>>(),
+                    None => elemental_stiffness_with(
+                        law,
+                        &ctx,
+                        GhostType::NotGhost,
+                        subtract_eigen,
+                        scratch,
+                    )?
+                    .into_iter()
+                    .map(|((ty, filter, k_e), pooled)| {
+                        ((ty, filter, k_e, MatrixType::Symmetric), pooled)
+                    })
+                    .collect(),
                 }
             };
             // only the arrays taken from the pool go back to it (a law's
-            // own blocks are dropped, as before)
-            let (blocks, pooled): (Vec<_>, bool) = blocks;
-            for (ty, filter, k_e, elemental_type) in blocks {
+            // own blocks and the finite-deformation blocks are dropped, as
+            // before)
+            for ((ty, filter, k_e, elemental_type), pooled) in blocks {
                 dofs.assemble_elemental_matrices_to_matrix(
                     mesh,
                     "K",
@@ -939,6 +938,22 @@ impl StiffnessScratch {
     fn give_back(&mut self, a: Array<Real>) {
         self.pool.push(a);
     }
+
+    /// Arrays in the pool and bytes held by all the arrays (capacities).
+    pub(crate) fn footprint(&self) -> (usize, usize) {
+        let bytes = |a: &Array<Real>| {
+            a.capacity()
+                .saturating_mul(a.nb_component())
+                .saturating_mul(std::mem::size_of::<Real>())
+        };
+        let held = [&self.grad_u, &self.tangent, &self.density]
+            .into_iter()
+            .chain(&self.pool)
+            .filter(|a| a.nb_component() > 0)
+            .map(bytes)
+            .sum();
+        (self.pool.len(), held)
+    }
 }
 
 /// Upstream `Material::assembleStiffnessMatrix(ghost)` up to (excluding)
@@ -958,7 +973,7 @@ pub(crate) fn elemental_stiffness_with(
     ghost: GhostType,
     subtract_eigen: bool,
     scratch: &mut StiffnessScratch,
-) -> Result<Vec<ElementalBlock>> {
+) -> Result<Vec<(ElementalBlock, bool)>> {
     let dim = law.base().spatial_dimension;
     let mut out = Vec::new();
     for ty in law.base().filter_types(ghost) {
@@ -981,8 +996,10 @@ pub(crate) fn elemental_stiffness_with(
         if law.base().finite_deformation {
             let (k_nl, k_l2) =
                 finite_deformation::stiffness(law, ctx, ty, ghost, &filter, subtract_eigen)?;
-            out.push((ty, filter.clone(), k_nl));
-            out.push((ty, filter, k_l2));
+            // allocated by the finite-deformation kernel, not by the pool:
+            // not returned to it
+            out.push(((ty, filter.clone(), k_nl), false));
+            out.push(((ty, filter, k_l2), false));
             continue;
         }
         let fe = ctx.services.fe_engine("")?;
@@ -1042,7 +1059,7 @@ pub(crate) fn elemental_stiffness_with(
             scratch.give_back(k_e);
             return Err(e);
         }
-        out.push((ty, filter, k_e));
+        out.push(((ty, filter, k_e), true));
     }
     Ok(out)
 }

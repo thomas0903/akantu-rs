@@ -2139,6 +2139,15 @@ impl SolidMechanicsModel {
         Ok(())
     }
 
+    /// Arrays in the pool of elemental matrices kept between stiffness and
+    /// mass assemblies, and bytes held by the kept arrays (diagnostic, for
+    /// tests: the pool must stay bounded over repeated assemblies).
+    #[doc(hidden)]
+    #[must_use]
+    pub fn assembly_scratch_footprint(&self) -> (usize, usize) {
+        self.physics.stiffness_scratch.footprint()
+    }
+
     /// Upstream `assembleStiffnessMatrix(need_to_reassemble)`.
     pub fn assemble_stiffness_matrix(&mut self, need_to_reassemble: bool) -> Result<()> {
         let p = &mut self.physics;

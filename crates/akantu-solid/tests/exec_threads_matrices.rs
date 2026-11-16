@@ -352,3 +352,74 @@ fn repeated_stiffness_assembly_of_two_laws_is_bitwise_for_every_thread_count() {
         }
     }
 }
+
+/// The arrays the model keeps between stiffness assemblies stay bounded:
+/// after two assemblies (the pool filled), six more change neither the
+/// number of pooled arrays nor the bytes held, for a small-strain law, a
+/// finite-deformation law (whose blocks the pool must not keep), two laws
+/// of both kinds, at one and at three threads; `release_static_solver`
+/// frees them, and assembling again comes back to the same footprint.
+#[test]
+fn kept_assembly_arrays_stay_bounded() {
+    let small = "material elastic [\n  name = a\n  rho = 2500\n  E = 70e9\n  nu = 0.22\n]\n";
+    let finite = "material elastic [\n  name = a\n  rho = 2500\n  E = 70e9\n  nu = 0.22\n  \
+                  finite_deformation = true\n]\n";
+    let two = "material elastic [\n  name = a\n  rho = 2500\n  E = 70e9\n  nu = 0.22\n]\n\
+               material neohookean [\n  name = b\n  rho = 2000\n  E = 50e9\n  nu = 0.3\n]\n";
+    for (name, dat, select) in [
+        ("small strain", small, false),
+        ("finite deformation", finite, false),
+        ("two laws", two, true),
+    ] {
+        for threads in [1, 3] {
+            let what = format!("{name}, {threads} threads");
+            let parser = Parser::parse_str(dat, "material.dat").unwrap();
+            let mut m = SolidMechanicsModel::with_parser(
+                SharedMesh::new(mixed_cube(3)),
+                None,
+                "smm",
+                parser,
+            )
+            .unwrap();
+            m.set_exec_policy(ExecPolicy::serial().with_threads(threads).unwrap())
+                .unwrap();
+            if select {
+                m.set_material_selector(Box::new(EveryThird));
+            }
+            m.init_full(&options(AnalysisMethod::Static, None)).unwrap();
+            for _ in 0..2 {
+                m.assemble_stiffness_matrix(true).unwrap();
+            }
+            let filled = m.assembly_scratch_footprint();
+            // a small-strain block keeps its arrays; finite-deformation
+            // blocks are not pooled (only the gradient buffer is unused)
+            assert_eq!(
+                filled.1 > 0,
+                name != "finite deformation",
+                "{what}: {filled:?}"
+            );
+            for _ in 0..6 {
+                m.assemble_stiffness_matrix(true).unwrap();
+            }
+            assert_eq!(
+                m.assembly_scratch_footprint(),
+                filled,
+                "{what}: the kept arrays grew"
+            );
+            m.release_static_solver().unwrap();
+            assert_eq!(
+                m.assembly_scratch_footprint(),
+                (0, 0),
+                "{what}: not released"
+            );
+            for _ in 0..3 {
+                m.assemble_stiffness_matrix(true).unwrap();
+            }
+            assert_eq!(
+                m.assembly_scratch_footprint(),
+                filled,
+                "{what}: after the release"
+            );
+        }
+    }
+}
