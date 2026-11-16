@@ -23,6 +23,11 @@ Raw data: `fin-m/`, `fin-heat/`, `fin-tiny/`, `fin-l/` (suite JSON lines,
 driver: `summary.json`, `chrono_rank<r>.csv` per run), `screening/` (the
 intermediate A/B series named in the text), `profiles/` (perf reports).
 
+After the measurements the branch merged `perf/wave2-base` again
+(`042c8d2ae`, with the small-products kernels): every digest of the cases
+below and the cohesive driver's summary are again identical to the before
+build at 1, 2, 4 and 8 ranks (`screening/dig10`, `screening/coh10`).
+
 Every digest (owned state gathered by global id, or per-rank mesh digests
 in rank order) is identical before and after at 1, 2, 4 and 8 ranks, and
 the cohesive driver's physical summary (energies, displacement norms and

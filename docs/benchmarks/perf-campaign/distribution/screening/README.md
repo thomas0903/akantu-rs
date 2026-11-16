@@ -12,5 +12,9 @@
 | `s7` | `h8`, `h9` = 818a43195 (one-rank agreements) | the tiny serial step | 0.596 |
 | `s8` | `h9`, `h9x` = h9 without the agreement after successful DOF-manager steps (experiment, not committed) | agreements per step (15 → 3) | `solve_step` 1.032 / 1.083 / 0.963: no measurable change |
 
+`dig10`, `coh10`: one repetition of every case and of the cohesive
+driver, before (24f73b94e) against the merged head (042c8d2ae): digests
+and physical summaries identical.
+
 `contention.txt` and `imbalance.txt`: the memory-bandwidth and per-vCPU
 measurements of the README's "What remains".
