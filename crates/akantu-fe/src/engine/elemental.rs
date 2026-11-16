@@ -116,6 +116,39 @@ impl ElementalFieldInterpolation {
         self.blocks.iter().find(|b| b.ty == ty && b.ghost == ghost)
     }
 
+    /// The [`PointInterpolation`] of `(ty, ghost)` for fields of `nbc`
+    /// components, when the block's elements have one quadrature point and
+    /// both products of [`FeEngine::interpolate_elemental_field`] take the
+    /// coefficient-based route or the depth-1 `gebp` route (`ProductForm`);
+    /// `None` otherwise (no block, other sizes).
+    ///
+    /// # Errors
+    /// Stored matrices inconsistent with the block's slots.
+    pub fn point_interpolation(
+        &self,
+        ty: ElementType,
+        ghost: GhostType,
+        nbc: usize,
+    ) -> Result<Option<PointInterpolation<'_>>> {
+        let Some(b) = self.block(ty, ghost) else {
+            return Ok(None);
+        };
+        if b.nq != 1 {
+            return Ok(None);
+        }
+        let Some(kernel) = CoeffInterpolation::new(1, b.nip, nbc) else {
+            return Ok(None);
+        };
+        let (inv, itp) = self.matrices(b)?;
+        Ok(Some(PointInterpolation {
+            inv,
+            itp,
+            nip: b.nip,
+            block: b,
+            kernel,
+        }))
+    }
+
     /// Interpolation points per element of `(ty, ghost)`.
     #[must_use]
     pub fn nb_interpolation_points(&self, ty: ElementType, ghost: GhostType) -> Option<usize> {
@@ -203,6 +236,74 @@ impl ElementalFieldInterpolation {
     }
 }
 
+/// The interpolation of one `(type, ghost)` block whose elements have **one**
+/// quadrature point and whose two products are evaluated in a form the
+/// batch kernel reproduces
+/// ([`ElementalFieldInterpolation::point_interpolation`]; e.g. the linear
+/// tetrahedron and triangle): the value at interpolation point `i` of the
+/// element in slot `s` is `(inv(s)·f)·itp(s, i)` per component, with the
+/// sign rule of each product's route for a zero (`ProductForm`): the
+/// operations [`FeEngine::interpolate_elemental_field`] performs for that
+/// block (`CoeffInterpolation`). A caller that needs
+/// the values of a few points of each element in another order (the cohesive
+/// model's facet stresses) computes them here without the per-element output
+/// array.
+#[derive(Clone, Copy, Debug)]
+pub struct PointInterpolation<'a> {
+    inv: &'a [Real],
+    itp: &'a [Real],
+    nip: usize,
+    block: &'a InterpolationBlock,
+    kernel: CoeffInterpolation,
+}
+
+impl PointInterpolation<'_> {
+    /// Interpolation points per element.
+    #[must_use]
+    pub fn nb_interpolation_points(&self) -> usize {
+        self.nip
+    }
+
+    /// Number of slots (initialised elements).
+    #[must_use]
+    pub fn nb_slots(&self) -> usize {
+        self.block.elements.len()
+    }
+
+    /// The slot [`FeEngine::interpolate_elemental_field`] uses for each
+    /// element id of `ids` (a filter in its order): the identity when `ids`
+    /// is the initialisation filter, otherwise the first slot of the id.
+    ///
+    /// # Errors
+    /// An id that was not part of the initialisation (the error of
+    /// `interpolate_elemental_field`).
+    pub fn slots(&self, ids: &[usize]) -> Result<Vec<usize>> {
+        self.block.slots(ids)
+    }
+
+    /// `out[c] = (inv(slot)·field[c])·itp(slot, point)` for every component
+    /// `c < out.len()` (`field` at least as long; each product with its
+    /// route's form, see the type's documentation): the value
+    /// [`FeEngine::interpolate_elemental_field`] writes at interpolation
+    /// point `point` of an element in slot `slot` whose quadrature-point
+    /// tuple is `field`.
+    ///
+    /// # Panics
+    /// `slot ≥ nb_slots()`, `point ≥ nb_interpolation_points()` or `field`
+    /// shorter than `out`.
+    #[inline]
+    pub fn value(&self, slot: usize, point: usize, field: &[Real], out: &mut [Real]) {
+        assert!(point < self.nip, "PointInterpolation::value: point {point}");
+        let a = self.inv[slot];
+        let m = self.itp[slot * self.nip + point];
+        let field = &field[..out.len()];
+        let (f1, f2) = (self.kernel.first, self.kernel.second);
+        for (x, &f) in out.iter_mut().zip(field) {
+            *x = f2.one(f1.one(a * f) * m);
+        }
+    }
+}
+
 /// Basis of the fit for `ty` (upstream `BuildElementalFieldInterpolationMatrix`
 /// with the default order = polynomial degree): writes row `i` of `m`
 /// (`rows × nq`, column-major) for the point with physical coordinates `x`.
@@ -279,39 +380,75 @@ fn interpolation_dims(nq: usize, nip: usize, nbc: usize) -> [(Dims, Dims); 2] {
     ]
 }
 
-/// Batch form of the two products of [`interpolation_dims`] when Eigen
-/// evaluates both coefficient-based (`rows + cols + depth < 20`, e.g. the
-/// linear tetrahedron's stresses at its facets: `nq = 1`, `nip = 4`,
-/// `nbc = 9`): the routes are selected once per block with
-/// [`eigen::product_route`] on the same operand descriptions, and every
-/// coefficient is the same reduction of the same products in the same order
-/// as [`eigen::product_slices`] computes it (`akantu_core::eigen_gebp`
-/// `Route::Coeff`), without the per-product route selection, shape checks
-/// and closures. Bitwise equal to the general path (property test below).
+/// How Eigen evaluates one of the products of [`interpolation_dims`], for
+/// the routes the batch kernels reproduce (`akantu_core::eigen_gebp`).
+#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+enum ProductForm {
+    /// `Route::Coeff`: every coefficient is the reduction of its depth
+    /// terms in the given order (one term: the term itself).
+    Coeff(akantu_core::eigen_gebp::Reduction),
+    /// `Route::Gebp` of depth 1 (`gebp_into`): the destination is zeroed,
+    /// the accumulators start at `+0` (no peeled pair of terms below the
+    /// packet depth), so every coefficient is `+0 + (+0 + t)` — the term
+    /// with a negative zero turned positive.
+    GebpDepth1,
+}
+
+impl ProductForm {
+    fn of(route: akantu_core::eigen_gebp::Route, depth: usize) -> Option<Self> {
+        use akantu_core::eigen_gebp::{GEBP_PK, Route};
+        match route {
+            Route::Coeff(order) => Some(Self::Coeff(order)),
+            Route::Gebp { kc } if depth == 1 && kc >= 1 && GEBP_PK >= 2 => Some(Self::GebpDepth1),
+            _ => None,
+        }
+    }
+
+    /// The coefficient of a depth-1 product whose single term is `t`.
+    #[inline]
+    fn one(self, t: Real) -> Real {
+        match self {
+            Self::Coeff(_) => t,
+            // c = (0 + 0) + t accumulated, then r = 0 + c
+            Self::GebpDepth1 => 0.0 + ((0.0 + 0.0) + t),
+        }
+    }
+}
+
+/// Batch form of the two products of [`interpolation_dims`]: the routes are
+/// selected once per block with [`eigen::product_route`] on the same operand
+/// descriptions, and when both are forms this kernel reproduces
+/// ([`ProductForm`]: coefficient-based products, and the depth-1 `gebp`
+/// product of one-point elements, e.g. the linear tetrahedron's stresses at
+/// its facets' three points each: `nq = 1`, `nip = 12`, `nbc = 9`), every
+/// coefficient is computed with the same operations in the same order as
+/// [`eigen::product_slices`], without the per-product route selection,
+/// shape checks and closures. Bitwise equal to the general path (property
+/// test below).
 #[derive(Clone, Copy, Debug)]
 struct CoeffInterpolation {
     nq: usize,
     nip: usize,
     nbc: usize,
-    first: akantu_core::eigen_gebp::Reduction,
-    second: akantu_core::eigen_gebp::Reduction,
+    first: ProductForm,
+    second: ProductForm,
 }
 
 impl CoeffInterpolation {
-    /// `None` unless both products take the coefficient-based route.
+    /// `None` unless both products take a route of [`ProductForm`] (the
+    /// `gebp` form only for one quadrature point; for more, both must be
+    /// coefficient-based).
     fn new(nq: usize, nip: usize, nbc: usize) -> Option<Self> {
-        use akantu_core::eigen_gebp::Route;
         let [(a1, b1), (a2, b2)] = interpolation_dims(nq, nip, nbc);
-        match (eigen::product_route(a1, b1), eigen::product_route(a2, b2)) {
-            (Route::Coeff(first), Route::Coeff(second)) => Some(Self {
-                nq,
-                nip,
-                nbc,
-                first,
-                second,
-            }),
-            _ => None,
-        }
+        let first = ProductForm::of(eigen::product_route(a1, b1), nq)?;
+        let second = ProductForm::of(eigen::product_route(a2, b2), nq)?;
+        Some(Self {
+            nq,
+            nip,
+            nbc,
+            first,
+            second,
+        })
     }
 
     /// One element: `inv` (`nq × nq`, column-major), `field` (`nq` tuples of
@@ -329,34 +466,34 @@ impl CoeffInterpolation {
     ) {
         let (nq, nip, nbc) = (self.nq, self.nip, self.nbc);
         if nq == 1 {
-            // one-term reductions: the coefficient is the single product
-            // `lhs · rhs` (`Reduction::sum` of one term)
+            // depth-1 products: one term per coefficient
+            let (f1, f2) = (self.first, self.second);
             let a = inv[0];
             for (c, &f) in coeff[..nbc].iter_mut().zip(&field[..nbc]) {
-                *c = a * f;
+                *c = f1.one(a * f);
             }
             for (j, r) in out[..nip * nbc].chunks_exact_mut(nbc).enumerate() {
                 let m = itp[j];
                 for (x, &c) in r.iter_mut().zip(&coeff[..nbc]) {
-                    *x = c * m;
+                    *x = f2.one(c * m);
                 }
             }
             return;
         }
+        let (ProductForm::Coeff(first), ProductForm::Coeff(second)) = (self.first, self.second)
+        else {
+            unreachable!("CoeffInterpolation::new admits gebp forms for nq = 1 only");
+        };
         // coefficients(i, j) = Σ_l inv(i, l)·field(j, l)
         for j in 0..nbc {
             for i in 0..nq {
-                coeff[i + j * nq] = self
-                    .first
-                    .sum(nq, &|l| inv[i + l * nq] * field[l * nbc + j]);
+                coeff[i + j * nq] = first.sum(nq, &|l| inv[i + l * nq] * field[l * nbc + j]);
             }
         }
         // result(i, j) = Σ_l coefficients(l, i)·itp(j, l)
         for j in 0..nip {
             for i in 0..nbc {
-                out[i + j * nbc] = self
-                    .second
-                    .sum(nq, &|l| coeff[i * nq + l] * itp[j + l * nip]);
+                out[i + j * nbc] = second.sum(nq, &|l| coeff[i * nq + l] * itp[j + l * nip]);
             }
         }
     }
@@ -765,10 +902,108 @@ mod tests {
                 }
             }
         }
-        // the linear tetrahedron's (1, 4, 9) and triangle's (1, 3, 4) among them
-        assert!(CoeffInterpolation::new(1, 4, 9).is_some());
-        assert!(CoeffInterpolation::new(1, 3, 4).is_some());
+        // the linear tetrahedron's (1, 12, 9: second product gebp, depth 1)
+        // and the linear triangle's (1, 6, 4) among them; second-order
+        // elements with a gebp product are not
+        let k = CoeffInterpolation::new(1, 12, 9).unwrap();
+        assert_eq!(k.second, ProductForm::GebpDepth1);
+        assert!(matches!(k.first, ProductForm::Coeff(_)));
+        assert!(CoeffInterpolation::new(1, 6, 4).is_some());
+        assert!(CoeffInterpolation::new(4, 12, 9).is_none());
         assert!(covered > 50, "{covered}");
+    }
+
+    /// `PointInterpolation::value` is bitwise the output of
+    /// `interpolate_elemental_field` for linear tetrahedra (`nq = 1`), with
+    /// the initialisation filter and with a reordered subset of it.
+    #[test]
+    fn point_interpolation_is_bitwise_the_interpolation() {
+        const T4: ElementType = ElementType::Tetrahedron4;
+        let mut mesh = Mesh::new(3, "tets").unwrap();
+        {
+            let mut acc = MeshAccessor::new(&mut mesh);
+            for x in [
+                [0.0, 0.0, 0.0],
+                [1.0, 0.1, 0.0],
+                [0.2, 1.0, 0.1],
+                [0.1, 0.3, 1.2],
+                [1.1, 1.0, 0.9],
+                [0.9, -0.2, 1.0],
+            ] {
+                acc.push_node(&x).unwrap();
+            }
+            let mut c = acc.connectivity_mut(T4, G);
+            c.push_tuple(&[0, 1, 2, 3]);
+            c.push_tuple(&[1, 2, 3, 4]);
+            c.push_tuple(&[1, 3, 5, 4]);
+        }
+        let fe = FeEngine::with_precomputation(
+            &mesh,
+            None,
+            ElementKind::Regular,
+            ShapeFamily::Lagrange,
+            "fe",
+        )
+        .unwrap();
+        // three points per facet (the facets' order-2 rule): gebp form
+        let nip = 12;
+        let nbc = 9;
+        let mut state = 0x1234_5678_9abc_def1_u64;
+        let mut points = ElementTypeMapArray::new("points");
+        let p = points.alloc(3 * nip, 3, T4, G, 0.0).unwrap();
+        for v in p.as_mut_slice() {
+            *v = draw(&mut state).clamp(-4.0, 4.0);
+            if v.is_nan() {
+                *v = 0.25;
+            }
+        }
+        let interp = fe
+            .init_elemental_field_interpolation(&mesh, &points, None)
+            .unwrap();
+        let view = interp.point_interpolation(T4, G, nbc).unwrap().unwrap();
+        assert_eq!(view.nb_interpolation_points(), nip);
+        assert_eq!(view.nb_slots(), 3);
+        for ids in [vec![0, 1, 2], vec![2, 0]] {
+            let mut filter = ElementTypeMapArray::<Idx>::new("filter");
+            let f = filter.alloc(ids.len(), 1, T4, G, 0).unwrap();
+            for (x, &e) in f.as_mut_slice().iter_mut().zip(&ids) {
+                *x = Idx::try_from(e).unwrap();
+            }
+            for _ in 0..20 {
+                let mut field = ElementTypeMapArray::new("field");
+                let fa = field.alloc(ids.len(), nbc, T4, G, 0.0).unwrap();
+                for v in fa.as_mut_slice() {
+                    *v = draw(&mut state);
+                }
+                let mut out = ElementTypeMapArray::new("out");
+                fe.interpolate_elemental_field(&mesh, &interp, &field, &mut out, G, Some(&filter))
+                    .unwrap();
+                let out = out.get(T4, G).unwrap().as_slice();
+                let fs = field.get(T4, G).unwrap().as_slice();
+                let slots = view.slots(&ids).unwrap();
+                let mut v = [0.0; 9];
+                for (pos, (&e, &slot)) in ids.iter().zip(&slots).enumerate() {
+                    for i in 0..nip {
+                        view.value(slot, i, &fs[pos * nbc..(pos + 1) * nbc], &mut v);
+                        let r = &out[(e * nip + i) * nbc..(e * nip + i + 1) * nbc];
+                        for (x, y) in v.iter().zip(r) {
+                            assert!(
+                                same(*x, *y),
+                                "{ids:?} element {e} point {i}: {x:e} vs {y:e}"
+                            );
+                        }
+                    }
+                }
+            }
+        }
+        // a second-order block has no point interpolation (nq > 1)
+        assert!(interp.point_interpolation(T4, G, 400).unwrap().is_none());
+        assert!(
+            interp
+                .point_interpolation(ElementType::Tetrahedron10, G, nbc)
+                .unwrap()
+                .is_none()
+        );
     }
 
     /// Malformed stored matrices (wrong slot or component counts)
