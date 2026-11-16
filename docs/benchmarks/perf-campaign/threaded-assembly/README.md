@@ -217,3 +217,18 @@ phases whose code this branch does not change at one thread.
 - **Memory traffic** of the scatter for large meshes: per entry a 4-byte
   position, the value and a read-modify-write of the entry, in element
   order (the prototype measured 3.6× at 8 threads on 750,000 tetrahedra).
+
+## Raw data
+
+| directory | what |
+|---|---|
+| `alloc/`, `alloc-summary.md` | the allocator series (one thread, with and without the glibc thresholds) |
+| `series1/`, `series1-*-summary.md` | the first thread series, head 105ea0eb1 (with the threaded first assembly that was removed afterwards) |
+| `series2/`, `series2-*-summary.md` | the final thread series, head ea071de35 |
+| `series3/`, `series3-*-summary.md` | the three cases with laws that assemble their own blocks, head f28c5a7bc (pool fix) |
+| `experiments/fa/` | threaded first assembly against the same branch without it (`head-*` / `exp2-*`, 3 rounds) |
+| `experiments/spin*/`, `experiments/emb/` | the two-thread slowdown hunt (spin time, entry-wise operations, base at two threads, without the first assembly) and the pool-fix check of `embedded_rebar_tri3` |
+
+Every JSON line of these series records `"threads":1`: the thread count
+was set through `AKANTU_NUM_THREADS` by the wrappers, the suites'
+`--threads` option was not applied before commit 2779476a0.
