@@ -473,9 +473,13 @@ fn newmark_corrector_part(
     }
 }
 
-/// Equations per part of a threaded integration-scheme update (a few
-/// microseconds of streaming work, D-123).
-const EQUATIONS_PER_PART: usize = 16_384;
+/// Equations per part of a threaded integration-scheme update (D-123). The
+/// update streams a few arrays that the step just touched: short parts cost
+/// more than they save (screening on 8 cores: with parts of 16,384
+/// equations the steps of meshes with 0.1–0.6 million equations ran slower
+/// with threads), so a family is split only into parts of at least this
+/// many equations.
+const EQUATIONS_PER_PART: usize = 262_144;
 
 // ------------------------------------------------- generalized trapezoidal
 

@@ -79,8 +79,9 @@ fn inverse_scatter_part(inv: &[u32], values: &[Real], scale: Real, target: &mut 
     }
 }
 
-/// Equations per part of a threaded per-equation loop (D-123).
-const EQUATIONS_PER_PART: usize = 16_384;
+/// Equations per part of a threaded per-equation loop (D-123); as the
+/// integration-scheme updates (short parts cost more than they save).
+const EQUATIONS_PER_PART: usize = 262_144;
 
 /// The inverse of a family's equation numbers (`inv[eq] = dof`), kept for
 /// the equation-ordered scatter with the numbers it was built from; `inv`

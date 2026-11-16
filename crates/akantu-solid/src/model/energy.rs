@@ -127,7 +127,7 @@ impl SolidMechanicsPhysics {
         let mut terms = vec![0.0; nn];
         exec.try_for_each(
             akantu_core::exec::Tuples::new(&mut terms, 1),
-            8192,
+            131_072,
             |first, mut t| {
                 for (k, v) in t.as_mut_slice().iter_mut().enumerate() {
                     *v = term(first + k)?;
