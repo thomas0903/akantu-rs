@@ -550,6 +550,7 @@ impl SparseMatrixAij {
             || x.len() != n
             || y.len() != n
             || exec.nb_parts(self.a.len(), MIN_ENTRIES) < 2
+            || !row_gather_fits(self.a.len(), n)
         {
             return self.mat_vec_mul(layout, reduction, x, y, alpha, beta);
         }
@@ -597,6 +598,14 @@ impl SparseMatrixAij {
         *slot = Some((key, g.clone()));
         g
     }
+}
+
+/// `true` when the 32-bit entry and equation indices of [`RowGather`] can
+/// hold every entry (`nnz`) and every row (`nb_rows`); otherwise the
+/// threaded product falls back to the serial one.
+fn row_gather_fits(nnz: usize, nb_rows: usize) -> bool {
+    u32::try_from(nnz).is_ok_and(|v| v < u32::MAX)
+        && u32::try_from(nb_rows).is_ok_and(|v| v < u32::MAX)
 }
 
 /// The terms of every row of a matrix-vector product in storage order:
@@ -751,5 +760,23 @@ fn boundary_part(
                 0.0
             };
         }
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::row_gather_fits;
+
+    /// The row index is used only while its 32-bit indices hold every entry
+    /// and every row.
+    #[test]
+    fn the_row_index_falls_back_above_32_bit_indices() {
+        let max = u32::MAX as usize;
+        assert!(row_gather_fits(0, 0));
+        assert!(row_gather_fits(max - 1, max - 1));
+        assert!(!row_gather_fits(max, 10));
+        assert!(!row_gather_fits(10, max));
+        assert!(!row_gather_fits(max + 1, 10));
+        assert!(!row_gather_fits(10, usize::MAX));
     }
 }
