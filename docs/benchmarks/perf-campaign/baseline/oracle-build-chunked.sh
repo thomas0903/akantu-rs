@@ -14,8 +14,8 @@
 # finalize-install.sh. A chunk that fails (not a timeout) is retried once
 # with -j1 (a translation unit killed by the OOM killer).
 # Not itself under a wrapper.
-set -uo pipefail
 # shellcheck disable=SC2016 # $AKANTU_JOB_CPUS expands in the inner shell, inside the job wrapper
+set -uo pipefail
 export AKANTU_SRC_HOST=$HOME/w/infra/akantu-ref
 cd ~/w/infra/akantu-rs || exit 1
 . oracle/scripts/common.sh

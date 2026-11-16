@@ -6,8 +6,8 @@
 # docs/benchmarks/explicit-step/final/digests.txt, one line per case, and the
 # comparison with the recorded digests (same n per case).
 #   explicit_digests.sh PORT_BIN CPP_BIN_DIR MESH_DIR > digests.txt
-set -euo pipefail
 # shellcheck disable=SC2094 # the recorded digests file is only read (the loop and awk), never written
+set -euo pipefail
 X="$(cd "$(dirname "$0")/../../../.." && pwd)/scripts/perf/explicit-step"
 port="$1" cppdir="$2" meshdir="$3"
 rec="$(cd "$(dirname "$0")/../../.." && pwd)/benchmarks/explicit-step/final/digests.txt"
