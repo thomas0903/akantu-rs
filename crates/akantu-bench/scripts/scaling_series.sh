@@ -39,10 +39,9 @@
 # Options and environment as c1prep_campaign.sh (--memory, default 14g; --cpus,
 # default 8; OUT, default ~/c1prep-results; CPP_CONFIG strict; FNTE joss;
 # PIN_CPUS_FROM).
-# CAMPAIGN_WRAPPER (optional): a command prefix for every campaign of step 2
-# and every partition export of step 1, e.g. "tjob infra-scal --" on a
-# shared host where each campaign must hold the machine alone; split into
-# words, so no quoting inside it.
+# SERIES_REPS (optional, e.g. "2"): run only these repetitions of step 2
+# (and step 3 over whatever is done), so that a series can run as one short
+# exclusive job per repetition on a shared host.
 # SKIP_DONE=1 (optional): a campaign whose schedule.log already says
 # "campaign done" is not run again (resuming a series after the host
 # stopped); an incomplete campaign directory is moved aside to
@@ -52,7 +51,6 @@
 set -uo pipefail
 here="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 camp="${here}/c1prep_campaign.sh"
-read -r -a wrap <<< "${CAMPAIGN_WRAPPER:-}"
 
 opts=()
 while [ $# -gt 0 ]; do
@@ -88,7 +86,7 @@ for p in "${point_list[@]}"; do
   pdir="${out}/${series}-parts/h${h}"
   [ -s "${pdir}/partition-np${np}.csv" ] && continue
   pc="${series}-part-h${h}-np${np}"
-  if ${wrap[@]+"${wrap[@]}"} bash "${camp}" ${opts[@]+"${opts[@]}"} --export-partition "${pc}" "${h}" "${np}"; then
+  if bash "${camp}" ${opts[@]+"${opts[@]}"} --export-partition "${pc}" "${h}" "${np}"; then
     mkdir -p "${pdir}" && cp "${out}/${pc}/partition-np${np}.csv" "${pdir}/partition-np${np}.csv"
     say "partition h=${h} np=${np}: $(sha256sum "${pdir}/partition-np${np}.csv" | cut -c1-16)…"
   else
@@ -100,6 +98,7 @@ done
 # ---- 2. repetitions ---------------------------------------------------------
 nc=${#case_list[@]}
 for rep in $(seq 1 "${reps}"); do
+  case " ${SERIES_REPS:-${rep}} " in *" ${rep} "*) ;; *) continue ;; esac
   order=("${point_list[@]}")
   if [ $((rep % 2)) -eq 0 ]; then
     order=()
@@ -120,7 +119,7 @@ for rep in $(seq 1 "${reps}"); do
     fi
     popt=()
     [ "${np}" -gt 1 ] && popt=(--partitions "${out}/${series}-parts/h${h}")
-    if ${wrap[@]+"${wrap[@]}"} bash "${camp}" ${opts[@]+"${opts[@]}"} ${popt[@]+"${popt[@]}"} "${c}" "${h}" "${steps}" "${np}" 1 "${rot[*]}" ${extra[@]+"${extra[@]}"} \
+    if bash "${camp}" ${opts[@]+"${opts[@]}"} ${popt[@]+"${popt[@]}"} "${c}" "${h}" "${steps}" "${np}" 1 "${rot[*]}" ${extra[@]+"${extra[@]}"} \
          > "${out}/${c}.log" 2>&1; then
       say "  ${c}: ok"
     else

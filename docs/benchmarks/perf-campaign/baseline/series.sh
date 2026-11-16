@@ -21,7 +21,7 @@
 #                                 rotated repetitions in one tjob
 #   series.sh scaling STEPS       cohesive benchmark h = 0.06 at 1, 2, 4, 8 ranks,
 #                                 C++ strict and port, MUMPS, same partition, 3 reps
-#                                 (one job per campaign: tjob up to 4 ranks, xjob at 8)
+#                                 (one xjob per repetition, all four points)
 #
 # Environment (defaults): OUT (~/w/infra/data), BASE (~/baseline: meshes/,
 # port-*/, cpp-bin/), PORT_DIR (BASE/port-59dd2229: `port` = explicit_step_timing,
@@ -111,11 +111,18 @@ case "${1:-}" in
   scaling)
     steps="${2:?steps}"
     d="$OUT/scaling"; mkdir -p "$d"
-    say "scaling s$steps: start"
-    env OUT="$d" PIN_CPUS_FROM=0 SKIP_DONE=1 C1PREP_LOCK="$HOME/w/infra/c1prep.lock" \
-      CAMPAIGN_WRAPPER="$here/jobwrap.sh $L-scaling" \
-      bash "$repo/crates/akantu-bench/scripts/scaling_series.sh" "$L-scal-s$steps" "$steps" 3 \
-      "0.06:1 0.06:2 0.06:4 0.06:8" "cpp rust" || say "scaling: series reported a failure"
+    # one xjob (whole machine: the 8-rank point) per repetition, holding all
+    # four points in scaling_series.sh's order; the partition exports run in
+    # the first one; complete campaigns are skipped on a rerun (SKIP_DONE)
+    for k in 1 2 3; do
+      say "scaling s$steps rep $k: start"
+      xjob "$L-scaling-r$k" -- env OUT="$d" PIN_CPUS_FROM=0 SKIP_DONE=1 SERIES_REPS="$k" \
+        C1PREP_LOCK="$HOME/w/infra/c1prep.lock" \
+        bash "$repo/crates/akantu-bench/scripts/scaling_series.sh" "$L-scal-s$steps" "$steps" 3 \
+        "0.06:1 0.06:2 0.06:4 0.06:8" "cpp rust" >> "$d/series-s$steps.log" 2>&1 \
+        || say "scaling s$steps rep $k: the series reported a failure"
+      say "scaling s$steps rep $k: done"
+    done
     exp=(); [ "$steps" -le 500 ] || exp=(--expect-insertion)
     python3 -I "$repo/crates/akantu-bench/scripts/scaling_analyze.py" "$d" "$L-scal-s$steps" \
       --strong 0.06 ${exp[@]+"${exp[@]}"} > "$d/$L-scal-s$steps-analysis.log" 2>&1 || true
