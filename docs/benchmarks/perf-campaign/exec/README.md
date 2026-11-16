@@ -205,3 +205,49 @@ default is unchanged.
 `pool-overhead` at commit `427eb987` on o1 (2/4/8 threads, 5 rounds,
 `pool-o1-427eb987.jsonl`): overhead above `work / threads` 0.18–11.3 µs
 for the own pool against 7.7–15.2 µs for `rayon::ThreadPool::broadcast`.
+
+## Second review: one thread and the rest phase (EPYC 7B13)
+
+An 8-core AMD EPYC 7B13 machine, threads pinned to cores 0–3, 7 rotated
+rounds of 30 steps, median [min, max] of the per-round values in ns per
+element and step; "rest" is step − fint. Raw data and the summary table:
+`review-b/`.
+
+**One thread against the branch point** (`f1-1124a0a1.jsonl`,
+`f1-summary.md`): base `59dd2229` against the head after the error of
+`gather_part` became lazy (`1124a0a1`), speed-up base/head.
+
+| mesh | mode | step | fint | stress | rest |
+|---|---|---|---|---|---|
+| tet4-20k | ss | 1.00 [0.99, 1.01] | 0.99 [0.98, 1.00] | 0.99 [0.97, 1.00] | 1.03 [0.99, 1.14] |
+| tet4-20k | fd | 1.00 [0.99, 1.00] | 1.00 [0.99, 1.00] | 0.99 [0.98, 1.01] | 1.02 [0.96, 1.04] |
+| hex8-20k | ss | 1.00 [0.94, 1.00] | 1.00 [0.97, 1.00] | 1.00 [0.96, 1.01] | 1.00 [0.86, 1.02] |
+| hex8-20k | fd | 1.00 [1.00, 1.06] | 1.00 [1.00, 1.00] | 1.00 [1.00, 1.01] | 1.01 [0.99, 1.21] |
+
+Every phase is at 1.00 within the noise: the one-thread loss of the rest
+measured on m7a (0.90–0.98, section above) came from the `Error` that
+`gather_part` built for every equation (`ok_or` evaluates its argument).
+
+**The rest phase at 2 and 4 threads** (`f3-153890e1.jsonl`): before = `1124a0a1`,
+after = `153890e1` (the inverse scatter and the external work only when the
+batch is split, the inverse table checked against a numbering generation,
+a reused buffer for the work terms); ratio = before/after, median of the
+paired per-round ratios.
+
+| mesh | mode | 2 thr before | 2 thr after | ratio | 4 thr before | 4 thr after | ratio |
+|---|---|---|---|---|---|---|---|
+| tet4-20k | ss | 12.5 [12.0, 32.9] | 11.9 [11.3, 34.2] | 1.01 | 17.8 [11.5, 27.5] | 11.7 [−0.4, 17.9] | 1.06 |
+| tet4-20k | fd | 15.5 [−13.2, 40.7] | 39.2 [14.0, 39.5] | 1.03 | 24.4 [15.4, 30.3] | 23.7 [23.3, 29.3] | 1.03 |
+| hex8-20k | ss | 217.7 [154.7, 220.2] | 214.5 [149.2, 219.4] | 1.02 | 171.7 [157.2, 196.6] | 175.4 [169.4, 198.2] | 1.00 |
+| hex8-20k | fd | 371.4 [285.2, 374.6] | 340.3 [278.9, 367.2] | 1.04 | 296.0 [270.6, 335.3] | 293.7 [268.6, 331.1] | 0.99 |
+
+The one-thread rest of the base on the same rounds: tet4 ss 12.7, tet4
+fd 15.8, hex8 ss 149.9, hex8 fd 359.4. These series are noisy: the load
+average was about 2 at the start of the rounds (other jobs on cores 4–7),
+and on tet4 the rest is the difference of two numbers 4–10 times larger,
+so single rounds go negative. Read the paired ratios, not the medians: the
+change gains 0–6 % of the rest and loses nothing measurable; the step
+ratios are 1.00–1.01. On hex8 the rest at 2 and 4 threads stays above the
+one-thread base (150 and 359): the residual and the integration scheme
+are not threaded and the data the threaded scatter wrote is read back
+from another core's cache (section "What limits the scaling").
