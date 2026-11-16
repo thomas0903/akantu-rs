@@ -11,7 +11,9 @@ use std::process::Command;
 
 /// `(case, phase) -> digest` of one run.
 fn run(args: &[&str]) -> BTreeMap<(String, String), String> {
+    // Scotch's multi-threaded partition differs from run to run
     let out = Command::new(env!("CARGO_BIN_EXE_suite_setup"))
+        .env("SCOTCH_PTHREAD_NUMBER", "1")
         .args(args)
         .output()
         .expect("suite_setup runs");
