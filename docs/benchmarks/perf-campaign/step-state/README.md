@@ -108,8 +108,8 @@ of the timed cases at size `m`, are equal before and after.
   `structural_mechanics_dynamics*` example comparisons, which need
   matplotlib (`ci/tiers/wheel.sh`); with matplotlib installed both pass.
 - Digests: `digests/size-s-threads1.tsv` and `size-s-threads4.tsv`
-  (suite, case, `AKANTU_NUM_THREADS`, digest of the base `11d783342`,
-  digest of the branch at `12633c666`, status) for every case of
+  (suite, case, `AKANTU_NUM_THREADS`, digest of the base `71154d049`,
+  digest of the branch at `d819142b9`, status) for every case of
   `suite_solid`, `suite_models` and `suite_setup` at size `s`: 74 equal at
   1 and at 4 threads, and the same digests at both thread counts (the two
   cases `static_linear_mumps` and `partition_scotch_tet4` print no digest
@@ -208,6 +208,35 @@ method, four cases (the digests of that pair at size `s`: 73 equal):
 
 With the Maxwell products fixed-size, its per-step clones were most of
 what was left of its step.
+
+### The elastic step after the merge of the element-block pass (`ab-threads/`)
+
+The base `71154d049` computes the stresses and element forces of a model
+with one elastic law on one element type in one threaded pass per element
+block. On that path the block pass now announces the complete rewrites of
+`grad_u`, the stress (or second Piola–Kirchhoff stress) and the thermal
+fields on the caller before its threaded region (and undoes the exchanges
+if it fails), so their history saves are exchanges there too. Branch
+`d819142b9` against the base, same method, at one thread (core 1) and at
+four threads (cores 0–3, `AKANTU_NUM_THREADS=4`; the suites' `--threads`
+option, which only records a number, was not used, so the JSON lines read
+`"threads":1` in both series):
+
+| case | threads | base [ms/step] | after [ms/step] | after/base | `step_hooks` base → after |
+|---|---|---|---|---|---|
+| explicit_tet4_ss | 1 | 12.41 [12.37, 12.70] | 9.97 [9.89, 10.13] | 0.799 [0.785, 0.808] | 1.25 → 0.00 |
+| explicit_tet4_fd | 1 | 16.61 [16.47, 16.86] | 12.74 [12.71, 12.92] | 0.767 [0.766, 0.771] | 1.89 → 0.00 |
+| explicit_hex8_ss | 1 | 57.12 [56.80, 58.45] | 47.51 [46.92, 48.26] | 0.830 [0.821, 0.839] | 4.93 → 0.00 |
+| explicit_hex8_fd | 1 | 81.43 [81.01, 82.04] | 67.24 [66.97, 68.44] | 0.828 [0.825, 0.840] | 6.89 → 0.00 |
+| explicit_tet4_ss | 4 | 7.04 [6.83, 7.23] | 4.04 [3.94, 4.09] | 0.581 [0.545, 0.599] | 1.35 → 0.00 |
+| explicit_tet4_fd | 4 | 9.09 [8.83, 9.31] | 4.80 [4.71, 4.92] | 0.533 [0.508, 0.543] | 1.97 → 0.00 |
+| explicit_hex8_ss | 4 | 32.84 [31.31, 33.56] | 22.08 [21.44, 22.49] | 0.673 [0.670, 0.685] | 5.12 → 0.00 |
+| explicit_hex8_fd | 4 | 40.35 [37.89, 41.05] | 25.07 [24.31, 25.35] | 0.619 [0.614, 0.642] | 7.16 → 0.00 |
+
+The history copy is serial: with four threads it was 15–22 % of the
+base's step, and removing it gives more than at one thread. Every run of
+a case printed the same digest; at size `s` all 74 cases of the three
+suites have the base's digests at 1 and at 4 threads.
 
 ### Energies (`energies`: one kinetic and one potential energy per call)
 
