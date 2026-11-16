@@ -280,12 +280,23 @@ impl SharedMesh {
     /// Check the cross-part invariants of the facet mesh
     /// ([`crate::utils::check_facet_mesh_consistency`]) in full at every
     /// mutation (`true`, the default of debug builds), or — the default of
-    /// release builds — only in the adjacency rows a mutation replaced or
-    /// appended when the mutation starts from a state that passed the check
-    /// at the previous commit (node arrays, index domains, types, row counts
-    /// and components are always checked in full; a removal, a snapshot of
-    /// a part's mesh data or a facet mesh created by the mutation take the
-    /// full check). Local to this rank's domain.
+    /// release builds — read the adjacency references only in the rows a
+    /// mutation replaced or appended, when the mutation starts from a state
+    /// that passed the check at the previous commit or set-up operation.
+    ///
+    /// The restricted form still checks in full the node arrays
+    /// (coordinates bit for bit, flags, global ids, owner ranks), the index
+    /// domains, and the type, row count and components of every adjacency
+    /// block; it proves the references of the untouched rows from the
+    /// previous check (their blocks only grew, and adjacency data changes
+    /// only through mutations and set-up operations). The full check is
+    /// taken by the first mutation of a domain, after a set-up operation that
+    /// failed the check (a mutation rolled back keeps the checked state), and
+    /// by a mutation that removes elements or nodes, snapshots a part's
+    /// mesh data, creates the facet mesh, or replaces more than an eighth of
+    /// the facet mesh's `element_to_subelement` rows. The debug-only
+    /// reciprocity check of the two adjacency maps runs with the full check
+    /// only. Local to this rank's domain.
     ///
     /// # Errors
     /// A poisoned lock.

@@ -15,7 +15,7 @@ operations under it".
   repetitions; ratios are the median [min, max] of the per-repetition
   paired ratios (`scripts/analyze.py`, `scripts/sum.py`).
 - before: `perf/wave2-base` at `0769542f6`; after: `perf/cohesive-insert`
-  at `a44e994f1` (it contains `0769542f6`). Both built with the default
+  at `74e97f334` (it contains `0769542f6`). Both built with the default
   release profile, toolchain 1.99.1; serial binaries on the host
   (`scripts/build.sh`), MPI binaries in the MUMPS image with the features
   `mumps,scotch` (`scripts/build-par.sh`).
@@ -46,7 +46,9 @@ evidence at P > 1 is `bitwise/`.
 `profiles/`: `perf record -g` with frame-pointer builds
 (`-C force-frame-pointers=yes`), shares of samples, not times:
 `serial-base-5000-*` (the branch point) and `serial-c3-5000-*` (after the
-first three changes) of the full serial schedule; `np8-p8-c8-*` and
+restricted check, the group journal, the copy-plan update and a fused
+facet-stress and law check that was later removed) of the full serial
+schedule; `np8-p8-c8-*` and
 `np8-p8-c9-*` (whole machine, 8 ranks, before and after the
 global-number fix); `setup-*` (flat, the set-up suite's facet and insertion
 cases; `setup-facets-insert-binary-search-flat.txt` is the first
