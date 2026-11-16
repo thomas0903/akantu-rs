@@ -2,7 +2,7 @@
 # SPDX-License-Identifier: LGPL-3.0-or-later
 # akantu-rs CI tooling, not ported from Akantu (rows CI-003…CI-006, CI-020: ctest → cargo test).
 # test: cargo test --workspace --locked --no-fail-fast, every test binary accounted for;
-# then the threaded crates again at 3 threads, finest grain (step `threads`)
+# then akantu-solid and akantu-solver again at 3 threads, finest grain (step `threads`)
 #
 # Steps: `cargo fetch --locked` (every package of Cargo.lock in the cargo
 # registry: the licence tests `license_separation` / `license_guard` run
@@ -78,12 +78,15 @@ else
   ci_step floor --host -- python3 -I "$here/tools/count_tests.py" "$(ci_file test.log)" --floors "$here/floors.txt" --key "$floor_key"
 fi
 
-# The thread-count invariant of the execution policy (D-123): the crates
-# with threaded kernels run again with 3 threads and every batch split as
-# finely as possible; every bitwise fixture and exec_threads.rs must give
-# the one-thread bits.
+# The thread-count invariant of the execution policy (D-123): the solid and
+# solver crates, which hold the threaded kernels of the explicit step, run
+# again with 3 threads and every batch split as finely as possible; every
+# bitwise fixture and exec_threads.rs must give the one-thread bits. Adding
+# akantu-fe and akantu-cohesive would take the step from 4 to 7 minutes of
+# test time on 4 cores; the threaded FE kernels run in the solid tests and
+# exec_threads.rs, the cohesive tests are not repeated with threads.
 if [ "$tier" = test ] && [ -f "$CI_REPO/crates/akantu-solid/Cargo.toml" ]; then
-  ci_step threads -- env AKANTU_NUM_THREADS=3 AKANTU_EXEC_GRAIN=finest cargo test --locked -p akantu-solid -p akantu-solver -p akantu-fe -p akantu-cohesive
+  ci_step threads -- env AKANTU_NUM_THREADS=3 AKANTU_EXEC_GRAIN=finest cargo test --locked -p akantu-solid -p akantu-solver
 fi
 
 ci_tier_end
