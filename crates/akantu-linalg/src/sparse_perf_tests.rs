@@ -960,3 +960,42 @@ fn threaded_matrix_operations_match_the_serial_ones() {
         }
     }
 }
+
+/// A profile rebuilt with the same number of entries in another order
+/// between two threaded products: the row index of the first profile must
+/// not be reused (its key holds the entry positions' identity), so the
+/// second product equals the serial one bit for bit.
+#[test]
+fn threaded_product_after_a_reordered_profile_of_equal_size() {
+    let execs = execs();
+    for ty in [MatrixType::Symmetric, MatrixType::Unsymmetric] {
+        let mut rng = Rng(0x0dd_ba11 | 1, 0);
+        let n: GlobalIdx = 40;
+        let nu = usize::try_from(n).unwrap();
+        let layout = EquationLayout::serial(nu).unwrap();
+        let base = random_matrix(&mut rng, n, ty, 6 * nu);
+        let x: Vec<Real> = (0..nu).map(|_| rng.value()).collect();
+        let y0: Vec<Real> = (0..nu).map(|_| rng.value()).collect();
+        for exec in &execs {
+            let mut m = base.clone();
+            let mut y = y0.clone();
+            m.mat_vec_mul_with(exec, &layout, &NoReduction, &x, &mut y, 1.25, 0.5)
+                .unwrap();
+            // the same entries in reverse order, new values
+            let (irn, jcn) = (m.irn.clone(), m.jcn.clone());
+            let nnz = irn.len();
+            m.clear_profile();
+            for (&i, &j) in irn.iter().zip(&jcn).rev() {
+                let v = rng.value();
+                m.add(i, j, v).unwrap();
+            }
+            assert_eq!(m.a.len(), nnz, "same number of entries");
+            let (mut y1, mut y2) = (y0.clone(), y0.clone());
+            m.mat_vec_mul(&layout, &NoReduction, &x, &mut y1, 1.25, 0.5)
+                .unwrap();
+            m.mat_vec_mul_with(exec, &layout, &NoReduction, &x, &mut y2, 1.25, 0.5)
+                .unwrap();
+            assert_eq!(bits(&y1), bits(&y2), "{ty:?} threads {}", exec.threads());
+        }
+    }
+}
