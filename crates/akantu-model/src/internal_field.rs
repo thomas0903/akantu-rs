@@ -1720,9 +1720,13 @@ mod tests {
 
     /// A save defers the copy; an announced rewrite exchanges the
     /// allocations instead of copying; a commit leaves the old values in
-    /// the caller's array; an unchanged block is not copied again.
+    /// the caller's array; an unchanged block is not copied again. (In the
+    /// test-only export-all mode every block counts as exported: the saves
+    /// are copies, with the same values.)
     #[test]
     fn deferred_save_and_overwrite() {
+        let lazy = !akantu_core::array_shared::export_all::ENABLED;
+        let deferred = if lazy { vec![(TRI, NG)] } else { Vec::new() };
         let mut f: InternalField<f64> = InternalField::new("stress", 2, 0.0).unwrap();
         f.resize(TRI, NG, 2).unwrap();
         f.initialize_history();
@@ -1731,22 +1735,24 @@ mod tests {
             .as_mut_slice()
             .copy_from_slice(&[1.0, 2.0, 3.0, 4.0]);
         f.save_current_values().unwrap();
-        assert_eq!(f.previous.as_ref().unwrap().pending, vec![(TRI, NG)]);
+        assert_eq!(f.previous.as_ref().unwrap().pending, deferred);
         assert_eq!(
             f.previous(TRI, NG).unwrap().as_slice(),
             &[1.0, 2.0, 3.0, 4.0]
         );
         f.save_current_values().unwrap();
         f.restore_previous_values().unwrap();
-        assert_eq!(f.previous.as_ref().unwrap().pending, vec![(TRI, NG)]);
+        assert_eq!(f.previous.as_ref().unwrap().pending, deferred);
         let before = f.get(TRI, NG).unwrap().as_slice().as_ptr();
         f.prepare_overwrite(TRI, NG);
         assert!(f.previous.as_ref().unwrap().pending.is_empty());
-        assert_eq!(
-            f.previous(TRI, NG).unwrap().as_slice().as_ptr(),
-            before,
-            "the old allocation became the history"
-        );
+        if lazy {
+            assert_eq!(
+                f.previous(TRI, NG).unwrap().as_slice().as_ptr(),
+                before,
+                "the old allocation became the history"
+            );
+        }
         f.get_mut(TRI, NG)
             .unwrap()
             .as_mut_slice()
@@ -1826,6 +1832,10 @@ mod tests {
         drop(interp);
         drop(lease);
         f.save_current_values().unwrap();
-        assert_eq!(f.previous.as_ref().unwrap().pending, vec![(TRI, NG)]);
+        // deferred again (not in the test-only export-all mode, where every
+        // block counts as exported)
+        let lazy = !akantu_core::array_shared::export_all::ENABLED;
+        let deferred = if lazy { vec![(TRI, NG)] } else { Vec::new() };
+        assert_eq!(f.previous.as_ref().unwrap().pending, deferred);
     }
 }
