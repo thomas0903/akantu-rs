@@ -366,7 +366,13 @@ impl<const D: usize, const TS: usize> SimdTask for LaneResidualIntegrate<'_, D, 
             out,
         } = self;
         let bt = D * nn;
-        let mut c = [Lanes4::default(); TREE_MAX];
+        let groups = nn.div_ceil(4);
+        // accumulators c(a, k) of the element, lane = node `a` of a group of
+        // four, one vector per (group, component k)
+        let mut c = [[Lanes4::default(); D]; TREE_MAX / 4];
+        // the point's shape derivatives, transposed: per group and natural
+        // direction, the four nodes' values (zeros beyond `nn`)
+        let mut dt = [[Lanes4::default(); D]; TREE_MAX / 4];
         for (((&e, ge), pe), oe) in filter
             .iter()
             .zip(gs.chunks_exact(nq * D * D))
@@ -378,7 +384,9 @@ impl<const D: usize, const TS: usize> SimdTask for LaneResidualIntegrate<'_, D, 
             let je = &jac[e * nq..(e + 1) * nq];
             // the GEMV accumulators of the element: c = 0, then for every
             // point c = c + fl(r_q · J_q)
-            c[..nn].fill(Lanes4::splat(0.0));
+            for cg in c.iter_mut().take(groups) {
+                *cg = [Lanes4::splat(0.0); D];
+            }
             for (((dndx, gu), pk2), &jq) in de
                 .chunks_exact(bt)
                 .zip(ge.chunks_exact(D * D))
@@ -389,64 +397,77 @@ impl<const D: usize, const TS: usize> SimdTask for LaneResidualIntegrate<'_, D, 
                     let (i, j) = voigt[big_i];
                     pk2[i + j * D]
                 });
+                let (nodes, _) = dndx.as_chunks::<D>();
+                for (gi, dg) in dt.iter_mut().enumerate().take(groups) {
+                    for (i, di) in dg.iter_mut().enumerate() {
+                        *di = Lanes4(std::array::from_fn(|l| {
+                            nodes.get(4 * gi + l).map_or(0.0, |n| n[i])
+                        }));
+                    }
+                }
                 let jq = Lanes4::splat(jq);
-                for (a, ca) in c.iter_mut().enumerate().take(nn) {
-                    *ca = *ca + lane_point::<D, TS>(a, dndx, gu, &sv) * jq;
+                for (cg, dg) in c.iter_mut().zip(&dt).take(groups) {
+                    for (k, ck) in cg.iter_mut().enumerate() {
+                        *ck = *ck + node_lanes::<D, TS>(k, dg, gu, &sv) * jq;
+                    }
                 }
             }
             // res = 0 + c (zeroed destination)
-            for (oa, &ca) in oe.chunks_exact_mut(D).zip(&c) {
-                oa.copy_from_slice(&(Lanes4::splat(0.0) + ca).prefix::<D>());
+            for (a, oa) in oe.chunks_exact_mut(D).enumerate() {
+                for (k, o) in oa.iter_mut().enumerate() {
+                    *o = 0.0 + c[a / 4][k].0[a % 4];
+                }
             }
         }
     }
 }
 
-/// The residual entries `r(D·a + k)` of node `a` of one point, lane `k` =
-/// component `k`: per lane the statements of [`point`] for that column of
-/// `B` (the same operands in the same order; the shape derivatives of the
-/// node are the same in every lane, `∇u` enters by its column `g(·, j)`).
+/// The residual entries `r(D·a + k)` of one component `k` for four nodes
+/// `a` of one point, lane = node (`d[i]` holds the four nodes' `dN/dX_i`):
+/// per lane the statements of [`point`] for column `D·a + k` of `B` (the
+/// same operands in the same order; the selections of `B_L0` depend on
+/// `k` only, so they are the same in every lane).
 #[inline(always)]
-pub(super) fn lane_point<const D: usize, const TS: usize>(
-    a: usize,
-    dndx: &[Real],
+pub(super) fn node_lanes<const D: usize, const TS: usize>(
+    k: usize,
+    d: &[Lanes4; D],
     gu: &[Real],
     sv: &[Real; TS],
 ) -> Lanes4 {
-    let (cols, _) = gu.as_chunks::<D>();
-    let g = |j: usize| Lanes4::from_prefix(&cols[j]);
     let sp = Lanes4::splat;
-    let z = 0.0;
-    let mut b = [Lanes4::default(); TS];
+    let zero = sp(0.0);
+    // g(k, j) of the column-major `∇u`
+    let g = |j: usize| sp(gu[k + j * D]);
+    let mut b = [zero; TS];
     match D {
         1 => {
-            let dx = dndx[a];
-            b[0] = sp(dx) + g(0) * sp(dx);
+            let dx = d[0];
+            b[0] = dx + g(0) * dx;
         }
         2 => {
-            let (dx, dy) = (dndx[2 * a], dndx[2 * a + 1]);
+            let (dx, dy) = (d[0], d[1]);
             let (g0, g1) = (g(0), g(1));
-            b[0] = Lanes4([dx, z, z, z]) + g0 * sp(dx);
-            b[1] = Lanes4([z, dy, z, z]) + g1 * sp(dy);
-            let l2 = (sp(0.0) + g0 * sp(dy)) + g1 * sp(dx);
-            b[2] = Lanes4([dy, dx, z, z]) + l2;
+            b[0] = (if k == 0 { dx } else { zero }) + g0 * dx;
+            b[1] = (if k == 1 { dy } else { zero }) + g1 * dy;
+            let l2 = (zero + g0 * dy) + g1 * dx;
+            b[2] = (if k == 0 { dy } else { dx }) + l2;
         }
         _ => {
-            let (dx, dy, dz) = (dndx[3 * a], dndx[3 * a + 1], dndx[3 * a + 2]);
+            let (dx, dy, dz) = (d[0], d[1], d[2]);
             let (g0, g1, g2) = (g(0), g(1), g(2));
-            b[0] = Lanes4([dx, z, z, z]) + g0 * sp(dx);
-            b[1] = Lanes4([z, dy, z, z]) + g1 * sp(dy);
-            b[2] = Lanes4([z, z, dz, z]) + g2 * sp(dz);
-            let l3 = (sp(0.0) + g1 * sp(dz)) + g2 * sp(dy);
-            b[3] = Lanes4([z, dz, dy, z]) + l3;
-            let l4 = (sp(0.0) + g0 * sp(dz)) + g2 * sp(dx);
-            b[4] = Lanes4([dz, z, dx, z]) + l4;
-            let l5 = (sp(0.0) + g0 * sp(dy)) + g1 * sp(dx);
-            b[5] = Lanes4([dy, dx, z, z]) + l5;
+            b[0] = (if k == 0 { dx } else { zero }) + g0 * dx;
+            b[1] = (if k == 1 { dy } else { zero }) + g1 * dy;
+            b[2] = (if k == 2 { dz } else { zero }) + g2 * dz;
+            let l3 = (zero + g1 * dz) + g2 * dy;
+            b[3] = [zero, dz, dy][k] + l3;
+            let l4 = (zero + g0 * dz) + g2 * dx;
+            b[4] = [dz, zero, dx][k] + l4;
+            let l5 = (zero + g0 * dy) + g1 * dx;
+            b[5] = [dy, dx, zero][k] + l5;
         }
     }
     // r = B.transpose() * S_voight: lhs(c, I) = B(I, c), rhs(I, 0) = S_I
-    let mut p = [Lanes4::default(); TS];
+    let mut p = [zero; TS];
     for big_i in 0..TS {
         p[big_i] = b[big_i] * sp(sv[big_i]);
     }
@@ -631,17 +652,31 @@ mod tests {
         out
     }
 
-    /// [`lane_point`] for every node of one point, at every supported SIMD
-    /// level (`with_simd`), lanes `0..dim` stored node by node.
+    /// [`node_lanes`] for every node and component of one point, at every
+    /// supported SIMD level (`with_simd`), stored as `r(D·a + k)`.
     fn lanes_point(dim: usize, nn: usize, dndx: &[Real], gu: &[Real], pk2: &[Real]) -> Vec<Real> {
         struct Task<'a, const D: usize, const TS: usize>(usize, &'a [Real], &'a [Real], [Real; TS]);
         impl<const D: usize, const TS: usize> SimdTask for Task<'_, D, TS> {
             type Output = Vec<Real>;
             #[inline(always)]
             fn run(self) -> Vec<Real> {
-                let mut out = Vec::new();
-                for a in 0..self.0 {
-                    out.extend_from_slice(&lane_point::<D, TS>(a, self.1, self.2, &self.3).0[..D]);
+                let nn = self.0;
+                let mut out = vec![0.0; D * nn];
+                for gi in 0..nn.div_ceil(4) {
+                    let d: [Lanes4; D] = std::array::from_fn(|i| {
+                        Lanes4(std::array::from_fn(|l| {
+                            let a = 4 * gi + l;
+                            if a < nn { self.1[i + a * D] } else { 0.0 }
+                        }))
+                    });
+                    for k in 0..D {
+                        let r = node_lanes::<D, TS>(k, &d, self.2, &self.3);
+                        for l in 0..4 {
+                            if 4 * gi + l < nn {
+                                out[(4 * gi + l) * D + k] = r.0[l];
+                            }
+                        }
+                    }
                 }
                 out
             }
