@@ -96,6 +96,7 @@ use akantu_parser::param::{ParamDescriptor, ParameterAccess};
 
 use super::damage::{DamageParent, integrate_field};
 use super::elastic::{ElasticConstants, MaterialElastic};
+use super::scratch::ScratchBlocks;
 use super::thermal::{ThermalEnergy, thermal_energy_correction};
 use crate::material::{
     FiniteStrainPlasticity, J2ReducedReturn, LawOptions, Material, MaterialBase, MaterialFactory,
@@ -786,27 +787,9 @@ pub struct MaterialLinearIsotropicHardening<const DIM: usize> {
     pub sigma_y: Real,
     /// Per-block results of the return mapping before they are committed
     /// (kept between steps: no allocation, no page faults per step).
-    scratch: J2Scratch,
-}
-
-/// Scratch blocks of [`MaterialLinearIsotropicHardening::j2_block`]: the
-/// new stress, hardening and plastic strain of one `(type, ghost)` block,
-/// committed with [`InternalField::commit_overwrite`] (which leaves
-/// allocations of the same size here for the next call).
-#[derive(Clone, Debug, Default)]
-struct J2Scratch {
-    sigma: Array<Real>,
-    iso: Array<Real>,
-    inel: Array<Real>,
-}
-
-/// Size `a` to `nq` tuples of `nbc` values (contents unspecified unless
-/// the caller fills them).
-fn sized(a: &mut Array<Real>, nq: usize, nbc: usize) -> Result<()> {
-    if a.nb_component() != nbc {
-        *a = Array::new(nbc);
-    }
-    a.try_resize(nq, 0.0)
+    /// The new stress, hardening and plastic strain of a block
+    /// ([`Self::j2_block`]).
+    scratch: ScratchBlocks<3>,
 }
 
 impl<const DIM: usize> MaterialLinearIsotropicHardening<DIM> {
@@ -820,7 +803,7 @@ impl<const DIM: usize> MaterialLinearIsotropicHardening<DIM> {
             plastic: PlasticFields::new(DIM)?,
             h: 0.,
             sigma_y: 0.,
-            scratch: J2Scratch::default(),
+            scratch: ScratchBlocks::default(),
         })
     }
 
@@ -917,18 +900,19 @@ impl<const DIM: usize> MaterialLinearIsotropicHardening<DIM> {
             // every point writes all `n` values of its stress and plastic
             // strain: the scratch needs the current values only for a block
             // of another width (never for the registered fields)
-            sized(&mut scratch.sigma, nq, sigma_cur.nb_component())?;
+            let [sigma, iso, inel] = scratch.sized([
+                (nq, sigma_cur.nb_component()),
+                (nq, iso_cur.nb_component()),
+                (nq, inel_cur.nb_component()),
+            ])?;
             if sigma_cur.nb_component() != n {
-                scratch.sigma.copy_from(&sigma_cur)?;
+                sigma.copy_from(&sigma_cur)?;
             }
-            sized(&mut scratch.inel, nq, inel_cur.nb_component())?;
             if inel_cur.nb_component() != n {
-                scratch.inel.copy_from(&inel_cur)?;
+                inel.copy_from(&inel_cur)?;
             }
             // the hardening is read before it is written (UD-138)
-            sized(&mut scratch.iso, nq, iso_cur.nb_component())?;
-            scratch.iso.copy_from(&iso_cur)?;
-            let (sigma, iso, inel) = (&mut scratch.sigma, &mut scratch.iso, &mut scratch.inel);
+            iso.copy_from(&iso_cur)?;
             for q in 0..nq {
                 let r = q * n..(q + 1) * n;
                 let g: &Matrix<DIM, DIM> = as_matrix(&grad_u.as_slice()[r.clone()])?;
@@ -988,7 +972,7 @@ impl<const DIM: usize> MaterialLinearIsotropicHardening<DIM> {
         }
         let base = elastic.base_mut();
         base.sigma_field_mut()?
-            .commit_overwrite(ty, ghost, &mut scratch.sigma)?;
+            .commit_overwrite(ty, ghost, scratch.get_mut(0))?;
         if finite_legacy && let Some(gs) = &mut base.green_strain {
             let mut out = gs.get_mut(ty, ghost)?;
             for (o, g) in out.as_mut_slice().chunks_exact_mut(n).zip(&green_out) {
@@ -997,10 +981,10 @@ impl<const DIM: usize> MaterialLinearIsotropicHardening<DIM> {
         }
         plastic
             .iso_hardening
-            .commit_overwrite(ty, ghost, &mut scratch.iso)?;
+            .commit_overwrite(ty, ghost, scratch.get_mut(1))?;
         plastic
             .inelastic_strain
-            .commit_overwrite(ty, ghost, &mut scratch.inel)?;
+            .commit_overwrite(ty, ghost, scratch.get_mut(2))?;
         Ok(())
     }
 }
