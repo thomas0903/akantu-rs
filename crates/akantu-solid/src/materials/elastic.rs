@@ -37,6 +37,7 @@
 use std::sync::Arc;
 
 use akantu_core::enums::MatrixType;
+use akantu_core::exec::{Tuples, TuplesRef};
 use akantu_core::tensor::{Matrix, MatrixExt, SquareMatrixExt, as_matrix, as_matrix_mut};
 use akantu_core::{
     Array, Element, ElementType, ElementTypeMapArray, Error, GhostType, Idx, Real, Result,
@@ -266,6 +267,17 @@ impl<const DIM: usize> MaterialElastic<DIM> {
     /// Upstream `MaterialThermal<dim>::computeStress` for one block (also
     /// the thermal pre-step of the laws deriving from `MaterialElastic`).
     pub(crate) fn compute_thermal(&mut self, ty: ElementType, ghost: GhostType) -> Result<()> {
+        self.compute_thermal_with(akantu_core::exec::Exec::serial_ref(), ty, ghost)
+    }
+
+    /// [`Self::compute_thermal`] with the per-point loop split by `exec`
+    /// (every point from its own `ΔT`).
+    pub(crate) fn compute_thermal_with(
+        &mut self,
+        exec: &akantu_core::exec::Exec,
+        ty: ElementType,
+        ghost: GhostType,
+    ) -> Result<()> {
         let dt = self.delta_t.get(ty, ghost)?;
         let (mut eps, mut sig) = (
             self.epsilon_th.get_mut(ty, ghost)?,
@@ -278,19 +290,26 @@ impl<const DIM: usize> MaterialElastic<DIM> {
                 got: eps.len().min(sig.len()),
             });
         }
-        for ((d, e), s) in dt
-            .as_slice()
-            .iter()
-            .zip(eps.as_mut_slice())
-            .zip(sig.as_mut_slice())
-        {
-            (*e, *s) = thermal_on_quad::<DIM>(
-                &self.thermal,
-                self.plane_stress,
-                self.options.thermal_strain,
-                *d,
-            );
-        }
+        let (thermal, plane_stress, thermal_strain) = (
+            &self.thermal,
+            self.plane_stress,
+            self.options.thermal_strain,
+        );
+        let items = (
+            TuplesRef::new(dt.as_slice(), 1),
+            Tuples::new(eps.as_mut_slice(), 1),
+            Tuples::new(sig.as_mut_slice(), 1),
+        );
+        exec.for_each(items, 8192, |_, (dt, mut eps, mut sig)| {
+            for ((d, e), s) in dt
+                .as_slice()
+                .iter()
+                .zip(eps.as_mut_slice())
+                .zip(sig.as_mut_slice())
+            {
+                (*e, *s) = thermal_on_quad::<DIM>(thermal, plane_stress, thermal_strain, *d);
+            }
+        });
         Ok(())
     }
 }
@@ -536,11 +555,14 @@ impl<const DIM: usize> Material for MaterialElastic<DIM> {
 
     fn compute_stress(
         &mut self,
-        _ctx: &LawContext<'_>,
+        ctx: &LawContext<'_>,
         ty: ElementType,
         ghost: GhostType,
     ) -> Result<()> {
-        self.compute_thermal(ty, ghost)?;
+        // every point from its own data: the loops split over the model's
+        // threads (D-123)
+        let exec = crate::material::points_exec(self, ctx);
+        self.compute_thermal_with(exec, ty, ghost)?;
         let constants = self.constants();
         let n = DIM * DIM;
         let Self { base, sigma_th, .. } = self;
@@ -566,28 +588,43 @@ impl<const DIM: usize> Material for MaterialElastic<DIM> {
             stress
         }
         .get_mut(ty, ghost)?;
-        if grad_u.len() != sigma.len() || sigma_th.len() != sigma.len() {
+        if grad_u.len() != sigma.len()
+            || sigma_th.len() != sigma.len()
+            || grad_u.nb_component() != n
+            || sigma.nb_component() != n
+        {
             return Err(Error::DimensionMismatch {
                 context: "MaterialElastic::computeStress",
                 expected: grad_u.len(),
                 got: sigma.len(),
             });
         }
-        for ((g, s), &th) in grad_u
-            .as_slice()
-            .chunks_exact(n)
-            .zip(sigma.as_mut_slice().chunks_exact_mut(n))
-            .zip(sigma_th.as_slice())
-        {
-            let g: &Matrix<DIM, DIM> = as_matrix(g)?;
-            let s: &mut Matrix<DIM, DIM> = as_matrix_mut(s)?;
-            if finite {
-                constants.stress_on_quad(&grad_u_to_green(g), th, s);
-            } else {
-                constants.stress_on_quad(g, th, s);
+        let items = (
+            TuplesRef::new(grad_u.as_slice(), n),
+            Tuples::new(sigma.as_mut_slice(), n),
+            TuplesRef::new(sigma_th.as_slice(), 1),
+        );
+        exec.try_for_each(items, 2048, |_, (g, mut s, th)| {
+            for ((g, s), &th) in g
+                .as_slice()
+                .chunks_exact(n)
+                .zip(s.as_mut_slice().chunks_exact_mut(n))
+                .zip(th.as_slice())
+            {
+                let g: &Matrix<DIM, DIM> = as_matrix(g)?;
+                let s: &mut Matrix<DIM, DIM> = as_matrix_mut(s)?;
+                if finite {
+                    constants.stress_on_quad(&grad_u_to_green(g), th, s);
+                } else {
+                    constants.stress_on_quad(g, th, s);
+                }
             }
-        }
-        Ok(())
+            Ok(())
+        })
+    }
+
+    fn independent_points(&self) -> bool {
+        true
     }
 
     fn compute_tangent_moduli(

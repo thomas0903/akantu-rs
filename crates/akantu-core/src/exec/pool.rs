@@ -8,7 +8,7 @@
 
 use std::sync::{Arc, LazyLock, Mutex};
 
-use super::{ExecPolicy, Precision, SimdToken};
+use super::{ExecPolicy, Grain, Precision, SimdToken};
 use crate::error::{Error, Result};
 use crate::types::Real;
 
@@ -23,7 +23,25 @@ const PARTS_PER_THREAD: usize = 4;
 #[derive(Clone)]
 pub struct Exec {
     policy: ExecPolicy,
-    pool: Option<Arc<rayon::ThreadPool>>,
+    pool: Option<Pool>,
+}
+
+/// A shared pool. Unwind-safe: a panic in a region propagates to the caller
+/// after every part ended, and leaves no state of the pool that a later
+/// region could observe half-updated (the pool keeps no data of a region),
+/// so an `Exec` (and the engines and models holding one) stays usable after
+/// a caught panic, as before the pool existed.
+#[derive(Clone)]
+struct Pool(Arc<rayon::ThreadPool>);
+
+impl std::panic::UnwindSafe for Pool {}
+impl std::panic::RefUnwindSafe for Pool {}
+
+impl std::ops::Deref for Pool {
+    type Target = rayon::ThreadPool;
+    fn deref(&self) -> &rayon::ThreadPool {
+        &self.0
+    }
 }
 
 impl std::fmt::Debug for Exec {
@@ -68,7 +86,7 @@ impl Exec {
     /// The operating system refuses the threads.
     pub fn new(policy: ExecPolicy) -> Result<Self> {
         let pool = if policy.threads() > 1 {
-            Some(pool_of(policy.threads())?)
+            Some(Pool(pool_of(policy.threads())?))
         } else {
             None
         };
@@ -129,8 +147,11 @@ impl Exec {
         if self.pool.is_none() {
             return 1;
         }
-        let by_size = len / min_items.max(1);
-        by_size.clamp(1, self.threads() * PARTS_PER_THREAD)
+        let most = self.threads() * PARTS_PER_THREAD;
+        match self.policy.grain() {
+            Grain::Finest => len.clamp(1, most),
+            Grain::Auto => (len / min_items.max(1)).clamp(1, most),
+        }
     }
 
     /// Run `f(first, part)` on contiguous parts of `items` (a [`Split`]:
@@ -492,7 +513,13 @@ mod tests {
         for exec in execs() {
             let mut out = vec![0usize; 1000];
             let r = exec.try_for_each(Tuples::new(&mut out, 2), 1, |first, mut o| {
-                for (k, v) in o.as_mut_slice().as_chunks_mut::<2>().0.iter_mut().enumerate() {
+                for (k, v) in o
+                    .as_mut_slice()
+                    .as_chunks_mut::<2>()
+                    .0
+                    .iter_mut()
+                    .enumerate()
+                {
                     let i = first + k;
                     if i == 123 || i == 400 {
                         return Err(Error::invalid(format!("item {i}")));
@@ -506,6 +533,17 @@ mod tests {
                 Error::invalid("item 123").to_string()
             );
         }
+    }
+
+    #[test]
+    fn finest_grain_splits_small_batches() {
+        let p = ExecPolicy::serial().with_threads(2).unwrap();
+        let auto = Exec::new(p).unwrap();
+        let finest = Exec::new(p.with_grain(super::super::Grain::Finest)).unwrap();
+        assert_eq!(auto.nb_parts(10, 1000), 1);
+        assert_eq!(finest.nb_parts(10, 1000), 8);
+        assert_eq!(finest.nb_parts(3, 1000), 3);
+        assert_eq!(Exec::serial().nb_parts(10, 1), 1);
     }
 
     #[test]
@@ -553,8 +591,8 @@ mod tests {
         let p = ExecPolicy::serial().with_threads(3).unwrap();
         let (a, b) = (Exec::new(p).unwrap(), Exec::new(p).unwrap());
         assert!(Arc::ptr_eq(
-            a.pool.as_ref().unwrap(),
-            b.pool.as_ref().unwrap()
+            &a.pool.as_ref().unwrap().0,
+            &b.pool.as_ref().unwrap().0
         ));
         assert!(!Exec::serial().is_parallel());
     }

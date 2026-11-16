@@ -333,7 +333,7 @@ impl FeEngine {
             nq,
         )?;
         with_element_class!(ty, E => {
-            gradient_kernel::<E>(&block, u.as_slice(), nb_dof, dshapes.as_slice(), nq, &ids, reduction, out)
+            gradient_kernel::<E>(&self.exec, &block, u.as_slice(), nb_dof, dshapes.as_slice(), nq, &ids, reduction, out)
         }, else Err(Error::UnsupportedElementType { ty, context: "gradient_on_integration_points" }))
     }
 
@@ -363,6 +363,7 @@ impl FeEngine {
             nb_dof,
         )?;
         integrate_with_jacobians(
+            &self.exec,
             f.as_slice(),
             nb_dof,
             nq,
@@ -430,6 +431,7 @@ impl FeEngine {
         }, else Err(Error::UnsupportedElementType { ty, context: "integrate_with_order" }))?;
         super::multiply_by_weights(&mut jac, &rule.weights, &ids);
         integrate_with_jacobians(
+            &self.exec,
             f.as_slice(),
             nb_dof,
             nq,
@@ -506,7 +508,7 @@ impl FeEngine {
         prepare_out(out, d.len(), r * nn)?;
         let (bs, ds, os) = (dsh.as_slice(), d.as_slice(), out.as_mut_slice());
         // The common route with fixed-size loops (bitwise the same)
-        if super::fast::btd(r, sdim, nn, &ids, nq, bs, ds, os).is_some() {
+        if super::fast::btd(&self.exec, r, sdim, nn, &ids, nq, bs, ds, os).is_some() {
             return Ok(());
         }
         let bsz = sdim * nn;
@@ -758,17 +760,18 @@ impl FeEngine {
 
 /// Per-element integrals `out_e = Σ_q f_{e,q} J_{e,q}` (GEMV, from `+0`).
 pub(crate) fn integrate_with_jacobians<'j>(
+    exec: &akantu_core::exec::Exec,
     f: &[Real],
     nb_dof: usize,
     nq: usize,
-    jac: impl Fn(usize) -> &'j [Real],
+    jac: impl Fn(usize) -> &'j [Real] + Sync,
     nb_element: usize,
     out: &mut Array<Real>,
 ) -> Result<()> {
     prepare_out(out, nb_element, nb_dof)?;
     let o = out.as_mut_slice();
     // The common route with plain loops (bitwise the same)
-    if super::fast::integrate(f, nb_dof, nq, &jac, nb_element, o).is_some() {
+    if super::fast::integrate(exec, f, nb_dof, nq, &jac, nb_element, o).is_some() {
         return Ok(());
     }
     for pos in 0..nb_element {
@@ -830,6 +833,7 @@ impl GradientOut<'_> {
 /// (`U`: `Map<Matrix<Dynamic, nn>>`, `B`: `Map<Matrix<nd, nn>>`).
 #[allow(clippy::too_many_arguments)]
 fn gradient_kernel<E: LagrangeElement>(
+    exec: &akantu_core::exec::Exec,
     block: &Block<'_>,
     u: &[Real],
     nb_dof: usize,
@@ -848,7 +852,7 @@ fn gradient_kernel<E: LagrangeElement>(
     let o = out.prepare(ids.len() * nq, nb_dof * nd)?;
     // The common route with fixed-size loops (bitwise the same)
     if reduction.is_none()
-        && let Some(r) = super::fast::gradient::<E>(block, u, nb_dof, dshapes, nq, ids, o)
+        && let Some(r) = super::fast::gradient::<E>(exec, block, u, nb_dof, dshapes, nq, ids, o)
     {
         return r;
     }

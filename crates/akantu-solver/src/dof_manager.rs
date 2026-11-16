@@ -348,6 +348,9 @@ pub struct DofManager {
     mesh_periodic: bool,
     /// Scratch vector over local equations (upstream `data_cache`).
     data_cache: Vec<Real>,
+    /// How the per-equation loops of the integration schemes run (D-123):
+    /// serial until the owning model sets its executor.
+    exec: akantu_core::exec::Exec,
     /// Blocked local equations, sorted and unique (upstream
     /// `global_blocked_dofs_indexes`), snapshot of the last
     /// [`DofManager::update_global_blocked_dofs`].
@@ -754,7 +757,21 @@ impl DofManager {
             jacobian_release: 0,
             numbered_distributed: None,
             compat: UpstreamCompat::default(),
+            exec: akantu_core::exec::Exec::serial(),
         }
+    }
+
+    /// How the per-equation loops (integration-scheme updates) run.
+    #[must_use]
+    pub fn exec(&self) -> &akantu_core::exec::Exec {
+        &self.exec
+    }
+
+    /// Set how the per-equation loops run (the owning model's executor,
+    /// D-123); every result is the same for every thread count in
+    /// [`akantu_core::exec::Precision::Bitwise`].
+    pub fn set_exec(&mut self, exec: akantu_core::exec::Exec) {
+        self.exec = exec;
     }
 
     /// Upstream-compatibility switches of the solvers working with this

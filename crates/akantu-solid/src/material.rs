@@ -982,6 +982,19 @@ fn grad_u_in_place(
     Ok(true)
 }
 
+/// The executor of a law's per-point loop: the model's when the law
+/// declares [`Material::independent_points`], else the serial one (D-123).
+pub fn points_exec<'a, M: Material + ?Sized>(
+    law: &M,
+    ctx: &'a LawContext<'_>,
+) -> &'a akantu_core::exec::Exec {
+    if law.independent_points() {
+        ctx.services.exec()
+    } else {
+        akantu_core::exec::Exec::serial_ref()
+    }
+}
+
 /// Built-in laws: a static parameter table on top of [`BASE_PARAMS`]
 /// (upstream registers the parameters of every class of the hierarchy in
 /// one registry).
@@ -1235,6 +1248,15 @@ pub trait Material: ConstitutiveLaw {
         ty: ElementType,
         ghost: GhostType,
     ) -> Result<()>;
+
+    /// The law's declaration for threads (D-123): `true` when
+    /// [`Material::compute_stress`] updates every quadrature point from that
+    /// point's own data (no state shared between points, no non-local term,
+    /// no reduction), so its per-point loop may run on the model's threads
+    /// ([`points_exec`]). Default `false`: the loop stays serial.
+    fn independent_points(&self) -> bool {
+        false
+    }
 
     /// Tangent moduli per quadrature point, column-major Voigt matrices
     /// (`tangent` has one tuple of `voigt²` values per quadrature point of

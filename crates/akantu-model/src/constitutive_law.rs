@@ -753,6 +753,13 @@ pub trait ConstitutiveLaw: Parsable + std::fmt::Debug + Send {
 /// never holds across the scope end, and `try_*` acquisition, are fine
 /// (ARCHITECTURE).
 pub trait ModelServices: Sync {
+    /// How the laws' per-point loops may run (D-123): the model's
+    /// executor; serial by default. A law uses it only for a loop whose
+    /// points are independent (the law's declaration, e.g.
+    /// `Material::independent_points` of the solid laws).
+    fn exec(&self) -> &akantu_core::exec::Exec {
+        akantu_core::exec::Exec::serial_ref()
+    }
     /// Spatial dimension of the model.
     fn spatial_dimension(&self) -> usize;
     /// The mesh (read-only for the phase).

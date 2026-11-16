@@ -23,6 +23,7 @@
 
 use akantu_core::eigen_gebp::{Reduction, Route};
 use akantu_core::eigen_unrolled::{TREE_MAX, tree_sum};
+use akantu_core::exec::{Tuples, TuplesRef};
 use akantu_core::voigt::VoigtTable;
 use akantu_core::{Idx, Real};
 use akantu_fe::eigen::{Dims, product_route};
@@ -34,7 +35,9 @@ use super::{Derivatives, Sizes};
 /// the stored `grad_u` (`gs`) and `piola_kirchhoff_2` (`ps`). `None` when
 /// the product route is not the halving tree, `nn > 32`, `dim ∉ 1…3` or a
 /// buffer has an unexpected length (the caller then runs the general path).
+#[allow(clippy::too_many_arguments)] // the general path's arguments and the executor
 pub(super) fn residuals(
+    exec: &akantu_core::exec::Exec,
     s: &Sizes,
     table: &VoigtTable,
     dsh: &Derivatives<'_>,
@@ -56,14 +59,41 @@ pub(super) fn residuals(
     {
         return None;
     }
-    match s.dim {
-        1 => run::<1, 1>(s, table, dsh, filter, gs, ps, out),
-        2 => run::<2, 3>(s, table, dsh, filter, gs, ps, out),
-        3 => run::<3, 6>(s, table, dsh, filter, gs, ps, out),
+    let run: ResidualPart = match s.dim {
+        1 => run::<1, 1>,
+        2 => run::<2, 3>,
+        3 => run::<3, 6>,
         _ => return None,
+    };
+    if s.nq == 0 || s.bt == 0 {
+        return None;
     }
+    // every quadrature point from its own data: contiguous parts of the
+    // filter on the executor's threads (D-123)
+    let items = (
+        TuplesRef::new(filter, 1),
+        TuplesRef::new(gs, s.nq * d2),
+        TuplesRef::new(ps, s.nq * d2),
+        Tuples::new(out, s.nq * s.bt),
+    );
+    let min = (2048 / s.nq).max(1);
+    exec.for_each(items, min, |_, (f, g, p, mut o)| {
+        run(
+            s,
+            table,
+            dsh,
+            f.as_slice(),
+            g.as_slice(),
+            p.as_slice(),
+            o.as_mut_slice(),
+        );
+    });
     Some(())
 }
+
+/// One part of [`residuals`].
+type ResidualPart =
+    fn(&Sizes, &VoigtTable, &Derivatives<'_>, &[Idx], &[Real], &[Real], &mut [Real]);
 
 fn run<const D: usize, const TS: usize>(
     s: &Sizes,

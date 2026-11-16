@@ -20,6 +20,7 @@ use akantu_comm::ReduceOp;
 use akantu_core::array_shared::ArrayMut;
 use akantu_core::enums::MatrixType;
 use akantu_core::error::if_present;
+use akantu_core::exec::NodeScatter;
 use akantu_core::{Array, Element, ElementKind, ElementType, Error, GhostType, Idx, Real, Result};
 use akantu_fe::FeEngine;
 use akantu_mesh::Mesh;
@@ -50,6 +51,100 @@ pub(crate) struct AssemblyScratch {
     pub(crate) per_point: Array<Real>,
     /// Integrated element vectors.
     pub(crate) per_element: Array<Real>,
+    /// Node-ordered scatter tables of the threaded assembly (D-123), per
+    /// `(law, type, ghost)`; built on first use with more than one thread.
+    pub(crate) scatters: std::collections::HashMap<(usize, ElementType, GhostType), ScatterEntry>,
+}
+
+/// A cached [`NodeScatter`] with what it was built from: the mesh topology
+/// revision and the law's filter. The table is reused while both are
+/// unchanged and the connectivity is not exported (foreign code could write
+/// it without a revision); otherwise it is checked row by row against the
+/// connectivity ([`NodeScatter::matches`]) and rebuilt when it differs.
+pub(crate) struct ScatterEntry {
+    revision: u64,
+    filter: Vec<Idx>,
+    table: NodeScatter,
+}
+
+/// `f_int −= ∫ Bᵀσ` of one block: the serial scatter, or with more than one
+/// thread the node-ordered scatter (same additions in the same order per
+/// node, D-123) with its table from the cache.
+#[allow(clippy::too_many_arguments)] // the block, its table cache and the output
+fn scatter_block(
+    exec: &akantu_core::exec::Exec,
+    mesh: &Mesh,
+    r_e: &Array<Real>,
+    f_int: &mut ArrayMut<'_, Real>,
+    ty: ElementType,
+    ghost: GhostType,
+    filter: &[Idx],
+    key: (usize, ElementType, GhostType),
+    scatters: &mut std::collections::HashMap<(usize, ElementType, GhostType), ScatterEntry>,
+) -> Result<()> {
+    if !exec.is_parallel() {
+        return DofManager::assemble_elemental_array_local_view(
+            mesh,
+            r_e.view(),
+            f_int.view_mut(),
+            ty,
+            ghost,
+            -1.0,
+            Some(filter),
+        );
+    }
+    let conn = mesh.connectivity(ty, ghost)?;
+    let nnpe = conn.nb_component();
+    let nb_nodes = f_int.len();
+    let nb_dof = r_e.nb_component().checked_div(nnpe).unwrap_or(0);
+    if nnpe == 0 || !r_e.nb_component().is_multiple_of(nnpe) || f_int.nb_component() != nb_dof {
+        // the serial routine reports the mismatch
+        return DofManager::assemble_elemental_array_local_view(
+            mesh,
+            r_e.view(),
+            f_int.view_mut(),
+            ty,
+            ghost,
+            -1.0,
+            Some(filter),
+        );
+    }
+    let revision = mesh.revision();
+    let exported = mesh.connectivities().shared(ty, ghost)?.is_exported();
+    let (cs, fl) = (conn.as_slice(), Some(filter));
+    let valid = scatters.get_mut(&key).is_some_and(|e| {
+        let same = e.revision == revision && !exported && e.filter.as_slice() == filter;
+        if same || e.table.matches(exec, cs, nnpe, fl, nb_nodes) {
+            e.revision = revision;
+            if !same {
+                e.filter.clear();
+                e.filter.extend_from_slice(filter);
+            }
+            true
+        } else {
+            false
+        }
+    });
+    if !valid {
+        scatters.insert(
+            key,
+            ScatterEntry {
+                revision,
+                filter: filter.to_vec(),
+                table: NodeScatter::new(cs, nnpe, fl, nb_nodes)?,
+            },
+        );
+    }
+    let entry = scatters
+        .get(&key)
+        .ok_or_else(|| Error::invalid("internal force assembly: scatter table missing"))?;
+    debug_assert!(
+        entry.table.matches(exec, cs, nnpe, fl, nb_nodes),
+        "stale node scatter table of {ty:?} {ghost:?}"
+    );
+    entry
+        .table
+        .scatter_add(exec, r_e.as_slice(), nb_dof, -1.0, f_int.as_mut_slice())
 }
 
 impl std::fmt::Debug for AssemblyScratch {
@@ -350,7 +445,7 @@ impl SolidMechanicsPhysics {
             .ok_or_else(|| not_allocated("internal_force"))?
             .write()?;
         for ghost in GhostType::ALL {
-            for law in self.materials.laws() {
+            for (law_index, law) in self.materials.laws().iter().enumerate() {
                 // laws with their own residual (cohesive laws)
                 // assemble at their position in the loop (upstream virtual
                 // `Material::assembleInternalForces`)
@@ -364,6 +459,7 @@ impl SolidMechanicsPhysics {
                     continue;
                 }
                 assemble_internal_forces_of(
+                    law_index,
                     law.as_ref(),
                     fe,
                     &mesh,
@@ -662,7 +758,9 @@ pub(crate) fn nb_quad_map(
 /// (`computeBtD` on `stress`), integrated, assembled with `−1`; finite
 /// deformation: the total-Lagrangian residual. `scratch` holds the
 /// intermediate arrays between calls (fully overwritten by each use).
+#[allow(clippy::too_many_arguments)] // the law and its index, the block, the output, the buffers
 pub(crate) fn assemble_internal_forces_of(
+    law_index: usize,
     law: &dyn Material,
     fe: &FeEngine,
     mesh: &Mesh,
@@ -687,6 +785,7 @@ pub(crate) fn assemble_internal_forces_of(
         let AssemblyScratch {
             per_point,
             per_element: r_e,
+            scatters,
         } = &mut *scratch;
         if law.base().finite_deformation {
             finite_deformation::internal_forces(law, fe, dim, ty, ghost, &filter, per_point, r_e)?;
@@ -698,14 +797,16 @@ pub(crate) fn assemble_internal_forces_of(
             fe.compute_btd(stress.view(), sigma_dphi, ty, ghost, Some(&filter))?;
             fe.integrate(sigma_dphi.view(), r_e, dim * nn, ty, ghost, Some(&filter))?;
         }
-        DofManager::assemble_elemental_array_local_view(
+        scatter_block(
+            fe.exec(),
             mesh,
-            r_e.view(),
-            f_int.view_mut(),
+            r_e,
+            f_int,
             ty,
             ghost,
-            -1.0,
-            Some(&filter),
+            &filter,
+            (law_index, ty, ghost),
+            scatters,
         )?;
     }
     Ok(())

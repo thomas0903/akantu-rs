@@ -240,7 +240,7 @@ impl FeEngine {
             compute_jacobians::<E>(&block, &rule, kind, &ids, &ids, &mut jac)?;
             multiply_by_weights(&mut jac, &rule.weights, &ids);
             let mut out = Array::new(lmat * lmat);
-            integrate_with_jacobians(local.as_slice(), lmat * lmat, nq, |e| &jac[e * nq..(e + 1) * nq], ne, &mut out)?;
+            integrate_with_jacobians(&self.exec, local.as_slice(), lmat * lmat, nq, |e| &jac[e * nq..(e + 1) * nq], ne, &mut out)?;
             Ok(out)
         }, else Err(Error::UnsupportedElementType { ty, context: "field_matrix_elemental" }))
     }

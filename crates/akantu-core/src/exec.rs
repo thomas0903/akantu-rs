@@ -54,6 +54,34 @@ pub const ENV_THREADS: &str = "AKANTU_NUM_THREADS";
 pub const ENV_PRECISION: &str = "AKANTU_PRECISION";
 /// Environment variable of the process default SIMD level.
 pub const ENV_SIMD: &str = "AKANTU_SIMD";
+/// Environment variable of the process default [`Grain`].
+pub const ENV_GRAIN: &str = "AKANTU_EXEC_GRAIN";
+
+/// How finely a threaded batch is split.
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Hash, Default)]
+pub enum Grain {
+    /// Parts of at least the kernel's minimum size (tens of microseconds of
+    /// work), at most a few per thread (default).
+    #[default]
+    Auto,
+    /// Every batch of more than one item is split into the largest number of
+    /// parts, whatever its size: for tests of the thread-count invariant on
+    /// small cases (slower).
+    Finest,
+}
+
+impl std::str::FromStr for Grain {
+    type Err = Error;
+    fn from_str(s: &str) -> Result<Self> {
+        match s.trim().to_ascii_lowercase().as_str() {
+            "auto" => Ok(Self::Auto),
+            "finest" => Ok(Self::Finest),
+            other => Err(Error::invalid(format!(
+                "grain `{other}`: expected `auto` or `finest`"
+            ))),
+        }
+    }
+}
 
 /// Precision mode of the kernels (D-122).
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Hash, Default)]
@@ -97,6 +125,7 @@ pub struct ExecPolicy {
     precision: Precision,
     threads: NonZeroUsize,
     simd: SimdToken,
+    grain: Grain,
 }
 
 impl Default for ExecPolicy {
@@ -118,13 +147,15 @@ impl ExecPolicy {
             precision: Precision::Bitwise,
             threads: NonZeroUsize::MIN,
             simd: SimdToken::detected(),
+            grain: Grain::Auto,
         }
     }
 
     /// The policy the environment describes: `AKANTU_NUM_THREADS` (a
     /// positive integer, default 1), `AKANTU_PRECISION` (`bitwise`, the
     /// default, or `fast`), `AKANTU_SIMD` (`auto`, the default, `scalar`,
-    /// `avx2`, `avx512`, `neon`; a level the CPU lacks is an error). An
+    /// `avx2`, `avx512`, `neon`; a level the CPU lacks is an error),
+    /// `AKANTU_EXEC_GRAIN` (`auto`, the default, or `finest`, [`Grain`]). An
     /// empty variable counts as unset.
     ///
     /// # Errors
@@ -163,6 +194,12 @@ impl ExecPolicy {
             p = p
                 .with_simd(level)
                 .map_err(|e| Error::invalid(format!("{ENV_SIMD}: {e}")))?;
+        }
+        if let Some(v) = get(ENV_GRAIN) {
+            p = p.with_grain(
+                v.parse()
+                    .map_err(|e| Error::invalid(format!("{ENV_GRAIN}: {e}")))?,
+            );
         }
         Ok(p)
     }
@@ -229,6 +266,19 @@ impl ExecPolicy {
             ))
         })?;
         Ok(self)
+    }
+
+    /// With another [`Grain`].
+    #[must_use]
+    pub const fn with_grain(mut self, grain: Grain) -> Self {
+        self.grain = grain;
+        self
+    }
+
+    /// How finely threaded batches are split.
+    #[must_use]
+    pub const fn grain(&self) -> Grain {
+        self.grain
     }
 
     /// Precision mode.
@@ -303,6 +353,7 @@ mod tests {
             [(ENV_THREADS, "100000")],
             [(ENV_PRECISION, "fastest")],
             [(ENV_SIMD, "sse9")],
+            [(ENV_GRAIN, "coarse")],
         ] {
             let e = ExecPolicy::from_lookup(env(&pairs)).unwrap_err();
             assert!(e.to_string().contains(pairs[0].0), "{e}");
