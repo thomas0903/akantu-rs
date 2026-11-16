@@ -135,3 +135,51 @@ Readings:
 - Phase field: the staggered step is the two sparse direct solves (serial
   sparse LU, unchanged); the solid model's internal forces (the
   phase-field law's stress) reach 0.45–0.55 at 4–8 threads.
+
+## After the merge of the per-step state work (base 3443d417b)
+
+The branch was merged with `perf/wave2-base` 3443d417b, which keeps the
+law blocks between steps and commits whole-block results by swap
+(`InternalField::prepare_overwrite` / `commit_overwrite`, scratch blocks
+of the plastic, SLS, Marigo and Maxwell laws). The threaded loops run
+inside that storage: guards, scratch sizing and loads on the calling
+thread before the parts, the parts writing disjoint ranges of the
+scratch, the commits once on the calling thread after every part
+succeeded (`docs/ARCHITECTURE.md`, "Execution policy").
+
+Evidence: the thread tests compare the current and previous values of
+every internal field at 1, 2, 3, 4 and 8 threads, finest and automatic
+grain, with deferred history saves and with saves by copy (blocks
+exported to a foreign runtime, at 1, 4 and 8 threads), error paths
+included; a new error path for the plastic scratch blocks (plane stress
+with a softening hardening). The 41 serial reference states of the solid
+law tests (`AKANTU_TEST_STATE_DUMP`, 9 of them error paths, previous
+values included) are identical for the merged head and for the base
+3443d417b running the same test file. Mutants: `mutants-merged.log` (24,
+all caught, including one that commits the plastic scratch blocks
+although a part failed; it survived the first version of the plastic
+error-path case, which started from rest so that every committed point
+was zero, and is caught by the loaded case).
+
+Series: same machine and method as above, base 3443d417b at one thread,
+head 8ebac225 (the library code of the final head), the cases whose
+serial share the state work removed; raw data and tables in
+`series/after-merge-8ebac225/`.
+
+| case | base 3443d417b, 1 thread | head, 1 thread | 2 threads | 4 threads | 8 threads |
+|---|---|---|---|---|---|
+| `explicit_marigo` | 1.581 s [1.576 s, 1.721 s] | 0.957 [0.877, 0.961] | 0.588 [0.555, 0.615] | 0.466 [0.436, 0.475] | 0.401 [0.365, 0.406] |
+| `explicit_maxwell` | 533.86 ms [531.40 ms, 535.27 ms] | 0.912 [0.906, 0.916] | 0.523 [0.519, 0.531] | 0.376 [0.369, 0.376] | 0.339 [0.337, 0.544] |
+| `explicit_mazars` | 2.697 s [2.692 s, 2.704 s] | 0.987 [0.981, 0.990] | 0.539 [0.537, 0.544] | 0.341 [0.340, 0.343] | 0.237 [0.235, 0.237] |
+| `explicit_multi_material` | 2.000 s [1.995 s, 2.007 s] | 0.987 [0.984, 1.016] | 0.552 [0.549, 0.556] | 0.355 [0.349, 0.356] | 0.254 [0.253, 0.350] |
+| `explicit_neohookean` | 1.026 s [1.022 s, 1.032 s] | 1.012 [0.997, 1.028] | 0.587 [0.581, 0.610] | 0.367 [0.362, 0.373] | 0.253 [0.250, 0.268] |
+| `explicit_plastic` | 990.59 ms [987.83 ms, 992.32 ms] | 0.989 [0.984, 1.126] | 0.609 [0.608, 0.612] | 0.441 [0.399, 0.443] | 0.386 [0.383, 0.386] |
+| `explicit_sls` | 851.19 ms [825.87 ms, 856.47 ms] | 0.887 [0.849, 1.008] | 0.516 [0.504, 0.532] | 0.381 [0.354, 0.395] | 0.358 [0.355, 0.367] |
+| `heat_explicit_tet4` | 883.84 ms [882.29 ms, 890.85 ms] | 0.996 [0.992, 0.999] | 0.598 [0.575, 0.600] | 0.407 [0.404, 0.408] | 0.347 [0.345, 0.348] |
+
+Readings: with the per-step block copies and allocations gone, the laws
+that were bound by them now scale (8 threads: Marigo 0.40, Maxwell 0.34,
+plastic 0.39, SLS 0.36, against 0.86, 0.72, 0.74, 0.65 before the merge).
+One thread is within noise of the base or faster (Maxwell 0.91 and SLS
+0.89: their point kernels inlined in the part functions of the threaded
+path); neo-Hookean 1.012 [0.997, 1.028] is inside the spread.
