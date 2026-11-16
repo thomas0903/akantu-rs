@@ -260,6 +260,24 @@ Ranked by share of the profile; none was worked on.
 7. The insertion check's stress interpolation used the general product per
    point; reworked in the performance campaign (next section).
 
+### The explicit step after the lane kernels and the element-block pass (2026-11-16)
+
+Items 1–4 of the list above were worked on with bitwise identical results
+at every thread count and SIMD level
+(`docs/benchmarks/perf-campaign/explicit/README.md`): the batch kernels
+check their ids and connectivity once and run lane kernels (AVX2 at run
+time, no FMA; packed for the integrated `BᵀD` and residual, partly or not
+for the gradient), `BᵀD` and the finite-deformation residual are integrated as
+they are computed, `grad_u −= eigen_grad_u` is applied in the gradient's
+lanes, and one elastic law on one element type runs gradient, stress and
+integration per cache-sized block of elements. On an AMD EPYC 7B13 at one
+thread the step takes 0.74–0.83 (small strain) and 0.52–0.72 (finite
+deformation) of its time before this work, and 0.34–0.43 and 0.16–0.26
+of the strict C++ time; at 2–8 threads (`AKANTU_NUM_THREADS`) 0.54–0.86. The fast mode
+(`AKANTU_PRECISION=fast`) takes 0.84–0.99 of the bitwise step. Items 5 and
+6 (per-node solver loops, history copies) remain the serial part of a
+threaded step.
+
 ### The insertion check (performance campaign, 2026-11-16)
 
 `check_cohesive_stress` (facet stresses, the laws' insertion decision, the
