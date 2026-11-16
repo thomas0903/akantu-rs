@@ -93,6 +93,7 @@ use akantu_core::{
     MAX_LOCAL_COUNT, NodeFlag, Real, Result,
 };
 use akantu_linalg::direct::SparseSolverCompat;
+use akantu_linalg::sparse::BlockPositionCache;
 use akantu_linalg::{
     EquationLayout, EquationOwnership, NoReduction, PartialSumReduction, SolverVector,
     SparseMatrixAij, TermsToAssemble,
@@ -323,6 +324,11 @@ pub struct DofManager {
     lumped_blocks: BTreeMap<Id, LumpedBlockCouplings>,
     backend: Box<dyn LinearSystemBackend>,
     profiled: BTreeSet<(Id, Id, ElementType, GhostType)>,
+    /// Entry positions of the elemental blocks per assembly key (same key
+    /// as `profiled`), for repeated assemblies into an unchanged profile.
+    assembly_caches: BTreeMap<(Id, Id, ElementType, GhostType), BlockPositionCache>,
+    /// Whether `assembly_caches` is used ([`DofManager::set_assembly_cache`]).
+    assembly_cache_enabled: bool,
     /// Declared type of every matrix.
     declared: BTreeMap<Id, MatrixType>,
     /// `source → derived` matrices (promotion propagation).
@@ -746,6 +752,8 @@ impl DofManager {
             lumped_blocks: BTreeMap::new(),
             backend,
             profiled: BTreeSet::new(),
+            assembly_caches: BTreeMap::new(),
+            assembly_cache_enabled: true,
             declared: BTreeMap::new(),
             derived: BTreeMap::new(),
             node_sync: None,
@@ -1685,7 +1693,104 @@ impl DofManager {
             self.backend.reset_profile(&id, size)?;
         }
         self.profiled.clear();
+        self.assembly_caches.clear();
         Ok(())
+    }
+
+    /// Release the analysis and the factorisation of the sparse solver of
+    /// matrix `matrix_id` (port extension; upstream keeps them for the
+    /// solver's lifetime, and so does the library unless this is called):
+    /// for a caller that will not solve with them again, e.g. after the
+    /// static preload of an explicit run. A later solve analyses and
+    /// factorises again, with the same results. Collective: every rank
+    /// calls it at the same program point, outside any collective
+    /// operation of this manager (the MUMPS instance is destroyed with an
+    /// agreed `JOB = -2`). The SparseLU and faer solvers release their
+    /// factors locally; a backend without the operation (PETSc) returns
+    /// [`Error::Unsupported`].
+    pub fn release_factorization(&mut self, matrix_id: &str) -> Result<()> {
+        self.check_idle("release_factorization")?;
+        self.check_matrix(matrix_id)?;
+        self.backend.release_factorization(matrix_id)
+    }
+
+    /// Release the storage of matrix `matrix_id` (profile, values, lookup
+    /// map, cached element positions): the matrix stays declared, its
+    /// releases change, and its next assembly profiles it again (port
+    /// extension, for a matrix that is not read again before being
+    /// re-assembled). The caller must make sure that whoever assembles it
+    /// assembles it again before it is used (see
+    /// `SolidMechanicsModel::release_static_solver`).
+    pub fn release_matrix(&mut self, matrix_id: &str) -> Result<()> {
+        self.check_poison()?;
+        self.check_matrix(matrix_id)?;
+        let size = self.layout.system_size();
+        self.backend.release_matrix_storage(matrix_id, size)?;
+        self.profiled.retain(|k| k.0 != matrix_id);
+        self.assembly_caches.retain(|k, _| k.0 != matrix_id);
+        Ok(())
+    }
+
+    /// Release the values and the lookup map of matrix `matrix_id` and its
+    /// cached element positions, keeping its profile: the coordinates in
+    /// storage order (16 bytes per entry) and the record of what was
+    /// profiled (port extension). The next assembly finds every entry at
+    /// its former position, so the matrix and every solve with it come
+    /// back bit for bit, whatever the history of the profile (entries
+    /// appended later, a promotion to unsymmetric storage). The caller
+    /// must make sure the matrix is assembled again before it is read
+    /// (see `SolidMechanicsModel::release_static_solver`); until then
+    /// products and solves with it return an error.
+    pub fn release_matrix_values(&mut self, matrix_id: &str) -> Result<()> {
+        self.check_poison()?;
+        self.check_matrix(matrix_id)?;
+        self.backend.release_matrix_values(matrix_id)?;
+        self.assembly_caches.retain(|k, _| k.0 != matrix_id);
+        Ok(())
+    }
+
+    fn check_idle(&self, what: &str) -> Result<()> {
+        self.check_poison()?;
+        match self.active {
+            ScopeSlot::Idle => Ok(()),
+            _ => Err(Error::invalid(format!(
+                "DOF manager '{}': {what} must be called outside a collective operation",
+                self.id
+            ))),
+        }
+    }
+
+    /// Enable (default) or disable the cache of entry positions of
+    /// elemental matrix assembly ([`BlockPositionCache`]: from the second
+    /// assembly with an unchanged profile, 4 bytes per assembled elemental
+    /// entry and per element equation, e.g. 360 bytes per `Tetrahedron4`
+    /// element of a 3-D solid). Results are identical either way; disabling
+    /// releases the stored positions.
+    pub fn set_assembly_cache(&mut self, enabled: bool) {
+        self.assembly_cache_enabled = enabled;
+        if !enabled {
+            self.assembly_caches.clear();
+        }
+    }
+
+    /// Number of element blocks whose entry positions were looked up and
+    /// stored by the assembly position caches since they were created
+    /// (diagnostic: an assembly into an unchanged profile adds none).
+    #[must_use]
+    pub fn assembly_cache_resolves(&self) -> u64 {
+        self.assembly_caches
+            .values()
+            .map(BlockPositionCache::resolves)
+            .sum()
+    }
+
+    /// Bytes held by the assembly position caches.
+    #[must_use]
+    pub fn assembly_cache_bytes(&self) -> usize {
+        self.assembly_caches
+            .values()
+            .map(BlockPositionCache::memory_bytes)
+            .sum()
     }
 
     /// Create a matrix (upstream `getNewMatrix(id, type)`).
@@ -1871,6 +1976,34 @@ impl DofManager {
         for &e in elements.iter().chain(&profile_elems) {
             self.element_equations(f, conn.tuple(e), &mut eqs)?;
         }
+        // First assembly of every element of the connectivity/group in
+        // order, without a promotion: profile and values element by
+        // element with one lookup per entry (the profile and the sums of
+        // the two loops below).
+        if !profile_elems.is_empty()
+            && profile_elems == elements
+            && self
+                .backend
+                .can_fuse_profile_and_values(matrix_id, elemental_matrix_type)
+        {
+            for (k, &e) in elements.iter().enumerate() {
+                self.element_equations(f, conn.tuple(e), &mut eqs)?;
+                self.backend.add_block_to_profile_and_values(
+                    matrix_id,
+                    &eqs,
+                    &eqs,
+                    elementary.tuple(k),
+                    elemental_matrix_type,
+                )?;
+            }
+            self.profiled.insert(key.clone());
+            if self.assembly_cache_enabled {
+                let mut cache = self.assembly_caches.remove(&key).unwrap_or_default();
+                self.backend.begin_cached_assembly(matrix_id, &mut cache);
+                self.assembly_caches.insert(key, cache);
+            }
+            return Ok(());
+        }
         // addToProfile once per (matrix, family, type, ghost), all elements
         // of the connectivity/group in order.
         for &e in &profile_elems {
@@ -1878,20 +2011,44 @@ impl DofManager {
             self.backend.add_block_to_profile(matrix_id, &eqs, &eqs)?;
         }
         if !profile_elems.is_empty() || !self.profiled.contains(&key) {
-            self.profiled.insert(key);
+            self.profiled.insert(key.clone());
         }
+        // Positions of the entries per element, cached for repeated
+        // assemblies with an unchanged profile (the same additions in the
+        // same order: `SparseMatrixAij::add_values_cached`). The slot is the
+        // element's index in the connectivity, not its index in the filter:
+        // several filters (materials) of one element type share the cache
+        // of the key, each element keeps its own slot.
+        let mut cache = if self.assembly_cache_enabled {
+            self.assembly_caches.remove(&key).unwrap_or_default()
+        } else {
+            BlockPositionCache::default()
+        };
+        self.backend.begin_cached_assembly(matrix_id, &mut cache);
         let f = &self.families[dof_id];
+        let mut result = Ok(());
         for (k, &e) in elements.iter().enumerate() {
-            self.element_equations(f, conn.tuple(e), &mut eqs)?;
-            self.backend.add_values(
-                matrix_id,
-                &eqs,
-                &eqs,
-                elementary.tuple(k),
-                elemental_matrix_type,
-            )?;
+            result = self
+                .element_equations(f, conn.tuple(e), &mut eqs)
+                .and_then(|()| {
+                    self.backend.add_values_cached(
+                        matrix_id,
+                        &mut cache,
+                        e,
+                        &eqs,
+                        &eqs,
+                        elementary.tuple(k),
+                        elemental_matrix_type,
+                    )
+                });
+            if result.is_err() {
+                break;
+            }
         }
-        Ok(())
+        if self.assembly_cache_enabled {
+            self.assembly_caches.insert(key, cache);
+        }
+        result
     }
 
     /// Zero a matrix, keeping its profile (upstream `zeroMatrix`).

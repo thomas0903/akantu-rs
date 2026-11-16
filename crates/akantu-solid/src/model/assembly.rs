@@ -533,6 +533,7 @@ impl SolidMechanicsPhysics {
                 law.take_deferred_error()?;
             }
         }
+        need_to_reassemble |= self.need_to_reassemble_stiffness;
         if !need_to_reassemble {
             return Ok(());
         }
@@ -578,6 +579,7 @@ impl SolidMechanicsPhysics {
                 )?;
             }
         }
+        self.need_to_reassemble_stiffness = false;
         Ok(())
     }
 

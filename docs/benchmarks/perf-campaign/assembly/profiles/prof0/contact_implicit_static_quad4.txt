@@ -1,0 +1,91 @@
+# Profile of suite case contact_implicit_static_quad4
+
+binary: ~/w/assembly/bin/before_models (2f365b01e1d6c00a)
+command: taskset -c 2 ~/w/assembly/bin/before_models --case contact_implicit_static_quad4 --size m --loop-seconds 6
+perf: perf record -F 499 --call-graph dwarf,16384
+cpu: INTEL(R) XEON(R) PLATINUM 8581C CPU @ 2.30GHz
+date_utc: 2026-11-16T10:04:11Z
+commit: 59e05aa3f
+
+## Phases of the profiled run (seconds, calls)
+
+mesh                         0.0098 s       1 calls
+init                         0.0114 s       1 calls
+solve_step                   7.3900 s      20 calls
+
+## Top 25 symbols, self time
+
+    19.23%  [.] akantu_linalg::eigen_sparse_lu::dense::sparselu_gemm
+    14.42%  [.] akantu_linalg::eigen_sparse_lu::kernels::panel_bmod
+     7.02%  [.] akantu_linalg::eigen_sparse_lu::kernels::dfs_kernel
+     6.32%  [.] akantu_core::eigen_gebp::product_into::<akantu_fe::eigen::product_slices::{closure#1}, akantu_fe::eigen::product_slices::{closure#2}>
+     4.84%  [k] do_user_addr_fault
+     3.92%  [.] <akantu_linalg::sparse::SparseMatrixAij>::resolve_block
+     2.51%  [.] <akantu_linalg::sparse::SparseMatrixAij>::add_to_profile
+     2.44%  [.] 0x00000000001a19d2
+     2.33%  [.] <std::hash::random::DefaultHasher as core::hash::Hasher>::write
+     2.28%  [.] <hashbrown::map::HashMap<(i64, i64), usize, std::hash::random::RandomState>>::insert
+     2.21%  [.] akantu_linalg::eigen_sparse_lu::kernels::kernel_bmod
+     1.86%  [.] <std::hash::random::RandomState as core::hash::BuildHasher>::hash_one::<&(i64, i64)>
+     1.78%  [.] akantu_linalg::eigen_sparse_lu::kernels::copy_to_ucol
+     1.78%  [.] 0x00000000001a1efa
+     1.76%  [.] <akantu_linalg::sparse::SparseMatrixAij>::apply_boundary
+     1.60%  [.] <akantu_linalg::direct::CscMatrix>::from_triplets
+     1.39%  [.] akantu_linalg::eigen_sparse_lu::kernels::prune_l
+     1.34%  [.] akantu_linalg::eigen_sparse_lu::kernels::column_dfs
+     1.10%  [k] _raw_spin_lock
+     1.08%  [.] akantu_linalg::eigen_sparse_lu::kernels::panel_dfs
+     0.99%  [.] akantu_linalg::eigen_sparse_lu::kernels::column_bmod
+     0.92%  [.] akantu_linalg::eigen_sparse_lu::dense::trsm_unit_lower
+     0.85%  [k] _raw_spin_unlock_irqrestore
+     0.80%  [.] <akantu_core::array_storage::ArrayStorage<f64>>::try_resize
+     0.80%  [.] akantu_linalg::eigen_sparse_lu::kernels::pivot_l
+
+## Top 25 symbols, inclusive time (children)
+
+    19.23%    19.23%  [.] akantu_linalg::eigen_sparse_lu::dense::sparselu_gemm
+    14.42%    14.42%  [.] akantu_linalg::eigen_sparse_lu::kernels::panel_bmod
+     9.61%     4.84%  [.] do_user_addr_fault
+     9.61%     0.00%  [.] asm_exc_page_fault
+     9.58%     0.00%  [.] exc_page_fault
+     7.14%     0.00%  [.] 0x000073b03b1a19d2
+     7.02%     7.02%  [.] akantu_linalg::eigen_sparse_lu::kernels::dfs_kernel
+     6.32%     6.32%  [.] akantu_core::eigen_gebp::product_into::<akantu_fe::eigen::product_slices::{closure#1}, akantu_fe::eigen::product_slices::{closure#2}>
+     6.18%     0.00%  [.] realloc
+     6.15%     0.00%  [.] 0x000073b03b0ad147
+     4.81%     0.00%  [.] 0x000073b03b1a1efa
+     4.46%     0.09%  [.] handle_mm_fault
+     4.30%     0.19%  [.] __handle_mm_fault
+     4.04%     0.02%  [.] handle_pte_fault
+     3.92%     3.92%  [.] <akantu_linalg::sparse::SparseMatrixAij>::resolve_block
+     3.62%     0.19%  [.] do_anonymous_page
+     2.51%     2.51%  [.] <akantu_linalg::sparse::SparseMatrixAij>::add_to_profile
+     2.44%     2.44%  [.] 0x00000000001a19d2
+     2.33%     2.33%  [.] <std::hash::random::DefaultHasher as core::hash::Hasher>::write
+     2.28%     2.28%  [.] <hashbrown::map::HashMap<(i64, i64), usize, std::hash::random::RandomState>>::insert
+     2.21%     2.21%  [.] akantu_linalg::eigen_sparse_lu::kernels::kernel_bmod
+     1.86%     1.86%  [.] <std::hash::random::RandomState as core::hash::BuildHasher>::hash_one::<&(i64, i64)>
+     1.78%     1.78%  [.] akantu_linalg::eigen_sparse_lu::kernels::copy_to_ucol
+     1.78%     1.78%  [.] 0x00000000001a1efa
+     1.76%     1.76%  [.] <akantu_linalg::sparse::SparseMatrixAij>::apply_boundary
+
+## Call chains (callers of the hottest self-time symbols, entries above 2 %)
+
+    19.23%  [.] akantu_linalg::eigen_sparse_lu::dense::sparselu_gemm
+    14.42%  [.] akantu_linalg::eigen_sparse_lu::kernels::panel_bmod
+     7.02%  [.] akantu_linalg::eigen_sparse_lu::kernels::dfs_kernel
+     6.32%  [.] akantu_core::eigen_gebp::product_into::<akantu_fe::eigen::product_slices::{closure#1}, akantu_fe::eigen::product_slices::{closure#2}>
+     4.84%  [k] do_user_addr_fault
+            |
+             --4.81%--exc_page_fault
+                       asm_exc_page_fault
+                       |
+                        --2.42%--0x73b03b1a19d2
+                                  0x73b03b0ad147
+                                  realloc
+     3.92%  [.] <akantu_linalg::sparse::SparseMatrixAij>::resolve_block
+     2.51%  [.] <akantu_linalg::sparse::SparseMatrixAij>::add_to_profile
+     2.44%  [.] 0x00000000001a19d2
+     2.33%  [.] <std::hash::random::DefaultHasher as core::hash::Hasher>::write
+     2.28%  [.] <hashbrown::map::HashMap<(i64, i64), usize, std::hash::random::RandomState>>::insert
+     2.21%  [.] akantu_linalg::eigen_sparse_lu::kernels::kernel_bmod
