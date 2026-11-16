@@ -140,3 +140,38 @@ def test_group_protocol_errors():
         model.applyBC(Resizes(), "edge")
     # the model is usable afterwards
     model.applyBC(aka.FixedValue(0.0, aka._x), "edge")
+
+
+def test_empty_group_calls_neither_method():
+    aka.parseInput("elastic.dat")
+    mesh = aka.Mesh(2)
+    mesh.read("mesh_dcb_2d.msh")
+    mesh.createElementGroup("empty", 2)
+    model = aka.SolidMechanicsModel(mesh)
+    model.initFull(_analysis_method=aka._static)
+
+    class Counts(aka.DirichletFunctor):
+        def __init__(self):
+            super().__init__()
+            self.calls = 0
+
+        def __call__(self, node, flags, primal, coord):
+            self.calls += 1
+
+        def callNodes(self, nodes, flags, primal, coords):
+            self.calls += 1
+
+    class PerNodeOnly(aka.DirichletFunctor):
+        def __init__(self):
+            super().__init__()
+            self.calls = 0
+
+        def __call__(self, node, flags, primal, coord):
+            self.calls += 1
+
+    u0, b0 = state(model)
+    for f in (Counts(), PerNodeOnly()):
+        model.applyBC(f, "empty")
+        assert f.calls == 0
+    u, b = state(model)
+    assert np.array_equal(u, u0) and np.array_equal(b, b0)

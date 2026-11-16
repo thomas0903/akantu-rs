@@ -476,6 +476,10 @@ fn call_nodes(
     blocked: &mut SharedArray<bool>,
     primal: &mut SharedArray<Real>,
 ) -> Result<()> {
+    // as `__call__`, which is never entered for a group without nodes
+    if nodes.is_empty() {
+        return Ok(());
+    }
     let dim = mesh.spatial_dimension();
     let rows: Vec<usize> = nodes
         .iter()
