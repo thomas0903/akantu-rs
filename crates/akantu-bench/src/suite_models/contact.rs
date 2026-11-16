@@ -66,7 +66,8 @@ const DAT: &str = "material elastic [\n  name = upper\n  rho = 1.0\n  E = 1e3\n 
     contact_resolution penalty_linear [\n  name = upper_bottom\n  mu = 0.0\n  epsilon_n = 4e5\n  \
     epsilon_t = 1e5\n  is_master_deformable = false\n]\n";
 
-/// Two blocks: `lower` (`[0, 1] × [0, h]`, `nl` cells along the surface)
+/// Two blocks: `lower` (`[0, 1] × [0, h]`, `nl` cells along the surface,
+/// `depth` square cells through `h`)
 /// and `upper` (`[δ, 1 − δ] × [h − p, 2h − p]`, `nu` cells), the upper one
 /// penetrating by `p` = `penetration` × the lower surface's cell size (a
 /// penetration larger than the cells is rejected by the projection). The detector's groups are `lower_top` /
@@ -92,7 +93,10 @@ fn coupler(
             "the contact model is serial (upstream has no parallel contact detection)".into(),
         ));
     }
-    let h = 0.1;
+    // block thickness: `depth` cells as tall as the lower surface cells
+    // are wide (the detection grid spacing follows the largest facet around
+    // a master node, side facets included)
+    let h = depth as Real / nl as Real;
     let d = 0.05;
     let p = penetration / nl as Real;
     let mesh = run.once("mesh", || {
