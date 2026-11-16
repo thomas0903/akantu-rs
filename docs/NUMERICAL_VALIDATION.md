@@ -977,7 +977,7 @@ then differs from the bitwise one by about `κ(A)·d·u` relatively. Rule
 `tests/fast_mode_sparse_lu.rs`, D-123's harness): `|fast − bitwise| ≤ 1e-12
 ·max|x|` on a diagonally dominant 3-D 7-point stencil of 4,096 unknowns
 (`κ ≈ 27`, expected difference of order 1e-14; measured 3.8e-16 on AVX-512,
-3,265 of 4,096 entries bit-identical); the test also requires a difference
+3,268 of 4,096 entries bit-identical); the test also requires a difference
 where the CPU has an FMA instance, and identical fast results at 2 and 4
 threads. Each FMA instance equals its portable body with `f64::mul_add`
 (the correctly rounded software operation) bit for bit
