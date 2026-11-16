@@ -196,7 +196,7 @@ fn total_key(x: f64) -> u64 {
 /// bits, so the result is the same array as any correct sort by
 /// `total_cmp` (`sort_unstable_by(f64::total_cmp)` for short slices); long
 /// slices use a least-significant-digit radix sort of the
-/// [`total_key`]s (passes on which every key has the same digit are
+/// `total_key`s (passes on which every key has the same digit are
 /// skipped).
 pub fn sort_total(values: &mut [f64]) {
     let n = values.len();
