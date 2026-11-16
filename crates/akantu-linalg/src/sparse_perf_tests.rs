@@ -359,6 +359,28 @@ fn mat_vec_and_boundary_match_the_reference() {
             same_state(&m1, &m2, "apply_boundary");
         }
     }
+    // the boundary of the identity check: a stored coordinate equal to
+    // `nb_local` (the largest stored coordinate is `nb_local`) is an error,
+    // not an out-of-bounds index
+    let nl = identity.nb_local();
+    let edge = GlobalIdx::try_from(nl).unwrap();
+    let mut m = SparseMatrixAij::new("A", edge + 1, MatrixType::Symmetric);
+    m.add(0, 1, 1.0).unwrap();
+    m.add(3, edge, 2.0).unwrap();
+    let x = vec![1.0; nl];
+    let mut y = vec![0.5; nl];
+    let r = m.mat_vec_mul(&identity, &NoReduction, &x, &mut y, 1.0, 1.0);
+    same_result(&identity.local(edge).map(drop), &r, "coordinate = nb_local");
+    assert_eq!(bits(&y), bits(&vec![0.5; nl]), "y untouched");
+    let before = bits(&m.a);
+    let r = m.apply_boundary(&identity, &vec![true; nl], 1.0);
+    same_result(
+        &identity.local(edge).map(drop),
+        &r,
+        "coordinate = nb_local (boundary)",
+    );
+    assert_eq!(bits(&m.a), before);
+
     // a coordinate absent from the layout: the same error, nothing changed
     let mut m = SparseMatrixAij::new("A", 20, MatrixType::Unsymmetric);
     m.add(1, 2, 1.0).unwrap();
