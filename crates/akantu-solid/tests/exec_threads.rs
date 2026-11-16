@@ -761,3 +761,86 @@ fn marigo_law_is_bitwise_for_every_thread_count() {
         active: "damage",
     });
 }
+
+/// The error path: after `case.steps` steps the displacement of the node
+/// nearest the centre becomes NaN, so the points of the elements around it
+/// (in the middle of the blocks) fail; the next step's error and the state
+/// it leaves are compared bit for bit across thread counts.
+fn law_error_state(case: &LawCase, mesh: Mesh, policy: ExecPolicy) -> (String, State) {
+    let dim = mesh.spatial_dimension();
+    let mut m = law_model(mesh, &(case.dat)(dim), case.amp, policy);
+    for _ in 0..case.steps {
+        m.solve_step(None).unwrap();
+    }
+    let centre = {
+        let mesh = m.physics.base.mesh.read().unwrap();
+        let nodes = mesh.nodes();
+        let x = nodes.as_slice();
+        let d2 = |n: usize| {
+            (0..dim)
+                .map(|c| (x[n * dim + c] - 0.5).powi(2))
+                .sum::<Real>()
+        };
+        (0..x.len() / dim)
+            .min_by(|&a, &b| d2(a).total_cmp(&d2(b)))
+            .unwrap()
+    };
+    m.displacement_mut().unwrap().as_mut_slice()[centre * dim] = Real::NAN;
+    let err = m
+        .solve_step(None)
+        .expect_err("a NaN displacement makes the law fail")
+        .to_string();
+    (err, law_state(&mut m))
+}
+
+/// `expect`: a part of the error message of the law's failing point.
+fn check_law_error(case: &LawCase, expect: &str) {
+    type MeshFn = fn() -> Mesh;
+    let meshes: [(&str, MeshFn); 2] = [
+        ("2-D triangles and quadrangles", || grid2d(6, false)),
+        ("3-D tetrahedra and hexahedra", || mixed_cube(3)),
+    ];
+    for (mesh_name, mesh) in meshes {
+        let (err, reference) = law_error_state(case, mesh(), ExecPolicy::serial());
+        assert!(
+            err.contains(expect),
+            "{} ({mesh_name}): the step failed elsewhere: {err}",
+            case.name
+        );
+        for p in threaded_policies() {
+            let what = format!(
+                "{} error path ({mesh_name}): threads={} {:?}",
+                case.name,
+                p.threads(),
+                p.grain()
+            );
+            let (e, state) = law_error_state(case, mesh(), p);
+            assert_eq!(err, e, "{what}: another error");
+            compare(&reference, &state, &what);
+        }
+    }
+}
+
+fn mazars_dat(_: usize) -> String {
+    "material mazars [\n  name = body\n  rho = 2500\n  E = 70e9\n  nu = 0.22\n  K0 = 1e-4\n  \
+     At = 1.15\n  Bt = 10000\n  Ac = 0.8\n  Bc = 1391.3\n  beta = 1.0\n]\n"
+        .into()
+}
+
+const MAZARS: LawCase = LawCase {
+    name: "mazars",
+    dat: mazars_dat,
+    amp: 1e-3,
+    steps: 6,
+    active: "damage",
+};
+
+#[test]
+fn mazars_law_is_bitwise_for_every_thread_count() {
+    check_law(&MAZARS);
+}
+
+#[test]
+fn mazars_error_path_is_bitwise_for_every_thread_count() {
+    check_law_error(&MAZARS, "eig: no convergence");
+}

@@ -1183,16 +1183,24 @@ impl<const DIM: usize> DamageParent<DIM> for MaterialLinearIsotropicHardening<DI
     /// (small strain) per point, as called by `MaterialMazars` — also with
     /// `finite_deformation` (upstream `plastic_mazars` never reaches the
     /// finite branch; the caller rejects that mode unless legacy).
-    fn stress_kernel(&mut self, ty: ElementType, ghost: GhostType) -> Result<()> {
+    fn stress_kernel(
+        &mut self,
+        exec: &akantu_core::exec::Exec,
+        ty: ElementType,
+        ghost: GhostType,
+    ) -> Result<()> {
+        let _ = exec;
         self.j2_block(ty, ghost, false, None)
     }
 
     fn stress_kernel_from(
         &mut self,
+        exec: &akantu_core::exec::Exec,
         ty: ElementType,
         ghost: GhostType,
         previous_sigma: Option<Array<Real>>,
     ) -> Result<()> {
+        let _ = exec;
         self.j2_block(ty, ghost, false, previous_sigma)
     }
 

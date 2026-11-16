@@ -86,6 +86,7 @@
 use std::sync::Arc;
 
 use akantu_core::enums::MatrixType;
+use akantu_core::exec::{Exec, Tuples};
 use akantu_core::glibc_libm;
 use akantu_core::random::RandomParameter;
 use akantu_core::tensor::{Matrix, MatrixExt, SquareMatrixExt, as_matrix, as_matrix_mut};
@@ -381,9 +382,13 @@ impl<const DIM: usize, P: DamageParent<DIM>> MaterialMazars<DIM, P> {
     }
 
     /// Steps 2–6 of the module docs over one block (after the parent's
-    /// kernel).
+    /// kernel). The points split over `exec`'s threads; they work on copies
+    /// of the blocks, written back only when every point succeeded, so a
+    /// failed eigen solve leaves the law's state as the serial loop leaves
+    /// it (unchanged) whatever the split, and the error is that of the
+    /// first failing point.
     #[allow(clippy::too_many_lines)] // one upstream loop with its options
-    fn damage_block(&mut self, ty: ElementType, ghost: GhostType) -> Result<()> {
+    fn damage_block(&mut self, exec: &Exec, ty: ElementType, ghost: GhostType) -> Result<()> {
         let n = DIM * DIM;
         let el = self.elastic_constants();
         let mode = self.strain_mode();
@@ -430,42 +435,75 @@ impl<const DIM: usize, P: DamageParent<DIM>> MaterialMazars<DIM, P> {
             // the undamaged stress of the parent's return (UD-139)
             es.get_mut(ty, ghost)?.copy_from(&sigma)?;
         }
-        for q in 0..nq {
-            let r = q * n..(q + 1) * n;
-            let g: &mut Matrix<DIM, DIM> = as_matrix_mut(&mut grad_u.as_mut_slice()[r.clone()])?;
-            let p: Option<&Matrix<DIM, DIM>> = inel
-                .as_ref()
-                .map(|a| as_matrix(&a.as_slice()[r.clone()]))
-                .transpose()?;
-            if let Some(p) = p {
-                *g = g.sub(p);
-            }
-            let inel_trace = p.map_or(0., SquareMatrixExt::trace);
-            let e3 = mazars_strain_3d(g, inel_trace, delta_t.as_slice()[q] * alpha, mode);
-            let (fdiag, e) = principal_strains_and_ehat3(&e3)?;
-            ehat.as_mut_slice()[q] = e;
-            // UD-138: the damage of an earlier trial of the step is not kept
-            if committed {
-                dam.as_mut_slice()[q] = prev_dam.as_slice()[q];
-            }
-            let d = &mut dam.as_mut_slice()[q];
-            if damage_in_cs {
-                *d = mazars_damage_on_quad(&params, &el, e, k0.as_slice()[q], &fdiag, *d);
-            }
-            if !non_local {
-                if !damage_in_cs {
-                    let (fdiag, _) = principal_strains_and_ehat3(&e3)?;
+        if grad_u.nb_component() != n
+            || sigma.nb_component() != n
+            || inel.as_ref().is_some_and(|a| a.nb_component() != n)
+        {
+            return Err(Error::DimensionMismatch {
+                context: "MaterialMazars::computeStress: components",
+                expected: n,
+                got: sigma.nb_component(),
+            });
+        }
+        // a part: contiguous points of the copies (`first` = index of its
+        // first point, to read the inelastic strain)
+        let part = |first: usize,
+                    (g_part, mut sigma, mut dam, mut ehat): (
+            Tuples<'_, Real>,
+            Tuples<'_, Real>,
+            Tuples<'_, Real>,
+            Tuples<'_, Real>,
+        )|
+         -> Result<()> {
+            let g_part = g_part.into_slice();
+            let len = dam.as_mut_slice().len();
+            for k in 0..len {
+                let q = first + k;
+                let r = k * n..(k + 1) * n;
+                let g: &mut Matrix<DIM, DIM> = as_matrix_mut(&mut g_part[r.clone()])?;
+                let p: Option<&Matrix<DIM, DIM>> = inel
+                    .as_ref()
+                    .map(|a| as_matrix(&a.as_slice()[q * n..(q + 1) * n]))
+                    .transpose()?;
+                if let Some(p) = p {
+                    *g = g.sub(p);
+                }
+                let inel_trace = p.map_or(0., SquareMatrixExt::trace);
+                let e3 = mazars_strain_3d(g, inel_trace, delta_t.as_slice()[q] * alpha, mode);
+                let (fdiag, e) = principal_strains_and_ehat3(&e3)?;
+                ehat.as_mut_slice()[k] = e;
+                // UD-138: the damage of an earlier trial of the step is not
+                // kept
+                if committed {
+                    dam.as_mut_slice()[k] = prev_dam.as_slice()[q];
+                }
+                let d = &mut dam.as_mut_slice()[k];
+                if damage_in_cs {
                     *d = mazars_damage_on_quad(&params, &el, e, k0.as_slice()[q], &fdiag, *d);
                 }
-                let f = 1. - *d;
-                for s in &mut sigma.as_mut_slice()[r.clone()] {
-                    *s *= f;
-                }
-                if let Some(p) = p {
-                    *g = g.add(p);
+                if !non_local {
+                    if !damage_in_cs {
+                        let (fdiag, _) = principal_strains_and_ehat3(&e3)?;
+                        *d = mazars_damage_on_quad(&params, &el, e, k0.as_slice()[q], &fdiag, *d);
+                    }
+                    let f = 1. - *d;
+                    for s in &mut sigma.as_mut_slice()[r] {
+                        *s *= f;
+                    }
+                    if let Some(p) = p {
+                        *g = g.add(p);
+                    }
                 }
             }
-        }
+            Ok(())
+        };
+        let items = (
+            Tuples::new(grad_u.as_mut_slice(), n),
+            Tuples::new(sigma.as_mut_slice(), n),
+            Tuples::new(dam.as_mut_slice(), 1),
+            Tuples::new(ehat.as_mut_slice(), 1),
+        );
+        exec.try_for_each(items, 512, part)?;
         let base = self.parent.base_mut();
         base.grad_u.get_mut(ty, ghost)?.copy_from(&grad_u)?;
         base.sigma_field_mut()?
@@ -660,7 +698,7 @@ where
 
     fn compute_stress(
         &mut self,
-        _ctx: &LawContext<'_>,
+        ctx: &LawContext<'_>,
         ty: ElementType,
         ghost: GhostType,
     ) -> Result<()> {
@@ -693,8 +731,19 @@ where
             }
             _ => None,
         };
-        self.parent.stress_kernel_from(ty, ghost, previous_sigma)?;
-        self.damage_block(ty, ghost)
+        let exec = crate::material::points_exec(self, ctx);
+        self.parent
+            .stress_kernel_from(exec, ty, ghost, previous_sigma)?;
+        self.damage_block(exec, ty, ghost)
+    }
+
+    /// A point's stress (the parent's kernel), equivalent strain and damage
+    /// read only that point's values (copies of the blocks, written back
+    /// when every point succeeded) and the law's constants; the thermal
+    /// refresh runs per block before the loops. The non-local variant runs
+    /// the same local loop (`Ehat` only) before its own averaging phase.
+    fn independent_points(&self) -> bool {
+        true
     }
 
     fn compute_tangent_moduli(
