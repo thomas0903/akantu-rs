@@ -38,6 +38,11 @@ change of default results or of a public API raises the minor version.
 
 ### Changed
 
+- `DofManager::split_solution_per_dofs` returns `Error::OutOfRange` for a
+  local equation outside the solution vector, where it used to panic.
+- `MaterialElastic::compute_stress` returns `Error::DimensionMismatch` when
+  `grad_u` or the stress block does not have `dim × dim` components per
+  point (before, such a block was processed in chunks of the wrong size).
 - `akantu-core` denies `unsafe` instead of forbidding it: the thread pool
   of `exec::spin` and the SIMD kernels of `exec::simd` (listed in its
   `UNSAFE.md`) are the only sites.
