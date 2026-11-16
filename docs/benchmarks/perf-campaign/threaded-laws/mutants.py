@@ -10,7 +10,7 @@
 #   python3 -I mutants.py [NAME ...]
 # with a target directory of its own (CARGO_TARGET_DIR): a target shared
 # with another checkout links the mutated libraries into its binaries.
-import subprocess, sys
+import os, re, subprocess, sys
 P = "  let mut prev = 0.0_f64;\n"
 M = "crates/akantu-solid/src/materials/"
 S = ("akantu-solid", "exec_threads")
@@ -24,9 +24,12 @@ MUT = [
  ("maxwell branch update", M+"maxwell.rs", [
    ("                for (((g, pg), svs), evs) in parts {", P+"                for (((g, pg), svs), evs) in parts {"),
    ("                        evs,\n                    );\n", "                        evs,\n                    );\n svs[0] += 1e-9 * prev; prev = svs[0];\n")], S, "maxwell_law"),
+ ("maxwell work", M+"maxwell.rs", [
+   ("for ((((gu, pgu), s), ps), w) in parts {", P+"for ((((gu, pgu), s), ps), w) in parts {"),
+   ("*w += dd * dt;\n", "*w += dd * dt;\n *w += 1e-9 * prev; prev = *w;\n")], S, "maxwell_law"),
  ("maxwell dissipated energy", M+"maxwell.rs", [
-   ("                for (((((gu, pgu), s), ps), &epot), (work, diss)) in parts {", P+"                for (((((gu, pgu), s), ps), &epot), (work, diss)) in parts {"),
-   ("                    *diss = *work - epot;\n", "                    *diss = *work - epot;\n *diss += 1e-9 * prev; prev = *diss;\n")], S, "maxwell_law"),
+   ("for ((d, w), e) in d", P+"for ((d, w), e) in d"),
+   ("*d = *w - *e;\n", "*d = *w - *e;\n *d += 1e-9 * prev; prev = *d;\n")], S, "maxwell_law"),
  ("marigo", M+"marigo.rs", [
    ("                for ((((g, s), (&th, &dt)), (&yd, &pd)), (d, y)) in points {", P+"                for ((((g, s), (&th, &dt)), (&yd, &pd)), (d, y)) in points {"),
    ("                    *y = yq;\n", "                    *y = yq + 1e-9 * prev; prev = *y;\n")], S, "marigo_law"),
@@ -38,7 +41,12 @@ MUT = [
  ("neohookean error path without the pre-check", M+"neohookean.rs", [
    ("    first.into_inner()\n", "    let _ = first.into_inner();\n    nq\n")], S, "neohookean_error_path"),
  ("plastic", M+"plastic.rs", [
-   ("                inel[r].copy_from_slice(e.as_flattened());\n", "                inel[r].copy_from_slice(e.as_flattened());\n if k > 0 { iso[k] += 1e-9 * iso[k - 1]; }\n")], S, "plastic_law"),
+   ("for (k, r_iso) in iso.iter_mut().enumerate() {", P+"for (k, r_iso) in iso.iter_mut().enumerate() {"),
+   ("inel[r].copy_from_slice(e.as_flattened());\n                }\n                Ok(())", "inel[r].copy_from_slice(e.as_flattened());\n *r_iso += 1e-9 * prev; prev = *r_iso;\n                }\n                Ok(())")], S, "plastic_law"),
+ ("plastic commits although a part failed", M+"plastic.rs", [
+   ("let mut green_out = Vec::new();\n        {", "let mut green_out = Vec::new();\n let mut part_result = Ok(());\n        {"),
+   ("exec.try_for_each((ins, outs), 512, |_, (i, o)| part(i, o, None))?;", "part_result = exec.try_for_each((ins, outs), 512, |_, (i, o)| part(i, o, None));"),
+   (".commit_overwrite(ty, ghost, scratch.get_mut(2))?;\n        Ok(())", ".commit_overwrite(ty, ghost, scratch.get_mut(2))?;\n        part_result")], S, "plastic_plane_stress_error_path"),
  ("plastic work", M+"plastic.rs", [
    ("            for ((((s, ps), e), pe_), (pe, wp)) in", P+"            for ((((s, ps), e), pe_), (pe, wp)) in"),
    ("                *pe += *wp;\n", "                *pe += *wp;\n *pe += 1e-9 * prev; prev = *pe;\n")], S, "plastic_law"),
@@ -75,7 +83,8 @@ MUT = [
  ("heat threaded scatter scale", "crates/akantu-diffusion/src/model/assembly.rs", [
    (".scatter_add(exec, r_e.as_slice(), nb_dof, -1.0, f_int.as_mut_slice())", ".scatter_add(exec, r_e.as_slice(), nb_dof, -1.000_000_1, f_int.as_mut_slice())")], ("akantu-diffusion", "exec_threads_explicit"), ""),
 ]
-only = sys.argv[1:] 
+DRY = "--dry" in sys.argv
+only = [a for a in sys.argv[1:] if a != "--dry"]
 for name, path, reps, (pkg, test), filt in MUT:
     if only and name not in only:
         continue
@@ -83,20 +92,43 @@ for name, path, reps, (pkg, test), filt in MUT:
     s = src
     ok = True
     for old, new in reps:
-        if s.count(old) < 1:
+        # whitespace runs of the anchor match any whitespace run
+        pat = re.compile(r"\s+".join(re.escape(w) for w in old.split()))
+        if not pat.search(s):
             print(f"MUTANT {name}: anchor not found: {old[:60]!r}", flush=True); ok = False; break
-        s = s.replace(old, new)
+        if DRY:
+            continue
+        s = pat.sub(lambda _m, new=new: new, s)
     if not ok:
+        continue
+    if DRY:
+        print(f"MUTANT {name}: anchors found", flush=True)
         continue
     open(path, "w").write(s)
     try:
-        r = subprocess.run(["cargo", "test", "--release", "--locked", "-p", pkg, "--test", test, filt],
-                           capture_output=True, text=True)
+        # with MUTANT_BASE_DUMP (the serial reference states of the
+        # unchanged code, AKANTU_TEST_STATE_DUMP of the solid law tests) a
+        # serial state that differs from it also counts as caught
+        dump = "mutant-dump.txt"
+        if os.path.exists(dump):
+            os.remove(dump)
+        env = dict(os.environ, AKANTU_TEST_STATE_DUMP=os.path.abspath(dump))
+        r = subprocess.run(["cargo", "test", "--release", "--locked", "-p", pkg, "--test", test, filt,
+                            "--", "--test-threads", "1"],
+                           capture_output=True, text=True, env=env)
         out = r.stdout + r.stderr
+        base = {}
+        if os.environ.get("MUTANT_BASE_DUMP") and os.path.exists(os.environ["MUTANT_BASE_DUMP"]):
+            for l in open(os.environ["MUTANT_BASE_DUMP"]):
+                base[l.split("\t")[0]] = l
+        mine = {l.split("\t")[0]: l for l in open(dump)} if os.path.exists(dump) else {}
+        moved = [k for k in mine if k in base and base[k] != mine[k]]
         if "error[E" in out or "could not compile" in out:
             verdict = "COMPILE-ERROR"
         elif r.returncode != 0 and "differs from the one-thread run" in out:
             verdict = "CAUGHT"
+        elif moved:
+            verdict = "CAUGHT (serial state differs from the unchanged code's: " + moved[0] + ")"
         elif r.returncode != 0:
             verdict = "FAILED-OTHER"
         else:
