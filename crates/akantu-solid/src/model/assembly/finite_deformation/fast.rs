@@ -95,6 +95,7 @@ pub(super) fn residuals(
 type ResidualPart =
     fn(&Sizes, &VoigtTable, &Derivatives<'_>, &[Idx], &[Real], &[Real], &mut [Real]);
 
+#[inline(never)] // a part: its slices are no-alias parameters
 fn run<const D: usize, const TS: usize>(
     s: &Sizes,
     table: &VoigtTable,

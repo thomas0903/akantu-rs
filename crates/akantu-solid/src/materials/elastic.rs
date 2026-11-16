@@ -301,17 +301,61 @@ impl<const DIM: usize> MaterialElastic<DIM> {
             Tuples::new(sig.as_mut_slice(), 1),
         );
         exec.for_each(items, 8192, |_, (dt, mut eps, mut sig)| {
-            for ((d, e), s) in dt
-                .as_slice()
-                .iter()
-                .zip(eps.as_mut_slice())
-                .zip(sig.as_mut_slice())
-            {
-                (*e, *s) = thermal_on_quad::<DIM>(thermal, plane_stress, thermal_strain, *d);
-            }
+            thermal_part::<DIM>(
+                thermal,
+                plane_stress,
+                thermal_strain,
+                dt.as_slice(),
+                eps.as_mut_slice(),
+                sig.as_mut_slice(),
+            );
         });
         Ok(())
     }
+}
+
+/// The thermal strain and stress of the points of one part (no-alias
+/// parameters, as [`stress_part`]).
+#[inline(never)]
+fn thermal_part<const DIM: usize>(
+    thermal: &crate::materials::thermal::ThermalParams,
+    plane_stress: bool,
+    convention: crate::materials::thermal::ThermalStrain,
+    delta_t: &[Real],
+    epsilon_th: &mut [Real],
+    sigma_th: &mut [Real],
+) {
+    for ((d, e), s) in delta_t.iter().zip(epsilon_th).zip(sigma_th) {
+        (*e, *s) = thermal_on_quad::<DIM>(thermal, plane_stress, convention, *d);
+    }
+}
+
+/// `computeStress` of the points of one part (`grad_u`, `sigma` and
+/// `sigma_th` of the same points). Not inlined into the part closure, so
+/// that its slices are no-alias parameters.
+#[inline(never)]
+fn stress_part<const DIM: usize>(
+    constants: &ElasticConstants<DIM>,
+    finite: bool,
+    grad_u: &[Real],
+    sigma: &mut [Real],
+    sigma_th: &[Real],
+) -> Result<()> {
+    let n = DIM * DIM;
+    for ((g, s), &th) in grad_u
+        .chunks_exact(n)
+        .zip(sigma.chunks_exact_mut(n))
+        .zip(sigma_th)
+    {
+        let g: &Matrix<DIM, DIM> = as_matrix(g)?;
+        let s: &mut Matrix<DIM, DIM> = as_matrix_mut(s)?;
+        if finite {
+            constants.stress_on_quad(&grad_u_to_green(g), th, s);
+        } else {
+            constants.stress_on_quad(g, th, s);
+        }
+    }
+    Ok(())
 }
 
 /// Constants of the isotropic stress kernel (`E`, `λ`, `μ`).
@@ -605,21 +649,13 @@ impl<const DIM: usize> Material for MaterialElastic<DIM> {
             TuplesRef::new(sigma_th.as_slice(), 1),
         );
         exec.try_for_each(items, 2048, |_, (g, mut s, th)| {
-            for ((g, s), &th) in g
-                .as_slice()
-                .chunks_exact(n)
-                .zip(s.as_mut_slice().chunks_exact_mut(n))
-                .zip(th.as_slice())
-            {
-                let g: &Matrix<DIM, DIM> = as_matrix(g)?;
-                let s: &mut Matrix<DIM, DIM> = as_matrix_mut(s)?;
-                if finite {
-                    constants.stress_on_quad(&grad_u_to_green(g), th, s);
-                } else {
-                    constants.stress_on_quad(g, th, s);
-                }
-            }
-            Ok(())
+            stress_part(
+                &constants,
+                finite,
+                g.as_slice(),
+                s.as_mut_slice(),
+                th.as_slice(),
+            )
         })
     }
 

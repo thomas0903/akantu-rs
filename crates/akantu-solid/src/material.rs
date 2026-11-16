@@ -986,11 +986,18 @@ fn grad_u_in_place(
     ctx.services
         .exec()
         .for_each(items, 32_768, |_, (mut g, e)| {
-            for (g, e) in g.as_mut_slice().iter_mut().zip(e.as_slice()) {
-                *g -= *e;
-            }
+            subtract_part(g.as_mut_slice(), e.as_slice());
         });
     Ok(true)
+}
+
+/// `g -= e` per value (a part of `grad_u -= eigen_grad_u`; no-alias
+/// parameters, not inlined into the part closure).
+#[inline(never)]
+fn subtract_part(g: &mut [Real], e: &[Real]) {
+    for (g, e) in g.iter_mut().zip(e) {
+        *g -= *e;
+    }
 }
 
 /// The executor of a law's per-point loop: the model's when the law

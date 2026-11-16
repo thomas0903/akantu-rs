@@ -228,8 +228,9 @@ impl NodeScatter {
     }
 }
 
-/// The nodes `n0..` of `out` (`D` values per node).
-#[inline(always)]
+/// The nodes `n0..` of `out` (`D` values per node). Not inlined into the
+/// part closure, so that its slices are no-alias parameters.
+#[inline(never)]
 fn node_range<const D: usize>(
     offsets: &[u32],
     entries: &[u32],

@@ -188,7 +188,11 @@ impl<E: LagrangeElement, const NBD: usize> FmaTask for FmaGradient<'_, '_, E, NB
     }
 }
 
-#[inline(always)]
+// Not inlined into the part closure: as a function its slices are
+// no-alias parameters, so the block's fields and the nodal values stay in
+// registers across the stores to `out` (inlined into the closure, the
+// kernel ran 1.6 times slower at one thread).
+#[inline(never)]
 fn gradient_impl<E: LagrangeElement, const NBD: usize>(
     block: &Block<'_>,
     u: &[Real],
@@ -293,7 +297,7 @@ pub(super) fn btd(
 /// One part of [`btd`]: `(nn, ids, nq, bs, ds, os)`.
 type BtdPart = fn(usize, &[usize], usize, &[Real], &[Real], &mut [Real]);
 
-#[inline(always)]
+#[inline(never)] // as `gradient_impl`
 fn btd_impl<const R: usize, const S: usize>(
     nn: usize,
     ids: &[usize],
@@ -372,6 +376,7 @@ pub(super) fn integrate<'j>(
 /// [`integrate`] of the elements whose values are `f` and whose integrals
 /// go to `o` (`jac(pos)` the weighted Jacobians of the part's `pos`-th
 /// element, checked by the caller).
+#[inline(never)] // as `gradient_impl`
 fn integrate_part<'j>(
     f: &[Real],
     nb_dof: usize,

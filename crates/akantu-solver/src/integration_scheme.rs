@@ -429,6 +429,50 @@ fn second_order_residual(dofs: &mut DofManager, dof_id: &str, is_lumped: bool) -
     }
 }
 
+/// The Newmark-β predictor of the equations of one part (`[k, h, α, β, Δt]`;
+/// no-alias parameters, not inlined into the part closure).
+#[inline(never)]
+fn newmark_predictor_part(
+    [k, h, alpha, beta, delta_t]: [Real; 5],
+    u: &mut [Real],
+    v: &mut [Real],
+    a: &mut [Real],
+    blocked: &[bool],
+) {
+    for (((u, u_dot), u_dot_dot), &bld) in u.iter_mut().zip(v).zip(a).zip(blocked) {
+        if !bld {
+            let dt_a_n = delta_t * *u_dot_dot;
+            *u +=
+                (1.0 - k * alpha) * delta_t * *u_dot + (0.5 - h * alpha * beta) * delta_t * dt_a_n;
+            *u_dot = (1.0 - k) * *u_dot + (1.0 - h * beta) * dt_a_n;
+            // upstream `(1 - h) * a`; IEEE multiplication commutes exactly
+            *u_dot_dot *= 1.0 - h;
+        }
+    }
+}
+
+/// The Newmark-β corrector of the equations of one part (`[c, d, e]`;
+/// no-alias parameters).
+#[inline(never)]
+fn newmark_corrector_part(
+    [c, d, e]: [Real; 3],
+    u: &mut [Real],
+    v: &mut [Real],
+    a: &mut [Real],
+    solution: &[Real],
+    blocked: &[bool],
+) {
+    for ((((u, u_dot), u_dot_dot), &delta), &bld) in
+        u.iter_mut().zip(v).zip(a).zip(solution).zip(blocked)
+    {
+        if !bld {
+            *u += e * delta;
+            *u_dot += d * delta;
+            *u_dot_dot += c * delta;
+        }
+    }
+}
+
 /// Equations per part of a threaded integration-scheme update (a few
 /// microseconds of streaming work, D-123).
 const EQUATIONS_PER_PART: usize = 16_384;
@@ -825,22 +869,13 @@ impl IntegrationScheme for NewmarkBeta {
             TuplesRef::new(&blocked[..n], 1),
         );
         exec.for_each(items, EQUATIONS_PER_PART, |_, (mut u, mut v, mut a, b)| {
-            for (((u, u_dot), u_dot_dot), &bld) in u
-                .as_mut_slice()
-                .iter_mut()
-                .zip(v.as_mut_slice())
-                .zip(a.as_mut_slice())
-                .zip(b.as_slice())
-            {
-                if !bld {
-                    let dt_a_n = delta_t * *u_dot_dot;
-                    *u += (1.0 - k * alpha) * delta_t * *u_dot
-                        + (0.5 - h * alpha * beta) * delta_t * dt_a_n;
-                    *u_dot = (1.0 - k) * *u_dot + (1.0 - h * beta) * dt_a_n;
-                    // upstream `(1 - h) * a`; IEEE multiplication commutes exactly
-                    *u_dot_dot *= 1.0 - h;
-                }
-            }
+            newmark_predictor_part(
+                [k, h, alpha, beta, delta_t],
+                u.as_mut_slice(),
+                v.as_mut_slice(),
+                a.as_mut_slice(),
+                b.as_slice(),
+            );
         });
         Ok(())
     }
@@ -882,20 +917,14 @@ impl IntegrationScheme for NewmarkBeta {
             items,
             EQUATIONS_PER_PART,
             |_, (mut u, mut v, mut a, sol, b)| {
-                for ((((u, u_dot), u_dot_dot), &delta), &bld) in u
-                    .as_mut_slice()
-                    .iter_mut()
-                    .zip(v.as_mut_slice())
-                    .zip(a.as_mut_slice())
-                    .zip(sol.as_slice())
-                    .zip(b.as_slice())
-                {
-                    if !bld {
-                        *u += e * delta;
-                        *u_dot += d * delta;
-                        *u_dot_dot += c * delta;
-                    }
-                }
+                newmark_corrector_part(
+                    [c, d, e],
+                    u.as_mut_slice(),
+                    v.as_mut_slice(),
+                    a.as_mut_slice(),
+                    sol.as_slice(),
+                    b.as_slice(),
+                );
             },
         );
         Ok(())
