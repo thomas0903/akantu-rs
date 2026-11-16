@@ -12,9 +12,18 @@
 //! open; when the caller has no part left it closes the region and waits
 //! only for the workers that entered, so a worker that wakes late (parked
 //! during a serial stretch) skips the region instead of making the caller
-//! wait for its wake-up. Between regions a worker spins for 5 ms (the
-//! serial stretches of an explicit step last about a millisecond), then
-//! parks on a condition variable. Measured cost of one region on 8 cores of
+//! wait for its wake-up. Between regions a worker spins for the policy's
+//! spin time (default 5 ms: the serial stretches of an explicit step last
+//! about a millisecond; 0 when the threads outnumber the cores), then parks
+//! on a condition variable. The caller's wait for the workers inside a
+//! region yields the core after a bounded number of polls.
+//!
+//! No unwind can leave a region open: the caller closes the region and waits
+//! for the workers inside in a guard's `Drop`, a worker leaves the region in
+//! a guard's `Drop`, a part's panic is caught inside the region, and its
+//! payload is dropped only after the region is closed and empty (the first
+//! one is resumed on the caller, the others are dropped there, a panic of
+//! such a `Drop` caught and its payload forgotten). Measured cost of one region on 8 cores of
 //! an AMD EPYC 9R14: 0.2–1.5 µs at 2–8 threads (3.7 µs at most), against
 //! 5–14 µs for a `rayon` pool
 //! (`docs/benchmarks/perf-campaign/exec/README.md`).
@@ -35,8 +44,10 @@ use std::sync::atomic::{AtomicBool, AtomicU64, AtomicUsize, Ordering};
 use std::sync::{Arc, Condvar, Mutex};
 use std::time::{Duration, Instant};
 
-/// How long an idle worker spins before it parks.
-const SPIN_FOR: Duration = Duration::from_millis(5);
+/// Polls of the caller's wait for the workers inside a region before it
+/// starts yielding the core (a worker descheduled inside the region would
+/// otherwise hold the caller for a whole scheduler slice of busy waiting).
+const POLLS_BEFORE_YIELD: u32 = 2048;
 
 /// Parts per thread for which the claim flags exist (regions with more parts
 /// claim them with a counter).
@@ -75,6 +86,16 @@ struct Shared {
     job: UnsafeCell<Option<JobPtr>>,
     /// The first panic of a part of the running region.
     panic: Mutex<Option<Box<dyn Any + Send>>>,
+    /// The payloads of the other panics of the running region, dropped by
+    /// its owner once the region is closed and empty (a payload's `Drop`
+    /// may panic too).
+    discarded: Mutex<Vec<Box<dyn Any + Send>>>,
+    /// How long an idle worker spins before parking (ns), set by the owner
+    /// of each region from its policy.
+    spin_ns: AtomicU64,
+    /// Set when the pool's creation failed: the workers already started
+    /// leave.
+    stop: AtomicBool,
     sleep: Mutex<()>,
     wake: Condvar,
 }
@@ -119,15 +140,35 @@ impl SpinPool {
             sleepers: AtomicUsize::new(0),
             job: UnsafeCell::new(None),
             panic: Mutex::new(None),
+            discarded: Mutex::new(Vec::new()),
+            spin_ns: AtomicU64::new(0),
+            stop: AtomicBool::new(false),
             sleep: Mutex::new(()),
             wake: Condvar::new(),
         });
         let workers = threads.saturating_sub(1);
+        let mut started = Vec::with_capacity(workers);
         for w in 0..workers {
             let s = shared.clone();
-            std::thread::Builder::new()
+            let spawned = std::thread::Builder::new()
                 .name(format!("akantu-exec-{threads}-{w}"))
-                .spawn(move || worker(&s, w + 1))?;
+                .spawn(move || worker(&s, w + 1));
+            match spawned {
+                Ok(h) => started.push(h),
+                Err(e) => {
+                    // the workers already started leave and are joined
+                    shared.stop.store(true, Ordering::SeqCst);
+                    shared.generation.fetch_add(1, Ordering::SeqCst);
+                    {
+                        let _g = shared.sleep.lock().unwrap_or_else(|e| e.into_inner());
+                        shared.wake.notify_all();
+                    }
+                    for h in started {
+                        let _ = h.join();
+                    }
+                    return Err(e);
+                }
+            }
         }
         Ok(Self {
             shared,
@@ -139,30 +180,41 @@ impl SpinPool {
     /// Run `f(p)` for every part `p < nb_parts`, on the pool's threads, and
     /// return when all have run. Serially on the calling thread when the
     /// pool is busy or the caller is inside a part. A panic of a part is
-    /// resumed on the caller after the region ended.
-    pub(crate) fn run(&self, nb_parts: usize, f: &(dyn Fn(usize) + Sync)) {
+    /// resumed on the caller after the region ended. `spin`: how long the
+    /// workers spin after this region before they park.
+    pub(crate) fn run(&self, nb_parts: usize, spin: Duration, f: &(dyn Fn(usize) + Sync)) {
         let serial = || (0..nb_parts).for_each(f);
         if self.workers == 0 || nb_parts <= 1 || IN_REGION.with(Cell::get) {
             return serial();
         }
-        let Ok(_busy) = self.busy.try_lock() else {
-            return serial();
+        // a lock poisoned by a part's panic resumed on an earlier caller is
+        // taken as it is: that region was closed and emptied by its guard
+        let _busy = match self.busy.try_lock() {
+            Ok(g) => g,
+            Err(std::sync::TryLockError::Poisoned(p)) => p.into_inner(),
+            Err(std::sync::TryLockError::WouldBlock) => return serial(),
         };
         let s = &*self.shared;
         // SAFETY: lifetime erasure of `f`; the pointer is published to the
-        // workers below and this function returns only after it closed the
-        // region, saw no worker inside, and cleared the slot, so no worker
-        // dereferences it after `f`'s borrow ends.
+        // workers below, and `region` (created before the region opens)
+        // closes the region, waits until no worker is inside and clears the
+        // slot in its `Drop`, which runs before this function returns or
+        // unwinds, so no worker dereferences it after `f`'s borrow ends.
         let erased: *const (dyn Fn(usize) + Sync) =
             unsafe { std::mem::transmute(f as *const (dyn Fn(usize) + Sync)) };
         // SAFETY: we hold `busy` and the previous region is closed with no
-        // worker inside, so no worker reads `job` now.
+        // worker inside (its guard's `Drop` ran), so no worker reads `job`.
         unsafe { *s.job.get() = Some(JobPtr(erased)) };
+        let region = RegionGuard(s);
         s.next.store(0, Ordering::Relaxed);
         for c in s.claimed.iter().take(nb_parts) {
             c.store(false, Ordering::Relaxed);
         }
         s.nb_parts.store(nb_parts, Ordering::Relaxed);
+        s.spin_ns.store(
+            u64::try_from(spin.as_nanos()).unwrap_or(u64::MAX),
+            Ordering::Relaxed,
+        );
         let g = s.generation.load(Ordering::Relaxed).wrapping_add(1);
         // open the region, then announce it
         s.state.store((g & GEN_MASK) << 16, Ordering::SeqCst);
@@ -173,17 +225,68 @@ impl SpinPool {
         }
         run_parts(s, 0, f);
         // no part left: close the region, wait for the workers inside
-        s.state.fetch_or(CLOSED, Ordering::SeqCst);
-        while s.state.load(Ordering::Acquire) & ACTIVE != 0 {
-            std::hint::spin_loop();
+        drop(region);
+        // the region is closed and empty: drop the other payloads here
+        let discarded = std::mem::take(&mut *s.discarded.lock().unwrap_or_else(|e| e.into_inner()));
+        for payload in discarded {
+            if let Err(e) = catch_unwind(AssertUnwindSafe(move || drop(payload))) {
+                std::mem::forget(e);
+            }
         }
-        // SAFETY: the region is closed and no worker is inside: none reads
-        // `job` until the next region opens.
-        unsafe { *s.job.get() = None };
         let panic = s.panic.lock().unwrap_or_else(|e| e.into_inner()).take();
         if let Some(p) = panic {
             resume_unwind(p);
         }
+    }
+}
+
+/// Closes the running region and waits until no worker is inside, then
+/// clears the job, when dropped: on the normal path and on every unwind out
+/// of [`SpinPool::run`].
+struct RegionGuard<'a>(&'a Shared);
+
+impl Drop for RegionGuard<'_> {
+    fn drop(&mut self) {
+        let s = self.0;
+        s.state.fetch_or(CLOSED, Ordering::SeqCst);
+        let mut polls = 0u32;
+        while s.state.load(Ordering::Acquire) & ACTIVE != 0 {
+            if polls < POLLS_BEFORE_YIELD {
+                polls += 1;
+                std::hint::spin_loop();
+            } else {
+                std::thread::yield_now();
+            }
+        }
+        // SAFETY: the region is closed and no worker is inside: none reads
+        // `job` until the next region opens.
+        unsafe { *s.job.get() = None };
+    }
+}
+
+/// A worker's presence in a region: leaves it (decrements the count of
+/// workers inside) when dropped, also during an unwind.
+struct Inside<'a>(&'a Shared);
+
+impl Drop for Inside<'_> {
+    fn drop(&mut self) {
+        self.0.state.fetch_sub(1, Ordering::Release);
+    }
+}
+
+/// Clears the thread's in-region flag when dropped.
+struct InRegion;
+
+impl InRegion {
+    fn enter() -> Self {
+        IN_REGION.with(|r| r.set(true));
+        Self
+    }
+}
+
+impl Drop for InRegion {
+    fn drop(&mut self) {
+        IN_REGION.with(|r| r.set(false));
     }
 }
 
@@ -194,12 +297,19 @@ impl SpinPool {
 /// so their data stays in its caches.
 fn run_parts(s: &Shared, index: usize, f: &(dyn Fn(usize) + Sync)) {
     let n = s.nb_parts.load(Ordering::Relaxed);
-    IN_REGION.with(|r| r.set(true));
+    let _in_region = InRegion::enter();
     let run = |p: usize| {
         if let Err(e) = catch_unwind(AssertUnwindSafe(|| f(p))) {
+            // never drop a payload inside the region (its `Drop` may panic)
             let mut slot = s.panic.lock().unwrap_or_else(|e| e.into_inner());
             if slot.is_none() {
                 *slot = Some(e);
+            } else {
+                drop(slot);
+                s.discarded
+                    .lock()
+                    .unwrap_or_else(|e| e.into_inner())
+                    .push(e);
             }
         }
     };
@@ -208,7 +318,11 @@ fn run_parts(s: &Shared, index: usize, f: &(dyn Fn(usize) + Sync)) {
         for k in 0..t {
             let block = (index + k) % t;
             for p in block * n / t..(block + 1) * n / t {
-                if !s.claimed[p].swap(true, Ordering::Relaxed) {
+                // a load first: the parts of a finished block are skipped
+                // without writing their cache line
+                if !s.claimed[p].load(Ordering::Relaxed)
+                    && !s.claimed[p].swap(true, Ordering::Relaxed)
+                {
                     run(p);
                 }
             }
@@ -222,7 +336,6 @@ fn run_parts(s: &Shared, index: usize, f: &(dyn Fn(usize) + Sync)) {
             run(p);
         }
     }
-    IN_REGION.with(|r| r.set(false));
 }
 
 fn worker(s: &Shared, index: usize) {
@@ -230,15 +343,17 @@ fn worker(s: &Shared, index: usize) {
     // this thread started is not missed
     let mut seen = 0;
     loop {
-        // wait for the next region: spin, then park
+        // wait for the next region: spin for the last region's spin time,
+        // then park
         let start = Instant::now();
+        let spin = Duration::from_nanos(s.spin_ns.load(Ordering::Relaxed));
         let mut polls = 0u32;
         loop {
             if s.generation.load(Ordering::SeqCst) != seen {
                 break;
             }
             polls = polls.wrapping_add(1);
-            if !polls.is_multiple_of(64) || start.elapsed() < SPIN_FOR {
+            if !spin.is_zero() && (!polls.is_multiple_of(64) || start.elapsed() < spin) {
                 std::hint::spin_loop();
                 continue;
             }
@@ -250,6 +365,9 @@ fn worker(s: &Shared, index: usize) {
                 .unwrap_or_else(|e| e.into_inner());
             s.sleepers.fetch_sub(1, Ordering::SeqCst);
             drop(guard);
+        }
+        if s.stop.load(Ordering::SeqCst) {
+            return;
         }
         seen = s.generation.load(Ordering::SeqCst);
         // enter the region of generation `seen` if it is still open
@@ -271,15 +389,17 @@ fn worker(s: &Shared, index: usize) {
         if !entered {
             continue;
         }
-        // SAFETY: this worker is inside the open region (counted in `state`):
-        // its owner neither clears nor rewrites `job` before every worker
-        // inside has left, so `job` holds the region's live closure.
+        // leaves the region when dropped, also if `run_parts` unwinds
+        let _inside = Inside(s);
+        // SAFETY: this worker is inside the open region (counted in `state`
+        // until `_inside` drops): its owner neither clears nor rewrites
+        // `job` before every worker inside has left, so `job` holds the
+        // region's live closure.
         let job = unsafe { *s.job.get() };
         if let Some(JobPtr(f)) = job {
             // SAFETY: as above: the closure outlives the region.
             run_parts(s, index, unsafe { &*f });
         }
-        s.state.fetch_sub(1, Ordering::Release);
     }
 }
 
@@ -288,13 +408,82 @@ mod tests {
     use super::*;
     use std::sync::atomic::AtomicU32;
 
+    const SPIN: Duration = Duration::from_millis(5);
+
+    /// A panic payload whose `Drop` panics.
+    struct Bomb;
+
+    impl Drop for Bomb {
+        fn drop(&mut self) {
+            if !std::thread::panicking() {
+                panic!("bomb");
+            }
+        }
+    }
+
+    /// Panics with a [`Bomb`] in every part: payloads beyond the first are
+    /// dropped by the caller after the region (their `Drop` panics there),
+    /// the first is resumed on the caller. After `run` unwinds no part runs
+    /// any more (the writes after a delay land before `run` returns), and
+    /// the pool works afterwards.
+    #[test]
+    fn panicking_payload_drops_never_leave_a_region_open() {
+        for (threads, spin) in [(2, SPIN), (4, SPIN), (8, Duration::ZERO)] {
+            let pool = SpinPool::new(threads).unwrap();
+            for _ in 0..20 {
+                let writes = AtomicU32::new(0);
+                let r = catch_unwind(AssertUnwindSafe(|| {
+                    pool.run(16, spin, &|_| {
+                        std::thread::sleep(Duration::from_micros(200));
+                        writes.fetch_add(1, Ordering::SeqCst);
+                        std::panic::panic_any(Bomb);
+                    });
+                }));
+                let after = writes.load(Ordering::SeqCst);
+                assert_eq!(after, 16, "every part ran before run returned");
+                std::thread::sleep(Duration::from_millis(2));
+                assert_eq!(
+                    writes.load(Ordering::SeqCst),
+                    after,
+                    "a part ran after run returned"
+                );
+                // the resumed payload is a Bomb: dropping it panics, caught
+                let payload = r.expect_err("the parts panicked");
+                assert!(payload.is::<Bomb>());
+                let d = catch_unwind(AssertUnwindSafe(move || drop(payload)));
+                if let Err(e) = d {
+                    std::mem::forget(e);
+                }
+            }
+            let total = AtomicU32::new(0);
+            pool.run(32, spin, &|_| {
+                total.fetch_add(1, Ordering::Relaxed);
+            });
+            assert_eq!(total.load(Ordering::Relaxed), 32);
+        }
+    }
+
+    /// A spin time of zero parks the workers at once; regions still run on
+    /// several threads after the wake-up.
+    #[test]
+    fn zero_spin_parks_and_still_runs_every_part() {
+        let pool = SpinPool::new(4).unwrap();
+        for _ in 0..50 {
+            let hits: Vec<AtomicU32> = (0..24).map(|_| AtomicU32::new(0)).collect();
+            pool.run(24, Duration::ZERO, &|p| {
+                hits[p].fetch_add(1, Ordering::Relaxed);
+            });
+            assert!(hits.iter().all(|h| h.load(Ordering::Relaxed) == 1));
+        }
+    }
+
     #[test]
     fn every_part_runs_once() {
         for threads in [1, 2, 3, 8] {
             let pool = SpinPool::new(threads).unwrap();
             for n in [0, 1, 2, 7, 100] {
                 let hits: Vec<AtomicU32> = (0..n).map(|_| AtomicU32::new(0)).collect();
-                pool.run(n, &|p| {
+                pool.run(n, SPIN, &|p| {
                     hits[p].fetch_add(1, Ordering::Relaxed);
                 });
                 assert!(hits.iter().all(|h| h.load(Ordering::Relaxed) == 1));
@@ -310,9 +499,9 @@ mod tests {
             if round > 0 {
                 std::thread::sleep(Duration::from_millis(5)); // workers park
             }
-            pool.run(16, &|_| {
+            pool.run(16, SPIN, &|_| {
                 // a nested region runs serially
-                pool.run(3, &|_| {
+                pool.run(3, SPIN, &|_| {
                     total.fetch_add(1, Ordering::Relaxed);
                 });
             });
@@ -328,7 +517,7 @@ mod tests {
             for _ in 0..4 {
                 sc.spawn(|| {
                     for _ in 0..200 {
-                        pool.run(8, &|_| {
+                        pool.run(8, SPIN, &|_| {
                             total.fetch_add(1, Ordering::Relaxed);
                         });
                     }
@@ -342,11 +531,11 @@ mod tests {
     fn a_panic_reaches_the_caller_and_the_pool_survives() {
         let pool = SpinPool::new(3).unwrap();
         let r = catch_unwind(AssertUnwindSafe(|| {
-            pool.run(12, &|p| assert!(p != 7, "part 7"));
+            pool.run(12, SPIN, &|p| assert!(p != 7, "part 7"));
         }));
         assert!(r.is_err());
         let total = AtomicU32::new(0);
-        pool.run(12, &|_| {
+        pool.run(12, SPIN, &|_| {
             total.fetch_add(1, Ordering::Relaxed);
         });
         assert_eq!(total.load(Ordering::Relaxed), 12);

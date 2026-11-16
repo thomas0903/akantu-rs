@@ -62,18 +62,37 @@ impl Default for Exec {
 
 /// The process's pools, one per thread count (created on first use, kept
 /// until the process ends).
-static POOLS: Mutex<Vec<(usize, Arc<SpinPool>)>> = Mutex::new(Vec::new());
+/// Pools are kept per process id: a child of `fork` (which inherits the
+/// table but not the worker threads) starts its own pools for the
+/// executors it creates.
+static POOLS: Mutex<Vec<(usize, u32, Arc<SpinPool>)>> = Mutex::new(Vec::new());
 
 fn pool_of(threads: usize) -> Result<Arc<SpinPool>> {
+    let pid = std::process::id();
     let mut pools = POOLS.lock().unwrap_or_else(|e| e.into_inner());
-    if let Some((_, p)) = pools.iter().find(|(n, _)| *n == threads) {
+    if let Some((_, _, p)) = pools.iter().find(|(n, id, _)| *n == threads && *id == pid) {
         return Ok(p.clone());
     }
     let pool = SpinPool::new(threads)
         .map_err(|e| Error::invalid(format!("cannot start {threads} threads: {e}")))?;
     let pool = Arc::new(pool);
-    pools.push((threads, pool.clone()));
+    pools.push((threads, pid, pool.clone()));
     Ok(pool)
+}
+
+/// Warn once per process when an executor has more threads than the
+/// machine has cores (its default spin time is then 0, D-123).
+fn warn_oversubscription(threads: usize) {
+    static WARNED: std::sync::Once = std::sync::Once::new();
+    if threads > super::available_cores() {
+        WARNED.call_once(|| {
+            crate::aka_debug_warning!(
+                "akantu exec: {threads} threads on {} available cores; idle workers park at once \
+                 (spin time 0) unless AKANTU_EXEC_SPIN_US says otherwise",
+                super::available_cores()
+            );
+        });
+    }
 }
 
 impl Exec {
@@ -84,6 +103,7 @@ impl Exec {
     /// The operating system refuses the threads.
     pub fn new(policy: ExecPolicy) -> Result<Self> {
         let pool = if policy.threads() > 1 {
+            warn_oversubscription(policy.threads());
             Some(Pool(pool_of(policy.threads())?))
         } else {
             None
@@ -132,6 +152,14 @@ impl Exec {
         self.policy.simd_token()
     }
 
+    /// The proof of [`Precision::Fast`] that fast-mode entry points such as
+    /// [`super::with_fma`] require; `None` in [`Precision::Bitwise`].
+    #[must_use]
+    pub fn fast_token(&self) -> Option<super::FastToken> {
+        (self.precision() == Precision::Fast)
+            .then(|| super::FastToken::new(self.policy.simd_token()))
+    }
+
     /// `true` when regions run on more than one thread.
     #[must_use]
     pub const fn is_parallel(&self) -> bool {
@@ -176,7 +204,9 @@ impl Exec {
         match &self.pool {
             Some(pool) if parts > 1 => {
                 let bounds = even_bounds(len, parts);
-                run_parts(pool, &bounds, items, &|first, part| f(first, part));
+                run_parts(pool, self.policy.spin(), &bounds, items, &|first, part| {
+                    f(first, part)
+                });
             }
             _ => f(0, items),
         }
@@ -209,7 +239,7 @@ impl Exec {
             Some(pool) if parts > 1 => {
                 let bounds = even_bounds(len, parts);
                 let errors: Mutex<Vec<(usize, Error)>> = Mutex::new(Vec::new());
-                run_parts(pool, &bounds, items, &|first, part| {
+                run_parts(pool, self.policy.spin(), &bounds, items, &|first, part| {
                     if let Err(e) = f(first, part) {
                         errors
                             .lock()
@@ -252,7 +282,9 @@ impl Exec {
         );
         match &self.pool {
             Some(pool) if bounds.len() > 2 => {
-                run_parts(pool, bounds, items, &|first, part| f(first, part))
+                run_parts(pool, self.policy.spin(), bounds, items, &|first, part| {
+                    f(first, part)
+                })
             }
             _ => f(0, items),
         }
@@ -274,6 +306,7 @@ impl Exec {
             let per_part: Vec<usize> = (0..=parts).collect();
             run_parts(
                 pool,
+                self.policy.spin(),
                 &per_part,
                 Tuples::new(&mut partial, 1),
                 &|p, mut out| {
@@ -292,7 +325,13 @@ fn even_bounds(len: usize, parts: usize) -> Vec<usize> {
 }
 
 /// Split `items` at `bounds` and run `f` on every part in `pool`.
-fn run_parts<S: Split>(pool: &SpinPool, bounds: &[usize], items: S, f: &(dyn Fn(usize, S) + Sync)) {
+fn run_parts<S: Split>(
+    pool: &SpinPool,
+    spin: std::time::Duration,
+    bounds: &[usize],
+    items: S,
+    f: &(dyn Fn(usize, S) + Sync),
+) {
     let mut parts = Vec::with_capacity(bounds.len().saturating_sub(1));
     let mut rest = items;
     for w in bounds.windows(2) {
@@ -301,7 +340,7 @@ fn run_parts<S: Split>(pool: &SpinPool, bounds: &[usize], items: S, f: &(dyn Fn(
         rest = tail;
     }
     // each part index is claimed by exactly one thread (`SpinPool::run`)
-    pool.run(parts.len(), &|p| {
+    pool.run(parts.len(), spin, &|p| {
         let part = parts[p].lock().unwrap_or_else(|e| e.into_inner()).take();
         if let Some((first, part)) = part {
             f(first, part);

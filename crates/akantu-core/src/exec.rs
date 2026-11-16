@@ -42,7 +42,7 @@ use std::sync::RwLock;
 
 pub use pool::{Exec, Split, Tuples, TuplesRef};
 pub use scatter::NodeScatter;
-pub use simd::{FmaTask, SimdLevel, SimdToken, with_fma};
+pub use simd::{FastToken, FmaTask, SimdLevel, SimdToken, with_fma};
 
 use crate::error::{Error, Result};
 
@@ -57,6 +57,23 @@ pub const ENV_PRECISION: &str = "AKANTU_PRECISION";
 pub const ENV_SIMD: &str = "AKANTU_SIMD";
 /// Environment variable of the process default [`Grain`].
 pub const ENV_GRAIN: &str = "AKANTU_EXEC_GRAIN";
+/// Environment variable of the process default spin time of idle workers
+/// (microseconds; 0 parks them at once).
+pub const ENV_SPIN_US: &str = "AKANTU_EXEC_SPIN_US";
+
+/// Default spin time of idle workers when the threads do not outnumber the
+/// cores (µs): the serial stretches of an explicit step last about a
+/// millisecond, and a worker woken from its parked state costs the region's
+/// caller tens of microseconds.
+pub const DEFAULT_SPIN_US: u32 = 5_000;
+
+/// Cores available to the process (`std::thread::available_parallelism`,
+/// 1 when unknown), read once.
+#[must_use]
+pub fn available_cores() -> usize {
+    static CORES: std::sync::OnceLock<usize> = std::sync::OnceLock::new();
+    *CORES.get_or_init(|| std::thread::available_parallelism().map_or(1, NonZeroUsize::get))
+}
 
 /// How finely a threaded batch is split.
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Hash, Default)]
@@ -127,6 +144,9 @@ pub struct ExecPolicy {
     threads: NonZeroUsize,
     simd: SimdToken,
     grain: Grain,
+    /// Spin time of idle workers (µs); `None`: [`DEFAULT_SPIN_US`], or 0
+    /// when the threads outnumber the cores.
+    spin_us: Option<u32>,
 }
 
 impl Default for ExecPolicy {
@@ -149,6 +169,7 @@ impl ExecPolicy {
             threads: NonZeroUsize::MIN,
             simd: SimdToken::detected(),
             grain: Grain::Auto,
+            spin_us: None,
         }
     }
 
@@ -156,7 +177,9 @@ impl ExecPolicy {
     /// positive integer, default 1), `AKANTU_PRECISION` (`bitwise`, the
     /// default, or `fast`), `AKANTU_SIMD` (`auto`, the default, `scalar`,
     /// `avx2`, `avx512`, `neon`; a level the CPU lacks is an error),
-    /// `AKANTU_EXEC_GRAIN` (`auto`, the default, or `finest`, [`Grain`]). An
+    /// `AKANTU_EXEC_GRAIN` (`auto`, the default, or `finest`, [`Grain`]),
+    /// `AKANTU_EXEC_SPIN_US` (spin time of idle workers in µs, 0 = park at
+    /// once; default [`ExecPolicy::spin`]). An
     /// empty variable counts as unset.
     ///
     /// # Errors
@@ -201,6 +224,15 @@ impl ExecPolicy {
                 v.parse()
                     .map_err(|e| Error::invalid(format!("{ENV_GRAIN}: {e}")))?,
             );
+        }
+        if let Some(v) = get(ENV_SPIN_US) {
+            let us = v.trim().parse::<u32>().map_err(|_| {
+                Error::invalid(format!(
+                    "{ENV_SPIN_US}=`{v}`: expected microseconds (0 to {})",
+                    u32::MAX
+                ))
+            })?;
+            p = p.with_spin_us(us);
         }
         Ok(p)
     }
@@ -282,6 +314,29 @@ impl ExecPolicy {
         self.grain
     }
 
+    /// With a spin time of `us` microseconds for idle workers (0: they park
+    /// as soon as a region ends; results do not depend on it).
+    #[must_use]
+    pub const fn with_spin_us(mut self, us: u32) -> Self {
+        self.spin_us = Some(us);
+        self
+    }
+
+    /// How long idle workers spin before parking: the value set, else
+    /// [`DEFAULT_SPIN_US`], or 0 when the threads outnumber the available
+    /// cores (spinning workers would take the cores the others need).
+    #[must_use]
+    pub fn spin(&self) -> std::time::Duration {
+        let us = self
+            .spin_us
+            .unwrap_or(if self.threads() > available_cores() {
+                0
+            } else {
+                DEFAULT_SPIN_US
+            });
+        std::time::Duration::from_micros(u64::from(us))
+    }
+
     /// Precision mode.
     #[must_use]
     pub const fn precision(&self) -> Precision {
@@ -346,6 +401,28 @@ mod tests {
     }
 
     #[test]
+    fn spin_time_from_environment_and_default() {
+        let p = ExecPolicy::from_lookup(env(&[(ENV_SPIN_US, "0")])).unwrap();
+        assert!(p.spin().is_zero());
+        let p = ExecPolicy::from_lookup(env(&[(ENV_SPIN_US, "250")])).unwrap();
+        assert_eq!(p.spin(), std::time::Duration::from_micros(250));
+        let p = ExecPolicy::serial();
+        assert_eq!(
+            p.spin(),
+            std::time::Duration::from_micros(u64::from(DEFAULT_SPIN_US))
+        );
+        // more threads than cores: spin 0 unless set
+        let many = ExecPolicy::serial()
+            .with_threads(available_cores() + 1)
+            .unwrap();
+        assert!(many.spin().is_zero());
+        assert_eq!(
+            many.with_spin_us(7).spin(),
+            std::time::Duration::from_micros(7)
+        );
+    }
+
+    #[test]
     fn invalid_environment_values_are_errors() {
         for pairs in [
             [(ENV_THREADS, "0")],
@@ -355,6 +432,7 @@ mod tests {
             [(ENV_PRECISION, "fastest")],
             [(ENV_SIMD, "sse9")],
             [(ENV_GRAIN, "coarse")],
+            [(ENV_SPIN_US, "-1")],
         ] {
             let e = ExecPolicy::from_lookup(env(&pairs)).unwrap_err();
             assert!(e.to_string().contains(pairs[0].0), "{e}");

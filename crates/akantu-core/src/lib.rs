@@ -50,8 +50,8 @@
 //! | [`exec`] | none: precision mode, threads and SIMD level of the kernels (D-123) |
 //! | [`version`] | `aka_config.hh.in` / `aka_config.cc.in` (`AKANTU_VERSION_*`, `getVersion`) |
 
-// `unsafe` is denied everywhere except the SIMD kernels of `exec::simd`
-// (each block listed in UNSAFE.md).
+// `unsafe` is denied everywhere except the thread pool of `exec::spin` and
+// the SIMD kernels of `exec::simd` (each site listed in UNSAFE.md).
 #![deny(unsafe_code)]
 #![warn(missing_docs)]
 

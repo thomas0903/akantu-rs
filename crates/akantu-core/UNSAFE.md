@@ -25,41 +25,57 @@ when the CPU reports the level's target feature (`SimdLevel::token` and
 
 | Id | Line | Site | What it does | Invariant (its `SAFETY:` comment) | Established by | Test |
 |---|---|---|---|---|---|---|
-| CO-01 | 208 | `fn scaled_add` block 1 | calls the AVX-512F version | CPU has avx512f; equal lengths | `SimdToken` constructors; `assert_eq!` of the lengths | `exec::simd::tests::every_level_gives_the_scalar_bits` |
-| CO-02 | 214 | `fn scaled_add` block 2 | calls the AVX2 version | CPU has avx2; equal lengths | as CO-01 | as CO-01 |
-| CO-03 | 220 | `fn scaled_add` block 3 | calls the NEON version | CPU has neon; equal lengths | as CO-01 | as CO-01 (aarch64) |
-| CO-04 | 236 | `fn scaled_add_avx2` fn 1 | `#[target_feature(enable = "avx2")]` version | caller guarantees avx2 | CO-02 | as CO-01 |
-| CO-05 | 247 | `fn scaled_add_avx2` block 1 | unaligned 4-wide loads, multiply, add, store | `i + 4 ≤ len` of both slices | loop bound `body = n − n % 4`, `n = min(len)` | as CO-01 |
-| CO-06 | 259 | `fn scaled_add_avx512` fn 1 | `#[target_feature(enable = "avx512f")]` version | caller guarantees avx512f | CO-01 | as CO-01 |
-| CO-07 | 270 | `fn scaled_add_avx512` block 1 | unaligned 8-wide loads, multiply, add, store | `i + 8 ≤ len` of both slices | loop bound `body = n − n % 8` | as CO-01 |
-| CO-08 | 282 | `fn scaled_add_neon` fn 1 | `#[target_feature(enable = "neon")]` version | caller guarantees neon | CO-03 | as CO-01 (aarch64) |
-| CO-09 | 292 | `fn scaled_add_neon` block 1 | 2-wide loads, multiply, add, store | `i + 2 ≤ len` of both slices | loop bound `body = n − n % 2` | as CO-01 (aarch64) |
-| CO-10 | 182 | `fn with_fma` block 1 | calls the FMA-enabled entry point | CPU has avx2 and fma | `SimdToken` constructors (`Avx2` and `Avx512` require both) | `exec::simd::tests::fma_tasks_are_fused_at_every_level` |
-| CO-11 | 190 | `fn run_with_fma` fn 1 | `#[target_feature(enable = "avx2,fma")]` entry point that runs a task inlined into it | caller guarantees avx2 and fma | CO-10 | as CO-10 |
+| CO-01 | 228 | `fn scaled_add` block 1 | calls the AVX-512F version | CPU has avx512f; equal lengths | `SimdToken` constructors; `assert_eq!` of the lengths | `exec::simd::tests::every_level_gives_the_scalar_bits` |
+| CO-02 | 234 | `fn scaled_add` block 2 | calls the AVX2 version | CPU has avx2; equal lengths | as CO-01 | as CO-01 |
+| CO-03 | 240 | `fn scaled_add` block 3 | calls the NEON version | CPU has neon; equal lengths | as CO-01 | as CO-01 (aarch64) |
+| CO-04 | 256 | `fn scaled_add_avx2` fn 1 | `#[target_feature(enable = "avx2")]` version | caller guarantees avx2 | CO-02 | as CO-01 |
+| CO-05 | 267 | `fn scaled_add_avx2` block 1 | unaligned 4-wide loads, multiply, add, store | `i + 4 ≤ len` of both slices | loop bound `body = n − n % 4`, `n = min(len)` | as CO-01 |
+| CO-06 | 279 | `fn scaled_add_avx512` fn 1 | `#[target_feature(enable = "avx512f")]` version | caller guarantees avx512f | CO-01 | as CO-01 |
+| CO-07 | 290 | `fn scaled_add_avx512` block 1 | unaligned 8-wide loads, multiply, add, store | `i + 8 ≤ len` of both slices | loop bound `body = n − n % 8` | as CO-01 |
+| CO-08 | 302 | `fn scaled_add_neon` fn 1 | `#[target_feature(enable = "neon")]` version | caller guarantees neon | CO-03 | as CO-01 (aarch64) |
+| CO-09 | 312 | `fn scaled_add_neon` block 1 | 2-wide loads, multiply, add, store | `i + 2 ≤ len` of both slices | loop bound `body = n − n % 2` | as CO-01 (aarch64) |
+| CO-10 | 202 | `fn with_fma` block 1 | calls the FMA-enabled entry point | CPU has avx2 and fma | `SimdToken` constructors (`Avx2` and `Avx512` require both) | `exec::simd::tests::fma_tasks_are_fused_at_every_level` |
+| CO-11 | 210 | `fn run_with_fma` fn 1 | `#[target_feature(enable = "avx2,fma")]` entry point that runs a task inlined into it | caller guarantees avx2 and fma | CO-10 | as CO-10 |
 
 ### src/exec/spin.rs
 
 The region protocol every site relies on: the owner of a region holds
-`SpinPool::busy`, writes `job` while no worker is inside a region, opens
-the region (SeqCst store of `state`: its generation, not closed, nobody
-inside), takes parts itself, closes it (`fetch_or` of the closed bit),
-waits until no worker is inside (Acquire), and only then clears `job` and
-returns. A worker reads `job` only after entering the open region of the
-generation it observed (SeqCst compare-exchange that increments the count
-of workers inside, refused once the region is closed or replaced) and
-before leaving it (Release decrement); a worker that comes too late skips
-the region. A worker starts from generation 0, so a region published
-before it started is not missed.
+`SpinPool::busy`, writes `job` while no worker is inside a region, creates
+a `RegionGuard`, opens the region (SeqCst store of `state`: its generation,
+not closed, nobody inside), takes parts itself, and drops the guard, whose
+`Drop` closes the region (`fetch_or` of the closed bit), waits until no
+worker is inside (Acquire) and clears `job`. A worker reads `job` only
+after entering the open region of the generation it observed (SeqCst
+compare-exchange that increments the count of workers inside, refused once
+the region is closed or replaced); its `Inside` guard decrements the count
+in its `Drop`. A worker that comes too late skips the region. A worker
+starts from generation 0, so a region published before it started is not
+missed.
+
+The unwind argument: no unwind can leave a region open or a worker counted
+inside it. The parts run under `catch_unwind`; their payloads are stored
+(the first) or queued (the others) and never dropped inside the region, so
+a payload whose `Drop` panics cannot unwind out of `run_parts`; the queued
+payloads are dropped by the owner after the guard closed and emptied the
+region, each under `catch_unwind` (a panic of such a `Drop` is caught and
+its payload forgotten). Should anything else unwind out of `run_parts`
+anyway, the owner's `RegionGuard` and the worker's `Inside` run during the
+unwind: the region is closed and emptied, and `job` cleared, before `run`
+unwinds further. A `busy` lock poisoned by such an unwind is taken as it
+is (the region it protected was closed by its guard). Test:
+`exec::spin::tests::panicking_payload_drops_never_leave_a_region_open`
+(payloads whose `Drop` panics on the caller's and on the workers' parts;
+no part runs after `run` returns; the pool works afterwards).
 
 | Id | Line | Site | What it does | Invariant (its `SAFETY:` comment) | Established by | Test |
 |---|---|---|---|---|---|---|
-| CO-12 | 89 | `impl Sync for Shared` impl 1 | shares the pool state (with the `UnsafeCell` job slot) between threads | writes and reads of `job` never overlap | the region protocol (enter / close) | `exec::spin::tests::*`, `exec::pool::tests::*` |
-| CO-13 | 91 | `impl Send for Shared` impl 1 | moves the shared state into the workers | as CO-12 | as CO-12 | as CO-12 |
-| CO-14 | 157 | `impl SpinPool › fn run` block 1 | erases the lifetime of the region's closure | the pointer is not used after `run` returns | `run` closes the region, waits until no worker is inside and clears the slot first | `every_part_runs_once`, `concurrent_callers` |
-| CO-15 | 160 | `impl SpinPool › fn run` block 2 | writes the job slot | no worker reads it now | `busy` held; the previous region is closed with nobody inside | as CO-14 |
-| CO-16 | 182 | `impl SpinPool › fn run` block 3 | clears the job slot | the region is closed and nobody is inside | closed bit set, count 0 observed | as CO-14 |
-| CO-17 | 277 | `fn worker` block 1 | reads the job slot | this worker is inside the open region | successful enter (compare-exchange); not yet left | as CO-14, `regions_after_parking_and_nested_regions` |
-| CO-18 | 280 | `fn worker` block 2 | calls the region's closure | the closure outlives the region | as CO-17 | `a_panic_reaches_the_caller_and_the_pool_survives` |
+| CO-12 | 110 | `impl Sync for Shared` impl 1 | shares the pool state (with the `UnsafeCell` job slot) between threads | writes and reads of `job` never overlap | the region protocol (enter / close) | `exec::spin::tests::*`, `exec::pool::tests::*` |
+| CO-13 | 112 | `impl Send for Shared` impl 1 | moves the shared state into the workers | as CO-12 | as CO-12 | as CO-12 |
+| CO-14 | 204 | `impl SpinPool › fn run` block 1 | erases the lifetime of the region's closure | the pointer is not used after `run` returns or unwinds | `RegionGuard::drop` closes the region, waits until no worker is inside and clears the slot, on every path out of `run` | `every_part_runs_once`, `concurrent_callers` |
+| CO-15 | 207 | `impl SpinPool › fn run` block 2 | writes the job slot | no worker reads it now | `busy` held; the previous region is closed with nobody inside | as CO-14 |
+| CO-16 | 263 | `impl Drop for RegionGuard<'_> › fn drop` block 1 | clears the job slot (in `RegionGuard::drop`) | the region is closed and nobody is inside | closed bit set, count 0 observed | as CO-14 |
+| CO-17 | 398 | `fn worker` block 1 | reads the job slot | this worker is inside the open region | successful enter (compare-exchange); `Inside` not yet dropped | as CO-14, `regions_after_parking_and_nested_regions` |
+| CO-18 | 401 | `fn worker` block 2 | calls the region's closure | the closure outlives the region | as CO-17 | `a_panic_reaches_the_caller_and_the_pool_survives` |
 
 ## Guarantees the `unsafe` code of other crates relies on
 

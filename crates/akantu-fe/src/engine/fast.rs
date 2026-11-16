@@ -26,7 +26,7 @@
 
 use akantu_core::eigen_gebp::{GEMV_BLOCKING_MIN_DEPTH, GemvMatrix, Order, Reduction, Route};
 use akantu_core::eigen_unrolled::{TREE_MAX, seq_sum, tree_sum};
-use akantu_core::exec::{Exec, FmaTask, Precision, Tuples, TuplesRef, with_fma};
+use akantu_core::exec::{Exec, FmaTask, Tuples, TuplesRef, with_fma};
 use akantu_core::{Real, Result};
 
 use super::Block;
@@ -69,10 +69,9 @@ pub(super) fn gradient<E: LagrangeElement>(
     // parts of at least ~2048 quadrature points (tens of microseconds)
     let min = (2048 / nq.max(1)).max(1);
     let items = (Tuples::new(out, nq * nb_dof * nd), TuplesRef::new(ids, 1));
-    if exec.precision() == Precision::Fast {
+    if let Some(token) = exec.fast_token() {
         // FAST MODE (D-122): the FMA demonstrator, validated against this
-        // kernel by `tests/fast_mode_gradient.rs`
-        let token = exec.simd_token();
+        // kernel by `akantu-solid/tests/fast_mode_gradient.rs`
         return Some(exec.try_for_each(items, min, |_, (mut o, ids)| {
             let (o, ids) = (o.as_mut_slice(), ids.as_slice());
             match nb_dof {

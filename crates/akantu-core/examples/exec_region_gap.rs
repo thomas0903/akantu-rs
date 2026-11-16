@@ -10,8 +10,11 @@
 //!
 //! For serial gaps of 0, 50, 200, 1000 and 2000 µs (busy work on the calling
 //! thread between regions) and regions of 20 µs of serial work, prints the
-//! median time of the region (µs) and of the serial reference. One JSON
-//! object per line.
+//! median time of the region (µs) and of the serial reference; then, for
+//! 4,000 back-to-back regions of about 5 µs of serial work, the median, the
+//! 99th percentile and the maximum region time (the wait policy under
+//! oversubscription). One JSON object per line. The spin time is the
+//! process default (`AKANTU_EXEC_SPIN_US`).
 
 use std::time::{Duration, Instant};
 
@@ -45,8 +48,13 @@ fn main() {
         .nth(1)
         .and_then(|s| s.parse().ok())
         .unwrap_or(4);
-    let exec =
-        Exec::new(ExecPolicy::serial().with_threads(threads).expect("threads")).expect("pool");
+    let exec = Exec::new(
+        ExecPolicy::process_default()
+            .expect("policy")
+            .with_threads(threads)
+            .expect("threads"),
+    )
+    .expect("pool");
     // calibrate ~20 µs of serial work
     let mut out = vec![0.0; 4096];
     work(0, &mut out);
@@ -79,4 +87,25 @@ fn main() {
             median(&mut ser)
         );
     }
+    // distribution of ~5 µs regions back to back
+    let items = ((5.0 * per_us) as usize).max(threads);
+    let mut out = vec![0.0; items];
+    let mut t5 = Vec::with_capacity(4000);
+    for _ in 0..4000 {
+        let t = Instant::now();
+        exec.for_each(Tuples::new(&mut out, 1), 1, |first, mut o| {
+            work(first, o.as_mut_slice())
+        });
+        t5.push(t.elapsed().as_secs_f64() * 1e6);
+    }
+    std::hint::black_box(&out);
+    t5.sort_by(f64::total_cmp);
+    let q = |f: f64| t5[((t5.len() - 1) as f64 * f) as usize];
+    println!(
+        "{{\"threads\":{threads},\"regions_5us\":{},\"p50_us\":{:.2},\"p99_us\":{:.2},\"max_us\":{:.2}}}",
+        t5.len(),
+        q(0.5),
+        q(0.99),
+        t5[t5.len() - 1]
+    );
 }

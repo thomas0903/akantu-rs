@@ -157,6 +157,26 @@ impl SimdToken {
     }
 }
 
+/// Proof that the executor of a batch is in
+/// [`crate::exec::Precision::Fast`]: only [`crate::exec::Exec::fast_token`]
+/// hands one out, so a fast-mode entry point that takes it cannot run in
+/// the bitwise default. Carries the executor's SIMD level.
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub struct FastToken(SimdToken);
+
+impl FastToken {
+    /// Made by `Exec::fast_token` only.
+    pub(crate) const fn new(simd: SimdToken) -> Self {
+        Self(simd)
+    }
+
+    /// The executor's SIMD level.
+    #[must_use]
+    pub const fn simd(self) -> SimdToken {
+        self.0
+    }
+}
+
 /// A computation that [`with_fma`] runs with fused multiply-add
 /// instructions enabled. Its `run` must be `#[inline(always)]` (and every
 /// function it calls in its hot loop), so that it is compiled inside the
@@ -168,13 +188,13 @@ pub trait FmaTask {
     fn run(self) -> Self::Output;
 }
 
-/// Fast mode only (D-122): run `task` compiled with the FMA instructions of
-/// `token`'s level when it has them (`Avx2`, `Avx512`; every aarch64
+/// Fast mode only (D-122; `fast` proves the executor is in `Fast`): run
+/// `task` compiled with the FMA instructions of the executor's level when it has them (`Avx2`, `Avx512`; every aarch64
 /// processor has them in its baseline), so that `f64::mul_add` in it is one
 /// instruction instead of a library call. Without FMA (`Scalar`) the task
 /// runs as compiled for the baseline (`mul_add` stays fused, but slower).
-pub fn with_fma<T: FmaTask>(token: SimdToken, task: T) -> T::Output {
-    match token.level() {
+pub fn with_fma<T: FmaTask>(fast: FastToken, task: T) -> T::Output {
+    match fast.simd().level() {
         #[cfg(target_arch = "x86_64")]
         SimdLevel::Avx2 | SimdLevel::Avx512 => {
             // SAFETY: a token of `Avx2` or `Avx512` exists only when the CPU
@@ -381,7 +401,7 @@ mod tests {
         let exact = (2.0 as Real).powi(-29) + (2.0 as Real).powi(-60);
         for level in SimdLevel::supported() {
             assert_eq!(
-                with_fma(level.token().unwrap(), Fused(x, x, -1.0)),
+                with_fma(FastToken::new(level.token().unwrap()), Fused(x, x, -1.0)),
                 exact,
                 "{level:?}"
             );
