@@ -162,7 +162,7 @@ results (FNV-1a over the result arrays after the last step).
 cargo build --release -p akantu-bench --bin suite_models
 suite_models --list
 suite_models --case <name>[,<name>...]|all --size s|m|l [--reps N] [--out FILE]
-             [--loop-seconds S] [--threads N]
+             [--loop-seconds S] [--threads N] [--grain finest|auto]
 SUITE_VERBOSE=1 suite_models ...   # counts that show what a case did (stderr)
 ```
 
@@ -209,7 +209,7 @@ the dumpers, and the cost of driving a model from Python.
 ```text
 suite_setup --list
 suite_setup --case <name>[,<name>...]|all --size s|m|l [--reps N] [--out FILE]
-            [--loop-seconds S] [--threads N] [--local-ranks N]
+            [--loop-seconds S] [--threads N] [--grain finest|auto] [--local-ranks N]
 ```
 
 Output: the JSON lines of the contract above, plus `seconds_min` and
