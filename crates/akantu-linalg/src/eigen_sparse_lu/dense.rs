@@ -716,26 +716,75 @@ pub(super) fn gemm_tiles<const MR: usize, const ZERO: bool>(
     if m == 0 || n == 0 {
         return;
     }
-    let mut j = 0;
-    while j < n {
-        let nr = (n - j).min(GEMM_NR);
-        let bj = b_off + j * ldb;
-        let cj = c_off + j * ldc;
-        match nr {
-            4 => gemm_cols::<MR, 4, ZERO>(m, d, a, a_off, lda, b, bj, ldb, c, cj, ldc),
-            3 => gemm_cols::<MR, 3, ZERO>(m, d, a, a_off, lda, b, bj, ldb, c, cj, ldc),
-            2 => gemm_cols::<MR, 2, ZERO>(m, d, a, a_off, lda, b, bj, ldb, c, cj, ldc),
-            _ => gemm_cols::<MR, 1, ZERO>(m, d, a, a_off, lda, b, bj, ldb, c, cj, ldc),
-        }
-        j += nr;
+    let mut i = 0;
+    while i + MR <= m {
+        gemm_rows::<MR, ZERO>(n, d, a, a_off + i, lda, b, b_off, ldb, c, c_off + i, ldc);
+        i += MR;
+    }
+    if MR > 8 && i + 8 <= m {
+        gemm_rows::<8, ZERO>(n, d, a, a_off + i, lda, b, b_off, ldb, c, c_off + i, ldc);
+        i += 8;
+    }
+    if MR > 4 && i + 4 <= m {
+        gemm_rows::<4, ZERO>(n, d, a, a_off + i, lda, b, b_off, ldb, c, c_off + i, ldc);
+        i += 4;
+    }
+    if i + 2 <= m {
+        gemm_rows::<2, ZERO>(n, d, a, a_off + i, lda, b, b_off, ldb, c, c_off + i, ldc);
+        i += 2;
+    }
+    if i < m {
+        gemm_rows::<1, ZERO>(n, d, a, a_off + i, lda, b, b_off, ldb, c, c_off + i, ldc);
     }
 }
 
-/// All rows of `NR` columns: tiles of `MR` rows, then 8, 4, 2, 1.
+/// `MR` rows of all `n` columns, in tiles of [`GEMM_NR`] columns (the
+/// `MR × d` strip of `A` stays in the L1 cache across the column tiles).
 #[allow(clippy::too_many_arguments)] // BLAS-style kernel signature
 #[inline(always)]
-fn gemm_cols<const MR: usize, const NR: usize, const ZERO: bool>(
-    m: usize,
+fn gemm_rows<const MR: usize, const ZERO: bool>(
+    n: usize,
+    d: usize,
+    a: &[f64],
+    a_off: usize,
+    lda: usize,
+    b: &[f64],
+    b_off: usize,
+    ldb: usize,
+    c: &mut [f64],
+    c_off: usize,
+    ldc: usize,
+) {
+    let mut j = 0;
+    while j + GEMM_NR <= n {
+        gemm_tile::<MR, GEMM_NR, ZERO>(
+            d,
+            a,
+            a_off,
+            lda,
+            b,
+            b_off + j * ldb,
+            ldb,
+            c,
+            c_off + j * ldc,
+            ldc,
+        );
+        j += GEMM_NR;
+    }
+    let (bj, cj) = (b_off + j * ldb, c_off + j * ldc);
+    match n - j {
+        3 => gemm_tile::<MR, 3, ZERO>(d, a, a_off, lda, b, bj, ldb, c, cj, ldc),
+        2 => gemm_tile::<MR, 2, ZERO>(d, a, a_off, lda, b, bj, ldb, c, cj, ldc),
+        1 => gemm_tile::<MR, 1, ZERO>(d, a, a_off, lda, b, bj, ldb, c, cj, ldc),
+        _ => {}
+    }
+}
+
+/// One `MR × NR` tile: `c(r, jn) = c[c_off + r + jn·ldc]`, `a(r, k) =
+/// a[a_off + r + k·lda]`, `b(k, jn) = b[b_off + k + jn·ldb]`.
+#[allow(clippy::too_many_arguments)] // BLAS-style kernel signature
+#[inline(always)]
+fn gemm_tile<const MR: usize, const NR: usize, const ZERO: bool>(
     d: usize,
     a: &[f64],
     a_off: usize,
@@ -749,42 +798,6 @@ fn gemm_cols<const MR: usize, const NR: usize, const ZERO: bool>(
 ) {
     // the columns of B, each `d` long
     let bcols: [&[f64]; NR] = std::array::from_fn(|jn| &b[b_off + jn * ldb..][..d]);
-    let mut i = 0;
-    while i + MR <= m {
-        gemm_tile::<MR, NR, ZERO>(d, a, a_off + i, lda, &bcols, c, c_off + i, ldc);
-        i += MR;
-    }
-    if MR > 8 && i + 8 <= m {
-        gemm_tile::<8, NR, ZERO>(d, a, a_off + i, lda, &bcols, c, c_off + i, ldc);
-        i += 8;
-    }
-    if MR > 4 && i + 4 <= m {
-        gemm_tile::<4, NR, ZERO>(d, a, a_off + i, lda, &bcols, c, c_off + i, ldc);
-        i += 4;
-    }
-    if i + 2 <= m {
-        gemm_tile::<2, NR, ZERO>(d, a, a_off + i, lda, &bcols, c, c_off + i, ldc);
-        i += 2;
-    }
-    if i < m {
-        gemm_tile::<1, NR, ZERO>(d, a, a_off + i, lda, &bcols, c, c_off + i, ldc);
-    }
-}
-
-/// One `MR × NR` tile: `c(r, jn) = a_off + r + jn·ldc`, `a(r, k) = a_off +
-/// r + k·lda`.
-#[allow(clippy::too_many_arguments)] // BLAS-style kernel signature
-#[inline(always)]
-fn gemm_tile<const MR: usize, const NR: usize, const ZERO: bool>(
-    d: usize,
-    a: &[f64],
-    a_off: usize,
-    lda: usize,
-    bcols: &[&[f64]; NR],
-    c: &mut [f64],
-    c_off: usize,
-    ldc: usize,
-) {
     let d_end = d & !1;
     let mut acc = [[0.0f64; MR]; NR];
     if !ZERO {
@@ -796,7 +809,7 @@ fn gemm_tile<const MR: usize, const NR: usize, const ZERO: bool>(
         let ak: &[f64; MR] = a[a_off + k * lda..][..MR]
             .try_into()
             .unwrap_or_else(|_| unreachable!());
-        for (accj, bc) in acc.iter_mut().zip(bcols) {
+        for (accj, bc) in acc.iter_mut().zip(&bcols) {
             let bk = bc[k];
             for r in 0..MR {
                 accj[r] = accj[r] + ak[r] * bk;
@@ -808,7 +821,7 @@ fn gemm_tile<const MR: usize, const NR: usize, const ZERO: bool>(
         let ak: &[f64; MR] = a[a_off + d_end * lda..][..MR]
             .try_into()
             .unwrap_or_else(|_| unreachable!());
-        for (accj, bc) in acc.iter_mut().zip(bcols) {
+        for (accj, bc) in acc.iter_mut().zip(&bcols) {
             let bk = bc[d_end];
             for r in 0..MR {
                 accj[r] = accj[r] + bk * ak[r];
