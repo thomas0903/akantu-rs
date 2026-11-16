@@ -6,9 +6,13 @@
 //! Cases of the `suite_solid` benchmark binary (`crates/akantu-bench/README.md`,
 //! section "Benchmark suite: solid mechanics").
 
+pub mod cohesive;
 pub mod common;
 pub mod explicit;
+pub mod implicit;
 pub mod mesh;
+pub mod parallel;
+pub mod setup;
 
 use crate::suite::Case;
 
@@ -111,6 +115,81 @@ pub fn cases() -> Vec<Case> {
             "explicit_mazars_non_local",
             "explicit step, non-local Mazars: neighbourhood build/rebuild and per-step averaging",
             laws::mazars_non_local,
+        ),
+        c(
+            "static_linear_eigen",
+            "linear static solve, Eigen SparseLU translation (default solver): assembly, analysis, factorisation, back-substitution",
+            implicit::static_linear_eigen,
+        ),
+        c(
+            "static_linear_faer",
+            "linear static solve, faer sparse LU: the same phases",
+            implicit::static_linear_faer,
+        ),
+        c(
+            "static_linear_mumps",
+            "linear static solve, MUMPS (feature mumps): solve_step phases only",
+            implicit::static_linear_mumps,
+        ),
+        c(
+            "static_newton_plastic",
+            "nonlinear static Newton-Raphson with plasticity: tangent and residual per iteration",
+            implicit::static_newton_plastic,
+        ),
+        c(
+            "implicit_dynamic",
+            "implicit dynamics (trapezoidal rule): consistent mass, K/M/J assembly and the solve per step",
+            implicit::implicit_dynamic,
+        ),
+        c(
+            "setup_tet4",
+            "model set-up, tetrahedron_4: init_full, shape functions, lumped/consistent mass, stiffness assembly",
+            setup::tet4,
+        ),
+        c(
+            "setup_tet10",
+            "model set-up, tetrahedron_10 (4 points, 10-node blocks)",
+            setup::tet10,
+        ),
+        c(
+            "setup_hex8",
+            "model set-up, hexahedron_8 (8 points)",
+            setup::hex8,
+        ),
+        c(
+            "cohesive_intrinsic_bilinear",
+            "intrinsic cohesive (bilinear), explicit: cohesive elements in a slab, bulk + cohesive forces per step",
+            cohesive::intrinsic_bilinear,
+        ),
+        c(
+            "cohesive_intrinsic_exponential",
+            "intrinsic cohesive (exponential law, exponential contact penalty), explicit",
+            cohesive::intrinsic_exponential,
+        ),
+        c(
+            "cohesive_intrinsic_implicit",
+            "intrinsic cohesive, implicit static Newton (triangle_6, 2-D): cohesive tangent, factorisations",
+            cohesive::intrinsic_implicit,
+        ),
+        c(
+            "cohesive_extrinsic_check",
+            "extrinsic cohesive, no insertion: the insertion check (facet stresses) and the step",
+            cohesive::extrinsic_check,
+        ),
+        c(
+            "cohesive_extrinsic_insertion",
+            "extrinsic cohesive with progressive insertions: check, facet doubling, model updates, step",
+            cohesive::extrinsic_insertion,
+        ),
+        c(
+            "par_explicit_tet4_ss",
+            "explicit elastic step on the distributed cube (mpirun -n P): ghost exchanges and reductions per step",
+            parallel::explicit_tet4_ss,
+        ),
+        c(
+            "par_cohesive_extrinsic",
+            "extrinsic cohesive insertions on the distributed cube (mpirun -n P): distributed check and insertion",
+            parallel::cohesive_extrinsic,
         ),
     ]
 }

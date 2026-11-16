@@ -131,7 +131,7 @@ pub fn run(ctx: &mut Ctx<'_>, c: &Explicit) -> Result<Outcome> {
     m.set_time_step(0.8 * dt, None)?;
     let ramp = match c.load {
         Load::Pulse => {
-            common::apply_pulse(&mut m)?;
+            common::apply_pulse(&mut m, 0.0, 1.0)?;
             None
         }
         Load::Ramp(strain) => Some(setup_ramp(

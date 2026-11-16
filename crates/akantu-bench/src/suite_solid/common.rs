@@ -68,8 +68,8 @@ pub fn coordinates(m: &SolidMechanicsModel) -> Result<Vec<Real>> {
     Ok(m.physics.base.mesh.read()?.nodes().as_slice().to_vec())
 }
 
-/// A sine–Gaussian displacement pulse along x, centred in the mesh's x
-/// range: `u_x = a sin(4π ξ) exp(−(ξ/0.2)²)`, `ξ = (x − x_mid)/L`,
+/// A sine–Gaussian displacement pulse along x, centred in the x range
+/// `[lo, hi]` of the box (not the local mesh's: ranks agree): `u_x = a sin(4π ξ) exp(−(ξ/0.2)²)`, `ξ = (x − x_mid)/L`,
 /// `a = 1e-3 L`. The amplitude is the explicit timing harness's; its pulse
 /// (the upstream example's formula) is narrower than one element of these
 /// structured meshes and vanishes at the centre node, which leaves the
@@ -78,12 +78,9 @@ pub fn coordinates(m: &SolidMechanicsModel) -> Result<Vec<Real>> {
 ///
 /// # Errors
 /// Model errors.
-pub fn apply_pulse(m: &mut SolidMechanicsModel) -> Result<()> {
+pub fn apply_pulse(m: &mut SolidMechanicsModel, lo: Real, hi: Real) -> Result<()> {
     let x = coordinates(m)?;
     let d = m.spatial_dimension();
-    let (lo, hi) = x.chunks_exact(d).fold((Real::MAX, Real::MIN), |(l, h), p| {
-        (l.min(p[0]), h.max(p[0]))
-    });
     let len = (hi - lo).max(Real::MIN_POSITIVE);
     let mid = 0.5 * (lo + hi);
     let amp = 1e-3 * len;
