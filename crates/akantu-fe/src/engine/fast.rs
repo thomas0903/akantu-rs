@@ -685,7 +685,13 @@ impl<const R: usize, const S: usize> SimdTask for LaneBtdIntegrate<'_, R, S> {
             os,
         } = self;
         let bsz = S * nn;
-        let mut c = [Lanes4::default(); TREE_MAX];
+        let groups = nn.div_ceil(4);
+        // accumulators c(i, j) of the element, lane = node `j` of a group of
+        // four, one vector per (group, row i)
+        let mut c = [[Lanes4::default(); R]; TREE_MAX / 4];
+        // the point's B, transposed: per group and row l, the four nodes'
+        // values (zeros beyond `nn`)
+        let mut bt = [[Lanes4::default(); S]; TREE_MAX / 4];
         for ((&e, de), oe) in ids
             .iter()
             .zip(ds.chunks_exact(nq * R * S))
@@ -696,17 +702,36 @@ impl<const R: usize, const S: usize> SimdTask for LaneBtdIntegrate<'_, R, S> {
             let je = &jac[e * nq..(e + 1) * nq];
             // the GEMV accumulators of the element: c = 0, then for every
             // point c = c + fl((D·B)_q · J_q)
-            c[..nn].fill(Lanes4::splat(0.0));
+            for cg in c.iter_mut().take(groups) {
+                *cg = [Lanes4::splat(0.0); R];
+            }
             for ((b, d), &jq) in be.chunks_exact(bsz).zip(de.chunks_exact(R * S)).zip(je) {
-                let dcol = d_columns::<R, S>(d);
+                let (cols, _) = b.as_chunks::<S>();
+                for (gi, bg) in bt.iter_mut().enumerate().take(groups) {
+                    for (l, bl) in bg.iter_mut().enumerate() {
+                        *bl = Lanes4(std::array::from_fn(|k| {
+                            cols.get(4 * gi + k).map_or(0.0, |col| col[l])
+                        }));
+                    }
+                }
                 let jq = Lanes4::splat(jq);
-                for (cj, bj) in c.iter_mut().zip(b.chunks_exact(S)) {
-                    *cj = *cj + db_column(&dcol, bj) * jq;
+                for (cg, bg) in c.iter_mut().zip(&bt).take(groups) {
+                    for (i, ci) in cg.iter_mut().enumerate() {
+                        // lhs(i, l) = D(i, l), rhs(l, j) = B(l, j):
+                        // r = D(i, 0)·B(0, j); r = r + D(i, l)·B(l, j)
+                        let mut acc = Lanes4::splat(d[i]) * bg[0];
+                        for l in 1..S {
+                            acc = acc + Lanes4::splat(d[i + l * R]) * bg[l];
+                        }
+                        *ci = *ci + acc * jq;
+                    }
                 }
             }
             // res = 0 + c (zeroed destination)
-            for (oj, &cj) in oe.chunks_exact_mut(R).zip(&c) {
-                oj.copy_from_slice(&(Lanes4::splat(0.0) + cj).prefix::<R>());
+            for (j, oj) in oe.chunks_exact_mut(R).enumerate() {
+                for (i, o) in oj.iter_mut().enumerate() {
+                    *o = 0.0 + c[j / 4][i].0[j % 4];
+                }
             }
         }
     }
