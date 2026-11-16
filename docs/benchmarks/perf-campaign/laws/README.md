@@ -2,8 +2,10 @@
 # Constitutive laws and the heat law on fixed-size kernels
 
 Branch `perf/laws` (from `perf/wave2-base` 78a330615). Every change keeps
-every bit of the default path (D-122): the suite digests of all 71
-runnable cases at size `s` are unchanged after every step (`digests-s.txt`),
+every bit of the default path (D-122): the suite digests of the 69
+cases that produce one in the host build (71 runnable cases;
+`static_linear_mumps` and `partition_scotch_tet4` have none there) at size
+`s` are unchanged after every step (`digests-s.txt`),
 and so are those of every timed case at size `m` (column "digest" below).
 
 ## What changed
