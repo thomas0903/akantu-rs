@@ -976,9 +976,20 @@ fn grad_u_in_place(
             got: gu.len(),
         });
     }
-    for (g, e) in gu.as_mut_slice().iter_mut().zip(eigen.as_slice()) {
-        *g -= *e;
-    }
+    // every value from its own pair: contiguous parts on the model's
+    // threads (D-123)
+    let n = gu.as_slice().len().min(eigen.as_slice().len());
+    let items = (
+        akantu_core::exec::Tuples::new(&mut gu.as_mut_slice()[..n], 1),
+        akantu_core::exec::TuplesRef::new(&eigen.as_slice()[..n], 1),
+    );
+    ctx.services
+        .exec()
+        .for_each(items, 32_768, |_, (mut g, e)| {
+            for (g, e) in g.as_mut_slice().iter_mut().zip(e.as_slice()) {
+                *g -= *e;
+            }
+        });
     Ok(true)
 }
 
