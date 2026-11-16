@@ -577,19 +577,25 @@ impl SolidMechanicsPhysics {
                 // `_unsymmetric` blocks, UD-034) — upstream virtual
                 // `Material::assembleStiffnessMatrix`
                 match law.elemental_stiffness_custom(&ctx, GhostType::NotGhost) {
-                    Some(r) => r?,
-                    None => elemental_stiffness_with(
-                        law,
-                        &ctx,
-                        GhostType::NotGhost,
-                        subtract_eigen,
-                        scratch,
-                    )?
-                    .into_iter()
-                    .map(|(ty, filter, k_e)| (ty, filter, k_e, MatrixType::Symmetric))
-                    .collect(),
+                    Some(r) => (r?, false),
+                    None => (
+                        elemental_stiffness_with(
+                            law,
+                            &ctx,
+                            GhostType::NotGhost,
+                            subtract_eigen,
+                            scratch,
+                        )?
+                        .into_iter()
+                        .map(|(ty, filter, k_e)| (ty, filter, k_e, MatrixType::Symmetric))
+                        .collect(),
+                        true,
+                    ),
                 }
             };
+            // only the arrays taken from the pool go back to it (a law's
+            // own blocks are dropped, as before)
+            let (blocks, pooled): (Vec<_>, bool) = blocks;
             for (ty, filter, k_e, elemental_type) in blocks {
                 dofs.assemble_elemental_matrices_to_matrix(
                     mesh,
@@ -601,7 +607,9 @@ impl SolidMechanicsPhysics {
                     elemental_type,
                     Some(&filter),
                 )?;
-                scratch.give_back(k_e);
+                if pooled {
+                    scratch.give_back(k_e);
+                }
             }
         }
         Ok(())
