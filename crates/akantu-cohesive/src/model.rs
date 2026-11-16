@@ -169,8 +169,9 @@ pub struct CohesiveExtension {
 #[derive(Clone, Debug, Default, PartialEq)]
 struct StressCopyPlan {
     revision: u64,
-    /// Per bulk type: filter length and an order-sensitive digest.
-    filter_key: Vec<(ElementType, usize, u64)>,
+    /// Per bulk type: the law's not-ghost filter the plan was built for
+    /// (compared in full, a memory comparison, at every check).
+    filter_key: Vec<(ElementType, Vec<Idx>)>,
     blocks: Vec<StressCopyBlock>,
     /// The fused form of every block ([`build_fused`]), once built for
     /// these blocks (`None` for a block without it).
@@ -287,21 +288,34 @@ fn fuse_block(
     Some(out)
 }
 
-/// Length and digest of a law's not-ghost filter per type (plan key).
+/// A law's not-ghost filter per type (plan key).
 fn filter_key(
     filter: &ElementTypeMapArray<Idx>,
     types: &[ElementType],
-) -> Result<Vec<(ElementType, usize, u64)>> {
+) -> Result<Vec<(ElementType, Vec<Idx>)>> {
     let mut key = Vec::with_capacity(types.len());
     for &ty in types {
-        let elems = filter.get(ty, GhostType::NotGhost)?.as_slice();
-        let mut h: u64 = 0xcbf2_9ce4_8422_2325;
-        for &e in elems {
-            h = (h ^ u64::from(e.cast_unsigned())).wrapping_mul(0x0100_0000_01b3);
-        }
-        key.push((ty, elems.len(), h));
+        key.push((ty, filter.get(ty, GhostType::NotGhost)?.as_slice().to_vec()));
     }
     Ok(key)
+}
+
+/// `key` is the filter `filter` of `types` ([`filter_key`] of it):
+/// compared, not copied or hashed (performance).
+fn filter_matches(
+    key: &[(ElementType, Vec<Idx>)],
+    filter: &ElementTypeMapArray<Idx>,
+    types: &[ElementType],
+) -> Result<bool> {
+    if key.len() != types.len() {
+        return Ok(false);
+    }
+    for ((kt, kv), &ty) in key.iter().zip(types) {
+        if *kt != ty || filter.get(ty, GhostType::NotGhost)?.as_slice() != kv.as_slice() {
+            return Ok(false);
+        }
+    }
+    Ok(true)
 }
 
 /// Copy `nq` stress tuples of `n` values: source tuples consecutive,
@@ -608,13 +622,15 @@ fn update_stress_plan(
     interp: &ElementalFieldInterpolation,
     stress_size: usize,
 ) -> Result<bool> {
-    let key = filter_key(filter, types)?;
-    if !plan.blocks.is_empty() && plan.revision == m.revision() && plan.filter_key == key {
+    if !plan.blocks.is_empty()
+        && plan.revision == m.revision()
+        && filter_matches(&plan.filter_key, filter, types)?
+    {
         return Ok(false);
     }
     *plan = build_stress_plan(fm, filter, types, interp, stress_size)?;
     plan.revision = m.revision();
-    plan.filter_key = key;
+    plan.filter_key = filter_key(filter, types)?;
     Ok(true)
 }
 
@@ -2446,6 +2462,10 @@ impl SolidMechanicsModelCohesive {
     fn flagged_insertion_facets(&self) -> Vec<(ElementType, GhostType, usize)> {
         let mut out = Vec::new();
         for (ty, ghost, a) in self.ext.inserter.insertion_facets().as_map().iter_all() {
+            // none flagged (the usual case): one vectorised pass
+            if !a.as_slice().contains(&true) {
+                continue;
+            }
             for (i, &f) in a.as_slice().iter().enumerate() {
                 if f {
                     out.push((ty, ghost, i));
