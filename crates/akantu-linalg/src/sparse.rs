@@ -1053,6 +1053,20 @@ impl SparseMatrixAij {
         self.size = size;
     }
 
+    /// [`SparseMatrixAij::clear_profile`] that also returns the storage of
+    /// the coordinates, the values and the lookup map to the allocator
+    /// (`clear_profile` keeps their capacity for a profile of the same
+    /// size). Port extension, for a matrix no longer needed (released
+    /// after a one-shot solve); the next assembly profiles it again.
+    pub fn release_storage(&mut self) {
+        self.clear_profile();
+        self.irn = Vec::new();
+        self.jcn = Vec::new();
+        self.a = Vec::new();
+        self.profile = IntHashMap::default();
+        self.scratch = Vec::new();
+    }
+
     /// Remove the profile (upstream `clearProfile`), keeping the order.
     /// The effective symmetry (an agreed promotion) is kept.
     pub fn clear_profile(&mut self) {

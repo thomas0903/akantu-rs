@@ -628,6 +628,16 @@ pub fn run(comm: &Communicator, cfg: &Config) -> Result<RunReport> {
     if verbose && cfg.static_solve {
         println!("akantu-rs: static solve with the {static_sparse_solver} sparse solver");
     }
+    // Port option (off by default, upstream keeps them): release the
+    // static solver's factors and matrices, after the statistics above
+    // were read; the explicit loop never uses them.
+    if cfg.static_solve && cfg.release_static_solver {
+        model.smm().release_static_solver()?;
+        mem.rss_after_release = memory::status_kib("VmRSS");
+        if verbose {
+            println!("akantu-rs: static solver released (rust_release_static_solver = true)");
+        }
+    }
 
     model
         .smm()

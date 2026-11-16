@@ -353,3 +353,72 @@ assert_eq!(chosen, IntegrationSchemeType::BackwardEuler);
 // model.solve_step(Some("euler")) now advances with backward Euler
 # Ok::<(), akantu::core::Error>(())
 ```
+
+## Releasing the static solver's memory
+
+A sparse direct solver keeps its analysis and factors after a solve, so
+that the next solve with the same matrix only back-substitutes; upstream
+keeps them for the model's lifetime, and so does the library by default.
+When no solve with that operator follows, for example after a static
+preload before an explicit loop, `SolidMechanicsModel::release_static_solver`
+(Python: `model.releaseStaticSolver()`) releases them: the analysis and
+factors of `J`'s sparse solver (MUMPS: its instance, destroyed collectively;
+the SparseLU translation and faer: their factors) and the storage of `J`
+and `K`. A later solve assembles `K`, rebuilds `J`, analyses and
+factorises again, with the same results. It is collective (every rank, the
+same program point, outside any other solver operation); the PETSc back-end
+returns a "not supported" error. Do not call it between the steps of an
+implicit run: each step would then pay a new assembly and factorisation.
+The rebuilt `K` has the entry order of a first assembly, so a profile that
+had grown since (contact couplings appended) can come back in another
+order, and the next solve can then differ in its last bits.
+
+The cohesive benchmark driver (`cohesive_extrinsic`) does this after its
+static preload with `rust_release_static_solver = true` (default false),
+after reading the solver statistics; `rss_after_release` in its memory
+records shows the effect.
+
+```rust
+use akantu::core::enums::{AnalysisMethod, MeshIoType};
+use akantu::mesh::{Mesh, SharedMesh};
+use akantu::model::ModelOptions;
+use akantu::parser::Parser;
+use akantu::solid::SolidMechanicsModel;
+# let mesh_file = std::path::Path::new(env!("CARGO_MANIFEST_DIR"))
+#     .join("../../docs/manual/src/meshes/square.msh");
+# let mut mesh = Mesh::new(2, "mesh")?;
+# akantu::io::read_mesh(&mut mesh, &mesh_file, MeshIoType::Auto)?;
+# let parser = Parser::parse_str(
+#     "material elastic [\n name = steel\n rho = 7800\n E = 210e9\n nu = 0.3\n]\n",
+#     "material.dat",
+# )?;
+# let mut model =
+#     SolidMechanicsModel::with_parser(SharedMesh::new(mesh), None, "solid_mechanics_model", parser)?;
+model.init_full(&ModelOptions::new(AnalysisMethod::Static))?;
+// clamp the left edge, pull the right edge down
+let x: Vec<f64> = model.physics.base.mesh.read()?.nodes().as_slice().to_vec();
+let x_max = x.iter().step_by(2).fold(f64::MIN, |m, &v| m.max(v));
+for (n, b) in model.blocked_dofs_mut()?.as_mut_slice().chunks_mut(2).enumerate() {
+    b.fill(x[2 * n] == 0.0);
+}
+for (n, f) in model.external_force_mut()?.as_mut_slice().chunks_mut(2).enumerate() {
+    if x[2 * n] == x_max {
+        f[1] = -1.0;
+    }
+}
+model.solve_step(None)?;
+let u = model.displacement()?.as_slice().to_vec();
+
+model.release_static_solver()?;
+assert_eq!(model.dof_manager().matrix("K")?.nnz(), 0);
+
+// the same load again: assembles and factorises again, and the
+// equilibrium is unchanged
+model.solve_step(None)?;
+let scale = u.iter().fold(0.0_f64, |m, v| m.max(v.abs()));
+assert!(scale > 0.0);
+for (a, b) in model.displacement()?.as_slice().iter().zip(&u) {
+    assert!((a - b).abs() <= 1e-12 * scale);
+}
+# Ok::<(), akantu::core::Error>(())
+```

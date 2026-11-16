@@ -273,6 +273,9 @@ pub struct SolidMechanicsPhysics {
     current_position_release: i64,
     need_to_reassemble_lumped_mass: bool,
     need_to_reassemble_mass: bool,
+    /// `K` was released (`release_static_solver`): reassemble it at its
+    /// next assembly whatever the laws answer.
+    pub(crate) need_to_reassemble_stiffness: bool,
     external_work: Real,
     external_work_release: i64,
     /// Upstream `f_m2a` (kept for API parity; unused by upstream code).
@@ -534,6 +537,7 @@ impl SolidMechanicsModel {
             current_position_release: 0,
             need_to_reassemble_lumped_mass: true,
             need_to_reassemble_mass: true,
+            need_to_reassemble_stiffness: false,
             external_work: 0.0,
             external_work_release: -1,
             f_m2a: 1.0,
@@ -2057,6 +2061,38 @@ impl SolidMechanicsModel {
             .collective("smm:assemble_internal_forces", |dm| {
                 p.assemble_internal_forces(dm)
             })
+    }
+
+    /// Release the memory of the static solver once the caller will not
+    /// solve again with the current operator (port extension, not called by
+    /// the library: upstream keeps the factors and the matrices for the
+    /// model's lifetime). Destroys the analysis and factorisation of `J`'s
+    /// sparse solver (MUMPS: its instance, an agreed collective) and the
+    /// storage of `J` and `K`. Results are unchanged: a later solve that
+    /// needs `K` assembles it again (whatever the laws report), rebuilds `J`
+    /// and analyses and factorises again. The rebuilt `K` has the entry
+    /// order of a first assembly; a profile that had grown since (entries
+    /// appended by contact) may come back in another order, and a later
+    /// solve may then differ in the last bits. Typical use: after the static
+    /// preload of an explicit run. Do not call it between the steps of an
+    /// implicit run: each step would pay a new assembly, analysis and
+    /// factorisation.
+    ///
+    /// **Collective** (every rank, same program point, outside any
+    /// collective operation). Errors: [`akantu_core::Error::Unsupported`]
+    /// for a backend that cannot release its factorisation (PETSc), before
+    /// any matrix is released.
+    pub fn release_static_solver(&mut self) -> Result<()> {
+        let dm = &mut self.solver.dof_manager;
+        if dm.has_matrix("J") {
+            dm.release_factorization("J")?;
+            dm.release_matrix("J")?;
+        }
+        if dm.has_matrix("K") {
+            dm.release_matrix("K")?;
+            self.physics.need_to_reassemble_stiffness = true;
+        }
+        Ok(())
     }
 
     /// Upstream `assembleStiffnessMatrix(need_to_reassemble)`.

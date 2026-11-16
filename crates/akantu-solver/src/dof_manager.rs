@@ -1668,6 +1668,51 @@ impl DofManager {
         Ok(())
     }
 
+    /// Release the analysis and the factorisation of the sparse solver of
+    /// matrix `matrix_id` (port extension; upstream keeps them for the
+    /// solver's lifetime, and so does the library unless this is called):
+    /// for a caller that will not solve with them again, e.g. after the
+    /// static preload of an explicit run. A later solve analyses and
+    /// factorises again, with the same results. Collective: every rank
+    /// calls it at the same program point, outside any collective
+    /// operation of this manager (the MUMPS instance is destroyed with an
+    /// agreed `JOB = -2`). The SparseLU and faer solvers release their
+    /// factors locally; a backend without the operation (PETSc) returns
+    /// [`Error::Unsupported`].
+    pub fn release_factorization(&mut self, matrix_id: &str) -> Result<()> {
+        self.check_idle("release_factorization")?;
+        self.check_matrix(matrix_id)?;
+        self.backend.release_factorization(matrix_id)
+    }
+
+    /// Release the storage of matrix `matrix_id` (profile, values, lookup
+    /// map, cached element positions): the matrix stays declared, its
+    /// releases change, and its next assembly profiles it again (port
+    /// extension, for a matrix that is not read again before being
+    /// re-assembled). The caller must make sure that whoever assembles it
+    /// assembles it again before it is used (see
+    /// `SolidMechanicsModel::release_static_solver`).
+    pub fn release_matrix(&mut self, matrix_id: &str) -> Result<()> {
+        self.check_poison()?;
+        self.check_matrix(matrix_id)?;
+        let size = self.layout.system_size();
+        self.backend.release_matrix_storage(matrix_id, size)?;
+        self.profiled.retain(|k| k.0 != matrix_id);
+        self.assembly_caches.retain(|k, _| k.0 != matrix_id);
+        Ok(())
+    }
+
+    fn check_idle(&self, what: &str) -> Result<()> {
+        self.check_poison()?;
+        match self.active {
+            ScopeSlot::Idle => Ok(()),
+            _ => Err(Error::invalid(format!(
+                "DOF manager '{}': {what} must be called outside a collective operation",
+                self.id
+            ))),
+        }
+    }
+
     /// Enable (default) or disable the cache of entry positions of
     /// elemental matrix assembly ([`BlockPositionCache`]: from the second
     /// assembly with an unchanged profile, 4 bytes per assembled elemental

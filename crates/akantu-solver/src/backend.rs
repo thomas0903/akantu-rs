@@ -131,6 +131,23 @@ pub trait LinearSystemBackend: std::fmt::Debug + Send {
         values: &[Real],
         values_type: MatrixType,
     ) -> Result<()>;
+    /// Release the analysis and factorisation of the sparse solver of
+    /// matrix `id` on the caller's request (port extension, upstream keeps
+    /// them): the next solve of `id` analyses and factorises again.
+    /// Collective for a distributed solver (MUMPS). Default: not supported.
+    fn release_factorization(&mut self, id: &str) -> Result<()> {
+        Err(Error::Unsupported(format!(
+            "releasing the factorisation of matrix '{id}' is not supported by the {:?} backend",
+            self.kind()
+        )))
+    }
+    /// Release the storage of matrix `id` (profile, values, lookup map);
+    /// the matrix stays declared and the next assembly profiles it again.
+    /// `size` is the system order. Default:
+    /// [`LinearSystemBackend::reset_profile`].
+    fn release_matrix_storage(&mut self, id: &str, size: GlobalIdx) -> Result<()> {
+        self.reset_profile(id, size)
+    }
     /// `true` if [`LinearSystemBackend::add_block_to_profile_and_values`]
     /// may replace a loop of `add_block_to_profile` over every element
     /// followed by a loop of `add_values` over the same elements in the
@@ -950,6 +967,23 @@ impl LinearSystemBackend for AijBackend {
     }
     fn can_fuse_profile_and_values(&self, id: &str, values_type: MatrixType) -> bool {
         self.get(id).is_ok_and(|m| !m.would_promote(values_type))
+    }
+    fn release_factorization(&mut self, id: &str) -> Result<()> {
+        self.get(id)?;
+        self.analysed.remove(id);
+        self.central.remove(id);
+        match self.solvers.get_mut(id) {
+            Some(s) => s.release_factorization(),
+            None => Ok(()),
+        }
+    }
+    fn release_matrix_storage(&mut self, id: &str, size: GlobalIdx) -> Result<()> {
+        let m = self.get_mut(id)?;
+        m.release_storage();
+        m.set_size(size);
+        self.analysed.remove(id);
+        self.central.remove(id);
+        Ok(())
     }
     fn add_block_to_profile_and_values(
         &mut self,

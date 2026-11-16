@@ -1729,6 +1729,12 @@ impl SparseDirectSolver for MumpsSolver {
         let _ = self.destroy();
     }
 
+    /// [`MumpsSolver::destroy`]: the factors and the instance are released
+    /// (collective, agreed); the next solve initialises a new instance.
+    fn release_factorization(&mut self) -> Result<()> {
+        self.destroy()
+    }
+
     /// The manager-wide UD-216 switch (D-041 (4)) decides the retry
     /// right-hand side of a solver driven by a DOF manager (no per-object
     /// mixing); standalone use keeps [`MumpsOptions::retry_rhs`]. The

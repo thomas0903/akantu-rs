@@ -33,6 +33,19 @@ change of default results or of a public API raises the minor version.
   `can_fuse_profile_and_values` and `add_block_to_profile_and_values`
   (default implementations forward to the former methods).
 
+- Release of the static solver's memory, off unless called (upstream
+  keeps the factors): `SolidMechanicsModel::release_static_solver`
+  (Python `SolidMechanicsModel.releaseStaticSolver`), built on
+  `DofManager::{release_factorization, release_matrix}`,
+  `LinearSystemBackend::{release_factorization, release_matrix_storage}`
+  (PETSc: not supported), `SparseDirectSolver::release_factorization`
+  (MUMPS: the collective `destroy`) and `SparseMatrixAij::release_storage`.
+  A later solve assembles, analyses and factorises again. The cohesive
+  benchmark driver uses it after the static preload with
+  `rust_release_static_solver = true` (default false) and records
+  `rss_after_release`. Manual: "Solver configuration", "Releasing the
+  static solver's memory".
+
 ### Changed
 
 - The cohesive insertion check is faster with bitwise identical results:

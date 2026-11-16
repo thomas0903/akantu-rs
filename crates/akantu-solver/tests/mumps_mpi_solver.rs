@@ -564,6 +564,61 @@ fn partitioned_bar_auto_is_mumps(c: &Communicator) -> Outcome {
     }
 }
 
+/// `DofManager::release_factorization` with MUMPS on the partitioned bar
+/// (every rank count): two static solves (the second with a doubled load),
+/// `J`'s factorisation (the MUMPS instance, `JOB = -2` agreed on every
+/// rank) and the storage of `J` and `K` released between them; the second
+/// solve initialises a new instance, assembles, analyses and factorises
+/// again and gives the bits of the run that kept everything (same ranks,
+/// same input order).
+fn release_factorization_mumps(c: &Communicator) -> Outcome {
+    let solve_twice =
+        |release: bool| -> std::result::Result<(Vec<(i64, [Real; 3])>, usize), String> {
+            let e2s = |e: akantu_core::Error| e.to_string();
+            let (mut model, mut ms) = build(c, Setup::StaticLinearSolver, SparseSolverType::Mumps);
+            ms.solve_step(&mut model, None).map_err(e2s)?;
+            let mut left = usize::MAX;
+            if release {
+                ms.dof_manager.release_factorization("J").map_err(e2s)?;
+                ms.dof_manager.release_matrix("J").map_err(e2s)?;
+                ms.dof_manager.release_matrix("K").map_err(e2s)?;
+                model.release_stiffness();
+                left = ms.dof_manager.matrix("J").map_err(e2s)?.nnz()
+                    + ms.dof_manager.matrix("K").map_err(e2s)?.nnz();
+            }
+            for f in &mut model.forces {
+                *f *= 2.0;
+            }
+            ms.solve_step(&mut model, None).map_err(e2s)?;
+            let u_g = ms.dof_manager.dofs("disp").map_err(e2s)?;
+            let u = u_g.as_slice();
+            let state = model
+                .global_ids
+                .iter()
+                .enumerate()
+                .map(|(k, &g)| (g, [u[k], 0.0, 0.0]))
+                .collect();
+            Ok((state, left))
+        };
+    let (kept, _) = solve_twice(false)?;
+    let (released, left) = solve_twice(true)?;
+    ensure!(
+        left == 0,
+        "{left} entries left in J and K after the release"
+    );
+    let bits = |v: &[(i64, [Real; 3])]| {
+        v.iter()
+            .map(|e| (e.0, e.1[0].to_bits()))
+            .collect::<Vec<_>>()
+    };
+    ensure!(
+        bits(&kept) == bits(&released),
+        "the solve after the release differs from the kept factorisation's"
+    );
+    ensure!(kept.iter().any(|e| e.1[0] != 0.0), "trivial solution");
+    Ok(())
+}
+
 /// The manager-wide UD-216 switch
 /// (`UpstreamCompat::mumps_retry_with_solution_rhs`) drives the MUMPS
 /// solver of the manager's solves, through the real stack (DOF manager →
@@ -707,7 +762,7 @@ fn main() {
     let rank = control.rank();
     // `lr20_dbltrace_rank_files` first: upstream's dblTrace statics (the
     // first-call flag and the dump counter) are process-wide and fresh here
-    let scenarios: [Scenario; 6] = [
+    let scenarios: [Scenario; 7] = [
         (
             "lr20_dbltrace_rank_files",
             dbltrace_mpi::lr20_dbltrace_rank_files,
@@ -726,6 +781,7 @@ fn main() {
             partitioned_bar_auto_is_mumps,
         ),
         ("ud216_manager_compat", ud216_manager_compat),
+        ("release_factorization_mumps", release_factorization_mumps),
     ];
     let mut failed = 0;
     for (name, f) in scenarios {
