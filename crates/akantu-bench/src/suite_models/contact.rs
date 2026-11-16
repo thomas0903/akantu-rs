@@ -246,10 +246,16 @@ fn explicit_quad4(run: &mut Run) -> Result<Digest> {
         value: -2e-6,
         axis: SpatialDirection::Y,
     };
+    let mut most = 0;
     run.looped("solve_step", s.pick(10, 200, 200), |_| {
         c.apply_dirichlet_bc(&inc, "upper_ymax")?;
-        c.solve_step(None)
+        c.solve_step(None)?;
+        most = most.max(c.contact.contact_elements().len());
+        Ok(())
     })?;
+    run.note(&format!(
+        "contact explicit: at most {most} contact elements in a step"
+    ));
     digest(run, &c)
 }
 
@@ -313,7 +319,8 @@ fn cohesive_contact_quad4(run: &mut Run) -> Result<Digest> {
             "the contact model is serial (upstream has no parallel contact detection)".into(),
         ));
     }
-    let (w, h) = (1.0, 0.1 * ny as Real / 40.0);
+    // square cells (the stable time step follows the smallest cell size)
+    let (w, h) = (1.0, ny as Real / nx as Real);
     let mesh = run.once("mesh", || {
         let mut msh = Msh::new(2);
         msh.block(&Block::new(
@@ -363,6 +370,7 @@ fn cohesive_contact_quad4(run: &mut Run) -> Result<Digest> {
     let total = steps + 3;
     let inc = 2e-2 * h / total as Real;
     let mut inserted = 0usize;
+    let mut most = 0;
     run.looped("solve_step", steps, |i| {
         let v = if i < total / 3 { inc } else { -inc };
         c.apply_dirichlet_bc(
@@ -381,10 +389,12 @@ fn cohesive_contact_quad4(run: &mut Run) -> Result<Digest> {
         )?;
         c.solve_step(None)?;
         inserted += c.check_cohesive_stress()?;
+        most = most.max(c.contact.contact_elements().len());
         Ok(())
     })?;
     run.note(&format!(
-        "contact_cohesive: {inserted} cohesive elements inserted, {} contact elements at the end",
+        "contact_cohesive: {inserted} cohesive elements inserted, at most {most} contact \
+         elements in a step, {} at the end",
         c.contact.contact_elements().len()
     ));
     let mut d = Digest::new();
