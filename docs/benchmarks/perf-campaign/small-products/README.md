@@ -1,5 +1,5 @@
 <!-- SPDX-License-Identifier: LGPL-3.0-or-later -->
-# Small dense products and reductions in Eigen's order (W2-GEBP)
+# Small dense products and reductions in Eigen's order
 
 Branch `perf/small-products` (from `perf/wave2-base` 59e05aa3f). Every
 change keeps every bit of the default path (D-122): the kernels perform the
