@@ -49,6 +49,7 @@ use akantu_core::enums::{
     AnalysisMethod, EventPriority, IntegrationSchemeType, MatrixType, ModelType,
     NonLinearSolverType, TimeStepSolverType,
 };
+use akantu_core::exec::{Exec, ExecPolicy};
 use akantu_core::{
     Array, Element, ElementType, ElementTypeMapArray, Error, GhostType, Id, Idx, Real, Result,
     SharedElementTypeMapArray, TypeFilter,
@@ -175,6 +176,9 @@ pub struct DiffusionPhysics {
     /// `Bᵀ D∇u` per point and its integral per element of the last
     /// internal-flow block (kept between steps: no allocation per step).
     flow_scratch: (Array<Real>, Array<Real>),
+    /// Node-ordered scatter tables of the threaded internal-flow assembly
+    /// (D-123), per `(law, type, ghost)`.
+    flow_scatters: assembly::FlowScatters,
 }
 
 /// Diffusion model (upstream `DiffusionModel`): a scalar diffusion field
@@ -307,6 +311,7 @@ impl DiffusionModel {
             need_to_reassemble_capacity_lumped: true,
             time_step: 0.0,
             flow_scratch: (Array::new(1), Array::new(1)),
+            flow_scatters: assembly::FlowScatters::default(),
         };
         // upstream initDOFManager(dof_manager) (`diffusion_model.cc:65`,
         // `model_solver.cc:78-95`): the section's dof_manager_type through
@@ -334,6 +339,10 @@ impl DiffusionModel {
             let dim = physics.base.spatial_dimension;
             physics.base.fems.register(&format!("{id}:fem"), &m, dim)?;
         }
+        // the process default execution policy (D-123)
+        let exec = Exec::new(ExecPolicy::process_default()?)?;
+        physics.base.fems.set_exec(&exec);
+        solver.dof_manager.set_exec(exec);
         let dumpers = DiffusionDumpers::new(id, physics.base.spatial_dimension)?;
         physics.time_step = solver.time_step(None).unwrap_or(0.0);
         Ok(Self {
@@ -342,6 +351,30 @@ impl DiffusionModel {
             token,
             dumpers,
         })
+    }
+
+    /// The execution policy of the model's kernels (D-123): precision
+    /// mode, threads, SIMD level. A new model takes
+    /// [`ExecPolicy::process_default`].
+    #[must_use]
+    pub fn exec_policy(&self) -> ExecPolicy {
+        self.solver.dof_manager.exec().policy()
+    }
+
+    /// Set the execution policy of the model's kernels: its FE engines'
+    /// element loops, its matrix assembly and the matrix operations and
+    /// integration-scheme loops of its DOF manager. May be called at any
+    /// time between two steps. With
+    /// [`akantu_core::exec::Precision::Bitwise`] every result is bitwise
+    /// the same for every thread count and SIMD level.
+    ///
+    /// # Errors
+    /// The operating system refuses the threads.
+    pub fn set_exec_policy(&mut self, policy: ExecPolicy) -> Result<()> {
+        let exec = Exec::new(policy)?;
+        self.physics.base.fems.set_exec(&exec);
+        self.solver.dof_manager.set_exec(exec);
+        Ok(())
     }
 
     /// Upstream `initFull(options)` (MODEL-002): method; default solver for

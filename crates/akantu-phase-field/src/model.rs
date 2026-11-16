@@ -66,6 +66,7 @@ use akantu_core::enums::{
     NonLinearSolverType, TimeStepSolverType,
 };
 use akantu_core::error::if_present;
+use akantu_core::exec::{Exec, ExecPolicy};
 use akantu_core::{
     Array, Element, ElementTypeMapArray, Error, GhostType, Id, Idx, Real, Result, SharedArray,
     SharedElementTypeMapArray,
@@ -243,12 +244,16 @@ impl PhaseFieldModel {
             internal_force: None,
             time_step: 0.0,
         };
-        let solver = Self::new_solver(&mut physics, id, &comm)?;
+        let mut solver = Self::new_solver(&mut physics, id, &comm)?;
         {
             let m = mesh.read()?;
             let dim = physics.base.spatial_dimension;
             physics.base.fems.register(FE_ENGINE_NAME, &m, dim)?;
         }
+        // the process default execution policy (D-123)
+        let exec = Exec::new(ExecPolicy::process_default()?)?;
+        physics.base.fems.set_exec(&exec);
+        solver.dof_manager.set_exec(exec);
         physics.time_step = solver.time_step(None).unwrap_or(0.0);
         let dumpers = PhaseFieldDumpers::new(id, physics.base.spatial_dimension)?;
         Ok(Self {
@@ -312,7 +317,34 @@ impl PhaseFieldModel {
     pub fn init_dof_manager(&mut self, dof_manager_type: &str) -> Result<()> {
         let comm = self.physics.base.mesh.read()?.communicator().clone();
         let id = self.physics.base.id.clone();
-        self.solver.init_dof_manager(dof_manager_type, &id, &comm)
+        self.solver.init_dof_manager(dof_manager_type, &id, &comm)?;
+        let exec = self.physics.base.fems.exec().clone();
+        self.solver.dof_manager.set_exec(exec);
+        Ok(())
+    }
+
+    /// The execution policy of the model's kernels (D-123): precision
+    /// mode, threads, SIMD level. A new model takes
+    /// [`ExecPolicy::process_default`].
+    #[must_use]
+    pub fn exec_policy(&self) -> ExecPolicy {
+        self.solver.dof_manager.exec().policy()
+    }
+
+    /// Set the execution policy of the model's kernels: its FE engines'
+    /// element loops, its matrix assembly and the matrix operations and
+    /// integration-scheme loops of its DOF manager. May be called at any
+    /// time between two steps. With
+    /// [`akantu_core::exec::Precision::Bitwise`] every result is bitwise
+    /// the same for every thread count and SIMD level.
+    ///
+    /// # Errors
+    /// The operating system refuses the threads.
+    pub fn set_exec_policy(&mut self, policy: ExecPolicy) -> Result<()> {
+        let exec = Exec::new(policy)?;
+        self.physics.base.fems.set_exec(&exec);
+        self.solver.dof_manager.set_exec(exec);
+        Ok(())
     }
 
     /// Upstream `initFull(options)` (PF-001/002): method; default solver for
