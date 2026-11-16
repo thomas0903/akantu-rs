@@ -102,15 +102,35 @@ impl SolidMechanicsPhysics {
         )?;
         check_nodal("getExternalWorkIncrement: external_force", &fe, nn, d)?;
         check_nodal("getExternalWorkIncrement: internal_force", &fi, nn, d)?;
-        let mut work = 0.0;
-        for n in 0..nn {
+        let term = |n: usize| -> Result<Real> {
             let c = if counted(&mesh, n)? { 1.0 } else { 0.0 };
             let i = &inc.as_slice()[n * d..(n + 1) * d];
             let a = dot(&fe.as_slice()[n * d..(n + 1) * d], i);
             let b = dot(&fi.as_slice()[n * d..(n + 1) * d], i);
-            work += c * (a - b);
+            Ok(c * (a - b))
+        };
+        let exec = self.base.fems.exec();
+        if !exec.is_parallel() {
+            let mut work = 0.0;
+            for n in 0..nn {
+                work += term(n)?;
+            }
+            return Ok(work);
         }
-        Ok(work)
+        // the per-node terms on the threads, their sum in node order (the
+        // serial additions, D-123)
+        let mut terms = vec![0.0; nn];
+        exec.try_for_each(
+            akantu_core::exec::Tuples::new(&mut terms, 1),
+            8192,
+            |first, mut t| {
+                for (k, v) in t.as_mut_slice().iter_mut().enumerate() {
+                    *v = term(first + k)?;
+                }
+                Ok(())
+            },
+        )?;
+        Ok(terms.iter().fold(0.0, |work, &t| work + t))
     }
 
     /// Local part of upstream `getStableTimeStep(_not_ghost)` (SMM-009):

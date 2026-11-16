@@ -165,7 +165,14 @@ fn run(n: usize, fd: bool, policy: ExecPolicy, steps: usize) -> Vec<(String, Vec
     for _ in 0..steps {
         m.solve_step(None).unwrap();
     }
-    state(&m)
+    let mut s = state(&m);
+    // energies: the accumulated external work (a reduction over nodes in
+    // the step), kinetic and potential energy
+    let energies = ["external work new", "kinetic", "potential", "external work"]
+        .map(|id| m.energy(id).unwrap().to_bits())
+        .to_vec();
+    s.push(("energies".into(), energies));
+    s
 }
 
 fn compare(reference: &[(String, Vec<u64>)], other: &[(String, Vec<u64>)], what: &str) {
