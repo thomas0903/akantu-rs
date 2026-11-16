@@ -51,6 +51,12 @@ pub const CASES: &[Case] = &[
                       (detection and assembly per iteration, sparse solve), 2-D quad4 blocks",
         run: implicit_quad4,
     },
+    Case {
+        name: "contact_cohesive_quad4",
+        description: "solid + cohesive + contact coupler, explicit steps: extrinsic insertion \
+                      along an internal line, then contact between the crack faces",
+        run: cohesive_contact_quad4,
+    },
 ];
 
 const DAT: &str = "material elastic [\n  name = upper\n  rho = 1.0\n  E = 1e3\n  nu = 0.3\n]\n\n\
@@ -137,7 +143,8 @@ fn coupler(
     Ok(c)
 }
 
-fn digest(c: &CouplerSolidContact) -> Result<Digest> {
+fn digest(run: &Run, c: &CouplerSolidContact) -> Result<Digest> {
+    run.note(&format!("contact: {} contact elements at the end", c.contact.contact_elements().len()));
     let mut d = Digest::new();
     d.reals(c.displacement()?.as_slice())
         .reals(c.contact.gaps().as_slice())
@@ -155,7 +162,7 @@ fn search(run: &mut Run, cell: Cell, nl: usize, nu: usize, calls: usize) -> Resu
     if c.contact.contact_elements().is_empty() {
         return Err(akantu_core::Error::invalid("contact search found no contact"));
     }
-    digest(&c)
+    digest(run, &c)
 }
 
 fn search_quad4(run: &mut Run) -> Result<Digest> {
@@ -182,7 +189,7 @@ fn explicit_quad4(run: &mut Run) -> Result<Digest> {
         c.apply_dirichlet_bc(&inc, "upper_ymax")?;
         c.solve_step(None)
     })?;
-    digest(&c)
+    digest(run, &c)
 }
 
 fn implicit_quad4(run: &mut Run) -> Result<Digest> {
@@ -207,7 +214,98 @@ fn implicit_quad4(run: &mut Run) -> Result<Digest> {
         }
         Ok(())
     })?;
-    let mut d = digest(&c)?;
+    run.note(&format!("contact static: {iterations} Newton iterations"));
+    let mut d = digest(run, &c)?;
     d.ints([u64::try_from(iterations).unwrap_or(0)]);
+    Ok(d)
+}
+
+const COHESIVE_DAT: &str = "model solid_mechanics_model_cohesive [\n  cohesive_inserter [\n    \
+    cohesive_surfaces = [interface]\n  ]\n\n  material elastic [\n    name = body\n    \
+    rho = 1.0\n    E = 1e3\n    nu = 0.3\n  ]\n\n  material cohesive_linear [\n    \
+    name = interface\n    beta = 1\n    G_c = 6.25e-4\n    sigma_c = 1\n    kappa = 1\n    \
+    penalty = 0\n    contact_after_breaking = false\n  ]\n]\n\n\
+    contact_detector [\n  type = explicit\n  master = interface\n  slave = interface\n  \
+    projection_tolerance = 1e-10\n  max_iterations = 100\n  extension_tolerance = 1e-5\n]\n\n\
+    contact_resolution penalty_linear [\n  name = interface\n  mu = 0.0\n  epsilon_n = 1e3\n  \
+    epsilon_t = 0\n  is_master_deformable = true\n]\n";
+
+/// Solid–cohesive–contact coupler (`CouplerSolidCohesiveContact`, set-up of
+/// examples/c++/contact_mechanics_model/hertz cohesive-contact): a block
+/// with the internal facet line `interface` at mid-height, opened by
+/// extrinsic cohesive insertion and closed again (contact between the
+/// crack faces); explicit steps with the stress check.
+fn cohesive_contact_quad4(run: &mut Run) -> Result<Digest> {
+    use akantu_cohesive::selector::MeshDataMaterialCohesiveSelector;
+    use akantu_contact::CohesiveSurfaceSelector;
+    use akantu_couplers::CouplerSolidCohesiveContact;
+    let s = run.size();
+    let (nx, ny, steps) = s.pick((20, 4, 20), (1600, 40, 600), (4500, 112, 600));
+    let comm = run.comm.clone();
+    if comm.size() > 1 {
+        return Err(akantu_core::Error::Unsupported(
+            "the contact model is serial (upstream has no parallel contact detection)".into(),
+        ));
+    }
+    let (w, h) = (1.0, 0.1 * ny as Real / 40.0);
+    let mesh = run.once("mesh", || {
+        let mut msh = Msh::new(2);
+        msh.block(&Block::new("body", Cell::Quad4, [0.0; 3], [w, h, 0.0], [nx, ny, 1]));
+        // the internal facets at mid-height (block nodes are numbered row
+        // by row from 0)
+        let phys = msh.physical(1, "interface");
+        let j = ny / 2;
+        for i in 0..nx {
+            msh.element(1, phys, vec![j * (nx + 1) + i, j * (nx + 1) + i + 1]);
+        }
+        msh.read(&comm, "mesh")
+    })?;
+    run.counts.elements = nb_elements(&mesh, 2);
+    run.counts.nodes = mesh.nb_nodes();
+    run.counts.dofs = run.counts.nodes * 2;
+    let mut c = CouplerSolidCohesiveContact::with_parser(
+        SharedMesh::new(mesh),
+        None,
+        "coupler_solid_contact",
+        parser(COHESIVE_DAT)?,
+    )?;
+    let sel = MeshDataMaterialCohesiveSelector {
+        default: c.solid.default_cohesive_selector(),
+    };
+    c.solid.set_material_selector(Box::new(sel));
+    c.contact
+        .set_surface_selector(Box::new(CohesiveSurfaceSelector::new()))?;
+    run.once("init", || {
+        c.init_full(&ModelOptions::new(AnalysisMethod::ExplicitLumpedMass), true)
+    })?;
+    let fix = FixedValue {
+        value: 0.0,
+        axis: SpatialDirection::X,
+    };
+    c.apply_dirichlet_bc(&fix, "body_xmin")?;
+    c.apply_dirichlet_bc(&fix, "body_xmax")?;
+    let dt = c.stable_time_step()? * 0.1;
+    c.set_time_step(dt, None)?;
+    // opening for the first third of the calls, closing afterwards (the
+    // crack faces are pressed together for the last third)
+    let total = steps + 3;
+    let inc = 4e-3 * h / total as Real;
+    let mut inserted = 0usize;
+    run.looped("solve_step", steps, |i| {
+        let v = if i < total / 3 { inc } else { -inc };
+        c.apply_dirichlet_bc(&IncrementValue { value: v, axis: SpatialDirection::Y }, "body_ymax")?;
+        c.apply_dirichlet_bc(&IncrementValue { value: -v, axis: SpatialDirection::Y }, "body_ymin")?;
+        c.solve_step(None)?;
+        inserted += c.check_cohesive_stress()?;
+        Ok(())
+    })?;
+    run.note(&format!(
+        "contact_cohesive: {inserted} cohesive elements inserted, {} contact elements at the end",
+        c.contact.contact_elements().len()
+    ));
+    let mut d = Digest::new();
+    d.reals(c.solid.smm.displacement()?.as_slice())
+        .reals(c.contact.gaps().as_slice())
+        .ints([inserted as u64, c.contact.contact_elements().len() as u64]);
     Ok(d)
 }

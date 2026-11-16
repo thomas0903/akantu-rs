@@ -216,12 +216,8 @@ impl Run {
         Ok(())
     }
 
-    /// Time a loop phase without warm-up calls (for loops whose calls are
-    /// not repeatable, e.g. a staggered sequence timed piece by piece):
-    /// `f` is timed once and reports its own call count.
-    ///
-    /// # Errors
-    /// The error of `f`.
+    /// Record a loop phase timed by the case itself (pieces of one loop
+    /// body timed separately): `calls` calls in `seconds`.
     pub fn record(&mut self, name: &str, calls: usize, seconds: f64) {
         self.push(name, calls, seconds);
     }
@@ -236,6 +232,15 @@ impl Run {
                 calls,
                 seconds,
             });
+        }
+    }
+
+    /// A diagnostic line on stderr (rank 0) when `SUITE_VERBOSE` is set:
+    /// counts that show the case does what it says (contact elements,
+    /// Newton iterations, inserted cohesive elements).
+    pub fn note(&self, msg: &str) {
+        if self.comm.rank() == 0 && std::env::var_os("SUITE_VERBOSE").is_some() {
+            eprintln!("note: {msg}");
         }
     }
 

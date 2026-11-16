@@ -163,6 +163,7 @@ fn implicit_hex8(run: &mut Run) -> Result<Digest> {
         }
         Ok(())
     })?;
+    run.note(&format!("heat implicit: {iterations} Newton iterations"));
     let mut d = digest(&model, true)?;
     d.ints([u64::try_from(iterations).unwrap_or(0)]);
     Ok(d)
