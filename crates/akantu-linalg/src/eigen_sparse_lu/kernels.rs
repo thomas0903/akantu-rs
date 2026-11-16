@@ -404,28 +404,59 @@ use super::dense;
 /// `emptyIdxLU`.
 pub(crate) const EMPTY: i64 = -1;
 
+/// Columns of a panel (`initperfvalues()`: `m_perfv.panel_size = 16`) and
+/// the row stride of the panel's dense accumulator `Work::dense`: entry
+/// `(row, c)` of panel column `c` is `dense[row * SPA_W + c]`, so that the
+/// panel updates, which touch the same rows of several panel columns, work
+/// on neighbouring memory (Eigen keeps one `m`-long column after the other;
+/// the layout changes no arithmetic).
+pub(crate) const SPA_W: usize = 16;
+
+/// Index of `(row, c)` in `Work::dense`.
+#[inline(always)]
+fn spa(row: usize, c: usize) -> usize {
+    row * SPA_W + c
+}
+
 /// `LU_GlobalLU_t`: the factor storage.
 #[derive(Clone, Debug, Default)]
 pub(crate) struct Glu {
     pub xsup: Vec<i64>,
     pub supno: Vec<i64>,
     pub lusup: Vec<f64>,
-    pub lsub: Vec<i64>,
+    /// Row subscripts (Eigen's `int` storage index: `n < 2³¹` is checked
+    /// by `analyze_pattern`).
+    pub lsub: Vec<i32>,
     pub xlusup: Vec<i64>,
     pub xlsub: Vec<i64>,
     pub ucol: Vec<f64>,
-    pub usub: Vec<i64>,
+    /// Row subscripts of U (`int`, as `lsub`).
+    pub usub: Vec<i32>,
     pub xusub: Vec<i64>,
 }
 
+/// Makes `v` at least `len` long (Eigen's `expand`, which grows by 1.5×
+/// and leaves the new entries uninitialised). The length grows to `len`
+/// plus at most [`GROW_CHUNK`] entries (the column DFS appends one row at a
+/// time) and the capacity by `Vec`'s amortised doubling, so only about the
+/// entries in use are ever written (resident); every entry is written
+/// before it is read.
 fn grow<T: Clone + Default>(v: &mut Vec<T>, len: usize) {
     if v.len() < len {
-        let new_len = len.max(v.len() + v.len() / 2);
-        v.resize(new_len, T::default());
+        v.resize(len.max(v.len() + GROW_CHUNK), T::default());
     }
 }
 
+/// The least growth of [`grow`].
+const GROW_CHUNK: usize = 4096;
+
 fn u(i: i64) -> usize {
+    debug_assert!(i >= 0, "negative index {i}");
+    i as usize
+}
+
+/// [`u`] for an `int` subscript of `lsub` / `usub`.
+fn ru(i: i32) -> usize {
     debug_assert!(i >= 0, "negative index {i}");
     i as usize
 }
@@ -491,6 +522,7 @@ pub(crate) enum DfsTarget<'a> {
 }
 
 /// Work arrays shared by the symbolic routines.
+#[derive(Clone, Debug, Default)]
 pub(crate) struct Work {
     pub segrep: Vec<i64>,
     pub parent: Vec<i64>,
@@ -499,8 +531,56 @@ pub(crate) struct Work {
     pub panel_lsub: Vec<i64>,
     pub xprune: Vec<i64>,
     pub marker: Vec<i64>,
+    /// The panel's dense accumulator, `m × SPA_W` row-major ([`SPA_W`]).
     pub dense: Vec<f64>,
     pub tempv: Vec<f64>,
+    /// Fast mode of the panel updates (`SparseLu::set_fast_mode`):
+    /// fused multiply-adds in their `sparselu_gemm`; not bitwise.
+    pub fma: bool,
+}
+
+/// `v = [value; len]`, reusing `v`'s allocation.
+fn refill<T: Copy>(v: &mut Vec<T>, len: usize, value: T) {
+    v.clear();
+    v.resize(len, value);
+}
+
+impl Work {
+    /// The arrays of `SparseLU::factorize` for an `m × n` matrix, in
+    /// their initial state (`segrep`, `parent`, `xplore`, `xprune` 0;
+    /// `repfnz`, `panel_lsub`, `marker` `emptyIdxLU`; `dense`, `tempv` 0),
+    /// reusing the allocations of an earlier factorisation.
+    pub(crate) fn reset(&mut self, m: usize, n: usize, panel: usize, maxsuper: usize) {
+        let maxpanel = panel * m;
+        refill(&mut self.segrep, m, 0);
+        refill(&mut self.parent, m, 0);
+        refill(&mut self.xplore, m, 0);
+        refill(&mut self.repfnz, maxpanel, EMPTY);
+        refill(&mut self.panel_lsub, maxpanel, EMPTY);
+        refill(&mut self.xprune, n, 0);
+        refill(&mut self.marker, m * 3, EMPTY);
+        refill(&mut self.dense, maxpanel, 0.0);
+        // LUnumTempV(m, panel_size, maxsuper, rowblk = m)
+        refill(&mut self.tempv, m.max((maxsuper + m) * panel), 0.0);
+    }
+}
+
+impl Glu {
+    /// The factor storage for `n` columns: the index arrays `xsup`, `supno`,
+    /// `xlsub`, `xlusup`, `xusub` zeroed (`n + 1` entries, `supno[0] =
+    /// emptyIdxLU`); `lusup`, `lsub`, `ucol`, `usub` keep the allocation and
+    /// contents of an earlier factorisation (Eigen's `expand` leaves new
+    /// entries uninitialised: every entry is written before it is read).
+    pub(crate) fn reset(&mut self, n: usize) {
+        refill(&mut self.xsup, n + 1, 0);
+        refill(&mut self.supno, n + 1, 0);
+        refill(&mut self.xlsub, n + 1, 0);
+        refill(&mut self.xlusup, n + 1, 0);
+        refill(&mut self.xusub, n + 1, 0);
+        if n > 0 {
+            self.supno[0] = EMPTY;
+        }
+    }
 }
 
 /// `dfs_kernel`: `repfnz_off` / `marker_off` locate `repfnz_col` and the
@@ -538,7 +618,7 @@ fn dfs_kernel(
             }
             DfsTarget::Column { jcol, jsuper } => {
                 grow(&mut glu.lsub, u(*nextl_col) + 1);
-                glu.lsub[u(*nextl_col)] = row;
+                glu.lsub[u(*nextl_col)] = row as i32;
                 *nextl_col += 1;
                 if chmark != *jcol - 1 {
                     **jsuper = EMPTY;
@@ -568,7 +648,7 @@ fn dfs_kernel(
     let mut maxdfs = xprune[u(krep)];
     loop {
         while xdfs < maxdfs {
-            let kchild = glu.lsub[u(xdfs)];
+            let kchild = i64::from(glu.lsub[u(xdfs)]);
             xdfs += 1;
             let chmark = marker[marker_off + u(kchild)];
             if chmark != jj {
@@ -654,7 +734,7 @@ pub(crate) fn panel_dfs(
         let col_off = (jj - jcol) * m;
         for p in a.col(jj) {
             let krow = a.row_idx[p];
-            dense[col_off + krow] = a.values[p];
+            dense[spa(krow, jj - jcol)] = a.values[p];
             let kmark = marker[krow];
             if kmark == jj as i64 {
                 continue;
@@ -784,28 +864,30 @@ pub(crate) fn column_dfs(
 }
 
 /// `LU_kernel_bmod<SegSizeAtCompileTime>::run`: `fixed` is the compile-time
-/// segment size (0 = `Dynamic`); `dense` is the column's block.
+/// segment size (0 = `Dynamic`); `dense` is the panel's accumulator and `dc`
+/// the column in it.
 #[allow(clippy::too_many_arguments)] // translation of LU_kernel_bmod::run
 fn kernel_bmod(
     fixed: usize,
     segsize: usize,
     dense: &mut [f64],
+    dc: usize,
     tempv: &mut [f64],
     lusup: &[f64],
     mut luptr: usize,
     lda: usize,
     nrow: usize,
-    lsub: &[i64],
+    lsub: &[i32],
     lptr: usize,
     no_zeros: usize,
 ) {
     if fixed == 1 {
-        let f = dense[u(lsub[lptr + no_zeros])];
+        let f = dense[spa(ru(lsub[lptr + no_zeros]), dc)];
         luptr += lda * no_zeros + no_zeros + 1;
         let irow = &lsub[lptr + no_zeros + 1..];
         let mut i = 0;
         while i + 1 < nrow {
-            let (i0, i1) = (u(irow[i]), u(irow[i + 1]));
+            let (i0, i1) = (spa(ru(irow[i]), dc), spa(ru(irow[i + 1]), dc));
             let (a0, a1) = (lusup[luptr + i], lusup[luptr + i + 1]);
             let mut d0 = dense[i0];
             let mut d1 = dense[i1];
@@ -816,13 +898,13 @@ fn kernel_bmod(
             i += 2;
         }
         if i < nrow {
-            dense[u(irow[i])] -= f * lusup[luptr + i];
+            dense[spa(ru(irow[i]), dc)] -= f * lusup[luptr + i];
         }
         return;
     }
     let mut isub = lptr + no_zeros;
     for t in tempv.iter_mut().take(segsize) {
-        *t = dense[u(lsub[isub])];
+        *t = dense[spa(ru(lsub[isub]), dc)];
         isub += 1;
     }
     luptr += lda * no_zeros + no_zeros;
@@ -833,17 +915,17 @@ fn kernel_bmod(
     }
     luptr += segsize;
     let (useg, l) = tempv.split_at_mut(segsize);
-    l[..nrow].fill(0.0);
-    dense::sparselu_gemm(
+    // `l = 0; l += B·u` (Eigen zero-fills `l`, then `sparselu_gemm`)
+    super::simd::gemm_into_zero(
         nrow, 1, segsize, lusup, luptr, lda, useg, 0, segsize, l, 0, nrow,
     );
     let mut isub = lptr + no_zeros;
     for &t in useg.iter() {
-        dense[u(lsub[isub])] = t;
+        dense[spa(ru(lsub[isub]), dc)] = t;
         isub += 1;
     }
     for &li in l.iter().take(nrow) {
-        dense[u(lsub[isub])] -= li;
+        dense[spa(ru(lsub[isub]), dc)] -= li;
         isub += 1;
     }
 }
@@ -874,27 +956,34 @@ pub(crate) fn panel_bmod(m: usize, w: usize, jcol: usize, nseg: i64, wk: &mut Wo
         if nsupc >= 2 {
             let ldu = u(u_rows);
             let ur = u(u_rows);
-            // gather U
-            let mut u_col = 0;
+            let nsupc = u(nsupc);
+            let lptr = u(lptr);
+            // the panel columns with a segment in this supernode: (column
+            // in the panel, segment size); `u_col` = position in this list
+            let mut ucols = [(0usize, 0usize); SPA_W];
+            let mut nu = 0;
             for jj in jcol..jcol + w {
-                let off = (jj - jcol) * m;
-                let kfnz = wk.repfnz[off + u(krep)];
-                if kfnz == EMPTY {
-                    continue;
+                let kfnz = wk.repfnz[(jj - jcol) * m + u(krep)];
+                if kfnz != EMPTY {
+                    ucols[nu] = (jj - jcol, u(krep - kfnz + 1));
+                    nu += 1;
                 }
-                let segsize = u(krep - kfnz + 1);
-                let no_zeros = u(kfnz - fsupc);
-                let mut isub = u(lptr) + no_zeros;
+            }
+            let ucols = &ucols[..nu];
+            // the supernode's rows of the U block (`ur`, ending at `krep`)
+            // and of the L block (`nr`): every segment ends at `krep`, so
+            // row `t` of the U block is `lsub[urows + t]` in every column
+            let urows = lptr + nsupc - ur;
+            let nr = u(nrow);
+            let lrows = &glu.lsub[lptr + nsupc..lptr + nsupc + nr];
+            // gather U
+            for (u_col, &(dc, segsize)) in ucols.iter().enumerate() {
                 let offz = ur - segsize;
-                for i in 0..offz {
-                    wk.tempv[i + u_col * ldu] = 0.0;
+                let col = &mut wk.tempv[u_col * ldu..(u_col + 1) * ldu];
+                col[..offz].fill(0.0);
+                for (t, x) in col.iter_mut().enumerate().skip(offz) {
+                    *x = wk.dense[spa(ru(glu.lsub[urows + t]), dc)];
                 }
-                for i in 0..segsize {
-                    let irow = u(glu.lsub[isub]);
-                    wk.tempv[i + offz + u_col * ldu] = wk.dense[off + irow];
-                    isub += 1;
-                }
-                u_col += 1;
             }
             // solve U = A^-1 U
             let mut luptr = u(glu.xlusup[u(fsupc)]);
@@ -904,38 +993,25 @@ pub(crate) fn panel_bmod(m: usize, w: usize, jcol: usize, nseg: i64, wk: &mut Wo
             dense::trsm_unit_lower(ur, u_cols, &glu.lusup, luptr, lda, &mut wk.tempv, 0, ldu);
             // update: L = B * U
             luptr += ur;
-            let nr = u(nrow);
             let ldl = nr;
             let (tu, tl) = wk.tempv.split_at_mut(w * ldu);
-            tl[..nr * u_cols].fill(0.0);
-            dense::sparselu_gemm(
-                nr, u_cols, ur, &glu.lusup, luptr, lda, tu, 0, ldu, tl, 0, ldl,
+            // `L = 0; L += B·U` (Eigen zero-fills `L`, then `sparselu_gemm`)
+            super::simd::gemm_into_zero_mode(
+                wk.fma, nr, u_cols, ur, &glu.lusup, luptr, lda, tu, 0, ldu, tl, 0, ldl,
             );
-            // scatter U and L
-            let mut u_col = 0;
-            for jj in jcol..jcol + w {
-                let off = (jj - jcol) * m;
-                let kfnz = wk.repfnz[off + u(krep)];
-                if kfnz == EMPTY {
-                    continue;
-                }
-                let segsize = u(krep - kfnz + 1);
-                let no_zeros = u(kfnz - fsupc);
-                let mut isub = u(lptr) + no_zeros;
+            // scatter U (assignments) and L (one subtraction per entry; the
+            // entries are distinct, so row by row is the same arithmetic)
+            for (u_col, &(dc, segsize)) in ucols.iter().enumerate() {
                 let offz = ur - segsize;
-                for i in 0..segsize {
-                    let irow = u(glu.lsub[isub]);
-                    isub += 1;
-                    wk.dense[off + irow] = tu[i + offz + u_col * ldu];
-                    tu[i + offz + u_col * ldu] = 0.0;
+                for t in offz..ur {
+                    wk.dense[spa(ru(glu.lsub[urows + t]), dc)] = tu[t + u_col * ldu];
                 }
-                for i in 0..nr {
-                    let irow = u(glu.lsub[isub]);
-                    isub += 1;
-                    wk.dense[off + irow] -= tl[i + u_col * ldl];
-                    tl[i + u_col * ldl] = 0.0;
+            }
+            for (i, &irow) in lrows.iter().enumerate() {
+                let row = &mut wk.dense[spa(ru(irow), 0)..][..SPA_W];
+                for (u_col, &(dc, _)) in ucols.iter().enumerate() {
+                    row[dc] -= tl[i + u_col * ldl];
                 }
-                u_col += 1;
             }
         } else {
             // level 2 only: each column of the panel
@@ -954,7 +1030,8 @@ pub(crate) fn panel_bmod(m: usize, w: usize, jcol: usize, nseg: i64, wk: &mut Wo
                 kernel_bmod(
                     fixed,
                     segsize,
-                    &mut dense[off..off + m],
+                    dense,
+                    jj - jcol,
                     tempv,
                     &glu.lusup,
                     luptr,
@@ -970,15 +1047,15 @@ pub(crate) fn panel_bmod(m: usize, w: usize, jcol: usize, nseg: i64, wk: &mut Wo
 }
 
 /// `column_bmod(jcol, nseg, dense, tempv, segrep, repfnz, fpanelc, glu)`
-/// with `segrep = segrep[seg_off..]`, `dense`/`repfnz` the column blocks at
-/// `col_off`.
+/// with `segrep = segrep[seg_off..]`, `repfnz` the column block at
+/// `col_off` and `dc` the column in the panel's accumulator.
 #[allow(clippy::too_many_arguments)] // translation of SparseLUImpl::column_bmod
 pub(crate) fn column_bmod(
     jcol: usize,
     nseg: i64,
     seg_off: usize,
     col_off: usize,
-    m: usize,
+    dc: usize,
     fpanelc: usize,
     wk: &mut Work,
     glu: &mut Glu,
@@ -1008,7 +1085,8 @@ pub(crate) fn column_bmod(
             kernel_bmod(
                 fixed,
                 u(segsize),
-                &mut dense[col_off..col_off + m],
+                dense,
+                dc,
                 tempv,
                 &glu.lusup,
                 u(luptr),
@@ -1026,9 +1104,9 @@ pub(crate) fn column_bmod(
     let new_next = nextlu + glu.xlsub[u(fsupc + 1)] - glu.xlsub[u(fsupc)];
     grow(&mut glu.lusup, u(new_next));
     for isub in glu.xlsub[u(fsupc)]..glu.xlsub[u(fsupc + 1)] {
-        let irow = u(glu.lsub[u(isub)]);
-        glu.lusup[u(nextlu)] = wk.dense[col_off + irow];
-        wk.dense[col_off + irow] = 0.0;
+        let irow = ru(glu.lsub[u(isub)]);
+        glu.lusup[u(nextlu)] = wk.dense[spa(irow, dc)];
+        wk.dense[spa(irow, dc)] = 0.0;
         nextlu += 1;
     }
     glu.xlusup[jcol + 1] = nextlu;
@@ -1060,12 +1138,14 @@ pub(crate) fn column_bmod(
     }
 }
 
-/// `copy_to_ucol(jcol, nseg, segrep, repfnz, perm_r, dense, glu)` with the
-/// column blocks at `col_off`.
+/// `copy_to_ucol(jcol, nseg, segrep, repfnz, perm_r, dense, glu)` with
+/// `repfnz` the column block at `col_off` and `dc` the column in the panel's
+/// accumulator.
 pub(crate) fn copy_to_ucol(
     jcol: usize,
     nseg: i64,
     col_off: usize,
+    dc: usize,
     perm_r: &[i64],
     wk: &mut Work,
     glu: &mut Glu,
@@ -1087,10 +1167,10 @@ pub(crate) fn copy_to_ucol(
                 grow(&mut glu.ucol, u(new_next));
                 grow(&mut glu.usub, u(new_next));
                 for _ in 0..segsize {
-                    let irow = u(glu.lsub[u(isub)]);
-                    glu.usub[u(nextu)] = perm_r[irow];
-                    glu.ucol[u(nextu)] = wk.dense[col_off + irow];
-                    wk.dense[col_off + irow] = 0.0;
+                    let irow = ru(glu.lsub[u(isub)]);
+                    glu.usub[u(nextu)] = perm_r[irow] as i32;
+                    glu.ucol[u(nextu)] = wk.dense[spa(irow, dc)];
+                    wk.dense[spa(irow, dc)] = 0.0;
                     nextu += 1;
                     isub += 1;
                 }
@@ -1126,7 +1206,7 @@ pub(crate) fn pivot_l(
             pivmax = rtemp;
             pivptr = isub;
         }
-        if glu.lsub[lptr + isub] == diagind {
+        if i64::from(glu.lsub[lptr + isub]) == diagind {
             diag = isub as i64;
         }
     }
@@ -1134,7 +1214,7 @@ pub(crate) fn pivot_l(
         let pivrow = if pivmax < 0.0 {
             diagind
         } else {
-            glu.lsub[lptr + pivptr]
+            i64::from(glu.lsub[lptr + pivptr])
         };
         perm_r[u(pivrow)] = jcol as i64;
         return Err(jcol as i64 + 1);
@@ -1146,7 +1226,7 @@ pub(crate) fn pivot_l(
             pivptr = u(diag);
         }
     }
-    let pivrow = glu.lsub[lptr + pivptr];
+    let pivrow = i64::from(glu.lsub[lptr + pivptr]);
     perm_r[u(pivrow)] = jcol as i64;
     if pivptr != nsupc {
         glu.lsub.swap(lptr + pivptr, lptr + nsupc);
@@ -1191,7 +1271,7 @@ pub(crate) fn prune_l(
                 kmin = glu.xlsub[u(irep)];
                 kmax = glu.xlsub[u(irep1)] - 1;
                 for krow in kmin..=kmax {
-                    if glu.lsub[u(krow)] == pivrow {
+                    if i64::from(glu.lsub[u(krow)]) == pivrow {
                         do_prune = true;
                         break;
                     }
@@ -1200,9 +1280,9 @@ pub(crate) fn prune_l(
             if do_prune {
                 let movnum = irep == glu.xsup[u(glu.supno[u(irep)])];
                 while kmin <= kmax {
-                    if perm_r[u(glu.lsub[u(kmax)])] == EMPTY {
+                    if perm_r[ru(glu.lsub[u(kmax)])] == EMPTY {
                         kmax -= 1;
-                    } else if perm_r[u(glu.lsub[u(kmin)])] != EMPTY {
+                    } else if perm_r[ru(glu.lsub[u(kmin)])] != EMPTY {
                         kmin += 1;
                     } else {
                         glu.lsub.swap(u(kmin), u(kmax));
@@ -1253,7 +1333,7 @@ pub(crate) fn fixup_l(n: usize, perm_r: &[i64], glu: &mut Glu) {
         let jstart = glu.xlsub[u(fsupc)];
         glu.xlsub[u(fsupc)] = nextl;
         for j in jstart..glu.xlsub[u(fsupc + 1)] {
-            glu.lsub[u(nextl)] = perm_r[u(glu.lsub[u(j)])];
+            glu.lsub[u(nextl)] = perm_r[ru(glu.lsub[u(j)])] as i32;
             nextl += 1;
         }
         for k in fsupc + 1..glu.xsup[i + 1] {

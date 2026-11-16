@@ -103,6 +103,17 @@ change of default results or of a public API raises the minor version.
   route once per block, the copy plan after an insertion is built in
   linear time, and the linear law's effective norm uses fixed-size loops
   (`docs/BENCHMARKS.md`, "The insertion check").
+- The default sparse direct solver (`akantu_linalg::eigen_sparse_lu`, the
+  translation of Eigen's SparseLU) is about 3× faster on 3-D problems with
+  bitwise identical results: dense kernels in register tiles with run-time
+  AVX / AVX-512F instances in the same operation order, storage reused
+  between factorisations, less memory (`int` row subscripts as in Eigen;
+  factor arrays grow to the length in use).
+- `akantu_linalg::eigen_sparse_lu::SparseLu::solve_with` (the caller's
+  scratch buffer) and the opt-in fast mode `SparseLu::set_fast_mode` /
+  `EigenSparseLuSolver::set_fast_mode`, enabled with an
+  `akantu_core::exec::FastToken` (fused multiply-adds in the panel
+  products; not bitwise, off by default).
 - Small dense products and Eigen-order reductions are faster with bitwise
   identical results: the halving-tree reduction is non-recursive and
   inlined, fixed-size tensor products select their route at compile time,
