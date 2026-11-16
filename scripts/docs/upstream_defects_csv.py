@@ -186,7 +186,7 @@ def main() -> int:
     print("distributed", dict(Counter(r["distributed"] for r in rows)))
     print("no upstream file", sum(1 for r in rows if not r["upstream_file"]))
     if "--check" in sys.argv:
-        ok = (n == 596 and cc["A"] == 148 and cc["B"] == 242 and cc["C"] == 176
+        ok = (n == 597 and cc["A"] == 148 and cc["B"] == 242 and cc["C"] == 177
               and cc["test infrastructure"] == 20 and cc["other"] == 10)
         print("check", "OK" if ok else "MISMATCH")
         return 0 if ok else 1

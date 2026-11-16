@@ -18,35 +18,36 @@ contact callback. Every suite digest is unchanged.
 | Node flags read once in the node-to-node work increment | `crates/akantu-ntn-contact/src/solver_callback.rs` | two checked flag lookups per node and step |
 | Opt-in `GridSpacing::ContactSurface` (default: upstream's rule) | `crates/akantu-contact/src/detector.rs` | degenerate detection grids with elongated side facets (opt-in: the closest master found can differ) |
 
-### Why the grid reports the scan's intersections
+### How the grid's reports relate to the scan's
 
 `GridIndex` hands a query every primitive whose bounding box comes within
-a quarter cell of the query (the query is walked in pieces about one cell
-long; the cell coordinate is a monotone function of the position, so the
-selection is conservative). The candidates are sorted by primitive order and
-tested with the scan's predicates, so the output is the scan's output
-restricted to them, in the scan's order. The scan also reports primitives
-farther away when the query lies, up to rounding, in the plane of a distant
-face or on the line of a distant edge. The `Simple_cartesian<double>`
-orientations of such nearly coplanar points are rounding noise, and the
-report is a point or piece attached to a distant element. Upstream's AABB
-tree does not produce it either (its box test rejects the primitive).
-`tests/grid_index.rs` and `tests/grid_index_intersector.rs` of
-`akantu-geometry` check this on structured meshes with inexact coordinates
-(multiples of 0.1), jittered meshes and degenerate queries (along grid lines
-and edges, in face planes, through vertices, zero length, partly outside):
+a quarter cell of the query (the query is clipped to the primitives' box
+and walked in pieces about one cell long, each grown by the margin and by
+bounds on its rounding; the cell coordinate is a monotone function of the
+position). The candidates are sorted by primitive order and tested with the
+scan's predicates, so the grid reports the scan's reports, in the scan's
+order, minus those of primitives farther than the margin. The scan reports
+such primitives only through rounding noise, when the query lies, up to
+rounding, in the plane of a distant face or on the line of a distant edge;
+the noise can be a point or piece outside the query, or the query itself
+attached to the distant element. Upstream's AABB tree does not test those
+primitives either. Downstream:
 
-- the grid's reports are always the scan's reports in the scan's order;
-- every report the grid omits is from a primitive whose true distance to
-  the query exceeds the grid's margin (216 such reports among 43 653 hits
-  and 147 399 ray hits on a 4³-cube Kuhn mesh with `h = 0.1`, none on the
-  jittered triangle meshes);
-- with the embedded model's default assembly (`PieceAssembly::Tiled`) the
-  pieces of every query are identical: the omitted reports do not lie in
-  their element and the tiling drops them. With `PieceAssembly::Collected`
-  (upstream's raw set, `remove_near_duplicates = false`) the scan keeps a
-  piece attached to a distant element, which the grid omits, in 4 of 16 727
-  pieces (2-D, 7 × 7 cells) and 6 of 25 459 pieces (3-D, 5³ cubes).
+- with the embedded model's default assembly (`PieceAssembly::Tiled`) no
+  difference was found: noise pieces do not lie in their element and the
+  tiling drops them;
+- with `PieceAssembly::Collected` (upstream's raw set,
+  `remove_near_duplicates = false`) the scan can keep a piece attached to
+  a distant element, which the grid omits, and when a bar is reported both
+  by its own element and, as noise, by a distant one with a lower index,
+  the scan's deduplication keeps the distant element and the grid the
+  containing one. Upstream keeps the containing one too (a probe of
+  upstream's `MeshSegmentIntersector`, and the port's CGAL-compatible tree:
+  `akantu-geometry-cgal` `diagonal_bar_keeps_its_element`).
+
+Tests: `grid_index.rs`, `grid_index_intersector.rs` (including the
+regression `diagonal_bar_regression`) and `grid_margin.rs` (the margin and
+the rounding terms) of `akantu-geometry`.
 
 ## Measurements
 

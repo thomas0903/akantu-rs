@@ -239,7 +239,14 @@ shows both side by side.
   ([Writing new constitutive laws](new-constitutive-laws.md#differences-from-upstreams-procedure)).
 * Geometry split by licence. The CGAL-derived GPL code is an opt-in
   crate (feature `cgal`); a build with it is GPL-3.0-or-later as a whole
-  ([Geometry](geometry.md#the-cgal-feature-gpl-30-or-later)).
+  ([Geometry](geometry.md#the-cgal-feature-gpl-30-or-later)). The
+  embedded model's intersection searches with an LGPL uniform grid where
+  upstream uses CGAL's AABB tree; both test only the elements near a
+  segment, with upstream's predicates
+  ([Embedded interfaces](models/embedded.md#search-structure-of-the-intersection)).
+* Contact detection grid: upstream's cell size by default; an opt-in
+  cell size from the contact-surface facets for meshes with elongated side
+  facets (UD-1297, [Contact mechanics](models/contact.md)).
 * Native solver objects (MUMPS) are bound to their communicator and
   agree on every call across processes; misuse is an error on every
   process instead of a crash or a hang ([MUMPS](mumps.md#rules-a-program-must-follow-d-054)).
