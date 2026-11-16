@@ -33,7 +33,8 @@ use akantu_core::{Array, ElementKind, ElementType, Error, GhostType, Idx, Real, 
 use akantu_mesh::Mesh;
 
 use super::{
-    Block, FeEngine, check_input, check_precomputed, element_ids, prepare_out, resolve_filter,
+    Block, FeEngine, batch_ids, check_input, check_precomputed, element_ids, id_index, prepare_out,
+    resolve_filter,
 };
 use crate::eigen::{self, Dims};
 use crate::element_class::LagrangeElement;
@@ -309,8 +310,7 @@ impl FeEngine {
             nb_dof,
         )?;
         let block = Block::new(mesh, ty, ghost)?;
-        let filter = resolve_filter(filter, block.nb_element)?;
-        let ids = element_ids(filter, block.nb_element);
+        let ids = batch_ids(filter, block.nb_element)?;
         let dshapes = self.shapes_derivatives(ty, ghost).map_err(|_| {
             Error::invalid(format!(
                 "no shape derivatives for {} (natural dimension differs from the mesh dimension, \
@@ -346,8 +346,7 @@ impl FeEngine {
         let jac = self.jacobians(ty, ghost)?;
         let nq = self.nb_integration_points(ty, ghost)?;
         let ne = jac.len().checked_div(nq).unwrap_or(0);
-        let filter = resolve_filter(filter, ne)?;
-        let ids = element_ids(filter, ne);
+        let ids = batch_ids(filter, ne)?;
         check_input(
             "integrate: quadrature field",
             f.len(),
@@ -361,7 +360,7 @@ impl FeEngine {
             nb_dof,
             nq,
             |pos| {
-                let e = ids[pos];
+                let e = id_index(ids[pos]);
                 &jac.as_slice()[e * nq..(e + 1) * nq]
             },
             ids.len(),
@@ -480,7 +479,44 @@ impl FeEngine {
                 "computeBtD for cohesive elements (AKANTU_TO_IMPLEMENT upstream)",
             ));
         }
-        let (ids, nq, dsh) = self.derivatives_for(ty, ghost, filter)?;
+        let (ids, nq, nn, sdim, r) = self.btd_operands(d, ty, ghost, filter)?;
+        let dsh = self.shapes_derivatives(ty, ghost)?;
+        prepare_out(out, d.len(), r * nn)?;
+        let (bs, ds, os) = (dsh.as_slice(), d.as_slice(), out.as_mut_slice());
+        // The common route with fixed-size loops (bitwise the same)
+        if super::fast::btd(&self.exec, r, sdim, nn, &ids, nq, bs, ds, os).is_some() {
+            return Ok(());
+        }
+        let bsz = sdim * nn;
+        let p_db = eigen::prepare(Dims::dynamic(r, sdim), Dims::dynamic(sdim, nn))?;
+        for (pos, &e) in ids.iter().enumerate() {
+            let e = id_index(e);
+            for q in 0..nq {
+                let b = &bs[(e * nq + q) * bsz..(e * nq + q + 1) * bsz];
+                let t = pos * nq + q;
+                p_db.eval(
+                    &ds[t * r * sdim..(t + 1) * r * sdim],
+                    b,
+                    &mut os[t * r * nn..(t + 1) * r * nn],
+                )?;
+            }
+        }
+        Ok(())
+    }
+
+    /// The checks of [`FeEngine::compute_btd`] (after the kind checks), in
+    /// its order: `(ids, nq, nn, sdim, r)`.
+    fn btd_operands<'f>(
+        &self,
+        d: ArrayView<'_, Real>,
+        ty: ElementType,
+        ghost: GhostType,
+        filter: Option<&'f [Idx]>,
+    ) -> Result<(std::borrow::Cow<'f, [Idx]>, usize, usize, usize, usize)> {
+        let dsh = self.shapes_derivatives(ty, ghost)?;
+        let nq = self.nb_integration_points(ty, ghost)?;
+        let ne = dsh.len().checked_div(nq).unwrap_or(0);
+        let ids = batch_ids(filter, ne)?;
         let nn = ty.nb_nodes_per_interpolation_element();
         let sdim = dsh.nb_component().checked_div(nn).unwrap_or(0);
         if sdim == 0 || d.nb_component() % sdim != 0 {
@@ -498,26 +534,63 @@ impl FeEngine {
             ids.len() * nq,
             r * sdim,
         )?;
-        prepare_out(out, d.len(), r * nn)?;
-        let (bs, ds, os) = (dsh.as_slice(), d.as_slice(), out.as_mut_slice());
-        // The common route with fixed-size loops (bitwise the same)
-        if super::fast::btd(&self.exec, r, sdim, nn, &ids, nq, bs, ds, os).is_some() {
-            return Ok(());
+        Ok((ids, nq, nn, sdim, r))
+    }
+
+    /// [`FeEngine::compute_btd`] of `d` into `scratch`, then
+    /// [`FeEngine::integrate`] of `scratch` into `out` (`r·nn` components
+    /// per element): the internal-force pattern `∫ Bᵀσ`. Same checks, errors
+    /// and values as the two calls; on the common routes the point values
+    /// are integrated as they are computed (`scratch` is then not written),
+    /// which avoids writing and reading back one `r·nn` tuple per
+    /// quadrature point. `scratch` is a buffer of the caller (its content
+    /// on return is unspecified).
+    #[allow(clippy::too_many_arguments)] // the two calls' arguments
+    pub fn compute_btd_integrate(
+        &self,
+        d: ArrayView<'_, Real>,
+        out: &mut Array<Real>,
+        scratch: &mut Array<Real>,
+        ty: ElementType,
+        ghost: GhostType,
+        filter: Option<&[Idx]>,
+    ) -> Result<()> {
+        self.check_type(ty, "compute_btd")?;
+        if self.kind == ElementKind::Cohesive {
+            return Err(Error::NotImplemented(
+                "computeBtD for cohesive elements (AKANTU_TO_IMPLEMENT upstream)",
+            ));
         }
-        let bsz = sdim * nn;
-        let p_db = eigen::prepare(Dims::dynamic(r, sdim), Dims::dynamic(sdim, nn))?;
-        for (pos, &e) in ids.iter().enumerate() {
-            for q in 0..nq {
-                let b = &bs[(e * nq + q) * bsz..(e * nq + q + 1) * bsz];
-                let t = pos * nq + q;
-                p_db.eval(
-                    &ds[t * r * sdim..(t + 1) * r * sdim],
-                    b,
-                    &mut os[t * r * nn..(t + 1) * r * nn],
-                )?;
+        let (ids, nq, nn, sdim, r) = self.btd_operands(d, ty, ghost, filter)?;
+        // `integrate` would pass its checks on the values of `compute_btd`
+        // (`ids.len()·nq` tuples of `r·nn`) when the Jacobians cover the
+        // same elements as the shape derivatives; otherwise the two calls
+        // report their errors
+        let bs = self.shapes_derivatives(ty, ghost)?.as_slice();
+        if let Ok(jac) = self.jacobians(ty, ghost)
+            && jac.len() * nn * sdim == bs.len()
+        {
+            prepare_out(out, ids.len(), r * nn)?;
+            if super::fast::btd_integrate(
+                &self.exec,
+                r,
+                sdim,
+                nn,
+                &ids,
+                nq,
+                bs,
+                d.as_slice(),
+                jac.as_slice(),
+                out.as_mut_slice(),
+            )
+            .is_some()
+            {
+                return Ok(());
             }
         }
-        Ok(())
+        drop(ids);
+        self.compute_btd(d, scratch, ty, ghost, filter)?;
+        self.integrate(scratch.view(), out, r * nn, ty, ghost, filter)
     }
 
     /// `Bᵀ D B` per quadrature point (upstream `computeBtDB`): `order_d == 4`
@@ -798,7 +871,7 @@ fn gradient_kernel<E: LagrangeElement>(
     nb_dof: usize,
     dshapes: &[Real],
     nq: usize,
-    ids: &[usize],
+    ids: &[Idx],
     reduction: Option<CohesiveReduction>,
     mut out: GradientOut<'_>,
 ) -> Result<()> {
@@ -820,6 +893,7 @@ fn gradient_kernel<E: LagrangeElement>(
     let mut ue = vec![0.0; nb_dof * nn];
     let p_ub = eigen::prepare(Dims::new(nb_dof, nn, false, true), Dims::fixed(nd, nn).t())?;
     for (pos, &e) in ids.iter().enumerate() {
+        let e = id_index(e);
         FeEngine::gather_element(block, e, u, nb_dof, reduction, &mut scratch, &mut ue)?;
         for q in 0..nq {
             let b = &dshapes[(e * nq + q) * bsz..(e * nq + q + 1) * bsz];

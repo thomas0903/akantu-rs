@@ -783,12 +783,9 @@ pub(crate) fn assemble_internal_forces_of(
         if ty.spatial_dimension() != dim {
             continue;
         }
-        let filter = law
-            .base()
-            .element_filter
-            .get(ty, ghost)?
-            .as_slice()
-            .to_vec();
+        // the filter is read through its guard (no copy per step)
+        let filter = law.base().element_filter.get(ty, ghost)?;
+        let filter = filter.as_slice();
         if filter.is_empty() {
             continue;
         }
@@ -799,14 +796,13 @@ pub(crate) fn assemble_internal_forces_of(
             ..
         } = &mut *scratch;
         if law.base().finite_deformation {
-            finite_deformation::internal_forces(law, fe, dim, ty, ghost, &filter, per_point, r_e)?;
+            finite_deformation::internal_forces(law, fe, dim, ty, ghost, filter, per_point, r_e)?;
         } else {
             let stress = law.base().stress.get(ty, ghost)?;
-            let nn = ty.nb_nodes_per_element();
-            // sigma_dphi (upstream: a new array per call)
-            let sigma_dphi = per_point;
-            fe.compute_btd(stress.view(), sigma_dphi, ty, ghost, Some(&filter))?;
-            fe.integrate(sigma_dphi.view(), r_e, dim * nn, ty, ghost, Some(&filter))?;
+            // sigma_dphi (upstream: a new array per call; here integrated
+            // as it is computed, `per_point` only on the general routes)
+            // with the values and checks of `compute_btd` then `integrate`
+            fe.compute_btd_integrate(stress.view(), r_e, per_point, ty, ghost, Some(filter))?;
         }
         scatter_block(
             fe.exec(),
@@ -815,7 +811,7 @@ pub(crate) fn assemble_internal_forces_of(
             f_int,
             ty,
             ghost,
-            &filter,
+            filter,
             (law_index, ty, ghost),
             scatters,
         )?;

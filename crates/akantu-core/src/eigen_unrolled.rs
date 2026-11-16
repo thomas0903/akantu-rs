@@ -114,6 +114,50 @@ pub fn tree_sum(p: &[Real], n: usize) -> Real {
     }
 }
 
+/// [`tree_sum`] over any per-lane type (for instance
+/// [`crate::exec::simd::Lanes4`], four independent sums): the same halving
+/// tree with the same operand order, so every lane receives the additions
+/// [`tree_sum`] performs on that lane's terms. `n` must be in `1..=`
+/// [`TREE_MAX`].
+///
+/// # Panics
+/// If `n` is 0, above [`TREE_MAX`], or `p` is shorter than `n`.
+#[inline(always)]
+#[must_use]
+pub fn tree_sum_of<T: Copy + std::ops::Add<Output = T>>(p: &[T], n: usize) -> T {
+    assert!((1..=TREE_MAX).contains(&n), "tree_sum_of: {n} terms");
+    gtree::l5(p, 0, n)
+}
+
+/// The levels of [`tree_sum_of`] (as `tree_l0` … `tree_l5`).
+mod gtree {
+    use std::ops::Add;
+
+    macro_rules! level {
+        ($name:ident, $below:ident) => {
+            #[inline(always)]
+            pub(super) fn $name<T: Copy + Add<Output = T>>(p: &[T], s: usize, n: usize) -> T {
+                if n == 1 {
+                    p[s]
+                } else {
+                    let h = n / 2;
+                    $below(p, s, h) + $below(p, s + h, n - h)
+                }
+            }
+        };
+    }
+
+    #[inline(always)]
+    fn l0<T: Copy>(p: &[T], s: usize, _n: usize) -> T {
+        p[s]
+    }
+    level!(l1, l0);
+    level!(l2, l1);
+    level!(l3, l2);
+    level!(l4, l3);
+    level!(l5, l4);
+}
+
 /// Sequential sum from the first term of `p[..n]`: bitwise
 /// `Reduction::Sequential.sum(n, &|l| p[l])` (`+0` for `n = 0`).
 ///
@@ -324,6 +368,30 @@ mod tests {
             }
         }
         assert!(nan_results > 10_000, "{nan_results}");
+    }
+
+    /// The generic tree on scalars and on four lanes against [`tree_sum`]:
+    /// every lane receives the scalar tree's bits.
+    #[test]
+    fn generic_tree_matches_tree_sum_bitwise() {
+        use crate::exec::simd::Lanes4;
+        let mut v = Values::new(0x2545_f491_4f6c_dd1d);
+        let mut p = [[0.0; 4]; TREE_MAX];
+        for _ in 0..4_000 {
+            for x in p.iter_mut().flatten() {
+                *x = v.next();
+            }
+            let lanes: Vec<Lanes4> = p.iter().map(|&a| Lanes4(a)).collect();
+            for n in 1..=TREE_MAX {
+                let l = tree_sum_of(&lanes, n);
+                for k in 0..4 {
+                    let col: Vec<Real> = p.iter().map(|a| a[k]).collect();
+                    let r = tree_sum(&col, n);
+                    assert!(same(l.0[k], r), "n={n} lane {k}");
+                    assert!(same(tree_sum_of(&col, n), r), "n={n} scalar");
+                }
+            }
+        }
     }
 
     #[test]

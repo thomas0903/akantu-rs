@@ -21,9 +21,9 @@
 //! so every value is bitwise the general path's (property test below).
 //! Only selected when the route is the tree and `nn ≤ 32`.
 
-use akantu_core::eigen_gebp::{Reduction, Route};
-use akantu_core::eigen_unrolled::{TREE_MAX, tree_sum};
-use akantu_core::exec::{Tuples, TuplesRef};
+use akantu_core::eigen_gebp::{GEMV_BLOCKING_MIN_DEPTH, GemvMatrix, Order, Reduction, Route};
+use akantu_core::eigen_unrolled::{TREE_MAX, tree_sum, tree_sum_of};
+use akantu_core::exec::{Lanes4, SimdTask, SimdToken, Tuples, TuplesRef, with_simd};
 use akantu_core::voigt::VoigtTable;
 use akantu_core::{Idx, Real};
 use akantu_fe::eigen::{Dims, product_route};
@@ -187,6 +187,234 @@ pub(super) fn point<const D: usize, const TS: usize>(
             out[a * D + k] = tree_sum(&p, TS);
         }
     }
+}
+
+/// [`residuals`] followed by the integration of the point residuals over
+/// each element (`r_e = Σ_q r_q · J_q`, the GEMV order of the FE engine's
+/// `integrate` with `nb_dof = dim·nn`), without the per-point array: every
+/// point residual is the value [`point`] computes, and it enters the
+/// element's accumulators in the order `integrate` reads it back, so `out`
+/// (`filter.len()` tuples of `dim·nn`) receives the bits of the two steps.
+/// `jac` holds `det J · w` of every element of the block (`nq` each; the
+/// filter is checked by the caller against the shape derivatives, whose
+/// element count `jac` must match). `None` when a route, a size or `dim`
+/// differs from what this kernel implements.
+#[allow(clippy::too_many_arguments)] // the general path's arguments and the executor
+pub(super) fn residuals_integrate(
+    exec: &akantu_core::exec::Exec,
+    s: &Sizes,
+    table: &VoigtTable,
+    dsh: &Derivatives<'_>,
+    filter: &[Idx],
+    gs: &[Real],
+    ps: &[Real],
+    jac: &[Real],
+    out: &mut [Real],
+) -> Option<()> {
+    let route = product_route(Dims::fixed(s.ts, s.bt).t(), Dims::fixed(s.ts, 1));
+    let int_route = product_route(Dims::dynamic(s.bt, s.nq), Dims::new(s.nq, 1, false, true));
+    let gemv = Route::Gemv {
+        matrix: GemvMatrix::Lhs,
+        kernel: Order::ColMajor,
+    };
+    let np = filter.len() * s.nq;
+    let d2 = s.dim * s.dim;
+    if route != Route::Coeff(Reduction::Tree)
+        || int_route != gemv
+        || s.nq == 0
+        || s.nq >= GEMV_BLOCKING_MIN_DEPTH
+        || s.bt == 0
+        || s.nn > TREE_MAX
+        || table.dim != s.dim
+        || table.size != s.ts
+        || gs.len() != np * d2
+        || ps.len() != np * d2
+        || out.len() != filter.len() * s.bt
+        || dsh.data.len() != dsh.nb_elements * s.nq * s.bt
+        || jac.len() != dsh.nb_elements * s.nq
+    {
+        return None;
+    }
+    let run: ResidualIntegratePart = match s.dim {
+        1 => residual_integrate_part::<1, 1>,
+        2 => residual_integrate_part::<2, 3>,
+        3 => residual_integrate_part::<3, 6>,
+        _ => return None,
+    };
+    let items = (
+        TuplesRef::new(filter, 1),
+        TuplesRef::new(gs, s.nq * d2),
+        TuplesRef::new(ps, s.nq * d2),
+        Tuples::new(out, s.bt),
+    );
+    let min = (2048 / s.nq).max(1);
+    let simd = exec.simd_token();
+    exec.for_each(items, min, |_, (f, g, p, mut o)| {
+        run(
+            simd,
+            s,
+            table,
+            dsh.data,
+            jac,
+            f.as_slice(),
+            g.as_slice(),
+            p.as_slice(),
+            o.as_mut_slice(),
+        );
+    });
+    Some(())
+}
+
+/// One part of [`residuals_integrate`].
+type ResidualIntegratePart =
+    fn(SimdToken, &Sizes, &VoigtTable, &[Real], &[Real], &[Idx], &[Real], &[Real], &mut [Real]);
+
+#[inline(never)] // a part: its slices are no-alias parameters
+#[allow(clippy::too_many_arguments)]
+fn residual_integrate_part<const D: usize, const TS: usize>(
+    simd: SimdToken,
+    s: &Sizes,
+    table: &VoigtTable,
+    dsh: &[Real],
+    jac: &[Real],
+    filter: &[Idx],
+    gs: &[Real],
+    ps: &[Real],
+    out: &mut [Real],
+) {
+    let voigt: [(usize, usize); TS] = std::array::from_fn(|big_i| table.vec(big_i));
+    with_simd(
+        simd,
+        LaneResidualIntegrate::<D, TS> {
+            nn: s.nn,
+            nq: s.nq,
+            voigt,
+            dsh,
+            jac,
+            filter,
+            gs,
+            ps,
+            out,
+        },
+    );
+}
+
+/// [`residuals_integrate`] of the elements of a part, lanes over the
+/// displacement component `k` of each node.
+struct LaneResidualIntegrate<'a, const D: usize, const TS: usize> {
+    nn: usize,
+    nq: usize,
+    voigt: [(usize, usize); TS],
+    dsh: &'a [Real],
+    jac: &'a [Real],
+    filter: &'a [Idx],
+    gs: &'a [Real],
+    ps: &'a [Real],
+    out: &'a mut [Real],
+}
+
+impl<const D: usize, const TS: usize> SimdTask for LaneResidualIntegrate<'_, D, TS> {
+    type Output = ();
+
+    #[inline(always)]
+    fn run(self) {
+        let Self {
+            nn,
+            nq,
+            voigt,
+            dsh,
+            jac,
+            filter,
+            gs,
+            ps,
+            out,
+        } = self;
+        let bt = D * nn;
+        let mut c = [Lanes4::default(); TREE_MAX];
+        for (((&e, ge), pe), oe) in filter
+            .iter()
+            .zip(gs.chunks_exact(nq * D * D))
+            .zip(ps.chunks_exact(nq * D * D))
+            .zip(out.chunks_exact_mut(bt))
+        {
+            let e = usize::try_from(e).unwrap_or(usize::MAX);
+            let de = &dsh[e * nq * bt..(e + 1) * nq * bt];
+            let je = &jac[e * nq..(e + 1) * nq];
+            // the GEMV accumulators of the element: c = 0, then for every
+            // point c = c + fl(r_q · J_q)
+            c[..nn].fill(Lanes4::splat(0.0));
+            for (((dndx, gu), pk2), &jq) in de
+                .chunks_exact(bt)
+                .zip(ge.chunks_exact(D * D))
+                .zip(pe.chunks_exact(D * D))
+                .zip(je)
+            {
+                let sv: [Real; TS] = std::array::from_fn(|big_i| {
+                    let (i, j) = voigt[big_i];
+                    pk2[i + j * D]
+                });
+                let jq = Lanes4::splat(jq);
+                for (a, ca) in c.iter_mut().enumerate().take(nn) {
+                    *ca = *ca + lane_point::<D, TS>(a, dndx, gu, &sv) * jq;
+                }
+            }
+            // res = 0 + c (zeroed destination)
+            for (oa, &ca) in oe.chunks_exact_mut(D).zip(&c) {
+                oa.copy_from_slice(&(Lanes4::splat(0.0) + ca).prefix::<D>());
+            }
+        }
+    }
+}
+
+/// The residual entries `r(D·a + k)` of node `a` of one point, lane `k` =
+/// component `k`: per lane the statements of [`point`] for that column of
+/// `B` (the same operands in the same order; the shape derivatives of the
+/// node are the same in every lane, `∇u` enters by its column `g(·, j)`).
+#[inline(always)]
+pub(super) fn lane_point<const D: usize, const TS: usize>(
+    a: usize,
+    dndx: &[Real],
+    gu: &[Real],
+    sv: &[Real; TS],
+) -> Lanes4 {
+    let (cols, _) = gu.as_chunks::<D>();
+    let g = |j: usize| Lanes4::from_prefix(&cols[j]);
+    let sp = Lanes4::splat;
+    let z = 0.0;
+    let mut b = [Lanes4::default(); TS];
+    match D {
+        1 => {
+            let dx = dndx[a];
+            b[0] = sp(dx) + g(0) * sp(dx);
+        }
+        2 => {
+            let (dx, dy) = (dndx[2 * a], dndx[2 * a + 1]);
+            let (g0, g1) = (g(0), g(1));
+            b[0] = Lanes4([dx, z, z, z]) + g0 * sp(dx);
+            b[1] = Lanes4([z, dy, z, z]) + g1 * sp(dy);
+            let l2 = (sp(0.0) + g0 * sp(dy)) + g1 * sp(dx);
+            b[2] = Lanes4([dy, dx, z, z]) + l2;
+        }
+        _ => {
+            let (dx, dy, dz) = (dndx[3 * a], dndx[3 * a + 1], dndx[3 * a + 2]);
+            let (g0, g1, g2) = (g(0), g(1), g(2));
+            b[0] = Lanes4([dx, z, z, z]) + g0 * sp(dx);
+            b[1] = Lanes4([z, dy, z, z]) + g1 * sp(dy);
+            b[2] = Lanes4([z, z, dz, z]) + g2 * sp(dz);
+            let l3 = (sp(0.0) + g1 * sp(dz)) + g2 * sp(dy);
+            b[3] = Lanes4([z, dz, dy, z]) + l3;
+            let l4 = (sp(0.0) + g0 * sp(dz)) + g2 * sp(dx);
+            b[4] = Lanes4([dz, z, dx, z]) + l4;
+            let l5 = (sp(0.0) + g0 * sp(dy)) + g1 * sp(dx);
+            b[5] = Lanes4([dy, dx, z, z]) + l5;
+        }
+    }
+    // r = B.transpose() * S_voight: lhs(c, I) = B(I, c), rhs(I, 0) = S_I
+    let mut p = [Lanes4::default(); TS];
+    for big_i in 0..TS {
+        p[big_i] = b[big_i] * sp(sv[big_i]);
+    }
+    tree_sum_of(&p, TS)
 }
 
 #[cfg(test)]
@@ -367,6 +595,148 @@ mod tests {
         out
     }
 
+    /// [`lane_point`] for every node of one point, at every supported SIMD
+    /// level (`with_simd`), lanes `0..dim` stored node by node.
+    fn lanes_point(dim: usize, nn: usize, dndx: &[Real], gu: &[Real], pk2: &[Real]) -> Vec<Real> {
+        struct Task<'a, const D: usize, const TS: usize>(usize, &'a [Real], &'a [Real], [Real; TS]);
+        impl<const D: usize, const TS: usize> SimdTask for Task<'_, D, TS> {
+            type Output = Vec<Real>;
+            #[inline(always)]
+            fn run(self) -> Vec<Real> {
+                let mut out = Vec::new();
+                for a in 0..self.0 {
+                    out.extend_from_slice(&lane_point::<D, TS>(a, self.1, self.2, &self.3).0[..D]);
+                }
+                out
+            }
+        }
+        let t = voigt::voigt_table(dim).unwrap();
+        let mut result: Option<Vec<Real>> = None;
+        for level in akantu_core::exec::SimdLevel::supported() {
+            let token = level.token().unwrap();
+            let r = match dim {
+                1 => with_simd(token, Task::<1, 1>(nn, dndx, gu, [pk2[0]])),
+                2 => {
+                    let sv = std::array::from_fn(|k| {
+                        let (i, j) = t.vec(k);
+                        pk2[i + j * 2]
+                    });
+                    with_simd(token, Task::<2, 3>(nn, dndx, gu, sv))
+                }
+                _ => {
+                    let sv = std::array::from_fn(|k| {
+                        let (i, j) = t.vec(k);
+                        pk2[i + j * 3]
+                    });
+                    with_simd(token, Task::<3, 6>(nn, dndx, gu, sv))
+                }
+            };
+            if let Some(prev) = &result {
+                for (a, b) in prev.iter().zip(&r) {
+                    assert!(same(*a, *b), "{level:?}: {a:e} vs {b:e}");
+                }
+            } else {
+                result = Some(r);
+            }
+        }
+        result.unwrap()
+    }
+
+    /// The fused residual integration of random batches (filter, threads,
+    /// SIMD levels) against the per-point residuals of [`point`] integrated
+    /// by the general product path.
+    #[test]
+    fn residuals_integrate_matches_points_then_integrate_bitwise() {
+        use akantu_core::exec::{Exec, ExecPolicy, Grain, SimdLevel};
+        let mut v = Values::new(0x9c3a_55f0_7d21_e4b3);
+        let levels = SimdLevel::supported();
+        let mut elements = 0;
+        for (case, (dim, nn, nq)) in [
+            (1, 2, 1),
+            (2, 3, 1),
+            (2, 4, 4),
+            (3, 4, 1),
+            (3, 10, 4),
+            (3, 8, 8),
+            (3, 20, 27),
+        ]
+        .into_iter()
+        .cycle()
+        .take(70)
+        .enumerate()
+        {
+            let t = voigt::voigt_table(dim).unwrap();
+            let s = Sizes {
+                dim,
+                nn,
+                nq,
+                ts: t.size,
+                bt: dim * nn,
+            };
+            let ne = 40;
+            let filter: Vec<Idx> = (0..ne as Idx)
+                .filter(|_| !v.next_u64().is_multiple_of(4))
+                .collect();
+            let np = filter.len() * nq;
+            if case % 9 == 8 {
+                // payload mode: one NaN among finite inputs
+                let k = 1 + v.next_u64() % (ne * nq * (s.bt + 1) + 2 * np * dim * dim) as u64;
+                v.payload_at(k);
+            }
+            let data = v.vec(ne * nq * s.bt);
+            let jac = v.vec(ne * nq);
+            let gs = v.vec(np * dim * dim);
+            let ps = v.vec(np * dim * dim);
+            v.default_mode();
+            let dsh = Derivatives {
+                data: &data,
+                stride: s.bt,
+                nq,
+                nb_elements: ne,
+            };
+            let p = ExecPolicy::serial()
+                .with_threads(1 + case % 4)
+                .unwrap()
+                .with_simd(levels[case % levels.len()])
+                .unwrap();
+            let exec = Exec::new(p.with_grain(Grain::Finest)).unwrap();
+            let mut fused = vec![Real::NAN; filter.len() * s.bt];
+            residuals_integrate(&exec, &s, t, &dsh, &filter, &gs, &ps, &jac, &mut fused).unwrap();
+            let mut general = vec![0.0; fused.len()];
+            let d2 = dim * dim;
+            for (pos, &e) in filter.iter().enumerate() {
+                let mut pts = vec![0.0; nq * s.bt];
+                for q in 0..nq {
+                    let tq = pos * nq + q;
+                    pts[q * s.bt..(q + 1) * s.bt].copy_from_slice(&fast_point(
+                        dim,
+                        nn,
+                        dsh.at(e, q),
+                        &gs[tq * d2..(tq + 1) * d2],
+                        &ps[tq * d2..(tq + 1) * d2],
+                    ));
+                }
+                let e = e as usize;
+                akantu_fe::eigen::product_slices(
+                    Dims::dynamic(s.bt, nq),
+                    Dims::new(nq, 1, false, true),
+                    &pts,
+                    &jac[e * nq..(e + 1) * nq],
+                    &mut general[pos * s.bt..(pos + 1) * s.bt],
+                )
+                .unwrap();
+            }
+            for (k, (a, b)) in fused.iter().zip(&general).enumerate() {
+                assert!(
+                    same(*a, *b),
+                    "case {case} dim {dim} entry {k}: {a:e} vs {b:e}"
+                );
+            }
+            elements += filter.len();
+        }
+        assert!(elements >= 2_000, "{elements}");
+    }
+
     /// All shapes; `payload`: one NaN per point among `dN/dX`, `∇u`, `S`.
     /// Returns (points, NaN entries).
     fn residual_points(v: &mut Values, payload: bool, per_shape: usize) -> (usize, usize) {
@@ -390,6 +760,13 @@ mod tests {
                     v.default_mode();
                     let f = fast_point(dim, nn, &dndx, &gu, &pk2);
                     let g = general_point(dim, nn, &dndx, &gu, &pk2);
+                    let l = lanes_point(dim, nn, &dndx, &gu, &pk2);
+                    for (k, (a, b)) in l.iter().zip(&g).enumerate() {
+                        assert!(
+                            same(*a, *b),
+                            "lanes: dim {dim} nn {nn} entry {k}: {a:e} vs {b:e}"
+                        );
+                    }
                     for (k, (a, b)) in f.iter().zip(&g).enumerate() {
                         assert!(
                             same(*a, *b),

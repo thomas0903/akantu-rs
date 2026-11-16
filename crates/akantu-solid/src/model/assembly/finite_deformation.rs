@@ -210,8 +210,9 @@ impl Scratch {
 /// filter `r = (B_L0 + B_L1(∇u))ᵀ · stressToVoigt(S)` with the material's
 /// stored `grad_u` (`∇u − eigen_grad_u` of the last `computeAllStresses`)
 /// and `piola_kirchhoff_2`, then `∫ r` per element (`dim·nn` components)
-/// into `r_e`; `bt_s` receives the per-point vectors (both buffers are
-/// resized and fully overwritten).
+/// into `r_e` (resized and fully overwritten); `bt_s` receives the
+/// per-point vectors on the general routes only (on the common route each
+/// point residual is integrated as it is computed).
 #[allow(clippy::too_many_arguments)] // upstream arguments + the two reused buffers
 pub(super) fn internal_forces(
     law: &dyn Material,
@@ -242,6 +243,35 @@ pub(super) fn internal_forces(
         nb_points,
         dim * dim,
     )?;
+    // The residual integrated as it is computed (bitwise the residual
+    // array then `integrate`), when `integrate` would accept the residual
+    // array: Jacobians of the same elements as the shape derivatives (the
+    // filter is checked above); `bt_s` is then not used
+    if let Ok(jac) = fe.jacobians(ty, ghost)
+        && jac.len() == dsh.nb_elements * s.nq
+    {
+        // `integrate`'s output preparation (`prepare_out`)
+        if r_e.nb_component() != s.bt {
+            *r_e = Array::with_id(s.bt, r_e.id().to_owned());
+        }
+        r_e.try_resize(filter.len(), 0.0)?;
+        let (gs, ps) = (grad_u.as_slice(), pk2.as_slice());
+        if fast::residuals_integrate(
+            fe.exec(),
+            &s,
+            table,
+            &dsh,
+            filter,
+            gs,
+            ps,
+            jac.as_slice(),
+            r_e.as_mut_slice(),
+        )
+        .is_some()
+        {
+            return Ok(());
+        }
+    }
     // upstream: a new `nb_points × bt` array per call; here a reused one,
     // resized (entries all written below)
     if bt_s.nb_component() != s.bt {

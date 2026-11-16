@@ -287,6 +287,51 @@ pub(crate) fn element_ids(filter: Option<Vec<usize>>, nb_element: usize) -> Vec<
     }
 }
 
+/// The element ids of a batch without a copy of the filter: the filter
+/// itself once every entry is checked (the errors of [`resolve_filter`], in
+/// its order), or `0..nb_element` when there is none. Every returned id is
+/// in `0..nb_element`.
+pub(crate) fn batch_ids(
+    filter: Option<&[Idx]>,
+    nb_element: usize,
+) -> Result<std::borrow::Cow<'_, [Idx]>> {
+    match filter {
+        Some(f) => {
+            if let Some(&e) = f
+                .iter()
+                .find(|&&e| usize::try_from(e).map_or(true, |u| u >= nb_element))
+            {
+                return Err(match usize::try_from(e) {
+                    Err(_) => Error::InvalidIndex {
+                        what: "element filter",
+                        value: i64::from(e),
+                    },
+                    Ok(u) => Error::OutOfRange {
+                        what: "element filter",
+                        index: u,
+                        len: nb_element,
+                    },
+                });
+            }
+            Ok(std::borrow::Cow::Borrowed(f))
+        }
+        None => {
+            let n = Idx::try_from(nb_element).map_err(|_| Error::OutOfRange {
+                what: "element block size",
+                index: nb_element,
+                len: Idx::MAX as usize,
+            })?;
+            Ok(std::borrow::Cow::Owned((0..n).collect()))
+        }
+    }
+}
+
+/// Index of a checked id of [`batch_ids`] (never negative).
+#[inline(always)]
+pub(crate) fn id_index(e: Idx) -> usize {
+    usize::try_from(e).unwrap_or(usize::MAX)
+}
+
 /// Resize `out` to `len` tuples of `nb_component` values (re-created if the
 /// number of components differs, keeping its id).
 pub(crate) fn prepare_out(out: &mut Array<Real>, len: usize, nb_component: usize) -> Result<()> {
