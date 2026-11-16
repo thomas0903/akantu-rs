@@ -13,7 +13,11 @@ use akantu_mesh::distribution::{MeshPartitioner, RcbPartitioner, distribute_with
 use akantu_mesh::synchronizers::NodeEntities;
 use akantu_parser::Parser;
 
-use super::harness::Digest;
+use akantu_core::enums::{AnalysisMethod, SparseSolverType};
+use akantu_model::ModelOptions;
+use akantu_solver::ModelSolverOptions;
+
+use super::harness::{Digest, Run};
 
 /// The world: MPI with the `mpi` feature, else serial.
 ///
@@ -127,4 +131,17 @@ pub fn nb_owned_nodes(mesh: &Mesh) -> usize {
             mesh.is_local_or_master_node(n).unwrap_or(false)
         })
         .count()
+}
+
+/// Options of a case with a sparse solve: the port's translation of Eigen's
+/// SparseLU pinned (`_auto` would resolve to MUMPS on the MPI world in a
+/// build with the `mumps` feature, which changes the digest and the timing
+/// and does not repeat its bits above 2 ranks). Records the solver in the
+/// run's JSON lines (`sparse_solver`).
+pub fn eigen_options(run: &mut Run, method: AnalysisMethod) -> ModelOptions {
+    run.sparse_solver = "eigen";
+    ModelOptions::new(method).with_solver_options(ModelSolverOptions {
+        sparse_solver_type: Some(SparseSolverType::Eigen),
+        ..ModelSolverOptions::default()
+    })
 }
