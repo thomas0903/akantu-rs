@@ -68,7 +68,7 @@ image on x86_64 Linux:
 | `x86-64-v2` | pass | identical bits |
 | `x86-64-v3` | pass | identical bits |
 | `x86-64-v4` (AVX-512) | pass | identical bits |
-| `znver4` (`native` on an AMD EPYC 9R14) | not run | identical bits |
+| `znver4` (`native` on an AMD EPYC 9R14) | pass | identical bits |
 
 The release-profile variants `codegen-units = 1`, `lto = "thin"`, `lto =
 "fat"`, their combinations, `panic = "abort"` and profile-guided
