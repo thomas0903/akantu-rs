@@ -29,6 +29,9 @@
 # out.txt, err.txt, time.txt (GNU time -v), exit and run.json (variant,
 # binary digest, host CPU, load at start, start time); <out>/provenance.txt
 # and <out>/schedule.log. Summarise with compare_cpp.py.
+# PIN_CPU (optional, e.g. 2): every run on that core only (taskset for the
+# Rust driver, docker --cpuset-cpus for the C++ harness); recorded in
+# provenance.txt.
 set -euo pipefail
 here="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 repo="$(cd "${here}/../../.." && pwd)"
@@ -59,6 +62,8 @@ out="$(cd "${out}" && pwd)"
 meshes="$(cd "${meshes}" && pwd)"
 tag="tab-$(date -u +%Y%m%dT%H%M%S)"
 cpu="$(grep -m1 'model name' /proc/cpuinfo | cut -d: -f2 | sed 's/^ //')"
+pin_rust=(); pin_cpp=()
+if [ -n "${PIN_CPU:-}" ]; then pin_rust=(taskset -c "${PIN_CPU}"); pin_cpp=(--cpuset-cpus "${PIN_CPU}"); fi
 
 have_cpp=0
 for v in "${variants[@]}"; do case "${v#*=}" in cpp:*) have_cpp=1 ;; esac; done
@@ -81,7 +86,7 @@ fi
 
 {
   echo "host=$(hostname) cpu=${cpu} nproc=$(nproc) kernel=$(uname -r) mem_total_kib=$(awk '/MemTotal/ {print $2}' /proc/meminfo)"
-  echo "steps=${steps} reps=${reps} h=${hs} materials=${materials} memory_cap_cpp=${memory} started_utc=$(date -u +%FT%TZ)"
+  echo "steps=${steps} reps=${reps} h=${hs} materials=${materials} memory_cap_cpp=${memory} pin_cpu=${PIN_CPU:-none} started_utc=$(date -u +%FT%TZ)"
   [ "${have_cpp}" = 0 ] || echo "image=$(docker image inspect --format '{{.Id}}' "${img}")"
   for h in ${hs}; do echo "mesh h${h} sha256=$(sha256sum "${meshes}/cube-h${h}.msh" | cut -d' ' -f1)"; done
   for v in "${variants[@]}"; do
@@ -131,7 +136,7 @@ run_cpp() { # label config material h rep
   local start load
   start="$(date -u +%FT%TZ)"; load="$(cut -d' ' -f1 /proc/loadavg)"
   echo "${start} ${label} ${material} h${h} rep${rep} load=${load}" >> "${out}/schedule.log"
-  docker run --rm --shm-size=4g --init --memory="${memory}" --memory-swap="${memory}" \
+  docker run --rm ${pin_cpp[@]+"${pin_cpp[@]}"} --shm-size=4g --init --memory="${memory}" --memory-swap="${memory}" \
     -v "${oracle_vol}:/build:ro" -v "${vol}:/perf" -w "${d}" \
     -e AKA_SEED=1 -e SCOTCH_PTHREAD_NUMBER=1 -e AKANTU_RS_FILL_NODES_TO_ELEMENTS=upstream \
     -e OMP_NUM_THREADS=1 -e OPENBLAS_NUM_THREADS=1 "${img}" \
@@ -150,7 +155,7 @@ run_rust() { # label spec material h rep
   local start load status=0
   start="$(date -u +%FT%TZ)"; load="$(cut -d' ' -f1 /proc/loadavg)"
   echo "${start} ${label} ${material} h${h} rep${rep} load=${load}" >> "${out}/schedule.log"
-  (cd "${d}" && OMP_NUM_THREADS=1 OPENBLAS_NUM_THREADS=1 /usr/bin/time -v -o time.txt "${bin}" --aka_input_file input.dat > out.txt 2> err.txt) || status=$?
+  (cd "${d}" && OMP_NUM_THREADS=1 OPENBLAS_NUM_THREADS=1 ${pin_rust[@]+"${pin_rust[@]}"} /usr/bin/time -v -o time.txt "${bin}" --aka_input_file input.dat > out.txt 2> err.txt) || status=$?
   echo "${status}" > "${d}/exit"
   run_json "${d}" "${label}" rust "$(sha256sum "${bin}" | cut -d' ' -f1)" "${material}" "${h}" "${rep}" "${extra}" "${start}" "${load}" "${status}" "${cpu}"
 }
