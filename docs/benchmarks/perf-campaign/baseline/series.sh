@@ -66,6 +66,7 @@ case "${1:-}" in
     say "explicit: $d/summary.md" ;;
   explicit-digests)
     # PIN_CPU = the bjob's cores: cpp_run.sh passes it to docker --cpuset-cpus
+    # shellcheck disable=SC2016 # $AKANTU_JOB_CPUS expands in the inner shell, inside bjob
     bjob "$L-explicit-digests" -- sh -c 'PIN_CPU="$AKANTU_JOB_CPUS" exec "$@"' sh \
       "$here/explicit_digests.sh" "$PORT_DIR/port" "$BASE/cpp-bin" \
       "$BASE/meshes/explicit" > "$OUT/explicit-digests.txt"
