@@ -117,12 +117,12 @@ others need `mumps` or `petsc`).
 
 | Id | Line | Site | What it does | Invariant (its `SAFETY:` comment) | Established by | Test |
 |---|---|---|---|---|---|---|
-| LA-81 | 115 | `fn gemm_into_zero_with` block 1 | calls `x86::gemm_avx512` (`sparselu_gemm`, 16-row tiles) | the CPU supports AVX-512F | L6 (`is_x86_feature_detected!("avx512f")` in the arm's guard) | `dense::tests::gemm_matches_reference_bitwise`, `eigen_sparse_lu_oracle` |
-| LA-82 | 122 | `fn gemm_into_zero_with` block 2 | calls `x86::gemm_avx` (8-row tiles) | the CPU supports AVX | L6 (`is_x86_feature_detected!("avx")`) | `dense::tests::gemm_matches_reference_bitwise` |
-| LA-85 | 178 | `fn gemm_into_zero_fma_with` block 1 | calls `x86::gemm_avx512_fma` (fast mode, opt-in) | the CPU supports AVX-512F and FMA | L6 (both detected on the line before) | `tests::fma_mode_solution_within_tolerance`, `simd::tests::fma_instances_match_a_scalar_fused_reference` |
-| LA-86 | 185 | `fn gemm_into_zero_fma_with` block 2 | calls `x86::gemm_avx2_fma` (fast mode, opt-in) | the CPU supports AVX2 and FMA | L6 | `tests::fma_mode_solution_within_tolerance`, `simd::tests::fma_instances_match_a_scalar_fused_reference` |
-| LA-83 | 270 | `fn gemv_with` block 1 | calls `x86::gemv_avx512` (column-major GEMV, 32-row tiles) | the CPU supports AVX-512F | L6 | `dense::tests::gemv_matches_reference_bitwise`, `eigen_sparse_lu_oracle` |
-| LA-84 | 275 | `fn gemv_with` block 2 | calls `x86::gemv_avx` (16-row tiles) | the CPU supports AVX | L6 | `dense::tests::gemv_matches_reference_bitwise` |
+| LA-81 | 120 | `fn gemm_into_zero_with` block 1 | calls `x86::gemm_avx512` (`sparselu_gemm`, 16-row tiles) | the CPU supports AVX-512F | L6 (`is_x86_feature_detected!("avx512f")` in the arm's guard) | `dense::tests::gemm_matches_reference_bitwise`, `eigen_sparse_lu_oracle` |
+| LA-82 | 127 | `fn gemm_into_zero_with` block 2 | calls `x86::gemm_avx` (8-row tiles) | the CPU supports AVX | L6 (`is_x86_feature_detected!("avx")`) | `dense::tests::gemm_matches_reference_bitwise` |
+| LA-85 | 183 | `fn gemm_into_zero_fma_with` block 1 | calls `x86::gemm_avx512_fma` (fast mode, opt-in) | the CPU supports AVX-512F and FMA | L6 (both detected on the line before) | `tests::fma_mode_solution_within_tolerance`, `simd::tests::fma_instances_match_a_scalar_fused_reference` |
+| LA-86 | 190 | `fn gemm_into_zero_fma_with` block 2 | calls `x86::gemm_avx2_fma` (fast mode, opt-in) | the CPU supports AVX2 and FMA | L6 | `tests::fma_mode_solution_within_tolerance`, `simd::tests::fma_instances_match_a_scalar_fused_reference` |
+| LA-83 | 275 | `fn gemv_with` block 1 | calls `x86::gemv_avx512` (column-major GEMV, 32-row tiles) | the CPU supports AVX-512F | L6 | `dense::tests::gemv_matches_reference_bitwise`, `eigen_sparse_lu_oracle` |
+| LA-84 | 280 | `fn gemv_with` block 2 | calls `x86::gemv_avx` (16-row tiles) | the CPU supports AVX | L6 | `dense::tests::gemv_matches_reference_bitwise` |
 
 ### src/mumps/mod.rs
 
