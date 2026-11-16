@@ -1326,6 +1326,18 @@ impl GroupManager {
         let mut g = self.element_group_mut(name)?;
         let dim = g.dimension;
         let nodes = g.node_group.node_list();
+        // membership of the node group (performance: a table instead of a
+        // scan of the list per node; the same answers)
+        let mut member: Vec<bool> = Vec::new();
+        for &n in &nodes {
+            if let Ok(u) = try_to_usize(n) {
+                if u >= member.len() {
+                    member.resize(u + 1, false);
+                }
+                member[u] = true;
+            }
+        }
+        let in_group = |c: &Idx| try_to_usize(*c).is_ok_and(|u| member.get(u) == Some(&true));
         let mut seen = std::collections::BTreeSet::new();
         let mut add = Vec::new();
         for &n in &nodes {
@@ -1344,7 +1356,7 @@ impl GroupManager {
                     continue;
                 }
                 let conn = connectivities.element_ref(el)?;
-                if conn.iter().all(|c| nodes.contains(c)) {
+                if conn.iter().all(in_group) {
                     add.push(el);
                 }
             }

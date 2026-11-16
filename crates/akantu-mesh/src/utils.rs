@@ -340,6 +340,20 @@ impl<'a> ElementRanks<'a> {
 #[allow(clippy::too_many_lines)] // one upstream loop nest, kept together
 fn plan_facets(mesh: &Mesh, boundary_only: bool, dimension: usize) -> Result<FacetPlan> {
     let csr = node_to_elements_unchecked(mesh, dimension)?;
+    // the rows list their elements in the order the connectivities are
+    // walked; when that is the elements' order (`Element::cmp`, the usual
+    // case) the occurrences of an element in a row are found by binary
+    // search instead of a scan (performance; the same counts)
+    let rows_sorted = (0..csr.offsets.len().saturating_sub(1))
+        .all(|n| csr.row(n).windows(2).all(|w| w[0] <= w[1]));
+    let occurrences = |row: &[Element], e: &Element| -> usize {
+        if rows_sorted {
+            let lo = row.partition_point(|x| x < e);
+            row[lo..].iter().take_while(|x| *x == e).count()
+        } else {
+            row.iter().filter(|x| *x == e).count()
+        }
+    };
     let mut ranks = ElementRanks::new(mesh);
     let mut init = Vec::new();
     for ghost in GhostType::ALL {
@@ -381,7 +395,7 @@ fn plan_facets(mesh: &Mesh, boundary_only: bool, dimension: usize) -> Result<Fac
                     counter.resize(row0.len(), 0);
                     for (c, e) in counter.iter_mut().zip(row0) {
                         for &n in &facet[1..] {
-                            *c += csr.row(ux(n)).iter().filter(|x| *x == e).count();
+                            *c += occurrences(csr.row(ux(n)), e);
                         }
                     }
                     connected.clear();
@@ -693,42 +707,62 @@ fn distance(a: &[Real], b: &[Real]) -> Real {
 
 /// First facet (lowest index) whose barycenter lies at a distance below
 /// `tol` of `x` (upstream linear `find_if`, `mesh.cc:310-325`). Candidates
-/// are pre-selected on the first coordinate through `sorted` (facet
-/// indices sorted by that coordinate): a facet at computed distance `< tol`
-/// differs by at most `tol · (1 + 4ε)` in its first coordinate, the window
-/// below is twice as wide; non-finite queries fall back to the linear scan.
+/// are pre-selected on one coordinate through that coordinate's sorted
+/// index: a facet at computed distance `< tol` differs by at most
+/// `tol · (1 + 4ε)` in every coordinate (the computed sum of squares is at
+/// least each computed square), the window below is twice as wide; of the
+/// coordinates the one whose window holds the fewest facets is scanned (a
+/// window on one coordinate alone holds a whole face of a box-shaped mesh;
+/// performance: every window holds every match, so the result is the same).
+/// Non-finite queries fall back to the linear scan.
 fn first_facet_within(bary: &FacetBarycenters, x: &[Real], tol: Real) -> Option<usize> {
-    let x0 = x.first().copied().unwrap_or(0.0);
     let w = 2.0 * tol;
     let n = bary.len();
-    if n < 32 || !x0.is_finite() || !w.is_finite() {
+    if n < 32 || !w.is_finite() || x.iter().any(|v| !v.is_finite()) || x.len() != bary.dim {
         return (0..n).find(|&j| distance(x, bary.point(j)) < tol);
     }
-    let (lo, hi) = (x0 - w, x0 + w);
-    let sorted = &bary.sorted;
-    let start = sorted.partition_point(|&j| bary.first(j) < lo);
-    sorted[start..]
+    // the narrowest window
+    let mut best: Option<(usize, usize, usize)> = None;
+    for (c, &xc) in x.iter().enumerate() {
+        let (lo, hi) = (xc - w, xc + w);
+        let sorted = &bary.sorted[c];
+        let start = sorted.partition_point(|&j| bary.coord(j, c) < lo);
+        let end = start + sorted[start..].partition_point(|&j| bary.coord(j, c) <= hi);
+        if best.is_none_or(|(_, s, e)| end - start < e - s) {
+            best = Some((c, start, end));
+        }
+    }
+    let (c, start, end) = best?;
+    bary.sorted[c][start..end]
         .iter()
-        .take_while(|&&j| bary.first(j) <= hi)
         .filter(|&&j| distance(x, bary.point(j)) < tol)
         .min()
         .copied()
 }
 
 /// Barycenters of one facet block (flat, `dim` values each;
-/// one buffer per block, not one vector per facet) and their
-/// indices sorted on the first coordinate.
+/// one buffer per block, not one vector per facet) and, per coordinate,
+/// their indices sorted on it.
 struct FacetBarycenters {
     dim: usize,
     points: Vec<Real>,
-    sorted: Vec<usize>,
+    sorted: Vec<Vec<usize>>,
 }
 
 impl FacetBarycenters {
     fn new(dim: usize, points: Vec<Real>) -> Self {
         let n = points.len() / dim.max(1);
-        let mut sorted: Vec<usize> = (0..n).collect();
-        sorted.sort_by(|&i, &j| points[i * dim].total_cmp(&points[j * dim]).then(i.cmp(&j)));
+        let sorted = (0..dim)
+            .map(|c| {
+                let mut s: Vec<usize> = (0..n).collect();
+                s.sort_by(|&i, &j| {
+                    points[i * dim + c]
+                        .total_cmp(&points[j * dim + c])
+                        .then(i.cmp(&j))
+                });
+                s
+            })
+            .collect();
         Self {
             dim,
             points,
@@ -744,8 +778,8 @@ impl FacetBarycenters {
         &self.points[j * self.dim..(j + 1) * self.dim]
     }
 
-    fn first(&self, j: usize) -> Real {
-        self.points[j * self.dim]
+    fn coord(&self, j: usize, c: usize) -> Real {
+        self.points[j * self.dim + c]
     }
 }
 

@@ -26,6 +26,10 @@
 //!    the numbers are unique — a duplicate, which upstream would order in an
 //!    unspecified way, is refused, UD-815).
 //!
+//! Before step 1 one reduction counts the flagged facets of every rank
+//! (owned and ghost): with none anywhere, steps 1–3 cannot change a flag
+//! or order a facet and are skipped.
+//!
 //! The steps run in one [`Phases`] scope of the caller, before the mesh
 //! transaction (they change no mesh state; the flags they overwrite are
 //! restored by the model when the insertion fails before commit). On a mesh
@@ -209,6 +213,38 @@ impl CohesiveElementInserter {
         let sync = fm.synchronizers().element.as_ref().ok_or_else(|| {
             Error::Mesh("distributed facet mesh without facet synchronizer".into())
         })?;
+        // 0. nothing flagged on any rank, ghost facets included (the usual
+        // step without insertion): every flag is false everywhere, so the
+        // exchanges below would write false over false and number nothing;
+        // the result is known after one reduction (performance; the result
+        // and the flags are those of steps 1-3)
+        let local = (|| -> Result<[u64; 2]> {
+            let mut flagged = 0u64;
+            let mut ghost_flagged = 0u64;
+            for (ty, ghost, flags) in self.insertion_facets.as_map().iter_all() {
+                if ty.spatial_dimension() + 1 != fm.spatial_dimension()
+                    || ty.kind() != ElementKind::Regular
+                {
+                    continue;
+                }
+                let n = flags.as_slice().iter().filter(|&&f| f).count() as u64;
+                match ghost {
+                    GhostType::NotGhost => flagged += n,
+                    GhostType::Ghost => ghost_flagged += n,
+                }
+            }
+            Ok([flagged, ghost_flagged])
+        })();
+        let any = ph.run_collective("ce:insertion_any", local, |c, mut v| {
+            c.all_reduce(&mut v, ReduceOp::Sum)?;
+            Ok(v)
+        })?;
+        if any == [0, 0] {
+            return Ok(InsertionOrder {
+                facets: Vec::new(),
+                global_flagged: 0,
+            });
+        }
         // 1. owner -> ghost insertion flags
         let mut groups = GroupsAccessor {
             flags: &mut self.insertion_facets,
