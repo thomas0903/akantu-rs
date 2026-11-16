@@ -8,10 +8,12 @@ suite"); the ranked findings are in `HOTSPOTS.md`.
 | `baseline/base-m/` | serial cases, size `m`, 5 repetitions | AWS `m7a.2xlarge` (AMD EPYC 9R14) | `e2bebff49` |
 | `baseline/py-m/` | Python cases, size `m`, 5 repetitions | same | `a1b454b0c` (extension built from `fa409279f`, the Rust library is unchanged since) |
 | `baseline/twin-ab/` | Rust twin and Python loop, interleaved A/B, 5 pairs | same | `e2bebff49` / `a1b454b0c` |
-| `baseline/scotch-*/` | Scotch and RCB partitions (MPI build, 1 rank) | same | `6b12c7d8c` |
-| `baseline/mpi-l-p*/` | parallel cases, size `l`, 1, 2, 4, 8 ranks | same | `6b12c7d8c` |
+| `baseline/scotch-{m,l}/` | Scotch and RCB partitions (MPI build, 1 rank; 5 and 3 repetitions) | same | `6b12c7d8c` |
+| `baseline/mpi-m-p*/` | parallel cases, size `m`, 1, 2, 4, 8 ranks, 5 repetitions | same | `6b12c7d8c` |
+| `baseline/dist-l-p*/` | `dist_mesh_tet4`, size `l`, 2, 4, 8 ranks, 3 repetitions | same | `6b12c7d8c` |
 | `baseline/coh-l/` | `cohesive_insert_tet4` at `l` with `/usr/bin/time -v` | same | `e2bebff49` |
 | `scaling/{s,m,l}/` | serial mesh cases at the three sizes (screening) | 4-core AMD EPYC Milan development machine | `f51cea974` (same library and suite code as `e2bebff49`) |
+| `screening-mpi/m-p*/` | parallel cases, size `m`, 1, 2, 4 ranks (screening; the `commit` field reads `unknown`: the container did not receive the variable; binary built from `c4a879451`) | development machine | `c4a879451` |
 | `scaling/exponents.md` | growth exponents b of t ∝ N^b (`scaling.py`) | | |
 | `profiles/` | `perf record --call-graph dwarf` text reports | boat.dev sandbox (AMD Ryzen 9 9950X, 4 vCPU); the two Python files on the development machine | `e865bfe04`, `6b12c7d8c` for `ghost_elements` |
 
