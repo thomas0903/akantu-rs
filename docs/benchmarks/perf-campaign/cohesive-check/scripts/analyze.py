@@ -5,7 +5,7 @@
 # (ab.sh layout <outroot>/<label>/rep<k>/chrono.csv), medians [min, max] and paired ratios.
 import sys, os, csv, json, statistics as st
 root = sys.argv[1]
-labels = sorted(os.listdir(root))
+labels = sorted(x for x in os.listdir(root) if os.path.isdir(os.path.join(root, x)))
 data = {}
 for lab in labels:
     for rep in sorted(os.listdir(os.path.join(root, lab))):
