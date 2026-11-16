@@ -49,8 +49,7 @@ rotated per repetition (`scripts/` holds the scripts as run).
 | `parallel-bitwise/np{2,4,8}` | `h012-5000`'s input with `output_energy = true` and `rust_sparse_solver = eigen`; screening machine; digests in `digests.txt` (one copy of the identical files kept) | 1–2 × 2 each |
 
 `h012-500` and `h012-5000` ran on the AWS machine; the larger mesh and
-every MPI series ran on the screening machine only (the AWS timing lane was
-the bottleneck of the campaign; the orchestrator re-measures on AWS). The
+every MPI series ran on the screening machine only. The
 `out.txt` files and, in `screening/`, `insertions.csv` and `energies.csv`
 were not kept.
 
