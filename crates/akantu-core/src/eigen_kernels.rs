@@ -67,6 +67,77 @@ pub struct SliceProduct {
     b_stride: (usize, usize),
     need_a: usize,
     need_b: usize,
+    kernel: Kernel,
+}
+
+/// The kernel [`SliceProduct::eval`] runs, chosen once from the route,
+/// the sizes and the left operand's layout.
+#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+enum Kernel {
+    /// `Coeff(Tree)`, depth ≤ 27.
+    Tree,
+    /// `Coeff(Sequential)`, column-major lhs with at least
+    /// [`COLUMN_KERNEL_MIN_ROWS`] rows: whole result columns per step.
+    SeqColumns,
+    /// `Coeff(Sequential)`, depth ≤ 8: unrolled per coefficient.
+    SeqUnrolled,
+    /// `Coeff(Sequential)`, any depth, per coefficient.
+    Seq,
+    /// Chain from `+0` then `0 + c` (`Gebp` with depth < 8, unblocked
+    /// `Gemv` over the lhs), column-major lhs with at least
+    /// [`COLUMN_KERNEL_MIN_ROWS`] rows.
+    ChainColumns,
+    /// The same chain, depth < 8: unrolled per coefficient.
+    ChainUnrolled,
+    /// The same chain, any depth, per coefficient.
+    Chain,
+    /// Every other route: `eigen_gebp::eval_routed`.
+    General,
+}
+
+/// Rows from which the column kernels (vectorisable across a result
+/// column) are used instead of per-coefficient loops.
+const COLUMN_KERNEL_MIN_ROWS: usize = 4;
+
+/// Largest depth of the unrolled per-coefficient kernels.
+const UNROLLED_MAX_DEPTH: usize = 8;
+
+/// The kernel of `route` for an `m × k · k × n` product whose lhs has row
+/// stride `ai`.
+const fn kernel_of(route: Route, m: usize, k: usize, ai: usize) -> Kernel {
+    let columns = ai == 1 && m >= COLUMN_KERNEL_MIN_ROWS;
+    match route {
+        Route::Coeff(Reduction::Tree) if k <= COEFF_TREE_MAX_DEPTH => Kernel::Tree,
+        Route::Coeff(Reduction::Sequential) => {
+            if columns {
+                Kernel::SeqColumns
+            } else if k <= UNROLLED_MAX_DEPTH {
+                Kernel::SeqUnrolled
+            } else {
+                Kernel::Seq
+            }
+        }
+        Route::Gemv {
+            matrix: GemvMatrix::Lhs,
+            ..
+        } if k < GEMV_BLOCKING_MIN_DEPTH => {
+            if columns {
+                Kernel::ChainColumns
+            } else if k < GEBP_PK {
+                Kernel::ChainUnrolled
+            } else {
+                Kernel::Chain
+            }
+        }
+        Route::Gebp { kc } if k < GEBP_PK && kc >= k => {
+            if columns {
+                Kernel::ChainColumns
+            } else {
+                Kernel::ChainUnrolled
+            }
+        }
+        _ => Kernel::General,
+    }
 }
 
 /// (row stride, column stride) of a logical `rows × cols` operand stored as
@@ -84,6 +155,7 @@ impl SliceProduct {
     /// # Errors
     /// [`Error::DimensionMismatch`] if the operands' inner dimensions differ
     /// or a size product overflows.
+    #[inline]
     pub fn new(shape: ProductShape) -> Result<Self> {
         let (m, k, n) = (shape.rows.size(), shape.lhs_depth.size(), shape.cols.size());
         if shape.rhs_depth.size() != k {
@@ -96,16 +168,19 @@ impl SliceProduct {
         let need_a = crate::types::checked_len(m, k, "SliceProduct lhs")?;
         let need_b = crate::types::checked_len(k, n, "SliceProduct rhs")?;
         crate::types::checked_len(m, n, "SliceProduct result")?;
+        let route = eigen_gebp::route(&shape);
+        let a_stride = strides(shape.lhs_order, m, k);
         Ok(Self {
             shape,
-            route: eigen_gebp::route(&shape),
+            route,
             m,
             k,
             n,
-            a_stride: strides(shape.lhs_order, m, k),
+            a_stride,
             b_stride: strides(shape.rhs_order, k, n),
             need_a,
             need_b,
+            kernel: kernel_of(route, m, k, a_stride.0),
         })
     }
 
@@ -168,42 +243,28 @@ impl SliceProduct {
 
     /// [`SliceProduct::eval`] on slices of exactly the operand and result
     /// lengths.
+    #[inline]
     fn eval_sized(&self, a: &[Real], b: &[Real], out: &mut [Real]) {
         let (m, k, n) = (self.m, self.k, self.n);
         let (ai, al) = self.a_stride;
         let (bl, bj) = self.b_stride;
-        match self.route {
-            Route::Coeff(Reduction::Tree) if k <= COEFF_TREE_MAX_DEPTH => {
-                coeff_tree(k, m, n, (a, ai, al), (b, bl, bj), out);
-            }
-            Route::Coeff(Reduction::Sequential) => {
-                if ai == 1 {
-                    coeff_seq_colmajor(m, k, n, a, (b, bl, bj), out);
-                } else {
-                    coeff_seq(m, k, n, (a, ai, al), (b, bl, bj), out);
-                }
-            }
-            // GEMV over the left operand without depth blocking: `c = 0;
-            // c = c + a(i, l)·x(l)`, then `out(i) = 0 + c` (both kernels)
-            Route::Gemv {
-                matrix: GemvMatrix::Lhs,
-                ..
-            } if k < GEMV_BLOCKING_MIN_DEPTH => {
-                if ai == 1 {
-                    gebp_shallow_colmajor(m, k, 1, a, (b, bl, bj), out);
-                } else {
-                    gebp_shallow(m, k, 1, (a, ai, al), (b, bl, bj), out);
-                }
-            }
-            Route::Gebp { kc } if k < GEBP_PK && kc >= k => {
-                if ai == 1 {
-                    gebp_shallow_colmajor(m, k, n, a, (b, bl, bj), out);
-                } else {
-                    gebp_shallow(m, k, n, (a, ai, al), (b, bl, bj), out);
-                }
-            }
-            route => eigen_gebp::eval_routed(
-                route,
+        let (sa, sb) = ((a, ai, al), (b, bl, bj));
+        // a GEMV result has one column
+        let nc = if matches!(self.route, Route::Gemv { .. }) {
+            1
+        } else {
+            n
+        };
+        match self.kernel {
+            Kernel::Tree => coeff_tree(k, m, n, sa, sb, out),
+            Kernel::SeqColumns => coeff_seq_colmajor(m, k, n, a, sb, out),
+            Kernel::SeqUnrolled => coeff_seq_unrolled(k, m, n, sa, sb, out),
+            Kernel::Seq => coeff_seq(m, k, n, sa, sb, out),
+            Kernel::ChainColumns => gebp_shallow_colmajor(m, k, nc, a, sb, out),
+            Kernel::ChainUnrolled => chain_unrolled(k, m, nc, sa, sb, out),
+            Kernel::Chain => gebp_shallow(m, k, nc, sa, sb, out),
+            Kernel::General => eigen_gebp::eval_routed(
+                self.route,
                 m,
                 k,
                 n,
@@ -269,6 +330,90 @@ fn coeff_tree_k<const K: usize>(
                 *x = a[i * ai + l * al] * bc[l];
             }
             out[i + j * m] = eo::redux_tree(0, K, &|l| t[l], add);
+        }
+    }
+}
+
+/// `Coeff(Sequential)` with depth ≤ 8, one kernel per depth.
+fn coeff_seq_unrolled(
+    k: usize,
+    m: usize,
+    n: usize,
+    a: Strided<'_>,
+    b: Strided<'_>,
+    out: &mut [Real],
+) {
+    macro_rules! dispatch {
+        ($($k:literal)*) => {
+            match k {
+                $($k => coeff_seq_k::<$k>(m, n, a, b, out),)*
+                _ => unreachable!("coeff_seq_unrolled: depth {k} outside 1..=8"),
+            }
+        };
+    }
+    dispatch!(1 2 3 4 5 6 7 8);
+}
+
+#[inline(always)]
+fn coeff_seq_k<const K: usize>(
+    m: usize,
+    n: usize,
+    (a, ai, al): Strided<'_>,
+    (b, bl, bj): Strided<'_>,
+    out: &mut [Real],
+) {
+    for j in 0..n {
+        let mut bc = [0.0; K];
+        for (l, x) in bc.iter_mut().enumerate() {
+            *x = b[l * bl + j * bj];
+        }
+        for i in 0..m {
+            // r = t0; r = r + t_l
+            let mut r = a[i * ai] * bc[0];
+            for l in 1..K {
+                r += a[i * ai + l * al] * bc[l];
+            }
+            out[i + j * m] = r;
+        }
+    }
+}
+
+/// The chain from `+0` (`Gebp` depth < 8 or unblocked `Gemv`) with depth
+/// < 8, one kernel per depth.
+fn chain_unrolled(k: usize, m: usize, n: usize, a: Strided<'_>, b: Strided<'_>, out: &mut [Real]) {
+    macro_rules! dispatch {
+        ($($k:literal)*) => {
+            match k {
+                $($k => chain_k::<$k>(m, n, a, b, out),)*
+                _ => unreachable!("chain_unrolled: depth {k} outside 1..=7"),
+            }
+        };
+    }
+    dispatch!(1 2 3 4 5 6 7);
+}
+
+#[inline(always)]
+fn chain_k<const K: usize>(
+    m: usize,
+    n: usize,
+    (a, ai, al): Strided<'_>,
+    (b, bl, bj): Strided<'_>,
+    out: &mut [Real],
+) {
+    for j in 0..n {
+        let mut bc = [0.0; K];
+        for (l, x) in bc.iter_mut().enumerate() {
+            *x = b[l * bl + j * bj];
+        }
+        for i in 0..m {
+            // c = 0; c = c + t_l; dst = 0 + c
+            let mut c = 0.0;
+            for (l, &bl_j) in bc.iter().enumerate() {
+                c += a[i * ai + l * al] * bl_j;
+            }
+            let mut r = 0.0;
+            r += c;
+            out[i + j * m] = r;
         }
     }
 }
@@ -427,6 +572,7 @@ mod tests {
         let mut want = vec![0.0; 4096];
         let mut checked = 0usize;
         let mut routes = std::collections::BTreeSet::new();
+        let mut kernels = std::collections::BTreeSet::new();
         for &(m, k, n) in &sizes {
             for flags in 0..64u32 {
                 let ext = |sz: usize, bit: u32| -> Extent {
@@ -445,6 +591,7 @@ mod tests {
                 }
                 let p = SliceProduct::new(shape).unwrap();
                 routes.insert(format!("{:?}", p.route()));
+                kernels.insert(format!("{:?}", p.kernel));
                 let payload = checked % 4 == 3;
                 if payload {
                     let kk = 1 + v.next_u64() % (m * k + k * n) as u64;
@@ -488,6 +635,18 @@ mod tests {
             assert!(routes.contains(r), "{r} not covered: {routes:?}");
         }
         assert!(routes.iter().any(|r| r.starts_with("Gemv")));
+        for k in [
+            "Tree",
+            "SeqColumns",
+            "SeqUnrolled",
+            "Seq",
+            "ChainColumns",
+            "ChainUnrolled",
+            "Chain",
+            "General",
+        ] {
+            assert!(kernels.contains(k), "kernel {k} not covered: {kernels:?}");
+        }
         assert!(routes.iter().any(|r| r.starts_with("Dot")));
     }
 

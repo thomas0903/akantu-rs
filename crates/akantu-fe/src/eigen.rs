@@ -220,11 +220,11 @@ pub fn product_slices(
     b: &[Real],
     c: &mut [Real],
 ) -> Result<Route> {
-    let need_a = akantu_core::types::checked_len(lhs.rows, lhs.cols, "eigen::product lhs")?;
-    let need_b = akantu_core::types::checked_len(rhs.rows, rhs.cols, "eigen::product rhs")?;
+    let p = SliceProduct::new(product_shape(lhs, rhs))?;
     for (context, need, got) in [
-        ("eigen::product_slices: lhs", need_a, a.len()),
-        ("eigen::product_slices: rhs", need_b, b.len()),
+        ("eigen::product_slices: lhs", p.lhs_len(), a.len()),
+        ("eigen::product_slices: rhs", p.rhs_len(), b.len()),
+        ("eigen::product: result", p.out_len(), c.len()),
     ] {
         if got < need {
             return Err(Error::DimensionMismatch {
@@ -233,15 +233,6 @@ pub fn product_slices(
                 got,
             });
         }
-    }
-    let p = SliceProduct::new(product_shape(lhs, rhs))?;
-    let got = c.len();
-    if got < p.out_len() {
-        return Err(Error::DimensionMismatch {
-            context: "eigen::product: result",
-            expected: p.out_len(),
-            got,
-        });
     }
     p.eval(a, b, c)?;
     Ok(p.route())
