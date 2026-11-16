@@ -1,0 +1,135 @@
+# Profile of suite case explicit_hex8_ss
+
+binary: ~/w/gebp/bin/before-solid (150e36efe78a51c9)
+command: taskset -c 3 ~/w/gebp/bin/before-solid --case explicit_hex8_ss --size m --loop-seconds 4
+perf: perf record -F 499 --call-graph dwarf,16384
+cpu: AMD EPYC 9B45
+date_utc: 2026-11-16T11:23:09Z
+commit: 59e05aa3f
+
+## Phases of the profiled run (seconds, calls)
+
+mesh                         0.0070 s       1 calls
+init                         0.6264 s       1 calls
+stable_time_step             0.0266 s       5 calls
+solve_step                   5.0257 s     100 calls
+predictor                    0.0000 s     100 calls
+residual                     4.1156 s     100 calls
+lumped_matrix                0.0000 s     100 calls
+corrector                    0.0000 s     100 calls
+step_hooks                   0.6685 s     200 calls
+step_rest                    0.2414 s     100 calls
+internal_forces              0.4151 s      10 calls
+stresses                     0.1810 s      10 calls
+energies                     0.6602 s      10 calls
+
+## Top 25 symbols, self time
+
+    20.68%  [.] akantu_fe::engine::fast::btd
+    16.86%  [.] akantu_fe::engine::fast::gradient::<akantu_fe::element_class::types::Hexahedron8>
+     8.70%  [.] akantu_fe::engine::fast::integrate::<<akantu_fe::engine::FeEngine>::integrate::{closure#0}>
+     5.29%  [.] akantu_solid::material::grad_u_in_place
+     4.80%  [.] <akantu_solid::materials::elastic::MaterialElastic<3> as akantu_solid::material::Material>::compute_stress
+     3.44%  [.] akantu_core::eigen_order::redux_tree::<<[[f64; 2]; 2] as akantu_core::tensor::MatrixExt<2, 2>>::double_dot::{closure#0}>
+     3.21%  [.] <akantu_solver::dof_manager::DofManager>::assemble_elemental_array_local_view
+     2.93%  [.] akantu_core::eigen_order::redux_tree::<akantu_core::eigen_gebp::eval_product<akantu_fe::eigen::product_slices::{closure#1}, akantu_fe::eigen::product_slices::{closure#2}>::{closure#0}>
+     2.64%  [k] do_user_addr_fault
+     2.26%  [.] 0x00000000001a1ac9
+     2.26%  [.] 0x00000000001a1ad0
+     2.05%  [.] akantu_core::eigen_gebp::product_into::<akantu_fe::eigen::product_slices::{closure#1}, akantu_fe::eigen::product_slices::{closure#2}>
+     2.05%  [.] akantu_core::eigen_order::redux_tree::<<[[f64; 3]; 3] as akantu_core::tensor::SquareMatrixExt<3>>::trace::{closure#0}>
+     1.67%  [.] 0x00000000001a1abb
+     1.59%  [.] 0x00000000001a1ac2
+     1.33%  [k] _raw_spin_lock
+     1.18%  [k] _raw_spin_unlock_irqrestore
+     0.95%  [.] akantu_bench::suite_solid::common::digest
+     0.90%  [.] <akantu_solid::materials::elastic::MaterialElastic<3>>::compute_thermal
+     0.56%  [.] akantu_fe::eigen::lu_factor
+     0.54%  [k] zap_present_ptes.constprop.0
+     0.51%  [.] <akantu_solver::integration_scheme::NewmarkBeta as akantu_solver::integration_scheme::IntegrationScheme>::corrector
+     0.46%  [.] <akantu_solver::dof_manager::DofManager>::assemble_to_residual
+     0.44%  [.] <akantu_solid::model::SolidMechanicsPhysics>::external_work_increment
+     0.44%  [.] <akantu_solver::integration_scheme::NewmarkBeta as akantu_solver::integration_scheme::IntegrationScheme>::predictor
+
+## Top 25 symbols, inclusive time (children)
+
+    20.68%    20.68%  [.] akantu_fe::engine::fast::btd
+    20.61%     0.00%  [.] 0x0000000000797fff
+    20.58%     0.00%  [.] akantu_fe::engine::fast::btd_impl::<3, 3> (inlined)
+    16.86%    16.86%  [.] akantu_fe::engine::fast::gradient::<akantu_fe::element_class::types::Hexahedron8>
+    16.86%     0.00%  [.] akantu_fe::engine::fast::gradient_impl::<akantu_fe::element_class::types::Hexahedron8, 3> (inlined)
+    16.86%     0.00%  [.] akantu_fe::engine::ops::gradient_kernel::<akantu_fe::element_class::types::Hexahedron8>
+     8.75%     0.00%  [.] 0x000000000000000b
+     8.70%     8.70%  [.] akantu_fe::engine::fast::integrate::<<akantu_fe::engine::FeEngine>::integrate::{closure#0}>
+     7.13%     2.64%  [.] do_user_addr_fault
+     7.13%     0.00%  [.] asm_exc_page_fault
+     7.13%     0.00%  [.] exc_page_fault
+     5.77%     0.00%  [.] akantu_core::eigen_unrolled::seq_sum (inlined)
+     5.29%     5.29%  [.] akantu_solid::material::grad_u_in_place
+     4.80%     4.80%  [.] <akantu_solid::materials::elastic::MaterialElastic<3> as akantu_solid::material::Material>::compute_stress
+     4.80%     0.00%  [.] 0x0000000000798000
+     4.41%     0.00%  [.] akantu_core::eigen_unrolled::tree_l5 (inlined)
+     4.41%     0.00%  [.] akantu_core::eigen_unrolled::tree_sum (inlined)
+     4.36%     0.03%  [.] handle_mm_fault
+     4.31%     0.00%  [.] 0x000000000001afff
+     4.29%     0.18%  [.] __handle_mm_fault
+     4.11%     0.05%  [.] handle_pte_fault
+     4.08%     0.00%  [.] <akantu_solid::materials::elastic::ElasticConstants<3>>::stress_on_quad (inlined)
+     3.95%     0.03%  [.] do_anonymous_page
+     3.44%     3.44%  [.] akantu_core::eigen_order::redux_tree::<<[[f64; 2]; 2] as akantu_core::tensor::MatrixExt<2, 2>>::double_dot::{closure#0}>
+     3.21%     3.21%  [.] <akantu_solver::dof_manager::DofManager>::assemble_elemental_array_local_view
+
+## Call chains (callers of the hottest self-time symbols, entries above 2 %)
+
+    20.68%  [.] akantu_fe::engine::fast::btd
+            |
+            |--12.24%--akantu_fe::engine::fast::btd_impl::<3, 3> (inlined)
+            |          akantu_fe::engine::fast::btd
+            |          0x797fff
+            |
+             --5.77%--akantu_core::eigen_unrolled::seq_sum (inlined)
+                       akantu_fe::engine::fast::btd_impl::<3, 3> (inlined)
+                       akantu_fe::engine::fast::btd
+                       0x797fff
+    16.86%  [.] akantu_fe::engine::fast::gradient::<akantu_fe::element_class::types::Hexahedron8>
+            |
+            |--9.88%--akantu_fe::engine::fast::gradient_impl::<akantu_fe::element_class::types::Hexahedron8, 3> (inlined)
+            |          akantu_fe::engine::fast::gradient::<akantu_fe::element_class::types::Hexahedron8>
+            |          akantu_fe::engine::ops::gradient_kernel::<akantu_fe::element_class::types::Hexahedron8>
+            |
+             --2.03%--akantu_core::eigen_unrolled::tree_l3 (inlined)
+                       akantu_core::eigen_unrolled::tree_l4 (inlined)
+                       akantu_core::eigen_unrolled::tree_l5 (inlined)
+                       akantu_core::eigen_unrolled::tree_sum (inlined)
+                       akantu_fe::engine::fast::gradient_impl::<akantu_fe::element_class::types::Hexahedron8, 3> (inlined)
+                       akantu_fe::engine::fast::gradient::<akantu_fe::element_class::types::Hexahedron8>
+                       akantu_fe::engine::ops::gradient_kernel::<akantu_fe::element_class::types::Hexahedron8>
+     8.70%  [.] akantu_fe::engine::fast::integrate::<<akantu_fe::engine::FeEngine>::integrate::{closure#0}>
+            |
+             --7.21%--akantu_fe::engine::fast::integrate::<<akantu_fe::engine::FeEngine>::integrate::{closure#0}>
+                       |
+                        --7.16%--0xb
+     5.29%  [.] akantu_solid::material::grad_u_in_place
+            |
+             --5.03%--akantu_solid::material::grad_u_in_place
+                       |
+                        --4.03%--0x1afff
+     4.80%  [.] <akantu_solid::materials::elastic::MaterialElastic<3> as akantu_solid::material::Material>::compute_stress
+            |
+             --2.10%--<akantu_solid::materials::elastic::ElasticConstants<3>>::stress_on_quad (inlined)
+                       <akantu_solid::materials::elastic::MaterialElastic<3> as akantu_solid::material::Material>::compute_stress
+                       0x798000
+     3.44%  [.] akantu_core::eigen_order::redux_tree::<<[[f64; 2]; 2] as akantu_core::tensor::MatrixExt<2, 2>>::double_dot::{closure#0}>
+     3.21%  [.] <akantu_solver::dof_manager::DofManager>::assemble_elemental_array_local_view
+            |
+             --2.10%--akantu_solver::dof_manager::assembly::scatter_add::<3, <akantu_solver::dof_manager::DofManager>::assemble_elemental_array_local_view::{closure#1}> (inlined)
+                       <akantu_solver::dof_manager::DofManager>::assemble_elemental_array_local_view
+     2.93%  [.] akantu_core::eigen_order::redux_tree::<akantu_core::eigen_gebp::eval_product<akantu_fe::eigen::product_slices::{closure#1}, akantu_fe::eigen::product_slices::{closure#2}>::{closure#0}>
+     2.64%  [k] do_user_addr_fault
+            |
+            ---exc_page_fault
+               asm_exc_page_fault
+     2.26%  [.] 0x00000000001a1ac9
+     2.26%  [.] 0x00000000001a1ad0
+     2.05%  [.] akantu_core::eigen_gebp::product_into::<akantu_fe::eigen::product_slices::{closure#1}, akantu_fe::eigen::product_slices::{closure#2}>
+     2.05%  [.] akantu_core::eigen_order::redux_tree::<<[[f64; 3]; 3] as akantu_core::tensor::SquareMatrixExt<3>>::trace::{closure#0}>
