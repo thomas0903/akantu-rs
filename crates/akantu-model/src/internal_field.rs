@@ -605,13 +605,14 @@ impl<T: Clone> InternalField<T> {
     /// copy), and the current values of the block are unspecified until the
     /// caller has written them. Without a deferred save of the block, or
     /// when the exchange is not possible, this performs the save as
-    /// [`InternalField::get_mut`] would.
-    pub fn prepare_overwrite(&mut self, ty: ElementType, ghost: GhostType) {
+    /// [`InternalField::get_mut`] would. Returns `true` if the allocations
+    /// were exchanged (see [`InternalField::undo_overwrite`]).
+    pub fn prepare_overwrite(&mut self, ty: ElementType, ghost: GhostType) -> bool {
         let Some(p) = &mut self.previous else {
-            return;
+            return false;
         };
         let Some(i) = p.pending.iter().position(|&b| b == (ty, ghost)) else {
-            return;
+            return false;
         };
         let swapped = match (
             self.values.shared_mut(ty, ghost),
@@ -625,6 +626,29 @@ impl<T: Clone> InternalField<T> {
         } else {
             p.materialize(&self.values, ty, ghost);
         }
+        swapped
+    }
+
+    /// After a [`InternalField::prepare_overwrite`] that returned `true`,
+    /// for a caller that failed before writing anything: the current block
+    /// gets the values of the last save back (a copy from the previous
+    /// values, which hold them), so current and previous are what a save
+    /// by copy followed by the failed call leaves. Nothing happens for a
+    /// field without history or a missing block.
+    ///
+    /// # Errors
+    /// The guard errors of [`InternalField::get_mut`].
+    pub fn undo_overwrite(&mut self, ty: ElementType, ghost: GhostType) -> Result<()> {
+        let Some(p) = &self.previous else {
+            return Ok(());
+        };
+        let (Some(prev), Ok(cur)) = (
+            p.values.as_map().get(ty, ghost),
+            self.values.shared_mut(ty, ghost),
+        ) else {
+            return Ok(());
+        };
+        cur.write()?.copy_from(prev)
     }
 
     /// `current(ty, ghost) <- new` for a whole block (`new` has the shape of
@@ -655,7 +679,7 @@ impl<T: Clone> InternalField<T> {
                 });
             }
         }
-        self.prepare_overwrite(ty, ghost);
+        let _ = self.prepare_overwrite(ty, ghost);
         let c = self.values.shared_mut(ty, ghost)?;
         if !c.try_swap_values(new) {
             c.write()?.copy_from(new)?;

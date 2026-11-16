@@ -823,7 +823,7 @@ impl<const DIM: usize> Material for MaterialElastic<DIM> {
             && n.1 == DIM * DIM
             && shape(sigma, ty, ghost) == n
         {
-            sigma.prepare_overwrite(ty, ghost);
+            let _ = sigma.prepare_overwrite(ty, ghost);
         }
     }
 
@@ -863,8 +863,8 @@ impl<const DIM: usize> MaterialElastic<DIM> {
         {
             return false;
         }
-        self.epsilon_th.prepare_overwrite(ty, ghost);
-        self.sigma_th.prepare_overwrite(ty, ghost);
+        let _ = self.epsilon_th.prepare_overwrite(ty, ghost);
+        let _ = self.sigma_th.prepare_overwrite(ty, ghost);
         true
     }
 }

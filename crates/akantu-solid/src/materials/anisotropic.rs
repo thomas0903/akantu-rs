@@ -786,7 +786,7 @@ pub(crate) fn anisotropic_compute_stress<const DIM: usize>(
             .stress_on_quad(as_matrix(g0)?, &mut [[0.0; DIM]; DIM])
             .is_ok()
     {
-        sigma_field.prepare_overwrite(ty, ghost);
+        let _ = sigma_field.prepare_overwrite(ty, ghost);
     }
     let mut sigma = sigma_field.get_mut(ty, ghost)?;
     if grad_u.len() != sigma.len() {

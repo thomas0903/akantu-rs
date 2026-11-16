@@ -1029,7 +1029,29 @@ fn grad_u_of_block(
     filter: &[Idx],
 ) -> Result<()> {
     let n = filter.len() * ctx.services.nb_integration_points(ty, ghost);
-    prepare_grad_u_overwrite(base, dim, ty, ghost, n);
+    let swapped = prepare_grad_u_overwrite(base, dim, ty, ghost, n);
+    let result = grad_u_compute(base, ctx, dim, ty, ghost, filter);
+    if result.is_err() && swapped {
+        // The gradient failed in its input checks (displacement field,
+        // filter, shape derivatives) before writing: the block gets the
+        // values of the last save back, as a save by copy leaves it. (A
+        // failure after the first write, possible only for a connectivity
+        // that points outside the nodal field, leaves these values instead
+        // of a partial gradient.)
+        base.grad_u.undo_overwrite(ty, ghost)?;
+    }
+    result
+}
+
+/// The two paths of [`grad_u_of_block`] (in place, or through a temporary).
+fn grad_u_compute(
+    base: &mut MaterialBase,
+    ctx: &LawContext<'_>,
+    dim: usize,
+    ty: ElementType,
+    ghost: GhostType,
+    filter: &[Idx],
+) -> Result<()> {
     // In the stored gradient when its shape allows (same values, no
     // per-step temporary); else the temporary below
     if grad_u_in_place(base, ctx, dim, ty, ghost, filter)? {
@@ -1058,14 +1080,14 @@ fn grad_u_of_block(
 /// of it (`n = filter length · nb_quad` tuples of `dim²` values, an
 /// `eigen_grad_u` block of the same length); otherwise nothing, and the
 /// write performs the save. Either path of the caller rewrites the whole
-/// block.
+/// block. Returns `true` if the history was exchanged.
 fn prepare_grad_u_overwrite(
     base: &mut MaterialBase,
     dim: usize,
     ty: ElementType,
     ghost: GhostType,
     n: usize,
-) {
+) -> bool {
     let shape = |f: &InternalField<Real>| {
         f.values()
             .shared(ty, ghost)
@@ -1073,9 +1095,9 @@ fn prepare_grad_u_overwrite(
     };
     let (len, nbc) = shape(&base.grad_u);
     if n == 0 || len != n || nbc != dim * dim || shape(&base.eigen_grad_u).0 != n {
-        return;
+        return false;
     }
-    base.grad_u.prepare_overwrite(ty, ghost);
+    base.grad_u.prepare_overwrite(ty, ghost)
 }
 
 /// Built-in laws: a static parameter table on top of [`BASE_PARAMS`]
