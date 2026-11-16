@@ -746,3 +746,18 @@ fn maxwell_law_is_bitwise_for_every_thread_count() {
         active: "sigma_v",
     });
 }
+
+#[test]
+fn marigo_law_is_bitwise_for_every_thread_count() {
+    check_law(&LawCase {
+        name: "marigo",
+        dat: |_| {
+            "material marigo [\n  name = body\n  rho = 2500\n  E = 70e9\n  nu = 0.22\n  \
+             Yd = 1e3\n  Sd = 1e5\n]\n"
+                .into()
+        },
+        amp: 1e-3,
+        steps: 6,
+        active: "damage",
+    });
+}

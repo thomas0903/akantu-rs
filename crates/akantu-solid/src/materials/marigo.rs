@@ -56,6 +56,7 @@
 use std::sync::Arc;
 
 use akantu_core::enums::MatrixType;
+use akantu_core::exec::{Tuples, TuplesRef};
 use akantu_core::random::RandomParameter;
 use akantu_core::tensor::{Matrix, MatrixExt, SquareMatrixExt, as_matrix, as_matrix_mut};
 use akantu_core::{
@@ -327,7 +328,7 @@ impl<const DIM: usize> Material for MaterialMarigo<DIM> {
 
     fn compute_stress(
         &mut self,
-        _ctx: &LawContext<'_>,
+        ctx: &LawContext<'_>,
         ty: ElementType,
         ghost: GhostType,
     ) -> Result<()> {
@@ -378,34 +379,57 @@ impl<const DIM: usize> Material for MaterialMarigo<DIM> {
                 got: sigma.len().min(dam.len()).min(yd.len()),
             });
         }
-        for (q, (g, s)) in grad_u
-            .as_slice()
-            .chunks_exact(n)
-            .zip(sigma.as_mut_slice().chunks_exact_mut(n))
-            .enumerate()
-        {
-            let g: &Matrix<DIM, DIM> = as_matrix(g)?;
-            let s: &mut Matrix<DIM, DIM> = as_matrix_mut(s)?;
-            let th = sigma_th.as_slice()[q];
-            constants.stress_on_quad(g, th, s);
-            // UD-138: the damage of an earlier trial of the step is not kept
-            // (threshold branch, `damage_in_y`)
-            if committed {
-                dam.as_mut_slice()[q] = prev_dam.as_slice()[q];
-            }
-            let d = &mut dam.as_mut_slice()[q];
-            let yq = self.energy_release_rate(s, g, *d, th, delta_t.as_slice()[q] * alpha);
-            y.as_mut_slice()[q] = yq;
-            if !non_local {
-                *d = self.damage_and_stress_on_quad(
-                    s,
-                    *d,
-                    prev_dam.as_slice()[q],
-                    yq,
-                    yd.as_slice()[q],
-                );
-            }
+        if grad_u.nb_component() != n || sigma.nb_component() != n {
+            return Err(Error::DimensionMismatch {
+                context: "MaterialMarigo::computeStress: components",
+                expected: n,
+                got: sigma.nb_component(),
+            });
         }
+        // every point from its own values (the copies above): parts on the
+        // model's threads (D-123)
+        let items = (
+            (
+                TuplesRef::new(grad_u.as_slice(), n),
+                TuplesRef::new(sigma_th.as_slice(), 1),
+                TuplesRef::new(delta_t.as_slice(), 1),
+                TuplesRef::new(yd.as_slice(), 1),
+                TuplesRef::new(prev_dam.as_slice(), 1),
+            ),
+            Tuples::new(sigma.as_mut_slice(), n),
+            Tuples::new(dam.as_mut_slice(), 1),
+            Tuples::new(y.as_mut_slice(), 1),
+        );
+        let this = &*self;
+        crate::material::points_exec(this, ctx).try_for_each(
+            items,
+            1024,
+            |_, ((g, th, dt, yd, pd), mut sigma, mut dam, mut y)| {
+                let points = g
+                    .as_slice()
+                    .chunks_exact(n)
+                    .zip(sigma.as_mut_slice().chunks_exact_mut(n))
+                    .zip(th.as_slice().iter().zip(dt.as_slice()))
+                    .zip(yd.as_slice().iter().zip(pd.as_slice()))
+                    .zip(dam.as_mut_slice().iter_mut().zip(y.as_mut_slice()));
+                for ((((g, s), (&th, &dt)), (&yd, &pd)), (d, y)) in points {
+                    let g: &Matrix<DIM, DIM> = as_matrix(g)?;
+                    let s: &mut Matrix<DIM, DIM> = as_matrix_mut(s)?;
+                    constants.stress_on_quad(g, th, s);
+                    // UD-138: the damage of an earlier trial of the step is
+                    // not kept (threshold branch, `damage_in_y`)
+                    if committed {
+                        *d = pd;
+                    }
+                    let yq = this.energy_release_rate(s, g, *d, th, dt * alpha);
+                    *y = yq;
+                    if !non_local {
+                        *d = this.damage_and_stress_on_quad(s, *d, pd, yq, yd);
+                    }
+                }
+                Ok(())
+            },
+        )?;
         self.elastic
             .base_mut()
             .sigma_field_mut()?
@@ -414,6 +438,16 @@ impl<const DIM: usize> Material for MaterialMarigo<DIM> {
         self.damage.damage.get_mut(ty, ghost)?.copy_from(&dam)?;
         self.y.get_mut(ty, ghost)?.copy_from(&y)?;
         Ok(())
+    }
+
+    /// The stress, energy release rate and damage of a point read only that
+    /// point's gradient, thermal stress, temperature change, threshold and
+    /// damage (copies of the blocks, written back after the loop) and the
+    /// law's constants; the thermal refresh runs per block before the loop.
+    /// The non-local variant runs the same local loop (`Y` only) and
+    /// averages afterwards, in its own phase.
+    fn independent_points(&self) -> bool {
+        true
     }
 
     fn compute_tangent_moduli(
