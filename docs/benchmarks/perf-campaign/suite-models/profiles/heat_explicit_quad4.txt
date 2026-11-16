@@ -1,0 +1,369 @@
+# heat_explicit_quad4: perf record -F 499 --call-graph dwarf, size m, --loop-seconds 6, one process on core 2
+# commit c339c611d, 2026-11-16T07:19:06Z, AMD Ryzen 7 9700X 8-Core Processor (boat sandbox: shares only, no timing)
+# phases of the profiled run (seconds; loop phases extended to >= 6 s):
+#   mesh                         calls      1      0.158 s
+#   init                         calls      1      0.021 s
+#   stable_time_step             calls      1      0.002 s
+#   solve_step                   calls    240      6.679 s
+
+## Flat profile (self time), top 25 (shared object, symbol)
+    18.72%  suite_models      [.] akantu_core::eigen_order::redux_tree::<<akantu_diffusion::heat_diffusion::HeatDiffusion as akantu_diffusion::law::DiffusionLaw>::compute_diffusivity_grad_u_on_quad_points::{closure#0}>                      
+     9.48%  suite_models      [.] akantu_fe::engine::fast::btd                                                                                                                                                                                  
+     8.40%  suite_models      [.] akantu_core::eigen_gebp::product_into::<akantu_fe::eigen::product_slices::{closure#1}, akantu_fe::eigen::product_slices::{closure#2}>                                                                         
+     8.28%  suite_models      [.] akantu_fe::engine::fast::integrate::<<akantu_fe::engine::FeEngine>::integrate::{closure#0}>                                                                                                                   
+     8.24%  suite_models      [.] akantu_fe::engine::fast::gradient::<akantu_fe::element_class::types::Cohesive3d8>                                                                                                                             
+     5.12%  suite_models      [.] <akantu_core::array_storage::ArrayStorage<f64>>::try_resize                                                                                                                                                   
+     4.33%  suite_models      [.] akantu_fe::eigen::product_slices                                                                                                                                                                              
+     3.66%  suite_models      [.] <akantu_diffusion::heat_diffusion::HeatDiffusion as akantu_diffusion::law::DiffusionLaw>::compute_diffusivity_on_quad_points                                                                                  
+     3.14%  suite_models      [.] <akantu_solver::dof_manager::DofManager>::assemble_elemental_array_local_view                                                                                                                                 
+     2.38%  suite_models      [.] akantu_core::eigen_gebp::route                                                                                                                                                                                
+     2.07%  libc.so.6         [.] 0x00000000001a16ef                                                                                                                                                                                            
+     1.75%  suite_models      [.] <akantu_diffusion::heat_diffusion::HeatDiffusion as akantu_diffusion::law::DiffusionLaw>::compute_diffusivity_grad_u_on_quad_points                                                                           
+     1.61%  suite_models      [.] <akantu_fe::engine::FeEngine>::interpolate_impl                                                                                                                                                               
+     1.58%  libc.so.6         [.] 0x00000000001a16c6                                                                                                                                                                                            
+     1.58%  libc.so.6         [.] 0x00000000001a1d7a                                                                                                                                                                                            
+     1.41%  libc.so.6         [.] 0x00000000001a16d4                                                                                                                                                                                            
+     1.16%  suite_models      [.] <akantu_fe::engine::FeEngine>::gather_element                                                                                                                                                                 
+     1.13%  libc.so.6         [.] 0x00000000001a16db                                                                                                                                                                                            
+     1.02%  suite_models      [.] <alloc::vec::Vec<usize> as alloc::vec::spec_from_iter::SpecFromIter<usize, core::iter::adapters::GenericShunt<core::iter::adapters::map::Map<core::slice::iter::Iter<i32>, akantu_fe::engine::resolve_filter::
+     0.94%  libc.so.6         [.] 0x00000000001a1942                                                                                                                                                                                            
+     0.85%  libc.so.6         [.] 0x00000000001a1949                                                                                                                                                                                            
+     0.82%  libc.so.6         [.] 0x00000000001a1950                                                                                                                                                                                            
+     0.74%  libc.so.6         [.] 0x00000000001a1577                                                                                                                                                                                            
+     0.65%  libc.so.6         [.] 0x00000000001a196f                                                                                                                                                                                            
+     0.65%  libc.so.6         [.] 0x00000000001a1961                                                                                                                                                                                            
+
+## Inclusive time (children), top 40 symbols
+    96.06%     0.00%  [.] std::panic::catch_unwind::<std::rt::lang_start_internal::{closure#0}, isize> (inlined)                                                                                                                                
+    96.06%     0.00%  [.] std::panic::catch_unwind::<&dyn core::ops::function::Fn<(), Output = i32> + core::panic::unwind_safe::RefUnwindSafe + core::marker::Sync, i32> (inlined)                                                              
+    96.06%     0.00%  [.] std::panicking::catch_unwind::<isize, std::rt::lang_start_internal::{closure#0}> (inlined)                                                                                                                            
+    96.06%     0.00%  [.] std::panicking::catch_unwind::<i32, &dyn core::ops::function::Fn<(), Output = i32> + core::panic::unwind_safe::RefUnwindSafe + core::marker::Sync> (inlined)                                                          
+    96.06%     0.00%  [.] suite_models::suite_models::harness::main::<suite_models::suite_models::common::world>                                                                                                                                
+    96.06%     0.00%  [.] std::sys::backtrace::__rust_begin_short_backtrace::<fn() -> std::process::ExitCode, std::process::ExitCode>                                                                                                           
+    96.06%     0.00%  [.] std::panicking::catch_unwind::do_call::<std::rt::lang_start_internal::{closure#0}, isize> (inlined)                                                                                                                   
+    96.06%     0.00%  [.] std::panicking::catch_unwind::do_call::<&dyn core::ops::function::Fn<(), Output = i32> + core::panic::unwind_safe::RefUnwindSafe + core::marker::Sync, i32> (inlined)                                                 
+    96.06%     0.00%  [.] std::rt::lang_start::<std::process::ExitCode>::{closure#0} (inlined)                                                                                                                                                  
+    96.06%     0.00%  [.] std::rt::lang_start_internal::{closure#0} (inlined)                                                                                                                                                                   
+    96.06%     0.00%  [.] suite_models::main                                                                                                                                                                                                    
+    96.06%     0.00%  [.] std::rt::lang_start_internal                                                                                                                                                                                          
+    96.06%     0.00%  [.] suite_models::suite_models::heat::explicit_quad4                                                                                                                                                                      
+    96.06%     0.00%  [.] suite_models::suite_models::heat::explicit                                                                                                                                                                            
+    96.06%     0.00%  [.] <&dyn core::ops::function::Fn<(), Output = i32> + core::panic::unwind_safe::RefUnwindSafe + core::marker::Sync as core::ops::function::FnOnce<()>>::call_once (inlined)                                               
+    96.06%     0.00%  [.] <fn() -> std::process::ExitCode as core::ops::function::FnOnce<()>>::call_once (inlined)                                                                                                                              
+    96.06%     0.00%  [.] main                                                                                                                                                                                                                  
+    96.01%     0.00%  [.] __libc_start_main                                                                                                                                                                                                     
+    95.98%     0.00%  [.] _start                                                                                                                                                                                                                
+    95.64%     0.00%  [.] 0x00007657a8a2a1c9                                                                                                                                                                                                    
+    95.55%     0.00%  [.] <suite_models::suite_models::harness::Run>::looped::<suite_models::suite_models::heat::explicit::{closure#2}>                                                                                                         
+    95.55%     0.00%  [.] <akantu_solver::dof_manager::DofManager>::collective::<(), <akantu_solver::non_linear_lumped::NonLinearSolverLumped as akantu_solver::non_linear::NonLinearSolver>::solve::{closure#0}>                               
+    95.55%     0.00%  [.] suite_models::suite_models::heat::explicit::{closure#2} (inlined)                                                                                                                                                     
+    95.55%     0.00%  [.] <akantu_solver::time_step::TimeStepSolver>::solve_step (inlined)                                                                                                                                                      
+    95.55%     0.00%  [.] <akantu_solver::model_solver::ModelSolver>::solve_step                                                                                                                                                                
+    95.55%     0.00%  [.] <akantu_diffusion::model::DiffusionModel>::solve_step (inlined)                                                                                                                                                       
+    95.55%     0.00%  [.] <akantu_solver::non_linear_lumped::NonLinearSolverLumped as akantu_solver::non_linear::NonLinearSolver>::solve                                                                                                        
+    95.55%     0.00%  [.] <akantu_diffusion::model::DiffusionModel as akantu_model::model::Model>::solve_step (inlined)                                                                                                                         
+    95.52%     0.00%  [.] <akantu_solver::non_linear_lumped::NonLinearSolverLumped as akantu_solver::non_linear::NonLinearSolver>::solve::{closure#0} (inlined)                                                                                 
+    93.37%     0.00%  [.] <akantu_solver::dof_manager::DofManager>::step::<(), <akantu_solver::non_linear_lumped::NonLinearSolverLumped as akantu_solver::non_linear::NonLinearSolver>::solve::{closure#0}::{closure#2}> (inlined)              
+    93.37%     0.00%  [.] <akantu_solver::non_linear_lumped::NonLinearSolverLumped as akantu_solver::non_linear::NonLinearSolver>::solve::{closure#0}::{closure#2} (inlined)                                                                    
+    93.37%     0.00%  [.] <akantu_solver::time_step::Adapter as akantu_solver::callback::SolverCallback>::assemble_residual                                                                                                                     
+    92.43%     0.00%  [.] <akantu_solver::dof_manager::DofManager>::step::<(), <akantu_solver::non_linear_newton_raphson::NonLinearSolverNewtonRaphson>::assemble_residual::{closure#2}>                                                        
+    92.43%     0.00%  [.] akantu_solver::time_step::model_step::<(), <akantu_solver::time_step::Adapter as akantu_solver::callback::SolverCallback>::assemble_residual::{closure#0}> (inlined)                                                  
+    92.41%     0.00%  [.] <akantu_solver::non_linear_newton_raphson::NonLinearSolverNewtonRaphson>::assemble_residual::{closure#2} (inlined)                                                                                                    
+    92.41%     0.00%  [.] <akantu_diffusion::model::DiffusionPhysics>::assemble_residual                                                                                                                                                        
+    91.98%     0.00%  [.] <akantu_diffusion::model::DiffusionPhysics>::assemble_internal_flow (inlined)                                                                                                                                         
+    65.79%     0.00%  [.] <akantu_diffusion::model::DiffusionPhysics>::with_laws::<(), <akantu_diffusion::model::DiffusionPhysics>::assemble_internal_flow::{closure#2}> (inlined)                                                              
+    65.79%     0.00%  [.] <akantu_diffusion::model::DiffusionPhysics>::assemble_internal_flow::{closure#2} (inlined)                                                                                                                            
+    65.79%     0.00%  [.] <akantu_diffusion::heat_diffusion::HeatDiffusion as akantu_diffusion::law::DiffusionLaw>::compute_diffusivity_grad_u                                                                                                  
+
+## Call chains of the hottest symbols (caller graph, >= 3 % self, branches >= 1 %)
+    18.72%  [.] akantu_core::eigen_order::redux_tree::<<akantu_diffusion::heat_diffusion::HeatDiffusion as akantu_diffusion::law::DiffusionLaw>::compute_diffusivity_grad_u_on_quad_points::{closure#0}>                                        
+            |          
+             --17.00%--akantu_core::eigen_order::redux_tree::<<akantu_diffusion::heat_diffusion::HeatDiffusion as akantu_diffusion::law::DiffusionLaw>::compute_diffusivity_grad_u_on_quad_points::{closure#0}>
+                       |          
+                       |--10.20%--akantu_core::eigen_order::redux_tree::<<akantu_diffusion::heat_diffusion::HeatDiffusion as akantu_diffusion::law::DiffusionLaw>::compute_diffusivity_grad_u_on_quad_points::{closure#0}>
+                       |          <akantu_core::eigen_order::Reduction>::reduce::<<akantu_diffusion::heat_diffusion::HeatDiffusion as akantu_diffusion::law::DiffusionLaw>::compute_diffusivity_grad_u_on_quad_points::{closure#0}> (inlined)
+                       |          <akantu_core::eigen_order::Reduction>::sum::<<akantu_diffusion::heat_diffusion::HeatDiffusion as akantu_diffusion::law::DiffusionLaw>::compute_diffusivity_grad_u_on_quad_points::{closure#0}> (inlined)
+                       |          akantu_core::eigen_order::product_coeff::<<akantu_diffusion::heat_diffusion::HeatDiffusion as akantu_diffusion::law::DiffusionLaw>::compute_diffusivity_grad_u_on_quad_points::{closure#0}> (inlined)
+                       |          <akantu_diffusion::heat_diffusion::HeatDiffusion as akantu_diffusion::law::DiffusionLaw>::compute_diffusivity_grad_u_on_quad_points
+                       |          <akantu_diffusion::heat_diffusion::HeatDiffusion as akantu_diffusion::law::DiffusionLaw>::compute_diffusivity_grad_u
+                       |          <akantu_diffusion::model::DiffusionPhysics>::assemble_internal_flow::{closure#2} (inlined)
+                       |          <akantu_diffusion::model::DiffusionPhysics>::with_laws::<(), <akantu_diffusion::model::DiffusionPhysics>::assemble_internal_flow::{closure#2}> (inlined)
+                       |          <akantu_diffusion::model::DiffusionPhysics>::assemble_internal_flow (inlined)
+                       |          <akantu_diffusion::model::DiffusionPhysics>::assemble_residual
+                       |          <akantu_solver::non_linear_newton_raphson::NonLinearSolverNewtonRaphson>::assemble_residual::{closure#2} (inlined)
+                       |          <akantu_solver::dof_manager::DofManager>::step::<(), <akantu_solver::non_linear_newton_raphson::NonLinearSolverNewtonRaphson>::assemble_residual::{closure#2}>
+                       |          akantu_solver::time_step::model_step::<(), <akantu_solver::time_step::Adapter as akantu_solver::callback::SolverCallback>::assemble_residual::{closure#0}> (inlined)
+                       |          <akantu_solver::time_step::Adapter as akantu_solver::callback::SolverCallback>::assemble_residual
+                       |          <akantu_solver::non_linear_lumped::NonLinearSolverLumped as akantu_solver::non_linear::NonLinearSolver>::solve::{closure#0}::{closure#2} (inlined)
+                       |          <akantu_solver::dof_manager::DofManager>::step::<(), <akantu_solver::non_linear_lumped::NonLinearSolverLumped as akantu_solver::non_linear::NonLinearSolver>::solve::{closure#0}::{closure#2}> (inlined)
+                       |          <akantu_solver::non_linear_lumped::NonLinearSolverLumped as akantu_solver::non_linear::NonLinearSolver>::solve::{closure#0} (inlined)
+                       |          <akantu_solver::dof_manager::DofManager>::collective::<(), <akantu_solver::non_linear_lumped::NonLinearSolverLumped as akantu_solver::non_linear::NonLinearSolver>::solve::{closure#0}>
+                       |          <akantu_solver::non_linear_lumped::NonLinearSolverLumped as akantu_solver::non_linear::NonLinearSolver>::solve
+                       |          <akantu_solver::time_step::TimeStepSolver>::solve_step (inlined)
+                       |          <akantu_solver::model_solver::ModelSolver>::solve_step
+                       |          <akantu_diffusion::model::DiffusionModel>::solve_step (inlined)
+                       |          <akantu_diffusion::model::DiffusionModel as akantu_model::model::Model>::solve_step (inlined)
+                       |          suite_models::suite_models::heat::explicit::{closure#2} (inlined)
+                       |          <suite_models::suite_models::harness::Run>::looped::<suite_models::suite_models::heat::explicit::{closure#2}>
+                       |          suite_models::suite_models::heat::explicit
+                       |          suite_models::suite_models::heat::explicit_quad4
+                       |          suite_models::suite_models::harness::main::<suite_models::suite_models::common::world>
+                       |          suite_models::main
+                       |          <fn() -> std::process::ExitCode as core::ops::function::FnOnce<()>>::call_once (inlined)
+                       |          std::sys::backtrace::__rust_begin_short_backtrace::<fn() -> std::process::ExitCode, std::process::ExitCode>
+                       |          std::rt::lang_start::<std::process::ExitCode>::{closure#0} (inlined)
+                       |          <&dyn core::ops::function::Fn<(), Output = i32> + core::panic::unwind_safe::RefUnwindSafe + core::marker::Sync as core::ops::function::FnOnce<()>>::call_once (inlined)
+                       |          std::panicking::catch_unwind::do_call::<&dyn core::ops::function::Fn<(), Output = i32> + core::panic::unwind_safe::RefUnwindSafe + core::marker::Sync, i32> (inlined)
+                       |          std::panicking::catch_unwind::<i32, &dyn core::ops::function::Fn<(), Output = i32> + core::panic::unwind_safe::RefUnwindSafe + core::marker::Sync> (inlined)
+                       |          std::panic::catch_unwind::<&dyn core::ops::function::Fn<(), Output = i32> + core::panic::unwind_safe::RefUnwindSafe + core::marker::Sync, i32> (inlined)
+                       |          std::rt::lang_start_internal::{closure#0} (inlined)
+                       |          std::panicking::catch_unwind::do_call::<std::rt::lang_start_internal::{closure#0}, isize> (inlined)
+                       |          std::panicking::catch_unwind::<isize, std::rt::lang_start_internal::{closure#0}> (inlined)
+                       |          std::panic::catch_unwind::<std::rt::lang_start_internal::{closure#0}, isize> (inlined)
+                       |          std::rt::lang_start_internal
+                       |          main
+                       |          0x7657a8a2a1c9
+                       |          __libc_start_main
+                       |          _start
+                       |          
+                        --6.81%--<akantu_core::eigen_order::Reduction>::reduce::<<akantu_diffusion::heat_diffusion::HeatDiffusion as akantu_diffusion::law::DiffusionLaw>::compute_diffusivity_grad_u_on_quad_points::{closure#0}> (inlined)
+                                  <akantu_core::eigen_order::Reduction>::sum::<<akantu_diffusion::heat_diffusion::HeatDiffusion as akantu_diffusion::law::DiffusionLaw>::compute_diffusivity_grad_u_on_quad_points::{closure#0}> (inlined)
+                                  akantu_core::eigen_order::product_coeff::<<akantu_diffusion::heat_diffusion::HeatDiffusion as akantu_diffusion::law::DiffusionLaw>::compute_diffusivity_grad_u_on_quad_points::{closure#0}> (inlined)
+                                  <akantu_diffusion::heat_diffusion::HeatDiffusion as akantu_diffusion::law::DiffusionLaw>::compute_diffusivity_grad_u_on_quad_points
+                                  <akantu_diffusion::heat_diffusion::HeatDiffusion as akantu_diffusion::law::DiffusionLaw>::compute_diffusivity_grad_u
+                                  <akantu_diffusion::model::DiffusionPhysics>::assemble_internal_flow::{closure#2} (inlined)
+                                  <akantu_diffusion::model::DiffusionPhysics>::with_laws::<(), <akantu_diffusion::model::DiffusionPhysics>::assemble_internal_flow::{closure#2}> (inlined)
+                                  <akantu_diffusion::model::DiffusionPhysics>::assemble_internal_flow (inlined)
+                                  <akantu_diffusion::model::DiffusionPhysics>::assemble_residual
+                                  <akantu_solver::non_linear_newton_raphson::NonLinearSolverNewtonRaphson>::assemble_residual::{closure#2} (inlined)
+                                  <akantu_solver::dof_manager::DofManager>::step::<(), <akantu_solver::non_linear_newton_raphson::NonLinearSolverNewtonRaphson>::assemble_residual::{closure#2}>
+                                  akantu_solver::time_step::model_step::<(), <akantu_solver::time_step::Adapter as akantu_solver::callback::SolverCallback>::assemble_residual::{closure#0}> (inlined)
+                                  <akantu_solver::time_step::Adapter as akantu_solver::callback::SolverCallback>::assemble_residual
+                                  <akantu_solver::non_linear_lumped::NonLinearSolverLumped as akantu_solver::non_linear::NonLinearSolver>::solve::{closure#0}::{closure#2} (inlined)
+                                  <akantu_solver::dof_manager::DofManager>::step::<(), <akantu_solver::non_linear_lumped::NonLinearSolverLumped as akantu_solver::non_linear::NonLinearSolver>::solve::{closure#0}::{closure#2}> (inlined)
+                                  <akantu_solver::non_linear_lumped::NonLinearSolverLumped as akantu_solver::non_linear::NonLinearSolver>::solve::{closure#0} (inlined)
+                                  <akantu_solver::dof_manager::DofManager>::collective::<(), <akantu_solver::non_linear_lumped::NonLinearSolverLumped as akantu_solver::non_linear::NonLinearSolver>::solve::{closure#0}>
+                                  <akantu_solver::non_linear_lumped::NonLinearSolverLumped as akantu_solver::non_linear::NonLinearSolver>::solve
+                                  <akantu_solver::time_step::TimeStepSolver>::solve_step (inlined)
+                                  <akantu_solver::model_solver::ModelSolver>::solve_step
+                                  <akantu_diffusion::model::DiffusionModel>::solve_step (inlined)
+                                  <akantu_diffusion::model::DiffusionModel as akantu_model::model::Model>::solve_step (inlined)
+                                  suite_models::suite_models::heat::explicit::{closure#2} (inlined)
+                                  <suite_models::suite_models::harness::Run>::looped::<suite_models::suite_models::heat::explicit::{closure#2}>
+                                  suite_models::suite_models::heat::explicit
+                                  suite_models::suite_models::heat::explicit_quad4
+                                  suite_models::suite_models::harness::main::<suite_models::suite_models::common::world>
+                                  suite_models::main
+                                  <fn() -> std::process::ExitCode as core::ops::function::FnOnce<()>>::call_once (inlined)
+                                  std::sys::backtrace::__rust_begin_short_backtrace::<fn() -> std::process::ExitCode, std::process::ExitCode>
+                                  std::rt::lang_start::<std::process::ExitCode>::{closure#0} (inlined)
+                                  <&dyn core::ops::function::Fn<(), Output = i32> + core::panic::unwind_safe::RefUnwindSafe + core::marker::Sync as core::ops::function::FnOnce<()>>::call_once (inlined)
+                                  std::panicking::catch_unwind::do_call::<&dyn core::ops::function::Fn<(), Output = i32> + core::panic::unwind_safe::RefUnwindSafe + core::marker::Sync, i32> (inlined)
+                                  std::panicking::catch_unwind::<i32, &dyn core::ops::function::Fn<(), Output = i32> + core::panic::unwind_safe::RefUnwindSafe + core::marker::Sync> (inlined)
+                                  std::panic::catch_unwind::<&dyn core::ops::function::Fn<(), Output = i32> + core::panic::unwind_safe::RefUnwindSafe + core::marker::Sync, i32> (inlined)
+                                  std::rt::lang_start_internal::{closure#0} (inlined)
+                                  std::panicking::catch_unwind::do_call::<std::rt::lang_start_internal::{closure#0}, isize> (inlined)
+                                  std::panicking::catch_unwind::<isize, std::rt::lang_start_internal::{closure#0}> (inlined)
+                                  std::panic::catch_unwind::<std::rt::lang_start_internal::{closure#0}, isize> (inlined)
+                                  std::rt::lang_start_internal
+                                  main
+                                  0x7657a8a2a1c9
+                                  __libc_start_main
+                                  _start
+     9.48%  [.] akantu_fe::engine::fast::btd                                                                                                                                                                                                    
+            |          
+             --4.51%--akantu_fe::engine::fast::btd_impl::<1, 2> (inlined)
+                       akantu_fe::engine::fast::btd
+                       <akantu_fe::engine::FeEngine>::compute_btd
+                       akantu_diffusion::model::assembly::assemble_internal_flow_of
+                       <akantu_diffusion::model::DiffusionPhysics>::assemble_internal_flow (inlined)
+                       <akantu_diffusion::model::DiffusionPhysics>::assemble_residual
+                       <akantu_solver::non_linear_newton_raphson::NonLinearSolverNewtonRaphson>::assemble_residual::{closure#2} (inlined)
+                       <akantu_solver::dof_manager::DofManager>::step::<(), <akantu_solver::non_linear_newton_raphson::NonLinearSolverNewtonRaphson>::assemble_residual::{closure#2}>
+                       akantu_solver::time_step::model_step::<(), <akantu_solver::time_step::Adapter as akantu_solver::callback::SolverCallback>::assemble_residual::{closure#0}> (inlined)
+                       <akantu_solver::time_step::Adapter as akantu_solver::callback::SolverCallback>::assemble_residual
+                       <akantu_solver::non_linear_lumped::NonLinearSolverLumped as akantu_solver::non_linear::NonLinearSolver>::solve::{closure#0}::{closure#2} (inlined)
+                       <akantu_solver::dof_manager::DofManager>::step::<(), <akantu_solver::non_linear_lumped::NonLinearSolverLumped as akantu_solver::non_linear::NonLinearSolver>::solve::{closure#0}::{closure#2}> (inlined)
+                       <akantu_solver::non_linear_lumped::NonLinearSolverLumped as akantu_solver::non_linear::NonLinearSolver>::solve::{closure#0} (inlined)
+                       <akantu_solver::dof_manager::DofManager>::collective::<(), <akantu_solver::non_linear_lumped::NonLinearSolverLumped as akantu_solver::non_linear::NonLinearSolver>::solve::{closure#0}>
+                       <akantu_solver::non_linear_lumped::NonLinearSolverLumped as akantu_solver::non_linear::NonLinearSolver>::solve
+                       <akantu_solver::time_step::TimeStepSolver>::solve_step (inlined)
+                       <akantu_solver::model_solver::ModelSolver>::solve_step
+                       <akantu_diffusion::model::DiffusionModel>::solve_step (inlined)
+                       <akantu_diffusion::model::DiffusionModel as akantu_model::model::Model>::solve_step (inlined)
+                       suite_models::suite_models::heat::explicit::{closure#2} (inlined)
+                       <suite_models::suite_models::harness::Run>::looped::<suite_models::suite_models::heat::explicit::{closure#2}>
+                       suite_models::suite_models::heat::explicit
+                       suite_models::suite_models::heat::explicit_quad4
+                       suite_models::suite_models::harness::main::<suite_models::suite_models::common::world>
+                       suite_models::main
+                       <fn() -> std::process::ExitCode as core::ops::function::FnOnce<()>>::call_once (inlined)
+                       std::sys::backtrace::__rust_begin_short_backtrace::<fn() -> std::process::ExitCode, std::process::ExitCode>
+                       std::rt::lang_start::<std::process::ExitCode>::{closure#0} (inlined)
+                       <&dyn core::ops::function::Fn<(), Output = i32> + core::panic::unwind_safe::RefUnwindSafe + core::marker::Sync as core::ops::function::FnOnce<()>>::call_once (inlined)
+                       std::panicking::catch_unwind::do_call::<&dyn core::ops::function::Fn<(), Output = i32> + core::panic::unwind_safe::RefUnwindSafe + core::marker::Sync, i32> (inlined)
+                       std::panicking::catch_unwind::<i32, &dyn core::ops::function::Fn<(), Output = i32> + core::panic::unwind_safe::RefUnwindSafe + core::marker::Sync> (inlined)
+                       std::panic::catch_unwind::<&dyn core::ops::function::Fn<(), Output = i32> + core::panic::unwind_safe::RefUnwindSafe + core::marker::Sync, i32> (inlined)
+                       std::rt::lang_start_internal::{closure#0} (inlined)
+                       std::panicking::catch_unwind::do_call::<std::rt::lang_start_internal::{closure#0}, isize> (inlined)
+                       std::panicking::catch_unwind::<isize, std::rt::lang_start_internal::{closure#0}> (inlined)
+                       std::panic::catch_unwind::<std::rt::lang_start_internal::{closure#0}, isize> (inlined)
+                       std::rt::lang_start_internal
+                       main
+                       0x7657a8a2a1c9
+                       __libc_start_main
+                       _start
+     8.40%  [.] akantu_core::eigen_gebp::product_into::<akantu_fe::eigen::product_slices::{closure#1}, akantu_fe::eigen::product_slices::{closure#2}>                                                                                           
+            |          
+             --3.41%--akantu_core::eigen_gebp::eval_product::<akantu_fe::eigen::product_slices::{closure#1}, akantu_fe::eigen::product_slices::{closure#2}> (inlined)
+                       akantu_core::eigen_gebp::product_into::<akantu_fe::eigen::product_slices::{closure#1}, akantu_fe::eigen::product_slices::{closure#2}>
+                       akantu_fe::eigen::product::<akantu_fe::eigen::product_slices::{closure#1}, akantu_fe::eigen::product_slices::{closure#2}> (inlined)
+                       akantu_fe::eigen::product_slices
+                       |          
+                        --3.36%--<akantu_fe::engine::FeEngine>::interpolate_impl
+                                  <akantu_fe::engine::FeEngine>::interpolate_on_integration_points
+                                  <akantu_diffusion::heat_diffusion::HeatDiffusion as akantu_diffusion::law::DiffusionLaw>::compute_diffusivity_on_quad_points
+                                  <akantu_diffusion::heat_diffusion::HeatDiffusion as akantu_diffusion::law::DiffusionLaw>::compute_diffusivity_grad_u_on_quad_points
+                                  <akantu_diffusion::heat_diffusion::HeatDiffusion as akantu_diffusion::law::DiffusionLaw>::compute_diffusivity_grad_u
+                                  <akantu_diffusion::model::DiffusionPhysics>::assemble_internal_flow::{closure#2} (inlined)
+                                  <akantu_diffusion::model::DiffusionPhysics>::with_laws::<(), <akantu_diffusion::model::DiffusionPhysics>::assemble_internal_flow::{closure#2}> (inlined)
+                                  <akantu_diffusion::model::DiffusionPhysics>::assemble_internal_flow (inlined)
+                                  <akantu_diffusion::model::DiffusionPhysics>::assemble_residual
+                                  <akantu_solver::non_linear_newton_raphson::NonLinearSolverNewtonRaphson>::assemble_residual::{closure#2} (inlined)
+                                  <akantu_solver::dof_manager::DofManager>::step::<(), <akantu_solver::non_linear_newton_raphson::NonLinearSolverNewtonRaphson>::assemble_residual::{closure#2}>
+                                  akantu_solver::time_step::model_step::<(), <akantu_solver::time_step::Adapter as akantu_solver::callback::SolverCallback>::assemble_residual::{closure#0}> (inlined)
+                                  <akantu_solver::time_step::Adapter as akantu_solver::callback::SolverCallback>::assemble_residual
+                                  <akantu_solver::non_linear_lumped::NonLinearSolverLumped as akantu_solver::non_linear::NonLinearSolver>::solve::{closure#0}::{closure#2} (inlined)
+                                  <akantu_solver::dof_manager::DofManager>::step::<(), <akantu_solver::non_linear_lumped::NonLinearSolverLumped as akantu_solver::non_linear::NonLinearSolver>::solve::{closure#0}::{closure#2}> (inlined)
+                                  <akantu_solver::non_linear_lumped::NonLinearSolverLumped as akantu_solver::non_linear::NonLinearSolver>::solve::{closure#0} (inlined)
+                                  <akantu_solver::dof_manager::DofManager>::collective::<(), <akantu_solver::non_linear_lumped::NonLinearSolverLumped as akantu_solver::non_linear::NonLinearSolver>::solve::{closure#0}>
+                                  <akantu_solver::non_linear_lumped::NonLinearSolverLumped as akantu_solver::non_linear::NonLinearSolver>::solve
+                                  <akantu_solver::time_step::TimeStepSolver>::solve_step (inlined)
+                                  <akantu_solver::model_solver::ModelSolver>::solve_step
+                                  <akantu_diffusion::model::DiffusionModel>::solve_step (inlined)
+                                  <akantu_diffusion::model::DiffusionModel as akantu_model::model::Model>::solve_step (inlined)
+                                  suite_models::suite_models::heat::explicit::{closure#2} (inlined)
+                                  <suite_models::suite_models::harness::Run>::looped::<suite_models::suite_models::heat::explicit::{closure#2}>
+                                  suite_models::suite_models::heat::explicit
+                                  suite_models::suite_models::heat::explicit_quad4
+                                  suite_models::suite_models::harness::main::<suite_models::suite_models::common::world>
+                                  suite_models::main
+                                  <fn() -> std::process::ExitCode as core::ops::function::FnOnce<()>>::call_once (inlined)
+                                  std::sys::backtrace::__rust_begin_short_backtrace::<fn() -> std::process::ExitCode, std::process::ExitCode>
+                                  std::rt::lang_start::<std::process::ExitCode>::{closure#0} (inlined)
+                                  <&dyn core::ops::function::Fn<(), Output = i32> + core::panic::unwind_safe::RefUnwindSafe + core::marker::Sync as core::ops::function::FnOnce<()>>::call_once (inlined)
+                                  std::panicking::catch_unwind::do_call::<&dyn core::ops::function::Fn<(), Output = i32> + core::panic::unwind_safe::RefUnwindSafe + core::marker::Sync, i32> (inlined)
+                                  std::panicking::catch_unwind::<i32, &dyn core::ops::function::Fn<(), Output = i32> + core::panic::unwind_safe::RefUnwindSafe + core::marker::Sync> (inlined)
+                                  std::panic::catch_unwind::<&dyn core::ops::function::Fn<(), Output = i32> + core::panic::unwind_safe::RefUnwindSafe + core::marker::Sync, i32> (inlined)
+                                  std::rt::lang_start_internal::{closure#0} (inlined)
+                                  std::panicking::catch_unwind::do_call::<std::rt::lang_start_internal::{closure#0}, isize> (inlined)
+                                  std::panicking::catch_unwind::<isize, std::rt::lang_start_internal::{closure#0}> (inlined)
+                                  std::panic::catch_unwind::<std::rt::lang_start_internal::{closure#0}, isize> (inlined)
+                                  std::rt::lang_start_internal
+                                  main
+                                  0x7657a8a2a1c9
+                                  __libc_start_main
+                                  _start
+     8.28%  [.] akantu_fe::engine::fast::integrate::<<akantu_fe::engine::FeEngine>::integrate::{closure#0}>                                                                                                                                     
+            |          
+             --7.80%--akantu_fe::engine::fast::integrate::<<akantu_fe::engine::FeEngine>::integrate::{closure#0}>
+                       akantu_fe::engine::ops::integrate_with_jacobians::<<akantu_fe::engine::FeEngine>::integrate::{closure#0}>
+                       <akantu_fe::engine::FeEngine>::integrate
+                       |          
+                        --7.78%--akantu_diffusion::model::assembly::assemble_internal_flow_of
+                                  <akantu_diffusion::model::DiffusionPhysics>::assemble_internal_flow (inlined)
+                                  <akantu_diffusion::model::DiffusionPhysics>::assemble_residual
+                                  <akantu_solver::non_linear_newton_raphson::NonLinearSolverNewtonRaphson>::assemble_residual::{closure#2} (inlined)
+                                  <akantu_solver::dof_manager::DofManager>::step::<(), <akantu_solver::non_linear_newton_raphson::NonLinearSolverNewtonRaphson>::assemble_residual::{closure#2}>
+                                  akantu_solver::time_step::model_step::<(), <akantu_solver::time_step::Adapter as akantu_solver::callback::SolverCallback>::assemble_residual::{closure#0}> (inlined)
+                                  <akantu_solver::time_step::Adapter as akantu_solver::callback::SolverCallback>::assemble_residual
+                                  <akantu_solver::non_linear_lumped::NonLinearSolverLumped as akantu_solver::non_linear::NonLinearSolver>::solve::{closure#0}::{closure#2} (inlined)
+                                  <akantu_solver::dof_manager::DofManager>::step::<(), <akantu_solver::non_linear_lumped::NonLinearSolverLumped as akantu_solver::non_linear::NonLinearSolver>::solve::{closure#0}::{closure#2}> (inlined)
+                                  <akantu_solver::non_linear_lumped::NonLinearSolverLumped as akantu_solver::non_linear::NonLinearSolver>::solve::{closure#0} (inlined)
+                                  <akantu_solver::dof_manager::DofManager>::collective::<(), <akantu_solver::non_linear_lumped::NonLinearSolverLumped as akantu_solver::non_linear::NonLinearSolver>::solve::{closure#0}>
+                                  <akantu_solver::non_linear_lumped::NonLinearSolverLumped as akantu_solver::non_linear::NonLinearSolver>::solve
+                                  <akantu_solver::time_step::TimeStepSolver>::solve_step (inlined)
+                                  <akantu_solver::model_solver::ModelSolver>::solve_step
+                                  <akantu_diffusion::model::DiffusionModel>::solve_step (inlined)
+                                  <akantu_diffusion::model::DiffusionModel as akantu_model::model::Model>::solve_step (inlined)
+                                  suite_models::suite_models::heat::explicit::{closure#2} (inlined)
+                                  <suite_models::suite_models::harness::Run>::looped::<suite_models::suite_models::heat::explicit::{closure#2}>
+                                  suite_models::suite_models::heat::explicit
+                                  suite_models::suite_models::heat::explicit_quad4
+                                  suite_models::suite_models::harness::main::<suite_models::suite_models::common::world>
+                                  suite_models::main
+                                  <fn() -> std::process::ExitCode as core::ops::function::FnOnce<()>>::call_once (inlined)
+                                  std::sys::backtrace::__rust_begin_short_backtrace::<fn() -> std::process::ExitCode, std::process::ExitCode>
+                                  std::rt::lang_start::<std::process::ExitCode>::{closure#0} (inlined)
+                                  <&dyn core::ops::function::Fn<(), Output = i32> + core::panic::unwind_safe::RefUnwindSafe + core::marker::Sync as core::ops::function::FnOnce<()>>::call_once (inlined)
+                                  std::panicking::catch_unwind::do_call::<&dyn core::ops::function::Fn<(), Output = i32> + core::panic::unwind_safe::RefUnwindSafe + core::marker::Sync, i32> (inlined)
+                                  std::panicking::catch_unwind::<i32, &dyn core::ops::function::Fn<(), Output = i32> + core::panic::unwind_safe::RefUnwindSafe + core::marker::Sync> (inlined)
+                                  std::panic::catch_unwind::<&dyn core::ops::function::Fn<(), Output = i32> + core::panic::unwind_safe::RefUnwindSafe + core::marker::Sync, i32> (inlined)
+                                  std::rt::lang_start_internal::{closure#0} (inlined)
+                                  std::panicking::catch_unwind::do_call::<std::rt::lang_start_internal::{closure#0}, isize> (inlined)
+                                  std::panicking::catch_unwind::<isize, std::rt::lang_start_internal::{closure#0}> (inlined)
+                                  std::panic::catch_unwind::<std::rt::lang_start_internal::{closure#0}, isize> (inlined)
+                                  std::rt::lang_start_internal
+                                  main
+                                  0x7657a8a2a1c9
+                                  __libc_start_main
+                                  _start
+     8.24%  [.] akantu_fe::engine::fast::gradient::<akantu_fe::element_class::types::Cohesive3d8>                                                                                                                                               
+            |          
+             --4.25%--akantu_fe::engine::fast::gradient_impl::<akantu_fe::element_class::types::Cohesive3d8, 1> (inlined)
+                       akantu_fe::engine::fast::gradient::<akantu_fe::element_class::types::Cohesive3d8>
+                       akantu_fe::engine::ops::gradient_kernel::<akantu_fe::element_class::types::Quadrangle4>
+                       <akantu_fe::engine::FeEngine>::variation_into
+                       <akantu_fe::engine::FeEngine>::variation_impl (inlined)
+                       <akantu_fe::engine::FeEngine>::gradient_on_integration_points
+                       <akantu_diffusion::law::DiffusionLawBase>::compute_grad_u
+                       <akantu_diffusion::heat_diffusion::HeatDiffusion as akantu_diffusion::law::DiffusionLaw>::compute_diffusivity_grad_u
+                       <akantu_diffusion::model::DiffusionPhysics>::assemble_internal_flow::{closure#2} (inlined)
+                       <akantu_diffusion::model::DiffusionPhysics>::with_laws::<(), <akantu_diffusion::model::DiffusionPhysics>::assemble_internal_flow::{closure#2}> (inlined)
+                       <akantu_diffusion::model::DiffusionPhysics>::assemble_internal_flow (inlined)
+                       <akantu_diffusion::model::DiffusionPhysics>::assemble_residual
+                       <akantu_solver::non_linear_newton_raphson::NonLinearSolverNewtonRaphson>::assemble_residual::{closure#2} (inlined)
+                       <akantu_solver::dof_manager::DofManager>::step::<(), <akantu_solver::non_linear_newton_raphson::NonLinearSolverNewtonRaphson>::assemble_residual::{closure#2}>
+                       akantu_solver::time_step::model_step::<(), <akantu_solver::time_step::Adapter as akantu_solver::callback::SolverCallback>::assemble_residual::{closure#0}> (inlined)
+                       <akantu_solver::time_step::Adapter as akantu_solver::callback::SolverCallback>::assemble_residual
+                       <akantu_solver::non_linear_lumped::NonLinearSolverLumped as akantu_solver::non_linear::NonLinearSolver>::solve::{closure#0}::{closure#2} (inlined)
+                       <akantu_solver::dof_manager::DofManager>::step::<(), <akantu_solver::non_linear_lumped::NonLinearSolverLumped as akantu_solver::non_linear::NonLinearSolver>::solve::{closure#0}::{closure#2}> (inlined)
+                       <akantu_solver::non_linear_lumped::NonLinearSolverLumped as akantu_solver::non_linear::NonLinearSolver>::solve::{closure#0} (inlined)
+                       <akantu_solver::dof_manager::DofManager>::collective::<(), <akantu_solver::non_linear_lumped::NonLinearSolverLumped as akantu_solver::non_linear::NonLinearSolver>::solve::{closure#0}>
+                       <akantu_solver::non_linear_lumped::NonLinearSolverLumped as akantu_solver::non_linear::NonLinearSolver>::solve
+                       <akantu_solver::time_step::TimeStepSolver>::solve_step (inlined)
+                       <akantu_solver::model_solver::ModelSolver>::solve_step
+                       <akantu_diffusion::model::DiffusionModel>::solve_step (inlined)
+                       <akantu_diffusion::model::DiffusionModel as akantu_model::model::Model>::solve_step (inlined)
+                       suite_models::suite_models::heat::explicit::{closure#2} (inlined)
+                       <suite_models::suite_models::harness::Run>::looped::<suite_models::suite_models::heat::explicit::{closure#2}>
+                       suite_models::suite_models::heat::explicit
+                       suite_models::suite_models::heat::explicit_quad4
+                       suite_models::suite_models::harness::main::<suite_models::suite_models::common::world>
+                       suite_models::main
+                       <fn() -> std::process::ExitCode as core::ops::function::FnOnce<()>>::call_once (inlined)
+                       std::sys::backtrace::__rust_begin_short_backtrace::<fn() -> std::process::ExitCode, std::process::ExitCode>
+                       std::rt::lang_start::<std::process::ExitCode>::{closure#0} (inlined)
+                       <&dyn core::ops::function::Fn<(), Output = i32> + core::panic::unwind_safe::RefUnwindSafe + core::marker::Sync as core::ops::function::FnOnce<()>>::call_once (inlined)
+                       std::panicking::catch_unwind::do_call::<&dyn core::ops::function::Fn<(), Output = i32> + core::panic::unwind_safe::RefUnwindSafe + core::marker::Sync, i32> (inlined)
+                       std::panicking::catch_unwind::<i32, &dyn core::ops::function::Fn<(), Output = i32> + core::panic::unwind_safe::RefUnwindSafe + core::marker::Sync> (inlined)
+                       std::panic::catch_unwind::<&dyn core::ops::function::Fn<(), Output = i32> + core::panic::unwind_safe::RefUnwindSafe + core::marker::Sync, i32> (inlined)
+                       std::rt::lang_start_internal::{closure#0} (inlined)
+                       std::panicking::catch_unwind::do_call::<std::rt::lang_start_internal::{closure#0}, isize> (inlined)
+                       std::panicking::catch_unwind::<isize, std::rt::lang_start_internal::{closure#0}> (inlined)
+                       std::panic::catch_unwind::<std::rt::lang_start_internal::{closure#0}, isize> (inlined)
+                       std::rt::lang_start_internal
+                       main
+                       0x7657a8a2a1c9
+                       __libc_start_main
+                       _start
+     5.12%  [.] <akantu_core::array_storage::ArrayStorage<f64>>::try_resize                                                                                                                                                                     
+            |
+            ---<alloc::vec::Vec<f64>>::extend_with (inlined)
+               <alloc::vec::Vec<f64>>::resize (inlined)
+               <akantu_core::array_storage::ArrayStorage<f64>>::try_resize
+               <akantu_core::array::Array<f64>>::try_resize (inlined)
+               akantu_fe::engine::prepare_out
+     4.33%  [.] akantu_fe::eigen::product_slices                                                                                                                                                                                                
+     3.66%  [.] <akantu_diffusion::heat_diffusion::HeatDiffusion as akantu_diffusion::law::DiffusionLaw>::compute_diffusivity_on_quad_points                                                                                                    
+     3.14%  [.] <akantu_solver::dof_manager::DofManager>::assemble_elemental_array_local_view                                                                                                                                                   
