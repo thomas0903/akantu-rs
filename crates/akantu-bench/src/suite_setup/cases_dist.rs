@@ -18,8 +18,6 @@
 //! rank count by construction); the exchange and step cases gather the
 //! owned nodes' values in global-id order on rank 0.
 
-use std::collections::HashMap;
-
 use akantu_comm::buffer::CommunicationBuffer;
 use akantu_comm::{DataAccessor, ReduceDataAccessor, ReduceOp, SimpleIdxDataAccessor};
 use akantu_core::enums::{AnalysisMethod, SynchronizationTag};
@@ -227,17 +225,29 @@ pub fn ghost_nodes_tet4(ctx: &Ctx) -> Result<CaseOut> {
     Ok(out)
 }
 
-/// Element data accessor: `nc` reals per element of the mesh dimension.
+/// Element data accessor: `nc` reals per element of the mesh dimension,
+/// one block per (type, ghost type), found by a linear search over the few
+/// blocks (no hashing per element: the case measures the synchronizer).
 struct ElementData {
     nc: usize,
-    data: HashMap<(ElementType, GhostType), Vec<Real>>,
+    data: Vec<((ElementType, GhostType), Vec<Real>)>,
 }
 
 impl ElementData {
+    fn block(&self, e: &Element) -> Option<&Vec<Real>> {
+        let key = (e.ty(), e.ghost_type());
+        self.data.iter().find(|(k, _)| *k == key).map(|(_, v)| v)
+    }
+    fn block_mut(&mut self, e: &Element) -> Option<&mut Vec<Real>> {
+        let key = (e.ty(), e.ghost_type());
+        self.data
+            .iter_mut()
+            .find(|(k, _)| *k == key)
+            .map(|(_, v)| v)
+    }
     fn record(&self, e: &Element) -> Result<&[Real]> {
         let i = usize::try_from(e.index()).map_err(|_| Error::invalid("element index"))?;
-        self.data
-            .get(&(e.ty(), e.ghost_type()))
+        self.block(e)
             .and_then(|v| v.get(i * self.nc..(i + 1) * self.nc))
             .ok_or_else(|| Error::invalid("element out of range"))
     }
@@ -268,8 +278,7 @@ impl DataAccessor<Element> for ElementData {
         for e in entities {
             let i = usize::try_from(e.index()).map_err(|_| Error::invalid("element index"))?;
             let v = self
-                .data
-                .get_mut(&(e.ty(), e.ghost_type()))
+                .block_mut(e)
                 .and_then(|v| v.get_mut(i * nc..(i + 1) * nc))
                 .ok_or_else(|| Error::invalid("element out of range"))?;
             buffer.unpack_slice(v)?;
@@ -285,7 +294,7 @@ pub fn ghost_elements_tet4(ctx: &Ctx) -> Result<CaseOut> {
     let nc = 9;
     let mut acc = ElementData {
         nc,
-        data: HashMap::new(),
+        data: Vec::new(),
     };
     for ghost in [GhostType::NotGhost, GhostType::Ghost] {
         for ty in mesh.element_types(TypeFilter::new().dim(3).ghost(ghost)) {
@@ -302,7 +311,7 @@ pub fn ghost_elements_tet4(ctx: &Ctx) -> Result<CaseOut> {
                     }
                 })
                 .collect();
-            acc.data.insert((ty, ghost), v);
+            acc.data.push(((ty, ghost), v));
         }
     }
     let sync = mesh.synchronizers().element.clone();
@@ -313,7 +322,7 @@ pub fn ghost_elements_tet4(ctx: &Ctx) -> Result<CaseOut> {
     })?;
     let mut d = Digest::new();
     for ((ty, ghost), v) in {
-        let mut k: Vec<_> = acc.data.iter().collect();
+        let mut k: Vec<_> = acc.data.iter().map(|(key, v)| (key, v)).collect();
         k.sort_by_key(|((t, g), _)| (format!("{t:?}"), *g == GhostType::Ghost));
         k
     } {
