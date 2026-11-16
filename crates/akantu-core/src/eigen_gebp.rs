@@ -431,9 +431,12 @@ const fn gemv_scale_and_add(shape: &ProductShape, matrix: GemvMatrix) -> Route {
     }
 }
 
-/// Eigen's evaluation route for `shape` (strict build).
+/// Eigen's evaluation route for `shape` (strict build). A `const fn`, so a
+/// product of compile-time sizes can select its route at compile time
+/// (`const { route(&ProductShape::fixed(R, C, K)) }`).
 #[must_use]
-pub fn route(shape: &ProductShape) -> Route {
+#[inline]
+pub const fn route(shape: &ProductShape) -> Route {
     let depth = shape.depth();
     let (m, k, n) = (shape.rows.size(), depth.size(), shape.cols.size());
     if m == 0 || n == 0 || k == 0 {
@@ -450,7 +453,7 @@ pub fn route(shape: &ProductShape) -> Route {
         ProductKind::Outer => Route::Outer,
         ProductKind::Gemv => {
             // `Side = Lhs::IsVectorAtCompileTime ? OnTheLeft : OnTheRight`.
-            if shape.rows.size_class() == SizeClass::One {
+            if matches!(shape.rows.size_class(), SizeClass::One) {
                 gemv_scale_and_add(shape, GemvMatrix::Rhs)
             } else {
                 gemv_scale_and_add(shape, GemvMatrix::Lhs)
@@ -555,13 +558,43 @@ pub(crate) fn eval_product(
 ) {
     let (m, k, n) = (shape.rows.size(), shape.lhs_depth.size(), shape.cols.size());
     debug_assert_eq!(shape.rhs_depth.size(), k);
+    eval_routed(route(shape), m, k, n, lhs, rhs, out);
+}
+
+/// Evaluate `out = lhs · rhs` (`m × k · k × n`, `out` column-major `m × n`)
+/// along `route`, which must be [`route`] of the product's shape. Always
+/// inlined: with a route and sizes known at compile time (fixed-size
+/// tensors) every branch folds and the loops unroll.
+#[inline(always)]
+pub(crate) fn eval_routed(
+    route: Route,
+    m: usize,
+    k: usize,
+    n: usize,
+    lhs: &impl Fn(usize, usize) -> Real,
+    rhs: &impl Fn(usize, usize) -> Real,
+    out: &mut [Real],
+) {
     debug_assert_eq!(out.len(), m * n);
-    match route(shape) {
+    match route {
         Route::Zero => out.fill(0.0),
-        Route::Coeff(order) => {
+        Route::Coeff(Reduction::Tree) => {
+            // `k ≥ 1` (an empty depth routes to `Zero`)
             for j in 0..n {
                 for i in 0..m {
-                    out[i + j * m] = order.sum(k, &|l| lhs(i, l) * rhs(l, j));
+                    out[i + j * m] = eo::redux_tree(0, k, &|l| lhs(i, l) * rhs(l, j), add);
+                }
+            }
+        }
+        Route::Coeff(Reduction::Sequential) => {
+            for j in 0..n {
+                for i in 0..m {
+                    // r = t0; r = r + t_l
+                    let mut r = lhs(i, 0) * rhs(0, j);
+                    for l in 1..k {
+                        r += lhs(i, l) * rhs(l, j);
+                    }
+                    out[i + j * m] = r;
                 }
             }
         }
@@ -584,6 +617,12 @@ pub(crate) fn eval_product(
         },
         Route::Gebp { kc } => gebp_into(m, n, k, kc, lhs, rhs, out),
     }
+}
+
+/// `a + b` as a function pointer for the reductions.
+#[inline(always)]
+fn add(a: Real, b: Real) -> Real {
+    a + b
 }
 
 /// `general_matrix_vector_product`: `out[i] = Σ_l a(i, l) · x(l)` for
@@ -703,6 +742,177 @@ mod tests {
 
     use Extent::{Dynamic as D, Fixed as F};
     use Reduction::{Sequential as Seq, Tree};
+
+    /// Reference evaluation: the route of [`route`] with every coefficient
+    /// reduction through the recursive definitions of `eigen_order`
+    /// (`redux_tree_recursive`, `redux_seq`) and closures per coefficient,
+    /// as before the inlined kernels.
+    fn reference_product(
+        shape: &ProductShape,
+        lhs: &impl Fn(usize, usize) -> Real,
+        rhs: &impl Fn(usize, usize) -> Real,
+        out: &mut [Real],
+    ) {
+        let (m, k, n) = (shape.rows.size(), shape.lhs_depth.size(), shape.cols.size());
+        let reduce = |order: Reduction, t: &dyn Fn(usize) -> Real| -> Real {
+            if k == 0 {
+                return 0.0;
+            }
+            match order {
+                Tree => eo::redux_tree_recursive(0, k, &|l| t(l), |a, b| a + b),
+                Seq => eo::redux_seq(k, &|l| t(l), |a, b| a + b),
+            }
+        };
+        match route(shape) {
+            Route::Coeff(order) => {
+                for j in 0..n {
+                    for i in 0..m {
+                        out[i + j * m] = reduce(order, &|l| lhs(i, l) * rhs(l, j));
+                    }
+                }
+            }
+            Route::Dot(order) => {
+                out[0] = 0.0;
+                out[0] += reduce(order, &|l| lhs(0, l) * rhs(l, 0));
+            }
+            // GEMV, gebp, outer and zero products keep their loops; checked
+            // against compiled Eigen by the dense fixtures
+            _ => eval_product(shape, lhs, rhs, out),
+        }
+    }
+
+    /// Every route of every shape class up to 9 × 9 × 9 (and the longest
+    /// trees) through [`product_into`] against [`reference_product`], with
+    /// special values, signed zeros, NaNs, infinities, subnormals and
+    /// cancellations (D-051 rule), and in payload mode (exact bits).
+    #[test]
+    fn inlined_routes_match_the_reference_evaluation_bitwise() {
+        use crate::bitwise_testing::{Values, same};
+        let mut v = Values::new(0x005e_ed0f_9eb9);
+        let mut a = vec![0.0; 1024];
+        let mut b = vec![0.0; 1024];
+        let mut got = vec![0.0; 1024];
+        let mut want = vec![0.0; 1024];
+        let mut sizes: Vec<(usize, usize, usize)> = Vec::new();
+        for m in 1..=9 {
+            for k in 1..=9 {
+                for n in 1..=9 {
+                    sizes.push((m, k, n));
+                }
+            }
+        }
+        sizes.extend([
+            (1, 27, 1),
+            (3, 27, 3),
+            (1, 28, 1),
+            (2, 28, 2),
+            (24, 6, 6),
+            (6, 18, 18),
+            (1, 55, 1),
+        ]);
+        let mut checked = 0usize;
+        for &(m, k, n) in &sizes {
+            for flags in 0..32u32 {
+                let ext = |sz: usize, bit: u32| {
+                    if flags & (1 << bit) != 0 {
+                        F(sz)
+                    } else {
+                        D(sz)
+                    }
+                };
+                let mut shape = ProductShape::new(ext(m, 0), ext(k, 1), ext(k, 2), ext(n, 3));
+                if flags & 16 != 0 {
+                    shape = shape.lhs_transposed().rhs_transposed();
+                }
+                for payload in [false, true] {
+                    if payload {
+                        let kk = 1 + v.next_u64() % (m * k + k * n) as u64;
+                        v.payload_at(kk);
+                    }
+                    v.fill(&mut a[..m * k]);
+                    v.fill(&mut b[..k * n]);
+                    v.default_mode();
+                    let l = |i: usize, kk: usize| a[i + kk * m];
+                    let r = |kk: usize, j: usize| b[kk + j * k];
+                    product_into(&shape, &l, &r, &mut got[..m * n]).unwrap();
+                    reference_product(&shape, &l, &r, &mut want[..m * n]);
+                    for (x, y) in got[..m * n].iter().zip(&want[..m * n]) {
+                        if payload {
+                            assert_eq!(x.to_bits(), y.to_bits(), "{shape:?}");
+                        } else {
+                            assert!(same(*x, *y), "{shape:?}: {x:e} {y:e}");
+                        }
+                    }
+                    checked += 1;
+                }
+            }
+        }
+        assert!(checked > 40_000, "{checked}");
+    }
+
+    /// The compile-time routes of the fixed-size tensor products against the
+    /// reference evaluation of the same shapes.
+    #[test]
+    fn fixed_tensor_products_match_the_reference_evaluation_bitwise() {
+        use crate::bitwise_testing::{Values, same};
+        use crate::tensor::{Matrix, MatrixExt};
+        fn check<const R: usize, const C: usize, const K: usize>(v: &mut Values) {
+            for _ in 0..200 {
+                let mut x: Matrix<R, C> = [[0.0; R]; C];
+                let mut y: Matrix<C, K> = [[0.0; C]; K];
+                let mut yt: Matrix<R, K> = [[0.0; R]; K];
+                v.fill(x.as_flattened_mut());
+                v.fill(y.as_flattened_mut());
+                v.fill(yt.as_flattened_mut());
+                let got = x.matmul(&y);
+                let mut want = vec![0.0; R * K];
+                reference_product(
+                    &ProductShape::fixed(R, C, K),
+                    &|i, k| x[k][i],
+                    &|k, j| y[j][k],
+                    &mut want,
+                );
+                for (g, w) in got.as_flattened().iter().zip(&want) {
+                    assert!(same(*g, *w), "matmul {R}x{C}x{K}");
+                }
+                let got = x.tr_matmul(&yt);
+                let mut want = vec![0.0; C * K];
+                reference_product(
+                    &ProductShape::fixed(C, R, K).lhs_transposed(),
+                    &|i, k| x[i][k],
+                    &|k, j| yt[j][k],
+                    &mut want,
+                );
+                for (g, w) in got.as_flattened().iter().zip(&want) {
+                    assert!(same(*g, *w), "tr_matmul {R}x{C}x{K}");
+                }
+                let vv = y[0];
+                let got = x.mul_vec(&vv);
+                let mut want = vec![0.0; R];
+                reference_product(
+                    &ProductShape::fixed(R, C, 1),
+                    &|i, k| x[k][i],
+                    &|k, _| vv[k],
+                    &mut want,
+                );
+                for (g, w) in got.iter().zip(&want) {
+                    assert!(same(*g, *w), "mul_vec {R}x{C}");
+                }
+            }
+        }
+        let mut v = Values::new(0xfeed_beef);
+        check::<1, 1, 1>(&mut v);
+        check::<2, 2, 2>(&mut v);
+        check::<3, 3, 3>(&mut v);
+        check::<3, 3, 1>(&mut v);
+        check::<6, 6, 6>(&mut v);
+        check::<6, 6, 1>(&mut v);
+        check::<3, 9, 3>(&mut v);
+        check::<9, 9, 9>(&mut v);
+        check::<2, 30, 2>(&mut v);
+        check::<24, 6, 6>(&mut v);
+        check::<4, 12, 4>(&mut v);
+    }
 
     fn dyn_route(m: usize, k: usize, n: usize) -> Route {
         route(&ProductShape::dynamic(m, k, n))

@@ -57,11 +57,14 @@ pub mod array_print;
 pub mod array_shared;
 pub mod array_storage;
 pub mod bbox;
+#[doc(hidden)]
+pub mod bitwise_testing;
 pub mod circular_array;
 pub mod csr;
 pub mod debug;
 pub mod dim;
 pub mod eigen_gebp;
+pub mod eigen_kernels;
 pub mod eigen_order;
 pub mod eigen_unrolled;
 pub mod element;

@@ -77,6 +77,42 @@ Phase times: the baseline (`baseline/summary.md`); "share" in the profile.
   Jacobian assembly 25 % (item 1).
 - `cohesive_extrinsic_check`, `_insertion`: item 4.
 
+## Parallel cases (`parallel/summary.md`)
+
+Times relative to one rank (median of the per-repetition ratios; the
+8-rank runs ran in another session than the 1–4-rank runs):
+
+| case, phase | 2 ranks | 4 ranks | 8 ranks |
+|---|---|---|---|
+| `par_explicit_tet4_ss`, `solve_step` (13.5 ms at 1 rank) | 0.75 | 0.59 | 0.62 |
+| … `residual` (internal forces with the ghost exchanges) | 0.72 | 0.54 | 0.54 |
+| … `step_hooks` (history copies; 1.05 ms per call at 1 rank) | 0.91 | 0.82 | 0.95 |
+| … `step_rest` (lumped solve, synchronisations) | 0.97 | 1.23 | 1.29 |
+| … `energies` (with their reductions) | 0.51 | 0.27 | 0.18 |
+| `par_cohesive_extrinsic`, `step` (159 ms at 1 rank) | 0.63 | 0.37 | 0.27 |
+| … `check_insertion` | 0.64 | 0.36 | 0.26 |
+| … `solve_step` | 0.63 | 0.41 | 0.37 |
+| `static_linear_mumps`, `solve_step` (331 ms at 1 rank) | 0.64 | 0.40 | – |
+
+Readings:
+
+- P1. The explicit step stops scaling after 4 ranks. Its `step_hooks`
+  phase does not shrink with the rank count although each rank copies
+  only its own elements' history (1/P of the data): the time is either a
+  per-rank cost independent of the local size or waiting inside the
+  hooks (the reported time is the largest over the ranks). `step_rest`
+  grows with P (the nodal synchronisations of the lumped solve). Both are
+  to be profiled per rank; the residual's plateau at 0.54 is consistent
+  with the shared memory bandwidth of the element loops plus the ghost
+  exchanges. Fixes of the copies (item 2) and of the exchanges are
+  bitwise-safe when the summation order at shared nodes is kept.
+- P2. The insertion run scales better (0.27 at 8 ranks), dominated by the
+  insertion check, which is local work (item 4).
+- P3. MUMPS solves the 10,125-DOF static problem in 0.33 s on one rank
+  against 3.07 s for the first solve with the SparseLU translation (item
+  12): for 3-D implicit problems of this size the default solver is the
+  cost.
+
 ## Defects (described, not fixed in this task)
 
 1. `FeEngine::field_matrix_elemental` (`crates/akantu-fe/src/engine/assembly.rs:207`)
