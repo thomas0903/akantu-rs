@@ -21,8 +21,15 @@
 //!   time (e.g. an empty array encodes as `BAAAAA==AA==`), which is not a
 //!   valid base64 stream. akantu-rs writes the standard encoding there
 //!   (`BAAAAA==`) unless the upstream layout is requested
-//!   ([`Base64Writer::new`] with `compat`); for every payload of 2 bytes or
+//!   ([`Base64Stream::new`] with `compat`); for every payload of 2 bytes or
 //!   more both are identical.
+//!
+//! The original's output for payloads of 2 bytes or more is therefore the
+//! standard encoding of `[payload_bytes + 4 as i32 LE][payload]`.
+//! [`Base64Stream`] produces it in one pass while the array is written
+//! (the tests compare it with the original byte-by-byte encoder,
+//! [`Legacy`], on every length up to 300 bytes and around its block
+//! size).
 
 /// Encoding table (`etable` of the original).
 const ETABLE: &[u8; 64] = b"ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz0123456789+/";
@@ -38,23 +45,6 @@ fn dtable(c: u8) -> i32 {
         b'/' => 63,
         _ => -1,
     }
-}
-
-/// Encoder of one data array at a time (upstream: one instance per VTU
-/// file, reset by `CreateHeader` for every data array).
-///
-/// The payload is buffered and encoded in one pass when the array ends.
-/// For payloads of 2 bytes or more the original's output (header patched by
-/// re-encoding the first two 3-byte groups) is the standard base64 encoding
-/// of `[payload_bytes + 4 as i32 LE][payload]`; the tests compare both on
-/// every length up to 300 bytes. Shorter payloads go through the
-/// original's byte-by-byte encoder ([`Legacy`]).
-#[derive(Debug, Default)]
-pub(crate) struct Base64Writer {
-    /// Reproduce the header patch of tiny payloads byte for byte.
-    compat: bool,
-    /// Bytes of the current array after its 4-byte header.
-    payload: Vec<u8>,
 }
 
 /// Characters of a standard base64 group of 1 to 3 bytes (`=` padded).
@@ -120,49 +110,79 @@ fn encode_into(out: &mut String, head: &[u8], body: &[u8]) {
     flush(&buf[..n], out);
 }
 
-impl Base64Writer {
-    /// Encoder; `compat` reproduces upstream's output for payloads below 2
-    /// bytes.
+/// Streaming encoder of one data array whose payload size is known before
+/// its first byte: the header (`payload + 4` as `i32` LE) is encoded first
+/// and the payload follows in blocks, so that the encoded text can be
+/// written out while the array is produced. The text is the original's
+/// (payloads below 2 bytes go through [`Legacy`]).
+#[derive(Debug)]
+pub(crate) struct Base64Stream {
+    compat: bool,
+    /// Payload bytes announced by [`Base64Stream::begin`].
+    expected: usize,
+    /// Payload bytes pushed since.
+    pushed: usize,
+    /// Bytes not encoded yet (header included).
+    raw: Vec<u8>,
+}
+
+/// Bytes encoded at a time by [`Base64Stream`] (a multiple of 3).
+const RAW_BLOCK: usize = 3 * 1024;
+
+impl Base64Stream {
     pub(crate) fn new(compat: bool) -> Self {
         Self {
             compat,
-            payload: Vec::new(),
+            expected: 0,
+            pushed: 0,
+            raw: Vec::with_capacity(RAW_BLOCK + 16),
         }
     }
 
-    /// Start a data array (`CreateHeader`).
-    pub(crate) fn create_header(&mut self) {
-        self.payload.clear();
+    /// Start an array of `payload` bytes.
+    pub(crate) fn begin(&mut self, payload: usize) {
+        self.expected = payload;
+        self.pushed = 0;
+        self.raw.clear();
+        if payload >= 2 {
+            // `static_cast<int>(nbBytes)`: dumps are far below 2 GiB per array.
+            let nb = i32::try_from(payload.saturating_add(4)).unwrap_or(i32::MAX);
+            self.raw.extend_from_slice(&nb.to_le_bytes());
+        }
     }
 
-    /// Push raw bytes (native little-endian representation of a value).
+    /// Push payload bytes; encoded text is appended to `out`.
     #[inline]
-    pub(crate) fn push(&mut self, bytes: &[u8]) {
-        self.payload.extend_from_slice(bytes);
+    pub(crate) fn push(&mut self, out: &mut String, bytes: &[u8]) {
+        self.pushed += bytes.len();
+        self.raw.extend_from_slice(bytes);
+        if self.raw.len() >= RAW_BLOCK && self.expected >= 2 {
+            encode_into(out, &[], &self.raw[..RAW_BLOCK]);
+            self.raw.copy_within(RAW_BLOCK.., 0);
+            self.raw.truncate(self.raw.len() - RAW_BLOCK);
+        }
     }
 
-    /// End a data array: append its encoded text, header (byte count)
-    /// included, to `out` (`WriteHeader` + `DumpToFile`).
-    pub(crate) fn write_header_into(&mut self, out: &mut String) {
-        let p = &self.payload;
-        if p.len() < 2 {
+    /// End the array: append the rest of its text to `out`. `false` if the
+    /// number of bytes pushed differs from the announced one (the text is
+    /// then wrong).
+    pub(crate) fn end(&mut self, out: &mut String) -> bool {
+        if self.expected < 2 {
             let mut l = Legacy::new(self.compat);
             l.create_header();
-            l.push(p);
+            l.push(&self.raw);
             out.push_str(std::str::from_utf8(l.write_header()).unwrap_or(""));
-            return;
+        } else {
+            encode_into(out, &[], &self.raw);
         }
-        // `static_cast<int>(nbBytes)`: dumps are far below 2 GiB per array.
-        let nb = i32::try_from(p.len().saturating_add(4)).unwrap_or(i32::MAX);
-        let h = nb.to_le_bytes();
-        let head = [h[0], h[1], h[2], h[3], p[0], p[1]];
-        encode_into(out, &head, &p[2..]);
+        self.raw.clear();
+        self.pushed == self.expected
     }
 }
 
 /// The original byte-by-byte encoder, header patch included. Used for
 /// payloads below 2 bytes (where the patch differs from the standard
-/// encoding) and by the tests as the reference of [`Base64Writer`].
+/// encoding) and by the tests as the reference of [`Base64Stream`].
 #[derive(Debug, Default)]
 struct Legacy {
     /// Reproduce the header patch of tiny payloads byte for byte.
@@ -329,12 +349,12 @@ mod tests {
     }
 
     fn encode_mode(payload: &[u8], compat: bool) -> String {
-        let mut w = Base64Writer::new(compat);
-        w.create_header();
-        w.push(payload);
-        let mut out = String::from("<");
-        w.write_header_into(&mut out);
-        out.split_off(1)
+        let mut w = Base64Stream::new(compat);
+        let mut out = String::new();
+        w.begin(payload.len());
+        w.push(&mut out, payload);
+        assert!(w.end(&mut out));
+        out
     }
 
     fn encode_legacy(payload: &[u8], compat: bool) -> String {
@@ -345,11 +365,11 @@ mod tests {
     }
 
     #[test]
-    fn matches_the_original_encoder() {
+    fn stream_matches_the_original_encoder() {
         let mut x = 0x2545_F491_u32;
-        let mut w = Base64Writer::new(true);
-        let mut out = String::new();
-        for n in (0..300).chain([4093, 4094, 4095, 4096, 3 * 4096, 10_000]) {
+        let mut st = Base64Stream::new(true);
+        let mut st_std = Base64Stream::new(false);
+        for n in (0..300).chain([3070, 3071, 3072, 3073, 3074, 3075, 2 * 3072 + 1, 10_000]) {
             let p: Vec<u8> = (0..n)
                 .map(|_| {
                     x ^= x << 13;
@@ -358,21 +378,20 @@ mod tests {
                     x.to_le_bytes()[0]
                 })
                 .collect();
-            for compat in [true, false] {
-                assert_eq!(
-                    encode_mode(&p, compat),
-                    encode_legacy(&p, compat),
-                    "{n} bytes"
-                );
+            for (st, compat) in [(&mut st, true), (&mut st_std, false)] {
+                let mut out = String::from("<");
+                st.begin(n);
+                for chunk in p.chunks(8) {
+                    st.push(&mut out, chunk);
+                }
+                assert!(st.end(&mut out));
+                assert_eq!(out[1..], encode_legacy(&p, compat), "{n} bytes");
             }
-            // the writer is reused across arrays, appending to one output
-            let before = out.len();
-            w.create_header();
-            for chunk in p.chunks(7) {
-                w.push(chunk);
-            }
-            w.write_header_into(&mut out);
-            assert_eq!(out[before..], encode_legacy(&p, true), "{n} bytes, reused");
+            // a wrong announced size is detected
+            let mut out = String::new();
+            st.begin(n + 1);
+            st.push(&mut out, &p);
+            assert!(!st.end(&mut out));
         }
     }
 
