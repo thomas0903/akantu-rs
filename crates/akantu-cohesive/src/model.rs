@@ -1019,17 +1019,20 @@ impl MeshEventHandler for CohesiveEventHandler<'_, '_> {
 /// Upstream `SolidMechanicsModelCohesive` (serial).
 ///
 /// # Size
-/// The type is large: about 63 kB (63,200 bytes) by value
-/// (63,184 bytes were measured). Box it when several are alive
-/// in one frame on a spawned thread in debug builds: with unoptimised frames
-/// of that size, several models on a small thread stack (e.g. the 2 MiB of a
-/// libtest worker thread) overflow the stack.
+/// The cohesive part is boxed: the model is the solid model plus a pointer
+/// (11,648 bytes in an x86_64 debug build with the `mumps` feature, against
+/// 38,416 with the cohesive part inline). Unoptimised builds keep several
+/// copies of a model by value in each frame that builds or moves one; five
+/// such frames of about 200 kB overflowed a 1 MiB stack in the benchmark
+/// suite's insertion case. Box the model when several are alive in one
+/// frame on a small thread stack (e.g. the 2 MiB of a libtest worker
+/// thread).
 #[derive(Debug)]
 pub struct SolidMechanicsModelCohesive {
     /// The solid mechanics model (bulk and cohesive laws).
     pub smm: SolidMechanicsModel,
     /// The cohesive part.
-    pub ext: CohesiveExtension,
+    pub ext: Box<CohesiveExtension>,
 }
 
 /// Downcast a law of the handler to a cohesive material.
@@ -1456,7 +1459,7 @@ impl SolidMechanicsModelCohesive {
         };
         let mut model = Self {
             smm,
-            ext: CohesiveExtension {
+            ext: Box::new(CohesiveExtension {
                 inserter,
                 facet_fe: Box::new(facet_fe),
                 is_extrinsic: false,
@@ -1476,7 +1479,7 @@ impl SolidMechanicsModelCohesive {
                 staged_insertion_facets: None,
                 insertion_check: (None, 0),
                 parallel,
-            },
+            }),
         };
         model.refresh_default_selector(None);
         Ok(model)
@@ -1993,7 +1996,7 @@ impl SolidMechanicsModelCohesive {
             facet_stress,
             stress_plans,
             ..
-        } = &mut self.ext;
+        } = &mut *self.ext;
         for (&i, interp) in stress_interpolation.iter_mut() {
             if interp.mesh_revision() != m.revision() {
                 interp.accept_revision_unchanged_geometry(&m)?;
@@ -2479,7 +2482,7 @@ impl SolidMechanicsModelCohesive {
             facet_stress,
             tangents,
             ..
-        } = &mut self.ext;
+        } = &mut *self.ext;
         let (check, insertion) = inserter.flags_mut();
         let mut inputs = InsertionInputs {
             mesh_facets: fm,
@@ -2773,7 +2776,7 @@ impl SolidMechanicsModelCohesive {
             parallel,
             compat,
             ..
-        } = &mut self.ext;
+        } = &mut *self.ext;
         let mut handler = CohesiveEventHandler {
             smm: &parts,
             facet_stress,
@@ -2887,7 +2890,7 @@ impl SolidMechanicsModelCohesive {
             parallel,
             compat,
             ..
-        } = &mut self.ext;
+        } = &mut *self.ext;
         let ghost_laws: crate::parallel::GhostLaws = Arc::default();
         let mut handler = CohesiveEventHandler {
             smm: &parts,
