@@ -76,7 +76,23 @@ exposes. Elastic parameters are those of the explicit timing harness
 
 | case | problem at size `m` | main phases | upstream example with the same problem |
 |---|---|---|---|
-SIZES_TABLE
+| `explicit_tet4_ss`, `_fd` | tetrahedron_4, 30³ cells: 162,000 elements, 89,373 DOFs; 200 / 150 steps | solve_step (+ split), internal_forces, stresses, energies, stable_time_step | examples/c++/solid_mechanics_model/explicit (explicit_dynamic.cc), the explicit timing harness |
+| `explicit_tet10_ss`, `_fd` | tetrahedron_10, 26³ cells: 105,456 elements, 446,631 DOFs; 50 / 40 steps | as above | as above (tet10 mesh of the harness) |
+| `explicit_hex8_ss`, `_fd` | hexahedron_8, 48³ cells: 110,592 elements, 352,947 DOFs; 50 / 30 steps | as above | as above (hex8 mesh of the harness) |
+| `explicit_tri3_ss`, `_fd` | triangle_3, 300² cells: 180,000 elements, 181,202 DOFs; 300 / 200 steps | as above | – |
+| `explicit_plastic`, `_marigo`, `_mazars`, `_sls`, `_maxwell`, `_neohookean`, `_orthotropic`, `_thermal` | tetrahedron_4, 26³ cells: 105,456 elements, 59,049 DOFs; 40–300 steps under the stretch ramp | as above | test/test_model/test_solid_mechanics_model/test_materials (the laws' inputs) |
+| `explicit_multi_material` | the same mesh, elastic / plastic / Mazars in three slabs of x; 120 steps | as above | – |
+| `explicit_mazars_non_local` | tetrahedron_4, 20³ cells: 48,000 elements; base_wf radius 2 cells; 40 steps | as above + nonlocal_rebuild | test/test_model/test_solid_mechanics_model/test_materials/test_material_non_local, test/test_model/test_common/test_non_local_toolbox |
+| `static_linear_eigen`, `_faer`, `_mumps` | clamped tetrahedron_4 cube, 14³ cells: 16,464 elements, 10,125 DOFs (209,376 non-zeros) | solve_step (+ split), stiffness_assembly, analysis, factorize, back_substitution | examples/c++/solid_mechanics_model/static (static.cc) |
+| `static_newton_plastic` | clamped tetrahedron_4 cube, 10³ cells, plasticity, 12 load steps (949 Newton iterations) | solve_step (+ split) | test_material_elasto_plastic_linear_isotropic_hardening |
+| `implicit_dynamic` | free tetrahedron_4 cube, 14³ cells, trapezoidal rule, Δt = 4 Δt_crit, 60 steps | mass_consistent, solve_step (+ split) | examples/c++/solid_mechanics_model/implicit (implicit_dynamic.cc) |
+| `setup_tet4`, `_tet10`, `_hex8` | 162,000 tet4 / 10,368 tet10 / 13,824 hex8 elements | mesh, init_explicit, shape_functions, mass_lumped, init_implicit, mass_consistent, stiffness_assembly | – |
+| `cohesive_intrinsic_bilinear`, `_exponential` | tetrahedron_4, 20³ cells, 19,680 cohesive elements in the slab 0.4 ≤ x ≤ 0.6; 300 steps | init, solve_step, energies | test_cohesive_parallel_intrinsic (materials) |
+| `cohesive_intrinsic_implicit` | triangle_6 on [0, 1] × [0, 2], 30 × 60 cells, cohesive line y = 1; 30 load steps | solve_step | fixtures/model/cohesive/implicit_static_bilinear_triangle_6 (probe) |
+| `cohesive_extrinsic_check` | tetrahedron_4, 24³ cells: 82,944 elements, every facet checked, no insertion; 100 steps | check_insertion, solve_step | the cohesive scalability benchmark (cohesive_step_timing) |
+| `cohesive_extrinsic_insertion` | tetrahedron_4, 20³ cells: 48,000 elements; 60 preload steps, then 16 timed steps with about 15,000 insertions | preload, step = check_insertion + solve_step | performance-testing-cohesive cohesive_extrinsic.cc (laws), test_cohesive_parallel_extrinsic |
+| `par_explicit_tet4_ss` | explicit_tet4_ss on the distributed cube (mpirun -n P) | mesh, distribute, init, solve_step (+ split), energies | examples/c++/solid_mechanics_model/parallel (with explicit_dynamic.cc) |
+| `par_cohesive_extrinsic` | cohesive_extrinsic_insertion on the distributed cube (mpirun -n P) | mesh, distribute, init, preload, step, check_insertion, solve_step | performance-testing-cohesive (JOSS scalability) |
 
 Notes:
 

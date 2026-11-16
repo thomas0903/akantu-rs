@@ -6,7 +6,7 @@
 #
 #   run_ab.sh --out DIR --size s|m|l --reps N --cases a,b,...|all \
 #             [--core C] [--wrap "tjob LABEL --"] [--launcher "CMD ..."] \
-#             [--args "EXTRA SUITE ARGS"] NAME=BINARY [NAME=BINARY ...]
+#             [--args "EXTRA SUITE ARGS"] [--rep-offset K] NAME=BINARY [NAME=BINARY ...]
 #
 # Every repetition r runs every case with every binary, one process per run
 # (`BINARY --case CASE --size SIZE --reps 1 --out DIR/NAME/CASE.r<r>.jsonl`),
@@ -19,14 +19,17 @@
 # a command, e.g. --wrap "tjob suite-solid-ab --": every group then runs alone
 # on the measurement machine while the pair stays together in time.
 #
+# --rep-offset K numbers the repetitions K, K+1, ... (a series split into
+# several calls, e.g. one per group of cases, writes distinct files).
+#
 # --cases all takes the case list of the first binary (`--list`).
-# DIR/meta.json records the command, the date (UTC), the host CPU and each
+# DIR/meta.r<K>.<pid>.json records the command, the date (UTC), the host CPU and each
 # binary's path and SHA-256. summarize.py reads DIR.
 set -euo pipefail
 
 usage() { sed -n '5,10p' "$0" >&2; exit 2; }
 orig=("$0" "$@")
-out="" size="" reps="" cases="" core=2 wrap="" launcher="" extra=""
+out="" size="" reps="" cases="" core=2 wrap="" launcher="" extra="" offset=0
 variants=()
 while [ $# -gt 0 ]; do
   case "$1" in
@@ -38,6 +41,7 @@ while [ $# -gt 0 ]; do
     --wrap) wrap="$2"; shift 2 ;;
     --launcher) launcher="$2"; shift 2 ;;
     --args) extra="$2"; shift 2 ;;
+    --rep-offset) offset="$2"; shift 2 ;;
     -h|--help) usage ;;
     *=*) variants+=("$1"); shift ;;
     *) echo "run_ab.sh: unknown argument $1" >&2; usage ;;
@@ -73,13 +77,13 @@ for n in "${names[@]}"; do mkdir -p "$out/$n"; done
     printf '"%s":{"path":"%s","sha256":"%s"}' "${names[$i]}" "${bins[$i]}" "$( (sha256sum "${bins[$i]}" 2>/dev/null || shasum -a 256 "${bins[$i]}") | cut -d' ' -f1)"
   done
   printf '}}\n'
-} > "$out/meta.json"
+} > "$out/meta.r$offset.$$.json"
 
 nv=${#names[@]}
 read -r -a extra_args <<<"$extra"
 read -r -a launch <<<"$launcher"
 read -r -a wrapper <<<"$wrap"
-for ((r = 0; r < reps; r++)); do
+for ((r = offset; r < offset + reps; r++)); do
   for c in "${case_list[@]}"; do
     group=()
     for ((k = 0; k < nv; k++)); do
