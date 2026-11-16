@@ -116,6 +116,39 @@ impl ElementalFieldInterpolation {
         self.blocks.iter().find(|b| b.ty == ty && b.ghost == ghost)
     }
 
+    /// The [`PointInterpolation`] of `(ty, ghost)` for fields of `nbc`
+    /// components, when the block's elements have one quadrature point and
+    /// both products of [`FeEngine::interpolate_elemental_field`] take the
+    /// coefficient-based route or the depth-1 `gebp` route (`ProductForm`);
+    /// `None` otherwise (no block, other sizes).
+    ///
+    /// # Errors
+    /// Stored matrices inconsistent with the block's slots.
+    pub fn point_interpolation(
+        &self,
+        ty: ElementType,
+        ghost: GhostType,
+        nbc: usize,
+    ) -> Result<Option<PointInterpolation<'_>>> {
+        let Some(b) = self.block(ty, ghost) else {
+            return Ok(None);
+        };
+        if b.nq != 1 {
+            return Ok(None);
+        }
+        let Some(kernel) = CoeffInterpolation::new(1, b.nip, nbc) else {
+            return Ok(None);
+        };
+        let (inv, itp) = self.matrices(b)?;
+        Ok(Some(PointInterpolation {
+            inv,
+            itp,
+            nip: b.nip,
+            block: b,
+            kernel,
+        }))
+    }
+
     /// Interpolation points per element of `(ty, ghost)`.
     #[must_use]
     pub fn nb_interpolation_points(&self, ty: ElementType, ghost: GhostType) -> Option<usize> {
@@ -203,6 +236,119 @@ impl ElementalFieldInterpolation {
     }
 }
 
+/// The interpolation of one `(type, ghost)` block whose elements have **one**
+/// quadrature point and whose two products are evaluated in a form the
+/// batch kernel reproduces
+/// ([`ElementalFieldInterpolation::point_interpolation`]; e.g. the linear
+/// tetrahedron and triangle): the value at interpolation point `i` of the
+/// element in slot `s` is `(inv(s)·f)·itp(s, i)` per component, with the
+/// sign rule of each product's route for a zero (`ProductForm`): the
+/// operations [`FeEngine::interpolate_elemental_field`] performs for that
+/// block (`CoeffInterpolation`). A caller that needs
+/// the values of a few points of each element in another order (the cohesive
+/// model's facet stresses) computes them here without the per-element output
+/// array.
+#[derive(Clone, Copy, Debug)]
+pub struct PointInterpolation<'a> {
+    inv: &'a [Real],
+    itp: &'a [Real],
+    nip: usize,
+    block: &'a InterpolationBlock,
+    kernel: CoeffInterpolation,
+}
+
+impl PointInterpolation<'_> {
+    /// Interpolation points per element.
+    #[must_use]
+    pub fn nb_interpolation_points(&self) -> usize {
+        self.nip
+    }
+
+    /// Number of slots (initialised elements).
+    #[must_use]
+    pub fn nb_slots(&self) -> usize {
+        self.block.elements.len()
+    }
+
+    /// The slot [`FeEngine::interpolate_elemental_field`] uses for each
+    /// element id of `ids` (a filter in its order): the identity when `ids`
+    /// is the initialisation filter, otherwise the first slot of the id.
+    ///
+    /// # Errors
+    /// An id that was not part of the initialisation (the error of
+    /// `interpolate_elemental_field`).
+    pub fn slots(&self, ids: &[usize]) -> Result<Vec<usize>> {
+        self.block.slots(ids)
+    }
+
+    /// `out[c] = (inv(slot)·field[c])·itp(slot, point)` for every component
+    /// `c < out.len()` (`field` at least as long; each product with its
+    /// route's form, see the type's documentation): the value
+    /// [`FeEngine::interpolate_elemental_field`] writes at interpolation
+    /// point `point` of an element in slot `slot` whose quadrature-point
+    /// tuple is `field`. Equal to [`PointInterpolation::coefficients`]
+    /// followed by [`PointInterpolation::value_from_coefficients`].
+    ///
+    /// # Panics
+    /// `slot ≥ nb_slots()`, `point ≥ nb_interpolation_points()` or `field`
+    /// shorter than `out`.
+    #[inline]
+    pub fn value(&self, slot: usize, point: usize, field: &[Real], out: &mut [Real]) {
+        assert!(point < self.nip, "PointInterpolation::value: point {point}");
+        let a = self.inv[slot];
+        let m = self.itp[slot * self.nip + point];
+        let field = &field[..out.len()];
+        let (f1, f2) = (self.kernel.first, self.kernel.second);
+        for (x, &f) in out.iter_mut().zip(field) {
+            *x = f2.one(f1.one(a * f) * m);
+        }
+    }
+
+    /// The first product of an element in slot `slot` (its coefficients,
+    /// shared by all its interpolation points): `coeff[c] = inv(slot)·field[c]`
+    /// for `c < coeff.len()`, with the first product's form.
+    ///
+    /// # Panics
+    /// `slot ≥ nb_slots()` or `field` shorter than `coeff`.
+    #[inline]
+    pub fn coefficients(&self, slot: usize, field: &[Real], coeff: &mut [Real]) {
+        let a = self.inv[slot];
+        let f1 = self.kernel.first;
+        let field = &field[..coeff.len()];
+        for (c, &f) in coeff.iter_mut().zip(field) {
+            *c = f1.one(a * f);
+        }
+    }
+
+    /// The second product at interpolation point `point` of the element in
+    /// slot `slot`, from its [`PointInterpolation::coefficients`]:
+    /// `out[c] = coeff[c]·itp(slot, point)` for `c < out.len()`, with the
+    /// second product's form.
+    ///
+    /// # Panics
+    /// `slot ≥ nb_slots()`, `point ≥ nb_interpolation_points()` or `coeff`
+    /// shorter than `out`.
+    #[inline]
+    pub fn value_from_coefficients(
+        &self,
+        coeff: &[Real],
+        slot: usize,
+        point: usize,
+        out: &mut [Real],
+    ) {
+        assert!(
+            point < self.nip,
+            "PointInterpolation::value_from_coefficients: point {point}"
+        );
+        let m = self.itp[slot * self.nip + point];
+        let f2 = self.kernel.second;
+        let coeff = &coeff[..out.len()];
+        for (x, &c) in out.iter_mut().zip(coeff) {
+            *x = f2.one(c * m);
+        }
+    }
+}
+
 /// Basis of the fit for `ty` (upstream `BuildElementalFieldInterpolationMatrix`
 /// with the default order = polynomial degree): writes row `i` of `m`
 /// (`rows × nq`, column-major) for the point with physical coordinates `x`.
@@ -265,6 +411,137 @@ fn fixed_inverse(n: usize, m: &[Real], out: &mut [Real]) -> Result<()> {
         }
     }
     Ok(())
+}
+
+/// Operand descriptions of the two per-element products of
+/// [`FeEngine::interpolate_elemental_field`] (upstream
+/// `interpolateElementalFieldFromIntegrationPoints`): `coefficients =
+/// inv_quad_coord · fieldᵀ` and `result = coefficientsᵀ · itp_coordᵀ`, all
+/// dynamic Eigen matrices.
+fn interpolation_dims(nq: usize, nip: usize, nbc: usize) -> [(Dims, Dims); 2] {
+    [
+        (Dims::dynamic(nq, nq), Dims::dynamic(nbc, nq).t()),
+        (Dims::dynamic(nq, nbc).t(), Dims::dynamic(nip, nq).t()),
+    ]
+}
+
+/// How Eigen evaluates one of the products of [`interpolation_dims`], for
+/// the routes the batch kernels reproduce (`akantu_core::eigen_gebp`).
+#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+enum ProductForm {
+    /// `Route::Coeff`: every coefficient is the reduction of its depth
+    /// terms in the given order (one term: the term itself).
+    Coeff(akantu_core::eigen_gebp::Reduction),
+    /// `Route::Gebp` of depth 1 (`gebp_into`): the destination is zeroed,
+    /// the accumulators start at `+0` (no peeled pair of terms below the
+    /// packet depth), so every coefficient is `+0 + (+0 + t)` — the term
+    /// with a negative zero turned positive.
+    GebpDepth1,
+}
+
+impl ProductForm {
+    fn of(route: akantu_core::eigen_gebp::Route, depth: usize) -> Option<Self> {
+        use akantu_core::eigen_gebp::{GEBP_PK, Route};
+        match route {
+            Route::Coeff(order) => Some(Self::Coeff(order)),
+            Route::Gebp { kc } if depth == 1 && kc >= 1 && GEBP_PK >= 2 => Some(Self::GebpDepth1),
+            _ => None,
+        }
+    }
+
+    /// The coefficient of a depth-1 product whose single term is `t`.
+    #[inline]
+    fn one(self, t: Real) -> Real {
+        match self {
+            Self::Coeff(_) => t,
+            // c = (0 + 0) + t accumulated, then r = 0 + c
+            Self::GebpDepth1 => 0.0 + ((0.0 + 0.0) + t),
+        }
+    }
+}
+
+/// Batch form of the two products of [`interpolation_dims`]: the routes are
+/// selected once per block with [`eigen::product_route`] on the same operand
+/// descriptions, and when both are forms this kernel reproduces
+/// ([`ProductForm`]: coefficient-based products, and the depth-1 `gebp`
+/// product of one-point elements, e.g. the linear tetrahedron's stresses at
+/// its facets' three points each: `nq = 1`, `nip = 12`, `nbc = 9`), every
+/// coefficient is computed with the same operations in the same order as
+/// [`eigen::product_slices`], without the per-product route selection,
+/// shape checks and closures. Bitwise equal to the general path (property
+/// test below).
+#[derive(Clone, Copy, Debug)]
+struct CoeffInterpolation {
+    nq: usize,
+    nip: usize,
+    nbc: usize,
+    first: ProductForm,
+    second: ProductForm,
+}
+
+impl CoeffInterpolation {
+    /// `None` unless both products take a route of [`ProductForm`] (the
+    /// `gebp` form only for one quadrature point; for more, both must be
+    /// coefficient-based).
+    fn new(nq: usize, nip: usize, nbc: usize) -> Option<Self> {
+        let [(a1, b1), (a2, b2)] = interpolation_dims(nq, nip, nbc);
+        let first = ProductForm::of(eigen::product_route(a1, b1), nq)?;
+        let second = ProductForm::of(eigen::product_route(a2, b2), nq)?;
+        Some(Self {
+            nq,
+            nip,
+            nbc,
+            first,
+            second,
+        })
+    }
+
+    /// One element: `inv` (`nq × nq`, column-major), `field` (`nq` tuples of
+    /// `nbc`), `itp` (`nip × nq`, column-major) → `coeff` (`nq × nbc`,
+    /// column-major, scratch) and `out` (`nip` tuples of `nbc`). The slices
+    /// have exactly these lengths (callers slice them per element).
+    #[inline]
+    fn apply(
+        &self,
+        inv: &[Real],
+        field: &[Real],
+        itp: &[Real],
+        coeff: &mut [Real],
+        out: &mut [Real],
+    ) {
+        let (nq, nip, nbc) = (self.nq, self.nip, self.nbc);
+        if nq == 1 {
+            // depth-1 products: one term per coefficient
+            let (f1, f2) = (self.first, self.second);
+            let a = inv[0];
+            for (c, &f) in coeff[..nbc].iter_mut().zip(&field[..nbc]) {
+                *c = f1.one(a * f);
+            }
+            for (j, r) in out[..nip * nbc].chunks_exact_mut(nbc).enumerate() {
+                let m = itp[j];
+                for (x, &c) in r.iter_mut().zip(&coeff[..nbc]) {
+                    *x = f2.one(c * m);
+                }
+            }
+            return;
+        }
+        let (ProductForm::Coeff(first), ProductForm::Coeff(second)) = (self.first, self.second)
+        else {
+            unreachable!("CoeffInterpolation::new admits gebp forms for nq = 1 only");
+        };
+        // coefficients(i, j) = Σ_l inv(i, l)·field(j, l)
+        for j in 0..nbc {
+            for i in 0..nq {
+                coeff[i + j * nq] = first.sum(nq, &|l| inv[i + l * nq] * field[l * nbc + j]);
+            }
+        }
+        // result(i, j) = Σ_l coefficients(l, i)·itp(j, l)
+        for j in 0..nip {
+            for i in 0..nbc {
+                out[i + j * nbc] = second.sum(nq, &|l| coeff[i * nq + l] * itp[j + l * nip]);
+            }
+        }
+    }
 }
 
 impl FeEngine {
@@ -515,27 +792,33 @@ impl FeEngine {
             let o = o.as_mut_slice();
             let fs = f.as_slice();
             let mut coeff = vec![0.0; nq * nbc];
+            // Threading candidate (independent outputs): each element writes
+            // only its own `nip` tuples (duplicated filter ids write the same
+            // tuples: chunks must then keep the filter order of those ids).
+            if let Some(kernel) = CoeffInterpolation::new(nq, nip, nbc) {
+                // the general loop below with both routes selected once
+                // (same operations in the same order, `CoeffInterpolation`)
+                for (pos, (&e, &slot)) in ids.iter().zip(&slots).enumerate() {
+                    kernel.apply(
+                        &inv[slot * nq * nq..(slot + 1) * nq * nq],
+                        &fs[pos * nq * nbc..(pos + 1) * nq * nbc],
+                        &itp[slot * nip * nq..(slot + 1) * nip * nq],
+                        &mut coeff,
+                        &mut o[e * nip * nbc..(e + 1) * nip * nbc],
+                    );
+                }
+                continue;
+            }
             for (pos, (&e, &slot)) in ids.iter().zip(&slots).enumerate() {
                 let fe = &fs[pos * nq * nbc..(pos + 1) * nq * nbc];
                 let ie = &inv[slot * nq * nq..(slot + 1) * nq * nq];
                 let me = &itp[slot * nip * nq..(slot + 1) * nip * nq];
+                let [(a1, b1), (a2, b2)] = interpolation_dims(nq, nip, nbc);
                 // coefficients = inv_quad_coord (nq × nq) · fieldᵀ (nq × nbc)
-                eigen::product_slices(
-                    Dims::dynamic(nq, nq),
-                    Dims::dynamic(nbc, nq).t(),
-                    ie,
-                    fe,
-                    &mut coeff,
-                )?;
+                eigen::product_slices(a1, b1, ie, fe, &mut coeff)?;
                 // result(el) = coefficientsᵀ (nbc × nq) · itp_coordᵀ (nq × nip)
                 let r = &mut o[e * nip * nbc..(e + 1) * nip * nbc];
-                eigen::product_slices(
-                    Dims::dynamic(nq, nbc).t(),
-                    Dims::dynamic(nip, nq).t(),
-                    &coeff,
-                    me,
-                    r,
-                )?;
+                eigen::product_slices(a2, b2, &coeff, me, r)?;
             }
         }
         Ok(())
@@ -551,6 +834,233 @@ mod tests {
 
     const G: GhostType = GhostType::NotGhost;
     const S3: ElementType = ElementType::Segment3;
+
+    /// Test values (xorshift64*): special values (signed zeros, infinities,
+    /// default quiet NaNs of either sign, subnormals, extremes), arbitrary
+    /// bit patterns (NaNs among them made default quiet NaNs) and finite
+    /// values over a wide exponent range.
+    fn draw(state: &mut u64) -> Real {
+        const SPECIAL: [u64; 12] = [
+            0x0000_0000_0000_0000,
+            0x8000_0000_0000_0000,
+            0x7ff0_0000_0000_0000,
+            0xfff0_0000_0000_0000,
+            0x7ff8_0000_0000_0000,
+            0xfff8_0000_0000_0000,
+            0x0000_0000_0000_0001,
+            0x800f_ffff_ffff_ffff,
+            0x0010_0000_0000_0000,
+            0x7fef_ffff_ffff_ffff,
+            0x3ff0_0000_0000_0000,
+            0xbff0_0000_0000_0000,
+        ];
+        let mut next = || {
+            let mut x = *state;
+            x ^= x >> 12;
+            x ^= x << 25;
+            x ^= x >> 27;
+            *state = x;
+            x.wrapping_mul(0x2545_f491_4f6c_dd1d)
+        };
+        let r = next();
+        let x = match r % 8 {
+            0 => Real::from_bits(SPECIAL[(r >> 8) as usize % SPECIAL.len()]),
+            1 => Real::from_bits(next()),
+            _ => {
+                let m = (next() >> 11) as Real / (1u64 << 53) as Real;
+                let e = ((r >> 8) % 41) as i32 - 20;
+                let s = if (r >> 40) & 1 == 1 { -1.0 } else { 1.0 };
+                s * m * Real::powi(2.0, e)
+            }
+        };
+        if x.is_nan() {
+            Real::from_bits(0x7ff8_0000_0000_0000 | (x.to_bits() & (1 << 63)))
+        } else {
+            x
+        }
+    }
+
+    /// Identical bits, or two default quiet NaNs differing only in the sign
+    /// (which NaN an addition of two NaNs returns is unspecified; the rule
+    /// of the `fast` kernels' tests, D-046/D-051).
+    fn same(a: Real, b: Real) -> bool {
+        let (x, y) = (a.to_bits(), b.to_bits());
+        let nan = 0x7ff8_0000_0000_0000;
+        x == y || (x & !(1 << 63) == nan && y & !(1 << 63) == nan)
+    }
+
+    /// `CoeffInterpolation` against the general per-product path
+    /// (`eigen::product_slices` with the operand descriptions of the call
+    /// site), bitwise, for every size whose routes are both
+    /// coefficient-based, with one finite-only round per size in which a
+    /// single NaN with a payload enters (its propagation is then
+    /// determined).
+    #[test]
+    fn coeff_interpolation_is_bitwise_the_general_products() {
+        let mut state = 0x9e37_79b9_7f4a_7c15_u64;
+        let mut covered = 0;
+        for nq in 1..=4 {
+            for nip in 1..=12 {
+                for nbc in [1, 2, 3, 4, 6, 9] {
+                    let Some(k) = CoeffInterpolation::new(nq, nip, nbc) else {
+                        continue;
+                    };
+                    covered += 1;
+                    let [(a1, b1), (a2, b2)] = interpolation_dims(nq, nip, nbc);
+                    for round in 0..40 {
+                        let mut inv: Vec<Real> = (0..nq * nq).map(|_| draw(&mut state)).collect();
+                        let mut field: Vec<Real> =
+                            (0..nq * nbc).map(|_| draw(&mut state)).collect();
+                        let mut itp: Vec<Real> = (0..nip * nq).map(|_| draw(&mut state)).collect();
+                        if round == 0 {
+                            // finite values and one payload NaN
+                            for v in inv.iter_mut().chain(&mut field).chain(&mut itp) {
+                                if !v.is_finite() {
+                                    *v = 0.5;
+                                }
+                            }
+                            let n = inv.len() + field.len() + itp.len();
+                            let at = (state as usize) % n;
+                            let nan = Real::from_bits(0xfff8_0000_0000_0abc);
+                            match at {
+                                i if i < inv.len() => inv[i] = nan,
+                                i if i < inv.len() + field.len() => field[i - inv.len()] = nan,
+                                i => itp[i - inv.len() - field.len()] = nan,
+                            }
+                        }
+                        let mut c_ref = vec![0.0; nq * nbc];
+                        let mut r_ref = vec![0.0; nip * nbc];
+                        eigen::product_slices(a1, b1, &inv, &field, &mut c_ref).unwrap();
+                        eigen::product_slices(a2, b2, &c_ref, &itp, &mut r_ref).unwrap();
+                        let mut c = vec![0.0; nq * nbc];
+                        let mut r = vec![1.0; nip * nbc];
+                        k.apply(&inv, &field, &itp, &mut c, &mut r);
+                        for (x, y) in c.iter().zip(&c_ref).chain(r.iter().zip(&r_ref)) {
+                            let ok = if round == 0 {
+                                x.to_bits() == y.to_bits()
+                            } else {
+                                same(*x, *y)
+                            };
+                            assert!(
+                                ok,
+                                "nq {nq} nip {nip} nbc {nbc} round {round}: {x:e} vs {y:e}"
+                            );
+                        }
+                    }
+                }
+            }
+        }
+        // the linear tetrahedron's (1, 12, 9: second product gebp, depth 1)
+        // and the linear triangle's (1, 6, 4) among them; second-order
+        // elements with a gebp product are not
+        let k = CoeffInterpolation::new(1, 12, 9).unwrap();
+        assert_eq!(k.second, ProductForm::GebpDepth1);
+        assert!(matches!(k.first, ProductForm::Coeff(_)));
+        assert!(CoeffInterpolation::new(1, 6, 4).is_some());
+        assert!(CoeffInterpolation::new(4, 12, 9).is_none());
+        assert!(covered > 50, "{covered}");
+    }
+
+    /// `PointInterpolation::value` is bitwise the output of
+    /// `interpolate_elemental_field` for linear tetrahedra (`nq = 1`), with
+    /// the initialisation filter and with a reordered subset of it.
+    #[test]
+    fn point_interpolation_is_bitwise_the_interpolation() {
+        const T4: ElementType = ElementType::Tetrahedron4;
+        let mut mesh = Mesh::new(3, "tets").unwrap();
+        {
+            let mut acc = MeshAccessor::new(&mut mesh);
+            for x in [
+                [0.0, 0.0, 0.0],
+                [1.0, 0.1, 0.0],
+                [0.2, 1.0, 0.1],
+                [0.1, 0.3, 1.2],
+                [1.1, 1.0, 0.9],
+                [0.9, -0.2, 1.0],
+            ] {
+                acc.push_node(&x).unwrap();
+            }
+            let mut c = acc.connectivity_mut(T4, G);
+            c.push_tuple(&[0, 1, 2, 3]);
+            c.push_tuple(&[1, 2, 3, 4]);
+            c.push_tuple(&[1, 3, 5, 4]);
+        }
+        let fe = FeEngine::with_precomputation(
+            &mesh,
+            None,
+            ElementKind::Regular,
+            ShapeFamily::Lagrange,
+            "fe",
+        )
+        .unwrap();
+        // three points per facet (the facets' order-2 rule): gebp form
+        let nip = 12;
+        let nbc = 9;
+        let mut state = 0x1234_5678_9abc_def1_u64;
+        let mut points = ElementTypeMapArray::new("points");
+        let p = points.alloc(3 * nip, 3, T4, G, 0.0).unwrap();
+        for v in p.as_mut_slice() {
+            *v = draw(&mut state).clamp(-4.0, 4.0);
+            if v.is_nan() {
+                *v = 0.25;
+            }
+        }
+        let interp = fe
+            .init_elemental_field_interpolation(&mesh, &points, None)
+            .unwrap();
+        let view = interp.point_interpolation(T4, G, nbc).unwrap().unwrap();
+        assert_eq!(view.nb_interpolation_points(), nip);
+        assert_eq!(view.nb_slots(), 3);
+        for ids in [vec![0, 1, 2], vec![2, 0]] {
+            let mut filter = ElementTypeMapArray::<Idx>::new("filter");
+            let f = filter.alloc(ids.len(), 1, T4, G, 0).unwrap();
+            for (x, &e) in f.as_mut_slice().iter_mut().zip(&ids) {
+                *x = Idx::try_from(e).unwrap();
+            }
+            for _ in 0..20 {
+                let mut field = ElementTypeMapArray::new("field");
+                let fa = field.alloc(ids.len(), nbc, T4, G, 0.0).unwrap();
+                for v in fa.as_mut_slice() {
+                    *v = draw(&mut state);
+                }
+                let mut out = ElementTypeMapArray::new("out");
+                fe.interpolate_elemental_field(&mesh, &interp, &field, &mut out, G, Some(&filter))
+                    .unwrap();
+                let out = out.get(T4, G).unwrap().as_slice();
+                let fs = field.get(T4, G).unwrap().as_slice();
+                let slots = view.slots(&ids).unwrap();
+                let mut v = [0.0; 9];
+                for (pos, (&e, &slot)) in ids.iter().zip(&slots).enumerate() {
+                    for i in 0..nip {
+                        view.value(slot, i, &fs[pos * nbc..(pos + 1) * nbc], &mut v);
+                        let mut c = [0.0; 9];
+                        let mut w = [0.0; 9];
+                        view.coefficients(slot, &fs[pos * nbc..(pos + 1) * nbc], &mut c);
+                        view.value_from_coefficients(&c, slot, i, &mut w);
+                        assert!(
+                            v.iter().zip(&w).all(|(x, y)| x.to_bits() == y.to_bits()),
+                            "two-step form"
+                        );
+                        let r = &out[(e * nip + i) * nbc..(e * nip + i + 1) * nbc];
+                        for (x, y) in v.iter().zip(r) {
+                            assert!(
+                                same(*x, *y),
+                                "{ids:?} element {e} point {i}: {x:e} vs {y:e}"
+                            );
+                        }
+                    }
+                }
+            }
+        }
+        // a second-order block has no point interpolation (nq > 1)
+        assert!(interp.point_interpolation(T4, G, 400).unwrap().is_none());
+        assert!(
+            interp
+                .point_interpolation(ElementType::Tetrahedron10, G, nbc)
+                .unwrap()
+                .is_none()
+        );
+    }
 
     /// Malformed stored matrices (wrong slot or component counts)
     /// are detected before any slicing.
