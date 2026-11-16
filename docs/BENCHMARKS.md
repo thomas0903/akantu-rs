@@ -273,7 +273,7 @@ lanes, and one elastic law on one element type runs gradient, stress and
 integration per cache-sized block of elements. On an AMD EPYC 7B13 at one
 thread the step takes 0.74–0.83 (small strain) and 0.52–0.72 (finite
 deformation) of its time before this work, and 0.34–0.43 and 0.16–0.26
-of the strict C++ time; at 2–8 threads 0.54–0.86. The fast mode
+of the strict C++ time; at 2–8 threads (`AKANTU_NUM_THREADS`) 0.54–0.86. The fast mode
 (`AKANTU_PRECISION=fast`) takes 0.84–0.99 of the bitwise step. Items 5 and
 6 (per-node solver loops, history copies) remain the serial part of a
 threaded step.

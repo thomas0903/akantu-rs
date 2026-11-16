@@ -22,7 +22,12 @@ Method: `scripts/perf/explicit-step/timing_rotated.sh` (one process per
 run, program order rotated per round, 3 warm-up steps, phases `step`,
 `fint`, `stress`), summaries by `summarize_timing.py` (ns per element and
 step, median [min, max] over the rounds; ratios: median [min, max] of the
-per-round paired ratios). Serial runs pinned to core 2; `N` threads on
+per-round paired ratios). How the thread count was set: every run of
+every series sets it through the environment variable
+`AKANTU_NUM_THREADS` (the harness and the suites read the process default
+policy; the suites' `--threads` option only records a number and was not
+used); unset (one thread) in the one-thread, fast-mode and suite series.
+Serial runs pinned to core 2; `N` threads (`AKANTU_NUM_THREADS=N`) on
 cores `0..N−1` (`scripts/perf/exec/wrappers.sh`). Raw data: `t1.jsonl`,
 `threads.jsonl`, `fast.jsonl`; tables: `summary-t1.md`,
 `summary-threads.md`, `summary-fast.md`; suite series: `suite-solid/`,
@@ -86,7 +91,8 @@ cores `0..N−1` (`scripts/perf/exec/wrappers.sh`). Raw data: `t1.jsonl`,
 Bitwise evidence: the harness digests (FNV-1a of `u`, `v`, `a`, `f_int`)
 of the ten configurations equal the recorded ones (port = C++ strict,
 `../baseline/explicit-digests.txt`) for `before`, `base` and `after` at 1,
-2, 4 and 8 threads (`digests-after.txt`, 120 lines;
+2, 4 and 8 threads (`AKANTU_NUM_THREADS`, `digest_check.sh`;
+`digests-after.txt`, 120 lines;
 `digests-final.txt`: `8534c3f6`, 40 lines), and the 14 suite cases of
 the suite series have equal digests before and after (`summary-suite-*.md`).
 Every new kernel has a property test against the general product path at
@@ -120,7 +126,9 @@ hex8-20k ss 147 / 143 ns, base / after).
 
 ## Threads (5 rounds, `summary-threads.md`)
 
-`step`, paired ratio after / base at the same thread count (the absolute
+`step`, paired ratio after / base at the same thread count
+(`AKANTU_NUM_THREADS=N`, wrappers of `scripts/perf/exec/wrappers.sh`, cores
+`0..N−1`; the absolute
 times are in the summary; during the session cores 0–3 were slower than
 cores 4–7 for the same run, 45 against 29 ns per element and step for
 tet4-20k small strain at 4 threads, which widens some ranges):
@@ -141,7 +149,8 @@ tet4-20k small strain at 4 threads, which widens some ranges):
 Thread scaling of `after` against its own one-thread time (medians of the
 two series, not paired): hex8-200k fd 709 → 422 / 300 / 235 ns (1.7× / 2.4×
 / 3.0× at 2 / 4 / 8 threads), tet4-200k ss 81 → 61 / 57 / 43 ns. What
-limits it now, from a profile at 4 threads (hex8-20k and tet4-200k small
+limits it now, from a profile at 4 threads (`AKANTU_NUM_THREADS=4`, hex8-20k
+and tet4-200k small
 strain, `perf record` on all threads): the serial part of the step. The
 history copies of `save_previous_state` (`memcpy`) take about a third of
 the wall time on hex8-20k and a quarter on tet4-200k at 4 threads; the
@@ -149,7 +158,9 @@ integration scheme, residual and lumped-solve loops a few per cent each.
 Threading those loops with parts of 16,384 equations (instead of 262,144)
 made the rest faster but the next internal-force pass slower (the
 displacement written by other cores): step 1.09× slower on tet4-20k, 0.96
-on hex8-20k at 4 threads; not kept.
+on hex8-20k at 4 threads (`AKANTU_NUM_THREADS=4` on cores 4–7, two
+alternating runs of 5 repetitions each, a screening measurement); not
+kept.
 
 ## Fast mode (5 rounds, `summary-fast.md`)
 
@@ -176,7 +187,8 @@ finite-deformation residual.
 ## Benchmark suites (5 repetitions, `summary-suite-*.md`)
 
 `solve_step` of the suite cases that run the explicit kernels, after /
-base (paired, median [min, max]), size `m`, one thread on core 2:
+base (paired, median [min, max]), size `m`, one thread
+(`AKANTU_NUM_THREADS` unset) on core 2:
 
 | case | after / base |
 |---|---|
