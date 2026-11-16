@@ -445,7 +445,12 @@ impl<const DIM: usize> MaterialElastic<DIM> {
         r_e.try_resize(filter.len(), 0.0)?;
         let per_element =
             8 * nq * (fe.shapes_derivatives(ty, ghost)?.nb_component() + 3 * d2 + 4) + 8 * es;
-        let block = (FUSED_BLOCK_BYTES / per_element.max(1)).max(1);
+        // `Grain::Finest` (the split of the thread-count tests): one element
+        // per block, so that every block boundary of a test case is exercised
+        let block = match fe.exec().policy().grain() {
+            akantu_core::exec::Grain::Finest => 1,
+            akantu_core::exec::Grain::Auto => (FUSED_BLOCK_BYTES / per_element.max(1)).max(1),
+        };
         let items = (
             (
                 Tuples::new(gu.as_mut_slice(), nq * d2),
