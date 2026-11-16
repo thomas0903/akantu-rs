@@ -171,6 +171,53 @@ impl SparseLu {
             });
         }
         let perm_c = colamd::colamd_ordering(n, n, a.col_ptr(), a.row_idx())?;
+        self.analyze_with_perm(a, perm_c)
+    }
+
+    /// Experiment hook, not part of the supported interface: `analyzePattern`
+    /// with the caller's column elimination order (`order[k]` is the
+    /// original column eliminated `k`-th) instead of COLAMD's; the
+    /// elimination tree and its postorder as usual. For measuring the fill
+    /// of other orderings (e.g. nested dissection); the factors differ
+    /// from Eigen's.
+    ///
+    /// # Errors
+    /// `order` is not a permutation of `0..n`, or the capacity limit of
+    /// [`SparseLu::analyze_pattern`].
+    #[doc(hidden)]
+    pub fn analyze_pattern_with_order(&mut self, a: &CscMatrix, order: &[usize]) -> Result<()> {
+        self.invalidate();
+        self.pattern = None;
+        let n = a.n();
+        if order.len() != n {
+            return Err(Error::DimensionMismatch {
+                context: "SparseLu::analyze_pattern_with_order",
+                expected: n,
+                got: order.len(),
+            });
+        }
+        let mut perm_c = vec![-1i64; n];
+        for (k, &c) in order.iter().enumerate() {
+            if c >= n || perm_c[c] >= 0 {
+                return Err(Error::invalid("the column order is not a permutation"));
+            }
+            perm_c[c] = k as i64;
+        }
+        if i32::try_from(n).is_err() || i32::try_from(a.nnz()).is_err() {
+            return Err(Error::CapacityExceeded {
+                what: "Eigen SparseLU order or nonzeros (int storage index)",
+                requested: n.max(a.nnz()) as u128,
+                limit: i32::MAX as u128,
+            });
+        }
+        self.analyze_with_perm(a, perm_c)
+    }
+
+    /// The elimination tree, its postorder and the analysed pattern for the
+    /// column permutation `perm_c` (`perm_c[i]`: the position of original
+    /// column `i`).
+    fn analyze_with_perm(&mut self, a: &CscMatrix, perm_c: Vec<i64>) -> Result<()> {
+        let n = a.n();
         // column perm_c[i] of the permuted matrix is the original column i
         let mut iperm = vec![0usize; n];
         for (i, &p) in perm_c.iter().enumerate() {
