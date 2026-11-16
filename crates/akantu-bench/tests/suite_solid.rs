@@ -24,8 +24,25 @@ fn opts() -> Options {
     }
 }
 
+/// Stack of the thread that runs the cases: a main thread's under the usual
+/// `ulimit -s` (8 MiB). The test harness's threads have 2 MiB, which a
+/// debug build with the `mumps` feature overflows in
+/// `cohesive_extrinsic_insertion` (3 MiB suffice; the binaries run the
+/// cases on the main thread).
+const CASE_STACK: usize = 8 << 20;
+
 #[test]
 fn every_case_runs_at_size_s_and_its_digest_repeats() {
+    std::thread::Builder::new()
+        .name("cases".into())
+        .stack_size(CASE_STACK)
+        .spawn(run_every_case)
+        .expect("spawn the case thread")
+        .join()
+        .unwrap_or_else(|e| std::panic::resume_unwind(e));
+}
+
+fn run_every_case() {
     let comm = Communicator::serial();
     let o = opts();
     for case in akantu_bench::suite_solid::cases() {
