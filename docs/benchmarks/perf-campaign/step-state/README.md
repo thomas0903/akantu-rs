@@ -54,8 +54,8 @@ of the timed cases at size `m`, are equal before and after.
      writer of the current values goes through the field, and foreign code
      sees only exported blocks, which are copied as before.
 2. **Scratch blocks kept by the laws** (`akantu_solid::materials::scratch`).
-   The plastic, Marigo, Mazars, non-local Mazars, standard linear solid and
-   Maxwell laws cloned their input and output blocks at every step (nine
+   The plastic, Marigo, standard linear solid and Maxwell laws cloned
+   their input and output blocks at every step (nine
    clones per step in the J2 return of the plastic law; arrays above
    glibc's mmap threshold are returned to the kernel when freed and faulted
    in again at the next step: 12 % of the plastic case was page clearing).
@@ -65,7 +65,11 @@ of the timed cases at size `m`, are equal before and after.
    allocations; nothing is written when the computation fails, as before.
    The elastic potential energy does the same; the Neo-Hookean and
    anisotropic stress kernels and the anisotropic energy read the gradient
-   in place.
+   in place. The same change in the Mazars damage block executed fewer
+   instructions (−0.17 %) but took 8–10 % more cycles on the Mazars case
+   on this CPU (the eigen-solver code it calls is the same machine code at
+   other addresses), and gave no measurable change for non-local Mazars:
+   the Mazars laws keep their clones.
 3. **Non-local weights kept while their inputs are unchanged**
    (`akantu_model::non_local::NonLocalNeighborhood`). With the default
    `update_rate = 1` every stress computation recomputed all pair weights
@@ -99,8 +103,10 @@ of the timed cases at size `m`, are equal before and after.
   volumes bitwise against a neighbourhood that recomputes, also with
   changed incoming volumes).
 - Python: `python/tests/test_history_views.py` (above); the whole Python
-  suite with the branch's wheel: 300 passed, 13 skipped (the two
-  `structural_mechanics_dynamics*` example comparisons need matplotlib).
+  suite (`pytest tests` from `python/`) with a wheel of the branch:
+  298 passed, 13 skipped, 2 failed: the two
+  `structural_mechanics_dynamics*` example comparisons, which need
+  matplotlib (`ci/tiers/wheel.sh`); with matplotlib installed both pass.
 - Digests: `digests/size-s.tsv` (suite, case, digest before, digest after,
   status) for every case of `suite_solid`, `suite_models` and
   `suite_setup` at size `s`: 73 equal (two cases print no digest without
@@ -114,4 +120,106 @@ of the timed cases at size `m`, are equal before and after.
 
 ## Measurements
 
-PLACEHOLDER
+- Machine: an OVHcloud development machine, AMD EPYC Milan (Zen 3),
+  4 cores, Ubuntu 24.04; one process per run pinned to core 1, nothing
+  else running. (A different CPU from the campaign's AWS machine: the
+  numbers decide what was kept; the campaign re-measures on AWS.)
+- Binaries: `suite_solid` of the base `b3f6c78aa` ("base") and of this
+  branch at `84310238f` ("after", the base merged in), release profile,
+  default flags.
+- Command: `scripts/perf/suite/run_ab.sh --out ab --size m --reps 5 --core 1
+  --cases <22 cases> base=<base> after=<after>` (interleaved, order
+  rotated per repetition), 2026-11-16 (`ab/meta.*.json`). Raw JSON lines
+  `ab/<variant>/<case>.r<R>.jsonl`; `ab/summary.md` (all phases,
+  `scripts/perf/suite/summarize.py`), `ab/compact.md` (the phases below).
+- ms per call, median [min, max] over 5 repetitions; ratio = after/base
+  paired per repetition, median [min, max]. Every run of a case, both
+  binaries, printed the same digest.
+
+### The explicit step (`solve_step`, 200 steps at size `m`)
+
+| case | base [ms/step] | after [ms/step] | after/base | `step_hooks` base → after [ms/step] |
+|---|---|---|---|---|
+| explicit_tet4_ss | 16.06 [15.91, 16.65] | 14.03 [13.84, 14.20] | 0.874 [0.853, 0.878] | 1.25 → 0.00 |
+| explicit_tet4_fd | 23.17 [22.93, 23.55] | 19.57 [19.46, 19.98] | 0.848 [0.844, 0.849] | 1.89 → 0.00 |
+| explicit_tet10_ss | 52.40 [50.30, 52.71] | 46.86 [45.66, 47.80] | 0.901 [0.889, 0.912] | 2.48 → 0.00 |
+| explicit_tet10_fd | 88.71 [88.44, 89.70] | 81.94 [81.11, 83.52] | 0.918 [0.914, 0.941] | 3.37 → 0.00 |
+| explicit_hex8_ss | 77.76 [76.67, 79.22] | 68.30 [66.79, 70.22] | 0.883 [0.868, 0.887] | 4.76 → 0.00 |
+| explicit_hex8_fd | 141.44 [140.07, 144.60] | 126.51 [125.98, 127.46] | 0.895 [0.871, 0.902] | 6.89 → 0.00 |
+| explicit_tri3_ss | 12.44 [12.34, 12.49] | 11.10 [11.05, 11.22] | 0.896 [0.885, 0.899] | 0.68 → 0.00 |
+| explicit_tri3_fd | 14.03 [13.96, 14.08] | 12.05 [12.00, 12.30] | 0.860 [0.857, 0.873] | 0.98 → 0.00 |
+| explicit_thermal | 10.33 [10.32, 10.51] | 9.21 [9.16, 9.37] | 0.890 [0.887, 0.893] | 0.77 → 0.00 |
+| explicit_plastic | 51.51 [50.87, 51.62] | 17.97 [17.87, 18.02] | 0.349 [0.347, 0.353] | 1.82 → 0.57 |
+| explicit_sls | 47.54 [47.09, 47.74] | 14.11 [13.93, 14.20] | 0.297 [0.294, 0.297] | 1.85 → 0.00 |
+| explicit_maxwell | 170.21 [169.83, 171.53] | 104.43 [104.05, 106.58] | 0.615 [0.612, 0.624] | 64.27 → 33.38 |
+| explicit_marigo | 19.30 [19.01, 19.53] | 15.60 [15.51, 15.84] | 0.811 [0.807, 0.818] | 2.58 → 1.86 |
+| explicit_neohookean | 24.13 [24.07, 24.73] | 21.72 [21.35, 23.21] | 0.885 [0.878, 0.963] | 1.10 → 0.00 |
+| explicit_orthotropic | 16.00 [15.86, 16.07] | 14.01 [13.93, 14.04] | 0.874 [0.874, 0.878] | 0.72 → 0.00 |
+| explicit_mazars | 96.38 [95.10, 106.91] | 97.36 [96.61, 98.83] | 1.016 [0.911, 1.025] (no measurable change) | 2.54 → 1.89 |
+| explicit_multi_material | 47.25 [47.01, 49.20] | 43.78 [43.53, 44.67] | 0.927 [0.890, 0.945] | 1.78 → 0.85 |
+| explicit_mazars_non_local | 226.18 [223.60, 227.13] | 101.57 [100.40, 102.25] | 0.448 [0.442, 0.456] | 1.04 → 0.85 |
+| cohesive_intrinsic_bilinear | 17.88 [17.76, 18.13] | 17.20 [17.09, 17.28] | 0.962 [0.953, 0.966] | – |
+| cohesive_intrinsic_exponential | 24.86 [24.73, 25.07] | 24.24 [24.02, 24.43] | 0.973 [0.967, 0.985] | – |
+
+Readings:
+
+- `step_hooks` (the history saves before the step and the energy updates
+  after it) falls to 0.00 ms for every law whose blocks are rewritten in
+  full; what remains for plastic, Marigo, Maxwell and the Mazars laws is
+  their energy and branch updates after the step (arithmetic).
+- The `residual` phase of the elastic cases is 1–5 % slower (tet4 ss
+  1.038 [1.016, 1.045], thermal 1.048 [1.047, 1.051], hex8 ss 1.009
+  [1.003, 1.014]): the copy of the save used to bring the current blocks
+  into the last-level cache just before the step rewrote them; after an
+  exchange the step writes into the other allocation, untouched since the
+  step before. The saved copy is 2–12 times that (tet4 ss: 1.25 ms of
+  hooks saved against 0.52 ms more `residual` per step; hex8 ss: 4.76
+  against 0.38 ms).
+- Plastic and SLS: the per-step clones and their page faults are gone
+  (×0.31–0.34 of the `residual`). Maxwell: ×0.52 of `step_hooks`, the
+  branch update in place; the rest is its generic `scaled_matvec`
+  (65 % of the profile, a fixed-order kernel is another task's item).
+- Non-local Mazars: the weights are computed once per rebuild instead of
+  at every step (×0.44 of the `residual`).
+
+### Energies (`energies`: one kinetic and one potential energy per call)
+
+| case | base [ms/call] | after [ms/call] | after/base |
+|---|---|---|---|
+| explicit_tet4_ss | 8.61 [8.39, 8.69] | 6.76 [6.70, 6.91] | 0.795 [0.781, 0.803] |
+| explicit_tet10_ss | 56.03 [55.19, 57.08] | 7.27 [7.23, 7.49] | 0.130 [0.127, 0.134] |
+| explicit_hex8_ss | 98.30 [98.17, 98.82] | 10.87 [10.76, 11.27] | 0.111 [0.109, 0.115] |
+| explicit_hex8_fd | 102.52 [102.09, 107.59] | 17.38 [17.24, 17.43] | 0.170 [0.160, 0.171] |
+| explicit_orthotropic | 4.78 [4.77, 4.84] | 4.08 [4.05, 4.14] | 0.849 [0.843, 0.868] |
+
+The elastic potential energy cloned four blocks per call (for hex8 ss at
+size `m`, 884,736 points × 20 reals: about 140 MB written and faulted in
+per call); with the
+scratch block, a potential energy costs less than an explicit step again
+(hex8 ss: 10.9 against 68.3 ms). The remaining time is the ordered
+`Math::reduce` of the integration (a sort, `akantu-core`) and the
+gradient pass.
+
+### `init_full` on hexahedra (`setup_hex8`, `setup_tet4`)
+
+`init_explicit` is unchanged (setup_hex8 0.988 [0.961, 1.003]). Per
+element, hex8 costs 5.6 µs (13,824 elements, 77.95 ms) against 0.69 µs
+for tet4 (162,000 elements, 112.04 ms); per quadrature point the two are
+close (0.71 against 0.69 µs: hex8 has 8 points). Of the hex8 time 42 %
+is the shape-function precomputation (`shape_functions`, 32.9 ms;
+before the base's fixed-order small products, 6.3 µs per element on this
+machine: generic products and the LU inverse of the Jacobian in
+`akantu-fe`); the rest is the allocation and first fill of the laws'
+internals (about 50 reals per point) and the solver set-up. Nothing
+there is repeated or quadratic.
+
+### Profiles after (`profiles/`)
+
+`perf record -F 499 --call-graph dwarf` of the after binary
+(`scripts/perf/suite/profile.sh`, 6 s loops; shares, recorded while other
+work ran on the other cores). No `memmove`, page-clearing or allocator
+symbol is left in the top 25 of any of the eight cases; the explicit
+elastic cases are the FE kernels (gradient, `BᵀD`, integration, scatter:
+60–65 %), the stress loop and `grad_u` (13–16 %), `resolve_filter`'s per-call
+filter copy (2.8 %, `akantu-fe`) and `Math::reduce`'s sort (2 %, in the
+energies).
