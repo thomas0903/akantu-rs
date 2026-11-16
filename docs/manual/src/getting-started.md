@@ -44,6 +44,60 @@ described in [`docs/TESTING.md`](../../TESTING.md).
 The manual itself is an [mdBook](https://rust-lang.github.io/mdBook/):
 `mdbook build docs/manual` writes the HTML book to `docs/manual/book`.
 
+## Optimised builds and the target CPU
+
+`cargo build --release` uses the workspace release profile: `opt-level =
+3`, no LTO, 16 codegen units, line-table debug information and the
+x86-64 baseline instruction set (SSE2). Neither the profile nor any
+code-generation flag enables fast-math or FMA contraction: Rust compiles
+every floating-point operation as written, whatever the target CPU.
+
+A build for a newer instruction-set level gives the same results, bit for
+bit, as the default build on x86_64 Linux:
+
+```sh
+RUSTFLAGS="-C target-cpu=x86-64-v3" cargo build --release   # AVX2 (Haswell, Zen 1 and later)
+RUSTFLAGS="-C target-cpu=native" cargo build --release      # the CPU of the build machine
+```
+
+What was checked, with the pinned toolchain (rustc 1.99.1) in the project
+image on x86_64 Linux:
+
+| `target-cpu` | fast tier (`cargo test --workspace`) and release tier | explicit-step and cohesive-driver results |
+|---|---|---|
+| `x86-64-v2` | pass | identical bits |
+| `x86-64-v3` | pass | identical bits |
+| `x86-64-v4` (AVX-512) | pass | identical bits |
+| `znver4` (`native` on an AMD EPYC 9R14) | not run | identical bits |
+
+The release-profile variants `codegen-units = 1`, `lto = "thin"`, `lto =
+"fat"`, their combinations, `panic = "abort"` and profile-guided
+optimisation also give identical results. `f64::min` and `f64::max`
+return the same bits at every level (signed zeros included), and so do
+the arithmetic operations. The only operation whose result can change
+with the instruction set is the choice between two NaN operands: which
+of the two an addition returns depends on the operand order the compiler
+chooses. That choice also changes between debug and release builds, and
+the comparisons of the test suite treat it as D-046 describes (two
+default NaNs that differ only in their sign match). Data, scripts and
+the timings: `docs/benchmarks/perf-campaign/build-profile/`.
+
+On the measured AMD Zen 4 machine, `x86-64-v3` and `native` took 0.96 to
+0.98 times the time of the default build for the explicit step, while
+`x86-64-v4` was slower on hexahedral meshes. Prefer `x86-64-v3` or
+`native` to `x86-64-v4`. A binary built for a level runs only on CPUs
+that have it: the distributed Python wheels use the baseline. A build of
+the Python extension for the local CPU:
+
+```sh
+cd python && RUSTFLAGS="-C target-cpu=native" maturin build --release
+```
+
+The statement holds for the pinned toolchain. After a toolchain update,
+`scripts/perf/build/ci_matrix.sh` repeats the check (the CI tiers built
+with each configuration). Other platforms (aarch64, macOS) were not
+checked.
+
 ## The facade crate `akantu`
 
 The workspace is split into crates (`akantu-core`, `akantu-parser`,

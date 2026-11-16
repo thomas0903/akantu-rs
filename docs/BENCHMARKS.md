@@ -260,10 +260,10 @@ Ranked by share of the profile; none was worked on.
 7. The insertion check's stress interpolation still uses the general product
    per point. At full size the check is the largest phase (below).
 
-A `-C target-cpu` build is not used: its bit identity is not established by
-any test (the explicit-step digests matched for `target-cpu=native`, but
-`f64::min`/`max` on signed zeros and the sign of default NaNs can change
-elsewhere).
+The tables above use the baseline build. Builds with `-C target-cpu`
+(`x86-64-v2`, `-v3`, `-v4`, `znver4`), LTO, one codegen unit,
+`panic = "abort"` and PGO give the same bits (section "Build
+configuration").
 
 ## Static solves and solvers
 
