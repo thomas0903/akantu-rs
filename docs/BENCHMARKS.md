@@ -470,7 +470,7 @@ Changes:
   through dense element ids (one pass per facet instead of a scan per
   element and node); `transfer_physical_names` keeps a sorted index per
   coordinate and scans the narrowest window (the x window alone held a
-  whole face of a box: a defect of the pre-selection); `fill_from_node_group`
+  whole face of a box, so the pre-selection was correct but slow); `fill_from_node_group`
   tests membership through a table instead of a scan of the node list.
 
 The serial benchmark driver (h = 0.12, 23,156 tetrahedra), ms per step:
