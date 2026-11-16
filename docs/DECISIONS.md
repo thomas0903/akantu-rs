@@ -2106,6 +2106,40 @@ Consequence: on aarch64 Linux one MUMPS scenario and five PETSc scenarios
 report that they did not compare oracle values; a failing comparison on
 x86_64 still fails.
 
+## D-122: Performance work keeps the default bitwise; a fast mode may differ
+
+Decision (project owner, 2026-11-16), for the performance work that follows
+the port:
+
+- The default build with its default run-time settings keeps every result
+  bit. An optimisation of the default path must compute each result with the
+  same operations in the same order, and every bitwise fixture must pass
+  unchanged.
+- A change of rounding is allowed only behind an explicit switch that is off
+  by default (the fast mode): fused multiply-add, a sum taken in another
+  order, a vectorised reduction, another ordering in a solver, or a threaded
+  sum whose order depends on the thread count. Each such path is validated
+  against the default path within a written tolerance
+  (`docs/TOLERANCE_LEDGER.md`); runs that amplify rounding differences, such
+  as fragmentation, are compared on energies and counts.
+- Allowed kinds of change: threads inside a rank; hand-written SIMD with
+  run-time dispatch (`unsafe`, every block reviewed); another default
+  algorithm where the results stay bitwise, and under the fast mode where
+  they do not; changes of the public Rust and Python API, recorded in the
+  changelog.
+- Every measurement compares the port before and after on the same machine
+  in the same session, and the headline cases also with the C++ library
+  (`docs/BENCHMARKS.md`, "Method").
+
+Reason: the port's evidence is the bitwise comparison with the C++ library,
+so the default path must keep it. Some of the remaining speed needs
+operations that round differently, and a user who accepts differences in the
+last digits should be able to have it.
+
+Consequence: the rule "no fast-math of any kind" of `AGENTS.md` holds for
+the default path. Code of the fast mode is marked as such and has its own
+tests against the default path.
+
 ## Ids without a record
 
 D-044, D-045, D-072, D-075, D-084, D-098, D-102, D-103, D-110, D-112 and
