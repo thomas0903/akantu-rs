@@ -8,7 +8,11 @@ No optimisation was made; this list is the input of the next tasks.
 - Baseline (seconds per phase, size `m`, 5 repetitions): `baseline/`,
   table in `baseline/README.md`. Machine: an AWS `m7a.2xlarge` (AMD EPYC
   9R14, 8 cores, 32 GiB), one process per run pinned to one core.
-- Profiles: `profiles/<case>.txt`, `perf record --call-graph dwarf` at size
+- Rank scaling of the two distributed cases (1, 2, 4, 8 ranks):
+  `mpi/README.md`.
+- Profiles (binaries of commits `c339c611d`, contact cases `e3743be5`; the
+  case code is the baseline's except for the contact geometry, which the
+  contact profiles already have): `profiles/<case>.txt`, `perf record --call-graph dwarf` at size
   `m` with `--loop-seconds 6` (every loop phase extended to at least 6 s,
   so the shares of a profile weigh the phases about equally, not as in
   the baseline). They were recorded in a 4-vCPU development VM (AMD Ryzen
@@ -61,6 +65,11 @@ Rank = share × expected gain × how common the path is. "Bitwise-safe" and
 | 8 | Contact detection: `SpatialGrid` cells in a `BTreeMap` (crates/akantu-core/src/spatial_grid.rs:281; `NeighborhoodItems::next` 11 %, `insert` 4.6 %), grid rebuilt per search; `compute_maximal_detection_distance` (crates/akantu-contact/src/detector.rs:337) recomputed per search (2.8 %); outward orientation by the adjacent element's barycenter per projection (`geometry::barycenter_on`, geometry.rs:304, 7 %) | `contact_search_quad4`, `contact_search_tet4` (about 25 % together) | data layout (ordered map for a dense grid), repeated set-up work per search | dense cell array over the box (cells in the same order), cache the element sizes and the facet → element barycenters per mesh revision | bitwise-safe; search 1.5–2× |
 | 9 | `SparseMatrixAij::mat_vec_mul` (sparse.rs:866–890) rebuilds a `Vec` of (local row, local column) pairs with two `EquationLayout::local` SipHash lookups (crates/akantu-linalg/src/layout.rs:58, :131) per non-zero on every call | `structural_beam3_frame_dynamic` 15 % (mat_vec 9.8 + hash 5.8) | repeated set-up work per call | cache the local pairs per profile release; a `Vec` index map for the serial layout | bitwise-safe; ~15 % of an implicit dynamic step |
 | 10 | Stress interpolation of the extrinsic insertion check: `SolidMechanicsModelCohesive::interpolate_stress` (crates/akantu-cohesive/src/model.rs:1486) with `copy_points` 10 % and generic products 27 % | `contact_cohesive_quad4`: the check is 48 % inclusive | generic kernels + copies (the cohesive suite owns this path) | fixed-size interpolation kernel, no copy | bitwise-safe; 2× of the check |
+| 11 | Distributed runs: the default `_auto` sparse solver is Eigen centralised on rank 0 without the `mumps` feature | `phasefield_staggered_tri3` under `mpirun`: solid solve 11.4 s at 1 rank, 10.9 s at 8 ranks, while its assemblies scale 7.8–8.6× (`mpi/README.md`) | algorithmic (serial solve in a parallel run; documented behaviour, not a defect) | build with `mumps` by default in parallel runs, or a distributed solver; with item 2 the serial part shrinks too | solver choice changes the bits (fast mode or a documented option); the gain is the parallel speed-up of the solve |
+
+
+The explicit heat step scales to 2.8× at 4 ranks and 4.0× at 8 ranks
+(`mpi/README.md`).
 
 Not hot anywhere in this suite: the phase-field transfers (`strain_transfer`,
 `damage_transfer`: < 0.2 % of the staggered step), the internal-force
