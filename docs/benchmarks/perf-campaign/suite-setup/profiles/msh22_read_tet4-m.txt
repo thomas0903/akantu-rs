@@ -1,0 +1,128 @@
+# perf record -F 499 --call-graph dwarf; msh22_read_tet4-m
+# phases of the profiled run (seconds, calls):
+#   generate                         4.700 s     115 calls  24.6 %
+#   read                            14.430 s     115 calls  75.4 %
+
+## flat profile (self), top symbols
+     9.43%  suite_setup        [.] <akantu_io::mesh_io::lexer::Line>::token
+     6.02%  libc.so.6          [.] 0x0000000000198525
+     3.82%  suite_setup        [.] alloc::fmt::format::format_inner
+     3.77%  suite_setup        [.] <std::hash::random::RandomState as core::hash::BuildHasher>::hash_one::<&u64>
+     3.47%  suite_setup        [.] <akantu_io::mesh_io::msh::Reader>::elements_v2
+     3.37%  suite_setup        [.] <akantu_io::mesh_io::msh::Reader>::node_index
+     3.35%  libc.so.6          [.] 0x00000000001a14f9
+     3.25%  suite_setup        [.] core::slice::sort::unstable::quicksort::quicksort::<i32, <i32 as core::cmp::PartialOrd>::lt>
+     2.97%  suite_setup        [.] <u64 as core::fmt::Display>::fmt
+     2.80%  suite_setup        [.] <akantu_io::mesh_io::lexer::Source>::expect_line
+     2.65%  suite_setup        [.] suite_setup::suite_setup::mesh_digest
+     2.15%  suite_setup        [.] core::fmt::write
+     2.10%  suite_setup        [.] akantu_io::mesh_io::lexer::parse_i64
+     1.90%  suite_setup        [.] <alloc::string::String as core::fmt::Write>::write_str
+     1.90%  suite_setup        [.] <core::iter::adapters::map::Map<core::ops::range::Range<usize>, <akantu_io::mesh_io::msh::Reader>::construct_physical_names::{closure#2}> as core::iter::traits::iterator::Iterator>::fold::<(), core::iter::traits::iterator::Iterator::for_each::call<alloc::string::String, <alloc::vec::Vec<alloc::string::String>>::extend_trusted<core::iter::adapters::map::Map<core::ops::range::Range<usize>, <akantu_io::mesh_io::msh::Reader>::construct_physical_names::{closure#2}>>::{closure#0}>::{closure#0}>  -
+     1.85%  libc.so.6          [.] malloc
+     1.85%  suite_setup        [.] <std::hash::random::DefaultHasher as core::hash::Hasher>::write
+     1.47%  suite_setup        [.] <akantu_io::mesh_io::msh::Reader>::element_nodes
+     1.42%  suite_setup        [.] <core::fmt::Formatter>::pad_integral
+     1.41%  suite_setup        [.] <alloc::vec::Vec<alloc::string::String> as core::clone::Clone>::clone
+     1.38%  suite_setup        [.] core::slice::memchr::memchr_aligned
+     1.37%  suite_setup        [.] <core::str::lossy::Utf8Chunks as core::iter::traits::iterator::Iterator>::next
+     1.29%  suite_setup        [.] core::num::imp::flt2dec::strategy::grisu::format_shortest_opt
+     1.28%  suite_setup        [.] akantu_mesh::utils::node_to_elements_unchecked
+     1.26%  libc.so.6          [.] 0x00000000001a1544
+
+## inclusive (children), top entries
+    74.69%     0.00%  [k] 0xffffffffffffffff
+    67.33%     0.00%  [.] akantu_io::mesh_io::parse
+    66.16%     0.00%  [.] akantu_io::mesh_io::read_mesh_with
+    63.76%     0.00%  [.] akantu_io::mesh_io::msh::read
+    49.80%     0.00%  [.] <akantu_io::mesh_io::msh::Reader>::run
+    46.61%     3.47%  [.] <akantu_io::mesh_io::msh::Reader>::elements_v2
+    27.21%     0.00%  [.] suite_setup::suite_setup::cases_mesh::read_case
+    24.86%     0.00%  [.] <core::result::Result<akantu_comm::communicator::Communicator, akantu_core::error::Error>>::and_then::<(), suite_setup::main::{closure#1}> (inlined)
+    24.86%     0.00%  [.] std::panic::catch_unwind::<std::rt::lang_start_internal::{closure#0}, isize> (inlined)
+    24.86%     0.00%  [.] std::panic::catch_unwind::<&dyn core::ops::function::Fn<(), Output = i32> + core::panic::unwind_safe::RefUnwindSafe + core::marker::Sync, i32> (inlined)
+    24.86%     0.00%  [.] std::panicking::catch_unwind::<isize, std::rt::lang_start_internal::{closure#0}> (inlined)
+    24.86%     0.00%  [.] std::panicking::catch_unwind::<i32, &dyn core::ops::function::Fn<(), Output = i32> + core::panic::unwind_safe::RefUnwindSafe + core::marker::Sync> (inlined)
+    24.86%     0.00%  [.] std::sys::backtrace::__rust_begin_short_backtrace::<fn() -> std::process::ExitCode, std::process::ExitCode>
+    24.86%     0.00%  [.] std::panicking::catch_unwind::do_call::<std::rt::lang_start_internal::{closure#0}, isize> (inlined)
+    24.86%     0.00%  [.] std::panicking::catch_unwind::do_call::<&dyn core::ops::function::Fn<(), Output = i32> + core::panic::unwind_safe::RefUnwindSafe + core::marker::Sync, i32> (inlined)
+    24.86%     0.00%  [.] std::rt::lang_start::<std::process::ExitCode>::{closure#0} (inlined)
+    24.86%     0.00%  [.] suite_setup::main::{closure#1} (inlined)
+    24.86%     0.00%  [.] std::rt::lang_start_internal::{closure#0} (inlined)
+    24.86%     0.00%  [.] suite_setup::main
+    24.86%     0.00%  [.] std::rt::lang_start_internal
+    24.86%     0.00%  [.] suite_setup::suite_setup::harness::run_cases
+    24.86%     0.00%  [.] <&dyn core::ops::function::Fn<(), Output = i32> + core::panic::unwind_safe::RefUnwindSafe + core::marker::Sync as core::ops::function::FnOnce<()>>::call_once (inlined)
+    24.86%     0.00%  [.] <fn() -> std::process::ExitCode as core::ops::function::FnOnce<()>>::call_once (inlined)
+    24.86%     0.00%  [.] __libc_start_main
+    24.86%     0.00%  [.] _start
+    24.86%     0.00%  [.] main
+    24.84%     0.00%  [.] suite_setup::suite_setup::cases_mesh::msh22_read_tet4
+    24.79%     0.00%  [.] 0x000070c54c82a1c9
+    20.04%     0.00%  [.] suite_setup::suite_setup::cases_mesh::read_case::{closure#0} (inlined)
+    19.76%     0.00%  [.] <suite_setup::suite_setup::harness::CaseOut>::phase::<std::path::PathBuf, suite_setup::suite_setup::cases_mesh::read_case::{closure#0}>
+    17.41%     0.24%  [.] suite_setup::suite_setup::meshgen::msh22
+    17.40%     2.15%  [.] core::fmt::write
+    14.32%     0.00%  [.] <&mut alloc::string::String as core::fmt::Write::write_fmt::SpecWriteFmt>::spec_write_fmt (inlined)
+    14.32%     0.00%  [.] <alloc::string::String as core::fmt::Write>::write_fmt (inlined)
+    13.96%     0.00%  [.] <akantu_io::mesh_io::msh::Reader>::finish (inlined)
+    13.70%     0.00%  [.] <core::fmt::rt::Argument>::fmt (inlined)
+    12.76%     1.47%  [.] <akantu_io::mesh_io::msh::Reader>::element_nodes
+    11.54%     0.26%  [.] <akantu_io::mesh_io::staging::MeshBuild>::create_groups_from_string_data
+    11.03%     0.00%  [.] suite_setup::suite_setup::meshgen::msh22::{closure#1} (inlined)
+     9.43%     9.43%  [.] <akantu_io::mesh_io::lexer::Line>::token
+     8.66%     2.97%  [.] <u64 as core::fmt::Display>::fmt
+     7.52%     0.50%  [.] <akantu_io::mesh_io::lexer::Line>::i32
+     7.16%     3.82%  [.] alloc::fmt::format::format_inner
+     7.14%     0.00%  [.] <core::option::Option<&str>>::map_or_else::<alloc::string::String, alloc::fmt::format::{closure#0}, <str as alloc::borrow::ToOwned>::to_owned> (inlined)
+     7.14%     0.00%  [.] alloc::fmt::format::{closure#0} (inlined)
+
+## call chains of the top self symbols (callers, >= 1 %)
+     9.43%  [.] <akantu_io::mesh_io::lexer::Line>::token
+            |
+             --3.76%--<core::option::Option<(usize, &str)>>::ok_or_else::<akantu_core::error::Error, <akantu_io::mesh_io::lexer::Line>::token::{closure#0}> (inlined)
+                       <akantu_io::mesh_io::lexer::Line>::token
+                       |
+                        --3.68%--<akantu_io::mesh_io::lexer::Line>::i32
+                                  <akantu_io::mesh_io::msh::Reader>::elements_v2
+                                  <akantu_io::mesh_io::msh::Reader>::run
+                                  akantu_io::mesh_io::msh::read
+                                  akantu_io::mesh_io::parse
+                                  akantu_io::mesh_io::read_mesh_with
+                                  0xffffffffffffffff
+     6.02%  [.] 0x0000000000198525
+            |
+            ---<u8 as core::slice::cmp::SliceOrd>::compare (inlined)
+               <[u8] as core::cmp::Ord>::cmp (inlined)
+               <alloc::vec::Vec<u8> as core::cmp::Ord>::cmp (inlined)
+               <alloc::string::String as core::cmp::Ord>::cmp (inlined)
+               |
+                --3.18%--<alloc::collections::btree::node::NodeRef<alloc::collections::btree::node::marker::Mut, alloc::string::String, akantu_io::mesh_io::staging::GroupBuild, alloc::collections::btree::node::marker::LeafOrInternal>>::find_key_index::<alloc::string::String> (inlined)
+                          <alloc::collections::btree::node::NodeRef<alloc::collections::btree::node::marker::Mut, alloc::string::String, akantu_io::mesh_io::staging::GroupBuild, alloc::collections::btree::node::marker::LeafOrInternal>>::search_node::<alloc::string::String> (inlined)
+                          <alloc::collections::btree::node::NodeRef<alloc::collections::btree::node::marker::Mut, alloc::string::String, akantu_io::mesh_io::staging::GroupBuild, alloc::collections::btree::node::marker::LeafOrInternal>>::search_tree::<alloc::string::String> (inlined)
+                          <alloc::collections::btree::map::BTreeMap<alloc::string::String, akantu_io::mesh_io::staging::GroupBuild>>::entry (inlined)
+     3.82%  [.] alloc::fmt::format::format_inner
+            |
+             --3.48%--alloc::fmt::format::format_inner
+                       alloc::fmt::format::{closure#0} (inlined)
+                       <core::option::Option<&str>>::map_or_else::<alloc::string::String, alloc::fmt::format::{closure#0}, <str as alloc::borrow::ToOwned>::to_owned> (inlined)
+                       alloc::fmt::format (inlined)
+                       <akantu_io::mesh_io::msh::Reader>::elements_v2
+                       <akantu_io::mesh_io::msh::Reader>::run
+                       akantu_io::mesh_io::msh::read
+                       akantu_io::mesh_io::parse
+                       akantu_io::mesh_io::read_mesh_with
+                       0xffffffffffffffff
+     3.77%  [.] <std::hash::random::RandomState as core::hash::BuildHasher>::hash_one::<&u64>
+     3.47%  [.] <akantu_io::mesh_io::msh::Reader>::elements_v2
+     3.37%  [.] <akantu_io::mesh_io::msh::Reader>::node_index
+     3.35%  [.] 0x00000000001a14f9
+            |
+             --3.33%--core::ptr::copy_nonoverlapping::<u8> (inlined)
+                       <alloc::vec::Vec<u8>>::append_elements_unreserved (inlined)
+                       <alloc::vec::Vec<u8>>::append_elements (inlined)
+                       <alloc::vec::Vec<u8> as alloc::vec::spec_extend::SpecExtend<&u8, core::slice::iter::Iter<u8>>>::spec_extend (inlined)
+                       <alloc::vec::Vec<u8>>::extend_from_slice (inlined)
+                       <alloc::string::String>::push_str (inlined)
+                       <alloc::string::String as core::fmt::Write>::write_str
+     3.25%  [.] core::slice::sort::unstable::quicksort::quicksort::<i32, <i32 as core::cmp::PartialOrd>::lt>

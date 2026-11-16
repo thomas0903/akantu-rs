@@ -1,6 +1,6 @@
 #!/bin/bash
 # SPDX-License-Identifier: LGPL-3.0-or-later
-# akantu-rs measurement script of the performance campaign (WP-COHCHECK); not ported from Akantu.
+# akantu-rs measurement script of the performance campaign (the cohesive insertion check); not ported from Akantu.
 # dig.sh <tree> <steps> <outdir>: digest run of the driver (energies, insertions, node state at the last step)
 set -e
 bin=~/w/cohcheck/$1/target/release/cohesive_extrinsic; out=$3

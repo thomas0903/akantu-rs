@@ -30,6 +30,10 @@ PERF_MOUNTS=(
 perf_set_run_opts() {
   perf_check_memory "${PERF_MEMORY}" || exit 2
   PERF_RUN_OPTS=(--shm-size=4g --init --memory="${PERF_MEMORY}" --memory-swap="${PERF_MEMORY}")
+  # DOCKER_CPUSET (optional, e.g. 4-7): the harness containers (builds, mesh
+  # generation) only on these cores, on a host shared with timing runs. Not
+  # for timed runs: c1prep_campaign.sh pins those itself (PIN_CPUS_FROM).
+  [ -z "${DOCKER_CPUSET:-}" ] || PERF_RUN_OPTS+=(--cpuset-cpus "${DOCKER_CPUSET}")
 }
 perf_set_run_opts
 

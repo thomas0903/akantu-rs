@@ -1,6 +1,6 @@
 #!/usr/bin/env python3
 # SPDX-License-Identifier: LGPL-3.0-or-later
-# akantu-rs measurement script of the performance campaign (WP-COHCHECK); not ported from Akantu.
+# akantu-rs measurement script of the performance campaign (the cohesive insertion check); not ported from Akantu.
 # parana.py <root> <np>: per-rank phase times of interleaved MPI runs (<root>/np<np>/<tree>/rep<k>/)
 import sys, os, csv, statistics as st
 root, np_ = sys.argv[1], int(sys.argv[2])

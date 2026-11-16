@@ -1,0 +1,198 @@
+# ntn_friction_quad4: perf record -F 499 --call-graph dwarf, size m, --loop-seconds 6, one process on core 2
+# commit c339c611d, 2026-11-16T07:32:35Z, AMD Ryzen 7 9700X 8-Core Processor (boat sandbox: shares only, no timing)
+# phases of the profiled run (seconds; loop phases extended to >= 6 s):
+#   mesh                         calls      1      0.216 s
+#   init                         calls      1      0.156 s
+#   solve_step                   calls    300      9.043 s
+
+## Flat profile (self time), top 25 (shared object, symbol)
+    14.83%  suite_models      [.] akantu_fe::engine::fast::btd                                                                                                                                                                                  
+    10.66%  suite_models      [.] akantu_fe::engine::fast::gradient::<akantu_fe::element_class::types::Cohesive3d8>                                                                                                                             
+     9.58%  suite_models      [.] akantu_fe::engine::fast::integrate::<<akantu_fe::engine::FeEngine>::integrate::{closure#0}>                                                                                                                   
+     5.45%  suite_models      [.] <akantu_solid::materials::elastic::MaterialElastic<2> as akantu_solid::material::Material>::compute_stress                                                                                                    
+     4.67%  suite_models      [.] akantu_solid::material::grad_u_in_place                                                                                                                                                                       
+     3.74%  suite_models      [.] <akantu_solver::dof_manager::DofManager>::assemble_elemental_array_local_view                                                                                                                                 
+     2.89%  suite_models      [.] <akantu_solver::dof_manager::DofManager>::assemble_to_residual                                                                                                                                                
+     2.78%  libc.so.6         [.] 0x00000000001a1b75                                                                                                                                                                                            
+     1.97%  libc.so.6         [.] 0x00000000001a16c6                                                                                                                                                                                            
+     1.96%  suite_models      [.] <akantu_ntn_contact::solver_callback::NtnContactSolverCallback>::work_increment                                                                                                                               
+     1.84%  suite_models      [.] <akantu_solid::materials::elastic::MaterialElastic<2>>::compute_thermal                                                                                                                                       
+     1.82%  suite_models      [.] <akantu_solid::model::SolidMechanicsPhysics>::external_work_increment                                                                                                                                         
+     1.76%  libc.so.6         [.] 0x00000000001a1d7a                                                                                                                                                                                            
+     1.68%  libc.so.6         [.] 0x00000000001a16ef                                                                                                                                                                                            
+     1.53%  libc.so.6         [.] 0x00000000001a16db                                                                                                                                                                                            
+     1.31%  suite_models      [.] <akantu_mesh::mesh::Mesh>::is_periodic_slave                                                                                                                                                                  
+     1.20%  suite_models      [.] <akantu_ntn_contact::contact::NtnBaseContact>::base_compute_contact_pressure                                                                                                                                  
+     1.18%  libc.so.6         [.] 0x00000000001a1b1a                                                                                                                                                                                            
+     1.18%  suite_models      [.] <akantu_solver::integration_scheme::NewmarkBeta as akantu_solver::integration_scheme::IntegrationScheme>::corrector                                                                                           
+     1.16%  libc.so.6         [.] 0x00000000001a16d4                                                                                                                                                                                            
+     1.12%  libc.so.6         [.] 0x00000000001a16cd                                                                                                                                                                                            
+     1.04%  suite_models      [.] <akantu_solver::integration_scheme::NewmarkBeta as akantu_solver::integration_scheme::IntegrationScheme>::predictor                                                                                           
+     0.98%  libc.so.6         [.] 0x00000000001a1b2e                                                                                                                                                                                            
+     0.97%  suite_models      [.] akantu_solver::time_step::update_increment                                                                                                                                                                    
+     0.96%  libc.so.6         [.] 0x00000000001a1b24                                                                                                                                                                                            
+
+## Inclusive time (children), top 40 symbols
+    76.53%     0.00%  [k] 0xffffffffffffffff                                                                                                                                                                                                    
+    72.06%     0.00%  [.] suite_models::suite_models::ntn::friction_quad4                                                                                                                                                                       
+    71.82%     0.00%  [.] <suite_models::suite_models::harness::Run>::looped::<suite_models::suite_models::ntn::friction_quad4::{closure#2}>                                                                                                    
+    71.82%     0.00%  [.] suite_models::suite_models::ntn::friction_quad4::{closure#2} (inlined)                                                                                                                                                
+    71.82%     0.00%  [.] <akantu_solid::model::SolidMechanicsModel>::solve_step_intercepted                                                                                                                                                    
+    71.80%     0.00%  [.] <akantu_solver::dof_manager::DofManager>::collective::<(), <akantu_solver::non_linear_lumped::NonLinearSolverLumped as akantu_solver::non_linear::NonLinearSolver>::solve::{closure#0}>                               
+    71.80%     0.00%  [.] <akantu_solver::time_step::TimeStepSolver>::solve_step (inlined)                                                                                                                                                      
+    71.80%     0.00%  [.] <akantu_solver::model_solver::ModelSolver>::solve_step                                                                                                                                                                
+    71.80%     0.00%  [.] <akantu_solver::model_solver::ModelSolver>::solve_step_intercepted                                                                                                                                                    
+    71.80%     0.00%  [.] <akantu_solver::non_linear_lumped::NonLinearSolverLumped as akantu_solver::non_linear::NonLinearSolver>::solve                                                                                                        
+    71.78%     0.00%  [.] <akantu_solver::non_linear_lumped::NonLinearSolverLumped as akantu_solver::non_linear::NonLinearSolver>::solve::{closure#0} (inlined)                                                                                 
+    67.01%     0.02%  [.] <akantu_solver::time_step::Adapter as akantu_solver::callback::SolverCallback>::assemble_residual                                                                                                                     
+    67.01%     0.00%  [.] <akantu_solver::dof_manager::DofManager>::step::<(), <akantu_solver::non_linear_lumped::NonLinearSolverLumped as akantu_solver::non_linear::NonLinearSolver>::solve::{closure#0}::{closure#2}> (inlined)              
+    67.01%     0.00%  [.] <akantu_solver::non_linear_lumped::NonLinearSolverLumped as akantu_solver::non_linear::NonLinearSolver>::solve::{closure#0}::{closure#2} (inlined)                                                                    
+    65.56%     0.00%  [.] <akantu_solver::dof_manager::DofManager>::step::<(), <akantu_solver::non_linear_newton_raphson::NonLinearSolverNewtonRaphson>::assemble_residual::{closure#2}>                                                        
+    65.56%     0.00%  [.] akantu_solver::time_step::model_step::<(), <akantu_solver::time_step::Adapter as akantu_solver::callback::SolverCallback>::assemble_residual::{closure#0}> (inlined)                                                  
+    65.54%     0.00%  [.] <akantu_solver::non_linear_newton_raphson::NonLinearSolverNewtonRaphson>::assemble_residual::{closure#2} (inlined)                                                                                                    
+    65.54%     0.00%  [.] <akantu_ntn_contact::solver_callback::NtnContactSolverCallback as akantu_solver::callback::InterceptCallback>::assemble_residual                                                                                      
+    62.26%     0.00%  [.] <akantu_solver::callback::Intercept as akantu_solver::callback::SolverCallback>::assemble_residual                                                                                                                    
+    56.48%     0.00%  [.] <akantu_solid::model::SolidMechanicsPhysics>::assemble_residual                                                                                                                                                       
+    52.47%     0.00%  [.] <akantu_solid::model::SolidMechanicsPhysics>::assemble_internal_forces                                                                                                                                                
+    29.24%     0.00%  [.] akantu_solid::model::assembly::assemble_internal_forces_of                                                                                                                                                            
+    23.25%     0.00%  [.] <akantu_solid::materials::elastic::MaterialElastic<2> as akantu_solid::material::Material>::compute_all_stresses                                                                                                      
+    23.23%     0.00%  [.] <core::slice::iter::IterMut<alloc::boxed::Box<dyn akantu_solid::material::Material>> as core::iter::traits::iterator::Iterator>::try_for_each::<<akantu_solid::model::SolidMechanicsPhysics>::assemble_internal_forces
+    23.23%     0.00%  [.] <core::slice::iter::IterMut<alloc::boxed::Box<dyn akantu_solid::material::Material>> as core::iter::traits::iterator::Iterator>::try_fold::<(), core::iter::traits::iterator::Iterator::try_for_each::call<&mut alloc:
+    23.23%     0.00%  [.] core::iter::traits::iterator::Iterator::try_for_each::call::<&mut alloc::boxed::Box<dyn akantu_solid::material::Material>, core::result::Result<(), akantu_core::error::Error>, <akantu_solid::model::SolidMechanicsPh
+    23.23%     0.00%  [.] <akantu_solid::model::SolidMechanicsPhysics>::assemble_internal_forces::{closure#2} (inlined)                                                                                                                         
+    15.87%     4.67%  [.] akantu_solid::material::grad_u_in_place                                                                                                                                                                               
+    15.46%     0.00%  [.] <akantu_fe::engine::FeEngine>::compute_btd                                                                                                                                                                            
+    15.12%    14.83%  [.] akantu_fe::engine::fast::btd                                                                                                                                                                                          
+    14.86%     0.00%  [.] akantu_fe::engine::fast::btd_impl::<2, 2> (inlined)                                                                                                                                                                   
+    11.14%     0.00%  [.] <akantu_fe::engine::FeEngine>::variation_into                                                                                                                                                                         
+    11.14%     0.00%  [.] <akantu_fe::engine::FeEngine>::gradient_on_integration_points_view                                                                                                                                                    
+    11.14%     0.00%  [.] <akantu_solid::model::services::SmmServices as akantu_model::constitutive_law::ModelServices>::gradient_on_integration_points_view                                                                                    
+    10.72%     0.00%  [.] akantu_fe::engine::fast::gradient_impl::<akantu_fe::element_class::types::Cohesive3d8, 2> (inlined)                                                                                                                   
+    10.12%     0.02%  [.] <akantu_fe::engine::FeEngine>::integrate                                                                                                                                                                              
+     9.94%     9.86%  [.] akantu_fe::engine::fast::gradient::<akantu_fe::element_class::types::Cohesive3d8>                                                                                                                                     
+     9.94%     0.00%  [.] akantu_fe::engine::ops::gradient_kernel::<akantu_fe::element_class::types::Quadrangle4>                                                                                                                               
+     9.01%     0.00%  [.] akantu_fe::engine::ops::integrate_with_jacobians::<<akantu_fe::engine::FeEngine>::integrate::{closure#0}>                                                                                                             
+     8.99%     8.87%  [.] akantu_fe::engine::fast::integrate::<<akantu_fe::engine::FeEngine>::integrate::{closure#0}>                                                                                                                           
+
+## Call chains of the hottest symbols (caller graph, >= 3 % self, branches >= 1 %)
+    14.83%  [.] akantu_fe::engine::fast::btd                                                                                                                                                                                                    
+            |          
+             --9.94%--akantu_fe::engine::fast::btd_impl::<2, 2> (inlined)
+                       akantu_fe::engine::fast::btd
+                       <akantu_fe::engine::FeEngine>::compute_btd
+                       akantu_solid::model::assembly::assemble_internal_forces_of
+                       <akantu_solid::model::SolidMechanicsPhysics>::assemble_internal_forces
+                       <akantu_solid::model::SolidMechanicsPhysics>::assemble_residual
+                       <akantu_ntn_contact::solver_callback::NtnContactSolverCallback as akantu_solver::callback::InterceptCallback>::assemble_residual
+                       <akantu_solver::callback::Intercept as akantu_solver::callback::SolverCallback>::assemble_residual
+                       <akantu_solver::non_linear_newton_raphson::NonLinearSolverNewtonRaphson>::assemble_residual::{closure#2} (inlined)
+                       <akantu_solver::dof_manager::DofManager>::step::<(), <akantu_solver::non_linear_newton_raphson::NonLinearSolverNewtonRaphson>::assemble_residual::{closure#2}>
+                       akantu_solver::time_step::model_step::<(), <akantu_solver::time_step::Adapter as akantu_solver::callback::SolverCallback>::assemble_residual::{closure#0}> (inlined)
+                       <akantu_solver::time_step::Adapter as akantu_solver::callback::SolverCallback>::assemble_residual
+                       <akantu_solver::non_linear_lumped::NonLinearSolverLumped as akantu_solver::non_linear::NonLinearSolver>::solve::{closure#0}::{closure#2} (inlined)
+                       <akantu_solver::dof_manager::DofManager>::step::<(), <akantu_solver::non_linear_lumped::NonLinearSolverLumped as akantu_solver::non_linear::NonLinearSolver>::solve::{closure#0}::{closure#2}> (inlined)
+                       <akantu_solver::non_linear_lumped::NonLinearSolverLumped as akantu_solver::non_linear::NonLinearSolver>::solve::{closure#0} (inlined)
+                       <akantu_solver::dof_manager::DofManager>::collective::<(), <akantu_solver::non_linear_lumped::NonLinearSolverLumped as akantu_solver::non_linear::NonLinearSolver>::solve::{closure#0}>
+                       <akantu_solver::non_linear_lumped::NonLinearSolverLumped as akantu_solver::non_linear::NonLinearSolver>::solve
+                       <akantu_solver::time_step::TimeStepSolver>::solve_step (inlined)
+                       <akantu_solver::model_solver::ModelSolver>::solve_step
+                       <akantu_solver::model_solver::ModelSolver>::solve_step_intercepted
+                       <akantu_solid::model::SolidMechanicsModel>::solve_step_intercepted
+                       suite_models::suite_models::ntn::friction_quad4::{closure#2} (inlined)
+                       <suite_models::suite_models::harness::Run>::looped::<suite_models::suite_models::ntn::friction_quad4::{closure#2}>
+                       suite_models::suite_models::ntn::friction_quad4
+                       0xffffffffffffffff
+    10.66%  [.] akantu_fe::engine::fast::gradient::<akantu_fe::element_class::types::Cohesive3d8>                                                                                                                                               
+            |          
+             --5.34%--akantu_fe::engine::fast::gradient_impl::<akantu_fe::element_class::types::Cohesive3d8, 2> (inlined)
+                       akantu_fe::engine::fast::gradient::<akantu_fe::element_class::types::Cohesive3d8>
+                       akantu_fe::engine::ops::gradient_kernel::<akantu_fe::element_class::types::Quadrangle4>
+                       <akantu_fe::engine::FeEngine>::variation_into
+                       <akantu_fe::engine::FeEngine>::gradient_on_integration_points_view
+                       <akantu_solid::model::services::SmmServices as akantu_model::constitutive_law::ModelServices>::gradient_on_integration_points_view
+                       akantu_solid::material::grad_u_in_place
+                       <akantu_solid::materials::elastic::MaterialElastic<2> as akantu_solid::material::Material>::compute_all_stresses
+                       <akantu_solid::model::SolidMechanicsPhysics>::assemble_internal_forces::{closure#2} (inlined)
+                       core::iter::traits::iterator::Iterator::try_for_each::call::<&mut alloc::boxed::Box<dyn akantu_solid::material::Material>, core::result::Result<(), akantu_core::error::Error>, <akantu_solid::model::SolidMechanicsPhysi
+                       <core::slice::iter::IterMut<alloc::boxed::Box<dyn akantu_solid::material::Material>> as core::iter::traits::iterator::Iterator>::try_fold::<(), core::iter::traits::iterator::Iterator::try_for_each::call<&mut alloc::bo
+                       <core::slice::iter::IterMut<alloc::boxed::Box<dyn akantu_solid::material::Material>> as core::iter::traits::iterator::Iterator>::try_for_each::<<akantu_solid::model::SolidMechanicsPhysics>::assemble_internal_forces::{
+                       <akantu_solid::model::SolidMechanicsPhysics>::assemble_internal_forces
+                       <akantu_solid::model::SolidMechanicsPhysics>::assemble_residual
+                       <akantu_ntn_contact::solver_callback::NtnContactSolverCallback as akantu_solver::callback::InterceptCallback>::assemble_residual
+                       <akantu_solver::callback::Intercept as akantu_solver::callback::SolverCallback>::assemble_residual
+                       <akantu_solver::non_linear_newton_raphson::NonLinearSolverNewtonRaphson>::assemble_residual::{closure#2} (inlined)
+                       <akantu_solver::dof_manager::DofManager>::step::<(), <akantu_solver::non_linear_newton_raphson::NonLinearSolverNewtonRaphson>::assemble_residual::{closure#2}>
+                       akantu_solver::time_step::model_step::<(), <akantu_solver::time_step::Adapter as akantu_solver::callback::SolverCallback>::assemble_residual::{closure#0}> (inlined)
+                       <akantu_solver::time_step::Adapter as akantu_solver::callback::SolverCallback>::assemble_residual
+                       <akantu_solver::non_linear_lumped::NonLinearSolverLumped as akantu_solver::non_linear::NonLinearSolver>::solve::{closure#0}::{closure#2} (inlined)
+                       <akantu_solver::dof_manager::DofManager>::step::<(), <akantu_solver::non_linear_lumped::NonLinearSolverLumped as akantu_solver::non_linear::NonLinearSolver>::solve::{closure#0}::{closure#2}> (inlined)
+                       <akantu_solver::non_linear_lumped::NonLinearSolverLumped as akantu_solver::non_linear::NonLinearSolver>::solve::{closure#0} (inlined)
+                       <akantu_solver::dof_manager::DofManager>::collective::<(), <akantu_solver::non_linear_lumped::NonLinearSolverLumped as akantu_solver::non_linear::NonLinearSolver>::solve::{closure#0}>
+                       <akantu_solver::non_linear_lumped::NonLinearSolverLumped as akantu_solver::non_linear::NonLinearSolver>::solve
+                       <akantu_solver::time_step::TimeStepSolver>::solve_step (inlined)
+                       <akantu_solver::model_solver::ModelSolver>::solve_step
+                       <akantu_solver::model_solver::ModelSolver>::solve_step_intercepted
+                       <akantu_solid::model::SolidMechanicsModel>::solve_step_intercepted
+                       suite_models::suite_models::ntn::friction_quad4::{closure#2} (inlined)
+                       <suite_models::suite_models::harness::Run>::looped::<suite_models::suite_models::ntn::friction_quad4::{closure#2}>
+                       suite_models::suite_models::ntn::friction_quad4
+                       0xffffffffffffffff
+     9.58%  [.] akantu_fe::engine::fast::integrate::<<akantu_fe::engine::FeEngine>::integrate::{closure#0}>                                                                                                                                     
+            |          
+             --7.86%--akantu_fe::engine::fast::integrate::<<akantu_fe::engine::FeEngine>::integrate::{closure#0}>
+                       akantu_fe::engine::ops::integrate_with_jacobians::<<akantu_fe::engine::FeEngine>::integrate::{closure#0}>
+                       <akantu_fe::engine::FeEngine>::integrate
+                       |          
+                        --7.84%--akantu_solid::model::assembly::assemble_internal_forces_of
+                                  <akantu_solid::model::SolidMechanicsPhysics>::assemble_internal_forces
+                                  <akantu_solid::model::SolidMechanicsPhysics>::assemble_residual
+                                  <akantu_ntn_contact::solver_callback::NtnContactSolverCallback as akantu_solver::callback::InterceptCallback>::assemble_residual
+                                  <akantu_solver::callback::Intercept as akantu_solver::callback::SolverCallback>::assemble_residual
+                                  <akantu_solver::non_linear_newton_raphson::NonLinearSolverNewtonRaphson>::assemble_residual::{closure#2} (inlined)
+                                  <akantu_solver::dof_manager::DofManager>::step::<(), <akantu_solver::non_linear_newton_raphson::NonLinearSolverNewtonRaphson>::assemble_residual::{closure#2}>
+                                  akantu_solver::time_step::model_step::<(), <akantu_solver::time_step::Adapter as akantu_solver::callback::SolverCallback>::assemble_residual::{closure#0}> (inlined)
+                                  <akantu_solver::time_step::Adapter as akantu_solver::callback::SolverCallback>::assemble_residual
+                                  <akantu_solver::non_linear_lumped::NonLinearSolverLumped as akantu_solver::non_linear::NonLinearSolver>::solve::{closure#0}::{closure#2} (inlined)
+                                  <akantu_solver::dof_manager::DofManager>::step::<(), <akantu_solver::non_linear_lumped::NonLinearSolverLumped as akantu_solver::non_linear::NonLinearSolver>::solve::{closure#0}::{closure#2}> (inlined)
+                                  <akantu_solver::non_linear_lumped::NonLinearSolverLumped as akantu_solver::non_linear::NonLinearSolver>::solve::{closure#0} (inlined)
+                                  <akantu_solver::dof_manager::DofManager>::collective::<(), <akantu_solver::non_linear_lumped::NonLinearSolverLumped as akantu_solver::non_linear::NonLinearSolver>::solve::{closure#0}>
+                                  <akantu_solver::non_linear_lumped::NonLinearSolverLumped as akantu_solver::non_linear::NonLinearSolver>::solve
+                                  <akantu_solver::time_step::TimeStepSolver>::solve_step (inlined)
+                                  <akantu_solver::model_solver::ModelSolver>::solve_step
+                                  <akantu_solver::model_solver::ModelSolver>::solve_step_intercepted
+                                  <akantu_solid::model::SolidMechanicsModel>::solve_step_intercepted
+                                  suite_models::suite_models::ntn::friction_quad4::{closure#2} (inlined)
+                                  <suite_models::suite_models::harness::Run>::looped::<suite_models::suite_models::ntn::friction_quad4::{closure#2}>
+                                  suite_models::suite_models::ntn::friction_quad4
+                                  0xffffffffffffffff
+     5.45%  [.] <akantu_solid::materials::elastic::MaterialElastic<2> as akantu_solid::material::Material>::compute_stress                                                                                                                      
+     4.67%  [.] akantu_solid::material::grad_u_in_place                                                                                                                                                                                         
+            |          
+             --4.58%--akantu_solid::material::grad_u_in_place
+                       <akantu_solid::materials::elastic::MaterialElastic<2> as akantu_solid::material::Material>::compute_all_stresses
+                       <akantu_solid::model::SolidMechanicsPhysics>::assemble_internal_forces::{closure#2} (inlined)
+                       core::iter::traits::iterator::Iterator::try_for_each::call::<&mut alloc::boxed::Box<dyn akantu_solid::material::Material>, core::result::Result<(), akantu_core::error::Error>, <akantu_solid::model::SolidMechanicsPhysi
+                       <core::slice::iter::IterMut<alloc::boxed::Box<dyn akantu_solid::material::Material>> as core::iter::traits::iterator::Iterator>::try_fold::<(), core::iter::traits::iterator::Iterator::try_for_each::call<&mut alloc::bo
+                       <core::slice::iter::IterMut<alloc::boxed::Box<dyn akantu_solid::material::Material>> as core::iter::traits::iterator::Iterator>::try_for_each::<<akantu_solid::model::SolidMechanicsPhysics>::assemble_internal_forces::{
+                       <akantu_solid::model::SolidMechanicsPhysics>::assemble_internal_forces
+                       <akantu_solid::model::SolidMechanicsPhysics>::assemble_residual
+                       <akantu_ntn_contact::solver_callback::NtnContactSolverCallback as akantu_solver::callback::InterceptCallback>::assemble_residual
+                       <akantu_solver::callback::Intercept as akantu_solver::callback::SolverCallback>::assemble_residual
+                       <akantu_solver::non_linear_newton_raphson::NonLinearSolverNewtonRaphson>::assemble_residual::{closure#2} (inlined)
+                       <akantu_solver::dof_manager::DofManager>::step::<(), <akantu_solver::non_linear_newton_raphson::NonLinearSolverNewtonRaphson>::assemble_residual::{closure#2}>
+                       akantu_solver::time_step::model_step::<(), <akantu_solver::time_step::Adapter as akantu_solver::callback::SolverCallback>::assemble_residual::{closure#0}> (inlined)
+                       <akantu_solver::time_step::Adapter as akantu_solver::callback::SolverCallback>::assemble_residual
+                       <akantu_solver::non_linear_lumped::NonLinearSolverLumped as akantu_solver::non_linear::NonLinearSolver>::solve::{closure#0}::{closure#2} (inlined)
+                       <akantu_solver::dof_manager::DofManager>::step::<(), <akantu_solver::non_linear_lumped::NonLinearSolverLumped as akantu_solver::non_linear::NonLinearSolver>::solve::{closure#0}::{closure#2}> (inlined)
+                       <akantu_solver::non_linear_lumped::NonLinearSolverLumped as akantu_solver::non_linear::NonLinearSolver>::solve::{closure#0} (inlined)
+                       <akantu_solver::dof_manager::DofManager>::collective::<(), <akantu_solver::non_linear_lumped::NonLinearSolverLumped as akantu_solver::non_linear::NonLinearSolver>::solve::{closure#0}>
+                       <akantu_solver::non_linear_lumped::NonLinearSolverLumped as akantu_solver::non_linear::NonLinearSolver>::solve
+                       <akantu_solver::time_step::TimeStepSolver>::solve_step (inlined)
+                       <akantu_solver::model_solver::ModelSolver>::solve_step
+                       <akantu_solver::model_solver::ModelSolver>::solve_step_intercepted
+                       <akantu_solid::model::SolidMechanicsModel>::solve_step_intercepted
+                       suite_models::suite_models::ntn::friction_quad4::{closure#2} (inlined)
+                       <suite_models::suite_models::harness::Run>::looped::<suite_models::suite_models::ntn::friction_quad4::{closure#2}>
+                       suite_models::suite_models::ntn::friction_quad4
+                       0xffffffffffffffff
+     3.74%  [.] <akantu_solver::dof_manager::DofManager>::assemble_elemental_array_local_view                                                                                                                                                   

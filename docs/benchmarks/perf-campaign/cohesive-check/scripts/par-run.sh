@@ -1,6 +1,6 @@
 #!/bin/bash
 # SPDX-License-Identifier: LGPL-3.0-or-later
-# akantu-rs measurement script of the performance campaign (WP-COHCHECK); not ported from Akantu.
+# akantu-rs measurement script of the performance campaign (the cohesive insertion check); not ported from Akantu.
 # par-run.sh <tree> <np> <input.dat> <outdir>: one MPI run of the driver in the MUMPS image,
 # ranks bound to cores 0..np-1 (Scotch partition, MUMPS static solve).
 set -u

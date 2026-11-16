@@ -18,7 +18,7 @@ exclude = ["scripts/"]
 
 [features]
 # Real MPI (rsmpi; Docker image docker/mpi): `mpirun -np N cohesive_extrinsic`.
-mpi = ["akantu-comm/mpi", "akantu-mesh/mpi"]
+mpi = ["akantu-comm/mpi", "akantu-mesh/mpi", "akantu-diffusion/mpi", "akantu-couplers/mpi"]
 # Scotch partitioner (Docker image docker/scotch): upstream `mesh.distribute()`.
 scotch = ["akantu-mesh/scotch"]
 # The parallel MUMPS static solve (Docker image docker/mumps,
@@ -41,6 +41,19 @@ akantu-cohesive.workspace = true
 # the static solve's resolved sparse solver and its statistics (DOF manager
 # backend); also the `mumps` feature switch
 akantu-solver.workspace = true
+# the benchmark suite (`suite_solid`): FE engines and the sparse direct
+# solvers driven directly, the extra laws
+akantu-fe.workspace = true
+akantu-linalg.workspace = true
+# the model suite (src/suite_models/, binary suite_models)
+akantu-geometry.workspace = true
+akantu-diffusion.workspace = true
+akantu-phase-field.workspace = true
+akantu-couplers.workspace = true
+akantu-contact.workspace = true
+akantu-structural.workspace = true
+akantu-embedded.workspace = true
+akantu-ntn-contact.workspace = true
 
 [dev-dependencies]
 # the differential test reads the oracle's JSON summaries (correctly rounded
@@ -50,6 +63,17 @@ serde_json.workspace = true
 [[bin]]
 name = "cohesive_extrinsic"
 path = "src/bin/cohesive_extrinsic.rs"
+
+# The whole-library benchmark suite, solid mechanics and cohesive elements
+# (README "Benchmark suite"; scripts/perf/suite/).
+[[bin]]
+name = "suite_solid"
+path = "src/bin/suite_solid.rs"
+
+# The model suite of the performance campaign (README, "Benchmark suite", "Models").
+[[bin]]
+name = "suite_models"
+path = "src/bin/suite_models.rs"
 
 # The MUMPS static solve against the strict oracle (MPI binary,
 # harness = false; scripts/mumps/run-mumps-tier.sh runs it under mpirun 1/2).

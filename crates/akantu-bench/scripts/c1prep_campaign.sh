@@ -47,7 +47,9 @@
 #      (~/c1prep-results), PERF_VOLUME / ORACLE_VOLUME (the harness's volumes,
 #      benchmarks/cohesive-perf/scripts/common.sh), C1_CONTAINER_PREFIX
 #      (c1prep: container names <prefix>-<case>-np<N>-<pid>, so that a session
-#      can stop them), C1PREP_LOCK (/tmp/c1prep-campaign.lock).
+#      can stop them), C1PREP_LOCK (/tmp/c1prep-campaign.lock), PIN_CPUS_FROM
+#      (optional core number K: a run on N ranks gets the cores K..K+N-1 of
+#      the host, docker --cpuset-cpus, both codes; recorded in provenance.txt).
 #      The former environment variables MEMORY, CPUS, RUST_IMAGE, RUST_BIN are
 #      still read as defaults of the options.
 #
@@ -185,6 +187,10 @@ perf_check_config "${cfg}" || exit 2
 export AKANTU_RS_FILL_NODES_TO_ELEMENTS="${FNTE:-joss}"
 perf_check_fnte "${AKANTU_RS_FILL_NODES_TO_ELEMENTS}" || exit 2
 prefix="${C1_CONTAINER_PREFIX:-c1prep}"
+cpuset_for() { # np -> docker arguments pinning the run to PIN_CPUS_FROM.. (none without it)
+  [ -n "${PIN_CPUS_FROM:-}" ] || return 0
+  echo "--cpuset-cpus ${PIN_CPUS_FROM}-$((PIN_CPUS_FROM + $1 - 1))"
+}
 out="${OUT:-${HOME}/c1prep-results}/${campaign}"
 mkdir -p "${out}"
 log() { echo "$(date -u +%FT%TZ) $*" | tee -a "${out}/schedule.log"; }
@@ -240,6 +246,7 @@ if [ "${mode}" = campaign ]; then
     echo "mesh=${cpp_mesh} sha256=${mesh_sha} elements=${n_elements}"
     echo "cpp_image=${PERF_IMAGE} $(perf_image_digest) config=${cfg} fnte=${AKANTU_RS_FILL_NODES_TO_ELEMENTS} memory=${memory} cpus=unlimited"
     echo "rust_image=${rust_image} $(docker image inspect --format '{{.Id}}' "${rust_image}") rust_bin=${rust_bin} sha256=${rust_sha} volume=${tvol} memory=${memory} cpus=${cpus} rust_extra=${rust_extra[*]:-}"
+    echo "pin_cpus_from=${PIN_CPUS_FROM:-none}"
     echo "threads: OMP_NUM_THREADS=1 OPENBLAS_NUM_THREADS=1 SCOTCH_PTHREAD_NUMBER=1 OPENBLAS_CORETYPE=Haswell (image ENV) AKA_SEED=1"
   } | tee -a "${out}/provenance.txt"
 fi
@@ -381,6 +388,8 @@ run_case() { # case np rep
       [ "${np}" -gt 1 ] && part=(export_partition=true)
       (
         PERF_RUN_OPTS+=(--name "${prefix}-${c}-np${np}-$$")
+        # shellcheck disable=SC2207 # plain tokens without spaces
+        PERF_RUN_OPTS+=($(cpuset_for "${np}"))
         PERF_STATIC_SPARSE_SOLVER="${solver}" perf_docker bash /harness/scripts/in-container/run-one.sh \
           "/perf/runs/${campaign}/${c}/np${np}/rep${rep}" "${cfg}" "${np}" cohesive "${cpp_mesh}" "${steps}" \
           blocked_node=global energy_precision=17 output_energy=true "${part[@]}" "${extra[@]}"
@@ -396,7 +405,8 @@ run_case() { # case np rep
       # plain docker run (the repository subset has no scripts/mpi): the same
       # limits as the C++ container (--memory without swap, --shm-size 4g,
       # --init) plus the CPU quota
-      docker run --rm --init --name "${prefix}-${c}-np${np}-$$" \
+      # shellcheck disable=SC2046 # plain tokens without spaces
+      docker run --rm --init --name "${prefix}-${c}-np${np}-$$" $(cpuset_for "${np}") \
         --memory "${memory}" --memory-swap "${memory}" --cpus "${cpus}" --shm-size 4g \
         -v "${tvol}:/target" -v "${repo}:/src:ro" -w /src "${rust_image}" \
         bash /src/crates/akantu-bench/scripts/c1prep_campaign.sh --rust-run \

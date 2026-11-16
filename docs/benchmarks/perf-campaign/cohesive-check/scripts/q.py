@@ -1,6 +1,6 @@
 #!/usr/bin/env python3
 # SPDX-License-Identifier: LGPL-3.0-or-later
-# akantu-rs measurement script of the performance campaign (WP-COHCHECK); not ported from Akantu.
+# akantu-rs measurement script of the performance campaign (the cohesive insertion check); not ported from Akantu.
 # q.py folded pattern [depth] [mode]: among stacks containing pattern, aggregate
 # by the frame `depth` levels below the last frame matching pattern (depth 0 =
 # that frame), or by leaf (mode=leaf). Prints counts and shares.

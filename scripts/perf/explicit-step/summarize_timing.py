@@ -6,6 +6,10 @@
 # [min, max] of the per-round paired ratios (same round, adjacent runs:
 # drift-robust).
 #   summarize_timing.py TIMING.jsonl [PHASE...]
+# The programs and paired ratios default to the labels of the 2026-11-12
+# series; SUMMARY_LABELS="cpp-strict port ..." and SUMMARY_PAIRS="port/cpp-strict
+# after/before ..." (A/B = A over B) select others.
+import os
 import json
 import statistics as st
 import sys
@@ -27,8 +31,10 @@ for line in open(sys.argv[1]):
     elif o["kind"] == "time":
         rows[(mesh, mode, o["phase"])][(label, r)] = o["ns_el_step"]
 phases = sys.argv[2:] or ["step", "fint", "stress"]
-labels = ["cpp-strict", "cpp-default", "main", "v98head", "head"]
-pairs = [("head", "cpp-strict"), ("head", "cpp-default"), ("main", "cpp-strict"), ("head", "main"), ("head", "v98head")]
+labels = os.environ.get("SUMMARY_LABELS", "cpp-strict cpp-default main v98head head").split()
+pairs = [tuple(p.split("/", 1)) for p in os.environ.get(
+    "SUMMARY_PAIRS", "head/cpp-strict head/cpp-default main/cpp-strict head/main head/v98head").split()]
+names = {"cpp-strict": "C++ strict", "cpp-default": "C++ default", "main": "main", "v98head": "V98 head", "head": "head"}
 
 
 def med(v):
@@ -39,7 +45,7 @@ print(f"rounds: {len(rounds)}; orders: " + "; ".join(r["order"] for r in rounds)
 print(f"cpu: {rounds[0]['cpu'] if rounds else '?'}; load at round start: " + ", ".join(r["load"].split()[0] for r in rounds))
 print(f"first round {rounds[0]['utc'] if rounds else '?'}, last round {rounds[-1]['utc'] if rounds else '?'}")
 print()
-hdr = " | ".join(["C++ strict", "C++ default", "main", "V98 head", "head"])
+hdr = " | ".join(names.get(lab, lab) for lab in labels)
 phdr = " | ".join(f"{a} / {b} (paired)" for a, b in pairs)
 print(f"| mesh | type | elements | mode | phase | {hdr} | {phdr} |")
 print("|---|---|---|---|---|" + "---|" * (len(labels) + len(pairs)))

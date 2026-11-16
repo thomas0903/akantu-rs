@@ -47,6 +47,11 @@ ORACLE_MOUNTS=(
 
 # Resource settings for containers: large /dev/shm for OpenMPI shared memory.
 ORACLE_RUN_OPTS=(--shm-size=4g --init ${ORACLE_ENV_ARGS[@]+"${ORACLE_ENV_ARGS[@]}"})
+# DOCKER_CPUSET (default: AKANTU_JOB_CPUS, set only by the job wrappers of a
+# shared measurement host): restrict every oracle container to these cores
+# (docker --cpuset-cpus). Unset: no restriction.
+_oracle_cpuset="${DOCKER_CPUSET:-${AKANTU_JOB_CPUS:-}}"
+[ -z "${_oracle_cpuset}" ] || ORACLE_RUN_OPTS+=(--cpuset-cpus "${_oracle_cpuset}")
 
 check_reference_sha() {
   local sha

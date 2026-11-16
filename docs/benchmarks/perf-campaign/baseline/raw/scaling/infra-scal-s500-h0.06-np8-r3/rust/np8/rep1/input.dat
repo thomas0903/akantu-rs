@@ -1,0 +1,42 @@
+user section [
+  blocked_node = global
+  energy_precision = 17
+  rust_partitioner = file:/target/c1prep/infra-scal-s500-h0.06-np8-r3/partition-np8.csv
+  compression = -1e5
+  shear = -6e7
+  inc_shear = -1e6
+  max_steps = 500
+  output_energy = true
+  output_paraview = false
+  cohesive_insertion = true
+  mesh = /target/c1prep/meshes/cube-h0.06.msh
+]
+
+model solid_mechanics_model_cohesive [
+  material elastic [
+    name = body
+    rho = 2500   # density
+    E   = 70e9   # young's modulus
+    nu  = 0.22   # poisson's ratio
+    finite_deformation = true
+  ]
+
+  material cohesive_linear [
+    name = insertion
+    beta = 3
+    G_c = 7.6
+    sigma_c = 70e6
+    delta_c = 0.217e-6
+  ]
+
+  cohesive_inserter [
+    bounding_box = [[-1., 1.], [-1., 1.], [-1., 1.]]
+  ]
+
+  time_step_solver static [
+    name = static
+    non_linear_solver linear [
+      type = linear
+    ]
+  ]
+]
