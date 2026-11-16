@@ -9,7 +9,7 @@
 //! ```text
 //! suite_<area> --list
 //! suite_<area> --case <name>[,<name>...]|all --size s|m|l [--reps N] [--out FILE]
-//!              [--loop-seconds S] [--threads N]
+//!              [--loop-seconds S] [--threads N] [--grain finest|auto]
 //! ```
 //!
 //! and writes one JSON object per line and per (case, repetition, phase):
@@ -17,7 +17,7 @@
 //! ```text
 //! {"suite":"solid","case":"explicit_tet4_ss","size":"m","rep":0,"phase":"solve_step",
 //!  "calls":200,"seconds":1.2345,"n_elements":162000,"n_nodes":29791,"n_dofs":89373,
-//!  "ranks":1,"threads":1,"digest":"9f3c...","commit":"59dd2229c","features":"",
+//!  "ranks":1,"threads":1,"grain":"auto","digest":"9f3c...","commit":"59dd2229c","features":"",
 //!  "profile":"release"}
 //! ```
 //!
@@ -40,6 +40,7 @@ use std::path::PathBuf;
 use std::time::Instant;
 
 use akantu_comm::{Communicator, ReduceOp};
+use akantu_core::exec::Grain;
 use akantu_core::{Error, Result};
 
 /// Warm-up calls before a loop phase is timed (suite contract).
@@ -93,8 +94,62 @@ pub struct Options {
     pub out: Option<PathBuf>,
     /// Extend the primary loop phases to this many seconds (profiling).
     pub loop_seconds: Option<f64>,
-    /// Thread count (recorded; the library has no threads yet).
-    pub threads: usize,
+    /// `--threads N`: the thread count of the process default execution
+    /// policy ([`apply_exec_options`]); `None` keeps the environment's.
+    pub threads: Option<usize>,
+    /// `--grain finest|auto`: the split grain of that policy; `None` keeps
+    /// the environment's.
+    pub grain: Option<Grain>,
+}
+
+/// Name of a split grain in the command line and the JSON lines.
+#[must_use]
+pub const fn grain_name(g: Grain) -> &'static str {
+    match g {
+        Grain::Auto => "auto",
+        Grain::Finest => "finest",
+    }
+}
+
+/// Apply `--threads` / `--grain` to the process default execution policy
+/// (call it before any model is created) and return the thread count and
+/// grain models created afterwards use: the given values, else those of the
+/// environment (`AKANTU_NUM_THREADS`, `AKANTU_EXEC_GRAIN`, default 1 and
+/// `auto`).
+///
+/// # Errors
+/// An explicit value that differs from the environment variable of the
+/// same setting (the message names both), an invalid environment, or
+/// threads the system refuses.
+pub fn apply_exec_options(threads: Option<usize>, grain: Option<Grain>) -> Result<(usize, Grain)> {
+    use akantu_core::exec::{ENV_GRAIN, ENV_THREADS, ExecPolicy};
+    let env = |k: &str| std::env::var(k).ok().filter(|v| !v.trim().is_empty());
+    if let (Some(n), Some(v)) = (threads, env(ENV_THREADS))
+        && v.trim().parse::<usize>().ok() != Some(n)
+    {
+        return Err(Error::invalid(format!(
+            "--threads {n} conflicts with {ENV_THREADS}={v}"
+        )));
+    }
+    if let (Some(g), Some(v)) = (grain, env(ENV_GRAIN))
+        && v.parse::<Grain>().ok() != Some(g)
+    {
+        return Err(Error::invalid(format!(
+            "--grain {} conflicts with {ENV_GRAIN}={v}",
+            grain_name(g)
+        )));
+    }
+    let mut p = ExecPolicy::process_default()?;
+    if let Some(n) = threads {
+        p = p.with_threads(n)?;
+    }
+    if let Some(g) = grain {
+        p = p.with_grain(g);
+    }
+    if threads.is_some() || grain.is_some() {
+        ExecPolicy::set_process_default(p);
+    }
+    Ok((p.threads(), p.grain()))
 }
 
 /// A parsed command line.
@@ -109,7 +164,7 @@ pub enum Command {
 fn usage(bin: &str) -> String {
     format!(
         "usage: {bin} --list\n       {bin} --case <name>[,<name>...]|all --size s|m|l [--reps N] \
-         [--out FILE] [--loop-seconds S] [--threads N]"
+         [--out FILE] [--loop-seconds S] [--threads N] [--grain finest|auto]"
     )
 }
 
@@ -125,7 +180,8 @@ pub fn parse_args(bin: &str, args: impl IntoIterator<Item = String>) -> Result<C
     let mut reps = 1usize;
     let mut out = None;
     let mut loop_seconds = None;
-    let mut threads = 1usize;
+    let mut threads = None;
+    let mut grain = None;
     let bad = |what: &str| Error::invalid(format!("{what}\n{}", usage(bin)));
     while let Some(k) = it.next() {
         let mut value = || it.next().ok_or_else(|| bad(&format!("{k}: missing value")));
@@ -155,9 +211,20 @@ pub fn parse_args(bin: &str, args: impl IntoIterator<Item = String>) -> Result<C
                 loop_seconds = Some(s);
             }
             "--threads" => {
-                threads = value()?
+                let n: usize = value()?
                     .parse()
                     .map_err(|_| bad("--threads: not a count"))?;
+                if n == 0 {
+                    return Err(bad("--threads must be at least 1"));
+                }
+                threads = Some(n);
+            }
+            "--grain" => {
+                grain = Some(
+                    value()?
+                        .parse::<Grain>()
+                        .map_err(|e| bad(&format!("--grain: {e}")))?,
+                );
             }
             "-h" | "--help" => return Err(bad("")),
             _ => return Err(bad(&format!("unknown argument `{k}`"))),
@@ -168,8 +235,8 @@ pub fn parse_args(bin: &str, args: impl IntoIterator<Item = String>) -> Result<C
     }
     let cases = cases.ok_or_else(|| bad("--case is required"))?;
     let size = size.ok_or_else(|| bad("--size is required"))?;
-    if reps == 0 || threads == 0 {
-        return Err(bad("--reps and --threads must be at least 1"));
+    if reps == 0 {
+        return Err(bad("--reps must be at least 1"));
     }
     Ok(Command::Run(Options {
         cases,
@@ -178,6 +245,7 @@ pub fn parse_args(bin: &str, args: impl IntoIterator<Item = String>) -> Result<C
         out,
         loop_seconds,
         threads,
+        grain,
     }))
 }
 
@@ -572,7 +640,7 @@ pub fn json_line(
     rec: &PhaseRecord,
     counts: [u64; 3],
     ranks: usize,
-    threads: usize,
+    (threads, grain): (usize, Grain),
     digest: Option<u64>,
     extras: &[(String, Extra)],
 ) -> String {
@@ -592,8 +660,11 @@ pub fn json_line(
     let _ = write!(
         s,
         ",\"n_elements\":{},\"n_nodes\":{},\"n_dofs\":{},\"ranks\":{ranks},\"threads\":{threads},\
-         \"digest\":",
-        counts[0], counts[1], counts[2]
+         \"grain\":\"{}\",\"digest\":",
+        counts[0],
+        counts[1],
+        counts[2],
+        grain_name(grain)
     );
     match digest {
         Some(d) => {
@@ -709,6 +780,14 @@ pub fn run_main(suite: &str, cases: &[Case], comm: &Communicator) -> std::proces
         }
         Command::Run(o) => o,
     };
+    // before any model is created: the policy of every model of the run
+    let exec = match apply_exec_options(opts.threads, opts.grain) {
+        Ok(x) => x,
+        Err(e) => {
+            eprintln!("{bin}: {e}");
+            return ExitCode::from(2);
+        }
+    };
     let selected: Vec<&Case> = if opts.cases.iter().any(|c| c == "all") {
         cases.iter().collect()
     } else {
@@ -766,7 +845,7 @@ pub fn run_main(suite: &str, cases: &[Case], comm: &Communicator) -> std::proces
                     p,
                     r.counts,
                     comm.size(),
-                    opts.threads,
+                    exec,
                     r.digest,
                     &r.extras,
                 );
@@ -815,7 +894,30 @@ mod tests {
         assert_eq!(o.size, Size::M);
         assert_eq!(o.reps, 5);
         assert_eq!(o.loop_seconds, Some(2.5));
-        assert_eq!(o.threads, 4);
+        assert_eq!(o.threads, Some(4));
+        assert_eq!(o.grain, None);
+        let Command::Run(o) = parse_args(
+            "suite_x",
+            args(&["--case", "a", "--size", "s", "--grain", "finest"]),
+        )
+        .unwrap() else {
+            panic!("not a run");
+        };
+        assert_eq!((o.threads, o.grain), (None, Some(Grain::Finest)));
+        assert!(
+            parse_args(
+                "suite_x",
+                args(&["--case", "a", "--size", "s", "--threads", "0"])
+            )
+            .is_err()
+        );
+        assert!(
+            parse_args(
+                "suite_x",
+                args(&["--case", "a", "--size", "s", "--grain", "x"])
+            )
+            .is_err()
+        );
         assert!(matches!(
             parse_args("suite_x", args(&["--list"])).unwrap(),
             Command::List
@@ -853,7 +955,7 @@ mod tests {
             &rec,
             [1, 2, 3],
             1,
-            1,
+            (3, Grain::Finest),
             Some(0xab),
             &[("iterations".into(), Extra::Int(4))],
         );
@@ -862,6 +964,7 @@ mod tests {
         );
         assert!(l.contains("\"phase\":\"solve_step\",\"calls\":3,\"seconds\":0.5,"));
         assert!(l.contains("\"digest\":\"00000000000000ab\""));
+        assert!(l.contains("\"threads\":3,\"grain\":\"finest\","));
         assert!(l.ends_with(",\"iterations\":4}"));
     }
 
@@ -873,7 +976,8 @@ mod tests {
             reps: 1,
             out: None,
             loop_seconds: None,
-            threads: 1,
+            threads: None,
+            grain: None,
         };
         let comm = Communicator::serial();
         let mut ctx = Ctx::new(&opts, &comm, 0);

@@ -617,3 +617,385 @@ fn csc_from_aij_matches_the_triplet_path() {
     let e = CscMatrix::from_aij(&m).unwrap_err().to_string();
     assert!(e.contains("coordinate 3 outside the matrix order 3"), "{e}");
 }
+
+/// Executors of 1, 2, 3, 4 and 8 threads with the finest split (every
+/// batch of more than one item is cut into the largest number of parts).
+fn execs() -> Vec<akantu_core::exec::Exec> {
+    use akantu_core::exec::{Exec, ExecPolicy, Grain};
+    [1, 2, 3, 4, 8]
+        .into_iter()
+        .map(|n| {
+            Exec::new(
+                ExecPolicy::serial()
+                    .with_threads(n)
+                    .unwrap()
+                    .with_grain(Grain::Finest),
+            )
+            .unwrap()
+        })
+        .collect()
+}
+
+/// `add_values_cached_batch` (or, when it declines, the serial loop the
+/// caller then runs) against `add_values` block by block over several
+/// assembly rounds at 1, 2, 3, 4 and 8 threads: values, errors, releases
+/// and the cache's resolve counter, for every (matrix type, block type,
+/// policy) combination, all slots or a subset (one material of several),
+/// a repeated slot, changed slot equations, appended entries, moved
+/// positions, missing entries and resizes between rounds.
+#[test]
+fn threaded_batch_assembly_is_add_values() {
+    let combos = [
+        (
+            MatrixType::Symmetric,
+            MatrixType::Symmetric,
+            SymmetryPolicy::PromoteOnUnsymmetric,
+        ),
+        (
+            MatrixType::Symmetric,
+            MatrixType::Unsymmetric,
+            SymmetryPolicy::UpstreamUpperSelection,
+        ),
+        (
+            MatrixType::Symmetric,
+            MatrixType::Unsymmetric,
+            SymmetryPolicy::PromoteOnUnsymmetric,
+        ),
+        (
+            MatrixType::Unsymmetric,
+            MatrixType::Symmetric,
+            SymmetryPolicy::PromoteOnUnsymmetric,
+        ),
+        (
+            MatrixType::Unsymmetric,
+            MatrixType::Unsymmetric,
+            SymmetryPolicy::PromoteOnUnsymmetric,
+        ),
+    ];
+    let execs = execs();
+    let mut batched = 0usize;
+    for (seed, &(mt, vt, policy)) in combos.iter().enumerate() {
+        for trial in 0..12u64 {
+            let special = if trial % 4 < 2 { 0 } else { 30 };
+            let mut rng = Rng(
+                (0x51ed_270b ^ ((seed as u64) << 32) ^ trial.wrapping_mul(104_729)) | 1,
+                special,
+            );
+            let n: GlobalIdx = 20 + GlobalIdx::try_from(rng.below(60)).unwrap();
+            let nb = 1 + (trial as usize / 2) % 5;
+            let nb_elem = 40 + rng.below(40);
+            let elems: Vec<Vec<GlobalIdx>> =
+                (0..nb_elem).map(|_| element_of(&mut rng, n, nb)).collect();
+            let profiled = if rng.below(4) == 0 {
+                nb_elem - 1
+            } else {
+                nb_elem
+            };
+            // the slots of the batch: all, every other one (a material),
+            // or with a repeated slot
+            let slots: Vec<usize> = match trial % 3 {
+                0 => (0..nb_elem).collect(),
+                1 => (0..nb_elem).filter(|s| s % 2 == 1).collect(),
+                _ => (0..nb_elem).chain([3]).collect(),
+            };
+            let mut base = SparseMatrixAij::new("K", n, mt);
+            base.set_symmetry_policy(policy);
+            for e in &elems[..profiled] {
+                base.add_block_to_profile(e, e).unwrap();
+            }
+            for exec in &execs {
+                let mut plain = base.clone();
+                plain.profile_release = base.profile_release;
+                let mut threaded = plain.clone();
+                threaded.profile_release = plain.profile_release;
+                let mut elems = elems.clone();
+                let mut cache = BlockPositionCache::new();
+                let mut rng = Rng(rng.0 ^ 0x1234_5678, special);
+                for round in 0..7 {
+                    match round {
+                        4 => {
+                            let k = rng.below(profiled);
+                            elems[k] = elems[(k + 1) % profiled].clone();
+                        }
+                        5 if trial % 2 == 0 => {
+                            let (i, j) = (rng.below(3) as GlobalIdx, rng.below(3) as GlobalIdx);
+                            plain.add(i, j, 0.25).unwrap();
+                            threaded.add(i, j, 0.25).unwrap();
+                        }
+                        5 => {
+                            for m in [&mut plain, &mut threaded] {
+                                m.clear_profile();
+                                for e in elems[..profiled].iter().rev() {
+                                    m.add_block_to_profile(e, e).unwrap();
+                                }
+                            }
+                        }
+                        6 if trial % 4 == 1 => {
+                            plain.set_size(n - 1);
+                            threaded.set_size(n - 1);
+                        }
+                        _ => {}
+                    }
+                    let values: Vec<Real> =
+                        (0..slots.len() * nb * nb).map(|_| rng.value()).collect();
+                    let what = format!(
+                        "{mt:?}/{vt:?}/{policy:?} trial {trial} round {round} threads {}",
+                        exec.threads()
+                    );
+                    let mut r1 = Ok(());
+                    for (k, &s) in slots.iter().enumerate() {
+                        r1 = plain.add_values(
+                            &elems[s],
+                            &elems[s],
+                            &values[k * nb * nb..(k + 1) * nb * nb],
+                            vt,
+                        );
+                        if r1.is_err() {
+                            break;
+                        }
+                    }
+                    cache.begin(&threaded);
+                    let resolves = cache.resolves();
+                    let eqs = |k: usize, out: &mut Vec<GlobalIdx>| -> Result<()> {
+                        out.clear();
+                        out.extend_from_slice(&elems[slots[k]]);
+                        Ok(())
+                    };
+                    let mut r2 = Ok(());
+                    if threaded
+                        .add_values_cached_batch(exec, &mut cache, &slots, nb, &eqs, &values, vt)
+                    {
+                        batched += 1;
+                        assert!(exec.is_parallel(), "{what}: batch on one thread");
+                    } else {
+                        // the caller's serial loop
+                        let mut serial_cache = cache.clone();
+                        assert_eq!(serial_cache.resolves(), resolves, "{what}");
+                        for (k, &s) in slots.iter().enumerate() {
+                            r2 = threaded.add_values_cached(
+                                &mut serial_cache,
+                                s,
+                                &elems[s],
+                                &elems[s],
+                                &values[k * nb * nb..(k + 1) * nb * nb],
+                                vt,
+                            );
+                            if r2.is_err() {
+                                break;
+                            }
+                        }
+                        cache = serial_cache;
+                    }
+                    same_result(&r1, &r2, &what);
+                    same_state(&plain, &threaded, &what);
+                }
+            }
+        }
+    }
+    assert!(batched > 100, "the threaded batch ran {batched} times");
+}
+
+/// The resolve counter and the stored slots after a threaded batch are
+/// those of the serial loop (the batch resolves what the loop resolves).
+#[test]
+fn threaded_batch_resolves_like_the_serial_loop() {
+    let mut rng = Rng(7, 0);
+    let n = 50;
+    let elems: Vec<Vec<GlobalIdx>> = (0..64).map(|_| element_of(&mut rng, n - 3, 4)).collect();
+    let mut m = SparseMatrixAij::new("K", n, MatrixType::Symmetric);
+    for e in &elems {
+        m.add_block_to_profile(e, e).unwrap();
+    }
+    let slots: Vec<usize> = (0..elems.len()).collect();
+    let values: Vec<Real> = (0..elems.len() * 16).map(|_| rng.value()).collect();
+    let eqs = |k: usize, out: &mut Vec<GlobalIdx>| -> Result<()> {
+        out.clear();
+        out.extend_from_slice(&elems[k]);
+        Ok(())
+    };
+    let exec = &execs()[3];
+    let mut serial = m.clone();
+    let mut threaded = m.clone();
+    let (mut cs, mut ct) = (BlockPositionCache::new(), BlockPositionCache::new());
+    for round in 0..3 {
+        cs.begin(&serial);
+        for (k, e) in elems.iter().enumerate() {
+            serial
+                .add_values_cached(
+                    &mut cs,
+                    k,
+                    e,
+                    e,
+                    &values[k * 16..(k + 1) * 16],
+                    MatrixType::Symmetric,
+                )
+                .unwrap();
+        }
+        ct.begin(&threaded);
+        let done = threaded.add_values_cached_batch(
+            exec,
+            &mut ct,
+            &slots,
+            4,
+            &eqs,
+            &values,
+            MatrixType::Symmetric,
+        );
+        if !done {
+            for (k, e) in elems.iter().enumerate() {
+                threaded
+                    .add_values_cached(
+                        &mut ct,
+                        k,
+                        e,
+                        e,
+                        &values[k * 16..(k + 1) * 16],
+                        MatrixType::Symmetric,
+                    )
+                    .unwrap();
+            }
+        }
+        assert_eq!(done, round > 0, "round {round}");
+        assert_eq!(cs.resolves(), ct.resolves(), "round {round}");
+        assert_eq!(cs.positions, ct.positions, "round {round}");
+        assert_eq!(cs.equations, ct.equations, "round {round}");
+        assert_eq!(bits(&serial.a), bits(&threaded.a), "round {round}");
+        assert_eq!(
+            serial.value_release, threaded.value_release,
+            "round {round}"
+        );
+    }
+}
+
+/// A reduction that reports a distributed vector and changes nothing (the
+/// distributed branch of the product on one process).
+struct DistributedNoop;
+
+impl PartialSumReduction for DistributedNoop {
+    fn is_distributed(&self) -> bool {
+        true
+    }
+    fn reduce_and_synchronize(&self, local: &mut [f64]) -> Result<()> {
+        for v in local.iter_mut() {
+            *v *= 1.0;
+        }
+        Ok(())
+    }
+}
+
+/// The whole-matrix operations on threads (`*_with`, `*_on`) give the bits
+/// and releases of their serial forms at 1, 2, 3, 4 and 8 threads:
+/// products (symmetric and unsymmetric storage, both reductions, with an
+/// appended entry after a first product), Dirichlet rows, matrix sums,
+/// profile copies, scaling and zeroing.
+#[test]
+fn threaded_matrix_operations_match_the_serial_ones() {
+    let execs = execs();
+    for (seed, ty) in [MatrixType::Symmetric, MatrixType::Unsymmetric]
+        .into_iter()
+        .enumerate()
+    {
+        for trial in 0..6u64 {
+            let special = if trial % 2 == 0 { 0 } else { 20 };
+            let mut rng = Rng(
+                (0xabcd_ef01 ^ (seed as u64) << 40 ^ trial << 8) | 1,
+                special,
+            );
+            let n: GlobalIdx = 30 + GlobalIdx::try_from(rng.below(40)).unwrap();
+            let nu = usize::try_from(n).unwrap();
+            let layout = EquationLayout::serial(nu).unwrap();
+            let nnz = 3 * nu + rng.below(4 * nu);
+            let base = random_matrix(&mut rng, n, ty, nnz);
+            let mut other = SparseMatrixAij::new("B", n, ty);
+            other.copy_profile(&base);
+            for v in other.a.iter_mut() {
+                *v = rng.value();
+            }
+            let x: Vec<Real> = (0..nu).map(|_| rng.value()).collect();
+            let y0: Vec<Real> = (0..nu).map(|_| rng.value()).collect();
+            let blocked: Vec<bool> = (0..nu).map(|_| rng.below(5) == 0).collect();
+            let (alpha, beta) = (rng.value(), rng.value());
+            for exec in &execs {
+                let what = format!("{ty:?} trial {trial} threads {}", exec.threads());
+                for red in [&NoReduction as &dyn PartialSumReduction, &DistributedNoop] {
+                    let mut m = base.clone();
+                    for round in 0..2 {
+                        if round == 1 {
+                            // an appended entry: the gathered rows are rebuilt
+                            let (i, j) = (rng.below(nu) as GlobalIdx, rng.below(nu) as GlobalIdx);
+                            m.add(i, j, 0.75).unwrap();
+                        }
+                        let (mut y1, mut y2) = (y0.clone(), y0.clone());
+                        let r1 = m.mat_vec_mul(&layout, red, &x, &mut y1, alpha, beta);
+                        let r2 = m.mat_vec_mul_with(exec, &layout, red, &x, &mut y2, alpha, beta);
+                        same_result(&r1, &r2, &what);
+                        assert_eq!(bits(&y1), bits(&y2), "{what}: product round {round}");
+                    }
+                }
+                let (mut a, mut b) = (base.clone(), base.clone());
+                let r1 = a.apply_boundary(&layout, &blocked, 1.0);
+                let r2 = b.apply_boundary_on(exec, &layout, &blocked, 1.0);
+                same_result(&r1, &r2, &what);
+                same_state(&a, &b, &format!("{what}: boundary"));
+                let (mut a, mut b) = (other.clone(), other.clone());
+                a.add_matrix(&base, alpha).unwrap();
+                b.add_matrix_with(exec, &base, alpha).unwrap();
+                same_state(&a, &b, &format!("{what}: add_matrix"));
+                let (mut a, mut b) = (other.clone(), other.clone());
+                a.add_matrix_upstream(&base, alpha).unwrap();
+                b.add_matrix_upstream_with(exec, &base, alpha).unwrap();
+                same_state(&a, &b, &format!("{what}: add_matrix_upstream"));
+                let (mut a, mut b) = (other.clone(), other.clone());
+                a.copy_profile(&base);
+                b.copy_profile_with(exec, &base);
+                same_state(&a, &b, &format!("{what}: copy_profile"));
+                let (mut a, mut b) = (other.clone(), other.clone());
+                a.mul(beta);
+                b.mul_with(exec, beta);
+                same_state(&a, &b, &format!("{what}: mul"));
+                a.zero();
+                b.zero_with(exec);
+                same_state(&a, &b, &format!("{what}: zero"));
+            }
+        }
+    }
+}
+
+/// A profile rebuilt with the same number of entries in another order
+/// between two threaded products: the row index of the first profile must
+/// not be reused (its key holds the entry positions' identity), so the
+/// second product equals the serial one bit for bit.
+#[test]
+fn threaded_product_after_a_reordered_profile_of_equal_size() {
+    let execs = execs();
+    for ty in [MatrixType::Symmetric, MatrixType::Unsymmetric] {
+        let mut rng = Rng(0x0dd_ba11 | 1, 0);
+        let n: GlobalIdx = 40;
+        let nu = usize::try_from(n).unwrap();
+        let layout = EquationLayout::serial(nu).unwrap();
+        let base = random_matrix(&mut rng, n, ty, 6 * nu);
+        let x: Vec<Real> = (0..nu).map(|_| rng.value()).collect();
+        let y0: Vec<Real> = (0..nu).map(|_| rng.value()).collect();
+        for exec in &execs {
+            let mut m = base.clone();
+            let mut y = y0.clone();
+            m.mat_vec_mul_with(exec, &layout, &NoReduction, &x, &mut y, 1.25, 0.5)
+                .unwrap();
+            // the same entries in reverse order, new values
+            let (irn, jcn) = (m.irn.clone(), m.jcn.clone());
+            let nnz = irn.len();
+            m.clear_profile();
+            for (&i, &j) in irn.iter().zip(&jcn).rev() {
+                let v = rng.value();
+                m.add(i, j, v).unwrap();
+            }
+            assert_eq!(m.a.len(), nnz, "same number of entries");
+            let (mut y1, mut y2) = (y0.clone(), y0.clone());
+            m.mat_vec_mul(&layout, &NoReduction, &x, &mut y1, 1.25, 0.5)
+                .unwrap();
+            m.mat_vec_mul_with(exec, &layout, &NoReduction, &x, &mut y2, 1.25, 0.5)
+                .unwrap();
+            assert_eq!(bits(&y1), bits(&y2), "{ty:?} threads {}", exec.threads());
+        }
+    }
+}

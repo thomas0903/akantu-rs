@@ -278,6 +278,66 @@ pub struct DofData {
     pub periodic_slave: Vec<bool>,
 }
 
+/// What [`DofManager::element_equations`] reads, shareable between threads
+/// (the family's equation numbers and node map, the equation layout).
+struct ElementEquations<'a> {
+    node_to_tuple: Option<&'a HashMap<Idx, usize>>,
+    nb_tuples: usize,
+    nbc: usize,
+    local_equation_numbers: &'a [Idx],
+    layout: &'a EquationLayout,
+}
+
+impl<'a> ElementEquations<'a> {
+    fn new(f: &'a DofData, layout: &'a EquationLayout) -> Self {
+        Self {
+            node_to_tuple: f.node_to_tuple.as_ref(),
+            nb_tuples: f.dofs.len(),
+            nbc: f.dofs.nb_component(),
+            local_equation_numbers: &f.local_equation_numbers,
+            layout,
+        }
+    }
+
+    /// Global equations of the element of nodes `conn` (the checks and
+    /// errors of `DofData::eq` and of the node map).
+    fn of(&self, conn: &[Idx], out: &mut Vec<GlobalIdx>) -> Result<()> {
+        out.clear();
+        for &n in conn {
+            let t = match self.node_to_tuple {
+                None => akantu_core::try_to_usize(n)?,
+                Some(m) => *m
+                    .get(&n)
+                    .ok_or_else(|| Error::Mesh(format!("node {n} does not support this family")))?,
+            };
+            if t >= self.nb_tuples {
+                return Err(Error::OutOfRange {
+                    what: "dof node",
+                    index: t,
+                    len: self.nb_tuples,
+                });
+            }
+            for c in 0..self.nbc {
+                let k = t * self.nbc + c;
+                // lazy: an eager `Error` is built and dropped (a call of its
+                // drop glue) for every DOF of every element
+                #[allow(clippy::unnecessary_lazy_evaluations)]
+                let e = *self
+                    .local_equation_numbers
+                    .get(k)
+                    .ok_or_else(|| Error::OutOfRange {
+                        what: "dof",
+                        index: k,
+                        len: self.local_equation_numbers.len(),
+                    })?;
+                let l = akantu_core::try_to_usize(e)?;
+                out.push(self.layout.global(l).unwrap_or(GlobalIdx::MAX));
+            }
+        }
+        Ok(())
+    }
+}
+
 impl DofData {
     fn eq(&self, k: usize) -> Result<usize> {
         let e = *self
@@ -329,6 +389,8 @@ pub struct DofManager {
     assembly_caches: BTreeMap<(Id, Id, ElementType, GhostType), BlockPositionCache>,
     /// Whether `assembly_caches` is used ([`DofManager::set_assembly_cache`]).
     assembly_cache_enabled: bool,
+    /// Element assemblies done by the threaded batch (diagnostic).
+    threaded_assemblies: u64,
     /// Declared type of every matrix.
     declared: BTreeMap<Id, MatrixType>,
     /// `source → derived` matrices (promotion propagation).
@@ -750,6 +812,7 @@ impl DofManager {
             profiled: BTreeSet::new(),
             assembly_caches: BTreeMap::new(),
             assembly_cache_enabled: true,
+            threaded_assemblies: 0,
             declared: BTreeMap::new(),
             derived: BTreeMap::new(),
             node_sync: None,
@@ -783,6 +846,7 @@ impl DofManager {
     /// D-123); every result is the same for every thread count in
     /// [`akantu_core::exec::Precision::Bitwise`].
     pub fn set_exec(&mut self, exec: akantu_core::exec::Exec) {
+        self.backend.set_exec(&exec);
         self.exec = exec;
     }
 
@@ -1780,6 +1844,15 @@ impl DofManager {
             .sum()
     }
 
+    /// Number of element assemblies (calls of
+    /// [`DofManager::assemble_elemental_matrices_to_matrix`]) whose blocks
+    /// were added on threads by entry ranges (diagnostic; the results are
+    /// those of the serial loop).
+    #[must_use]
+    pub fn threaded_assemblies(&self) -> u64 {
+        self.threaded_assemblies
+    }
+
     /// Bytes held by the assembly position caches.
     #[must_use]
     pub fn assembly_cache_bytes(&self) -> usize {
@@ -1846,37 +1919,10 @@ impl DofManager {
         Ok(self.lumped.entry(matrix_id.into()).or_insert(v))
     }
 
-    /// Tuple of node `n` in family `f` (checked).
-    fn tuple_of(f: &DofData, n: Idx) -> Result<usize> {
-        let t = match &f.node_to_tuple {
-            None => akantu_core::try_to_usize(n)?,
-            Some(m) => *m
-                .get(&n)
-                .ok_or_else(|| Error::Mesh(format!("node {n} does not support this family")))?,
-        };
-        if t >= f.dofs.len() {
-            return Err(Error::OutOfRange {
-                what: "dof node",
-                index: t,
-                len: f.dofs.len(),
-            });
-        }
-        Ok(t)
-    }
-
     /// Global equations of one element (pure ghosts mapped past the matrix
     /// order so the `< size` rule skips them).
     fn element_equations(&self, f: &DofData, conn: &[Idx], out: &mut Vec<GlobalIdx>) -> Result<()> {
-        let nbc = f.dofs.nb_component();
-        out.clear();
-        for &n in conn {
-            let t = Self::tuple_of(f, n)?;
-            for c in 0..nbc {
-                let l = f.eq(t * nbc + c)?;
-                out.push(self.layout.global(l).unwrap_or(GlobalIdx::MAX));
-            }
-        }
-        Ok(())
+        ElementEquations::new(f, &self.layout).of(conn, out)
     }
 
     /// Element list of an assembly (filter, group or all), validated
@@ -1961,16 +2007,67 @@ impl DofManager {
                 got: elementary.len(),
             });
         }
+        let key = (matrix_id.to_owned(), dof_id.to_owned(), ty, ghost);
+        // Threads (D-123): a repeated assembly whose entry positions are
+        // cached adds the blocks by entry ranges
+        // (`SparseMatrixAij::add_values_cached_batch`: the same values in
+        // the same order into every entry). Taken only when the round
+        // continues a cache of the current entry positions, so that the
+        // round's `begin` is the one the serial loop below would make; when
+        // the batch declines (it changed nothing) the serial loop runs with
+        // that cache.
+        let mut begun = None;
+        if self.exec.is_parallel()
+            && self.assembly_cache_enabled
+            && elements.len() > 1
+            && self.profiled.contains(&key)
+            && let Some(cache) = self.assembly_caches.get(&key)
+            && self
+                .backend
+                .aij(matrix_id)
+                .is_ok_and(|m| cache.continues(m))
+        {
+            let mut cache = self.assembly_caches.remove(&key).unwrap_or_default();
+            self.backend.begin_cached_assembly(matrix_id, &mut cache);
+            let view = ElementEquations::new(f, &self.layout);
+            let elements = &elements;
+            let eqs_of = |k: usize, out: &mut Vec<GlobalIdx>| -> Result<()> {
+                let e = *elements
+                    .get(k)
+                    .ok_or_else(|| Error::invalid("element index"))?;
+                view.of(conn.tuple(e), out)
+            };
+            let done = self.backend.add_values_cached_batch(
+                matrix_id,
+                &self.exec,
+                &mut cache,
+                elements,
+                size_mat,
+                &eqs_of,
+                elementary.as_slice(),
+                elemental_matrix_type,
+            );
+            if done {
+                self.assembly_caches.insert(key, cache);
+                self.threaded_assemblies += 1;
+                return Ok(());
+            }
+            begun = Some(cache);
+        }
         // Validate every element's equations before touching the backend.
         let mut eqs = Vec::with_capacity(size_mat);
-        let key = (matrix_id.to_owned(), dof_id.to_owned(), ty, ghost);
         let profile_elems: Vec<usize> = if self.profiled.contains(&key) {
             Vec::new()
         } else {
             Self::element_list(mesh, f, None, ty, ghost, conn.len())?
         };
         for &e in elements.iter().chain(&profile_elems) {
-            self.element_equations(f, conn.tuple(e), &mut eqs)?;
+            if let Err(err) = self.element_equations(f, conn.tuple(e), &mut eqs) {
+                if let Some(cache) = begun {
+                    self.assembly_caches.insert(key, cache);
+                }
+                return Err(err);
+            }
         }
         // First assembly of every element of the connectivity/group in
         // order, without a promotion: profile and values element by
@@ -2015,12 +2112,18 @@ impl DofManager {
         // element's index in the connectivity, not its index in the filter:
         // several filters (materials) of one element type share the cache
         // of the key, each element keeps its own slot.
-        let mut cache = if self.assembly_cache_enabled {
-            self.assembly_caches.remove(&key).unwrap_or_default()
-        } else {
-            BlockPositionCache::default()
+        let mut cache = match begun {
+            Some(cache) => cache,
+            None => {
+                let mut cache = if self.assembly_cache_enabled {
+                    self.assembly_caches.remove(&key).unwrap_or_default()
+                } else {
+                    BlockPositionCache::default()
+                };
+                self.backend.begin_cached_assembly(matrix_id, &mut cache);
+                cache
+            }
         };
-        self.backend.begin_cached_assembly(matrix_id, &mut cache);
         let f = &self.families[dof_id];
         let mut result = Ok(());
         for (k, &e) in elements.iter().enumerate() {

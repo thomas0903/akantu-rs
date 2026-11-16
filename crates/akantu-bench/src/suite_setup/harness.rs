@@ -19,6 +19,7 @@ use std::io::Write as _;
 use std::time::Instant;
 
 use akantu_comm::{Communicator, ReduceOp};
+use akantu_core::exec::Grain;
 use akantu_core::{Error, Result};
 
 /// The FNV-1a 64-bit offset basis.
@@ -201,8 +202,10 @@ pub struct Ctx {
     pub comm: Communicator,
     /// Problem size.
     pub size: Size,
-    /// `--threads` (recorded only).
+    /// The thread count of the process default execution policy (recorded).
     pub threads: usize,
+    /// Its split grain (recorded).
+    pub grain: Grain,
     /// `--loop-seconds`.
     pub loop_seconds: Option<f64>,
 }
@@ -257,15 +260,34 @@ pub struct Cli {
     pub out: Option<String>,
     /// `--loop-seconds`.
     pub loop_seconds: Option<f64>,
-    /// `--threads`.
-    pub threads: usize,
+    /// `--threads N`: the thread count of the process default execution
+    /// policy (`akantu_bench::suite::apply_exec_options`, applied by the
+    /// binary before any model is created); `None` keeps the environment's.
+    /// After [`Cli::apply_exec`], the count in force.
+    pub threads: Option<usize>,
+    /// `--grain finest|auto`, likewise.
+    pub grain: Option<Grain>,
     /// `--local-ranks N`: run N in-process ranks (the local world of
     /// `akantu-comm`) instead of the serial or MPI communicator.
     pub local_ranks: Option<usize>,
 }
 
 const USAGE: &str = "usage: suite_setup --list\n       suite_setup --case <name>[,<name>...]|all --size s|m|l [--reps N] [--out FILE] \
-                     [--loop-seconds S] [--threads N] [--local-ranks N]";
+                     [--loop-seconds S] [--threads N] [--grain finest|auto] [--local-ranks N]";
+
+impl Cli {
+    /// Apply `--threads` / `--grain` to the process default execution
+    /// policy (before any model is created) and keep the values in force.
+    ///
+    /// # Errors
+    /// As `akantu_bench::suite::apply_exec_options`.
+    pub fn apply_exec(&mut self) -> Result<()> {
+        let (threads, grain) = akantu_bench::suite::apply_exec_options(self.threads, self.grain)?;
+        self.threads = Some(threads);
+        self.grain = Some(grain);
+        Ok(())
+    }
+}
 
 /// Parse the command line.
 pub fn parse_cli(args: impl IntoIterator<Item = String>) -> Result<Cli> {
@@ -276,7 +298,8 @@ pub fn parse_cli(args: impl IntoIterator<Item = String>) -> Result<Cli> {
         reps: 1,
         out: None,
         loop_seconds: None,
-        threads: 1,
+        threads: None,
+        grain: None,
         local_ranks: None,
     };
     let mut it = args.into_iter();
@@ -310,7 +333,14 @@ pub fn parse_cli(args: impl IntoIterator<Item = String>) -> Result<Cli> {
             "--loop-seconds" => {
                 cli.loop_seconds = Some(value()?.parse().map_err(|e| bad("--loop-seconds", &e))?);
             }
-            "--threads" => cli.threads = value()?.parse().map_err(|e| bad("--threads", &e))?,
+            "--threads" => {
+                let n: usize = value()?.parse().map_err(|e| bad("--threads", &e))?;
+                if n == 0 {
+                    return Err(Error::invalid("--threads must be at least 1"));
+                }
+                cli.threads = Some(n);
+            }
+            "--grain" => cli.grain = Some(value()?.parse().map_err(|e| bad("--grain", &e))?),
             "--local-ranks" => {
                 cli.local_ranks = Some(value()?.parse().map_err(|e| bad("--local-ranks", &e))?);
             }
@@ -426,7 +456,8 @@ pub fn run_cases(cli: &Cli, cases: &[Case], comm: &Communicator) -> Result<()> {
     let ctx = Ctx {
         comm: comm.clone(),
         size: cli.size,
-        threads: cli.threads,
+        threads: cli.threads.unwrap_or(1),
+        grain: cli.grain.unwrap_or_default(),
         loop_seconds: cli.loop_seconds,
     };
     for case in selected {
@@ -520,7 +551,7 @@ fn emit(
             line,
             "{{\"suite\":\"setup\",\"case\":{},\"size\":\"{}\",\"rep\":{rep},\"phase\":{},\"calls\":{},\
              \"seconds\":{},\"seconds_min\":{},\"seconds_rank0\":{},\
-             \"n_elements\":{},\"n_nodes\":{},\"n_dofs\":{},\"ranks\":{},\"threads\":{},\
+             \"n_elements\":{},\"n_nodes\":{},\"n_dofs\":{},\"ranks\":{},\"threads\":{},\"grain\":\"{}\",\
              \"digest\":\"{digest:016x}\",\"commit\":{},\"features\":{}",
             json_str(case),
             ctx.size.letter(),
@@ -534,6 +565,7 @@ fn emit(
             out.n_dofs,
             comm.size(),
             ctx.threads,
+            akantu_bench::suite::grain_name(ctx.grain),
             json_str(commit),
             json_str(features),
         );

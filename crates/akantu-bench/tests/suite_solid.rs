@@ -20,7 +20,8 @@ fn opts() -> Options {
         reps: 1,
         out: None,
         loop_seconds: None,
-        threads: 1,
+        threads: None,
+        grain: None,
     }
 }
 
@@ -176,4 +177,75 @@ fn mumps_case_runs_on_the_mpi_world_and_its_digest_repeats() {
     }
     assert!(!digests[0].is_empty(), "no output:\n{stderr}");
     assert_eq!(digests[0], digests[1], "digest differs between repetitions");
+}
+
+/// The JSON lines of one run of the `suite_solid` binary (`AKANTU_*`
+/// variables of the test's environment removed, `env` added).
+fn binary_lines(
+    args: &[&str],
+    env: &[(&str, &str)],
+) -> (std::process::ExitStatus, Vec<String>, String) {
+    let mut cmd = std::process::Command::new(env!("CARGO_BIN_EXE_suite_solid"));
+    cmd.args(args);
+    for k in ["AKANTU_NUM_THREADS", "AKANTU_EXEC_GRAIN"] {
+        cmd.env_remove(k);
+    }
+    for (k, v) in env {
+        cmd.env(k, v);
+    }
+    let out = cmd.output().expect("run suite_solid");
+    let lines = String::from_utf8_lossy(&out.stdout)
+        .lines()
+        .filter(|l| l.starts_with('{'))
+        .map(str::to_owned)
+        .collect();
+    (
+        out.status,
+        lines,
+        String::from_utf8_lossy(&out.stderr).into_owned(),
+    )
+}
+
+/// The value of `"key":` in a JSON line (number or string, unquoted).
+fn field<'a>(line: &'a str, key: &str) -> &'a str {
+    let pat = format!("\"{key}\":");
+    let rest = &line[line.find(&pat).unwrap_or_else(|| panic!("{key} in {line}")) + pat.len()..];
+    let end = rest.find([',', '}']).unwrap_or(rest.len());
+    rest[..end].trim_matches('"')
+}
+
+/// `--threads` sets the thread count of the run (the threaded assembly of
+/// a set-up case gives the same digest at 1 and 3 threads, and the lines
+/// record the count in force), the environment variable alone is
+/// recorded too, and a conflict between both is an error naming both.
+#[test]
+fn the_thread_option_sets_and_records_the_thread_count() {
+    let run = |args: &[&str], env: &[(&str, &str)]| {
+        let mut a = vec!["--case", "setup_tet4", "--size", "s"];
+        a.extend_from_slice(args);
+        let (status, lines, err) = binary_lines(&a, env);
+        assert!(status.success(), "{a:?}: {err}");
+        assert!(!lines.is_empty(), "{a:?}: no output");
+        lines
+    };
+    let one = run(&["--threads", "1"], &[]);
+    let three = run(&["--threads", "3", "--grain", "finest"], &[]);
+    let env3 = run(&[], &[("AKANTU_NUM_THREADS", "3")]);
+    for (l1, l3) in one.iter().zip(&three) {
+        assert_eq!(field(l1, "digest"), field(l3, "digest"));
+        assert_eq!(field(l1, "threads"), "1");
+        assert_eq!(field(l3, "threads"), "3");
+        assert_eq!(field(l1, "grain"), "auto");
+        assert_eq!(field(l3, "grain"), "finest");
+    }
+    assert!(env3.iter().all(|l| field(l, "threads") == "3"));
+    let (status, _, err) = binary_lines(
+        &["--case", "setup_tet4", "--size", "s", "--threads", "2"],
+        &[("AKANTU_NUM_THREADS", "3")],
+    );
+    assert!(!status.success());
+    assert!(
+        err.contains("--threads 2") && err.contains("AKANTU_NUM_THREADS=3"),
+        "{err}"
+    );
 }

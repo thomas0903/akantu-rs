@@ -734,9 +734,27 @@ impl SolidMechanicsPhysics {
         )?;
         dofs.zero_matrix("K")?;
         let subtract_eigen = !self.upstream_compat.stiffness_grad_u_ignores_eigen_grad_u;
+        let mut scratch = std::mem::take(&mut self.stiffness_scratch);
+        let r = self.assemble_stiffness_blocks(dofs, &mesh, subtract_eigen, &mut scratch);
+        self.stiffness_scratch = scratch;
+        r?;
+        self.need_to_reassemble_stiffness = false;
+        Ok(())
+    }
+
+    /// The elemental stiffness blocks of every law, assembled into `K`
+    /// (the loop of [`SolidMechanicsPhysics::assemble_stiffness_matrix`]);
+    /// the small-strain elemental arrays come from and return to `scratch`.
+    fn assemble_stiffness_blocks(
+        &mut self,
+        dofs: &mut DofManager,
+        mesh: &Mesh,
+        subtract_eigen: bool,
+        scratch: &mut StiffnessScratch,
+    ) -> Result<()> {
         for i in 0..self.materials.nb_laws() {
             let blocks = {
-                let (laws, services) = self.split(&mesh, dofs);
+                let (laws, services) = self.split(mesh, dofs);
                 let ctx = LawContext {
                     phase: LawPhase::Tangent,
                     services: &services,
@@ -746,16 +764,27 @@ impl SolidMechanicsPhysics {
                 // `_unsymmetric` blocks, UD-034) — upstream virtual
                 // `Material::assembleStiffnessMatrix`
                 match law.elemental_stiffness_custom(&ctx, GhostType::NotGhost) {
-                    Some(r) => r?,
-                    None => elemental_stiffness_of(law, &ctx, GhostType::NotGhost, subtract_eigen)?
-                        .into_iter()
-                        .map(|(ty, filter, k_e)| (ty, filter, k_e, MatrixType::Symmetric))
-                        .collect(),
+                    Some(r) => r?.into_iter().map(|b| (b, false)).collect::<Vec<_>>(),
+                    None => elemental_stiffness_with(
+                        law,
+                        &ctx,
+                        GhostType::NotGhost,
+                        subtract_eigen,
+                        scratch,
+                    )?
+                    .into_iter()
+                    .map(|((ty, filter, k_e), pooled)| {
+                        ((ty, filter, k_e, MatrixType::Symmetric), pooled)
+                    })
+                    .collect(),
                 }
             };
-            for (ty, filter, k_e, elemental_type) in blocks {
+            // only the arrays taken from the pool go back to it (a law's
+            // own blocks and the finite-deformation blocks are dropped, as
+            // before)
+            for ((ty, filter, k_e, elemental_type), pooled) in blocks {
                 dofs.assemble_elemental_matrices_to_matrix(
-                    &mesh,
+                    mesh,
                     "K",
                     DOF_ID,
                     k_e.view(),
@@ -764,9 +793,11 @@ impl SolidMechanicsPhysics {
                     elemental_type,
                     Some(&filter),
                 )?;
+                if pooled {
+                    scratch.give_back(k_e);
+                }
             }
         }
-        self.need_to_reassemble_stiffness = false;
         Ok(())
     }
 
@@ -897,6 +928,7 @@ impl SolidMechanicsPhysics {
         let dim = self.base.spatial_dimension;
         let fe = self.base.fems.get("")?;
         let materials = &self.materials;
+        let scratch = &mut self.stiffness_scratch;
         let types: Vec<ElementType> = mesh
             .element_types(akantu_core::TypeFilter {
                 spatial_dimension: Some(dim),
@@ -912,18 +944,32 @@ impl SolidMechanicsPhysics {
             let mut functor = |m: &mut [Real], e: Element| -> Result<()> {
                 rho_of(materials, law_index, m, e, dim, &mut rho)
             };
-            let m_e =
-                fe.field_matrix_elemental(&mesh, &mut functor, dim, ty, GhostType::NotGhost)?;
-            dofs.assemble_elemental_matrices_to_matrix(
-                &mesh,
-                "M",
-                DOF_ID,
-                m_e.view(),
-                ty,
-                GhostType::NotGhost,
-                MatrixType::Symmetric,
-                None,
-            )?;
+            let l = dim * ty.nb_nodes_per_element();
+            let mut m_e = scratch.take(l * l);
+            let r = fe
+                .field_matrix_elemental_into(
+                    &mesh,
+                    &mut functor,
+                    dim,
+                    ty,
+                    GhostType::NotGhost,
+                    &mut m_e,
+                    &mut scratch.density,
+                )
+                .and_then(|()| {
+                    dofs.assemble_elemental_matrices_to_matrix(
+                        &mesh,
+                        "M",
+                        DOF_ID,
+                        m_e.view(),
+                        ty,
+                        GhostType::NotGhost,
+                        MatrixType::Symmetric,
+                        None,
+                    )
+                });
+            scratch.give_back(m_e);
+            r?;
         }
         self.need_to_reassemble_mass = false;
         Ok(())
@@ -1008,6 +1054,60 @@ pub(crate) fn assemble_internal_forces_of(
     Ok(())
 }
 
+/// Reused arrays of the stiffness and consistent-mass assemblies: the
+/// gradient and tangent of the current block, the density values of the
+/// mass and a pool of elemental-matrix arrays (shared by the stiffness and
+/// the mass: their elemental matrices have the same size). Reusing them
+/// keeps their pages mapped from one assembly to the next; the values are
+/// the same as with fresh arrays (every value is written before it is
+/// read, the tangent is zeroed before the law fills it).
+#[derive(Debug, Default)]
+pub(crate) struct StiffnessScratch {
+    grad_u: Array<Real>,
+    tangent: Array<Real>,
+    density: Array<Real>,
+    pool: Vec<Array<Real>>,
+}
+
+impl StiffnessScratch {
+    /// An array of `nb_component` components from the pool (the largest
+    /// one), or a new one.
+    fn take(&mut self, nb_component: usize) -> Array<Real> {
+        let best = self
+            .pool
+            .iter()
+            .enumerate()
+            .filter(|(_, a)| a.nb_component() == nb_component)
+            .max_by_key(|(_, a)| a.capacity())
+            .map(|(k, _)| k);
+        match best {
+            Some(k) => self.pool.swap_remove(k),
+            None => Array::new(nb_component),
+        }
+    }
+
+    /// Return an elemental-matrix array to the pool.
+    fn give_back(&mut self, a: Array<Real>) {
+        self.pool.push(a);
+    }
+
+    /// Arrays in the pool and bytes held by all the arrays (capacities).
+    pub(crate) fn footprint(&self) -> (usize, usize) {
+        let bytes = |a: &Array<Real>| {
+            a.capacity()
+                .saturating_mul(a.nb_component())
+                .saturating_mul(std::mem::size_of::<Real>())
+        };
+        let held = [&self.grad_u, &self.tangent, &self.density]
+            .into_iter()
+            .chain(&self.pool)
+            .filter(|a| a.nb_component() > 0)
+            .map(bytes)
+            .sum();
+        (self.pool.len(), held)
+    }
+}
+
 /// Upstream `Material::assembleStiffnessMatrix(ghost)` up to (excluding)
 /// the DOF-manager assembly: per type of the filter (model dimension, non
 /// empty), the elemental matrices `K_e` (`(dim·nn)²`, column-major) with
@@ -1018,12 +1118,14 @@ pub(crate) fn assemble_internal_forces_of(
 /// (`NL`) then the material (`L2`) parts, each its own block (upstream
 /// assembles them one after the other; the `L2` part's `grad_u` follows
 /// the same `subtract_eigen` rule).
-pub(crate) fn elemental_stiffness_of(
+/// The arrays come from (and the elemental matrices return to) `scratch`.
+pub(crate) fn elemental_stiffness_with(
     law: &mut dyn Material,
     ctx: &LawContext<'_>,
     ghost: GhostType,
     subtract_eigen: bool,
-) -> Result<Vec<ElementalBlock>> {
+    scratch: &mut StiffnessScratch,
+) -> Result<Vec<(ElementalBlock, bool)>> {
     let dim = law.base().spatial_dimension;
     let mut out = Vec::new();
     for ty in law.base().filter_types(ghost) {
@@ -1046,23 +1148,22 @@ pub(crate) fn elemental_stiffness_of(
         if law.base().finite_deformation {
             let (k_nl, k_l2) =
                 finite_deformation::stiffness(law, ctx, ty, ghost, &filter, subtract_eigen)?;
-            out.push((ty, filter.clone(), k_nl));
-            out.push((ty, filter, k_l2));
+            // allocated by the finite-deformation kernel, not by the pool:
+            // not returned to it
+            out.push(((ty, filter.clone(), k_nl), false));
+            out.push(((ty, filter, k_l2), false));
             continue;
         }
         let fe = ctx.services.fe_engine("")?;
         let nq = fe.nb_integration_points(ty, ghost)?;
         let nn = ty.nb_nodes_per_element();
         // gradu_vect.resize(nq·ne); gradientOnIntegrationPoints(u, gradu_vect)
-        let mut gu = Array::new(dim * dim);
-        ctx.services.gradient_on_integration_points(
-            "displacement",
-            &mut gu,
-            dim,
-            ty,
-            ghost,
-            &filter,
-        )?;
+        if scratch.grad_u.nb_component() != dim * dim {
+            scratch.grad_u = Array::new(dim * dim);
+        }
+        let gu = &mut scratch.grad_u;
+        ctx.services
+            .gradient_on_integration_points("displacement", gu, dim, ty, ghost, &filter)?;
         {
             let base = law.base_mut();
             if subtract_eigen {
@@ -1079,24 +1180,38 @@ pub(crate) fn elemental_stiffness_of(
                     *g -= *e;
                 }
             }
-            base.grad_u.get_mut(ty, ghost)?.copy_from(&gu)?;
+            base.grad_u.get_mut(ty, ghost)?.copy_from(gu)?;
         }
         let voigt = crate::material_tensor::tangent_stiffness_voigt_size(dim);
-        let mut tangent = Array::try_zeros(filter.len() * nq, voigt * voigt)?;
-        law.compute_tangent_moduli(ctx, ty, ghost, &mut tangent)?;
+        // a zeroed tangent (upstream `tangent_stiffness_matrix.zero()`)
+        let tangent = &mut scratch.tangent;
+        if tangent.nb_component() != voigt * voigt {
+            *tangent = Array::new(voigt * voigt);
+        }
+        tangent.try_resize(filter.len() * nq, 0.0)?;
+        fe.exec().for_each(
+            akantu_core::exec::Tuples::new(tangent.as_mut_slice(), 1),
+            1 << 16,
+            |_, mut t| t.as_mut_slice().fill(0.0),
+        );
+        law.compute_tangent_moduli(ctx, ty, ghost, tangent)?;
         let size = dim * nn;
-        let mut bt_d_b = Array::new(size * size);
-        fe.compute_btdb(tangent.view(), &mut bt_d_b, 4, ty, ghost, Some(&filter))?;
-        let mut k_e = Array::new(size * size);
-        fe.integrate(
-            bt_d_b.view(),
+        // `computeBtDB` then `integrate`, fused per element (the same
+        // products, on the engine's threads)
+        let mut k_e = scratch.take(size * size);
+        let r = fe.compute_btdb_integrated(
+            scratch.tangent.view(),
             &mut k_e,
-            size * size,
+            4,
             ty,
             ghost,
             Some(&filter),
-        )?;
-        out.push((ty, filter, k_e));
+        );
+        if let Err(e) = r {
+            scratch.give_back(k_e);
+            return Err(e);
+        }
+        out.push(((ty, filter, k_e), true));
     }
     Ok(out)
 }
