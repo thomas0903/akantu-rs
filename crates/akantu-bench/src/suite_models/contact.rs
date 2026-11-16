@@ -68,7 +68,8 @@ const DAT: &str = "material elastic [\n  name = upper\n  rho = 1.0\n  E = 1e3\n 
 
 /// Two blocks: `lower` (`[0, 1] × [0, h]`, `nl` cells along the surface)
 /// and `upper` (`[δ, 1 − δ] × [h − p, 2h − p]`, `nu` cells), the upper one
-/// penetrating by `p`. The detector's groups are `lower_top` /
+/// penetrating by `p` = `penetration` × the lower surface's cell size (a
+/// penetration larger than the cells is rejected by the projection). The detector's groups are `lower_top` /
 /// `upper_bottom` (aliases of the `ymax` / `ymin` boundaries in 2-D,
 /// `zmax` / `zmin` in 3-D).
 fn coupler(
@@ -77,7 +78,7 @@ fn coupler(
     nl: usize,
     nu: usize,
     depth: usize,
-    p: Real,
+    penetration: Real,
     method: AnalysisMethod,
 ) -> Result<CouplerSolidContact> {
     let dim = if cell == Cell::Tet4 || cell == Cell::Hex8 {
@@ -93,6 +94,7 @@ fn coupler(
     }
     let h = 0.1;
     let d = 0.05;
+    let p = penetration / nl as Real;
     let mesh = run.once("mesh", || {
         let mut msh = Msh::new(dim);
         let (lower, upper) = if dim == 2 {
@@ -189,7 +191,7 @@ fn search(run: &mut Run, cell: Cell, nl: usize, nu: usize, calls: usize) -> Resu
         nl,
         nu,
         2,
-        1e-3,
+        0.2,
         AnalysisMethod::ExplicitLumpedMass,
     )?;
     // positions = X (u = 0)
@@ -211,7 +213,7 @@ fn search_quad4(run: &mut Run) -> Result<Digest> {
         Cell::Quad4,
         s.pick(40, 40_000, 120_000),
         s.pick(30, 30_000, 90_000),
-        s.pick(2, 20, 20),
+        s.pick(2, 10, 10),
     )
 }
 
@@ -222,7 +224,7 @@ fn search_tet4(run: &mut Run) -> Result<Digest> {
         Cell::Tet4,
         s.pick(6, 160, 450),
         s.pick(5, 120, 340),
-        s.pick(2, 10, 10),
+        s.pick(2, 30, 30),
     )
 }
 
@@ -235,7 +237,7 @@ fn explicit_quad4(run: &mut Run) -> Result<Digest> {
         nl,
         nu,
         depth,
-        0.0,
+        0.05,
         AnalysisMethod::ExplicitLumpedMass,
     )?;
     let dt = run.once("stable_time_step", || c.stable_time_step())?;
@@ -253,7 +255,7 @@ fn explicit_quad4(run: &mut Run) -> Result<Digest> {
 
 fn implicit_quad4(run: &mut Run) -> Result<Digest> {
     let s = run.size();
-    let (nl, nu, depth) = s.pick((20, 15, 4), (400, 300, 40), (1130, 850, 113));
+    let (nl, nu, depth) = s.pick((20, 15, 4), (200, 150, 20), (570, 425, 57));
     let mut c = coupler(run, Cell::Quad4, nl, nu, depth, 0.0, AnalysisMethod::Static)?;
     {
         let nls = c.solid.solver.non_linear_solver_mut(None)?;
@@ -304,7 +306,7 @@ fn cohesive_contact_quad4(run: &mut Run) -> Result<Digest> {
     use akantu_contact::CohesiveSurfaceSelector;
     use akantu_couplers::CouplerSolidCohesiveContact;
     let s = run.size();
-    let (nx, ny, steps) = s.pick((20, 4, 20), (1600, 40, 600), (4500, 112, 600));
+    let (nx, ny, steps) = s.pick((20, 4, 20), (1600, 40, 300), (4500, 112, 300));
     let comm = run.comm.clone();
     if comm.size() > 1 {
         return Err(akantu_core::Error::Unsupported(
@@ -359,7 +361,7 @@ fn cohesive_contact_quad4(run: &mut Run) -> Result<Digest> {
     // opening for the first third of the calls, closing afterwards (the
     // crack faces are pressed together for the last third)
     let total = steps + 3;
-    let inc = 4e-3 * h / total as Real;
+    let inc = 2e-2 * h / total as Real;
     let mut inserted = 0usize;
     run.looped("solve_step", steps, |i| {
         let v = if i < total / 3 { inc } else { -inc };

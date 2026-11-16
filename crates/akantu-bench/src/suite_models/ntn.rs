@@ -38,7 +38,7 @@ const DAT: &str = "friction linear_slip_weakening_no_healing no_regularisation [
 
 fn friction_quad4(run: &mut Run) -> Result<Digest> {
     let s = run.size();
-    let (nx, ny, steps) = s.pick((40, 4, 10), (4000, 25, 300), (11300, 70, 300));
+    let (nx, ny, steps) = s.pick((40, 4, 10), (4000, 25, 100), (11300, 70, 100));
     let comm = run.comm.clone();
     if comm.size() > 1 {
         return Err(akantu_core::Error::Unsupported(

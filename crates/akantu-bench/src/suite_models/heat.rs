@@ -154,13 +154,13 @@ fn explicit_quad4(run: &mut Run) -> Result<Digest> {
         run,
         Cell::Quad4,
         s.pick(16, 400, 1130),
-        s.pick(10, 400, 400),
+        s.pick(10, 120, 120),
     )
 }
 
 fn implicit_hex8(run: &mut Run) -> Result<Digest> {
     let s = run.size();
-    let mut model = model(run, Cell::Hex8, s.pick(4, 24, 48), 0.01)?;
+    let mut model = model(run, Cell::Hex8, s.pick(4, 12, 24), 0.01)?;
     run.once("init", || {
         model.init_full(&ModelOptions::new(AnalysisMethod::ImplicitDynamic))
     })?;
@@ -173,7 +173,7 @@ fn implicit_hex8(run: &mut Run) -> Result<Digest> {
         nls.set_param("threshold", ParamValue::Real(1e-10))?;
     }
     let mut iterations = 0i64;
-    run.looped("solve_step", s.pick(2, 10, 10), |_| {
+    run.looped("solve_step", s.pick(2, 5, 5), |_| {
         model.solve_step(None)?;
         if let ParamValue::Int(i) = model
             .solver
@@ -192,7 +192,7 @@ fn implicit_hex8(run: &mut Run) -> Result<Digest> {
 
 fn static_tri6(run: &mut Run) -> Result<Digest> {
     let s = run.size();
-    let mut model = model(run, Cell::Tri6, s.pick(8, 220, 620), 0.0)?;
+    let mut model = model(run, Cell::Tri6, s.pick(8, 110, 310), 0.0)?;
     run.once("init", || {
         model.init_full(&ModelOptions::new(AnalysisMethod::Static))
     })?;

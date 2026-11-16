@@ -171,9 +171,9 @@ fn rebar_tri3(run: &mut Run) -> Result<Digest> {
     rebar(
         run,
         Cell::Tri3,
-        s.pick(10, 300, 850),
-        s.pick(3, 60, 170),
-        s.pick(7, 400, 1100),
+        s.pick(10, 100, 280),
+        s.pick(3, 20, 56),
+        s.pick(7, 130, 370),
     )
 }
 
@@ -182,8 +182,8 @@ fn rebar_tet4(run: &mut Run) -> Result<Digest> {
     rebar(
         run,
         Cell::Tet4,
-        s.pick(4, 30, 60),
-        s.pick(2, 10, 20),
-        s.pick(5, 60, 120),
+        s.pick(4, 15, 30),
+        s.pick(2, 5, 10),
+        s.pick(5, 30, 60),
     )
 }

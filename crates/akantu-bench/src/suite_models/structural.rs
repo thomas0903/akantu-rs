@@ -164,7 +164,7 @@ fn digest(model: &StructuralMechanicsModel, dynamic: bool) -> Result<Digest> {
 
 fn frame_static(run: &mut Run) -> Result<Digest> {
     let s = run.size();
-    let mut model = frame_model(run, s.pick(3, 22, 44), AnalysisMethod::Static)?;
+    let mut model = frame_model(run, s.pick(3, 12, 24), AnalysisMethod::Static)?;
     run.looped("assemble_stiffness", s.pick(1, 5, 5), |_| {
         // the model keeps an assembled matrix until it is invalidated
         model.invalidate_matrices();
@@ -184,7 +184,7 @@ fn frame_dynamic(run: &mut Run) -> Result<Digest> {
         nls.set_param("threshold", ParamValue::Real(1e-8))?;
         nls.set_param("convergence_type", ParamValue::Enum("solution".into()))?;
     }
-    run.looped("solve_step", s.pick(2, 20, 20), |_| model.solve_step(None))?;
+    run.looped("solve_step", s.pick(2, 60, 60), |_| model.solve_step(None))?;
     digest(&model, true)
 }
 
@@ -193,7 +193,7 @@ fn frame_dynamic(run: &mut Run) -> Result<Digest> {
 /// every free node.
 fn plate_static(run: &mut Run) -> Result<Digest> {
     let s = run.size();
-    let n = s.pick(6, 200, 560);
+    let n = s.pick(6, 60, 170);
     let ty = ElementType::DiscreteKirchhoffTriangle18;
     serial_only(run)?;
     let mesh = run.once("mesh", || {

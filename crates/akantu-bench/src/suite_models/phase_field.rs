@@ -160,10 +160,10 @@ fn staggered(run: &mut Run, cell: Cell, n: usize, load_steps: usize) -> Result<D
 
 fn staggered_tri3(run: &mut Run) -> Result<Digest> {
     let s = run.size();
-    staggered(run, Cell::Tri3, s.pick(10, 160, 450), s.pick(1, 4, 4))
+    staggered(run, Cell::Tri3, s.pick(10, 160, 450), s.pick(1, 2, 2))
 }
 
 fn staggered_tet4(run: &mut Run) -> Result<Digest> {
     let s = run.size();
-    staggered(run, Cell::Tet4, s.pick(3, 20, 40), s.pick(1, 2, 2))
+    staggered(run, Cell::Tet4, s.pick(3, 10, 20), s.pick(1, 2, 2))
 }
