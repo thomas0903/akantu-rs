@@ -1,0 +1,4 @@
+| material | h | port preload | regime | tets cpp / port | reps | cpp solve [ms/step] | port solve [ms/step] | solve ratio | cpp check [ms/step] | port check [ms/step] | check ratio | cpp core-µs/el/step | port core-µs/el/step | cpp init / static [s] | port init / static [s] | peak RSS cpp / port [MiB] | coh. el. cpp / port |
+|---|---|---|---|---|---|---|---|---|---|---|---|---|---|---|---|---|---|
+| cohesive | 0.12 | yes | **differs** | 23,156 / 23,156 | 3/3 | 11 [10.9, 11] | 7.88 [7.73, 7.91] | 0.72 | 168 [145, 183] | 21.5 [21.1, 21.6] | 0.13 | 7.72 | 1.27 | 1.04 / 0.625 | 0.379 / 7.89 | 298 / 471 | 11739 / 11736 |
+| elastic | 0.12 | yes | same | 23,156 / 23,156 | 3/3 | 7.74 [7.72, 8.01] | 3.1 [3.08, 3.1] | 0.40 | — | — | nan | 0.334 | 0.134 | 1.05 / 0.633 | 0.378 / 7.68 | 273 / 465 | 0 / 0 |

@@ -566,7 +566,7 @@ fn write_fused_block(
     let rest = pairs.get(from..).unwrap_or(&[]);
     let n = rest.partition_point(|p| (p.dst as usize) < dst_limit);
     let range = &rest[..n];
-    // Threading candidate (WP-EXEC primitives, independent outputs):
+    // Threading candidate (the execution policy's primitives, independent outputs):
     // every pair writes only its own destination tuples (the plan holds
     // one pair per destination), so any chunking of `pairs` keeps every
     // bit; chunks by destination range keep the writes sequential.

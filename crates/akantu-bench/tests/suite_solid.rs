@@ -24,11 +24,29 @@ fn opts() -> Options {
     }
 }
 
+/// Stack of the thread that runs the cases: a main thread's under the usual
+/// `ulimit -s` (8 MiB). The test harness's threads have 2 MiB, which a
+/// debug build with the `mumps` feature overflows in
+/// `cohesive_extrinsic_insertion` (3 MiB suffice; the binaries run the
+/// cases on the main thread).
+const CASE_STACK: usize = 8 << 20;
+
 #[test]
 fn every_case_runs_at_size_s_and_its_digest_repeats() {
+    std::thread::Builder::new()
+        .name("cases".into())
+        .stack_size(CASE_STACK)
+        .spawn(run_every_case)
+        .expect("spawn the case thread")
+        .join()
+        .unwrap_or_else(|e| std::panic::resume_unwind(e));
+}
+
+fn run_every_case() {
     let comm = Communicator::serial();
     let o = opts();
     for case in akantu_bench::suite_solid::cases() {
+        eprintln!("{}", case.name);
         let a = run_case(&case, &o, &comm, 0).unwrap_or_else(|e| panic!("{}: {e}", case.name));
         if let Outcome::Skip(why) = &a.outcome {
             eprintln!("{}: skipped ({why})", case.name);
@@ -124,4 +142,38 @@ fn step_split_computes_the_same_bits() {
         &akantu_bench::suite_solid::explicit::plastic_dat(),
         0.8,
     );
+}
+
+/// `static_linear_mumps` skips on the serial communicator of the test
+/// above; the binary runs it on the MPI world (a singleton here), twice.
+#[cfg(feature = "mumps")]
+#[test]
+fn mumps_case_runs_on_the_mpi_world_and_its_digest_repeats() {
+    let out = std::process::Command::new(env!("CARGO_BIN_EXE_suite_solid"))
+        .args([
+            "--case",
+            "static_linear_mumps",
+            "--size",
+            "s",
+            "--reps",
+            "2",
+        ])
+        .output()
+        .expect("suite_solid runs");
+    let stdout = String::from_utf8_lossy(&out.stdout);
+    let stderr = String::from_utf8_lossy(&out.stderr);
+    assert!(
+        out.status.success(),
+        "suite_solid failed:\n{stdout}\n{stderr}"
+    );
+    let mut digests = [Vec::new(), Vec::new()];
+    for line in stdout.lines() {
+        let v: serde_json::Value =
+            serde_json::from_str(line).unwrap_or_else(|e| panic!("{line}: {e}"));
+        assert_eq!(v["sparse_solver"], "mumps", "{line}");
+        let rep = v["rep"].as_u64().expect("rep") as usize;
+        digests[rep].push(v["digest"].as_str().expect("a digest").to_owned());
+    }
+    assert!(!digests[0].is_empty(), "no output:\n{stderr}");
+    assert_eq!(digests[0], digests[1], "digest differs between repetitions");
 }
