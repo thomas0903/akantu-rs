@@ -71,6 +71,18 @@ change of default results or of a public API raises the minor version.
   with one quadrature point per element, with the operations
   `interpolate_elemental_field` performs (`value`, or `coefficients` then
   `value_from_coefficients`).
+- Python: a `DirichletFunctor` subclass may define
+  `callNodes(nodes, flags, primal, coords)`; `applyBC` then calls it once
+  per group with NumPy copies of the group's rows and writes `flags` and
+  `primal` back after it returns, instead of calling `__call__` per node.
+  Subclasses that define only `__call__` behave as before.
+- `akantu_model::boundary_condition::DirichletFunctor::apply_shared_nodes`
+  (default: `apply_shared` per node, `apply_shared_per_node`): the
+  foreign-functor path of `apply_dirichlet` hands the whole node list to the
+  functor.
+- Benchmark suites: `suite_setup` case `parser_chain` (a chain of
+  parameters that each refer twice to the previous one) and Python case
+  `dirichlet_group_tri3`.
 - The cohesive benchmark driver (`akantu-bench`, `cohesive_extrinsic`)
   writes `chrono_rank<r>.csv` (the phase times of every rank) and, for the
   cohesive model, `insertion_stats_rank<r>.csv` (the split of the
@@ -204,6 +216,27 @@ change of default results or of a public API raises the minor version.
   equation, e.g. 360 bytes per `Tetrahedron4` element of a 3-D solid)
   from the second assembly into an unchanged profile on;
   `DofManager::set_assembly_cache(false)` turns this off.
+- The input-file parser evaluates each variable once per evaluation (it
+  parsed a variable's expression again at every reference, so a chain of
+  k parameters that each refer twice to the previous one cost 2^k
+  parses: 21 lines 400 ms, now 7 µs, measured on an AWS m7a.2xlarge (AMD
+  EPYC 9R14)); values and error messages are unchanged.
+- Dumps and the MSH writer format numbers into the output buffer instead
+  of one `String` per number, with a faster exact digit generator for up
+  to 17 significant digits; ParaView `.vtu` pieces are validated first and
+  then written to the file through a buffer (no copy of the whole file in
+  memory), base64 arrays encoded in one pass. The written bytes are
+  unchanged. On 162,000 Tet4: a base64 ParaView dump 208 → 99 ms, ASCII
+  913 → 296 ms, a text dump 74 → 17 ms, the MSH writer 54 → 26 ms
+  (this entry's and the next two entries' timings: measured on an AWS
+  m7a.2xlarge (AMD EPYC 9R14); `docs/benchmarks/perf-campaign/io-python/`).
+- The Gmsh reader keeps node and element tags in dense tables, allocates
+  nothing per element, parses integers in one pass and sorts dense group
+  node lists through a bitmap; the meshes read are unchanged (162,000
+  Tet4: 153 → 85 ms in MSH 2.2).
+- Python Dirichlet functors (`__call__` per node) enter Python once per
+  group instead of once per node (40,401 nodes: 31.5 → 23.4 ms per
+  `applyBC`; with `callNodes` 1.0 ms).
 
 ## [0.1.0] - Unreleased
 

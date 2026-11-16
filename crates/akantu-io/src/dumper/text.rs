@@ -50,7 +50,7 @@ use akantu_core::{Error, Real, Result};
 use akantu_mesh::Mesh;
 
 use super::base::{Common, Entry, OutFile, Parallel, WriteMode, file_name, write_files};
-use super::cfmt::format_e;
+use super::cfmt::{format_e, push_e, push_i64, push_u64};
 use super::eval::{self, EvalContext, Evaluated, Values};
 use super::{
     Dumper, FieldDescriptor, FieldResolver, FieldSource, FieldSupport, FieldValueType,
@@ -173,13 +173,9 @@ impl DumperText {
 
     fn format_value(&self, v: &Values, k: usize, precision: usize, out: &mut String) {
         match v {
-            Values::F64(a) => out.push_str(&format_e(a.get(k).copied().unwrap_or(0.0), precision)),
-            Values::I32(a) => {
-                let _ = write!(out, "{}", a.get(k).copied().unwrap_or(0));
-            }
-            Values::U32(a) => {
-                let _ = write!(out, "{}", a.get(k).copied().unwrap_or(0));
-            }
+            Values::F64(a) => push_e(out, a.get(k).copied().unwrap_or(0.0), precision),
+            Values::I32(a) => push_i64(out, i64::from(a.get(k).copied().unwrap_or(0))),
+            Values::U32(a) => push_u64(out, u64::from(a.get(k).copied().unwrap_or(0))),
             Values::Bool(a) => out.push(if a.get(k).copied().unwrap_or(false) {
                 '1'
             } else {
