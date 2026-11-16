@@ -34,7 +34,12 @@ Digests: equal across the repetitions of every case (column `digest` of
 the tables). Two notes: `dump_text_tet4` of `baseline/base-m` reports the
 empty digest `cbf29ce484222325` (a defect of the case fixed in
 `c4a879451`, after the series had started; its timing is unaffected);
-the Python `import` case has no result (digest 0).
+the Python `import` case has no result (digest 0). Since commit
+`9f3149c5b` the digest of `py_twin_explicit_tri3` and of the Python
+`explicit_tri3` also hashes the `solve_step_tiny` model: at size `m` both
+read `570eb4f8af5b275d`, not the baseline's `7c3f18493f05f971`
+(`ghost_nodes_tet4` resets its data every call since then; its digest is
+unchanged).
 
 The scaling screening ran on a different CPU from the baseline (Zen 3
 against Zen 4); the exponents are ratios between sizes of the same

@@ -19,6 +19,10 @@ section "Benchmark suite", "Solid mechanics"). Ranked hot spots:
   call per repetition R = 0…4 (repetition 0 in two calls), size `m`.
   Dates: `baseline/meta.r*.json`.
 - Raw data: `baseline/base/<case>.r<R>.jsonl`, one JSON line per phase.
+- Since commit `9f3149c5b` the digest of `static_linear_eigen` and
+  `static_linear_faer` also hashes the direct solver's result `x`: at size
+  `m` they read `d5869f57a777d9a5` and `0ae7c4dddb5b76e6`, not the
+  baseline's `35e60e6f09e111e7` and `c9951bde736748ef`.
 - Table: `python3 scripts/perf/suite/summarize.py baseline` →
   `baseline/summary.md` (median [min, max] over the 5 repetitions, per call
   and per element and call).
