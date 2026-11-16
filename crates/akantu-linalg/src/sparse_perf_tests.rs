@@ -153,11 +153,22 @@ fn cached_element_assembly_is_add_values() {
                         let k = rng.below(profiled);
                         elems[k] = elems[(k + 1) % profiled].clone();
                     }
-                    4 if trial % 2 == 0 => {
+                    4 if trial % 3 == 0 => {
                         // an appended entry (existing positions stay valid)
                         let (i, j) = (rng.below(3) as GlobalIdx, rng.below(3) as GlobalIdx);
                         plain.add(i, j, 0.25).unwrap();
                         cached.add(i, j, 0.25).unwrap();
+                    }
+                    4 if trial % 3 == 2 => {
+                        // `copy_profile` from a matrix that stores the
+                        // same entries in another order: every position
+                        // may move
+                        let mut other = SparseMatrixAij::new("O", n, cached.matrix_type);
+                        for e in elems[..profiled].iter().rev() {
+                            other.add_block_to_profile(e, e).unwrap();
+                        }
+                        plain.copy_profile(&other);
+                        cached.copy_profile(&other);
                     }
                     4 => {
                         // the profile rebuilt in another order: every
