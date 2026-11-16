@@ -84,7 +84,7 @@ use crate::sparse::SparseMatrixAij;
 use kernels::{EMPTY, Glu, PermutedCols, Work};
 
 /// `initperfvalues()`.
-const PANEL_SIZE: usize = 16;
+const PANEL_SIZE: usize = kernels::SPA_W;
 const RELAX: i64 = 1;
 const MAXSUPER: i64 = 128;
 /// `m_diagpivotthresh` default.
@@ -272,12 +272,12 @@ impl SparseLu {
                     nseg - nseg1,
                     nseg1 as usize,
                     col_off,
-                    m,
+                    jj - jcol,
                     jcol,
                     &mut wk,
                     &mut glu,
                 );
-                kernels::copy_to_ucol(jj, nseg, col_off, &perm_r, &mut wk, &mut glu);
+                kernels::copy_to_ucol(jj, nseg, col_off, jj - jcol, &perm_r, &mut wk, &mut glu);
                 let pivrow = match kernels::pivot_l(
                     jj,
                     DIAG_PIVOT_THRESH,
