@@ -151,7 +151,12 @@ fn coupler(
     )?;
     c.solid
         .set_material_selector(Box::new(ElementDataSelector::new("physical_names")));
-    run.once("init", || c.init_full(&ModelOptions::new(method)))?;
+    let options = if method == AnalysisMethod::Static {
+        super::common::eigen_options(run, method)
+    } else {
+        ModelOptions::new(method)
+    };
+    run.once("init", || c.init_full(&options))?;
     c.contact.set_surface_selector(Box::new(selector))?;
     let fixed = |axis| FixedValue { value: 0.0, axis };
     let axes: &[SpatialDirection] = if dim == 2 {

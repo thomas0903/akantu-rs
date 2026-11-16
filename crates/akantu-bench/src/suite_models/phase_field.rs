@@ -16,10 +16,12 @@ use akantu_core::enums::{AnalysisMethod, SpatialDirection};
 use akantu_core::{GhostType, Result};
 use akantu_couplers::CouplerSolidPhaseField;
 use akantu_mesh::SharedMesh;
+use akantu_model::Model;
 use akantu_model::boundary_condition::{FixedValue, IncrementValue};
-use akantu_model::{Model, ModelOptions};
 
-use super::common::{digest_nodal, distribute, global_count, nb_elements, nb_owned_nodes, parser};
+use super::common::{
+    digest_nodal, distribute, eigen_options, global_count, nb_elements, nb_owned_nodes, parser,
+};
 use super::harness::{Case, Digest, Run};
 use super::mesh::{Block, Cell, Msh};
 
@@ -71,11 +73,10 @@ fn staggered(run: &mut Run, cell: Cell, n: usize, load_steps: usize) -> Result<D
         "coupler_solid_phasefield",
         parser(dat)?,
     )?;
+    let options = eigen_options(run, AnalysisMethod::Static);
     run.once("init", || {
-        c.solid
-            .init_full(&ModelOptions::new(AnalysisMethod::Static))?;
-        c.phase
-            .init_full(&ModelOptions::new(AnalysisMethod::Static))
+        c.solid.init_full(&options)?;
+        c.phase.init_full(&options)
     })?;
     let fixed = |axis| FixedValue { value: 0.0, axis };
     c.solid

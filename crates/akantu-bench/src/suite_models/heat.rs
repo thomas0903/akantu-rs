@@ -18,7 +18,9 @@ use akantu_mesh::SharedMesh;
 use akantu_model::{Model, ModelOptions};
 use akantu_parser::param::ParamValue;
 
-use super::common::{digest_nodal, distribute, global_count, nb_elements, nb_owned_nodes, parser};
+use super::common::{
+    digest_nodal, distribute, eigen_options, global_count, nb_elements, nb_owned_nodes, parser,
+};
 use super::harness::{Case, Digest, Run};
 use super::mesh::{Block, Cell, Msh};
 
@@ -161,9 +163,8 @@ fn explicit_quad4(run: &mut Run) -> Result<Digest> {
 fn implicit_hex8(run: &mut Run) -> Result<Digest> {
     let s = run.size();
     let mut model = model(run, Cell::Hex8, s.pick(4, 12, 24), 0.01)?;
-    run.once("init", || {
-        model.init_full(&ModelOptions::new(AnalysisMethod::ImplicitDynamic))
-    })?;
+    let options = eigen_options(run, AnalysisMethod::ImplicitDynamic);
+    run.once("init", || model.init_full(&options))?;
     heat_source(&mut model, [0.5; 3], 0.15, true)?;
     let dt = model.stable_time_step()?;
     model.set_time_step(20.0 * dt, None)?;
@@ -193,9 +194,8 @@ fn implicit_hex8(run: &mut Run) -> Result<Digest> {
 fn static_tri6(run: &mut Run) -> Result<Digest> {
     let s = run.size();
     let mut model = model(run, Cell::Tri6, s.pick(8, 110, 310), 0.0)?;
-    run.once("init", || {
-        model.init_full(&ModelOptions::new(AnalysisMethod::Static))
-    })?;
+    let options = eigen_options(run, AnalysisMethod::Static);
+    run.once("init", || model.init_full(&options))?;
     heat_source(&mut model, [0.25, 0.25, 0.0], 0.1, true)?;
     run.looped("assemble_conductivity", s.pick(1, 5, 5), |_| {
         model.assemble_diffusivity_matrix()

@@ -128,7 +128,7 @@ pub fn cases() -> Vec<Case> {
         ),
         c(
             "static_linear_mumps",
-            "linear static solve, MUMPS (feature mumps): solve_step phases only",
+            "linear static solve, MUMPS (feature mumps, MPI world): solve_step phases only; the digest does not repeat above 2 ranks",
             implicit::static_linear_mumps,
         ),
         c(
