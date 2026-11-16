@@ -435,49 +435,38 @@ impl SolidMechanicsPhysics {
         // / waitEndSynchronize; the unpacked ghost stresses are read by the
         // ghost pass only, so the values and the assembly order are those of
         // one blocking exchange), through the running operation's scope
-        // (ARCHITECTURE.md, "DOF manager")
+        // (ARCHITECTURE.md, "DOF manager"). Everything fallible besides the
+        // passes is taken before the post, so every path after it goes
+        // through `wait_in`. The post, the wait and every other MPI call
+        // stay on this (the caller's) thread: the passes' executor
+        // (`Exec`, D-123) runs element kernels and the ordered scatter on
+        // its workers, which never communicate.
         let dim = self.base.spatial_dimension;
         let es = mesh.synchronizers().element.as_ref();
+        let fe = self.base.fems.get("")?;
         let nb_quad = match es {
-            Some(_) => Some(nb_quad_map(self.base.fems.get("")?, &mesh, dim)?),
+            Some(_) => Some(nb_quad_map(fe, &mesh, dim)?),
             None => None,
         };
-        let mut posted = match (es, &nb_quad) {
-            (Some(es), Some(nb_quad)) => {
+        let mut f_int = self
+            .internal_force
+            .as_mut()
+            .ok_or_else(|| not_allocated("internal_force"))?
+            .write()?;
+        let mut scope = match es {
+            Some(_) => Some(dofs.phases()?),
+            None => None,
+        };
+        let mut posted = match (es, &nb_quad, scope.as_deref_mut()) {
+            (Some(es), Some(nb_quad), Some(ph)) => {
                 let acc = super::parallel::StressAccessor {
                     materials: &mut self.materials,
                     nb_quad,
                     dim,
                 };
-                Some(es.post_in(
-                    &mut *dofs.phases()?,
-                    &acc,
-                    akantu_core::enums::SynchronizationTag::SmmStress,
-                )?)
+                Some(es.post_in(ph, &acc, akantu_core::enums::SynchronizationTag::SmmStress)?)
             }
             _ => None,
-        };
-        let fe = self.base.fems.get("")?;
-        let f_int = self
-            .internal_force
-            .as_mut()
-            .ok_or_else(|| not_allocated("internal_force"))?
-            .write();
-        let mut f_int = match (f_int, posted.take(), es, &nb_quad) {
-            (Ok(f), p, _, _) => {
-                posted = p;
-                f
-            }
-            (Err(e), Some(p), Some(es), Some(nb_quad)) => {
-                // the posted exchange is completed on every path
-                let mut acc = super::parallel::StressAccessor {
-                    materials: &mut self.materials,
-                    nb_quad,
-                    dim,
-                };
-                return es.wait_in(&mut *dofs.phases()?, p, &mut acc, Err(e));
-            }
-            (Err(e), ..) => return Err(e),
         };
         for ghost in GhostType::ALL {
             let pass = (|| -> Result<()> {
@@ -507,18 +496,21 @@ impl SolidMechanicsPhysics {
                 }
                 Ok(())
             })();
-            if let (Some(p), Some(es), Some(nb_quad)) = (posted.take(), es, &nb_quad) {
+            if let (Some(p), Some(es), Some(nb_quad), Some(ph)) =
+                (posted.take(), es, &nb_quad, scope.as_deref_mut())
+            {
                 // after the not-ghost pass, whatever its outcome
                 let mut acc = super::parallel::StressAccessor {
                     materials: &mut self.materials,
                     nb_quad,
                     dim,
                 };
-                es.wait_in(&mut *dofs.phases()?, p, &mut acc, pass)?;
+                es.wait_in(ph, p, &mut acc, pass)?;
                 continue;
             }
             pass?;
         }
+        drop(scope);
         let (len, nbc) = (f_int.len(), f_int.nb_component());
         // On a distributed periodic mesh through the running
         // operation's scope
