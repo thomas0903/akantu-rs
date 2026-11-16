@@ -61,6 +61,90 @@ pub struct HeatDiffusion {
 }
 
 impl HeatDiffusion {
+    /// [`DiffusionLaw::compute_diffusivity_on_quad_points`]; `true` when
+    /// this call wrote the conductivity itself into every point of the
+    /// block `(ty, ghost)` (the temperature term vanishes).
+    fn diffusivity_on_quad_points(
+        &mut self,
+        ctx: &DiffusionLawContext<'_>,
+        ty: ElementType,
+        ghost: GhostType,
+    ) -> Result<bool> {
+        let rel = self.base.diffusivity_release(ty, ghost);
+        if rel != -1 && rel == ctx.release {
+            return Ok(false);
+        }
+        let d = self.base.spatial_dimension;
+        let fe = ctx.fe()?;
+        let cond = self.conductivity.as_slice();
+        if cond.len() != d * d {
+            return Err(Error::invalid(
+                "heat_diffusion: conductivity not initialised (updateInternalParameters)",
+            ));
+        }
+        let var = self.conductivity_variation;
+        let t_ref = self.t_ref;
+        let constant = temperature_term_vanishes(var, t_ref, cond, ctx.diffusion.as_slice());
+        let base = &mut self.base;
+        let mut constant_ty = false;
+        for t in base.filter_types(ghost) {
+            let filter = base
+                .element_filter
+                .get(t, ghost)
+                .map(Array::as_slice)
+                .unwrap_or(&[]);
+            if let (true, Ok(nq)) = (constant, fe.nb_integration_points(t, ghost)) {
+                // every entry is `k + (±0)`, which is `k` (see
+                // `temperature_term_vanishes`): no interpolation of `T`
+                let mut block = base.diffusivity.get_mut(t, ghost)?;
+                if block.len() != filter.len() * nq {
+                    return Err(Error::DimensionMismatch {
+                        context: "computeDiffusivityOnQuadPoints: diffusivity vs temperature",
+                        expected: block.len(),
+                        got: filter.len() * nq,
+                    });
+                }
+                for c in block.as_mut_slice().chunks_exact_mut(d * d) {
+                    c.copy_from_slice(cond);
+                }
+                constant_ty |= t == ty;
+                continue;
+            }
+            let tq = &mut self.tq_scratch;
+            fe.interpolate_on_integration_points(
+                ctx.mesh(),
+                ctx.diffusion.view(),
+                tq,
+                1,
+                t,
+                ghost,
+                Some(filter),
+            )?;
+            // `conductivity_variation * (T - T_ref)` is one scalar per
+            // quadrature point, added to every entry of C
+            let mut block = base.diffusivity.get_mut(t, ghost)?;
+            if block.len() != tq.len() {
+                return Err(Error::DimensionMismatch {
+                    context: "computeDiffusivityOnQuadPoints: diffusivity vs temperature",
+                    expected: block.len(),
+                    got: tq.len(),
+                });
+            }
+            for (c, &tt) in block
+                .as_mut_slice()
+                .chunks_exact_mut(d * d)
+                .zip(tq.as_slice())
+            {
+                let s = var * (tt - t_ref);
+                for (ci, &k) in c.iter_mut().zip(cond) {
+                    *ci = k + s;
+                }
+            }
+        }
+        base.diffusivity_release.insert((ty, ghost), ctx.release);
+        Ok(constant_ty)
+    }
+
     /// Upstream allocator `HeatDiffusion<dim>(model, id)`.
     pub fn new(spec: &LawSpec, services: &dyn ModelServices) -> Result<Self> {
         let base = DiffusionLawBase::new(
@@ -323,6 +407,18 @@ fn d_grad_u_fixed<const D: usize>(grad: &[Real], diff: &[Real], out: &mut [Real]
     }
 }
 
+/// [`d_grad_u_fixed`] with the same diffusivity `c` (`D × D`) at every
+/// point.
+#[inline(always)]
+fn d_grad_u_constant<const D: usize>(grad: &[Real], c: &[Real], out: &mut [Real]) {
+    let c = &c[..D * D];
+    for (k_bt, bt) in out.chunks_exact_mut(D).zip(grad.chunks_exact(D)) {
+        for (i, ki) in k_bt.iter_mut().enumerate() {
+            *ki = eigen_order::product_coeff(D, true, &|k| c[i + k * D] * bt[k]);
+        }
+    }
+}
+
 /// `D∇u` of every point for a run-time dimension `d`.
 fn d_grad_u_general(d: usize, grad: &[Real], diff: &[Real], out: &mut [Real]) {
     for ((k_bt, bt), c) in out
@@ -358,77 +454,7 @@ impl DiffusionLaw for HeatDiffusion {
         ty: ElementType,
         ghost: GhostType,
     ) -> Result<()> {
-        let rel = self.base.diffusivity_release(ty, ghost);
-        if rel != -1 && rel == ctx.release {
-            return Ok(());
-        }
-        let d = self.base.spatial_dimension;
-        let fe = ctx.fe()?;
-        let cond = self.conductivity.as_slice();
-        if cond.len() != d * d {
-            return Err(Error::invalid(
-                "heat_diffusion: conductivity not initialised (updateInternalParameters)",
-            ));
-        }
-        let var = self.conductivity_variation;
-        let t_ref = self.t_ref;
-        let constant = temperature_term_vanishes(var, t_ref, cond, ctx.diffusion.as_slice());
-        let base = &mut self.base;
-        for t in base.filter_types(ghost) {
-            let filter = base
-                .element_filter
-                .get(t, ghost)
-                .map(Array::as_slice)
-                .unwrap_or(&[]);
-            if let (true, Ok(nq)) = (constant, fe.nb_integration_points(t, ghost)) {
-                // every entry is `k + (±0)`, which is `k` (see
-                // `temperature_term_vanishes`): no interpolation of `T`
-                let mut block = base.diffusivity.get_mut(t, ghost)?;
-                if block.len() != filter.len() * nq {
-                    return Err(Error::DimensionMismatch {
-                        context: "computeDiffusivityOnQuadPoints: diffusivity vs temperature",
-                        expected: block.len(),
-                        got: filter.len() * nq,
-                    });
-                }
-                for c in block.as_mut_slice().chunks_exact_mut(d * d) {
-                    c.copy_from_slice(cond);
-                }
-                continue;
-            }
-            let tq = &mut self.tq_scratch;
-            fe.interpolate_on_integration_points(
-                ctx.mesh(),
-                ctx.diffusion.view(),
-                tq,
-                1,
-                t,
-                ghost,
-                Some(filter),
-            )?;
-            // `conductivity_variation * (T - T_ref)` is one scalar per
-            // quadrature point, added to every entry of C
-            let mut block = base.diffusivity.get_mut(t, ghost)?;
-            if block.len() != tq.len() {
-                return Err(Error::DimensionMismatch {
-                    context: "computeDiffusivityOnQuadPoints: diffusivity vs temperature",
-                    expected: block.len(),
-                    got: tq.len(),
-                });
-            }
-            for (c, &tt) in block
-                .as_mut_slice()
-                .chunks_exact_mut(d * d)
-                .zip(tq.as_slice())
-            {
-                let s = var * (tt - t_ref);
-                for (ci, &k) in c.iter_mut().zip(cond) {
-                    *ci = k + s;
-                }
-            }
-        }
-        base.diffusivity_release.insert((ty, ghost), ctx.release);
-        Ok(())
+        self.diffusivity_on_quad_points(ctx, ty, ghost).map(|_| ())
     }
 
     /// Upstream `computeDiffusivityGradUOnQuadPoints(type, ghost)`: the
@@ -440,8 +466,9 @@ impl DiffusionLaw for HeatDiffusion {
         ty: ElementType,
         ghost: GhostType,
     ) -> Result<()> {
-        self.compute_diffusivity_on_quad_points(ctx, ty, ghost)?;
+        let constant = self.diffusivity_on_quad_points(ctx, ty, ghost)?;
         let d = self.base.spatial_dimension;
+        let cond = self.conductivity.as_slice();
         let base = &mut self.base;
         let grad = base.grad_u.get(ty, ghost)?;
         let diff = base.diffusivity.get(ty, ghost)?;
@@ -456,6 +483,18 @@ impl DiffusionLaw for HeatDiffusion {
         base.d_grad_u.resize(ty, ghost, nq)?;
         let mut out = base.d_grad_u.get_mut(ty, ghost)?;
         let (g, c, o) = (grad.as_slice(), diff.as_slice(), out.as_mut_slice());
+        if constant && cond.len() == d * d {
+            // every point of the diffusivity block was just set to the
+            // conductivity: the same factors, read from the `d × d` matrix
+            // instead of from every point's copy
+            match d {
+                1 => d_grad_u_constant::<1>(g, cond, o),
+                2 => d_grad_u_constant::<2>(g, cond, o),
+                3 => d_grad_u_constant::<3>(g, cond, o),
+                _ => d_grad_u_general(d, g, c, o),
+            }
+            return Ok(());
+        }
         match d {
             1 => d_grad_u_fixed::<1>(g, c, o),
             2 => d_grad_u_fixed::<2>(g, c, o),
@@ -598,6 +637,24 @@ mod tests {
                     _ => d_grad_u_fixed::<3>(&g, &c, &mut a),
                 }
                 d_grad_u_general(std::hint::black_box(d), &g, &c, &mut b);
+                // one diffusivity at every point: the constant kernel
+                let first: Vec<Real> = c[..d * d].to_vec();
+                let rep: Vec<Real> = (0..nq).flat_map(|_| first.iter().copied()).collect();
+                let (mut e, mut f) = (vec![0.0; nq * d], vec![0.0; nq * d]);
+                match d {
+                    1 => d_grad_u_constant::<1>(&g, &first, &mut e),
+                    2 => d_grad_u_constant::<2>(&g, &first, &mut e),
+                    _ => d_grad_u_constant::<3>(&g, &first, &mut e),
+                }
+                d_grad_u_general(std::hint::black_box(d), &g, &rep, &mut f);
+                for (x, y) in e.iter().zip(&f) {
+                    let ok = if payload {
+                        x.to_bits() == y.to_bits()
+                    } else {
+                        same(*x, *y)
+                    };
+                    assert!(ok, "constant d={d}: {x:e} {y:e}");
+                }
                 for (x, y) in a.iter().zip(&b) {
                     let ok = if payload {
                         x.to_bits() == y.to_bits()
