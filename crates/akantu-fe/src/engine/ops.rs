@@ -732,6 +732,9 @@ pub(crate) fn integrate_with_jacobians<'j>(
     if super::fast::integrate(f, nb_dof, nq, &jac, nb_element, o).is_some() {
         return Ok(());
     }
+    if nb_dof == 1 && super::fast::integrate_scalar(f, nq, &jac, nb_element, o).is_some() {
+        return Ok(());
+    }
     let p_fj = eigen::prepare(Dims::dynamic(nb_dof, nq), Dims::new(nq, 1, false, true))?;
     for pos in 0..nb_element {
         let j = jac(pos);
