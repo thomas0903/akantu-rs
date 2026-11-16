@@ -163,6 +163,7 @@ const AV_STRESS_RATE_COST: usize = 2 * (2 * eo::READ_COST + eo::OP_COST + 8) + e
 type Voigt = [[Real; VMAX]; VMAX];
 
 /// Upstream `strainToVoigt(gradUToEpsilon(g))`: `factor(I)·ε(i, j)`.
+#[inline(always)]
 fn strain_voigt<const D: usize>(t: &VoigtTable, g: &Matrix<D, D>) -> [Real; VMAX] {
     let eps = grad_u_to_epsilon(g);
     let mut v = [0.0; VMAX];
@@ -175,6 +176,7 @@ fn strain_voigt<const D: usize>(t: &VoigtTable, g: &Matrix<D, D>) -> [Real; VMAX
 
 /// Upstream `stressToVoigt` of branch `k` of a `sigma_v`-like tuple
 /// (`v(I) = σ(i, j)`).
+#[inline(always)]
 fn branch_voigt(t: &VoigtTable, tuple: &[Real], k: usize) -> [Real; VMAX] {
     let d = t.dim;
     let page = &tuple[k * d * d..(k + 1) * d * d];
@@ -470,6 +472,7 @@ impl<const DIM: usize> MaterialViscoelasticMaxwell<DIM> {
     }
 
     /// Upstream `computeStressOnQuad` for one point.
+    #[inline]
     fn stress_on_quad(
         &self,
         factors: &[(Real, Real)],
@@ -506,6 +509,7 @@ impl<const DIM: usize> MaterialViscoelasticMaxwell<DIM> {
     }
 
     /// Upstream `computePotentialEnergyOnQuad`.
+    #[inline]
     fn energy_on_quad(
         &self,
         grad_u: &Matrix<DIM, DIM>,
@@ -530,6 +534,7 @@ impl<const DIM: usize> MaterialViscoelasticMaxwell<DIM> {
     /// Upstream `updateIntVarOnQuad` (both modes) for one point: updates
     /// the `sigma_v` / `epsilon_v` tuples in place.
     #[allow(clippy::too_many_arguments)] // one quadrature point's state
+    #[inline]
     fn update_int_var_on_quad(
         &self,
         mode: MaxwellUpdate,

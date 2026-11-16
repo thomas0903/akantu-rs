@@ -227,6 +227,38 @@ impl<const DIM: usize> MaterialPhaseField<DIM> {
         Ok(())
     }
 
+    /// The stress of a contiguous run of points (a part of
+    /// `compute_stress`; no-alias slice parameters, not inlined into the
+    /// part closure).
+    #[inline(never)]
+    fn stress_part(
+        &self,
+        split: &EnergySplit,
+        grad_u: &[Real],
+        damage: &[Real],
+        eps_th: &[Real],
+        out: &mut [Real],
+    ) -> Result<()> {
+        let n = DIM * DIM;
+        let points = grad_u
+            .chunks_exact(n)
+            .zip(damage.iter().zip(eps_th))
+            .zip(out.chunks_exact_mut(n));
+        for ((g, (&d, &th)), o) in points {
+            let g: &Matrix<DIM, DIM> = as_matrix(g)?;
+            let strain = grad_u_to_epsilon(&self.strain_input(g));
+            let g_d = self.degradation(d);
+            let (plus, minus) = split.sigma(&strain, th);
+            let s: &mut Matrix<DIM, DIM> = as_matrix_mut(o)?;
+            for j in 0..DIM {
+                for i in 0..DIM {
+                    s[j][i] = g_d * plus[j][i] + minus[j][i];
+                }
+            }
+        }
+        Ok(())
+    }
+
     /// Strain measure fed to the split (`∇u` or the Green strain).
     fn strain_input(&self, g: &Matrix<DIM, DIM>) -> Matrix<DIM, DIM> {
         if self.elastic.base().finite_deformation {
@@ -412,24 +444,13 @@ impl<const DIM: usize> Material for MaterialPhaseField<DIM> {
         );
         let this = &*self;
         exec.try_for_each(items, 1024, |_, (g, dam, th, mut out)| {
-            let points = g
-                .as_slice()
-                .chunks_exact(n)
-                .zip(dam.as_slice().iter().zip(th.as_slice()))
-                .zip(out.as_mut_slice().chunks_exact_mut(n));
-            for ((g, (&d, &th)), o) in points {
-                let g: &Matrix<DIM, DIM> = as_matrix(g)?;
-                let strain = grad_u_to_epsilon(&this.strain_input(g));
-                let g_d = this.degradation(d);
-                let (plus, minus) = split.sigma(&strain, th);
-                let s: &mut Matrix<DIM, DIM> = as_matrix_mut(o)?;
-                for j in 0..DIM {
-                    for i in 0..DIM {
-                        s[j][i] = g_d * plus[j][i] + minus[j][i];
-                    }
-                }
-            }
-            Ok(())
+            this.stress_part(
+                &split,
+                g.as_slice(),
+                dam.as_slice(),
+                th.as_slice(),
+                out.as_mut_slice(),
+            )
         })?;
         let mut sigma = self
             .elastic
