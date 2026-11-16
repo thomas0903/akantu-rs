@@ -247,6 +247,9 @@ pub struct SparseMatrixAij {
     profile_stamp: ProfileStamp,
     /// Reusable scratch for `add_values` (no per-element allocation).
     scratch: Vec<usize>,
+    /// Largest stored coordinate (row or column), `-1` without entries
+    /// (stored coordinates are never negative).
+    max_coord: GlobalIdx,
 }
 
 impl SparseMatrixAij {
@@ -268,6 +271,7 @@ impl SparseMatrixAij {
             value_release: 1,
             profile_stamp: ProfileStamp::fresh(),
             scratch: Vec::new(),
+            max_coord: -1,
         }
     }
 
@@ -439,6 +443,7 @@ impl SparseMatrixAij {
             }
         }
         self.size = self.size.max(i + 1).max(j + 1);
+        self.max_coord = self.max_coord.max(i).max(j);
         self.irn.push(i);
         self.jcn.push(j);
         self.a.push(0.0);
@@ -896,6 +901,7 @@ impl SparseMatrixAij {
         } else {
             self.irn.clone_from(&other.irn);
             self.jcn.clone_from(&other.jcn);
+            self.max_coord = other.max_coord;
             if same_rule && other.profile.len() == other.a.len() {
                 // Same key rule and one key per entry in `other`: its map
                 // is the map the loop below would build.
@@ -944,6 +950,7 @@ impl SparseMatrixAij {
     /// Remove the profile (upstream `clearProfile`), keeping the order.
     /// The effective symmetry (an agreed promotion) is kept.
     pub fn clear_profile(&mut self) {
+        self.max_coord = -1;
         self.irn.clear();
         self.jcn.clear();
         self.a.clear();
@@ -1052,6 +1059,10 @@ impl SparseMatrixAij {
     fn check_local_coordinates(&self, layout: &EquationLayout) -> Result<()> {
         let bad = if layout.is_identity() {
             let n = layout.nb_local();
+            if usize::try_from(self.max_coord).map_or(true, |m| m < n) {
+                // every stored coordinate is in `0..=max_coord`
+                return Ok(());
+            }
             let out = |g: GlobalIdx| usize::try_from(g).map_or(true, |u| u >= n);
             if self.irn.iter().chain(&self.jcn).any(|&g| out(g)) {
                 self.irn
