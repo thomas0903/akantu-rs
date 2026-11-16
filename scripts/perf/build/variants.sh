@@ -11,6 +11,8 @@
 #   thin      lto = "thin"            fat   lto = "fat"
 #   v2|v3|v4  -C target-cpu=x86-64-v2|v3|v4
 #   native    -C target-cpu=native
+#   znver4    -C target-cpu=znver4 (what `native` selects on the measurement
+#             machine's AMD EPYC 9R14, for builds made on another host)
 #   abort     panic = "abort"
 #   o2        opt-level = 2
 #   pgogen    -C profile-generate=$PGO_DIR (instrumented build)
@@ -28,6 +30,7 @@ variant_env() {
       fat) export CARGO_PROFILE_RELEASE_LTO=fat ;;
       v2 | v3 | v4) flags+=(-C "target-cpu=x86-64-$part") ;;
       native) flags+=(-C target-cpu=native) ;;
+      znver4) flags+=(-C target-cpu=znver4) ;;
       abort) export CARGO_PROFILE_RELEASE_PANIC=abort ;;
       o2) export CARGO_PROFILE_RELEASE_OPT_LEVEL=2 ;;
       pgogen) flags+=(-C "profile-generate=${PGO_DIR:?}") ;;

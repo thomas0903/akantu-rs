@@ -7,7 +7,10 @@
 #   build_variant.sh REPO NAME [TARGET_ROOT] [BIN_ROOT]
 # Binaries: explicit_step_timing (akantu-solid example), cohesive_extrinsic
 # (akantu-bench), facet_scaling (akantu-mesh example). One line of JSON on
-# stdout per build.
+# stdout per build. With STRIP_COPY=1 the copies in BIN_ROOT have their
+# DWARF debug information removed (`strip --strip-debug`: the symbol table
+# and the code stay identical; smaller files to move between machines);
+# the sizes recorded are those of cargo's unstripped binaries.
 set -euo pipefail
 here="$(cd "$(dirname "$0")" && pwd)"
 # shellcheck source=scripts/perf/build/variants.sh
@@ -27,6 +30,9 @@ t1=$(date +%s.%N)
 cp "$CARGO_TARGET_DIR/release/examples/explicit_step_timing" "$broot/$name/explicit"
 cp "$CARGO_TARGET_DIR/release/cohesive_extrinsic" "$broot/$name/cohesive"
 cp "$CARGO_TARGET_DIR/release/examples/facet_scaling" "$broot/$name/facet"
+if [ "${STRIP_COPY:-0}" = 1 ]; then
+  strip --strip-debug "$broot/$name/explicit" "$broot/$name/cohesive" "$broot/$name/facet"
+fi
 sz() { stat -c %s "$1"; }
 txt() { size -A "$1" | awk '$1 == ".text" {print $2}'; }
 printf '{"variant":"%s","build_s":%.1f,"rustflags":"%s","lto":"%s","cgu":"%s","panic":"%s","load":"%s","utc":"%s","commit":"%s",' \
@@ -34,5 +40,6 @@ printf '{"variant":"%s","build_s":%.1f,"rustflags":"%s","lto":"%s","cgu":"%s","p
   "${CARGO_PROFILE_RELEASE_CODEGEN_UNITS:-}" "${CARGO_PROFILE_RELEASE_PANIC:-}" \
   "$(cut -d' ' -f1-3 /proc/loadavg)" "$(date -u +%FT%TZ)" "$(git rev-parse --short=9 HEAD)"
 printf '"explicit_bytes":%s,"explicit_text":%s,"cohesive_bytes":%s,"cohesive_text":%s,"facet_bytes":%s,"facet_text":%s}\n' \
-  "$(sz "$broot/$name/explicit")" "$(txt "$broot/$name/explicit")" "$(sz "$broot/$name/cohesive")" \
-  "$(txt "$broot/$name/cohesive")" "$(sz "$broot/$name/facet")" "$(txt "$broot/$name/facet")"
+  "$(sz "$CARGO_TARGET_DIR/release/examples/explicit_step_timing")" "$(txt "$broot/$name/explicit")" \
+  "$(sz "$CARGO_TARGET_DIR/release/cohesive_extrinsic")" "$(txt "$broot/$name/cohesive")" \
+  "$(sz "$CARGO_TARGET_DIR/release/examples/facet_scaling")" "$(txt "$broot/$name/facet")"
