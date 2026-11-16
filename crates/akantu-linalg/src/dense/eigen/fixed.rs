@@ -453,6 +453,8 @@ impl<const N: usize, const COMPUTE_U: bool> State<N, COMPUTE_U> {
                     *t.get_mut(i, i) -= s;
                 }
                 shift = [0.964; 3];
+                #[cfg(test)]
+                trace::hit(trace::SHIFT_30);
             }
         }
         shift
@@ -641,6 +643,8 @@ pub(crate) fn real_schur_fixed<const N: usize, const COMPUTE_U: bool>(
                 iter += 1;
                 total_iter += 1;
                 if total_iter > max_iters {
+                    #[cfg(test)]
+                    trace::hit(trace::LIMIT);
                     break;
                 }
                 // `il + 2 ≤ iu ≤ 3`: (0, 2), (0, 3), (1, 3)
@@ -695,6 +699,35 @@ pub(crate) fn schur_eigenvalues_fixed<const N: usize>(
         }
     }
     Info::Success
+}
+
+/// Test-only record of the rare branches taken by the fixed iteration
+/// (the tests check that their inputs reach them).
+#[cfg(test)]
+pub(crate) mod trace {
+    use std::cell::Cell;
+
+    /// MATLAB's ad hoc shift of iteration 30 applied (`s > 0`).
+    pub(crate) const SHIFT_30: usize = 0;
+    /// The iteration limit `40·N` exceeded.
+    pub(crate) const LIMIT: usize = 1;
+
+    thread_local! {
+        static HITS: Cell<[usize; 2]> = const { Cell::new([0; 2]) };
+    }
+
+    pub(crate) fn hit(what: usize) {
+        HITS.with(|h| {
+            let mut v = h.get();
+            v[what] += 1;
+            h.set(v);
+        });
+    }
+
+    /// The counts since the last call (and reset them).
+    pub(crate) fn take() -> [usize; 2] {
+        HITS.with(|h| h.replace([0; 2]))
+    }
 }
 
 #[cfg(test)]
@@ -867,5 +900,86 @@ mod tests {
             }
         }
         assert!(nc > 0);
+    }
+
+    /// Finite inputs (found by a search over small integer matrices) that
+    /// reach MATLAB's ad hoc shift of iteration 30 (`s > 0`) and the
+    /// iteration limit `40·N`, compared bit for bit with the general path
+    /// (`T`, `U`, status), and the branch checked with the test trace.
+    #[test]
+    fn fixed_schur_iteration_30_shift_and_iteration_limit() {
+        // column-major (`a[col][row]`)
+        let shift30_3 = FMat([[0.0, -1.0, 0.0], [1.0, 0.0, -1.0], [0.0, -1.0, 0.0]]);
+        let shift30_3b = FMat([[0.0, 1.0, 0.0], [-1.0, 0.0, 1.0], [0.0, 1.0, 0.0]]);
+        let shift30_4 = FMat([
+            [0.0, -1.0, 0.0, 1.0],
+            [-1.0, 0.0, -1.0, 1.0],
+            [0.0, 1.0, 0.0, -1.0],
+            [1.0, 0.0, 1.0, 1.0],
+        ]);
+        let limit_4 = [
+            FMat([
+                [1.0, -1.0, 0.0, -1.0],
+                [1.0, -1.0, 1.0, 0.0],
+                [0.0, 1.0, 1.0, 0.0],
+                [-1.0, 0.0, 0.0, -1.0],
+            ]),
+            FMat([
+                [1.0, -2.0, 0.0, 0.0],
+                [0.0, -2.0, 2.0, 0.0],
+                [0.0, 1.0, 1.0, -1.0],
+                [-2.0, 0.0, -2.0, -2.0],
+            ]),
+            FMat([
+                [0.0, -1.0, 0.0, -1.0],
+                [0.0, -1.0, -1.0, 0.0],
+                [0.0, -1.0, 0.0, 0.0],
+                [-1.0, 0.0, -1.0, -1.0],
+            ]),
+        ];
+        for a in [&shift30_3, &shift30_3b] {
+            trace::take();
+            check(a, false);
+            assert!(trace::take()[trace::SHIFT_30] > 0, "{a:?}");
+        }
+        trace::take();
+        check(&shift30_4, false);
+        assert!(trace::take()[trace::SHIFT_30] > 0);
+        for a in &limit_4 {
+            trace::take();
+            assert_eq!(check(a, false), Info::NoConvergence, "{a:?}");
+            assert!(trace::take()[trace::LIMIT] > 0, "{a:?}");
+        }
+    }
+
+    /// Sub-diagonal entries exactly at the deflation threshold
+    /// `max(ε·(|t(i−1,i−1)| + |t(i,i)|), consider_as_zero)` = `2⁻⁵¹` (diagonal
+    /// entries 1, scale 1, upper Hessenberg input so that `T` starts as the
+    /// input), one ulp below and one ulp above, for `N = 2` (deflation at
+    /// row 1) and `N = 3` (row 2): the entry at or below the threshold
+    /// deflates, the one above does not; each compared bit for bit with the
+    /// general path.
+    #[test]
+    fn fixed_schur_deflation_threshold_boundary() {
+        let thr = f64::EPSILON * 2.0;
+        assert_eq!(thr, 2f64.powi(-51));
+        let below = f64::from_bits(thr.to_bits() - 1);
+        let above = f64::from_bits(thr.to_bits() + 1);
+        let mut deflated = Vec::new();
+        for x in [below, thr, above] {
+            let a2 = FMat([[1.0, x], [0.5, 1.0]]);
+            check(&a2, false);
+            let (t2, _, _) = real_schur_fixed::<2, false>(&a2);
+            let a3 = FMat([[1.0, 0.25, 0.0], [0.5, 1.0, x], [0.5, 0.5, 1.0]]);
+            check(&a3, false);
+            let (t3, _, _) = real_schur_fixed::<3, false>(&a3);
+            // deflated: the sub-diagonal entry is zeroed and the diagonal
+            // entry kept (`t(i,i) + exshift`, `exshift = 0`)
+            deflated.push((
+                t2.at(1, 0) == 0.0 && t2.at(1, 1) == 1.0,
+                t3.at(2, 1) == 0.0 && t3.at(2, 2) == 1.0,
+            ));
+        }
+        assert_eq!(deflated, [(true, true), (true, true), (false, false)]);
     }
 }
