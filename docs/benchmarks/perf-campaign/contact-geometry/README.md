@@ -112,3 +112,20 @@ so only self shares are reliable:
   top symbols of the assemblies; inside `intersect` the grid build over the
   81 k faces of the 3-D case is about a third of a call (once per set-up in
   real use).
+
+## Tried and dropped: memoised prepared products
+
+After the merge of the prepared product kernels
+(`akantu_core::eigen_kernels::SliceProduct`), whose `product_slices`
+already evaluates through them, the contact `matmul` (natural projection,
+covariant basis, resolution moduli) was given a per-thread memo of
+prepared products by shape. Same machine, 5 interleaved repetitions,
+2026-11-16 (`prepared-products/`): against the merged code (7ae23cce3,
+`head`), the memo (4f4445f4a, `prep`) measured `contact_search_quad4`
+`search` 4.367 s against 4.046 s (ratio 1.075 [1.064, 1.101]),
+`contact_search_tet4` 3.322 s against 3.134 s (1.062 [1.049, 1.082]),
+`contact_implicit_static_quad4` 1.009 [1.004, 1.032], digests equal: the
+thread-local lookup costs more than preparing the product per call. It was
+reverted. The merged code's own search times are those of the `head`
+column (4.046 s and 3.134 s, against 5.378 s and 5.098 s before this
+branch's changes and the kernels).
