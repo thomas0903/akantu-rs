@@ -83,8 +83,11 @@ fn bits(a: &[Real]) -> Vec<u64> {
     a.iter().map(|x| x.to_bits()).collect()
 }
 
+/// Current and previous values (bits) of each field.
+type State = Vec<(Vec<u64>, Vec<u64>)>;
+
 /// Current and previous values of the fields.
-fn state(m: &mut SolidMechanicsModel, fields: &[Field]) -> Vec<(Vec<u64>, Vec<u64>)> {
+fn state(m: &mut SolidMechanicsModel, fields: &[Field]) -> State {
     fields
         .iter()
         .map(|f| {
@@ -105,7 +108,7 @@ fn run(
     copy_every_save: bool,
     break_step: fn(&mut SolidMechanicsModel),
     repair: fn(&mut SolidMechanicsModel),
-) -> (Vec<(Vec<u64>, Vec<u64>)>, Vec<(Vec<u64>, Vec<u64>)>) {
+) -> (State, State) {
     let mut m = model(law);
     let rt = ForeignRuntime::new();
     // exported blocks are saved by copy (their leases live for the run)
