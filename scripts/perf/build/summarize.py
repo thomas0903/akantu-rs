@@ -43,7 +43,7 @@ for line in open(path):
         vals[(case, "wall [s]")][(v, rep)] = o["wall_s"]
         if o.get("peak_rss_kib"):
             vals[(case, "peak RSS [KiB]")][(v, rep)] = o["peak_rss_kib"]
-        digests[case].add((v, o["outputs_sha256"]))
+        digests[(case, rep)].add((v, o["outputs_sha256"]))
     elif k == "facet":
         tot = 0.0
         for m in ("csr", "fill_e2s", "init_mesh_facets", "erase", "purify"):
@@ -75,6 +75,8 @@ for (case, metric), d in vals.items():
         cells.append(f"**{st.median(pr):.3f}** [{min(pr):.3f}, {max(pr):.3f}]" if pr else "—")
     print(f"| {case} | {metric} | " + " | ".join(cells) + " |")
 print()
-for case, s in digests.items():
+# per repetition (the digest's definition may differ between repetitions of
+# a series that was extended)
+for (case, rep), s in sorted(digests.items()):
     shas = {sha for (_, sha) in s}
-    print(f"{case} outputs: {'identical across variants' if len(shas) == 1 else 'DIFFER: ' + str(sorted(s))} ({len(s)} variant(s))")
+    print(f"{case} {rep} outputs: {'identical across ' + str(len(s)) + ' variants (' + next(iter(shas)) + ')' if len(shas) == 1 else 'DIFFER: ' + str(sorted(s))}")
