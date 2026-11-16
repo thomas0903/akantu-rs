@@ -48,6 +48,7 @@ use crate::materials::mazars::{
     MaterialMazars, mazars_damage_on_quad, mazars_strain_3d, principal_strains_and_ehat3,
 };
 use crate::materials::plastic::MaterialLinearIsotropicHardening;
+use crate::materials::scratch::{ScratchBlocks, commit, load};
 
 /// Name of the averaged internal (upstream `non_local_variable`).
 pub const NON_LOCAL_VARIABLE: &str = "non_local_variable";
@@ -59,6 +60,9 @@ pub struct MaterialMazarsNonLocal<const DIM: usize, P> {
     pub inner: MaterialMazars<DIM, P>,
     /// The averaged variable (`non_local_variable`, one component).
     pub non_local_variable: InternalField<Real>,
+    /// The new gradient, stress and damage of a block
+    /// (`compute_non_local_stress`).
+    scratch: ScratchBlocks<3>,
 }
 
 /// `mazars_non_local`.
@@ -101,6 +105,7 @@ impl<const DIM: usize, P: DamageParent<DIM>> MaterialMazarsNonLocal<DIM, P> {
         Ok(Self {
             inner,
             non_local_variable: InternalField::new(NON_LOCAL_VARIABLE, 1, 0.0)?,
+            scratch: ScratchBlocks::default(),
         })
     }
 
@@ -122,69 +127,92 @@ impl<const DIM: usize, P: DamageParent<DIM>> MaterialMazarsNonLocal<DIM, P> {
         let params = m.params;
         let on_damage = m.damage_in_compute_stress;
         let alpha = m.parent.elastic().thermal.alpha;
-        let delta_t = m.parent.elastic().delta_t.get(ty, ghost)?.clone();
-        let inel = m
-            .parent
-            .inelastic_strain()
-            .map(|f| f.get(ty, ghost).map(|a| akantu_core::Array::clone(&a)))
-            .transpose()?;
-        let k0 = m.k0.get(ty, ghost)?.clone();
-        let nlv = self.non_local_variable.get(ty, ghost)?.clone();
-        let mut dam = m.damage.damage.get(ty, ghost)?.clone();
-        let base = m.parent.base();
-        let mut grad_u = base.grad_u.get(ty, ghost)?.clone();
-        let mut sigma = base.sigma_field()?.get(ty, ghost)?.clone();
-        let nq = grad_u.len();
-        if [sigma.len(), k0.len(), dam.len(), nlv.len(), delta_t.len()]
+        // the inputs read in place; the gradient, stress and (unless the
+        // damage is the averaged variable) damage are read before they are
+        // written: computed into the law's scratch blocks, loaded with the
+        // current values, and committed (nothing changes on an error)
+        let scratch = &mut self.scratch;
+        {
+            let delta_t = m.parent.elastic().delta_t.get(ty, ghost)?;
+            let inel = m
+                .parent
+                .inelastic_strain()
+                .map(|f| f.get(ty, ghost))
+                .transpose()?;
+            let k0 = m.k0.get(ty, ghost)?;
+            let nlv = self.non_local_variable.get(ty, ghost)?;
+            let dam_cur = m.damage.damage.get(ty, ghost)?;
+            let base = m.parent.base();
+            let grad_u_cur = base.grad_u.get(ty, ghost)?;
+            let sigma_cur = base.sigma_field()?.get(ty, ghost)?;
+            let nq = grad_u_cur.len();
+            if [
+                sigma_cur.len(),
+                k0.len(),
+                dam_cur.len(),
+                nlv.len(),
+                delta_t.len(),
+            ]
             .iter()
             .any(|&l| l != nq)
-            || inel.as_ref().is_some_and(|a| a.len() != nq)
-        {
-            return Err(Error::DimensionMismatch {
-                context: "MaterialMazarsNonLocal::computeNonLocalStress",
-                expected: nq,
-                got: nlv.len().min(sigma.len()),
-            });
-        }
-        for q in 0..nq {
-            let r = q * n..(q + 1) * n;
-            let g: &mut Matrix<DIM, DIM> = as_matrix_mut(&mut grad_u.as_mut_slice()[r.clone()])?;
-            let p: Option<&Matrix<DIM, DIM>> = inel
-                .as_ref()
-                .map(|a| as_matrix(&a.as_slice()[r.clone()]))
-                .transpose()?;
-            let d = if on_damage {
-                nlv.as_slice()[q]
-            } else {
-                let inel_trace = p.map_or(0., SquareMatrixExt::trace);
-                let e3 = mazars_strain_3d(g, inel_trace, delta_t.as_slice()[q] * alpha, mode);
-                let (fdiag, _) = principal_strains_and_ehat3(&e3)?;
-                let dq = &mut dam.as_mut_slice()[q];
-                *dq = mazars_damage_on_quad(
-                    &params,
-                    &el,
-                    nlv.as_slice()[q],
-                    k0.as_slice()[q],
-                    &fdiag,
-                    *dq,
-                );
-                *dq
-            };
-            let f = 1. - d;
-            for s in &mut sigma.as_mut_slice()[r.clone()] {
-                *s *= f;
+                || inel.as_ref().is_some_and(|a| a.len() != nq)
+            {
+                return Err(Error::DimensionMismatch {
+                    context: "MaterialMazarsNonLocal::computeNonLocalStress",
+                    expected: nq,
+                    got: nlv.len().min(sigma_cur.len()),
+                });
             }
-            if let Some(p) = p {
-                *g = g.add(p);
+            let [grad_u, sigma, dam] = scratch.sized([
+                (nq, grad_u_cur.nb_component()),
+                (nq, sigma_cur.nb_component()),
+                (nq, dam_cur.nb_component()),
+            ])?;
+            load(grad_u, &grad_u_cur)?;
+            load(sigma, &sigma_cur)?;
+            if !on_damage {
+                load(dam, &dam_cur)?;
+            }
+            for q in 0..nq {
+                let r = q * n..(q + 1) * n;
+                let g: &mut Matrix<DIM, DIM> =
+                    as_matrix_mut(&mut grad_u.as_mut_slice()[r.clone()])?;
+                let p: Option<&Matrix<DIM, DIM>> = inel
+                    .as_ref()
+                    .map(|a| as_matrix(&a.as_slice()[r.clone()]))
+                    .transpose()?;
+                let d = if on_damage {
+                    nlv.as_slice()[q]
+                } else {
+                    let inel_trace = p.map_or(0., SquareMatrixExt::trace);
+                    let e3 = mazars_strain_3d(g, inel_trace, delta_t.as_slice()[q] * alpha, mode);
+                    let (fdiag, _) = principal_strains_and_ehat3(&e3)?;
+                    let dq = &mut dam.as_mut_slice()[q];
+                    *dq = mazars_damage_on_quad(
+                        &params,
+                        &el,
+                        nlv.as_slice()[q],
+                        k0.as_slice()[q],
+                        &fdiag,
+                        *dq,
+                    );
+                    *dq
+                };
+                let f = 1. - d;
+                for s in &mut sigma.as_mut_slice()[r.clone()] {
+                    *s *= f;
+                }
+                if let Some(p) = p {
+                    *g = g.add(p);
+                }
             }
         }
+        let [grad_u, sigma, dam] = scratch.blocks();
         let base = m.parent.base_mut();
-        base.grad_u.get_mut(ty, ghost)?.copy_from(&grad_u)?;
-        base.sigma_field_mut()?
-            .get_mut(ty, ghost)?
-            .copy_from(&sigma)?;
+        commit(&mut base.grad_u, ty, ghost, grad_u)?;
+        commit(base.sigma_field_mut()?, ty, ghost, sigma)?;
         if !on_damage {
-            m.damage.damage.get_mut(ty, ghost)?.copy_from(&dam)?;
+            commit(&mut m.damage.damage, ty, ghost, dam)?;
         }
         Ok(())
     }
