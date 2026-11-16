@@ -982,6 +982,46 @@ fn grad_u_in_place(
     Ok(true)
 }
 
+/// `grad_u ← ∇(displacement) − eigen_grad_u` of `(ty, ghost)` for the
+/// law-local elements `filter` (the first part of upstream
+/// `computeAllStresses` for one block): in the stored gradient when its
+/// shape allows ([`grad_u_in_place`]), else through a temporary copied into
+/// it. Every value of the block is written, so a deferred history save of
+/// it needs no copy when the in-place shape checks pass (the computation
+/// can then fail only in the gradient service, as the temporary path can).
+fn grad_u_of_block(
+    base: &mut MaterialBase,
+    ctx: &LawContext<'_>,
+    dim: usize,
+    ty: ElementType,
+    ghost: GhostType,
+    filter: &[Idx],
+) -> Result<()> {
+    let n = filter.len() * ctx.services.nb_integration_points(ty, ghost);
+    prepare_grad_u_overwrite(base, dim, ty, ghost, n);
+    // In the stored gradient when its shape allows (same values, no
+    // per-step temporary); else the temporary below
+    if grad_u_in_place(base, ctx, dim, ty, ghost, filter)? {
+        return Ok(());
+    }
+    let mut gu = Array::new(dim * dim);
+    ctx.services
+        .gradient_on_integration_points("displacement", &mut gu, dim, ty, ghost, filter)?;
+    let eigen = base.eigen_grad_u.get(ty, ghost)?;
+    if eigen.len() != gu.len() {
+        return Err(Error::DimensionMismatch {
+            context: "computeAllStresses: grad_u -= eigen_grad_u",
+            expected: eigen.len(),
+            got: gu.len(),
+        });
+    }
+    for (g, e) in gu.as_mut_slice().iter_mut().zip(eigen.as_slice()) {
+        *g -= *e;
+    }
+    drop(eigen);
+    base.grad_u.get_mut(ty, ghost)?.copy_from(&gu)
+}
+
 /// [`InternalField::prepare_overwrite`] of the `grad_u` block when the
 /// in-place gradient of [`Material::compute_all_stresses`] will write all
 /// of it (`n = filter length · nb_quad` tuples of `dim²` values, an
@@ -1407,52 +1447,16 @@ pub trait Material: ConstitutiveLaw {
     fn compute_all_stresses(&mut self, ctx: &LawContext<'_>, ghost: GhostType) -> Result<()> {
         let dim = self.base().spatial_dimension;
         for ty in self.base().filter_types(ghost) {
-            let filter = self
-                .base()
-                .element_filter
-                .get(ty, ghost)?
-                .as_slice()
-                .to_vec();
-            if filter.is_empty() {
+            if self.base().element_filter.get(ty, ghost)?.is_empty() {
                 continue;
             }
-            // Every value of `grad_u` is written below, before it is read:
-            // a deferred history save of the block needs no copy (when
-            // the in-place path's shape checks pass; it can then fail only
-            // in the gradient service, as the temporary path can)
-            let n = filter.len() * ctx.services.nb_integration_points(ty, ghost);
-            prepare_grad_u_overwrite(self.base_mut(), dim, ty, ghost, n);
-            // In the stored gradient when its shape allows (same
-            // values, no per-step temporary); else the temporary below
-            if grad_u_in_place(self.base_mut(), ctx, dim, ty, ghost, &filter)? {
-                self.prepare_stress_overwrite(ty, ghost);
-                self.compute_stress(ctx, ty, ghost)?;
-                continue;
-            }
-            let mut gu = Array::new(dim * dim);
-            ctx.services.gradient_on_integration_points(
-                "displacement",
-                &mut gu,
-                dim,
-                ty,
-                ghost,
-                &filter,
-            )?;
-            {
-                let base = self.base_mut();
-                let eigen = base.eigen_grad_u.get(ty, ghost)?;
-                if eigen.len() != gu.len() {
-                    return Err(Error::DimensionMismatch {
-                        context: "computeAllStresses: grad_u -= eigen_grad_u",
-                        expected: eigen.len(),
-                        got: gu.len(),
-                    });
-                }
-                for (g, e) in gu.as_mut_slice().iter_mut().zip(eigen.as_slice()) {
-                    *g -= *e;
-                }
-                base.grad_u.get_mut(ty, ghost)?.copy_from(&gu)?;
-            }
+            // The filter block is moved out of the law while the gradient
+            // is computed (nothing in that computation reads the law's
+            // filter) and put back before the stress: no per-step copy
+            let filter = std::mem::take(self.base_mut().element_filter.get_mut(ty, ghost)?);
+            let gradient = grad_u_of_block(self.base_mut(), ctx, dim, ty, ghost, filter.as_slice());
+            *self.base_mut().element_filter.get_mut(ty, ghost)? = filter;
+            gradient?;
             self.prepare_stress_overwrite(ty, ghost);
             self.compute_stress(ctx, ty, ghost)?;
         }
