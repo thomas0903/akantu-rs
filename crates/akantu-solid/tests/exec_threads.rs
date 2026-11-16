@@ -1555,32 +1555,24 @@ fn block_pass_is_bitwise_for_every_thread_count_and_equals_the_separate_passes()
 }
 
 /// The error path of a law that computes into scratch blocks committed by
-/// swap: plastic plane stress with `sigma_y = 0`, at rest but for the node
-/// nearest the centre, so the plane-stress return of the points around it
-/// (in the middle of the blocks) fails (`sigma_y + r <= 0`). Nothing is
-/// committed: the error and every current and previous value are the
-/// serial run's at every thread count, with deferred saves and with saves
-/// by copy.
+/// swap: plastic plane stress with a softening hardening (`h < 0`) under
+/// the initial field of the other law cases; after some steps the hardening
+/// of the most loaded points drops below `-sigma_y` and their plane-stress
+/// return fails (`sigma_y + r <= 0`), with every other point loaded.
+/// Nothing is committed: the error and every current and previous value
+/// are the serial run's at every thread count, with deferred saves and with
+/// saves by copy.
 fn plastic_plane_stress_error_state(policy: ExecPolicy, copy_every_save: bool) -> (String, State) {
     let dat = "material plastic_linear_isotropic_hardening [\n  name = body\n  rho = 2500\n  \
-               E = 70e9\n  nu = 0.22\n  h = 5e9\n  sigma_y = 0\n  Plane_Stress = true\n]\n";
-    let mut m = law_model(grid2d(6, false), dat, 0.0, None, policy);
+               E = 70e9\n  nu = 0.22\n  h = -2e10\n  sigma_y = 2e7\n  Plane_Stress = true\n]\n";
+    let mut m = law_model(grid2d(6, false), dat, 1e-3, None, policy);
     with_saves(&mut m, copy_every_save, |m| {
-        let centre = {
-            let mesh = m.physics.base.mesh.read().unwrap();
-            let nodes = mesh.nodes();
-            let x = nodes.as_slice();
-            let d2 = |n: usize| (x[2 * n] - 0.5).powi(2) + (x[2 * n + 1] - 0.5).powi(2);
-            (0..x.len() / 2)
-                .min_by(|&a, &b| d2(a).total_cmp(&d2(b)))
-                .unwrap()
-        };
-        m.displacement_mut().unwrap().as_mut_slice()[2 * centre] = 1e-4;
-        let err = m
-            .solve_step(None)
-            .expect_err("the plane-stress return fails around the centre")
-            .to_string();
-        (err, law_state(m))
+        for step in 0..200 {
+            if let Err(e) = m.solve_step(None) {
+                return (format!("step {step}: {e}"), law_state(m));
+            }
+        }
+        panic!("the plane-stress return never failed");
     })
 }
 
