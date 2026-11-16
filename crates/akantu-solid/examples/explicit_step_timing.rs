@@ -37,6 +37,9 @@
 //! digest of the bits of `u`, `v`, `a` and `f_int`, used to check that two
 //! builds give bitwise identical states.
 //!
+//! The execution policy is the process default (D-123): `AKANTU_NUM_THREADS`,
+//! `AKANTU_PRECISION`, `AKANTU_SIMD`; the meta line reports it.
+//!
 //! The phases `grad`, `btd`, `integ`, `asm` call the public kernels with the
 //! arguments `assemble_internal_forces` uses but reuse their outputs (the
 //! model path allocates them per call): they isolate kernel costs.
@@ -130,6 +133,11 @@ struct Services<'a> {
 }
 
 impl ModelServices for Services<'_> {
+    // as the model's own services: the law loops run on the model's
+    // executor (D-123)
+    fn exec(&self) -> &akantu_core::exec::Exec {
+        self.fems.exec()
+    }
     fn spatial_dimension(&self) -> usize {
         self.dim
     }
@@ -408,13 +416,16 @@ fn main() -> Result<()> {
     println!(
         "{{\"kind\":\"meta\",\"label\":{:?},\"mesh\":{:?},\"types\":{:?},\"nq\":{:?},\
          \"nb_elements\":{nb_el},\"nb_nodes\":{nb_nodes},\"fd\":{},\"init_s\":{init_s:.6},\
-         \"time_step\":{:e}}}",
+         \"time_step\":{:e},\"threads\":{},\"precision\":{:?},\"simd\":{:?}}}",
         a.label,
         a.mesh.display().to_string(),
         types,
         nq,
         a.fd,
-        m.time_step(None)?
+        m.time_step(None)?,
+        m.exec_policy().threads(),
+        m.exec_policy().precision().name(),
+        m.exec_policy().simd().name()
     );
     if let Some(n) = a.digest_steps {
         for _ in 0..n {

@@ -81,19 +81,23 @@ pub struct MemoryRecord {
     pub hwm_end: Option<u64>,
     /// `VmRSS` at the end of the loop.
     pub rss_end: Option<u64>,
+    /// `VmRSS` right after the static solver was released
+    /// (`rust_release_static_solver = true`; `None` otherwise).
+    pub rss_after_release: Option<u64>,
 }
 
 impl MemoryRecord {
     /// The fields in output order, as `(key, value)` (`None` = not
     /// measured on this platform).
     #[must_use]
-    pub fn fields(&self) -> [(&'static str, Option<u64>); 5] {
+    pub fn fields(&self) -> [(&'static str, Option<u64>); 6] {
         [
             ("rss_before_static", self.rss_before_static),
             ("hwm_static", self.hwm_static),
             ("rss_after_static", self.rss_after_static),
             ("hwm_end", self.hwm_end),
             ("rss_end", self.rss_end),
+            ("rss_after_release", self.rss_after_release),
         ]
     }
 }

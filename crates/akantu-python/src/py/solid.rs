@@ -1079,6 +1079,16 @@ impl PySolidMechanicsModel {
         mo(slf).with(slf.py(), SolidMechanicsModel::assemble_internal_forces)
     }
 
+    /// Port extension (not in upstream's Python API): release the static
+    /// solver's factorisation and the storage of `J` and `K` once no
+    /// re-solve with them follows (e.g. after a static preload before an
+    /// explicit loop); a later static solve assembles and factorises
+    /// again. Collective. `SolidMechanicsModel::release_static_solver`.
+    #[pyo3(name = "releaseStaticSolver")]
+    fn release_static_solver(slf: &Bound<'_, Self>) -> PyResult<()> {
+        mo(slf).with(slf.py(), SolidMechanicsModel::release_static_solver)
+    }
+
     #[pyo3(name = "assembleMass")]
     fn assemble_mass(slf: &Bound<'_, Self>) -> PyResult<()> {
         mo(slf).with(slf.py(), SolidMechanicsModel::assemble_mass)

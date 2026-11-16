@@ -72,8 +72,13 @@ mod colamd;
 mod dense;
 mod etree;
 mod kernels;
+// Run-time instruction-set dispatch of the dense kernels: calls of
+// `#[target_feature]` functions after the CPU check (`UNSAFE.md`).
+#[allow(unsafe_code)]
+mod simd;
 
 use akantu_core::enums::{MatrixType, SparseSolverType};
+use akantu_core::exec::FastToken;
 use akantu_core::{Error, Real, Result};
 
 use crate::direct::{
@@ -84,7 +89,7 @@ use crate::sparse::SparseMatrixAij;
 use kernels::{EMPTY, Glu, PermutedCols, Work};
 
 /// `initperfvalues()`.
-const PANEL_SIZE: usize = 16;
+const PANEL_SIZE: usize = kernels::SPA_W;
 const RELAX: i64 = 1;
 const MAXSUPER: i64 = 128;
 /// `m_diagpivotthresh` default.
@@ -130,12 +135,26 @@ pub struct SparseLu {
     /// Pattern analysed (column pointers, row indices).
     pattern: Option<(Vec<usize>, Vec<usize>)>,
     factors: Option<(Vec<i64>, Glu)>,
+    /// The work arrays of the last factorisation and the factor storage of
+    /// the last invalidated factorisation, kept for the next one (no fresh
+    /// allocation and page faults per factorisation; no effect on results).
+    work: Option<Box<Work>>,
+    spare_glu: Option<Glu>,
+    /// Fast mode ([`SparseLu::set_fast_mode`]).
+    fma: bool,
 }
 
 impl SparseLu {
+    /// Drops the factorisation, keeping its storage for the next one.
+    fn invalidate(&mut self) {
+        if let Some((_, g)) = self.factors.take() {
+            self.spare_glu = Some(g);
+        }
+    }
+
     /// `analyzePattern(mat)` on the compressed column matrix `a`.
     pub fn analyze_pattern(&mut self, a: &CscMatrix) -> Result<()> {
-        self.factors = None;
+        self.invalidate();
         self.pattern = None;
         let n = a.n();
         if i32::try_from(n).is_err() || i32::try_from(a.nnz()).is_err() {
@@ -169,6 +188,24 @@ impl SparseLu {
         Ok(())
     }
 
+    /// Fast mode (`Some(token)`), off by default (`None`): the panel
+    /// updates' dense products (`sparselu_gemm`, the largest share of a
+    /// factorisation) use fused multiply-adds on CPUs with FMA (AVX-512F
+    /// or AVX2; elsewhere the bitwise kernels run). Each term `c + a·b` is
+    /// then rounded once instead of twice, so the factors and solutions
+    /// differ from Eigen's (and the oracle's) in the last bits; the
+    /// pivoting may differ when two candidate pivots are within those bits.
+    /// The token comes from [`Exec::fast_token`](akantu_core::exec::Exec::fast_token),
+    /// so only an executor in [`Precision::Fast`](akantu_core::exec::Precision::Fast)
+    /// can enable it. Tolerance against the default:
+    /// `docs/NUMERICAL_VALIDATION.md` ("SparseLU fast mode"). Takes effect at
+    /// the next factorisation. Through [`EigenSparseLuSolver`],
+    /// `destroy_internal_data` (the DOF manager's `release_solvers`,
+    /// `set_solver`) resets it to the bitwise default.
+    pub fn set_fast_mode(&mut self, fast: Option<FastToken>) {
+        self.fma = fast.is_some();
+    }
+
     /// `colsPermutation().indices()`.
     #[must_use]
     pub fn perm_c(&self) -> &[i64] {
@@ -194,7 +231,7 @@ impl SparseLu {
     /// the entries below it) are an arithmetic range failure; both are
     /// [`Error::Numerical`]. Every failure leaves no factorisation.
     pub fn factorize(&mut self, a: &CscMatrix) -> Result<()> {
-        self.factors = None;
+        self.invalidate();
         let Some((cp, ri)) = &self.pattern else {
             return Err(Error::LinearSolver(
                 "factorize() called before analyzePattern()".into(),
@@ -211,33 +248,16 @@ impl SparseLu {
         for (i, &p) in self.perm_c.iter().enumerate() {
             iperm_c[p as usize] = i as i64;
         }
-        let maxpanel = PANEL_SIZE * m;
-        let mut wk = Work {
-            segrep: vec![0; m],
-            parent: vec![0; m],
-            xplore: vec![0; m],
-            repfnz: vec![EMPTY; maxpanel],
-            panel_lsub: vec![EMPTY; maxpanel],
-            xprune: vec![0; n],
-            marker: vec![EMPTY; m * 3],
-            dense: vec![0.0; maxpanel],
-            // LUnumTempV(m, panel_size, maxsuper, rowblk = m)
-            tempv: vec![0.0; m.max((MAXSUPER as usize + m) * PANEL_SIZE)],
-        };
+        // reuse the work arrays and the factor storage of the previous
+        // factorisation (reinitialised; the factor values are rewritten)
+        let mut glu = self.spare_glu.take().unwrap_or_default();
+        glu.reset(n);
+        let mut wk = self.work.take().unwrap_or_default();
+        wk.reset(m, n, PANEL_SIZE, MAXSUPER as usize);
+        wk.fma = self.fma;
         let mut relax_end = vec![EMPTY; n];
         kernels::relax_snode(n, &self.etree, RELAX, &mut relax_end);
         let mut perm_r = vec![EMPTY; m];
-        let mut glu = Glu {
-            xsup: vec![0; n + 1],
-            supno: vec![0; n + 1],
-            xlsub: vec![0; n + 1],
-            xlusup: vec![0; n + 1],
-            xusub: vec![0; n + 1],
-            ..Glu::default()
-        };
-        if n > 0 {
-            glu.supno[0] = EMPTY;
-        }
         let pc = PermutedCols {
             col_ptr: a.col_ptr(),
             row_idx: a.row_idx(),
@@ -272,12 +292,12 @@ impl SparseLu {
                     nseg - nseg1,
                     nseg1 as usize,
                     col_off,
-                    m,
+                    jj - jcol,
                     jcol,
                     &mut wk,
                     &mut glu,
                 );
-                kernels::copy_to_ucol(jj, nseg, col_off, &perm_r, &mut wk, &mut glu);
+                kernels::copy_to_ucol(jj, nseg, col_off, jj - jcol, &perm_r, &mut wk, &mut glu);
                 let pivrow = match kernels::pivot_l(
                     jj,
                     DIAG_PIVOT_THRESH,
@@ -314,6 +334,7 @@ impl SparseLu {
             ));
         }
         self.factors = Some((perm_r, glu));
+        self.work = Some(wk);
         Ok(())
     }
 
@@ -325,16 +346,22 @@ impl SparseLu {
         let (nnz_l, nnz_u) = kernels::countnz(n, g);
         let nsuper = if n > 0 { g.supno[n] } else { -1 };
         let take = |v: &[i64], len: i64| v[..usize::try_from(len).unwrap_or(0)].to_vec();
+        let widen = |v: &[i32], len: i64| {
+            v[..usize::try_from(len).unwrap_or(0)]
+                .iter()
+                .map(|&i| i64::from(i))
+                .collect()
+        };
         Some(SparseLuFactors {
             perm_r: perm_r.clone(),
             xsup: take(&g.xsup, nsuper + 2),
             supno: g.supno.clone(),
             xlsub: g.xlsub.clone(),
-            lsub: take(&g.lsub, g.xlsub[n]),
+            lsub: widen(&g.lsub, g.xlsub[n]),
             xlusup: g.xlusup.clone(),
             lusup: g.lusup[..g.xlusup[n] as usize].to_vec(),
             xusub: g.xusub.clone(),
-            usub: take(&g.usub, g.xusub[n]),
+            usub: widen(&g.usub, g.xusub[n]),
             ucol: g.ucol[..g.xusub[n] as usize].to_vec(),
             nnz_l,
             nnz_u,
@@ -347,6 +374,12 @@ impl SparseLu {
     /// from finite input is an arithmetic range failure (both
     /// [`Error::Numerical`]); `x` is only written on success.
     pub fn solve(&self, b: &[Real], x: &mut [Real]) -> Result<()> {
+        self.solve_with(b, x, &mut Vec::new())
+    }
+
+    /// [`solve`](Self::solve) with the caller's scratch buffer (`2 n`
+    /// values; reused across solves, no allocation once grown).
+    pub fn solve_with(&self, b: &[Real], x: &mut [Real], scratch: &mut Vec<f64>) -> Result<()> {
         let (perm_r, g) = self.factors.as_ref().ok_or_else(|| {
             Error::LinearSolver("solve() called before a successful factorize()".into())
         })?;
@@ -359,13 +392,15 @@ impl SparseLu {
             });
         }
         check_finite_rhs("Eigen SparseLU", b)?;
-        let mut xv = vec![0.0; n];
+        scratch.clear();
+        scratch.resize(2 * n, 0.0);
+        let (xv, work) = scratch.split_at_mut(n);
         for (i, &bi) in b.iter().enumerate() {
             xv[perm_r[i] as usize] = bi;
         }
         if n > 0 {
-            solve_l(n, g, &mut xv);
-            solve_u(n, g, &mut xv);
+            solve_l(n, g, xv, work);
+            solve_u(n, g, xv);
         }
         if let Some(i) = xv.iter().position(|v| !v.is_finite()) {
             return Err(arithmetic_range_failure(
@@ -382,8 +417,8 @@ impl SparseLu {
 
 /// `MappedSuperNodalMatrix::solveInPlace` for one right-hand side.
 #[allow(clippy::explicit_counter_loop)] // keeps Eigen's `iptr` counter
-fn solve_l(n: usize, g: &Glu, x: &mut [f64]) {
-    let mut work = vec![0.0; n];
+/// `work`: `n` zeros (left zero).
+fn solve_l(n: usize, g: &Glu, x: &mut [f64], work: &mut [f64]) {
     let nsuper = g.supno[n] as usize;
     for k in 0..=nsuper {
         let fsupc = g.xsup[k] as usize;
@@ -395,9 +430,9 @@ fn solve_l(n: usize, g: &Glu, x: &mut [f64]) {
             // InnerIterator over column fsupc, skipping the diagonal
             let (v0, v1) = (g.xlusup[fsupc] as usize, g.xlusup[fsupc + 1] as usize);
             let xf = x[fsupc];
-            for (t, iv) in (v0..v1).enumerate().skip(1) {
-                let irow = g.lsub[istart + t] as usize;
-                x[irow] -= xf * g.lusup[iv];
+            let rows = &g.lsub[istart + 1..istart + (v1 - v0)];
+            for (&irow, &lv) in rows.iter().zip(&g.lusup[v0 + 1..v1]) {
+                x[irow as usize] -= xf * lv;
             }
         } else {
             let luptr = g.xlusup[fsupc] as usize;
@@ -412,7 +447,7 @@ fn solve_l(n: usize, g: &Glu, x: &mut [f64]) {
                 lda,
                 x,
                 fsupc,
-                &mut work,
+                work,
                 0,
                 1.0,
             );
@@ -443,9 +478,12 @@ fn solve_u(n: usize, g: &Glu, x: &mut [f64]) {
             dense::trsv_upper(nsupc, &g.lusup, luptr, lda, x, fsupc);
         }
         for jcol in fsupc..fsupc + nsupc {
-            for p in g.xusub[jcol] as usize..g.xusub[jcol + 1] as usize {
-                let irow = g.usub[p] as usize;
-                x[irow] -= x[jcol] * g.ucol[p];
+            let (p0, p1) = (g.xusub[jcol] as usize, g.xusub[jcol + 1] as usize);
+            // the U rows of a column lie above its supernode (`irow < fsupc`),
+            // so `x[jcol]` does not change inside the loop
+            let xj = x[jcol];
+            for (&irow, &uv) in g.usub[p0..p1].iter().zip(&g.ucol[p0..p1]) {
+                x[irow as usize] -= xj * uv;
             }
         }
         k -= 1;
@@ -464,9 +502,21 @@ fn solve_u(n: usize, g: &Glu, x: &mut [f64]) {
 pub struct EigenSparseLuSolver {
     lu: SparseLu,
     analysed: Option<(u64, MatrixType)>,
+    /// Scratch of the solves ([`SparseLu::solve_with`]).
+    scratch: Vec<f64>,
 }
 
 impl EigenSparseLuSolver {
+    /// [`SparseLu::set_fast_mode`] (fast mode, not bitwise; off by
+    /// default). Takes effect at the next factorisation.
+    /// [`SparseDirectSolver::destroy_internal_data`] (called by the DOF
+    /// manager's `release_solvers` and `set_solver`) resets the solver to
+    /// its default, the bitwise mode included: set the fast mode again after
+    /// it.
+    pub fn set_fast_mode(&mut self, fast: Option<FastToken>) {
+        self.lu.set_fast_mode(fast);
+    }
+
     /// The factorisation object (permutations and factor arrays).
     #[must_use]
     pub fn lu(&self) -> &SparseLu {
@@ -491,7 +541,7 @@ impl SparseDirectSolver for EigenSparseLuSolver {
         // Invalidate first: a failed conversion leaves nothing usable.
         self.analysed = None;
         self.lu.pattern = None;
-        self.lu.factors = None;
+        self.lu.invalidate();
         let c = CscMatrix::from_aij(a)?;
         self.lu.analyze_pattern(&c)?;
         self.analysed = Some((a.profile_release(), a.matrix_type()));
@@ -501,13 +551,13 @@ impl SparseDirectSolver for EigenSparseLuSolver {
     fn factorize(&mut self, a: &SparseMatrixAij) -> Result<()> {
         // Invalidate first: no stale factors survive a
         // failed refactorisation, whatever step fails.
-        self.lu.factors = None;
+        self.lu.invalidate();
         let c = CscMatrix::from_aij(a)?;
         self.lu.factorize(&c)
     }
 
     fn solve(&mut self, b: &[Real], x: &mut [Real]) -> Result<()> {
-        self.lu.solve(b, x)
+        self.lu.solve_with(b, x, &mut self.scratch)
     }
 
     fn destroy_internal_data(&mut self) {
@@ -521,6 +571,162 @@ mod tests {
 
     fn csc(n: usize, t: &[(usize, usize, f64)]) -> CscMatrix {
         CscMatrix::from_triplets(n, t).unwrap()
+    }
+
+    /// A deterministic sparse test matrix: a 2-D 5-point stencil of `k × k`
+    /// nodes with unsymmetric off-diagonal values from `seed`.
+    fn stencil(k: usize, seed: u64) -> CscMatrix {
+        let mut r = seed | 1;
+        let mut next = || {
+            r ^= r << 13;
+            r ^= r >> 7;
+            r ^= r << 17;
+            (r >> 11) as f64 / (1u64 << 53) as f64
+        };
+        let mut t = Vec::new();
+        for i in 0..k {
+            for j in 0..k {
+                let p = i * k + j;
+                t.push((p, p, 4.0 + next()));
+                for (di, dj) in [(0i64, 1i64), (1, 0), (0, -1), (-1, 0)] {
+                    let (a, b) = (i as i64 + di, j as i64 + dj);
+                    if a >= 0 && b >= 0 && (a as usize) < k && (b as usize) < k {
+                        t.push((p, a as usize * k + b as usize, -1.0 + 0.5 * next()));
+                    }
+                }
+            }
+        }
+        CscMatrix::from_triplets(k * k, &t).unwrap()
+    }
+
+    fn factor_bits(lu: &SparseLu) -> Vec<u64> {
+        let f = lu.factors().unwrap();
+        let mut v: Vec<u64> = f.lusup.iter().chain(&f.ucol).map(|x| x.to_bits()).collect();
+        for a in [
+            &f.perm_r, &f.xsup, &f.supno, &f.xlsub, &f.lsub, &f.xlusup, &f.xusub, &f.usub,
+        ] {
+            v.extend(a.iter().map(|&i| i as u64));
+        }
+        v
+    }
+
+    #[test]
+    fn reused_storage_gives_the_factors_of_a_fresh_factorisation() {
+        let big = stencil(30, 7);
+        let a1 = stencil(20, 1);
+        let a2 = stencil(20, 2);
+        let mut fresh = SparseLu::default();
+        fresh.analyze_pattern(&a2).unwrap();
+        fresh.factorize(&a2).unwrap();
+        let want = factor_bits(&fresh);
+        // larger system first, then the same pattern with other values
+        let mut lu = SparseLu::default();
+        lu.analyze_pattern(&big).unwrap();
+        lu.factorize(&big).unwrap();
+        lu.analyze_pattern(&a1).unwrap();
+        lu.factorize(&a1).unwrap();
+        lu.factorize(&a2).unwrap();
+        assert_eq!(factor_bits(&lu), want);
+        // after a failed factorisation (a zero column)
+        let mut t: Vec<(usize, usize, f64)> = Vec::new();
+        for (c, w) in a2.col_ptr().windows(2).enumerate() {
+            for p in w[0]..w[1] {
+                let v = if c == 7 { 0.0 } else { a2.values()[p] };
+                t.push((a2.row_idx()[p], c, v));
+            }
+        }
+        let bad = CscMatrix::from_triplets(400, &t).unwrap();
+        assert!(lu.factorize(&bad).is_err());
+        lu.factorize(&a2).unwrap();
+        assert_eq!(factor_bits(&lu), want);
+        let b: Vec<f64> = (0..400).map(|i| (i % 7) as f64 - 3.0).collect();
+        let (mut x1, mut x2) = (vec![0.0; 400], vec![0.0; 400]);
+        lu.solve(&b, &mut x1).unwrap();
+        fresh.solve(&b, &mut x2).unwrap();
+        assert_eq!(
+            x1.iter().map(|x| x.to_bits()).collect::<Vec<_>>(),
+            x2.iter().map(|x| x.to_bits()).collect::<Vec<_>>()
+        );
+    }
+
+    #[test]
+    fn fma_mode_solution_within_tolerance() {
+        // A 3-D 7-point stencil (large supernodes, so the panel products
+        // run), diagonally dominant: condition number below 10, so a
+        // relative change of the solution above 1e-12 would mean an error,
+        // not rounding (each FMA saves one rounding of at most 2^-53).
+        let k = 14;
+        let n = k * k * k;
+        let mut t = Vec::new();
+        let id = |i: usize, j: usize, l: usize| (i * k + j) * k + l;
+        for i in 0..k {
+            for j in 0..k {
+                for l in 0..k {
+                    let p = id(i, j, l);
+                    t.push((p, p, 8.0 + ((p * 7) % 5) as f64 * 0.1));
+                    let nb = [
+                        (i.wrapping_sub(1), j, l),
+                        (i + 1, j, l),
+                        (i, j.wrapping_sub(1), l),
+                        (i, j + 1, l),
+                        (i, j, l.wrapping_sub(1)),
+                        (i, j, l + 1),
+                    ];
+                    for (q, &(a, b, c)) in nb.iter().enumerate() {
+                        if a < k && b < k && c < k {
+                            t.push((p, id(a, b, c), -1.0 + 0.05 * q as f64));
+                        }
+                    }
+                }
+            }
+        }
+        let a = CscMatrix::from_triplets(n, &t).unwrap();
+        let b: Vec<f64> = (0..n).map(|i| ((i * 13) % 17) as f64 - 8.0).collect();
+        let fast = || {
+            use akantu_core::exec::{Exec, ExecPolicy, Precision};
+            assert!(Exec::serial().fast_token().is_none());
+            Exec::new(ExecPolicy::serial().with_precision(Precision::Fast))
+                .unwrap()
+                .fast_token()
+        };
+        let solve = |fma: bool| {
+            let mut lu = SparseLu::default();
+            lu.set_fast_mode(if fma { fast() } else { None });
+            lu.analyze_pattern(&a).unwrap();
+            lu.factorize(&a).unwrap();
+            let mut x = vec![0.0; n];
+            lu.solve(&b, &mut x).unwrap();
+            x
+        };
+        let (x0, x1) = (solve(false), solve(true));
+        let norm = x0.iter().map(|v| v * v).sum::<f64>().sqrt();
+        let diff = x0
+            .iter()
+            .zip(&x1)
+            .map(|(u, v)| (u - v) * (u - v))
+            .sum::<f64>()
+            .sqrt();
+        assert!(diff <= 1e-12 * norm, "relative difference {}", diff / norm);
+        // the FMA kernels ran where the CPU has them (else the bitwise ones)
+        let bits = |x: &[f64]| x.iter().map(|v| v.to_bits()).collect::<Vec<_>>();
+        if super::simd::fma_available() {
+            assert_ne!(bits(&x0), bits(&x1), "the fast mode did not change any bit");
+        } else {
+            assert_eq!(bits(&x0), bits(&x1));
+        }
+        // the default mode is unaffected by an earlier fast factorisation
+        let mut lu = SparseLu::default();
+        lu.set_fast_mode(fast());
+        lu.analyze_pattern(&a).unwrap();
+        lu.factorize(&a).unwrap();
+        lu.set_fast_mode(None);
+        lu.factorize(&a).unwrap();
+        let mut x2 = vec![0.0; n];
+        lu.solve(&b, &mut x2).unwrap();
+        assert_eq!(
+            x2.iter().map(|v| v.to_bits()).collect::<Vec<_>>(),
+            x0.iter().map(|v| v.to_bits()).collect::<Vec<_>>()
+        );
     }
 
     #[test]

@@ -19,6 +19,9 @@ use std::cell::RefCell;
 use akantu_comm::phase::Severity;
 use akantu_core::array::{ArrayView, ArrayViewMut};
 use akantu_core::array_shared::ArrayRef;
+use std::collections::BTreeMap;
+
+use akantu_core::exec::{Tuples, TuplesRef};
 use akantu_core::{Array, ElementType, Error, GhostType, Idx, Real, Result};
 use akantu_mesh::Mesh;
 
@@ -48,7 +51,122 @@ impl DofData {
     }
 }
 
+/// `r += a ∘ x` of one part (no-alias parameters, not inlined into the
+/// part closure).
+#[inline(never)]
+fn lumped_mul_add_part(r: &mut [Real], a: &[Real], x: &[Real]) {
+    for ((r, &ai), &xi) in r.iter_mut().zip(a).zip(x) {
+        *r += ai * xi;
+    }
+}
+
+/// `x = α · (b / a)` of one part (no-alias parameters).
+#[inline(never)]
+fn lumped_solve_part(alpha: Real, x: &mut [Real], a: &[Real], b: &[Real]) {
+    for ((x, &ai), &bi) in x.iter_mut().zip(a).zip(b) {
+        *x = alpha * (bi / ai);
+    }
+}
+
+/// `t[j] += scale · values[inv[j]]` for the equations of one part that have
+/// a DOF (no-alias parameters).
+#[inline(never)]
+fn inverse_scatter_part(inv: &[u32], values: &[Real], scale: Real, target: &mut [Real]) {
+    for (t, &k) in target.iter_mut().zip(inv) {
+        if k != u32::MAX {
+            *t += scale * values[k as usize];
+        }
+    }
+}
+
+/// Equations per part of a threaded per-equation loop (D-123); as the
+/// integration-scheme updates (short parts cost more than they save).
+const EQUATIONS_PER_PART: usize = 262_144;
+
+/// The inverse of a family's equation numbers (`inv[eq] = dof`), kept for
+/// the equation-ordered scatter with the numbering generation it was built
+/// for (and, as a further check, the length and address of the numbers);
+/// `inv` is `None` when two DOFs share an equation.
+#[derive(Debug, Default)]
+pub(crate) struct EqInverse {
+    generation: u64,
+    eqs_len: usize,
+    eqs_ptr: usize,
+    len: usize,
+    inv: Option<Vec<u32>>,
+}
+
+impl EqInverse {
+    fn valid_for(&self, generation: u64, eqs: &[Idx], len: usize) -> bool {
+        self.generation == generation
+            && self.eqs_len == eqs.len()
+            && self.eqs_ptr == eqs.as_ptr() as usize
+            && self.len == len
+    }
+
+    fn build(generation: u64, eqs: &[Idx], len: usize) -> Self {
+        let mut inv = vec![u32::MAX; len];
+        let mut injective = u32::try_from(eqs.len()).is_ok();
+        for (k, &eq) in eqs.iter().enumerate() {
+            match usize::try_from(eq).ok().and_then(|e| inv.get_mut(e)) {
+                Some(slot) if *slot == u32::MAX => *slot = k as u32,
+                _ => {
+                    injective = false;
+                    break;
+                }
+            }
+        }
+        Self {
+            generation,
+            eqs_len: eqs.len(),
+            eqs_ptr: eqs.as_ptr() as usize,
+            len,
+            inv: injective.then_some(inv),
+        }
+    }
+}
+
 impl DofManager {
+    /// [`DofManager::assemble_to_global`] with more than one thread when
+    /// every DOF of the family has its own equation (non-periodic): each
+    /// equation then receives at most one addition, `target[e] += scale ·
+    /// v[inv[e]]`, the serial operation, so the equations split over the
+    /// threads (D-123). Otherwise, and on any invalid input (the serial
+    /// routine reports it), the serial routine.
+    #[allow(clippy::too_many_arguments)] // the executor, its cache and the routine's arguments
+    pub(crate) fn scatter_to_global(
+        exec: &akantu_core::exec::Exec,
+        cache: &std::sync::Mutex<BTreeMap<akantu_core::Id, EqInverse>>,
+        generation: u64,
+        dof_id: &str,
+        f: &DofData,
+        periodic: bool,
+        values: &[Real],
+        target: &mut [Real],
+        scale: Real,
+    ) -> Result<()> {
+        // threaded only when the equations really split into several parts
+        // (a single part would pay the table lookup for nothing)
+        let serial = exec.nb_parts(target.len(), EQUATIONS_PER_PART) <= 1
+            || (f.support == akantu_core::enums::DofSupportType::Nodal && periodic)
+            || values.len() != f.local_equation_numbers.len();
+        if serial {
+            return Self::assemble_to_global(f, periodic, values, target, scale);
+        }
+        let mut cache = cache.lock().unwrap_or_else(|e| e.into_inner());
+        let entry = cache.entry(dof_id.into()).or_default();
+        if !entry.valid_for(generation, &f.local_equation_numbers, target.len()) {
+            *entry = EqInverse::build(generation, &f.local_equation_numbers, target.len());
+        }
+        let Some(inv) = &entry.inv else {
+            return Self::assemble_to_global(f, periodic, values, target, scale);
+        };
+        exec.for_each(Tuples::new(target, 1), EQUATIONS_PER_PART, |e0, mut t| {
+            inverse_scatter_part(&inv[e0..], values, scale, t.as_mut_slice());
+        });
+        Ok(())
+    }
+
     /// Upstream `DOFManagerDefault::assembleToGlobalArray`: `target[eq] +=
     /// scale · v` per DOF in DOF order; for a nodal family of a periodic
     /// mesh `target[eq] += scale · v · (not periodic slave)` (slaves alias
@@ -133,7 +251,11 @@ impl DofManager {
             .families
             .get(dof_id)
             .ok_or_else(|| Error::not_found("dof family", dof_id))?;
-        Self::assemble_to_global(
+        Self::scatter_to_global(
+            &self.exec,
+            &self.eq_inverse,
+            self.numbering_generation,
+            dof_id,
             f,
             self.mesh_periodic,
             values.as_slice(),
@@ -417,7 +539,11 @@ impl DofManager {
     /// local-equation vector with `x` assembled at scale 1.
     fn mat_mul_cache(&self, dof_id: &str, x: &[Real], scale: Real) -> Result<Vec<Real>> {
         let mut cache = vec![0.0; self.layout.nb_local()];
-        Self::assemble_to_global(
+        Self::scatter_to_global(
+            &self.exec,
+            &self.eq_inverse,
+            self.numbering_generation,
+            dof_id,
             self.family(dof_id)?,
             self.mesh_periodic,
             x,
@@ -600,9 +726,20 @@ impl DofManager {
             cache.len(),
         )?;
         let mut residual = self.residual.values_mut();
-        for ((r, &ai), &xi) in residual.as_mut_slice().iter_mut().zip(&a.values).zip(cache) {
-            *r += ai * xi;
-        }
+        // every equation from its own entries: contiguous parts on the
+        // threads (D-123)
+        let n = (residual.as_slice().len())
+            .min(a.values.len())
+            .min(cache.len());
+        let items = (
+            Tuples::new(&mut residual.as_mut_slice()[..n], 1),
+            TuplesRef::new(&a.values[..n], 1),
+            TuplesRef::new(&cache[..n], 1),
+        );
+        self.exec
+            .for_each(items, EQUATIONS_PER_PART, |_, (mut r, a, x)| {
+                lumped_mul_add_part(r.as_mut_slice(), a.as_slice(), x.as_slice());
+            });
         drop(residual);
         // symmetric 3×3 couplings of a block-lumped matrix (D-059)
         self.add_lumped_coupling_product(a_id, cache)
@@ -638,9 +775,16 @@ impl DofManager {
         self.solution.clear();
         self.solution.resize(n, 0.0);
         let residual = self.residual.values();
-        for ((x, &ai), &bi) in self.solution.iter_mut().zip(&a.values).zip(residual.iter()) {
-            *x = alpha * (bi / ai);
-        }
+        let m = n.min(a.values.len()).min(residual.as_slice().len());
+        let items = (
+            Tuples::new(&mut self.solution[..m], 1),
+            TuplesRef::new(&a.values[..m], 1),
+            TuplesRef::new(&residual.as_slice()[..m], 1),
+        );
+        self.exec
+            .for_each(items, EQUATIONS_PER_PART, |_, (mut x, a, b)| {
+                lumped_solve_part(alpha, x.as_mut_slice(), a.as_slice(), b.as_slice());
+            });
         drop(residual);
         // free sub-blocks of a block-lumped matrix (D-059)
         self.solve_lumped_free_blocks(lumped_id, alpha)?;

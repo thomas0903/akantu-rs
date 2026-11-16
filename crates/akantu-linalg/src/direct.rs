@@ -288,6 +288,17 @@ pub trait SparseDirectSolver: std::fmt::Debug + Send {
     /// Release internal data (upstream `destroyInternalData`, called on
     /// communicator finalisation); a later solve needs a new analysis.
     fn destroy_internal_data(&mut self) {}
+    /// Release the analysis and the factors on the caller's request (port
+    /// extension; upstream keeps them until the solver is destroyed): the
+    /// next solve analyses and factorises again. Unlike
+    /// [`SparseDirectSolver::destroy_internal_data`], a failure is
+    /// reported. Collective for a distributed solver (MUMPS: `JOB = -2` on
+    /// every rank of its communicator, at the same program point). Default:
+    /// `destroy_internal_data`.
+    fn release_factorization(&mut self) -> Result<()> {
+        self.destroy_internal_data();
+        Ok(())
+    }
     /// Apply the manager-wide upstream-compatibility switches (D-041 (4)).
     /// The solver stack calls it before every solve, identically on every
     /// rank; backends without a switch of their own ignore it (default).
@@ -574,6 +585,12 @@ impl CscMatrix {
         let n = usize::try_from(a.size())
             .map_err(|_| Error::invalid("matrix order exceeds the address space"))?;
         let (irn, jcn, vals) = a.coo();
+        if a.is_released() {
+            return Err(Error::invalid(format!(
+                "matrix '{}': its values are released (assemble it before solving)",
+                a.id()
+            )));
+        }
         let symmetric = a.matrix_type() == MatrixType::Symmetric;
         let mut triplets = Vec::with_capacity(vals.len() * if symmetric { 2 } else { 1 });
         let idx = |g: GlobalIdx| -> Result<usize> {
