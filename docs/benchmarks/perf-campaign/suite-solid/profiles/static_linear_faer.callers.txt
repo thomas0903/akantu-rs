@@ -1,0 +1,271 @@
+# Deep call chains of suite case static_linear_faer (perf record -F 299 --call-graph dwarf,65528; libraries named)
+## Self time by library and symbol
+    91.76%  suite_solid        [.] faer::sparse::linalg::lu::simplicial::factorize_simplicial_numeric_lu::<usize, f64>
+     1.05%  suite_solid        [.] <akantu_linalg::direct::FaerLuSolver as akantu_linalg::direct::SparseDirectSolver>::solve
+     0.89%  suite_solid        [.] <akantu_linalg::sparse::SparseMatrixAij>::resolve_block
+     0.73%  [kernel.kallsyms]  [k] asm_sysvec_apic_timer_interrupt
+## Caller chains (self time, entries above 3 %)
+    91.76%  suite_solid        [.] faer::sparse::linalg::lu::simplicial::factorize_simplicial_numeric_lu::<usize, f64>
+            |
+            |--40.51%--faer::sparse::linalg::lu::simplicial::depth_first_search::<usize> (inlined)
+            |          faer::sparse::linalg::lu::simplicial::reach::<usize> (inlined)
+            |          faer::sparse::linalg::lu::simplicial::l_incomplete_solve_sparse::<usize, f64> (inlined)
+            |          faer::sparse::linalg::lu::simplicial::factorize_simplicial_numeric_lu::<usize, f64>
+            |          <akantu_linalg::direct::FaerLuSolver as akantu_linalg::direct::SparseDirectSolver>::factorize
+            |          |
+            |          |--32.40%--akantu_bench::suite_solid::implicit::static_linear::{closure#5} (inlined)
+            |          |          <akantu_bench::suite::Ctx>::repeat_impl::<akantu_bench::suite_solid::implicit::static_linear::{closure#5}> (inlined)
+            |          |          <akantu_bench::suite::Ctx>::repeat::<akantu_bench::suite_solid::implicit::static_linear::{closure#5}>
+            |          |          akantu_bench::suite_solid::implicit::static_linear
+            |          |          akantu_bench::suite::run_case
+            |          |          akantu_bench::suite::run_main
+            |          |          suite_solid::main
+            |          |          <fn() -> std::process::ExitCode as core::ops::function::FnOnce<()>>::call_once (inlined)
+            |          |          std::sys::backtrace::__rust_begin_short_backtrace::<fn() -> std::process::ExitCode, std::process::ExitCode>
+            |          |          std::rt::lang_start::<std::process::ExitCode>::{closure#0}
+            |          |          <&dyn core::ops::function::Fn<(), Output = i32> + core::panic::unwind_safe::RefUnwindSafe + core::marker::Sync as core::ops::function::FnOnce<()>>::call_once (inlined)
+            |          |          std::panicking::catch_unwind::do_call::<&dyn core::ops::function::Fn<(), Output = i32> + core::panic::unwind_safe::RefUnwindSafe + core::marker::Sync, i32> (inlined)
+            |          |          std::panicking::catch_unwind::<i32, &dyn core::ops::function::Fn<(), Output = i32> + core::panic::unwind_safe::RefUnwindSafe + core::marker::Sync> (inlined)
+            |          |          std::panic::catch_unwind::<&dyn core::ops::function::Fn<(), Output = i32> + core::panic::unwind_safe::RefUnwindSafe + core::marker::Sync, i32> (inlined)
+            |          |          std::rt::lang_start_internal::{closure#0} (inlined)
+            |          |          std::panicking::catch_unwind::do_call::<std::rt::lang_start_internal::{closure#0}, isize> (inlined)
+            |          |          std::panicking::catch_unwind::<isize, std::rt::lang_start_internal::{closure#0}> (inlined)
+            |          |          std::panic::catch_unwind::<std::rt::lang_start_internal::{closure#0}, isize> (inlined)
+            |          |          std::rt::lang_start_internal
+            |          |          main
+            |          |          0x7c956f62a1c9
+            |          |          __libc_start_main
+            |          |          _start
+            |          |
+            |           --8.11%--<akantu_solver::backend::AijBackend as akantu_solver::backend::LinearSystemBackend>::solve::{closure#2}::{closure#0} (inlined)
+            |                     <akantu_solver::backend::AijBackend as akantu_solver::backend::LinearSystemBackend>::solve::{closure#2} (inlined)
+            |                     <akantu_comm::phase::Phases>::run::<(alloc::vec::Vec<f64>, alloc::vec::Vec<i64>), alloc::vec::Vec<(i64, f64)>, <akantu_solver::backend::AijBackend as akantu_solver::backend::LinearSystemBackend>::solve::{closure#2}>
+            |                     <akantu_solver::backend::AijBackend as akantu_solver::backend::LinearSystemBackend>::solve
+            |                     <akantu_solver::dof_manager::DofManager>::solve_linear_system::{closure#0}::{closure#2} (inlined)
+            |                     <akantu_solver::dof_manager::DofManager>::lend::<(), <akantu_solver::dof_manager::DofManager>::solve_linear_system::{closure#0}::{closure#2}> (inlined)
+            |                     <akantu_solver::dof_manager::DofManager>::solve_linear_system::{closure#0} (inlined)
+            |                     <akantu_solver::dof_manager::DofManager>::collective::<(), <akantu_solver::dof_manager::DofManager>::solve_linear_system::{closure#0}> (inlined)
+            |                     <akantu_solver::dof_manager::DofManager>::solve_linear_system
+            |                     <akantu_solver::dof_manager::DofManager>::solve::{closure#0} (inlined)
+            |                     <akantu_solver::dof_manager::DofManager>::collective::<(), <akantu_solver::dof_manager::DofManager>::solve::{closure#0}> (inlined)
+            |                     <akantu_solver::dof_manager::DofManager>::solve
+            |                     <akantu_solver::non_linear_newton_raphson::NonLinearSolverNewtonRaphson>::solve_linear
+            |                     <akantu_solver::non_linear_newton_raphson::NonLinearSolverNewtonRaphson as akantu_solver::non_linear::NonLinearSolver>::solve::{closure#0} (inlined)
+            |                     <akantu_solver::dof_manager::DofManager>::collective::<(), <akantu_solver::non_linear_newton_raphson::NonLinearSolverNewtonRaphson as akantu_solver::non_linear::NonLinearSolver>::solve::{closure#0}>
+            |                     <akantu_solver::non_linear_newton_raphson::NonLinearSolverNewtonRaphson as akantu_solver::non_linear::NonLinearSolver>::solve
+            |                     <akantu_solver::time_step::TimeStepSolver>::solve_step (inlined)
+            |                     <akantu_solver::model_solver::ModelSolver>::solve_step
+            |                     <akantu_solver::model_solver::ModelSolver>::solve_step_intercepted
+            |                     <akantu_solid::model::SolidMechanicsModel>::solve_step_intercepted
+            |                     akantu_bench::suite_solid::implicit::static_linear
+            |                     akantu_bench::suite::run_case
+            |                     akantu_bench::suite::run_main
+            |                     suite_solid::main
+            |                     <fn() -> std::process::ExitCode as core::ops::function::FnOnce<()>>::call_once (inlined)
+            |                     std::sys::backtrace::__rust_begin_short_backtrace::<fn() -> std::process::ExitCode, std::process::ExitCode>
+            |                     std::rt::lang_start::<std::process::ExitCode>::{closure#0}
+            |                     <&dyn core::ops::function::Fn<(), Output = i32> + core::panic::unwind_safe::RefUnwindSafe + core::marker::Sync as core::ops::function::FnOnce<()>>::call_once (inlined)
+            |                     std::panicking::catch_unwind::do_call::<&dyn core::ops::function::Fn<(), Output = i32> + core::panic::unwind_safe::RefUnwindSafe + core::marker::Sync, i32> (inlined)
+            |                     std::panicking::catch_unwind::<i32, &dyn core::ops::function::Fn<(), Output = i32> + core::panic::unwind_safe::RefUnwindSafe + core::marker::Sync> (inlined)
+            |                     std::panic::catch_unwind::<&dyn core::ops::function::Fn<(), Output = i32> + core::panic::unwind_safe::RefUnwindSafe + core::marker::Sync, i32> (inlined)
+            |                     std::rt::lang_start_internal::{closure#0} (inlined)
+            |                     std::panicking::catch_unwind::do_call::<std::rt::lang_start_internal::{closure#0}, isize> (inlined)
+            |                     std::panicking::catch_unwind::<isize, std::rt::lang_start_internal::{closure#0}> (inlined)
+            |                     std::panic::catch_unwind::<std::rt::lang_start_internal::{closure#0}, isize> (inlined)
+            |                     std::rt::lang_start_internal
+            |                     main
+            |                     0x7c956f62a1c9
+            |                     __libc_start_main
+            |                     _start
+            |
+            |--14.77%--<f64 as core::ops::arith::SubAssign>::sub_assign (inlined)
+            |          faer::sparse::linalg::lu::simplicial::l_incomplete_solve_sparse::<usize, f64> (inlined)
+            |          faer::sparse::linalg::lu::simplicial::factorize_simplicial_numeric_lu::<usize, f64>
+            |          <akantu_linalg::direct::FaerLuSolver as akantu_linalg::direct::SparseDirectSolver>::factorize
+            |          |
+            |          |--11.73%--akantu_bench::suite_solid::implicit::static_linear::{closure#5} (inlined)
+            |          |          <akantu_bench::suite::Ctx>::repeat_impl::<akantu_bench::suite_solid::implicit::static_linear::{closure#5}> (inlined)
+            |          |          <akantu_bench::suite::Ctx>::repeat::<akantu_bench::suite_solid::implicit::static_linear::{closure#5}>
+            |          |          akantu_bench::suite_solid::implicit::static_linear
+            |          |          akantu_bench::suite::run_case
+            |          |          akantu_bench::suite::run_main
+            |          |          suite_solid::main
+            |          |          <fn() -> std::process::ExitCode as core::ops::function::FnOnce<()>>::call_once (inlined)
+            |          |          std::sys::backtrace::__rust_begin_short_backtrace::<fn() -> std::process::ExitCode, std::process::ExitCode>
+            |          |          std::rt::lang_start::<std::process::ExitCode>::{closure#0}
+            |          |          <&dyn core::ops::function::Fn<(), Output = i32> + core::panic::unwind_safe::RefUnwindSafe + core::marker::Sync as core::ops::function::FnOnce<()>>::call_once (inlined)
+            |          |          std::panicking::catch_unwind::do_call::<&dyn core::ops::function::Fn<(), Output = i32> + core::panic::unwind_safe::RefUnwindSafe + core::marker::Sync, i32> (inlined)
+            |          |          std::panicking::catch_unwind::<i32, &dyn core::ops::function::Fn<(), Output = i32> + core::panic::unwind_safe::RefUnwindSafe + core::marker::Sync> (inlined)
+            |          |          std::panic::catch_unwind::<&dyn core::ops::function::Fn<(), Output = i32> + core::panic::unwind_safe::RefUnwindSafe + core::marker::Sync, i32> (inlined)
+            |          |          std::rt::lang_start_internal::{closure#0} (inlined)
+            |          |          std::panicking::catch_unwind::do_call::<std::rt::lang_start_internal::{closure#0}, isize> (inlined)
+            |          |          std::panicking::catch_unwind::<isize, std::rt::lang_start_internal::{closure#0}> (inlined)
+            |          |          std::panic::catch_unwind::<std::rt::lang_start_internal::{closure#0}, isize> (inlined)
+            |          |          std::rt::lang_start_internal
+            |          |          main
+            |          |          0x7c956f62a1c9
+            |          |          __libc_start_main
+            |          |          _start
+            |          |
+            |           --3.04%--<akantu_solver::backend::AijBackend as akantu_solver::backend::LinearSystemBackend>::solve::{closure#2}::{closure#0} (inlined)
+            |                     <akantu_solver::backend::AijBackend as akantu_solver::backend::LinearSystemBackend>::solve::{closure#2} (inlined)
+            |                     <akantu_comm::phase::Phases>::run::<(alloc::vec::Vec<f64>, alloc::vec::Vec<i64>), alloc::vec::Vec<(i64, f64)>, <akantu_solver::backend::AijBackend as akantu_solver::backend::LinearSystemBackend>::solve::{closure#2}>
+            |                     <akantu_solver::backend::AijBackend as akantu_solver::backend::LinearSystemBackend>::solve
+            |                     <akantu_solver::dof_manager::DofManager>::solve_linear_system::{closure#0}::{closure#2} (inlined)
+            |                     <akantu_solver::dof_manager::DofManager>::lend::<(), <akantu_solver::dof_manager::DofManager>::solve_linear_system::{closure#0}::{closure#2}> (inlined)
+            |                     <akantu_solver::dof_manager::DofManager>::solve_linear_system::{closure#0} (inlined)
+            |                     <akantu_solver::dof_manager::DofManager>::collective::<(), <akantu_solver::dof_manager::DofManager>::solve_linear_system::{closure#0}> (inlined)
+            |                     <akantu_solver::dof_manager::DofManager>::solve_linear_system
+            |                     <akantu_solver::dof_manager::DofManager>::solve::{closure#0} (inlined)
+            |                     <akantu_solver::dof_manager::DofManager>::collective::<(), <akantu_solver::dof_manager::DofManager>::solve::{closure#0}> (inlined)
+            |                     <akantu_solver::dof_manager::DofManager>::solve
+            |                     <akantu_solver::non_linear_newton_raphson::NonLinearSolverNewtonRaphson>::solve_linear
+            |                     <akantu_solver::non_linear_newton_raphson::NonLinearSolverNewtonRaphson as akantu_solver::non_linear::NonLinearSolver>::solve::{closure#0} (inlined)
+            |                     <akantu_solver::dof_manager::DofManager>::collective::<(), <akantu_solver::non_linear_newton_raphson::NonLinearSolverNewtonRaphson as akantu_solver::non_linear::NonLinearSolver>::solve::{closure#0}>
+            |                     <akantu_solver::non_linear_newton_raphson::NonLinearSolverNewtonRaphson as akantu_solver::non_linear::NonLinearSolver>::solve
+            |                     <akantu_solver::time_step::TimeStepSolver>::solve_step (inlined)
+            |                     <akantu_solver::model_solver::ModelSolver>::solve_step
+            |                     <akantu_solver::model_solver::ModelSolver>::solve_step_intercepted
+            |                     <akantu_solid::model::SolidMechanicsModel>::solve_step_intercepted
+            |                     akantu_bench::suite_solid::implicit::static_linear
+            |                     akantu_bench::suite::run_case
+            |                     akantu_bench::suite::run_main
+            |                     suite_solid::main
+            |                     <fn() -> std::process::ExitCode as core::ops::function::FnOnce<()>>::call_once (inlined)
+            |                     std::sys::backtrace::__rust_begin_short_backtrace::<fn() -> std::process::ExitCode, std::process::ExitCode>
+            |                     std::rt::lang_start::<std::process::ExitCode>::{closure#0}
+            |                     <&dyn core::ops::function::Fn<(), Output = i32> + core::panic::unwind_safe::RefUnwindSafe + core::marker::Sync as core::ops::function::FnOnce<()>>::call_once (inlined)
+            |                     std::panicking::catch_unwind::do_call::<&dyn core::ops::function::Fn<(), Output = i32> + core::panic::unwind_safe::RefUnwindSafe + core::marker::Sync, i32> (inlined)
+            |                     std::panicking::catch_unwind::<i32, &dyn core::ops::function::Fn<(), Output = i32> + core::panic::unwind_safe::RefUnwindSafe + core::marker::Sync> (inlined)
+            |                     std::panic::catch_unwind::<&dyn core::ops::function::Fn<(), Output = i32> + core::panic::unwind_safe::RefUnwindSafe + core::marker::Sync, i32> (inlined)
+            |                     std::rt::lang_start_internal::{closure#0} (inlined)
+            |                     std::panicking::catch_unwind::do_call::<std::rt::lang_start_internal::{closure#0}, isize> (inlined)
+            |                     std::panicking::catch_unwind::<isize, std::rt::lang_start_internal::{closure#0}> (inlined)
+            |                     std::panic::catch_unwind::<std::rt::lang_start_internal::{closure#0}, isize> (inlined)
+            |                     std::rt::lang_start_internal
+            |                     main
+            |                     0x7c956f62a1c9
+            |                     __libc_start_main
+            |                     _start
+            |
+            |--12.82%--<f64 as core::ops::arith::Mul>::mul (inlined)
+            |          <&f64 as core::ops::arith::Mul>::mul (inlined)
+            |          faer::sparse::linalg::lu::simplicial::l_incomplete_solve_sparse::<usize, f64> (inlined)
+            |          faer::sparse::linalg::lu::simplicial::factorize_simplicial_numeric_lu::<usize, f64>
+            |          <akantu_linalg::direct::FaerLuSolver as akantu_linalg::direct::SparseDirectSolver>::factorize
+            |          |
+            |           --10.33%--akantu_bench::suite_solid::implicit::static_linear::{closure#5} (inlined)
+            |                     <akantu_bench::suite::Ctx>::repeat_impl::<akantu_bench::suite_solid::implicit::static_linear::{closure#5}> (inlined)
+            |                     <akantu_bench::suite::Ctx>::repeat::<akantu_bench::suite_solid::implicit::static_linear::{closure#5}>
+            |                     akantu_bench::suite_solid::implicit::static_linear
+            |                     akantu_bench::suite::run_case
+            |                     akantu_bench::suite::run_main
+            |                     suite_solid::main
+            |                     <fn() -> std::process::ExitCode as core::ops::function::FnOnce<()>>::call_once (inlined)
+            |                     std::sys::backtrace::__rust_begin_short_backtrace::<fn() -> std::process::ExitCode, std::process::ExitCode>
+            |                     std::rt::lang_start::<std::process::ExitCode>::{closure#0}
+            |                     <&dyn core::ops::function::Fn<(), Output = i32> + core::panic::unwind_safe::RefUnwindSafe + core::marker::Sync as core::ops::function::FnOnce<()>>::call_once (inlined)
+            |                     std::panicking::catch_unwind::do_call::<&dyn core::ops::function::Fn<(), Output = i32> + core::panic::unwind_safe::RefUnwindSafe + core::marker::Sync, i32> (inlined)
+            |                     std::panicking::catch_unwind::<i32, &dyn core::ops::function::Fn<(), Output = i32> + core::panic::unwind_safe::RefUnwindSafe + core::marker::Sync> (inlined)
+            |                     std::panic::catch_unwind::<&dyn core::ops::function::Fn<(), Output = i32> + core::panic::unwind_safe::RefUnwindSafe + core::marker::Sync, i32> (inlined)
+            |                     std::rt::lang_start_internal::{closure#0} (inlined)
+            |                     std::panicking::catch_unwind::do_call::<std::rt::lang_start_internal::{closure#0}, isize> (inlined)
+            |                     std::panicking::catch_unwind::<isize, std::rt::lang_start_internal::{closure#0}> (inlined)
+            |                     std::panic::catch_unwind::<std::rt::lang_start_internal::{closure#0}, isize> (inlined)
+            |                     std::rt::lang_start_internal
+            |                     main
+            |                     0x7c956f62a1c9
+            |                     __libc_start_main
+            |                     _start
+            |
+            |--7.51%--<core::iter::adapters::zip::Zip<core::slice::iter::Iter<usize>, core::slice::iter::Iter<f64>> as core::iter::adapters::zip::ZipImpl<core::slice::iter::Iter<usize>, core::slice::iter::Iter<f64>>>::next (inlined)
+            |          <core::iter::adapters::zip::Zip<core::slice::iter::Iter<usize>, core::slice::iter::Iter<f64>> as core::iter::traits::iterator::Iterator>::next (inlined)
+            |          faer::sparse::linalg::lu::simplicial::l_incomplete_solve_sparse::<usize, f64> (inlined)
+            |          faer::sparse::linalg::lu::simplicial::factorize_simplicial_numeric_lu::<usize, f64>
+            |          <akantu_linalg::direct::FaerLuSolver as akantu_linalg::direct::SparseDirectSolver>::factorize
+            |          |
+            |           --6.06%--akantu_bench::suite_solid::implicit::static_linear::{closure#5} (inlined)
+            |                     <akantu_bench::suite::Ctx>::repeat_impl::<akantu_bench::suite_solid::implicit::static_linear::{closure#5}> (inlined)
+            |                     <akantu_bench::suite::Ctx>::repeat::<akantu_bench::suite_solid::implicit::static_linear::{closure#5}>
+            |                     akantu_bench::suite_solid::implicit::static_linear
+            |                     akantu_bench::suite::run_case
+            |                     akantu_bench::suite::run_main
+            |                     suite_solid::main
+            |                     <fn() -> std::process::ExitCode as core::ops::function::FnOnce<()>>::call_once (inlined)
+            |                     std::sys::backtrace::__rust_begin_short_backtrace::<fn() -> std::process::ExitCode, std::process::ExitCode>
+            |                     std::rt::lang_start::<std::process::ExitCode>::{closure#0}
+            |                     <&dyn core::ops::function::Fn<(), Output = i32> + core::panic::unwind_safe::RefUnwindSafe + core::marker::Sync as core::ops::function::FnOnce<()>>::call_once (inlined)
+            |                     std::panicking::catch_unwind::do_call::<&dyn core::ops::function::Fn<(), Output = i32> + core::panic::unwind_safe::RefUnwindSafe + core::marker::Sync, i32> (inlined)
+            |                     std::panicking::catch_unwind::<i32, &dyn core::ops::function::Fn<(), Output = i32> + core::panic::unwind_safe::RefUnwindSafe + core::marker::Sync> (inlined)
+            |                     std::panic::catch_unwind::<&dyn core::ops::function::Fn<(), Output = i32> + core::panic::unwind_safe::RefUnwindSafe + core::marker::Sync, i32> (inlined)
+            |                     std::rt::lang_start_internal::{closure#0} (inlined)
+            |                     std::panicking::catch_unwind::do_call::<std::rt::lang_start_internal::{closure#0}, isize> (inlined)
+            |                     std::panicking::catch_unwind::<isize, std::rt::lang_start_internal::{closure#0}> (inlined)
+            |                     std::panic::catch_unwind::<std::rt::lang_start_internal::{closure#0}, isize> (inlined)
+            |                     std::rt::lang_start_internal
+            |                     main
+            |                     0x7c956f62a1c9
+            |                     __libc_start_main
+            |                     _start
+            |
+            |--7.30%--<usize as core::cmp::PartialOrd>::lt (inlined)
+            |          |
+            |           --7.29%--<core::ops::range::Range<usize> as core::iter::range::RangeIteratorImpl>::spec_next (inlined)
+            |                     <core::ops::range::Range<usize> as core::iter::traits::iterator::Iterator>::next (inlined)
+            |                     faer::sparse::linalg::lu::simplicial::depth_first_search::<usize> (inlined)
+            |                     faer::sparse::linalg::lu::simplicial::reach::<usize> (inlined)
+            |                     faer::sparse::linalg::lu::simplicial::l_incomplete_solve_sparse::<usize, f64> (inlined)
+            |                     faer::sparse::linalg::lu::simplicial::factorize_simplicial_numeric_lu::<usize, f64>
+            |                     <akantu_linalg::direct::FaerLuSolver as akantu_linalg::direct::SparseDirectSolver>::factorize
+            |                     |
+            |                      --5.74%--akantu_bench::suite_solid::implicit::static_linear::{closure#5} (inlined)
+            |                                <akantu_bench::suite::Ctx>::repeat_impl::<akantu_bench::suite_solid::implicit::static_linear::{closure#5}> (inlined)
+            |                                <akantu_bench::suite::Ctx>::repeat::<akantu_bench::suite_solid::implicit::static_linear::{closure#5}>
+            |                                akantu_bench::suite_solid::implicit::static_linear
+            |                                akantu_bench::suite::run_case
+            |                                akantu_bench::suite::run_main
+            |                                suite_solid::main
+            |                                <fn() -> std::process::ExitCode as core::ops::function::FnOnce<()>>::call_once (inlined)
+            |                                std::sys::backtrace::__rust_begin_short_backtrace::<fn() -> std::process::ExitCode, std::process::ExitCode>
+            |                                std::rt::lang_start::<std::process::ExitCode>::{closure#0}
+            |                                <&dyn core::ops::function::Fn<(), Output = i32> + core::panic::unwind_safe::RefUnwindSafe + core::marker::Sync as core::ops::function::FnOnce<()>>::call_once (inlined)
+            |                                std::panicking::catch_unwind::do_call::<&dyn core::ops::function::Fn<(), Output = i32> + core::panic::unwind_safe::RefUnwindSafe + core::marker::Sync, i32> (inlined)
+            |                                std::panicking::catch_unwind::<i32, &dyn core::ops::function::Fn<(), Output = i32> + core::panic::unwind_safe::RefUnwindSafe + core::marker::Sync> (inlined)
+            |                                std::panic::catch_unwind::<&dyn core::ops::function::Fn<(), Output = i32> + core::panic::unwind_safe::RefUnwindSafe + core::marker::Sync, i32> (inlined)
+            |                                std::rt::lang_start_internal::{closure#0} (inlined)
+            |                                std::panicking::catch_unwind::do_call::<std::rt::lang_start_internal::{closure#0}, isize> (inlined)
+            |                                std::panicking::catch_unwind::<isize, std::rt::lang_start_internal::{closure#0}> (inlined)
+            |                                std::panic::catch_unwind::<std::rt::lang_start_internal::{closure#0}, isize> (inlined)
+            |                                std::rt::lang_start_internal
+            |                                main
+            |                                0x7c956f62a1c9
+            |                                __libc_start_main
+            |                                _start
+            |
+             --7.20%--faer::sparse::linalg::lu::simplicial::l_incomplete_solve_sparse::<usize, f64> (inlined)
+                       faer::sparse::linalg::lu::simplicial::factorize_simplicial_numeric_lu::<usize, f64>
+                       <akantu_linalg::direct::FaerLuSolver as akantu_linalg::direct::SparseDirectSolver>::factorize
+                       |
+                        --5.86%--akantu_bench::suite_solid::implicit::static_linear::{closure#5} (inlined)
+                                  <akantu_bench::suite::Ctx>::repeat_impl::<akantu_bench::suite_solid::implicit::static_linear::{closure#5}> (inlined)
+                                  <akantu_bench::suite::Ctx>::repeat::<akantu_bench::suite_solid::implicit::static_linear::{closure#5}>
+                                  akantu_bench::suite_solid::implicit::static_linear
+                                  akantu_bench::suite::run_case
+                                  akantu_bench::suite::run_main
+                                  suite_solid::main
+                                  <fn() -> std::process::ExitCode as core::ops::function::FnOnce<()>>::call_once (inlined)
+                                  std::sys::backtrace::__rust_begin_short_backtrace::<fn() -> std::process::ExitCode, std::process::ExitCode>
+                                  std::rt::lang_start::<std::process::ExitCode>::{closure#0}
+                                  <&dyn core::ops::function::Fn<(), Output = i32> + core::panic::unwind_safe::RefUnwindSafe + core::marker::Sync as core::ops::function::FnOnce<()>>::call_once (inlined)
+                                  std::panicking::catch_unwind::do_call::<&dyn core::ops::function::Fn<(), Output = i32> + core::panic::unwind_safe::RefUnwindSafe + core::marker::Sync, i32> (inlined)
+                                  std::panicking::catch_unwind::<i32, &dyn core::ops::function::Fn<(), Output = i32> + core::panic::unwind_safe::RefUnwindSafe + core::marker::Sync> (inlined)
+                                  std::panic::catch_unwind::<&dyn core::ops::function::Fn<(), Output = i32> + core::panic::unwind_safe::RefUnwindSafe + core::marker::Sync, i32> (inlined)
+                                  std::rt::lang_start_internal::{closure#0} (inlined)
+                                  std::panicking::catch_unwind::do_call::<std::rt::lang_start_internal::{closure#0}, isize> (inlined)
+                                  std::panicking::catch_unwind::<isize, std::rt::lang_start_internal::{closure#0}> (inlined)
+                                  std::panic::catch_unwind::<std::rt::lang_start_internal::{closure#0}, isize> (inlined)
+                                  std::rt::lang_start_internal
+                                  main
+                                  0x7c956f62a1c9
+                                  __libc_start_main
+                                  _start

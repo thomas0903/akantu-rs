@@ -1,0 +1,184 @@
+# Profile of suite case cohesive_extrinsic_insertion
+
+binary: /home/user/akantu-rs/target/release/suite_solid (fbbd93f860169f3a)
+command: taskset -c 2 /home/user/akantu-rs/target/release/suite_solid --case cohesive_extrinsic_insertion --size m --loop-seconds 10
+perf: perf record -F 499 --call-graph dwarf,16384
+cpu: AMD EPYC 4585PX 16-Core Processor
+date_utc: 2026-11-16T07:29:31Z
+commit: c698395e8
+
+## Phases of the profiled run (seconds, calls)
+
+mesh                         0.0019 s       1 calls
+init                         0.4465 s       1 calls
+preload                      2.1677 s       1 calls
+step                        10.5542 s     144 calls
+check_insertion              7.6186 s     144 calls
+solve_step                   2.9271 s     144 calls
+
+## Top 25 symbols, self time
+
+    19.09%  [.] <akantu_cohesive::model::SolidMechanicsModelCohesive>::interpolate_stress
+    18.00%  [.] akantu_core::eigen_gebp::product_into::<akantu_fe::eigen::product_slices::{closure#1}, akantu_fe::eigen::product_slices::{closure#2}>
+    14.31%  [.] <akantu_cohesive::laws::linear::Linear>::check_insertion
+     6.51%  [.] <akantu_cohesive::inserter::helper::InserterHelper>::find_elements_around_subfacet
+     2.50%  [.] akantu_core::eigen_order::redux_tree::<akantu_core::eigen_gebp::eval_product<akantu_fe::eigen::product_slices::{closure#1}, akantu_fe::eigen::product_slices::{closure#2}>::{closure#0}>
+     2.14%  [.] akantu_solid::model::assembly::finite_deformation::fast::residuals
+     1.85%  [.] akantu_fe::eigen::product_slices
+     1.83%  [.] akantu_mesh::utils::plan_facets
+     1.44%  [.] akantu_fe::engine::fast::gradient::<akantu_fe::element_class::types::Tetrahedron4>
+     1.40%  [.] <akantu_cohesive::laws::linear::Linear>::compute_traction_history
+     1.40%  [.] akantu_core::eigen_gebp::route
+     1.39%  [.] akantu_solid::material_tensor::s_to_cauchy::<3>
+     1.33%  [.] 0x00000000001a16c6
+     1.18%  [.] akantu_fe::engine::fast::integrate::<<akantu_fe::engine::FeEngine>::integrate::{closure#0}>
+     1.01%  [.] <akantu_solver::dof_manager::DofManager>::assemble_elemental_array_local_view
+     1.00%  [.] 0x00000000001a16db
+     0.94%  [.] akantu_mesh::utils::check_facet_mesh_consistency
+     0.78%  [.] <akantu_cohesive::material::MaterialCohesive as akantu_solid::material::Material>::assemble_internal_forces_custom
+     0.75%  [.] 0x00000000001a1d7a
+     0.74%  [.] 0x00000000001a16cd
+     0.71%  [.] akantu_mesh::utils::check_facet_mesh_consistency::{closure#3}
+     0.69%  [k] asm_sysvec_apic_timer_interrupt
+     0.63%  [.] 0x00000000001a1852
+     0.57%  [.] akantu_solid::material::grad_u_in_place
+     0.57%  [.] <akantu_fe::engine::FeEngine>::interpolate_elemental_field_shared
+
+## Top 25 symbols, inclusive time (children)
+
+    86.74%     0.00%  [.] 0xffffffffffffffff
+    80.59%     0.00%  [.] akantu_bench::suite_solid::cohesive::insertion_run
+    80.57%     0.00%  [.] akantu_bench::suite_solid::cohesive::extrinsic_step
+    64.09%     0.00%  [.] <akantu_bench::suite::Ctx>::repeat_primary::<akantu_bench::suite_solid::cohesive::insertion_run::{closure#2}> (inlined)
+    60.68%     0.00%  [.] <akantu_bench::suite::Ctx>::repeat_impl::<akantu_bench::suite_solid::cohesive::insertion_run::{closure#2}>
+    60.68%     0.00%  [.] akantu_bench::suite_solid::cohesive::insertion_run::{closure#2}
+    55.03%     0.00%  [.] <akantu_cohesive::model::SolidMechanicsModelCohesive>::check_cohesive_stress
+    55.00%     0.09%  [.] <akantu_cohesive::model::SolidMechanicsModelCohesive>::check_cohesive_stress_prepare
+    40.40%    19.09%  [.] <akantu_cohesive::model::SolidMechanicsModelCohesive>::interpolate_stress
+    25.44%     0.01%  [.] <akantu_solver::non_linear_lumped::NonLinearSolverLumped as akantu_solver::non_linear::NonLinearSolver>::solve
+    25.44%     0.00%  [.] <akantu_cohesive::model::SolidMechanicsModelCohesive>::solve_step::{closure#1} (inlined)
+    25.44%     0.00%  [.] <akantu_solver::time_step::TimeStepSolver>::solve_step (inlined)
+    25.44%     0.00%  [.] <akantu_cohesive::model::SolidMechanicsModelCohesive>::solve_step
+    25.42%     0.00%  [.] <akantu_solver::non_linear_lumped::NonLinearSolverLumped as akantu_solver::non_linear::NonLinearSolver>::solve::{closure#0} (inlined)
+    23.33%     0.00%  [.] akantu_fe::eigen::product::<akantu_fe::eigen::product_slices::{closure#1}, akantu_fe::eigen::product_slices::{closure#2}> (inlined)
+    21.48%     0.00%  [.] <akantu_solid::model::SolidMechanicsModel>::solve_step_with::<<akantu_cohesive::model::SolidMechanicsModelCohesive>::solve_step::{closure#1}>
+    21.47%     0.00%  [.] <akantu_solver::dof_manager::DofManager>::collective::<(), <akantu_solver::non_linear_lumped::NonLinearSolverLumped as akantu_solver::non_linear::NonLinearSolver>::solve::{closure#0}>
+    21.35%     0.00%  [.] <akantu_solver::model_solver::ModelSolver>::solve_step
+    21.20%     0.00%  [.] akantu_core::eigen_gebp::eval_product::<akantu_fe::eigen::product_slices::{closure#1}, akantu_fe::eigen::product_slices::{closure#2}> (inlined)
+    20.50%     0.00%  [.] <akantu_fe::engine::FeEngine>::interpolate_elemental_field_with::<akantu_core::array_shared::ArrayRef<f64>, <akantu_fe::engine::FeEngine>::interpolate_elemental_field_shared::{closure#0}> (inlined)
+    18.48%     0.00%  [.] <akantu_solver::dof_manager::DofManager>::step::<(), <akantu_solver::non_linear_lumped::NonLinearSolverLumped as akantu_solver::non_linear::NonLinearSolver>::solve::{closure#0}::{closure#2}> (inlined)
+    18.48%     0.00%  [.] <akantu_solver::non_linear_lumped::NonLinearSolverLumped as akantu_solver::non_linear::NonLinearSolver>::solve::{closure#0}::{closure#2} (inlined)
+    18.48%     0.00%  [.] <akantu_solver::time_step::Adapter as akantu_solver::callback::SolverCallback>::assemble_residual
+    18.44%     0.00%  [.] akantu_cohesive::model::copy_points::<9> (inlined)
+    18.16%     1.43%  [.] akantu_fe::eigen::product_slices
+
+## Call chains (callers of the hottest self-time symbols, entries above 2 %)
+
+    19.09%  [.] <akantu_cohesive::model::SolidMechanicsModelCohesive>::interpolate_stress
+            |
+             --17.32%--core::ptr::copy_nonoverlapping::<f64> (inlined)
+                       core::slice::copy_from_slice_impl::<f64> (inlined)
+                       <[f64]>::copy_from_slice (inlined)
+                       akantu_cohesive::model::copy_points::<9> (inlined)
+                       <akantu_cohesive::model::SolidMechanicsModelCohesive>::interpolate_stress
+                       <akantu_cohesive::model::SolidMechanicsModelCohesive>::check_cohesive_stress_prepare
+                       <akantu_cohesive::model::SolidMechanicsModelCohesive>::check_cohesive_stress
+                       akantu_bench::suite_solid::cohesive::extrinsic_step
+                       |
+                       |--12.73%--akantu_bench::suite_solid::cohesive::insertion_run::{closure#2}
+                       |          <akantu_bench::suite::Ctx>::repeat_impl::<akantu_bench::suite_solid::cohesive::insertion_run::{closure#2}>
+                       |          <akantu_bench::suite::Ctx>::repeat_primary::<akantu_bench::suite_solid::cohesive::insertion_run::{closure#2}> (inlined)
+                       |          akantu_bench::suite_solid::cohesive::insertion_run
+                       |          0xffffffffffffffff
+                       |
+                        --4.59%--akantu_bench::suite_solid::cohesive::insertion_run::{closure#1} (inlined)
+                                  <akantu_bench::suite::Ctx>::once::<(), akantu_bench::suite_solid::cohesive::insertion_run::{closure#1}>
+                                  akantu_bench::suite_solid::cohesive::insertion_run
+                                  0xffffffffffffffff
+    18.00%  [.] akantu_core::eigen_gebp::product_into::<akantu_fe::eigen::product_slices::{closure#1}, akantu_fe::eigen::product_slices::{closure#2}>
+            |
+            |--5.94%--akantu_core::eigen_gebp::gebp_into::<akantu_fe::eigen::product_slices::{closure#1}, akantu_fe::eigen::product_slices::{closure#2}> (inlined)
+            |          akantu_core::eigen_gebp::eval_product::<akantu_fe::eigen::product_slices::{closure#1}, akantu_fe::eigen::product_slices::{closure#2}> (inlined)
+            |          akantu_core::eigen_gebp::product_into::<akantu_fe::eigen::product_slices::{closure#1}, akantu_fe::eigen::product_slices::{closure#2}>
+            |          akantu_fe::eigen::product::<akantu_fe::eigen::product_slices::{closure#1}, akantu_fe::eigen::product_slices::{closure#2}> (inlined)
+            |          akantu_fe::eigen::product_slices
+            |          <akantu_fe::engine::FeEngine>::interpolate_elemental_field_with::<akantu_core::array_shared::ArrayRef<f64>, <akantu_fe::engine::FeEngine>::interpolate_elemental_field_shared::{closure#0}> (inlined)
+            |          <akantu_fe::engine::FeEngine>::interpolate_elemental_field_shared
+            |          <akantu_cohesive::model::SolidMechanicsModelCohesive>::interpolate_stress
+            |          <akantu_cohesive::model::SolidMechanicsModelCohesive>::check_cohesive_stress_prepare
+            |          <akantu_cohesive::model::SolidMechanicsModelCohesive>::check_cohesive_stress
+            |          akantu_bench::suite_solid::cohesive::extrinsic_step
+            |          |
+            |           --4.45%--akantu_bench::suite_solid::cohesive::insertion_run::{closure#2}
+            |                     <akantu_bench::suite::Ctx>::repeat_impl::<akantu_bench::suite_solid::cohesive::insertion_run::{closure#2}>
+            |                     <akantu_bench::suite::Ctx>::repeat_primary::<akantu_bench::suite_solid::cohesive::insertion_run::{closure#2}> (inlined)
+            |                     akantu_bench::suite_solid::cohesive::insertion_run
+            |                     0xffffffffffffffff
+            |
+            |--2.98%--akantu_fe::eigen::product_slices::{closure#2} (inlined)
+            |          |
+            |           --2.96%--akantu_core::eigen_gebp::gebp_into::<akantu_fe::eigen::product_slices::{closure#1}, akantu_fe::eigen::product_slices::{closure#2}>::{closure#0} (inlined)
+            |                     akantu_core::eigen_gebp::gebp_into::<akantu_fe::eigen::product_slices::{closure#1}, akantu_fe::eigen::product_slices::{closure#2}> (inlined)
+            |                     akantu_core::eigen_gebp::eval_product::<akantu_fe::eigen::product_slices::{closure#1}, akantu_fe::eigen::product_slices::{closure#2}> (inlined)
+            |                     akantu_core::eigen_gebp::product_into::<akantu_fe::eigen::product_slices::{closure#1}, akantu_fe::eigen::product_slices::{closure#2}>
+            |                     akantu_fe::eigen::product::<akantu_fe::eigen::product_slices::{closure#1}, akantu_fe::eigen::product_slices::{closure#2}> (inlined)
+            |                     akantu_fe::eigen::product_slices
+            |                     <akantu_fe::engine::FeEngine>::interpolate_elemental_field_with::<akantu_core::array_shared::ArrayRef<f64>, <akantu_fe::engine::FeEngine>::interpolate_elemental_field_shared::{closure#0}> (inlined)
+            |                     <akantu_fe::engine::FeEngine>::interpolate_elemental_field_shared
+            |                     <akantu_cohesive::model::SolidMechanicsModelCohesive>::interpolate_stress
+            |                     <akantu_cohesive::model::SolidMechanicsModelCohesive>::check_cohesive_stress_prepare
+            |                     <akantu_cohesive::model::SolidMechanicsModelCohesive>::check_cohesive_stress
+            |                     akantu_bench::suite_solid::cohesive::extrinsic_step
+            |                     |
+            |                      --2.17%--akantu_bench::suite_solid::cohesive::insertion_run::{closure#2}
+            |                                <akantu_bench::suite::Ctx>::repeat_impl::<akantu_bench::suite_solid::cohesive::insertion_run::{closure#2}>
+            |                                <akantu_bench::suite::Ctx>::repeat_primary::<akantu_bench::suite_solid::cohesive::insertion_run::{closure#2}> (inlined)
+            |                                akantu_bench::suite_solid::cohesive::insertion_run
+            |                                0xffffffffffffffff
+            |
+             --2.42%--akantu_fe::eigen::product_slices::{closure#1} (inlined)
+                       |
+                        --2.33%--akantu_core::eigen_gebp::gebp_into::<akantu_fe::eigen::product_slices::{closure#1}, akantu_fe::eigen::product_slices::{closure#2}>::{closure#0} (inlined)
+                                  akantu_core::eigen_gebp::gebp_into::<akantu_fe::eigen::product_slices::{closure#1}, akantu_fe::eigen::product_slices::{closure#2}> (inlined)
+                                  akantu_core::eigen_gebp::eval_product::<akantu_fe::eigen::product_slices::{closure#1}, akantu_fe::eigen::product_slices::{closure#2}> (inlined)
+                                  akantu_core::eigen_gebp::product_into::<akantu_fe::eigen::product_slices::{closure#1}, akantu_fe::eigen::product_slices::{closure#2}>
+                                  akantu_fe::eigen::product::<akantu_fe::eigen::product_slices::{closure#1}, akantu_fe::eigen::product_slices::{closure#2}> (inlined)
+                                  akantu_fe::eigen::product_slices
+                                  <akantu_fe::engine::FeEngine>::interpolate_elemental_field_with::<akantu_core::array_shared::ArrayRef<f64>, <akantu_fe::engine::FeEngine>::interpolate_elemental_field_shared::{closure#0}> (inlined)
+                                  <akantu_fe::engine::FeEngine>::interpolate_elemental_field_shared
+                                  <akantu_cohesive::model::SolidMechanicsModelCohesive>::interpolate_stress
+                                  <akantu_cohesive::model::SolidMechanicsModelCohesive>::check_cohesive_stress_prepare
+                                  <akantu_cohesive::model::SolidMechanicsModelCohesive>::check_cohesive_stress
+                                  akantu_bench::suite_solid::cohesive::extrinsic_step
+    14.31%  [.] <akantu_cohesive::laws::linear::Linear>::check_insertion
+            |
+            |--4.81%--<akantu_cohesive::laws::linear::Linear>::effective_norm::{closure#0} (inlined)
+            |          <akantu_cohesive::laws::linear::Linear>::effective_norm (inlined)
+            |          <akantu_cohesive::laws::linear::Linear>::check_insertion (inlined)
+            |          <akantu_cohesive::laws::CohesiveLaw>::check_insertion_prepared
+            |          <akantu_cohesive::model::SolidMechanicsModelCohesive>::builtin_insertion_checks (inlined)
+            |          <akantu_cohesive::model::SolidMechanicsModelCohesive>::check_cohesive_stress_prepare
+            |          <akantu_cohesive::model::SolidMechanicsModelCohesive>::check_cohesive_stress
+            |          akantu_bench::suite_solid::cohesive::extrinsic_step
+            |          |
+            |           --3.99%--akantu_bench::suite_solid::cohesive::insertion_run::{closure#2}
+            |                     <akantu_bench::suite::Ctx>::repeat_impl::<akantu_bench::suite_solid::cohesive::insertion_run::{closure#2}>
+            |                     <akantu_bench::suite::Ctx>::repeat_primary::<akantu_bench::suite_solid::cohesive::insertion_run::{closure#2}> (inlined)
+            |                     akantu_bench::suite_solid::cohesive::insertion_run
+            |                     0xffffffffffffffff
+            |
+             --3.10%--<akantu_cohesive::laws::linear::Linear>::check_insertion (inlined)
+                       <akantu_cohesive::laws::CohesiveLaw>::check_insertion_prepared
+                       <akantu_cohesive::model::SolidMechanicsModelCohesive>::builtin_insertion_checks (inlined)
+                       <akantu_cohesive::model::SolidMechanicsModelCohesive>::check_cohesive_stress_prepare
+                       <akantu_cohesive::model::SolidMechanicsModelCohesive>::check_cohesive_stress
+                       akantu_bench::suite_solid::cohesive::extrinsic_step
+                       |
+                        --2.62%--akantu_bench::suite_solid::cohesive::insertion_run::{closure#2}
+                                  <akantu_bench::suite::Ctx>::repeat_impl::<akantu_bench::suite_solid::cohesive::insertion_run::{closure#2}>
+                                  <akantu_bench::suite::Ctx>::repeat_primary::<akantu_bench::suite_solid::cohesive::insertion_run::{closure#2}> (inlined)
+                                  akantu_bench::suite_solid::cohesive::insertion_run
+                                  0xffffffffffffffff
+     6.51%  [.] <akantu_cohesive::inserter::helper::InserterHelper>::find_elements_around_subfacet
+     2.50%  [.] akantu_core::eigen_order::redux_tree::<akantu_core::eigen_gebp::eval_product<akantu_fe::eigen::product_slices::{closure#1}, akantu_fe::eigen::product_slices::{closure#2}>::{closure#0}>
+     2.14%  [.] akantu_solid::model::assembly::finite_deformation::fast::residuals

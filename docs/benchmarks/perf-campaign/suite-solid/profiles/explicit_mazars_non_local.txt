@@ -1,0 +1,173 @@
+# Profile of suite case explicit_mazars_non_local
+
+binary: /home/user/akantu-rs/target/release/suite_solid (fbbd93f860169f3a)
+command: taskset -c 2 /home/user/akantu-rs/target/release/suite_solid --case explicit_mazars_non_local --size m --loop-seconds 10
+perf: perf record -F 499 --call-graph dwarf,16384
+cpu: AMD EPYC 4585PX 16-Core Processor
+date_utc: 2026-11-16T07:18:26Z
+commit: c698395e8
+
+## Phases of the profiled run (seconds, calls)
+
+mesh                         0.0015 s       1 calls
+init                         0.5374 s       1 calls
+stable_time_step             0.0080 s       5 calls
+solve_step                  13.7420 s     120 calls
+predictor                    0.0001 s     120 calls
+residual                    13.4274 s     120 calls
+lumped_matrix                0.0001 s     120 calls
+corrector                    0.0001 s     120 calls
+step_hooks                   0.2814 s     240 calls
+step_rest                    0.0324 s     120 calls
+internal_forces              0.9473 s       8 calls
+stresses                     0.1554 s       8 calls
+energies                     0.0196 s       8 calls
+nonlocal_rebuild             1.0144 s       2 calls
+
+## Top 25 symbols, self time
+
+    20.76%  [.] <akantu_model::non_local::neighborhood::NonLocalNeighborhood>::compute_weights
+    12.12%  [.] 0x00000000001a14d3
+    10.18%  [.] <akantu_model::non_local::neighborhood::NonLocalNeighborhood>::weighted_average
+     9.83%  [.] <akantu_model::non_local::weight::BaseWeightFunction as akantu_model::non_local::weight::WeightFunction>::weight
+     6.96%  [.] <akantu_model::non_local::neighborhood::NonLocalNeighborhood>::update_pair_list
+     5.75%  [.] akantu_linalg::dense::eigen::real_schur::real_schur
+     2.09%  [k] clear_page_erms
+     1.86%  [.] core::slice::sort::stable::quicksort::quicksort::<usize, <[usize]>::sort_by_key<(akantu_model::non_local::point::PointKey, u8), <akantu_model::non_local::neighborhood::NonLocalNeighborhood>::build_key_lists::{closure#0}>::{closure#0}>
+     1.70%  [k] down_read_trylock
+     1.48%  [.] akantu_linalg::dense::eig3_fixed
+     1.11%  [.] akantu_core::eigen_order::redux_tree::<<[[f64; 2]; 2] as akantu_core::tensor::MatrixExt<2, 2>>::double_dot::{closure#0}>
+     1.03%  [.] 0x00000000001a15dd
+     0.94%  [.] akantu_linalg::dense::eigen::apply_householder_right
+     0.89%  [.] <akantu_linalg::dense::eigen::Buf>::push
+     0.88%  [.] akantu_core::random::libm::pow
+     0.88%  [k] _raw_spin_lock
+     0.84%  [k] folio_remove_rmap_ptes
+     0.79%  [k] asm_exc_page_fault
+     0.75%  [.] core::slice::sort::shared::smallsort::bidirectional_merge::<usize, <[usize]>::sort_by_key<(akantu_model::non_local::point::PointKey, u8), <akantu_model::non_local::neighborhood::NonLocalNeighborhood>::build_key_lists::{closure#0}>::{closure#0}>
+     0.69%  [k] __raw_callee_save___pv_queued_spin_unlock
+     0.69%  [.] core::slice::sort::shared::smallsort::insert_tail::<usize, <[usize]>::sort_by_key<(akantu_model::non_local::point::PointKey, u8), <akantu_model::non_local::neighborhood::NonLocalNeighborhood>::build_key_lists::{closure#0}>::{closure#0}>
+     0.56%  [.] akantu_linalg::dense::eigen::apply_householder_left
+     0.55%  [.] akantu_solid::materials::mazars::mazars_damage_on_quad
+     0.51%  [k] folio_add_lru
+     0.48%  [.] akantu_solid::materials::mazars::principal_strains_and_ehat3
+
+## Top 25 symbols, inclusive time (children)
+
+    98.15%     0.00%  [.] 0xffffffffffffffff
+    65.63%     0.00%  [.] <akantu_model::non_local::manager::NonLocalManager>::compute_all_non_local_contribution
+    41.56%    20.76%  [.] <akantu_model::non_local::neighborhood::NonLocalNeighborhood>::compute_weights
+    41.56%     0.00%  [.] <akantu_model::non_local::manager::NonLocalManager>::compute_weights
+    31.49%     0.00%  [.] akantu_bench::suite_solid::explicit::run
+    29.70%     0.00%  [.] <akantu_solid::model::SolidMechanicsPhysics>::assemble_internal_forces
+    24.53%     1.48%  [.] akantu_linalg::dense::eig3_fixed
+    24.47%     0.00%  [.] akantu_linalg::dense::eig_fixed::<3> (inlined)
+    22.65%     5.75%  [.] akantu_linalg::dense::eigen::real_schur::real_schur
+    16.28%     0.00%  [.] <akantu_solid::model::SolidMechanicsModel>::init_non_local
+    16.28%     0.00%  [.] <akantu_model::non_local::manager::NonLocalManager>::initialize_with_sources
+    15.25%     0.00%  [.] <akantu_bench::suite::Ctx>::repeat_primary::<akantu_bench::suite_solid::common::timed_steps<akantu_bench::suite_solid::explicit::run::{closure#3}>::{closure#0}> (inlined)
+    15.25%     0.00%  [.] akantu_bench::suite_solid::common::timed_steps::<akantu_bench::suite_solid::explicit::run::{closure#3}>::{closure#0} (inlined)
+    15.24%     0.00%  [.] <akantu_solver::time_step::TimeStepSolver>::solve_step (inlined)
+    15.24%     0.00%  [.] <akantu_solver::model_solver::ModelSolver>::solve_step
+    15.24%     0.00%  [.] <akantu_solver::model_solver::ModelSolver>::solve_step_intercepted
+    15.24%     0.00%  [.] <akantu_solid::model::SolidMechanicsModel>::solve_step_intercepted
+    15.24%     0.00%  [.] <akantu_solver::non_linear_lumped::NonLinearSolverLumped as akantu_solver::non_linear::NonLinearSolver>::solve
+    15.24%     0.01%  [.] <akantu_bench::suite::Ctx>::repeat_impl::<akantu_bench::suite_solid::common::timed_steps<akantu_bench::suite_solid::explicit::run::{closure#3}>::{closure#0}>
+    15.23%     0.00%  [.] <akantu_solver::non_linear_lumped::NonLinearSolverLumped as akantu_solver::non_linear::NonLinearSolver>::solve::{closure#0} (inlined)
+    15.23%     0.00%  [.] <akantu_solver::dof_manager::DofManager>::collective::<(), <akantu_solver::non_linear_lumped::NonLinearSolverLumped as akantu_solver::non_linear::NonLinearSolver>::solve::{closure#0}>
+    15.10%     0.38%  [.] <akantu_solid::materials::non_local::mazars_non_local::MaterialMazarsNonLocal<3, akantu_solid::materials::elastic::MaterialElastic<3>> as akantu_solid::materials::non_local::MaterialNonLocal>::compute_non_local_stresses
+    15.10%     0.00%  [.] <akantu_solid::materials::non_local::mazars_non_local::MaterialMazarsNonLocal<3, akantu_solid::materials::elastic::MaterialElastic<3>>>::compute_non_local_stress (inlined)
+    15.10%     0.00%  [.] <akantu_solid::model::non_local::SmmNonLocalCallback as akantu_model::non_local::manager::NonLocalManagerCallback>::compute_non_local_contribution
+    14.87%     0.00%  [.] <akantu_solid::materials::non_local::mazars_non_local::MaterialMazarsNonLocal<3, akantu_solid::materials::elastic::MaterialElastic<3>> as akantu_solid::material::Material>::compute_all_stresses
+
+## Call chains (callers of the hottest self-time symbols, entries above 2 %)
+
+    20.76%  [.] <akantu_model::non_local::neighborhood::NonLocalNeighborhood>::compute_weights
+            |
+            |--13.56%--<akantu_model::non_local::neighborhood::NonLocalNeighborhood>::compute_weights
+            |          <akantu_model::non_local::manager::NonLocalManager>::compute_weights
+            |          |
+            |           --12.94%--<akantu_model::non_local::manager::NonLocalManager>::compute_all_non_local_contribution
+            |                     0xffffffffffffffff
+            |
+             --2.09%--<core::iter::adapters::zip::Zip<core::slice::iter::Iter<f64>, core::slice::iter::Iter<f64>> as core::iter::adapters::zip::ZipImpl<core::slice::iter::Iter<f64>, core::slice::iter::Iter<f64>>>::next (inlined)
+                       <core::iter::adapters::zip::Zip<core::slice::iter::Iter<f64>, core::slice::iter::Iter<f64>> as core::iter::traits::iterator::Iterator>::next (inlined)
+                       akantu_model::non_local::neighborhood::distance (inlined)
+                       <akantu_model::non_local::neighborhood::NonLocalNeighborhood>::compute_weights
+                       <akantu_model::non_local::manager::NonLocalManager>::compute_weights
+                       |
+                        --2.05%--<akantu_model::non_local::manager::NonLocalManager>::compute_all_non_local_contribution
+                                  0xffffffffffffffff
+    12.12%  [.] 0x00000000001a14d3
+            |
+            |--3.59%--<akantu_linalg::dense::eigen::Buf as core::iter::traits::collect::FromIterator<f64>>::from_iter::<core::iter::adapters::map::Map<core::ops::range::Range<usize>, akantu_linalg::dense::eigen::apply_householder_left::{closure#0}>> (inlined)
+            |          <core::iter::adapters::map::Map<core::ops::range::Range<usize>, akantu_linalg::dense::eigen::apply_householder_left::{closure#0}> as core::iter::traits::iterator::Iterator>::collect::<akantu_linalg::dense::eigen::Buf> (inlined)
+            |          akantu_linalg::dense::eigen::apply_householder_left
+            |          |
+            |           --2.45%--<akantu_linalg::dense::eigen::real_schur::SchurState>::perform_francis_qr_step (inlined)
+            |                     akantu_linalg::dense::eigen::real_schur::real_schur
+            |                     akantu_linalg::dense::eig_fixed::<3> (inlined)
+            |                     akantu_linalg::dense::eig3_fixed
+            |                     akantu_solid::materials::mazars::principal_strains_and_ehat3
+            |
+            |--3.12%--<akantu_linalg::dense::eigen::Buf as core::iter::traits::collect::FromIterator<f64>>::from_iter::<core::iter::adapters::map::Map<core::slice::iter::Iter<f64>, akantu_linalg::dense::eigen::make_householder::{closure#1}>> (inlined)
+            |          <core::iter::adapters::map::Map<core::slice::iter::Iter<f64>, akantu_linalg::dense::eigen::make_householder::{closure#1}> as core::iter::traits::iterator::Iterator>::collect::<akantu_linalg::dense::eigen::Buf> (inlined)
+            |          akantu_linalg::dense::eigen::make_householder
+            |          |
+            |           --2.30%--<akantu_linalg::dense::eigen::real_schur::SchurState>::perform_francis_qr_step (inlined)
+            |                     akantu_linalg::dense::eigen::real_schur::real_schur
+            |                     akantu_linalg::dense::eig_fixed::<3> (inlined)
+            |                     akantu_linalg::dense::eig3_fixed
+            |                     akantu_solid::materials::mazars::principal_strains_and_ehat3
+            |
+             --2.09%--<akantu_linalg::dense::eigen::Buf as core::iter::traits::collect::FromIterator<f64>>::from_iter::<core::iter::adapters::map::Map<core::slice::iter::Iter<f64>, akantu_linalg::dense::eigen::apply_householder_left::{closure#1}>> (inlined)
+                       <core::iter::adapters::map::Map<core::slice::iter::Iter<f64>, akantu_linalg::dense::eigen::apply_householder_left::{closure#1}> as core::iter::traits::iterator::Iterator>::collect::<akantu_linalg::dense::eigen::Buf> (inlined)
+                       akantu_linalg::dense::eigen::apply_householder_left
+    10.18%  [.] <akantu_model::non_local::neighborhood::NonLocalNeighborhood>::weighted_average
+            |
+            |--6.26%--<akantu_model::non_local::neighborhood::NonLocalNeighborhood>::weighted_average
+            |          <akantu_model::non_local::manager::NonLocalManager>::average
+            |          <akantu_model::non_local::manager::NonLocalManager>::compute_all_non_local_contribution
+            |          <akantu_solid::model::SolidMechanicsPhysics>::assemble_internal_forces
+            |          0xffffffffffffffff
+            |
+             --3.36%--<core::ops::range::Range<usize> as core::iter::range::RangeIteratorImpl>::spec_next (inlined)
+                       <core::ops::range::Range<usize> as core::iter::traits::iterator::Iterator>::next (inlined)
+                       <akantu_model::non_local::neighborhood::NonLocalNeighborhood>::weighted_average
+                       <akantu_model::non_local::manager::NonLocalManager>::average
+                       <akantu_model::non_local::manager::NonLocalManager>::compute_all_non_local_contribution
+                       <akantu_solid::model::SolidMechanicsPhysics>::assemble_internal_forces
+                       0xffffffffffffffff
+     9.83%  [.] <akantu_model::non_local::weight::BaseWeightFunction as akantu_model::non_local::weight::WeightFunction>::weight
+            |
+            |--6.11%--<akantu_model::non_local::weight::BaseWeightFunction as akantu_model::non_local::weight::WeightFunction>::weight
+            |          <akantu_model::non_local::neighborhood::NonLocalNeighborhood>::compute_weights
+            |          <akantu_model::non_local::manager::NonLocalManager>::compute_weights
+            |          |
+            |           --5.91%--<akantu_model::non_local::manager::NonLocalManager>::compute_all_non_local_contribution
+            |                     0xffffffffffffffff
+            |
+             --3.73%--akantu_model::non_local::weight::base_weight (inlined)
+                       <akantu_model::non_local::weight::BaseWeightFunction as akantu_model::non_local::weight::WeightFunction>::weight
+                       <akantu_model::non_local::neighborhood::NonLocalNeighborhood>::compute_weights
+                       <akantu_model::non_local::manager::NonLocalManager>::compute_weights
+                       |
+                        --3.50%--<akantu_model::non_local::manager::NonLocalManager>::compute_all_non_local_contribution
+                                  0xffffffffffffffff
+     6.96%  [.] <akantu_model::non_local::neighborhood::NonLocalNeighborhood>::update_pair_list
+     5.75%  [.] akantu_linalg::dense::eigen::real_schur::real_schur
+     2.09%  [k] clear_page_erms
+            |
+            ---get_page_from_freelist
+               __alloc_pages
+               alloc_pages_mpol
+               |
+                --2.08%--vma_alloc_folio
+                          alloc_anon_folio
+                          do_anonymous_page
+                          handle_pte_fault
+                          __handle_mm_fault
+                          handle_mm_fault
+                          do_user_addr_fault
+                          exc_page_fault
+                          asm_exc_page_fault
