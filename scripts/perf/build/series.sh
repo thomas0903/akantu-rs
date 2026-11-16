@@ -12,7 +12,9 @@
 # deformation; phases step, fint, stress), the cohesive driver on the frozen
 # h = 0.12 mesh (500 steps, static preload with the SparseLU translation),
 # facet_scaling. Environment: BIN_ROOT, MESH_DIR, ALLOC_DIR, CORE (default 2),
-# RUN_DIR (scratch for the driver runs), REPO (inputs).
+# RUN_DIR (scratch for the driver runs), REPO (inputs), FIRST_REP (default 1:
+# the repetitions are FIRST_REP … FIRST_REP + REPS - 1, so that a long series
+# runs as several short tjobs with the rotation continued).
 set -u
 broot="${BIN_ROOT:-$HOME/w/build/bin}" meshdir="${MESH_DIR:-$HOME/w/build/meshes}"
 allocdir="${ALLOC_DIR:-$HOME/w/build/alloc}" core="${CORE:-2}"
@@ -72,7 +74,8 @@ PY
         gsub(/\[[^]]*\]/, ""); printf "{\"kind\":\"facet\",\"label\":\"%s\",\"csr\":%s,\"fill_e2s\":%s,\"init_mesh_facets\":%s,\"erase\":%s,\"purify\":%s}\n", tag, $4, $5, $6, $7, $8 }' ;;
   esac
 }
-for r in $(seq 1 "$reps"); do
+r0="${FIRST_REP:-1}"
+for r in $(seq "$r0" $((r0 + reps - 1))); do
   order=(); for ((i = 0; i < n; i++)); do order+=("${variants[$(( (i + r - 1) % n ))]}"); done
   echo "{\"kind\":\"round\",\"round\":$r,\"order\":\"${order[*]}\",\"load\":\"$(cut -d' ' -f1-3 /proc/loadavg)\",\"cpu\":\"$(grep -m1 'model name' /proc/cpuinfo | cut -d: -f2 | xargs)\",\"utc\":\"$(date -u +%FT%TZ)\"}" >> "$out"
   for c in "${cases[@]}"; do
