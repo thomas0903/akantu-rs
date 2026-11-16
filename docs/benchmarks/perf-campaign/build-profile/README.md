@@ -9,7 +9,46 @@ CPU". Tooling: `scripts/perf/build/`.
 
 ## Result
 
-@@RESULT@@
+- **Release profile: no change.** One codegen unit, thin LTO, fat LTO and
+  their combinations do not make the port faster: one codegen unit and
+  fat LTO make the explicit step 6–10 % slower on tet4. Thin LTO is
+  within ±1.5 % everywhere. Fat LTO without one codegen unit gains 2–5 %
+  in the insertion check, the static solve and the mesh set-up. The
+  clean build takes 1.3× (one codegen unit, thin LTO) to 2.4× (fat LTO)
+  as long. `Cargo.toml` keeps its profile.
+- **Target CPU: bitwise at every level; `x86-64-v3` / `native` gain
+  2–4 %, `x86-64-v4` loses up to 36 %.** The CI `test` and `release`
+  tiers pass built with `x86-64-v2`, `-v3`, `-v4` and `znver4`; every
+  result digest is identical. `-v3` and `znver4` take 0.96–0.98 of the
+  explicit-step time and 0.98–0.99 of the cohesive driver's wall time,
+  but 1.03–1.05 of the facet set-up's. `-v4` takes 1.19–1.36 times the
+  hex8 step: LLVM's generic v4 cost model vectorises the strided loads of
+  `fast::gradient` with AVX-512 gathers and scatters, which are slow on
+  AMD Zen 4. The manual states this (`docs/manual/src/getting-started.md`).
+- **PGO: the largest gain, bitwise, but only where the training reaches.**
+  Trained on cases disjoint from the measured ones (second training set):
+  cohesive driver 0.917 [0.914, 0.922] of the wall time (0.904 with fat
+  LTO), insertion check 0.85–0.89, explicit step of the driver 0.84–0.85,
+  explicit-step harness 0.94–0.98, the untrained mesh set-up 0.96. A
+  training set without the cohesive material (first set) made the
+  insertion check 1.35 times slower. PGO combined with `-v3` slowed the
+  tet4 step (1.04–1.06). On the benchmark suites (not trained) PGO gains
+  in the solvers and model set-up and loses in some untrained laws and
+  writers (table below). Not adopted: it needs a training workflow in
+  the packaging (candidate, report).
+- **`panic = "abort"`: no measurable change** (0.98–1.00); not proposed
+  (it would turn the Python bindings' `PanicException`, the agreed fatal
+  error of a panicking native-solver callback in `akantu-solver`, and the
+  PETSc callbacks' panic barrier into process aborts).
+- **Allocators: no gain.** mimalloc and jemalloc (preloaded) slow the
+  explicit step by 2–10 %; mimalloc lowers the driver's peak RSS by 11 %
+  and makes element removal 0.65 of the time. Not proposed.
+- **Bounds checks** in three kernels cost 10 % of the tet4 small-strain
+  step (section "Bounds checks").
+- `opt-level` per package: not measured. The profiles show no
+  code-size-bound hot path, and the configurations that change inlining
+  (one codegen unit, LTO) did not gain, so per-crate inlining thresholds
+  have no measured case.
 
 ## Machine and method
 
@@ -77,7 +116,72 @@ cohesive driver on another mesh (h = 0.15 from
 `cohesive` material, 100 with `elastic`). `facet_scaling` is in neither
 set.
 
-@@TABLES@@
+## Timings
+
+Paired ratio variant / `base` of the same series, median [min, max] over
+5 repetitions (`overview.py`); main metric per case: `step` of the
+explicit-step harness (ns per element and step), the driver's Chrono
+phases and wall time, the sum of the five `facet_scaling` operations at
+n = 32. Series: A (`cgu1` … `fat+cgu1`), B (`v2` … `znver4`), C
+(`abort`, first-set PGO), D (second-set PGO), 1 (allocators, `nobc`).
+Every phase, the absolute times and the peak RSS: `tables.md`.
+
+| configuration | tet4 ss step | tet4 fd step | hex8 ss step | hex8 fd step | driver explicit step | driver insertion check | driver static solve | driver wall | facet set-up |
+|---|---|---|---|---|---|---|---|---|---|
+| `cgu1` | 1.098 [1.074, 1.103] | 1.061 [1.057, 1.073] | 1.019 [1.013, 1.031] | 0.999 [0.996, 1.009] | 1.034 [1.016, 1.037] | 0.971 [0.960, 0.988] | 0.980 [0.974, 0.993] | 0.981 [0.978, 0.993] | 0.984 [0.983, 0.984] |
+| `thin` | 0.991 [0.986, 1.013] | 0.997 [0.987, 1.003] | 0.999 [0.982, 1.006] | 0.996 [0.991, 1.002] | 1.003 [0.997, 1.010] | 0.999 [0.991, 1.012] | 0.996 [0.988, 1.016] | 0.998 [0.994, 1.013] | 0.987 [0.987, 0.989] |
+| `fat` | 1.101 [1.085, 1.112] | 1.072 [1.056, 1.080] | 1.025 [1.021, 1.032] | 1.007 [1.000, 1.024] | 1.036 [1.032, 1.060] | 0.948 [0.941, 0.970] | 0.975 [0.969, 0.989] | 0.970 [0.967, 0.981] | 0.968 [0.966, 0.970] |
+| `thin+cgu1` | 1.081 [1.064, 1.098] | 1.059 [1.048, 1.063] | 1.010 [0.994, 1.012] | 1.008 [0.994, 1.012] | 1.027 [1.020, 1.046] | 0.990 [0.982, 1.018] | 0.986 [0.984, 1.001] | 0.992 [0.987, 1.012] | 0.984 [0.983, 0.986] |
+| `fat+cgu1` | 1.088 [1.077, 1.108] | 1.073 [1.060, 1.083] | 1.012 [0.984, 1.019] | 1.012 [0.992, 1.015] | 1.031 [1.027, 1.056] | 1.043 [1.030, 1.046] | 0.986 [0.978, 1.014] | 1.012 [1.008, 1.028] | 0.973 [0.971, 0.977] |
+| `v2` | 1.001 [0.987, 1.014] | 0.984 [0.981, 0.991] | 1.010 [1.007, 1.031] | 0.959 [0.938, 0.965] | 0.962 [0.956, 0.976] | 1.002 [0.997, 1.016] | 1.021 [1.010, 1.026] | 1.008 [1.001, 1.016] | 1.007 [1.006, 1.031] |
+| `v3` | 0.964 [0.960, 1.022] | 0.977 [0.969, 0.994] | 0.964 [0.960, 0.965] | 0.956 [0.934, 0.968] | 0.963 [0.949, 0.973] | 0.966 [0.958, 0.987] | 0.992 [0.973, 1.001] | 0.982 [0.973, 0.986] | 1.052 [1.051, 1.089] |
+| `v4` | 1.010 [0.983, 1.081] | 1.011 [1.006, 1.022] | 1.364 [1.356, 1.367] | 1.192 [1.177, 1.198] | 0.991 [0.987, 1.012] | 0.936 [0.932, 0.958] | 0.993 [0.990, 1.002] | 0.974 [0.969, 0.983] | 1.053 [1.050, 1.055] |
+| `znver4` | 0.968 [0.930, 0.998] | 0.981 [0.968, 1.014] | 0.962 [0.945, 0.968] | 0.965 [0.939, 0.974] | 0.991 [0.969, 1.029] | 0.940 [0.935, 0.964] | 1.021 [1.014, 1.028] | 0.988 [0.979, 1.000] | 1.029 [1.027, 1.031] |
+| `abort` | 0.996 [0.978, 1.004] | 0.995 [0.986, 1.002] | 0.996 [0.981, 1.000] | 1.003 [1.002, 1.005] | 0.995 [0.994, 1.000] | 0.978 [0.972, 0.992] | 0.997 [0.991, 1.031] | 0.988 [0.984, 1.015] | 0.977 [0.971, 1.029] |
+| `base+pgouse` | 0.942 [0.923, 0.944] | 0.960 [0.935, 0.964] | 0.962 [0.960, 0.977] | 0.975 [0.970, 0.977] | 0.841 [0.837, 0.848] | 1.347 [1.332, 1.389] | 0.936 [0.926, 0.969] | 1.095 [1.089, 1.132] | 0.965 [0.963, 0.968] |
+| `fat+cgu1+pgouse` | 0.931 [0.924, 0.943] | 0.940 [0.906, 0.943] | 0.960 [0.958, 0.982] | 0.969 [0.968, 0.976] | 0.837 [0.819, 0.842] | 1.230 [1.202, 1.253] | 0.948 [0.940, 0.951] | 1.053 [1.039, 1.059] | 0.935 [0.932, 0.937] |
+| `pgo2-base` | 0.950 [0.938, 0.963] | 0.962 [0.956, 0.974] | 0.981 [0.975, 1.011] | 0.975 [0.973, 0.980] | 0.854 [0.845, 0.866] | 0.887 [0.852, 0.906] | 0.957 [0.934, 0.992] | 0.917 [0.914, 0.922] | 0.958 [0.955, 0.966] |
+| `pgo2-fat` | 0.936 [0.921, 0.952] | 0.952 [0.943, 0.955] | 0.981 [0.974, 1.019] | 0.966 [0.960, 0.981] | 0.843 [0.834, 0.862] | 0.847 [0.811, 0.867] | 0.968 [0.953, 0.983] | 0.904 [0.882, 0.923] | 1.033 [1.031, 1.041] |
+| `pgo2-v3` | 1.058 [1.047, 1.081] | 1.044 [1.030, 1.058] | 0.976 [0.931, 0.990] | 0.968 [0.959, 0.969] | 0.905 [0.895, 0.937] | 0.849 [0.811, 0.868] | 0.948 [0.930, 0.961] | 0.903 [0.878, 0.921] | 0.961 [0.958, 0.970] |
+| `base@mimalloc` | 1.040 [1.020, 1.070] | 1.019 [1.010, 1.030] | 1.052 [1.027, 1.062] | 1.100 [1.089, 1.106] | 1.008 [0.952, 1.035] | 1.003 [0.990, 1.045] | 1.015 [0.995, 1.026] | 1.006 [0.996, 1.033] | 0.958 [0.949, 0.963] |
+| `base@jemalloc` | 1.035 [1.019, 1.066] | 1.027 [1.013, 1.029] | 1.025 [1.007, 1.047] | 1.078 [1.039, 1.099] | 1.018 [0.993, 1.049] | 1.000 [0.986, 1.034] | 1.034 [1.019, 1.087] | 1.017 [1.003, 1.059] | 1.005 [0.999, 1.012] |
+| `nobc` | 0.899 [0.880, 0.920] | 0.938 [0.934, 0.949] | 0.975 [0.971, 1.026] | 0.992 [0.981, 1.005] | 0.938 [0.919, 0.958] | 0.999 [0.995, 1.006] | 0.997 [0.994, 1.002] | 0.997 [0.986, 0.999] | 1.001 [0.994, 1.005] |
+
+Per phase (`tables.md`): with `-v4` the hex8 `stress` phase (gradient and
+constitutive law) takes 2.03–2.15 times the base time and `fint` 1.23–1.48;
+with `-v3` `fint` takes 0.94–0.97 on tet4 small strain and hex8. The
+peak RSS of the driver is unchanged by every build configuration
+(±1 %); mimalloc lowers it to 0.890, jemalloc to 0.877.
+
+Absolute medians of `base` (series D): tet4-200k step 93.4 ns (ss),
+134.0 ns (fd); hex8-200k 610.6 ns (ss), 1,100 ns (fd) per element and
+step; driver wall 16.90 s (static solve 7.65 s, 500 explicit steps
+1.83 s, insertion checks 6.89 s); `facet_scaling` n = 32 2.335 s.
+
+### Benchmark suites (not trained by PGO)
+
+@@SUITES@@
+
+### Build time and binary size
+
+Clean build of the three timing binaries (with their dependencies) on
+the measurement machine under `bjob` (4 cores, `CARGO_BUILD_JOBS=4`),
+two rounds in rotated order, other agents' builds running beside them
+(`buildtime.jsonl`): seconds per round and per-round ratio to `base`.
+File size with `debug = 1`, and the `.text` section.
+
+| variant | clean build [s] per round | / base (per round) | explicit_step_timing: file / .text [MB] | cohesive_extrinsic: file / .text [MB] | facet_scaling .text [MB] | load at start |
+|---|---|---|---|---|---|---|
+| base | 89, 92 | 1.00, 1.00 | 75.0 / 6.92 | 87.4 / 8.80 | 0.91 | 3.52, 3.71 |
+| cgu1 | 119, 121 | 1.33, 1.31 | 62.9 / 6.25 | 72.9 / 7.92 | 0.80 | 2.78, 2.60 |
+| thin | 121, 121 | 1.35, 1.30 | 59.6 / 7.18 | 76.8 / 9.12 | 0.91 | 4.30, 3.93 |
+| fat | 220, 215 | 2.47, 2.33 | 49.1 / 6.60 | 62.2 / 8.24 | 0.79 | 2.13, 2.23 |
+| thin+cgu1 | 153, 157 | 1.71, 1.70 | 50.3 / 6.55 | 64.4 / 8.29 | 0.82 | 3.34, 3.01 |
+| fat+cgu1 | 220, 210 | 2.47, 2.27 | 46.7 / 6.20 | 59.5 / 7.80 | 0.77 | 2.23, 1.34 |
+{"variant":"thin","build_s":106.5,"rustflags":"","lto":"thin","cgu":"","panic":"","load":"5.61 6.06 3.62","utc":"2026-11-16T06:25:42Z","commit":"72ebd0629","explicit_bytes":59563400,"explicit_text":7181254,"cohesive_bytes":76826264,"cohesive_text":9117958,"facet_bytes":9314088,"facet_text":914336}
+
+PGO costs an instrumented build, the training runs (about 3 minutes on
+the sandbox for the second set) and a second build.
 
 ## Bitwise identity
 
