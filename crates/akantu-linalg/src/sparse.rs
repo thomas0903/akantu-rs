@@ -1718,6 +1718,14 @@ impl BlockPositionCache {
         }
     }
 
+    /// `true` when [`BlockPositionCache::begin`] with `matrix` continues
+    /// this cache (the entry positions it was filled for are still
+    /// `matrix`'s), so that the round can take positions from it.
+    #[must_use]
+    pub fn continues(&self, matrix: &SparseMatrixAij) -> bool {
+        self.stamp != 0 && self.stamp == matrix.position_epoch.0
+    }
+
     /// Number of blocks whose positions were looked up and stored since
     /// the cache was created (diagnostic: a round that finds every block
     /// stored adds none).

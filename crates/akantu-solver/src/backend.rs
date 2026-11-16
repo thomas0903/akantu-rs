@@ -199,6 +199,27 @@ pub trait LinearSystemBackend: std::fmt::Debug + Send {
     ) -> Result<()> {
         self.add_values(id, rows, cols, values, values_type)
     }
+    /// The serial loop of [`LinearSystemBackend::add_values_cached`] over a
+    /// batch of square blocks (slot `slots[k]`, equations `equations(k, ·)`,
+    /// values `values[k·n²..(k+1)·n²]`, `n = nb_eq`) on the threads of
+    /// `exec`, with the same results
+    /// ([`SparseMatrixAij::add_values_cached_batch`]). `false` when not done
+    /// (nothing changed but the cache's configuration): the caller runs the
+    /// serial loop. Default: `false`.
+    #[allow(clippy::too_many_arguments)] // the serial loop's arguments, batched
+    fn add_values_cached_batch(
+        &mut self,
+        _id: &str,
+        _exec: &akantu_core::exec::Exec,
+        _cache: &mut BlockPositionCache,
+        _slots: &[usize],
+        _nb_eq: usize,
+        _equations: &(dyn Fn(usize, &mut Vec<GlobalIdx>) -> Result<()> + Sync),
+        _values: &[Real],
+        _values_type: MatrixType,
+    ) -> bool {
+        false
+    }
     /// Add individual terms (pre-assembled matrices), creating entries.
     fn add_terms(&mut self, id: &str, terms: &[(GlobalIdx, GlobalIdx, Real)]) -> Result<()>;
     /// Collective end of an assembly phase of `id` (PETSc
@@ -1029,6 +1050,21 @@ impl LinearSystemBackend for AijBackend {
     ) -> Result<()> {
         self.get_mut(id)?
             .add_values_cached(cache, slot, rows, cols, values, values_type)
+    }
+    fn add_values_cached_batch(
+        &mut self,
+        id: &str,
+        exec: &akantu_core::exec::Exec,
+        cache: &mut BlockPositionCache,
+        slots: &[usize],
+        nb_eq: usize,
+        equations: &(dyn Fn(usize, &mut Vec<GlobalIdx>) -> Result<()> + Sync),
+        values: &[Real],
+        values_type: MatrixType,
+    ) -> bool {
+        self.get_mut(id).is_ok_and(|m| {
+            m.add_values_cached_batch(exec, cache, slots, nb_eq, equations, values, values_type)
+        })
     }
     fn add_terms(&mut self, id: &str, terms: &[(GlobalIdx, GlobalIdx, Real)]) -> Result<()> {
         let m = self.get_mut(id)?;
