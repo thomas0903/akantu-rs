@@ -61,7 +61,9 @@ case "${1:-}" in
       python3 -I "$repo/scripts/perf/explicit-step/summarize_timing.py" "$d/explicit.jsonl" step fint stress > "$d/summary.md" 2>&1 || true
     say "explicit: $d/summary.md" ;;
   explicit-digests)
-    bjob "$L-explicit-digests" -- "$here/explicit_digests.sh" "$PORT_DIR/port" "$BASE/cpp-bin" \
+    # PIN_CPU = the bjob's cores: cpp_run.sh passes it to docker --cpuset-cpus
+    bjob "$L-explicit-digests" -- sh -c 'PIN_CPU="$AKANTU_JOB_CPUS" exec "$@"' sh \
+      "$here/explicit_digests.sh" "$PORT_DIR/port" "$BASE/cpp-bin" \
       "$BASE/meshes/explicit" > "$OUT/explicit-digests.txt"
     cat "$OUT/explicit-digests.txt" ;;
   driver)
