@@ -13,6 +13,7 @@ use std::time::Instant;
 
 use akantu_core::eigen_gebp::{Extent, ProductShape, product_into};
 use akantu_core::eigen_kernels::{SliceProduct, fast_mode};
+use akantu_core::exec::{Exec, ExecPolicy, Precision};
 
 fn median(mut v: Vec<f64>) -> f64 {
     v.sort_by(f64::total_cmp);
@@ -36,6 +37,11 @@ fn main() {
         .nth(1)
         .and_then(|s| s.parse().ok())
         .unwrap_or(7);
+    // the fast-mode variants need the token of an executor in `Fast`
+    let fast = Exec::new(ExecPolicy::serial().with_precision(Precision::Fast))
+        .expect("serial fast-mode executor")
+        .fast_token()
+        .expect("a Fast executor hands out its token");
     // (name, shape, lhs stored transposed for gemm_tn)
     let classes: [(&str, ProductShape, bool); 7] = [
         (
@@ -117,9 +123,10 @@ fn main() {
         });
         let fast = time(reps, iters, || {
             if tn {
-                fast_mode::gemm_tn(m, k, n, black_box(&a), black_box(&b), &mut out).unwrap();
+                fast_mode::gemm_tn(fast, m, k, n, black_box(&a), black_box(&b), &mut out).unwrap();
             } else {
-                fast_mode::gemm_colmajor(m, k, n, black_box(&a), black_box(&b), &mut out).unwrap();
+                fast_mode::gemm_colmajor(fast, m, k, n, black_box(&a), black_box(&b), &mut out)
+                    .unwrap();
             }
             black_box(&out);
         });

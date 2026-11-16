@@ -10,6 +10,31 @@ change of default results or of a public API raises the minor version.
 
 ### Added
 
+- Execution policy (D-123): `akantu_core::exec` with `ExecPolicy`
+  (precision mode `Bitwise`/`Fast`, thread count, SIMD level, split grain),
+  `Exec` (a shared thread pool per thread count), `NodeScatter` and the
+  SIMD dispatch convention. Environment variables `AKANTU_NUM_THREADS`
+  (default 1), `AKANTU_PRECISION` (`bitwise`), `AKANTU_SIMD` (`auto`),
+  `AKANTU_EXEC_GRAIN` (`auto`), `AKANTU_EXEC_SPIN_US` (5000; 0 when the
+  threads outnumber the cores). Rust API:
+  `SolidMechanicsModel::{exec_policy, set_exec_policy}`,
+  `FeEngine::{exec, set_exec}`, `FeEngineRegistry::{exec, set_exec}`,
+  `DofManager::{exec, set_exec}`, `ModelServices::exec` (default serial),
+  `Material::independent_points` (default `false`) and
+  `material::points_exec`. Python: `akantu.setNumThreads`,
+  `getNumThreads`, `setPrecision`, `getPrecision`, `setSimdLevel`,
+  `getSimdLevel` (the default of models created afterwards).
+- Threads in the explicit step of `SolidMechanicsModel`, bitwise equal to
+  one thread for every thread count: FE gradient, `BᵀD` and integration
+  kernels, `grad_u −= eigen_grad_u` (for every law), elastic stresses and
+  thermal strains, finite-deformation residual, internal-force scatter,
+  external-work increment (per-node terms), Newmark-β predictor and
+  corrector, lumped solve, residual scatter and solution gather (the
+  per-node and per-equation loops only for parts of at least 131,072
+  nodes / 262,144 equations).
+- Fast-mode harness `akantu_validation::fast_mode` with the rules of
+  `fixtures/fast_mode/`, and its demonstrator (the gradient kernel with
+  fused multiply-adds under `Precision::Fast`).
 - `akantu_fe::engine::PointInterpolation`
   (`ElementalFieldInterpolation::point_interpolation`): the value of one
   interpolation point of one element of an elemental-field interpolation
@@ -34,6 +59,14 @@ change of default results or of a public API raises the minor version.
 
 ### Changed
 
+- `DofManager::split_solution_per_dofs` returns `Error::OutOfRange` for a
+  local equation outside the solution vector, where it used to panic.
+- `MaterialElastic::compute_stress` returns `Error::DimensionMismatch` when
+  `grad_u` or the stress block does not have `dim × dim` components per
+  point (before, such a block was processed in chunks of the wrong size).
+- `akantu-core` denies `unsafe` instead of forbidding it: the thread pool
+  of `exec::spin` and the SIMD kernels of `exec::simd` (listed in its
+  `UNSAFE.md`) are the only sites.
 - The cohesive insertion check is faster with bitwise identical results:
   the facet stresses are computed directly from the bulk stresses (the
   by-element buffer is no longer written per step; it is still allocated

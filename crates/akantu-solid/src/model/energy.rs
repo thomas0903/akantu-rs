@@ -41,6 +41,9 @@ pub(crate) fn all_reduce_in(
 
 /// Upstream counting of a node in nodal sums: local or master, and not a
 /// periodic slave.
+/// Nodes per part of the threaded external-work terms (D-123).
+const NODES_PER_WORK_PART: usize = 131_072;
+
 fn counted(mesh: &Mesh, n: usize) -> Result<bool> {
     let f = mesh.node_flag(akantu_core::try_idx(n)?);
     Ok(f.is_local_or_master() && !f.is_periodic_slave())
@@ -102,15 +105,47 @@ impl SolidMechanicsPhysics {
         )?;
         check_nodal("getExternalWorkIncrement: external_force", &fe, nn, d)?;
         check_nodal("getExternalWorkIncrement: internal_force", &fi, nn, d)?;
-        let mut work = 0.0;
-        for n in 0..nn {
+        let term = |n: usize| -> Result<Real> {
             let c = if counted(&mesh, n)? { 1.0 } else { 0.0 };
             let i = &inc.as_slice()[n * d..(n + 1) * d];
             let a = dot(&fe.as_slice()[n * d..(n + 1) * d], i);
             let b = dot(&fi.as_slice()[n * d..(n + 1) * d], i);
-            work += c * (a - b);
+            Ok(c * (a - b))
+        };
+        let exec = self.base.fems.exec();
+        // threaded only when the nodes really split into several parts
+        if exec.nb_parts(nn, NODES_PER_WORK_PART) <= 1 {
+            // the serial loop as before the threads (D-123)
+            let mut work = 0.0;
+            for n in 0..nn {
+                let c = if counted(&mesh, n)? { 1.0 } else { 0.0 };
+                let i = &inc.as_slice()[n * d..(n + 1) * d];
+                let a = dot(&fe.as_slice()[n * d..(n + 1) * d], i);
+                let b = dot(&fi.as_slice()[n * d..(n + 1) * d], i);
+                work += c * (a - b);
+            }
+            return Ok(work);
         }
-        Ok(work)
+        // the per-node terms on the threads, their sum in node order (the
+        // serial additions, D-123)
+        // the terms in a buffer kept between steps (every entry is written)
+        let mut terms = self
+            .assembly_scratch
+            .work_terms
+            .lock()
+            .unwrap_or_else(|e| e.into_inner());
+        terms.resize(nn, 0.0);
+        exec.try_for_each(
+            akantu_core::exec::Tuples::new(&mut terms[..nn], 1),
+            NODES_PER_WORK_PART,
+            |first, mut t| {
+                for (k, v) in t.as_mut_slice().iter_mut().enumerate() {
+                    *v = term(first + k)?;
+                }
+                Ok(())
+            },
+        )?;
+        Ok(terms[..nn].iter().fold(0.0, |work, &t| work + t))
     }
 
     /// Local part of upstream `getStableTimeStep(_not_ghost)` (SMM-009):

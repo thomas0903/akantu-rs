@@ -348,6 +348,15 @@ pub struct DofManager {
     mesh_periodic: bool,
     /// Scratch vector over local equations (upstream `data_cache`).
     data_cache: Vec<Real>,
+    /// How the per-equation loops of the integration schemes run (D-123):
+    /// serial until the owning model sets its executor.
+    exec: akantu_core::exec::Exec,
+    /// Inverse equation maps of the threaded scatter, per family.
+    eq_inverse: std::sync::Mutex<BTreeMap<Id, assembly::EqInverse>>,
+    /// Bumped wherever a family's local equation numbers change
+    /// (`number_block`, `restore`, `commit_renumbering`): the inverse maps
+    /// of the threaded scatter are valid for one generation.
+    numbering_generation: u64,
     /// Blocked local equations, sorted and unique (upstream
     /// `global_blocked_dofs_indexes`), snapshot of the last
     /// [`DofManager::update_global_blocked_dofs`].
@@ -754,7 +763,23 @@ impl DofManager {
             jacobian_release: 0,
             numbered_distributed: None,
             compat: UpstreamCompat::default(),
+            exec: akantu_core::exec::Exec::serial(),
+            eq_inverse: std::sync::Mutex::default(),
+            numbering_generation: 0,
         }
+    }
+
+    /// How the per-equation loops (integration-scheme updates) run.
+    #[must_use]
+    pub fn exec(&self) -> &akantu_core::exec::Exec {
+        &self.exec
+    }
+
+    /// Set how the per-equation loops run (the owning model's executor,
+    /// D-123); every result is the same for every thread count in
+    /// [`akantu_core::exec::Precision::Bitwise`].
+    pub fn set_exec(&mut self, exec: akantu_core::exec::Exec) {
+        self.exec = exec;
     }
 
     /// Upstream-compatibility switches of the solvers working with this
@@ -1190,6 +1215,9 @@ impl DofManager {
         let flags_len = self.dofs_flag.len();
         let sync = mesh.synchronizers().node.clone();
         let periodic = periodic_numbering_sync(mesh);
+        // the equation numbering changes (inverse maps of the threaded
+        // scatter are rebuilt)
+        self.numbering_generation = self.numbering_generation.wrapping_add(1);
         let r = number_block(
             ph,
             &mut self.layout,
@@ -1284,6 +1312,7 @@ impl DofManager {
         let (mut data, plan) = ph.agreed("preflight", pre, Severity::Recoverable)?;
         let backup = self.layout.clone();
         let flags_len = self.dofs_flag.len();
+        self.numbering_generation = self.numbering_generation.wrapping_add(1);
         if let Err(e) = number_block(
             ph,
             &mut self.layout,
@@ -2255,15 +2284,17 @@ impl DofManager {
                 got: x.len(),
             });
         }
+        let exec = &self.exec;
         for f in self.families.values_mut() {
-            for (s, &eq) in f
-                .solution
-                .as_mut_slice()
-                .iter_mut()
-                .zip(&f.local_equation_numbers)
-            {
-                *s = x[akantu_core::try_to_usize(eq)?];
-            }
+            // a gather: every DOF reads its own equation (D-123)
+            let n = (f.solution.as_slice().len()).min(f.local_equation_numbers.len());
+            let items = (
+                akantu_core::exec::Tuples::new(&mut f.solution.as_mut_slice()[..n], 1),
+                akantu_core::exec::TuplesRef::new(&f.local_equation_numbers[..n], 1),
+            );
+            exec.try_for_each(items, 262_144, |_, (mut s, eqs)| {
+                gather_part(s.as_mut_slice(), eqs.as_slice(), x)
+            })?;
         }
         Ok(())
     }
@@ -2346,6 +2377,7 @@ impl DofManager {
         let sync = mesh.synchronizers().node.clone();
         let periodic = periodic_numbering_sync(mesh);
         let mut numbered = Vec::new();
+        self.numbering_generation = self.numbering_generation.wrapping_add(1);
         let r = (|| -> Result<()> {
             for (id, selected, plan) in plans {
                 let data = self
@@ -2469,6 +2501,7 @@ impl DofManager {
     }
 
     fn restore(&mut self, backup: GrowthBackup) {
+        self.numbering_generation = self.numbering_generation.wrapping_add(1);
         self.layout = backup.layout;
         self.dofs_flag.truncate(backup.flags_len);
         for (id, _, eqs) in backup.lens {
@@ -2482,6 +2515,26 @@ impl DofManager {
             }
         }
     }
+}
+
+/// `s[k] = x[eq[k]]` of one part (no-alias parameters, not inlined into the
+/// part closure).
+#[inline(never)]
+fn gather_part(s: &mut [Real], eqs: &[Idx], x: &[Real]) -> Result<()> {
+    for (s, &eq) in s.iter_mut().zip(eqs) {
+        let e = akantu_core::try_to_usize(eq)?;
+        // the error is built only on failure (`ok_or` built and dropped one
+        // per equation)
+        let Some(&v) = x.get(e) else {
+            return Err(Error::OutOfRange {
+                what: "local equation",
+                index: e,
+                len: x.len(),
+            });
+        };
+        *s = v;
+    }
+    Ok(())
 }
 
 impl MeshEventHandler for DofManager {
