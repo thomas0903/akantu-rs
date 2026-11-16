@@ -42,6 +42,18 @@ pub const CASES: &[Case] = &[
 
 const NDOF: usize = 6;
 
+/// The structural cases build serial meshes: under `mpirun -n P`, `P > 1`,
+/// they would only repeat the serial run on every rank.
+fn serial_only(run: &Run) -> Result<()> {
+    if run.comm.size() > 1 {
+        return Err(akantu_core::Error::Unsupported(
+            "the structural cases are serial (meshes built with the MeshAccessor on one rank)"
+                .into(),
+        ));
+    }
+    Ok(())
+}
+
 fn to_idx(i: usize) -> Idx {
     Idx::try_from(i).unwrap_or(Idx::MAX)
 }
@@ -183,6 +195,7 @@ fn plate_static(run: &mut Run) -> Result<Digest> {
     let s = run.size();
     let n = s.pick(6, 200, 560);
     let ty = ElementType::DiscreteKirchhoffTriangle18;
+    serial_only(run)?;
     let mesh = run.once("mesh", || {
         let mut mesh = Mesh::new(3, "plate")?;
         let id = |i: usize, j: usize| to_idx(j * (n + 1) + i);
