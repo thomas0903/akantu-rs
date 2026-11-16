@@ -89,6 +89,91 @@ pub struct Linear {
     pub tol: Real,
 }
 
+/// Upstream `MaterialCohesiveLinear::computeEffectiveNorm(stress, normal,
+/// tangent, normal_traction)`: `stress` the side-averaged facet stress
+/// (run-time `dim × dim`, column-major, given as the two sides), writes the
+/// normal traction and returns `√(⟨tₙ⟩₊² + ‖tₜ‖²/β²)` (`beta2_inv` = `1/β²`).
+fn effective_norm(
+    beta2_inv: Real,
+    dim: usize,
+    s1: &[Real],
+    s2: &[Real],
+    normal: &[Real],
+    tangent: &[Real],
+    normal_traction: &mut [Real],
+) -> Real {
+    // `stress * normal`: run-time rows/depth on the left → sequential
+    for i in 0..dim {
+        let coeff = |k: usize| (s1[i + dim * k] + s2[i + dim * k]) / 2. * normal[k];
+        let mut r = coeff(0);
+        for k in 1..dim {
+            r += coeff(k);
+        }
+        normal_traction[i] = r;
+    }
+    let mut normal_contrib = dot_seq(normal_traction, normal, dim);
+    let mut tangent_contrib = 0.0;
+    if dim == 2 {
+        let t = dot_seq(normal_traction, &tangent[0..2], dim);
+        tangent_contrib += t * t;
+    } else if dim == 3 {
+        for v in 0..2 {
+            let t = dot_seq(normal_traction, &tangent[3 * v..3 * v + 3], dim);
+            tangent_contrib += t * t;
+        }
+    }
+    tangent_contrib = tangent_contrib.sqrt();
+    normal_contrib = std_max(0.0, normal_contrib);
+    (normal_contrib * normal_contrib + tangent_contrib * tangent_contrib * beta2_inv).sqrt()
+}
+
+/// [`effective_norm`] for a compile-time `D` (2 or 3) with the two sides in
+/// one slice `fs` (`2·D²` values): the same operations in the same order,
+/// the slices bounded once (performance; bitwise equal, tested).
+#[inline(always)]
+fn effective_norm_fixed<const D: usize>(
+    beta2_inv: Real,
+    fs: &[Real],
+    normal: &[Real],
+    tangent: &[Real],
+    normal_traction: &mut [Real],
+) -> Real {
+    let s1 = &fs[..D * D];
+    let s2 = &fs[D * D..2 * D * D];
+    let normal = &normal[..D];
+    let nt = &mut normal_traction[..D];
+    for i in 0..D {
+        let coeff = |k: usize| (s1[i + D * k] + s2[i + D * k]) / 2. * normal[k];
+        let mut r = coeff(0);
+        for k in 1..D {
+            r += coeff(k);
+        }
+        nt[i] = r;
+    }
+    let dot = |b: &[Real]| {
+        let mut r = nt[0] * b[0];
+        for k in 1..D {
+            r += nt[k] * b[k];
+        }
+        r
+    };
+    let mut normal_contrib = dot(normal);
+    let mut tangent_contrib = 0.0;
+    if D == 2 {
+        let t = dot(&tangent[..2]);
+        tangent_contrib += t * t;
+    } else if D == 3 {
+        let tangent = &tangent[..6];
+        for v in 0..2 {
+            let t = dot(&tangent[3 * v..3 * v + 3]);
+            tangent_contrib += t * t;
+        }
+    }
+    tangent_contrib = tangent_contrib.sqrt();
+    normal_contrib = std_max(0.0, normal_contrib);
+    (normal_contrib * normal_contrib + tangent_contrib * tangent_contrib * beta2_inv).sqrt()
+}
+
 impl Linear {
     pub(crate) fn new(core: &mut CohesiveCore) -> Result<Self> {
         core.use_previous_delta_max = true;
@@ -229,43 +314,31 @@ impl Linear {
         Ok(())
     }
 
-    /// Upstream `computeEffectiveNorm(stress, normal, tangent,
-    /// normal_traction)`: `stress` the side-averaged facet stress (run-time
-    /// `dim × dim`, column-major, given as the two sides), writes the
-    /// normal traction and returns `√(⟨tₙ⟩₊² + ‖tₜ‖²/β²)`.
-    fn effective_norm(
+    /// Upstream `computeEffectiveNorm` ([`effective_norm`]) at one facet
+    /// quadrature point, `fs` holding the two sides' stresses
+    /// (`2·dim²` values): the fixed-size form for `dim` 2 and 3.
+    #[inline]
+    fn effective_norm_at(
         &self,
         dim: usize,
-        s1: &[Real],
-        s2: &[Real],
+        fs: &[Real],
         normal: &[Real],
         tangent: &[Real],
         normal_traction: &mut [Real],
     ) -> Real {
-        // `stress * normal`: run-time rows/depth on the left → sequential
-        for i in 0..dim {
-            let coeff = |k: usize| (s1[i + dim * k] + s2[i + dim * k]) / 2. * normal[k];
-            let mut r = coeff(0);
-            for k in 1..dim {
-                r += coeff(k);
-            }
-            normal_traction[i] = r;
+        match dim {
+            3 => effective_norm_fixed::<3>(self.beta2_inv, fs, normal, tangent, normal_traction),
+            2 => effective_norm_fixed::<2>(self.beta2_inv, fs, normal, tangent, normal_traction),
+            _ => effective_norm(
+                self.beta2_inv,
+                dim,
+                &fs[..dim * dim],
+                &fs[dim * dim..],
+                normal,
+                tangent,
+                normal_traction,
+            ),
         }
-        let mut normal_contrib = dot_seq(normal_traction, normal, dim);
-        let mut tangent_contrib = 0.0;
-        if dim == 2 {
-            let t = dot_seq(normal_traction, &tangent[0..2], dim);
-            tangent_contrib += t * t;
-        } else if dim == 3 {
-            for v in 0..2 {
-                let t = dot_seq(normal_traction, &tangent[3 * v..3 * v + 3], dim);
-                tangent_contrib += t * t;
-            }
-        }
-        tangent_contrib = tangent_contrib.sqrt();
-        normal_contrib = std_max(0.0, normal_contrib);
-        (normal_contrib * normal_contrib + tangent_contrib * tangent_contrib * self.beta2_inv)
-            .sqrt()
     }
 
     /// Upstream `MaterialCohesiveLinear::checkInsertion(check_only)`: for
@@ -354,10 +427,9 @@ impl Linear {
                     for q in 0..nq {
                         let cq = facet * nq + q;
                         let fs = &f_stress[cq * 2 * dim * dim..(cq + 1) * 2 * dim * dim];
-                        stress_check[q] = self.effective_norm(
+                        stress_check[q] = self.effective_norm_at(
                             dim,
-                            &fs[..dim * dim],
-                            &fs[dim * dim..],
+                            fs,
                             &normals[cq * dim..(cq + 1) * dim],
                             &tangents[cq * ntc..(cq + 1) * ntc],
                             &mut normal_traction[q][..dim],
@@ -1415,6 +1487,81 @@ mod tests {
 
     const TY: ElementType = ElementType::Cohesive2d4;
     const G: GhostType = GhostType::NotGhost;
+
+    /// Test values (xorshift64*): special values (signed zeros, infinities,
+    /// default quiet NaNs, subnormals, extremes), arbitrary bit patterns and
+    /// finite values over a wide exponent range.
+    fn draw(state: &mut u64) -> Real {
+        const SPECIAL: [u64; 12] = [
+            0x0000_0000_0000_0000,
+            0x8000_0000_0000_0000,
+            0x7ff0_0000_0000_0000,
+            0xfff0_0000_0000_0000,
+            0x7ff8_0000_0000_0000,
+            0xfff8_0000_0000_0000,
+            0x0000_0000_0000_0001,
+            0x800f_ffff_ffff_ffff,
+            0x0010_0000_0000_0000,
+            0x7fef_ffff_ffff_ffff,
+            0x3ff0_0000_0000_0000,
+            0xbff0_0000_0000_0000,
+        ];
+        let mut next = || {
+            let mut x = *state;
+            x ^= x >> 12;
+            x ^= x << 25;
+            x ^= x >> 27;
+            *state = x;
+            x.wrapping_mul(0x2545_f491_4f6c_dd1d)
+        };
+        let r = next();
+        let x = match r % 8 {
+            0 => Real::from_bits(SPECIAL[(r >> 8) as usize % SPECIAL.len()]),
+            1 => Real::from_bits(next()),
+            _ => {
+                let m = (next() >> 11) as Real / (1u64 << 53) as Real;
+                let e = ((r >> 8) % 41) as i32 - 20;
+                let s = if (r >> 40) & 1 == 1 { -1.0 } else { 1.0 };
+                s * m * Real::powi(2.0, e)
+            }
+        };
+        if x.is_nan() {
+            Real::from_bits(0x7ff8_0000_0000_0000 | (x.to_bits() & (1 << 63)))
+        } else {
+            x
+        }
+    }
+
+    /// Identical bits, or two default quiet NaNs differing only in the sign.
+    fn same(a: Real, b: Real) -> bool {
+        let (x, y) = (a.to_bits(), b.to_bits());
+        let nan = 0x7ff8_0000_0000_0000;
+        x == y || (x & !(1 << 63) == nan && y & !(1 << 63) == nan)
+    }
+
+    /// The fixed-size effective norm is bitwise the run-time one (value
+    /// and normal traction), special values included.
+    #[test]
+    fn effective_norm_fixed_is_bitwise_the_general_one() {
+        fn check<const D: usize>(state: &mut u64) {
+            for _ in 0..20_000 {
+                let fs: Vec<Real> = (0..2 * D * D).map(|_| draw(state)).collect();
+                let n: Vec<Real> = (0..D).map(|_| draw(state)).collect();
+                let t: Vec<Real> = (0..D * (D - 1)).map(|_| draw(state)).collect();
+                let b = draw(state).abs();
+                let (mut nt1, mut nt2) = ([7.0; 3], [7.0; 3]);
+                let v1 = effective_norm(b, D, &fs[..D * D], &fs[D * D..], &n, &t, &mut nt1);
+                let v2 = effective_norm_fixed::<D>(b, &fs, &n, &t, &mut nt2);
+                assert!(same(v1, v2), "D = {D}: {v1:e} vs {v2:e}");
+                for (x, y) in nt1.iter().zip(&nt2) {
+                    assert!(same(*x, *y), "D = {D}: traction {x:e} vs {y:e}");
+                }
+            }
+        }
+        let mut state = 0x0bad_5eed_1234_5678_u64;
+        check::<2>(&mut state);
+        check::<3>(&mut state);
+    }
 
     fn set(f: &mut InternalField<Real>, v: &[Real]) {
         let mut a = block_mut(f, TY, G).unwrap();
