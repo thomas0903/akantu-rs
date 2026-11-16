@@ -81,7 +81,40 @@ phase is absent: the driver inputs of this series do not write energies.
 The peak RSS of the port includes its SparseLU factorisation (the C++ runs
 use MUMPS); the static-solve series below compares like for like.
 
-FULL_SCHEDULE_PLACEHOLDER
+## Cohesive driver, 1 rank, h = 0.12, full schedule (5,000 steps)
+
+The same drivers and inputs with `max_steps = 5000` (upstream's schedule:
+the shear grows every 100 steps; the first insertion at step 710).
+3 rotated repetitions, one exclusive timing job each (a C++ cohesive run
+takes 13 min here; 5 repetitions would have held the timing cores for
+about 1.5 h). The C++ runs use upstream's behaviour of rebuilding the
+node-to-element map after every insertion pass (`timing_ab.sh` runs the
+harness with `AKANTU_RS_FILL_NODES_TO_ELEMENTS=upstream`, not the JOSS
+emulation of the scaling series). Raw: `raw/driver-s5000/`.
+
+| material | phase | unit | C++ strict | port | port / C++ (paired) |
+|---|---|---|---|---|---|
+| cohesive | `init_full` | s | 1.04 [1.04, 1.07] | 0.379 [0.375, 0.381] | 0.36 [0.35, 0.37] |
+| cohesive | `static_solve` (different solvers) | s | 0.625 [0.617, 0.775] | 7.89 [7.62, 8.12] | 12.2 [10.2, 13.2] |
+| cohesive | `solve_step` | ms/step | 11.0 [10.9, 11.0] | 7.88 [7.73, 7.91] | 0.718 [0.709, 0.721] |
+| cohesive | `check_cohesive_stress` | ms/step | 168 [145, 183] | 21.5 [21.1, 21.6] | 0.128 [0.118, 0.146] |
+| cohesive | loop | core-µs/el/step | 7.72 [6.73, 8.36] | 1.27 [1.25, 1.27] | 0.164 [0.152, 0.185] |
+| cohesive | peak RSS | MiB | 298 | 471 | 1.58 |
+| elastic | `solve_step` | ms/step | 7.74 [7.72, 8.01] | 3.10 [3.08, 3.10] | 0.400 [0.385, 0.402] |
+| elastic | loop | core-µs/el/step | 0.334 [0.333, 0.346] | 0.134 [0.133, 0.134] | 0.400 [0.385, 0.402] |
+| elastic | peak RSS | MiB | 273 | 465 | 1.70 |
+
+Each code repeats its own insertion sequence exactly in every repetition
+(C++ 11,739 cohesive elements in 3,545 insertion steps, port 11,736 in
+3,547). The two sequences are not the same: the static solves (port
+SparseLU, C++ MUMPS) differ in the last bits, and fragmentation amplifies
+that; the regime is the same. The C++ insertion check varied with the load
+of the other cores (144.8 ms/step at load 1.1 in repetition 1, 167.7 and
+182.7 at load 6–7 in repetitions 2 and 3, where other agents' builds ran on
+cores 4–7); the port's varied by 2 %. With insertion the port's
+`solve_step` costs 0.72× upstream's, against 0.45× before insertion: its
+cost per step grows from 3.68 to 7.88 ms with the cohesive elements, the
+C++ one from 8.17 to 11.0 ms.
 
 ## Static solve, 1 rank, h = 0.12 (14,472 DOFs)
 
@@ -211,10 +244,15 @@ Bitwise-safe candidates, by share of the profiles above:
 5. The MUMPS path's static solve (1.29× upstream at h = 0.12 with the same
    MUMPS, 1.02–1.09× at h = 0.06): the port's assembly and hand-over around
    the same factorisation.
-6. The `energies` phase at 1–2 ranks (0.82–0.83× upstream, against 0.43–
+6. The port's `solve_step` in the insertion regime (h = 0.12 full schedule:
+   7.88 ms/step against 3.68 before insertion, 0.72× upstream against 0.45×;
+   27 % of the port's loop with insertion): the cohesive elements' share of
+   the step (their internal forces and the residual assembly); a profile
+   of the 5,000-step run comes first.
+7. The `energies` phase at 1–2 ranks (0.82–0.83× upstream, against 0.43–
    0.45× for the rest of the loop; 12 % of the port's 1-rank loop with energies at
    h = 0.06).
-7. Peak RSS of the host driver (1.72× upstream at h = 0.12, mostly the
+8. Peak RSS of the host driver (1.72× upstream at h = 0.12, mostly the
    SparseLU factorisation's storage).
 
 Fast-mode candidates (results change): FMA in the explicit kernels and the
