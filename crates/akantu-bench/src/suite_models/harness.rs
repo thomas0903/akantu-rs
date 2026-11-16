@@ -2,10 +2,10 @@
 // Part of akantu-rs, a Rust port of Akantu (EPFL/LSMS). Benchmark harness of
 // the model suite (no upstream counterpart).
 
-//! Private harness of `suite_models` (the contract of
-//! `docs/briefs/perf/SUITE.md`): command line, phase timers, FNV-1a
-//! digest, one JSON object per (case, repetition, phase). Kept small: the
-//! shared helper of the solid suite replaces it when the suites are merged.
+//! Private harness of `suite_models` (the contract of the crate's README,
+//! section "Benchmark suite"): command line, phase timers, FNV-1a digest,
+//! one JSON object per (case, repetition, phase). Kept small: a later task
+//! moves the cases onto the shared harness (`akantu_bench::suite`).
 
 use std::fmt::Write as _;
 use std::io::Write as _;

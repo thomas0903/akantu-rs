@@ -6,7 +6,7 @@
 """Cost of driving akantu from Python.
 
 Same command line and JSON lines as the Rust suites
-(``docs/briefs/perf/SUITE.md``)::
+(``crates/akantu-bench/README.md``, "Benchmark suite")::
 
     suite_python.py --list
     suite_python.py --case <name>[,<name>...]|all --size s|m|l [--reps N]

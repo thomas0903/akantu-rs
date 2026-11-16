@@ -2,10 +2,11 @@
 // Part of akantu-rs, a Rust port of Akantu (EPFL/LSMS). Benchmark harness of
 // the set-up suite (no upstream counterpart).
 
-//! Private harness of `suite_setup` (the contract of
-//! `docs/briefs/perf/SUITE.md`): command line, case registry, phase timers,
+//! Private harness of `suite_setup` (the contract of the crate's README,
+//! section "Benchmark suite"): command line, case registry, phase timers,
 //! FNV-1a digest and one JSON object per line and per (case, repetition,
-//! phase). Kept small: the shared `suite` helper replaces it at merge time.
+//! phase). Kept small: a later task moves the cases onto the shared
+//! harness (`akantu_bench::suite`).
 //!
 //! Distributed runs: every rank runs the case; rank 0 prints. A phase's
 //! `seconds` is the maximum over the ranks (`seconds_min` and

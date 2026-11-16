@@ -23,4 +23,4 @@ for k,v in t.items(): print('#   %-28s %9.3f s %7d calls %5.1f %%' % (k,v[0],v[1
   echo
   echo "## call chains of the top self symbols (callers, >= 1 %)"
   sudo perf report -i "$f" --no-children --sort symbol --stdio -g caller,1,callee,function,percent --percent-limit 3 2>/dev/null | grep -v '^#' | grep -v '^$' | head -260
-} | /home/user/.cargo/bin/rustfilt | sed -E "s/ {3,}-? +-? *$//; s/ {3,}$//" > "$1.txt"
+} | "${RUSTFILT:-rustfilt}" | sed -E "s/ {3,}-? +-? *$//; s/ {3,}$//" > "$1.txt"

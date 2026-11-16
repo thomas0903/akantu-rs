@@ -1,5 +1,5 @@
 <!-- SPDX-License-Identifier: LGPL-3.0-or-later -->
-# The cohesive insertion check: measurements of WP-COHCHECK (2026-11-16)
+# The cohesive insertion check: measurements (2026-11-16)
 
 Raw data of `docs/BENCHMARKS.md`, "The insertion check (performance
 campaign, 2026-11-16)".

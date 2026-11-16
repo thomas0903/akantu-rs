@@ -4,7 +4,7 @@
 
 //! Every case of `suite_models` at size `s`, twice: it completes, prints
 //! one JSON line per phase, and its digest is the same in both
-//! repetitions and on every phase line (`docs/briefs/perf/SUITE.md`).
+//! repetitions and on every phase line (crate README, "Benchmark suite").
 
 use std::collections::BTreeMap;
 use std::process::Command;

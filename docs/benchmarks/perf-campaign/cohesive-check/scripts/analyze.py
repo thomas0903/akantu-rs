@@ -1,6 +1,6 @@
 #!/usr/bin/env python3
 # SPDX-License-Identifier: LGPL-3.0-or-later
-# akantu-rs measurement script of the performance campaign (WP-COHCHECK); not ported from Akantu.
+# akantu-rs measurement script of the performance campaign (the cohesive insertion check); not ported from Akantu.
 # analyze.py <outroot> [elements]: per phase ms/step of an interleaved before/after series
 # (ab.sh layout <outroot>/<label>/rep<k>/chrono.csv), medians [min, max] and paired ratios.
 import sys, os, csv, json, statistics as st

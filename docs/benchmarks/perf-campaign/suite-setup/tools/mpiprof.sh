@@ -4,18 +4,22 @@
 # mpiprof.sh: build the MPI+Scotch binary in the Scotch image, then perf
 # profiles of rank 0 and rank 1 of the parallel cases (4 ranks)
 set -u
-cd /home/user/akantu-rs
+# SUITE_WORK: the work directory (holds the checkout akantu-rs/, bin/, prof/);
+# default: the current directory
+W="$(cd "${SUITE_WORK:-.}" && pwd)"
+TOOLS="$(cd "$(dirname "$0")" && pwd)"
+cd "$W/akantu-rs" || exit 1
 AKANTU_RS_MPI_IMAGE=akantu-rs-scotch:dev AKANTU_RS_MPI_TARGET=/target/suite-setup \
   scripts/mpi/in-docker.sh cargo build --release -p akantu-bench --bin suite_setup --features mpi,scotch --locked || exit 1
-mkdir -p /home/user/bin /home/user/prof
-docker run --rm --user "$(id -u):$(id -g)" -v akantu-rs-mpi-target:/target:ro -v /home/user/bin:/out \
+mkdir -p "$W/bin" "$W/prof"
+docker run --rm --user "$(id -u):$(id -g)" -v akantu-rs-mpi-target:/target:ro -v "$W/bin:/out" \
   akantu-rs-scotch:dev cp /target/suite-setup/release/suite_setup /out/suite_setup_mpi || exit 1
-bin=/home/user/bin/suite_setup_mpi
+bin="$W/bin/suite_setup_mpi"
 run() { # np stem args...
   np=$1; stem=$2; shift 2
   docker run --rm --user "$(id -u):$(id -g)" -e HOME=/tmp --shm-size 2g --network none \
-    -v /home/user:/home/user -w /home/user akantu-rs-scotch:dev \
-    mpirun -n "$np" --bind-to core --map-by core "$bin" "$@" --out "/home/user/prof/$stem.jsonl" > "/home/user/prof/$stem.out" 2>&1 &
+    -v "$W:$W" -w "$W" akantu-rs-scotch:dev \
+    mpirun -n "$np" --bind-to core --map-by core "$bin" "$@" --out "$W/prof/$stem.jsonl" > "$W/prof/$stem.out" 2>&1 &
   job=$!
   declare -A rp=()
   for _ in $(seq 1 600); do
@@ -31,16 +35,16 @@ run() { # np stem args...
   perfs=()
   for r in 0 1; do
     [ -n "${rp[$r]:-}" ] || continue
-    sudo perf record -q -F 499 --call-graph dwarf,32768 -p "${rp[$r]}" -o "/home/user/prof/$stem-r$r.data" > /dev/null 2>&1 &
+    sudo perf record -q -F 499 --call-graph dwarf,32768 -p "${rp[$r]}" -o "$W/prof/$stem-r$r.data" > /dev/null 2>&1 &
     perfs+=($!)
   done
   wait "$job"; echo "$stem: exit $? ranks ${!rp[*]}"
   for p in "${perfs[@]}"; do sudo kill -INT "$p" 2>/dev/null; done
   wait
   for r in 0 1; do
-    [ -f "/home/user/prof/$stem-r$r.data" ] || continue
-    cp "/home/user/prof/$stem.jsonl" "/home/user/prof/$stem-r$r.jsonl" 2>/dev/null
-    /home/user/report.sh "/home/user/prof/$stem-r$r"
+    [ -f "$W/prof/$stem-r$r.data" ] || continue
+    cp "$W/prof/$stem.jsonl" "$W/prof/$stem-r$r.jsonl" 2>/dev/null
+    "$TOOLS/report.sh" "$W/prof/$stem-r$r"
   done
 }
 run 4 dist_mesh_tet4-l-p4 --case dist_mesh_tet4 --size l --loop-seconds 20

@@ -98,7 +98,7 @@ Phase times: the baseline (`baseline/summary.md`); "share" in the profile.
 5. `resolve_filter` (`crates/akantu-fe/src/engine/mod.rs:252`) rebuilds a
    `Vec<usize>` of the filter at every kernel call.
 
-## Fast-mode candidates (not bitwise; for the fast mode of WP-EXEC)
+## Fast-mode candidates (not bitwise; for the fast mode, a later task)
 
 - Closed-form 3×3 eigenvalues for Mazars (item 6): about ×0.6 of the Mazars
   step.
