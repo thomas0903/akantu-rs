@@ -11,7 +11,7 @@
 //! regions a worker spins for a short time (regions of an explicit step
 //! follow each other within microseconds), then parks on a condition
 //! variable. Measured cost of one region on 8 cores of an AMD EPYC 9R14:
-//! about 1 µs, against 5–11 µs for a `rayon` pool
+//! below 1 µs at 2 and 4 threads, against 5–14 µs for a `rayon` pool
 //! (`docs/benchmarks/perf-campaign/exec/README.md`).
 //!
 //! A region submitted while the pool runs another one (from another thread,
