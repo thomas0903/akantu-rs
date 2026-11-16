@@ -1,0 +1,225 @@
+# contact_cohesive_quad4: perf record -F 499 --call-graph dwarf, size m, --loop-seconds 6, one process on core 2
+# commit c339c611d, 2026-11-16T07:28:00Z, AMD Ryzen 7 9700X 8-Core Processor (boat sandbox: shares only, no timing)
+# phases of the profiled run (seconds; loop phases extended to >= 6 s):
+#   mesh                         calls      1      0.058 s
+#   init                         calls      1      0.133 s
+#   solve_step                   calls    300      6.071 s
+
+## Flat profile (self time), top 25 (shared object, symbol)
+    27.01%  suite_models      [.] akantu_core::eigen_gebp::product_into::<akantu_fe::eigen::product_slices::{closure#1}, akantu_fe::eigen::product_slices::{closure#2}>                                                                         
+     9.99%  suite_models      [.] <akantu_cohesive::model::SolidMechanicsModelCohesive>::interpolate_stress                                                                                                                                     
+     8.33%  suite_models      [.] akantu_core::eigen_gebp::route                                                                                                                                                                                
+     6.35%  suite_models      [.] akantu_fe::engine::fast::btd                                                                                                                                                                                  
+     4.47%  suite_models      [.] akantu_fe::engine::fast::integrate::<<akantu_fe::engine::FeEngine>::integrate::{closure#0}>                                                                                                                   
+     4.33%  suite_models      [.] akantu_fe::engine::fast::gradient::<akantu_fe::element_class::types::Cohesive3d8>                                                                                                                             
+     2.29%  suite_models      [.] akantu_solid::material::grad_u_in_place                                                                                                                                                                       
+     1.80%  suite_models      [.] <akantu_solid::materials::elastic::MaterialElastic<2> as akantu_solid::material::Material>::compute_stress                                                                                                    
+     1.77%  suite_models      [.] akantu_fe::eigen::product_slices                                                                                                                                                                              
+     1.76%  libc.so.6         [.] 0x00000000001a176b                                                                                                                                                                                            
+     1.67%  suite_models      [.] <akantu_core::spatial_grid::NeighborhoodItems<i32> as core::iter::traits::iterator::Iterator>::next                                                                                                           
+     1.48%  libc.so.6         [.] 0x00000000001a1d7a                                                                                                                                                                                            
+     1.48%  libc.so.6         [.] 0x00000000001a1794                                                                                                                                                                                            
+     1.43%  suite_models      [.] <akantu_solver::dof_manager::DofManager>::assemble_elemental_array_local_view                                                                                                                                 
+     1.14%  libc.so.6         [.] 0x00000000001a177f                                                                                                                                                                                            
+     0.93%  suite_models      [.] <akantu_solid::materials::elastic::MaterialElastic<2>>::compute_thermal                                                                                                                                       
+     0.87%  suite_models      [.] <akantu_contact::detector::ContactDetector>::local_search                                                                                                                                                     
+     0.83%  libc.so.6         [.] 0x00000000001a16ef                                                                                                                                                                                            
+     0.71%  libc.so.6         [.] 0x00000000001a16cd                                                                                                                                                                                            
+     0.68%  suite_models      [.] <akantu_solver::dof_manager::DofManager>::assemble_to_residual                                                                                                                                                
+     0.62%  libc.so.6         [.] 0x00000000001a1772                                                                                                                                                                                            
+     0.59%  suite_models      [.] <alloc::vec::Vec<usize> as alloc::vec::spec_from_iter::SpecFromIter<usize, core::iter::adapters::GenericShunt<core::iter::adapters::map::Map<core::slice::iter::Iter<i32>, akantu_fe::engine::resolve_filter::
+     0.59%  suite_models      [.] <akantu_core::spatial_grid::SpatialGrid<i32>>::insert                                                                                                                                                         
+     0.59%  suite_models      [.] <akantu_cohesive::laws::linear::Linear>::check_insertion                                                                                                                                                      
+     0.56%  suite_models      [.] akantu_contact::geometry::barycenter_on                                                                                                                                                                       
+
+## Inclusive time (children), top 40 symbols
+    99.52%     0.00%  [.] 0xffffffffffffffff                                                                                                                                                                                                    
+    95.91%     0.00%  [.] suite_models::suite_models::contact::cohesive_contact_quad4                                                                                                                                                           
+    94.26%     0.00%  [.] <suite_models::suite_models::harness::Run>::looped::<suite_models::suite_models::contact::cohesive_contact_quad4::{closure#2}>                                                                                        
+    94.23%     0.00%  [.] suite_models::suite_models::contact::cohesive_contact_quad4::{closure#2}                                                                                                                                              
+    48.04%     0.00%  [.] <akantu_couplers::contact::CouplerSolidCohesiveContact>::check_cohesive_stress                                                                                                                                        
+    48.01%     0.00%  [.] <akantu_cohesive::model::SolidMechanicsModelCohesive>::check_cohesive_stress                                                                                                                                          
+    47.95%     0.28%  [.] <akantu_cohesive::model::SolidMechanicsModelCohesive>::check_cohesive_stress_prepare                                                                                                                                  
+    47.03%     9.99%  [.] <akantu_cohesive::model::SolidMechanicsModelCohesive>::interpolate_stress                                                                                                                                             
+    46.15%     0.00%  [.] <akantu_solid::model::SolidMechanicsModel>::solve_step_with::<<akantu_couplers::contact::CouplerSolidCohesiveContact>::solve_step::{closure#0}>                                                                       
+    46.15%     0.00%  [.] <akantu_couplers::contact::CouplerSolidCohesiveContact>::solve_step::{closure#0} (inlined)                                                                                                                            
+    46.15%     0.00%  [.] <akantu_solver::time_step::TimeStepSolver>::solve_step (inlined)                                                                                                                                                      
+    46.15%     0.00%  [.] <akantu_solver::model_solver::ModelSolver>::solve_step                                                                                                                                                                
+    46.15%     0.00%  [.] <akantu_couplers::contact::CouplerSolidCohesiveContact>::solve_step                                                                                                                                                   
+    46.15%     0.00%  [.] <akantu_solver::non_linear_lumped::NonLinearSolverLumped as akantu_solver::non_linear::NonLinearSolver>::solve                                                                                                        
+    46.12%     0.00%  [.] <akantu_solver::dof_manager::DofManager>::collective::<(), <akantu_solver::non_linear_lumped::NonLinearSolverLumped as akantu_solver::non_linear::NonLinearSolver>::solve::{closure#0}>                               
+    46.12%     0.00%  [.] <akantu_solver::non_linear_lumped::NonLinearSolverLumped as akantu_solver::non_linear::NonLinearSolver>::solve::{closure#0} (inlined)                                                                                 
+    37.61%     1.77%  [.] akantu_fe::eigen::product_slices                                                                                                                                                                                      
+    36.89%     0.00%  [.] <akantu_fe::engine::FeEngine>::interpolate_elemental_field_with::<akantu_core::array_shared::ArrayRef<f64>, <akantu_fe::engine::FeEngine>::interpolate_elemental_field_shared::{closure#0}> (inlined)                 
+    36.62%     0.00%  [.] akantu_fe::eigen::product::<akantu_fe::eigen::product_slices::{closure#1}, akantu_fe::eigen::product_slices::{closure#2}> (inlined)                                                                                   
+    36.06%     0.00%  [.] <akantu_solver::dof_manager::DofManager>::step::<(), <akantu_solver::non_linear_lumped::NonLinearSolverLumped as akantu_solver::non_linear::NonLinearSolver>::solve::{closure#0}::{closure#2}> (inlined)              
+    36.06%     0.00%  [.] <akantu_solver::non_linear_lumped::NonLinearSolverLumped as akantu_solver::non_linear::NonLinearSolver>::solve::{closure#0}::{closure#2} (inlined)                                                                    
+    36.06%     0.00%  [.] <akantu_solver::time_step::Adapter as akantu_solver::callback::SolverCallback>::assemble_residual                                                                                                                     
+    34.75%     0.00%  [.] <akantu_solver::dof_manager::DofManager>::step::<(), <akantu_solver::non_linear_newton_raphson::NonLinearSolverNewtonRaphson>::assemble_residual::{closure#2}>                                                        
+    34.75%     0.00%  [.] akantu_solver::time_step::model_step::<(), <akantu_solver::time_step::Adapter as akantu_solver::callback::SolverCallback>::assemble_residual::{closure#0}> (inlined)                                                  
+    34.75%     0.00%  [.] <akantu_solver::non_linear_newton_raphson::NonLinearSolverNewtonRaphson>::assemble_residual::{closure#2} (inlined)                                                                                                    
+    34.75%     0.00%  [.] <akantu_couplers::contact::SolidContactCallback as akantu_solver::callback::SolverCallback>::assemble_residual                                                                                                        
+    29.00%    27.01%  [.] akantu_core::eigen_gebp::product_into::<akantu_fe::eigen::product_slices::{closure#1}, akantu_fe::eigen::product_slices::{closure#2}>                                                                                 
+    27.11%     0.00%  [.] akantu_core::eigen_gebp::eval_product::<akantu_fe::eigen::product_slices::{closure#1}, akantu_fe::eigen::product_slices::{closure#2}> (inlined)                                                                       
+    23.92%     0.40%  [.] <akantu_fe::engine::FeEngine>::interpolate_elemental_field_shared                                                                                                                                                     
+    23.80%     0.00%  [.] <akantu_cohesive::model::CohesiveCallback as akantu_couplers::contact::SolidPart>::assemble_solid_internal_forces                                                                                                     
+    23.06%     0.00%  [.] <akantu_solid::model::SolidMechanicsPhysics>::assemble_internal_forces                                                                                                                                                
+    13.98%     0.00%  [.] <akantu_core::eigen_order::Reduction>::sum::<akantu_core::eigen_gebp::eval_product<akantu_fe::eigen::product_slices::{closure#1}, akantu_fe::eigen::product_slices::{closure#2}>::{closure#0}> (inlined)              
+    13.98%     0.00%  [.] <akantu_core::eigen_order::Reduction>::reduce::<akantu_core::eigen_gebp::eval_product<akantu_fe::eigen::product_slices::{closure#1}, akantu_fe::eigen::product_slices::{closure#2}>::{closure#0}> (inlined)           
+    13.60%     0.00%  [.] akantu_core::eigen_order::redux_seq::<akantu_core::eigen_gebp::eval_product<akantu_fe::eigen::product_slices::{closure#1}, akantu_fe::eigen::product_slices::{closure#2}>::{closure#0}> (inlined)                     
+    12.96%     0.15%  [.] <akantu_fe::engine::FeEngine>::interpolate_elemental_field_shared                                                                                                                                                     
+    12.84%     0.00%  [.] akantu_solid::model::assembly::assemble_internal_forces_of                                                                                                                                                            
+     9.78%     0.00%  [.] <core::slice::iter::IterMut<alloc::boxed::Box<dyn akantu_solid::material::Material>> as core::iter::traits::iterator::Iterator>::try_for_each::<<akantu_solid::model::SolidMechanicsPhysics>::assemble_internal_forces
+     9.78%     0.00%  [.] <core::slice::iter::IterMut<alloc::boxed::Box<dyn akantu_solid::material::Material>> as core::iter::traits::iterator::Iterator>::try_fold::<(), core::iter::traits::iterator::Iterator::try_for_each::call<&mut alloc:
+     9.78%     0.00%  [.] core::iter::traits::iterator::Iterator::try_for_each::call::<&mut alloc::boxed::Box<dyn akantu_solid::material::Material>, core::result::Result<(), akantu_core::error::Error>, <akantu_solid::model::SolidMechanicsPh
+     9.78%     0.00%  [.] <akantu_solid::model::SolidMechanicsPhysics>::assemble_internal_forces::{closure#2} (inlined)                                                                                                                         
+
+## Call chains of the hottest symbols (caller graph, >= 3 % self, branches >= 1 %)
+    27.01%  [.] akantu_core::eigen_gebp::product_into::<akantu_fe::eigen::product_slices::{closure#1}, akantu_fe::eigen::product_slices::{closure#2}>                                                                                           
+            |          
+            |--6.26%--akantu_core::eigen_gebp::eval_product::<akantu_fe::eigen::product_slices::{closure#1}, akantu_fe::eigen::product_slices::{closure#2}> (inlined)
+            |          akantu_core::eigen_gebp::product_into::<akantu_fe::eigen::product_slices::{closure#1}, akantu_fe::eigen::product_slices::{closure#2}>
+            |          akantu_fe::eigen::product::<akantu_fe::eigen::product_slices::{closure#1}, akantu_fe::eigen::product_slices::{closure#2}> (inlined)
+            |          akantu_fe::eigen::product_slices
+            |          |          
+            |           --5.88%--<akantu_fe::engine::FeEngine>::interpolate_elemental_field_with::<akantu_core::array_shared::ArrayRef<f64>, <akantu_fe::engine::FeEngine>::interpolate_elemental_field_shared::{closure#0}> (inlined)
+            |                     <akantu_fe::engine::FeEngine>::interpolate_elemental_field_shared
+            |                     <akantu_cohesive::model::SolidMechanicsModelCohesive>::interpolate_stress
+            |                     <akantu_cohesive::model::SolidMechanicsModelCohesive>::check_cohesive_stress_prepare
+            |                     <akantu_cohesive::model::SolidMechanicsModelCohesive>::check_cohesive_stress
+            |                     <akantu_couplers::contact::CouplerSolidCohesiveContact>::check_cohesive_stress
+            |                     suite_models::suite_models::contact::cohesive_contact_quad4::{closure#2}
+            |                     <suite_models::suite_models::harness::Run>::looped::<suite_models::suite_models::contact::cohesive_contact_quad4::{closure#2}>
+            |                     suite_models::suite_models::contact::cohesive_contact_quad4
+            |                     0xffffffffffffffff
+            |          
+            |--5.98%--akantu_fe::eigen::product_slices::{closure#1} (inlined)
+            |          akantu_core::eigen_gebp::eval_product::<akantu_fe::eigen::product_slices::{closure#1}, akantu_fe::eigen::product_slices::{closure#2}>::{closure#0} (inlined)
+            |          akantu_core::eigen_order::redux_seq::<akantu_core::eigen_gebp::eval_product<akantu_fe::eigen::product_slices::{closure#1}, akantu_fe::eigen::product_slices::{closure#2}>::{closure#0}> (inlined)
+            |          <akantu_core::eigen_order::Reduction>::reduce::<akantu_core::eigen_gebp::eval_product<akantu_fe::eigen::product_slices::{closure#1}, akantu_fe::eigen::product_slices::{closure#2}>::{closure#0}> (inlined)
+            |          <akantu_core::eigen_order::Reduction>::sum::<akantu_core::eigen_gebp::eval_product<akantu_fe::eigen::product_slices::{closure#1}, akantu_fe::eigen::product_slices::{closure#2}>::{closure#0}> (inlined)
+            |          akantu_core::eigen_gebp::eval_product::<akantu_fe::eigen::product_slices::{closure#1}, akantu_fe::eigen::product_slices::{closure#2}> (inlined)
+            |          akantu_core::eigen_gebp::product_into::<akantu_fe::eigen::product_slices::{closure#1}, akantu_fe::eigen::product_slices::{closure#2}>
+            |          akantu_fe::eigen::product::<akantu_fe::eigen::product_slices::{closure#1}, akantu_fe::eigen::product_slices::{closure#2}> (inlined)
+            |          akantu_fe::eigen::product_slices
+            |          |          
+            |           --5.92%--<akantu_fe::engine::FeEngine>::interpolate_elemental_field_with::<akantu_core::array_shared::ArrayRef<f64>, <akantu_fe::engine::FeEngine>::interpolate_elemental_field_shared::{closure#0}> (inlined)
+            |                     <akantu_fe::engine::FeEngine>::interpolate_elemental_field_shared
+            |                     <akantu_cohesive::model::SolidMechanicsModelCohesive>::interpolate_stress
+            |                     <akantu_cohesive::model::SolidMechanicsModelCohesive>::check_cohesive_stress_prepare
+            |                     <akantu_cohesive::model::SolidMechanicsModelCohesive>::check_cohesive_stress
+            |                     <akantu_couplers::contact::CouplerSolidCohesiveContact>::check_cohesive_stress
+            |                     suite_models::suite_models::contact::cohesive_contact_quad4::{closure#2}
+            |                     <suite_models::suite_models::harness::Run>::looped::<suite_models::suite_models::contact::cohesive_contact_quad4::{closure#2}>
+            |                     suite_models::suite_models::contact::cohesive_contact_quad4
+            |                     0xffffffffffffffff
+            |          
+            |--5.30%--<core::ops::range::Range<usize> as core::iter::range::RangeIteratorImpl>::spec_next (inlined)
+            |          <core::ops::range::Range<usize> as core::iter::traits::iterator::Iterator>::next (inlined)
+            |          |          
+            |           --4.77%--akantu_core::eigen_gebp::eval_product::<akantu_fe::eigen::product_slices::{closure#1}, akantu_fe::eigen::product_slices::{closure#2}> (inlined)
+            |                     akantu_core::eigen_gebp::product_into::<akantu_fe::eigen::product_slices::{closure#1}, akantu_fe::eigen::product_slices::{closure#2}>
+            |                     akantu_fe::eigen::product::<akantu_fe::eigen::product_slices::{closure#1}, akantu_fe::eigen::product_slices::{closure#2}> (inlined)
+            |                     akantu_fe::eigen::product_slices
+            |                     |          
+            |                      --4.58%--<akantu_fe::engine::FeEngine>::interpolate_elemental_field_with::<akantu_core::array_shared::ArrayRef<f64>, <akantu_fe::engine::FeEngine>::interpolate_elemental_field_shared::{closure#0}> (inlined
+            |                                <akantu_fe::engine::FeEngine>::interpolate_elemental_field_shared
+            |                                <akantu_cohesive::model::SolidMechanicsModelCohesive>::interpolate_stress
+            |                                <akantu_cohesive::model::SolidMechanicsModelCohesive>::check_cohesive_stress_prepare
+            |                                <akantu_cohesive::model::SolidMechanicsModelCohesive>::check_cohesive_stress
+            |                                <akantu_couplers::contact::CouplerSolidCohesiveContact>::check_cohesive_stress
+            |                                suite_models::suite_models::contact::cohesive_contact_quad4::{closure#2}
+            |                                <suite_models::suite_models::harness::Run>::looped::<suite_models::suite_models::contact::cohesive_contact_quad4::{closure#2}>
+            |                                suite_models::suite_models::contact::cohesive_contact_quad4
+            |                                0xffffffffffffffff
+            |          
+             --3.19%--<usize as core::cmp::PartialOrd>::lt (inlined)
+                       <core::ops::range::Range<usize> as core::iter::range::RangeIteratorImpl>::spec_next (inlined)
+                       <core::ops::range::Range<usize> as core::iter::traits::iterator::Iterator>::next (inlined)
+     9.99%  [.] <akantu_cohesive::model::SolidMechanicsModelCohesive>::interpolate_stress                                                                                                                                                       
+            |          
+             --9.37%--core::ptr::copy_nonoverlapping::<f64> (inlined)
+                       core::slice::copy_from_slice_impl::<f64> (inlined)
+                       <[f64]>::copy_from_slice (inlined)
+                       akantu_cohesive::model::copy_points::<4> (inlined)
+                       <akantu_cohesive::model::SolidMechanicsModelCohesive>::interpolate_stress
+                       <akantu_cohesive::model::SolidMechanicsModelCohesive>::check_cohesive_stress_prepare
+                       <akantu_cohesive::model::SolidMechanicsModelCohesive>::check_cohesive_stress
+                       <akantu_couplers::contact::CouplerSolidCohesiveContact>::check_cohesive_stress
+                       suite_models::suite_models::contact::cohesive_contact_quad4::{closure#2}
+                       <suite_models::suite_models::harness::Run>::looped::<suite_models::suite_models::contact::cohesive_contact_quad4::{closure#2}>
+                       suite_models::suite_models::contact::cohesive_contact_quad4
+                       0xffffffffffffffff
+     8.33%  [.] akantu_core::eigen_gebp::route                                                                                                                                                                                                  
+            |          
+             --6.13%--<akantu_core::eigen_gebp::ProductShape>::depth (inlined)
+                       akantu_core::eigen_gebp::route
+                       |          
+                        --5.75%--akantu_fe::eigen::product::<akantu_fe::eigen::product_slices::{closure#1}, akantu_fe::eigen::product_slices::{closure#2}> (inlined)
+                                  akantu_fe::eigen::product_slices
+                                  <akantu_fe::engine::FeEngine>::interpolate_elemental_field_with::<akantu_core::array_shared::ArrayRef<f64>, <akantu_fe::engine::FeEngine>::interpolate_elemental_field_shared::{closure#0}> (inlined)
+                                  <akantu_fe::engine::FeEngine>::interpolate_elemental_field_shared
+                                  <akantu_cohesive::model::SolidMechanicsModelCohesive>::interpolate_stress
+                                  <akantu_cohesive::model::SolidMechanicsModelCohesive>::check_cohesive_stress_prepare
+                                  <akantu_cohesive::model::SolidMechanicsModelCohesive>::check_cohesive_stress
+                                  <akantu_couplers::contact::CouplerSolidCohesiveContact>::check_cohesive_stress
+                                  suite_models::suite_models::contact::cohesive_contact_quad4::{closure#2}
+                                  <suite_models::suite_models::harness::Run>::looped::<suite_models::suite_models::contact::cohesive_contact_quad4::{closure#2}>
+                                  suite_models::suite_models::contact::cohesive_contact_quad4
+                                  0xffffffffffffffff
+     6.35%  [.] akantu_fe::engine::fast::btd                                                                                                                                                                                                    
+            |          
+             --4.56%--akantu_fe::engine::fast::btd_impl::<2, 2> (inlined)
+                       akantu_fe::engine::fast::btd
+                       <akantu_fe::engine::FeEngine>::compute_btd
+                       akantu_solid::model::assembly::assemble_internal_forces_of
+                       <akantu_solid::model::SolidMechanicsPhysics>::assemble_internal_forces
+                       <akantu_cohesive::model::CohesiveCallback as akantu_couplers::contact::SolidPart>::assemble_solid_internal_forces
+                       <akantu_couplers::contact::SolidContactCallback as akantu_solver::callback::SolverCallback>::assemble_residual
+                       <akantu_solver::non_linear_newton_raphson::NonLinearSolverNewtonRaphson>::assemble_residual::{closure#2} (inlined)
+                       <akantu_solver::dof_manager::DofManager>::step::<(), <akantu_solver::non_linear_newton_raphson::NonLinearSolverNewtonRaphson>::assemble_residual::{closure#2}>
+                       akantu_solver::time_step::model_step::<(), <akantu_solver::time_step::Adapter as akantu_solver::callback::SolverCallback>::assemble_residual::{closure#0}> (inlined)
+                       <akantu_solver::time_step::Adapter as akantu_solver::callback::SolverCallback>::assemble_residual
+                       <akantu_solver::non_linear_lumped::NonLinearSolverLumped as akantu_solver::non_linear::NonLinearSolver>::solve::{closure#0}::{closure#2} (inlined)
+                       <akantu_solver::dof_manager::DofManager>::step::<(), <akantu_solver::non_linear_lumped::NonLinearSolverLumped as akantu_solver::non_linear::NonLinearSolver>::solve::{closure#0}::{closure#2}> (inlined)
+                       <akantu_solver::non_linear_lumped::NonLinearSolverLumped as akantu_solver::non_linear::NonLinearSolver>::solve::{closure#0} (inlined)
+                       <akantu_solver::dof_manager::DofManager>::collective::<(), <akantu_solver::non_linear_lumped::NonLinearSolverLumped as akantu_solver::non_linear::NonLinearSolver>::solve::{closure#0}>
+                       <akantu_solver::non_linear_lumped::NonLinearSolverLumped as akantu_solver::non_linear::NonLinearSolver>::solve
+                       <akantu_solver::time_step::TimeStepSolver>::solve_step (inlined)
+                       <akantu_solver::model_solver::ModelSolver>::solve_step
+                       <akantu_couplers::contact::CouplerSolidCohesiveContact>::solve_step::{closure#0} (inlined)
+                       <akantu_solid::model::SolidMechanicsModel>::solve_step_with::<<akantu_couplers::contact::CouplerSolidCohesiveContact>::solve_step::{closure#0}>
+                       <akantu_couplers::contact::CouplerSolidCohesiveContact>::solve_step
+                       suite_models::suite_models::contact::cohesive_contact_quad4::{closure#2}
+                       <suite_models::suite_models::harness::Run>::looped::<suite_models::suite_models::contact::cohesive_contact_quad4::{closure#2}>
+                       suite_models::suite_models::contact::cohesive_contact_quad4
+                       0xffffffffffffffff
+     4.47%  [.] akantu_fe::engine::fast::integrate::<<akantu_fe::engine::FeEngine>::integrate::{closure#0}>                                                                                                                                     
+            |          
+             --4.25%--akantu_fe::engine::fast::integrate::<<akantu_fe::engine::FeEngine>::integrate::{closure#0}>
+                       akantu_fe::engine::ops::integrate_with_jacobians::<<akantu_fe::engine::FeEngine>::integrate::{closure#0}>
+                       <akantu_fe::engine::FeEngine>::integrate
+                       |          
+                        --4.16%--akantu_solid::model::assembly::assemble_internal_forces_of
+                                  <akantu_solid::model::SolidMechanicsPhysics>::assemble_internal_forces
+                                  <akantu_cohesive::model::CohesiveCallback as akantu_couplers::contact::SolidPart>::assemble_solid_internal_forces
+                                  <akantu_couplers::contact::SolidContactCallback as akantu_solver::callback::SolverCallback>::assemble_residual
+                                  <akantu_solver::non_linear_newton_raphson::NonLinearSolverNewtonRaphson>::assemble_residual::{closure#2} (inlined)
+                                  <akantu_solver::dof_manager::DofManager>::step::<(), <akantu_solver::non_linear_newton_raphson::NonLinearSolverNewtonRaphson>::assemble_residual::{closure#2}>
+                                  akantu_solver::time_step::model_step::<(), <akantu_solver::time_step::Adapter as akantu_solver::callback::SolverCallback>::assemble_residual::{closure#0}> (inlined)
+                                  <akantu_solver::time_step::Adapter as akantu_solver::callback::SolverCallback>::assemble_residual
+                                  <akantu_solver::non_linear_lumped::NonLinearSolverLumped as akantu_solver::non_linear::NonLinearSolver>::solve::{closure#0}::{closure#2} (inlined)
+                                  <akantu_solver::dof_manager::DofManager>::step::<(), <akantu_solver::non_linear_lumped::NonLinearSolverLumped as akantu_solver::non_linear::NonLinearSolver>::solve::{closure#0}::{closure#2}> (inlined)
+                                  <akantu_solver::non_linear_lumped::NonLinearSolverLumped as akantu_solver::non_linear::NonLinearSolver>::solve::{closure#0} (inlined)
+                                  <akantu_solver::dof_manager::DofManager>::collective::<(), <akantu_solver::non_linear_lumped::NonLinearSolverLumped as akantu_solver::non_linear::NonLinearSolver>::solve::{closure#0}>
+                                  <akantu_solver::non_linear_lumped::NonLinearSolverLumped as akantu_solver::non_linear::NonLinearSolver>::solve
+                                  <akantu_solver::time_step::TimeStepSolver>::solve_step (inlined)
+                                  <akantu_solver::model_solver::ModelSolver>::solve_step
+                                  <akantu_couplers::contact::CouplerSolidCohesiveContact>::solve_step::{closure#0} (inlined)
+                                  <akantu_solid::model::SolidMechanicsModel>::solve_step_with::<<akantu_couplers::contact::CouplerSolidCohesiveContact>::solve_step::{closure#0}>
+                                  <akantu_couplers::contact::CouplerSolidCohesiveContact>::solve_step
+                                  suite_models::suite_models::contact::cohesive_contact_quad4::{closure#2}
+                                  <suite_models::suite_models::harness::Run>::looped::<suite_models::suite_models::contact::cohesive_contact_quad4::{closure#2}>
+                                  suite_models::suite_models::contact::cohesive_contact_quad4
+                                  0xffffffffffffffff
+     4.33%  [.] akantu_fe::engine::fast::gradient::<akantu_fe::element_class::types::Cohesive3d8>                                                                                                                                               

@@ -1,0 +1,218 @@
+# contact_implicit_static_quad4: perf record -F 499 --call-graph dwarf, size m, --loop-seconds 6, one process on core 2
+# commit c339c611d, 2026-11-16T07:27:25Z, AMD Ryzen 7 9700X 8-Core Processor (boat sandbox: shares only, no timing)
+# phases of the profiled run (seconds; loop phases extended to >= 6 s):
+#   mesh                         calls      1      0.010 s
+#   init                         calls      1      0.007 s
+#   solve_step                   calls     20      6.044 s
+
+## Flat profile (self time), top 25 (shared object, symbol)
+    13.67%  suite_models      [.] akantu_linalg::eigen_sparse_lu::dense::sparselu_gemm                                                                                                                                                          
+    11.53%  suite_models      [.] akantu_linalg::eigen_sparse_lu::kernels::panel_bmod                                                                                                                                                           
+     9.06%  suite_models      [.] <akantu_linalg::sparse::SparseMatrixAij>::resolve_block                                                                                                                                                       
+     7.83%  suite_models      [.] akantu_linalg::eigen_sparse_lu::kernels::dfs_kernel                                                                                                                                                           
+     4.69%  suite_models      [.] akantu_core::eigen_gebp::product_into::<akantu_fe::eigen::product_slices::{closure#1}, akantu_fe::eigen::product_slices::{closure#2}>                                                                         
+     3.49%  suite_models      [.] <akantu_linalg::sparse::SparseMatrixAij>::add_to_profile                                                                                                                                                      
+     3.19%  suite_models      [.] <hashbrown::map::HashMap<(i64, i64), usize, std::hash::random::RandomState>>::insert                                                                                                                          
+     3.04%  suite_models      [.] <std::hash::random::RandomState as core::hash::BuildHasher>::hash_one::<&(i64, i64)>                                                                                                                          
+     2.99%  suite_models      [.] <std::hash::random::DefaultHasher as core::hash::Hasher>::write                                                                                                                                               
+     2.17%  [unknown]         [k] 0xffffffffacba571a                                                                                                                                                                                            
+     1.93%  suite_models      [.] <akantu_linalg::eigen_sparse_lu::SparseLu>::solve                                                                                                                                                             
+     1.62%  suite_models      [.] akantu_linalg::eigen_sparse_lu::kernels::copy_to_ucol                                                                                                                                                         
+     1.54%  [unknown]         [k] 0xfffffffface49123                                                                                                                                                                                            
+     1.53%  libc.so.6         [.] 0x00000000001a1d7a                                                                                                                                                                                            
+     1.45%  suite_models      [.] <akantu_linalg::sparse::SparseMatrixAij>::apply_boundary                                                                                                                                                      
+     1.41%  suite_models      [.] akantu_linalg::eigen_sparse_lu::kernels::kernel_bmod                                                                                                                                                          
+     1.22%  suite_models      [.] <std::hash::random::RandomState as core::hash::BuildHasher>::hash_one::<&i64>                                                                                                                                 
+     1.19%  [unknown]         [k] 0xffffffffadbd4c27                                                                                                                                                                                            
+     1.10%  [unknown]         [k] 0xffffffffadc653f7                                                                                                                                                                                            
+     1.07%  suite_models      [.] akantu_linalg::eigen_sparse_lu::kernels::prune_l                                                                                                                                                              
+     1.05%  suite_models      [.] <akantu_linalg::direct::CscMatrix>::from_triplets                                                                                                                                                             
+     1.04%  suite_models      [.] akantu_linalg::eigen_sparse_lu::kernels::panel_dfs                                                                                                                                                            
+     0.95%  suite_models      [.] akantu_linalg::eigen_sparse_lu::dense::trsv_unit_lower                                                                                                                                                        
+     0.93%  suite_models      [.] akantu_linalg::eigen_sparse_lu::dense::trsm_unit_lower                                                                                                                                                        
+     0.84%  suite_models      [.] akantu_linalg::eigen_sparse_lu::kernels::column_dfs                                                                                                                                                           
+
+## Inclusive time (children), top 40 symbols
+    99.72%     0.00%  [.] 0xffffffffffffffff                                                                                                                                                                                                    
+    99.34%     0.00%  [.] suite_models::suite_models::contact::implicit_quad4                                                                                                                                                                   
+    99.31%     0.00%  [.] <suite_models::suite_models::harness::Run>::looped::<suite_models::suite_models::contact::implicit_quad4::{closure#0}>                                                                                                
+    99.31%     0.00%  [.] <akantu_solid::model::SolidMechanicsModel>::solve_step_with::<<akantu_couplers::contact::CouplerSolidContact>::solve_step::{closure#0}> (inlined)                                                                     
+    99.31%     0.00%  [.] <akantu_solver::dof_manager::DofManager>::collective::<(), <akantu_solver::non_linear_newton_raphson::NonLinearSolverNewtonRaphson as akantu_solver::non_linear::NonLinearSolver>::solve::{closure#1}>                
+    99.31%     0.00%  [.] <akantu_couplers::contact::CouplerSolidContact>::solve_step::{closure#0} (inlined)                                                                                                                                    
+    99.31%     0.00%  [.] suite_models::suite_models::contact::implicit_quad4::{closure#0}                                                                                                                                                      
+    99.31%     0.00%  [.] <akantu_solver::non_linear_newton_raphson::NonLinearSolverNewtonRaphson as akantu_solver::non_linear::NonLinearSolver>::solve::{closure#1} (inlined)                                                                  
+    99.31%     0.00%  [.] <akantu_solver::non_linear_newton_raphson::NonLinearSolverNewtonRaphson>::solve_nr                                                                                                                                    
+    99.31%     0.00%  [.] <akantu_solver::time_step::TimeStepSolver>::solve_step (inlined)                                                                                                                                                      
+    99.31%     0.00%  [.] <akantu_solver::model_solver::ModelSolver>::solve_step                                                                                                                                                                
+    99.31%     0.00%  [.] <akantu_couplers::contact::CouplerSolidContact>::solve_step                                                                                                                                                           
+    99.31%     0.00%  [.] <akantu_solver::non_linear_newton_raphson::NonLinearSolverNewtonRaphson as akantu_solver::non_linear::NonLinearSolver>::solve                                                                                         
+    62.10%     0.00%  [.] <akantu_solver::dof_manager::DofManager>::collective::<(), <akantu_solver::dof_manager::DofManager>::solve::{closure#0}> (inlined)                                                                                    
+    62.10%     0.00%  [.] <akantu_solver::dof_manager::DofManager>::solve::{closure#0} (inlined)                                                                                                                                                
+    62.10%     0.00%  [.] <akantu_solver::dof_manager::DofManager>::solve                                                                                                                                                                       
+    62.01%     0.03%  [.] <akantu_solver::backend::AijBackend as akantu_solver::backend::LinearSystemBackend>::solve                                                                                                                            
+    62.01%     0.00%  [.] <akantu_solver::dof_manager::DofManager>::collective::<(), <akantu_solver::dof_manager::DofManager>::solve_linear_system::{closure#0}> (inlined)                                                                      
+    62.01%     0.00%  [.] <akantu_solver::dof_manager::DofManager>::lend::<(), <akantu_solver::dof_manager::DofManager>::solve_linear_system::{closure#0}::{closure#2}> (inlined)                                                               
+    62.01%     0.00%  [.] <akantu_solver::dof_manager::DofManager>::solve_linear_system::{closure#0}::{closure#2} (inlined)                                                                                                                     
+    62.01%     0.00%  [.] <akantu_solver::dof_manager::DofManager>::solve_linear_system::{closure#0} (inlined)                                                                                                                                  
+    62.01%     0.00%  [.] <akantu_solver::dof_manager::DofManager>::solve_linear_system                                                                                                                                                         
+    61.46%     0.00%  [.] <akantu_comm::phase::Phases>::run::<(alloc::vec::Vec<f64>, alloc::vec::Vec<i64>), alloc::vec::Vec<(i64, f64)>, <akantu_solver::backend::AijBackend as akantu_solver::backend::LinearSystemBackend>::solve::{closure#2}
+    61.44%     0.00%  [.] <akantu_solver::backend::AijBackend as akantu_solver::backend::LinearSystemBackend>::solve::{closure#2}::{closure#0} (inlined)                                                                                        
+    61.44%     0.00%  [.] <akantu_solver::backend::AijBackend as akantu_solver::backend::LinearSystemBackend>::solve::{closure#2} (inlined)                                                                                                     
+    58.61%     0.00%  [.] <akantu_linalg::eigen_sparse_lu::EigenSparseLuSolver as akantu_linalg::direct::SparseDirectSolver>::factorize                                                                                                         
+    53.72%     0.23%  [.] <akantu_linalg::eigen_sparse_lu::SparseLu>::factorize                                                                                                                                                                 
+    35.57%     0.00%  [.] <akantu_solver::dof_manager::DofManager>::step::<(), <akantu_solver::non_linear_newton_raphson::NonLinearSolverNewtonRaphson>::assemble_jacobian::{closure#0}>                                                        
+    35.57%     0.00%  [.] <akantu_solver::non_linear_newton_raphson::NonLinearSolverNewtonRaphson>::assemble_jacobian::{closure#0} (inlined)                                                                                                    
+    35.57%     0.00%  [.] <akantu_solver::non_linear_newton_raphson::NonLinearSolverNewtonRaphson>::assemble_jacobian (inlined)                                                                                                                 
+    35.57%     0.00%  [.] <akantu_solver::time_step::Adapter as akantu_solver::callback::SolverCallback>::assemble_matrix                                                                                                                       
+    24.54%    11.53%  [.] akantu_linalg::eigen_sparse_lu::kernels::panel_bmod                                                                                                                                                                   
+    21.91%     0.00%  [.] akantu_solver::time_step::model_step::<(), <akantu_solver::time_step::Adapter>::assemble_matrix_base::{closure#5}> (inlined)                                                                                          
+    21.91%     0.00%  [.] <akantu_solver::time_step::Adapter>::assemble_matrix_base (inlined)                                                                                                                                                   
+    21.91%     0.00%  [.] <akantu_couplers::contact::SolidContactCallback as akantu_solver::callback::SolverCallback>::assemble_matrix                                                                                                          
+    21.27%     0.00%  [.] <akantu_solid::model::SolidMechanicsPhysics>::assemble_stiffness_matrix                                                                                                                                               
+    13.75%    13.67%  [.] akantu_linalg::eigen_sparse_lu::dense::sparselu_gemm                                                                                                                                                                  
+    13.17%     0.09%  [.] <akantu_solver::dof_manager::DofManager>::assemble_elemental_matrices_to_matrix                                                                                                                                       
+    12.27%     0.03%  [.] <akantu_solver::backend::AijBackend as akantu_solver::backend::LinearSystemBackend>::add_values                                                                                                                       
+    12.18%     0.32%  [.] <akantu_linalg::sparse::SparseMatrixAij>::add_values                                                                                                                                                                  
+
+## Call chains of the hottest symbols (caller graph, >= 3 % self, branches >= 1 %)
+    13.67%  [.] akantu_linalg::eigen_sparse_lu::dense::sparselu_gemm                                                                                                                                                                            
+            |          
+             --12.26%--akantu_linalg::eigen_sparse_lu::dense::sparselu_gemm
+                       |          
+                        --10.11%--akantu_linalg::eigen_sparse_lu::kernels::panel_bmod
+                                  <akantu_linalg::eigen_sparse_lu::SparseLu>::factorize
+                                  <akantu_linalg::eigen_sparse_lu::EigenSparseLuSolver as akantu_linalg::direct::SparseDirectSolver>::factorize
+                                  <akantu_solver::backend::AijBackend as akantu_solver::backend::LinearSystemBackend>::solve::{closure#2}::{closure#0} (inlined)
+                                  <akantu_solver::backend::AijBackend as akantu_solver::backend::LinearSystemBackend>::solve::{closure#2} (inlined)
+                                  <akantu_comm::phase::Phases>::run::<(alloc::vec::Vec<f64>, alloc::vec::Vec<i64>), alloc::vec::Vec<(i64, f64)>, <akantu_solver::backend::AijBackend as akantu_solver::backend::LinearSystemBackend>::solve::{cl
+                                  <akantu_solver::backend::AijBackend as akantu_solver::backend::LinearSystemBackend>::solve
+                                  <akantu_solver::dof_manager::DofManager>::solve_linear_system::{closure#0}::{closure#2} (inlined)
+                                  <akantu_solver::dof_manager::DofManager>::lend::<(), <akantu_solver::dof_manager::DofManager>::solve_linear_system::{closure#0}::{closure#2}> (inlined)
+                                  <akantu_solver::dof_manager::DofManager>::solve_linear_system::{closure#0} (inlined)
+                                  <akantu_solver::dof_manager::DofManager>::collective::<(), <akantu_solver::dof_manager::DofManager>::solve_linear_system::{closure#0}> (inlined)
+                                  <akantu_solver::dof_manager::DofManager>::solve_linear_system
+                                  <akantu_solver::dof_manager::DofManager>::solve::{closure#0} (inlined)
+                                  <akantu_solver::dof_manager::DofManager>::collective::<(), <akantu_solver::dof_manager::DofManager>::solve::{closure#0}> (inlined)
+                                  <akantu_solver::dof_manager::DofManager>::solve
+                                  <akantu_solver::non_linear_newton_raphson::NonLinearSolverNewtonRaphson>::solve_nr
+                                  <akantu_solver::non_linear_newton_raphson::NonLinearSolverNewtonRaphson as akantu_solver::non_linear::NonLinearSolver>::solve::{closure#1} (inlined)
+                                  <akantu_solver::dof_manager::DofManager>::collective::<(), <akantu_solver::non_linear_newton_raphson::NonLinearSolverNewtonRaphson as akantu_solver::non_linear::NonLinearSolver>::solve::{closure#1}>
+                                  <akantu_solver::non_linear_newton_raphson::NonLinearSolverNewtonRaphson as akantu_solver::non_linear::NonLinearSolver>::solve
+                                  <akantu_solver::time_step::TimeStepSolver>::solve_step (inlined)
+                                  <akantu_solver::model_solver::ModelSolver>::solve_step
+                                  <akantu_couplers::contact::CouplerSolidContact>::solve_step::{closure#0} (inlined)
+                                  <akantu_solid::model::SolidMechanicsModel>::solve_step_with::<<akantu_couplers::contact::CouplerSolidContact>::solve_step::{closure#0}> (inlined)
+                                  <akantu_couplers::contact::CouplerSolidContact>::solve_step
+                                  suite_models::suite_models::contact::implicit_quad4::{closure#0}
+                                  <suite_models::suite_models::harness::Run>::looped::<suite_models::suite_models::contact::implicit_quad4::{closure#0}>
+                                  suite_models::suite_models::contact::implicit_quad4
+                                  0xffffffffffffffff
+    11.53%  [.] akantu_linalg::eigen_sparse_lu::kernels::panel_bmod                                                                                                                                                                             
+            |          
+             --9.22%--akantu_linalg::eigen_sparse_lu::kernels::panel_bmod
+                       <akantu_linalg::eigen_sparse_lu::SparseLu>::factorize
+                       <akantu_linalg::eigen_sparse_lu::EigenSparseLuSolver as akantu_linalg::direct::SparseDirectSolver>::factorize
+                       <akantu_solver::backend::AijBackend as akantu_solver::backend::LinearSystemBackend>::solve::{closure#2}::{closure#0} (inlined)
+                       <akantu_solver::backend::AijBackend as akantu_solver::backend::LinearSystemBackend>::solve::{closure#2} (inlined)
+                       <akantu_comm::phase::Phases>::run::<(alloc::vec::Vec<f64>, alloc::vec::Vec<i64>), alloc::vec::Vec<(i64, f64)>, <akantu_solver::backend::AijBackend as akantu_solver::backend::LinearSystemBackend>::solve::{closure#2}>
+                       <akantu_solver::backend::AijBackend as akantu_solver::backend::LinearSystemBackend>::solve
+                       <akantu_solver::dof_manager::DofManager>::solve_linear_system::{closure#0}::{closure#2} (inlined)
+                       <akantu_solver::dof_manager::DofManager>::lend::<(), <akantu_solver::dof_manager::DofManager>::solve_linear_system::{closure#0}::{closure#2}> (inlined)
+                       <akantu_solver::dof_manager::DofManager>::solve_linear_system::{closure#0} (inlined)
+                       <akantu_solver::dof_manager::DofManager>::collective::<(), <akantu_solver::dof_manager::DofManager>::solve_linear_system::{closure#0}> (inlined)
+                       <akantu_solver::dof_manager::DofManager>::solve_linear_system
+                       <akantu_solver::dof_manager::DofManager>::solve::{closure#0} (inlined)
+                       <akantu_solver::dof_manager::DofManager>::collective::<(), <akantu_solver::dof_manager::DofManager>::solve::{closure#0}> (inlined)
+                       <akantu_solver::dof_manager::DofManager>::solve
+                       <akantu_solver::non_linear_newton_raphson::NonLinearSolverNewtonRaphson>::solve_nr
+                       <akantu_solver::non_linear_newton_raphson::NonLinearSolverNewtonRaphson as akantu_solver::non_linear::NonLinearSolver>::solve::{closure#1} (inlined)
+                       <akantu_solver::dof_manager::DofManager>::collective::<(), <akantu_solver::non_linear_newton_raphson::NonLinearSolverNewtonRaphson as akantu_solver::non_linear::NonLinearSolver>::solve::{closure#1}>
+                       <akantu_solver::non_linear_newton_raphson::NonLinearSolverNewtonRaphson as akantu_solver::non_linear::NonLinearSolver>::solve
+                       <akantu_solver::time_step::TimeStepSolver>::solve_step (inlined)
+                       <akantu_solver::model_solver::ModelSolver>::solve_step
+                       <akantu_couplers::contact::CouplerSolidContact>::solve_step::{closure#0} (inlined)
+                       <akantu_solid::model::SolidMechanicsModel>::solve_step_with::<<akantu_couplers::contact::CouplerSolidContact>::solve_step::{closure#0}> (inlined)
+                       <akantu_couplers::contact::CouplerSolidContact>::solve_step
+                       suite_models::suite_models::contact::implicit_quad4::{closure#0}
+                       <suite_models::suite_models::harness::Run>::looped::<suite_models::suite_models::contact::implicit_quad4::{closure#0}>
+                       suite_models::suite_models::contact::implicit_quad4
+                       0xffffffffffffffff
+     9.06%  [.] <akantu_linalg::sparse::SparseMatrixAij>::resolve_block                                                                                                                                                                         
+            |          
+             --6.57%--core::intrinsics::likely (inlined)
+                       <hashbrown::raw::RawTableInner>::find_inner (inlined)
+                       <hashbrown::raw::RawTable<((i64, i64), usize)>>::find::<hashbrown::map::equivalent_key<(i64, i64), (i64, i64), usize>::{closure#0}> (inlined)
+                       <hashbrown::raw::RawTable<((i64, i64), usize)>>::get::<hashbrown::map::equivalent_key<(i64, i64), (i64, i64), usize>::{closure#0}> (inlined)
+                       <hashbrown::map::HashMap<(i64, i64), usize, std::hash::random::RandomState>>::get::<(i64, i64)> (inlined)
+                       <std::collections::hash::map::HashMap<(i64, i64), usize>>::get::<(i64, i64)> (inlined)
+                       <akantu_linalg::sparse::SparseMatrixAij>::resolve_block
+                       <akantu_linalg::sparse::SparseMatrixAij>::add_values
+                       <akantu_solver::backend::AijBackend as akantu_solver::backend::LinearSystemBackend>::add_values
+                       <akantu_solver::dof_manager::DofManager>::assemble_elemental_matrices_to_matrix
+                       <akantu_solid::model::SolidMechanicsPhysics>::assemble_stiffness_matrix
+                       <akantu_couplers::contact::SolidContactCallback as akantu_solver::callback::SolverCallback>::assemble_matrix
+                       <akantu_solver::non_linear_newton_raphson::NonLinearSolverNewtonRaphson>::assemble_jacobian::{closure#0} (inlined)
+                       <akantu_solver::dof_manager::DofManager>::step::<(), <akantu_solver::non_linear_newton_raphson::NonLinearSolverNewtonRaphson>::assemble_jacobian::{closure#0}>
+                       akantu_solver::time_step::model_step::<(), <akantu_solver::time_step::Adapter>::assemble_matrix_base::{closure#5}> (inlined)
+                       <akantu_solver::time_step::Adapter>::assemble_matrix_base (inlined)
+                       <akantu_solver::time_step::Adapter as akantu_solver::callback::SolverCallback>::assemble_matrix
+                       <akantu_solver::non_linear_newton_raphson::NonLinearSolverNewtonRaphson>::assemble_jacobian::{closure#0} (inlined)
+                       <akantu_solver::dof_manager::DofManager>::step::<(), <akantu_solver::non_linear_newton_raphson::NonLinearSolverNewtonRaphson>::assemble_jacobian::{closure#0}>
+                       <akantu_solver::non_linear_newton_raphson::NonLinearSolverNewtonRaphson>::assemble_jacobian (inlined)
+                       <akantu_solver::non_linear_newton_raphson::NonLinearSolverNewtonRaphson>::solve_nr
+                       <akantu_solver::non_linear_newton_raphson::NonLinearSolverNewtonRaphson as akantu_solver::non_linear::NonLinearSolver>::solve::{closure#1} (inlined)
+                       <akantu_solver::dof_manager::DofManager>::collective::<(), <akantu_solver::non_linear_newton_raphson::NonLinearSolverNewtonRaphson as akantu_solver::non_linear::NonLinearSolver>::solve::{closure#1}>
+                       <akantu_solver::non_linear_newton_raphson::NonLinearSolverNewtonRaphson as akantu_solver::non_linear::NonLinearSolver>::solve
+                       <akantu_solver::time_step::TimeStepSolver>::solve_step (inlined)
+                       <akantu_solver::model_solver::ModelSolver>::solve_step
+                       <akantu_couplers::contact::CouplerSolidContact>::solve_step::{closure#0} (inlined)
+                       <akantu_solid::model::SolidMechanicsModel>::solve_step_with::<<akantu_couplers::contact::CouplerSolidContact>::solve_step::{closure#0}> (inlined)
+                       <akantu_couplers::contact::CouplerSolidContact>::solve_step
+                       suite_models::suite_models::contact::implicit_quad4::{closure#0}
+                       <suite_models::suite_models::harness::Run>::looped::<suite_models::suite_models::contact::implicit_quad4::{closure#0}>
+                       suite_models::suite_models::contact::implicit_quad4
+                       0xffffffffffffffff
+     7.83%  [.] akantu_linalg::eigen_sparse_lu::kernels::dfs_kernel                                                                                                                                                                             
+            |          
+             --6.25%--akantu_linalg::eigen_sparse_lu::kernels::dfs_kernel
+                       |          
+                        --5.06%--akantu_linalg::eigen_sparse_lu::kernels::panel_dfs
+                                  <akantu_linalg::eigen_sparse_lu::SparseLu>::factorize
+                                  <akantu_linalg::eigen_sparse_lu::EigenSparseLuSolver as akantu_linalg::direct::SparseDirectSolver>::factorize
+                                  <akantu_solver::backend::AijBackend as akantu_solver::backend::LinearSystemBackend>::solve::{closure#2}::{closure#0} (inlined)
+                                  <akantu_solver::backend::AijBackend as akantu_solver::backend::LinearSystemBackend>::solve::{closure#2} (inlined)
+                                  <akantu_comm::phase::Phases>::run::<(alloc::vec::Vec<f64>, alloc::vec::Vec<i64>), alloc::vec::Vec<(i64, f64)>, <akantu_solver::backend::AijBackend as akantu_solver::backend::LinearSystemBackend>::solve::{cl
+                                  <akantu_solver::backend::AijBackend as akantu_solver::backend::LinearSystemBackend>::solve
+                                  <akantu_solver::dof_manager::DofManager>::solve_linear_system::{closure#0}::{closure#2} (inlined)
+                                  <akantu_solver::dof_manager::DofManager>::lend::<(), <akantu_solver::dof_manager::DofManager>::solve_linear_system::{closure#0}::{closure#2}> (inlined)
+                                  <akantu_solver::dof_manager::DofManager>::solve_linear_system::{closure#0} (inlined)
+                                  <akantu_solver::dof_manager::DofManager>::collective::<(), <akantu_solver::dof_manager::DofManager>::solve_linear_system::{closure#0}> (inlined)
+                                  <akantu_solver::dof_manager::DofManager>::solve_linear_system
+                                  <akantu_solver::dof_manager::DofManager>::solve::{closure#0} (inlined)
+                                  <akantu_solver::dof_manager::DofManager>::collective::<(), <akantu_solver::dof_manager::DofManager>::solve::{closure#0}> (inlined)
+                                  <akantu_solver::dof_manager::DofManager>::solve
+                                  <akantu_solver::non_linear_newton_raphson::NonLinearSolverNewtonRaphson>::solve_nr
+                                  <akantu_solver::non_linear_newton_raphson::NonLinearSolverNewtonRaphson as akantu_solver::non_linear::NonLinearSolver>::solve::{closure#1} (inlined)
+                                  <akantu_solver::dof_manager::DofManager>::collective::<(), <akantu_solver::non_linear_newton_raphson::NonLinearSolverNewtonRaphson as akantu_solver::non_linear::NonLinearSolver>::solve::{closure#1}>
+                                  <akantu_solver::non_linear_newton_raphson::NonLinearSolverNewtonRaphson as akantu_solver::non_linear::NonLinearSolver>::solve
+                                  <akantu_solver::time_step::TimeStepSolver>::solve_step (inlined)
+                                  <akantu_solver::model_solver::ModelSolver>::solve_step
+                                  <akantu_couplers::contact::CouplerSolidContact>::solve_step::{closure#0} (inlined)
+                                  <akantu_solid::model::SolidMechanicsModel>::solve_step_with::<<akantu_couplers::contact::CouplerSolidContact>::solve_step::{closure#0}> (inlined)
+                                  <akantu_couplers::contact::CouplerSolidContact>::solve_step
+                                  suite_models::suite_models::contact::implicit_quad4::{closure#0}
+                                  <suite_models::suite_models::harness::Run>::looped::<suite_models::suite_models::contact::implicit_quad4::{closure#0}>
+                                  suite_models::suite_models::contact::implicit_quad4
+                                  0xffffffffffffffff
+     4.69%  [.] akantu_core::eigen_gebp::product_into::<akantu_fe::eigen::product_slices::{closure#1}, akantu_fe::eigen::product_slices::{closure#2}>                                                                                           
+     3.49%  [.] <akantu_linalg::sparse::SparseMatrixAij>::add_to_profile                                                                                                                                                                        
+            |          
+             --3.02%--core::intrinsics::likely (inlined)
+                       <hashbrown::raw::RawTableInner>::find_inner (inlined)
+                       <hashbrown::raw::RawTable<((i64, i64), usize)>>::find::<hashbrown::map::equivalent_key<(i64, i64), (i64, i64), usize>::{closure#0}> (inlined)
+                       <hashbrown::raw::RawTable<((i64, i64), usize)>>::get::<hashbrown::map::equivalent_key<(i64, i64), (i64, i64), usize>::{closure#0}> (inlined)
+                       <hashbrown::map::HashMap<(i64, i64), usize, std::hash::random::RandomState>>::get::<(i64, i64)> (inlined)
+                       <std::collections::hash::map::HashMap<(i64, i64), usize>>::get::<(i64, i64)> (inlined)
+                       <akantu_linalg::sparse::SparseMatrixAij>::add_to_profile
+     3.19%  [.] <hashbrown::map::HashMap<(i64, i64), usize, std::hash::random::RandomState>>::insert                                                                                                                                            
+     3.04%  [.] <std::hash::random::RandomState as core::hash::BuildHasher>::hash_one::<&(i64, i64)>                                                                                                                                            

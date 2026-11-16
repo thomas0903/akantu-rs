@@ -1,0 +1,272 @@
+# contact_search_quad4: perf record -F 499 --call-graph dwarf, size m, --loop-seconds 6, one process on core 2
+# commit c339c611d, 2026-11-16T07:23:52Z, AMD Ryzen 7 9700X 8-Core Processor (boat sandbox: shares only, no timing)
+# phases of the profiled run (seconds; loop phases extended to >= 6 s):
+#   mesh                         calls      1      0.339 s
+#   init                         calls      1      0.219 s
+#   search                       calls     10      7.918 s
+
+## Flat profile (self time), top 25 (shared object, symbol)
+    86.47%  suite_models      [.] <akantu_contact::detector::ContactDetector>::local_search                                                                                                                                                     
+     0.91%  suite_models      [.] akantu_core::eigen_order::redux_tree::<akantu_core::eigen_gebp::eval_product<akantu_fe::eigen::product_slices::{closure#1}, akantu_fe::eigen::product_slices::{closure#2}>::{closure#0}>                      
+     0.90%  suite_models      [.] akantu_core::eigen_gebp::product_into::<akantu_fe::eigen::product_slices::{closure#1}, akantu_fe::eigen::product_slices::{closure#2}>                                                                         
+     0.69%  suite_models      [.] akantu_core::eigen_gebp::route                                                                                                                                                                                
+     0.64%  suite_models      [.] akantu_fe::eigen::lu_factor                                                                                                                                                                                   
+     0.49%  suite_models      [.] akantu_contact::geometry::barycenter_on                                                                                                                                                                       
+     0.38%  suite_models      [.] akantu_fe::eigen::product_slices                                                                                                                                                                              
+     0.37%  suite_models      [.] akantu_core::eigen_gebp::gemv_into::<akantu_contact::eigen_ops::gemv::{closure#0}, akantu_contact::eigen_ops::gemv::{closure#1}>                                                                              
+     0.27%  [unknown]         [k] 0xffffffffade00f30                                                                                                                                                                                            
+     0.27%  suite_models      [.] <akantu_io::mesh_io::lexer::Line>::token                                                                                                                                                                      
+     0.26%  suite_models      [.] akantu_mesh::mesh::barycenter_of                                                                                                                                                                              
+     0.24%  suite_models      [.] akantu_fe::engine::compute_physical_derivatives::<akantu_fe::element_class::types::Cohesive3d8>                                                                                                               
+     0.22%  suite_models      [.] <akantu_core::spatial_grid::NeighborhoodItems<i32> as core::iter::traits::iterator::Iterator>::next                                                                                                           
+     0.20%  suite_models      [.] akantu_contact::geometry::orthogonal_projection                                                                                                                                                               
+     0.20%  libc.so.6         [.] 0x00000000001a1544                                                                                                                                                                                            
+     0.19%  libc.so.6         [.] 0x00000000001a155b                                                                                                                                                                                            
+     0.18%  suite_models      [.] <akantu_contact::selector::ContactSurface>::contains                                                                                                                                                          
+     0.18%  libc.so.6         [.] 0x0000000000198525                                                                                                                                                                                            
+     0.16%  suite_models      [.] akantu_fe::kernels::jacobian                                                                                                                                                                                  
+     0.16%  suite_models      [.] <akantu_contact::detector::ContactDetector>::is_valid_self_contact                                                                                                                                            
+     0.16%  libc.so.6         [.] 0x00000000001a14c0                                                                                                                                                                                            
+     0.16%  suite_models      [.] <akantu_io::mesh_io::msh::Reader>::node_index                                                                                                                                                                 
+     0.15%  suite_models      [.] <akantu_linalg::layout::EquationLayout>::append_block::<akantu_solver::dof_manager::number_block::{closure#4}>                                                                                                
+     0.15%  [unknown]         [k] 0xffffffffacba571a                                                                                                                                                                                            
+     0.15%  suite_models      [.] akantu_contact::geometry::natural_projection::{closure#0}                                                                                                                                                     
+
+## Inclusive time (children), top 40 symbols
+    92.93%     0.00%  [.] suite_models::suite_models::contact::search                                                                                                                                                                           
+    92.68%     0.00%  [.] <suite_models::suite_models::harness::Run>::looped::<suite_models::suite_models::contact::search::{closure#0}>                                                                                                        
+    92.68%     0.00%  [.] suite_models::suite_models::contact::search::{closure#0} (inlined)                                                                                                                                                    
+    92.68%     0.00%  [.] <akantu_contact::model::ContactMechanicsModel>::search                                                                                                                                                                
+    92.61%     0.02%  [.] <akantu_contact::model::ContactMechanicsModel>::search_keeping_history                                                                                                                                                
+    92.29%     0.00%  [.] suite_models::suite_models::contact::search_quad4                                                                                                                                                                     
+    92.24%     0.00%  [.] suite_models::suite_models::harness::main::<suite_models::suite_models::common::world>                                                                                                                                
+    90.39%     0.00%  [.] suite_models::main                                                                                                                                                                                                    
+    90.34%     0.00%  [.] std::sys::backtrace::__rust_begin_short_backtrace::<fn() -> std::process::ExitCode, std::process::ExitCode>                                                                                                           
+    90.34%     0.00%  [.] <fn() -> std::process::ExitCode as core::ops::function::FnOnce<()>>::call_once (inlined)                                                                                                                              
+    90.23%     0.00%  [.] <akantu_contact::detector::ContactDetector>::search                                                                                                                                                                   
+    90.06%     0.00%  [.] std::panic::catch_unwind::<std::rt::lang_start_internal::{closure#0}, isize> (inlined)                                                                                                                                
+    90.06%     0.00%  [.] std::panic::catch_unwind::<&dyn core::ops::function::Fn<(), Output = i32> + core::panic::unwind_safe::RefUnwindSafe + core::marker::Sync, i32> (inlined)                                                              
+    90.06%     0.00%  [.] std::panicking::catch_unwind::<isize, std::rt::lang_start_internal::{closure#0}> (inlined)                                                                                                                            
+    90.06%     0.00%  [.] std::panicking::catch_unwind::<i32, &dyn core::ops::function::Fn<(), Output = i32> + core::panic::unwind_safe::RefUnwindSafe + core::marker::Sync> (inlined)                                                          
+    90.06%     0.00%  [.] std::panicking::catch_unwind::do_call::<std::rt::lang_start_internal::{closure#0}, isize> (inlined)                                                                                                                   
+    90.06%     0.00%  [.] std::panicking::catch_unwind::do_call::<&dyn core::ops::function::Fn<(), Output = i32> + core::panic::unwind_safe::RefUnwindSafe + core::marker::Sync, i32> (inlined)                                                 
+    90.06%     0.00%  [.] std::rt::lang_start::<std::process::ExitCode>::{closure#0} (inlined)                                                                                                                                                  
+    90.06%     0.00%  [.] std::rt::lang_start_internal::{closure#0} (inlined)                                                                                                                                                                   
+    90.06%     0.00%  [.] std::rt::lang_start_internal                                                                                                                                                                                          
+    90.06%     0.00%  [.] <&dyn core::ops::function::Fn<(), Output = i32> + core::panic::unwind_safe::RefUnwindSafe + core::marker::Sync as core::ops::function::FnOnce<()>>::call_once (inlined)                                               
+    89.51%     0.00%  [.] main                                                                                                                                                                                                                  
+    89.51%     0.00%  [.] 0x000074e9bfa2a1c9                                                                                                                                                                                                    
+    89.49%     0.00%  [.] __libc_start_main                                                                                                                                                                                                     
+    89.44%     0.00%  [.] _start                                                                                                                                                                                                                
+    87.24%    86.47%  [.] <akantu_contact::detector::ContactDetector>::local_search                                                                                                                                                             
+    87.24%     0.00%  [.] <akantu_contact::detector::ContactDetector>::local_search_into (inlined)                                                                                                                                              
+    13.06%     0.00%  [.] <akantu_core::eigen_order::Reduction>::sum::<akantu_contact::eigen_ops::squared_norm::{closure#0}> (inlined)                                                                                                          
+    13.06%     0.00%  [.] <akantu_core::eigen_order::Reduction>::reduce::<akantu_contact::eigen_ops::squared_norm::{closure#0}> (inlined)                                                                                                       
+    13.06%     0.00%  [.] akantu_core::eigen_order::redux_seq::<akantu_contact::eigen_ops::squared_norm::{closure#0}> (inlined)                                                                                                                 
+    13.06%     0.00%  [.] akantu_contact::eigen_ops::squared_norm (inlined)                                                                                                                                                                     
+    13.06%     0.00%  [.] akantu_contact::eigen_ops::norm (inlined)                                                                                                                                                                             
+    12.39%     0.00%  [.] <[i32]>::contains (inlined)                                                                                                                                                                                           
+    12.39%     0.00%  [.] <i32 as core::slice::cmp::SliceContains>::slice_contains (inlined)                                                                                                                                                    
+    12.36%     0.00%  [.] <core::slice::iter::Iter<i32> as core::iter::traits::iterator::Iterator>::any::<<i32 as core::slice::cmp::SliceContains>::slice_contains::{closure#1}> (inlined)                                                      
+    10.53%     0.00%  [.] 0xffffffffffffffff                                                                                                                                                                                                    
+     7.79%     0.00%  [.] akantu_contact::eigen_ops::squared_norm::{closure#0} (inlined)                                                                                                                                                        
+     7.48%     0.00%  [.] <core::slice::iter::Iter<i32> as core::iter::traits::iterator::Iterator>::next (inlined)                                                                                                                              
+     5.65%     0.00%  [.] <core::ptr::non_null::NonNull<i32> as core::cmp::PartialEq>::eq (inlined)                                                                                                                                             
+     5.27%     0.00%  [.] <akantu_contact::detector::ContactDetector>::pos (inlined)                                                                                                                                                            
+
+## Call chains of the hottest symbols (caller graph, >= 3 % self, branches >= 1 %)
+    86.47%  [.] <akantu_contact::detector::ContactDetector>::local_search                                                                                                                                                                       
+            |          
+            |--52.71%--<akantu_contact::detector::ContactDetector>::local_search_into (inlined)
+            |          <akantu_contact::detector::ContactDetector>::local_search
+            |          <akantu_contact::detector::ContactDetector>::search
+            |          <akantu_contact::model::ContactMechanicsModel>::search_keeping_history
+            |          <akantu_contact::model::ContactMechanicsModel>::search
+            |          suite_models::suite_models::contact::search::{closure#0} (inlined)
+            |          <suite_models::suite_models::harness::Run>::looped::<suite_models::suite_models::contact::search::{closure#0}>
+            |          suite_models::suite_models::contact::search
+            |          suite_models::suite_models::contact::search_quad4
+            |          suite_models::suite_models::harness::main::<suite_models::suite_models::common::world>
+            |          suite_models::main
+            |          <fn() -> std::process::ExitCode as core::ops::function::FnOnce<()>>::call_once (inlined)
+            |          std::sys::backtrace::__rust_begin_short_backtrace::<fn() -> std::process::ExitCode, std::process::ExitCode>
+            |          std::rt::lang_start::<std::process::ExitCode>::{closure#0} (inlined)
+            |          <&dyn core::ops::function::Fn<(), Output = i32> + core::panic::unwind_safe::RefUnwindSafe + core::marker::Sync as core::ops::function::FnOnce<()>>::call_once (inlined)
+            |          std::panicking::catch_unwind::do_call::<&dyn core::ops::function::Fn<(), Output = i32> + core::panic::unwind_safe::RefUnwindSafe + core::marker::Sync, i32> (inlined)
+            |          std::panicking::catch_unwind::<i32, &dyn core::ops::function::Fn<(), Output = i32> + core::panic::unwind_safe::RefUnwindSafe + core::marker::Sync> (inlined)
+            |          std::panic::catch_unwind::<&dyn core::ops::function::Fn<(), Output = i32> + core::panic::unwind_safe::RefUnwindSafe + core::marker::Sync, i32> (inlined)
+            |          std::rt::lang_start_internal::{closure#0} (inlined)
+            |          std::panicking::catch_unwind::do_call::<std::rt::lang_start_internal::{closure#0}, isize> (inlined)
+            |          std::panicking::catch_unwind::<isize, std::rt::lang_start_internal::{closure#0}> (inlined)
+            |          std::panic::catch_unwind::<std::rt::lang_start_internal::{closure#0}, isize> (inlined)
+            |          std::rt::lang_start_internal
+            |          main
+            |          0x74e9bfa2a1c9
+            |          __libc_start_main
+            |          _start
+            |          
+            |--7.74%--akantu_contact::eigen_ops::squared_norm::{closure#0} (inlined)
+            |          akantu_core::eigen_order::redux_seq::<akantu_contact::eigen_ops::squared_norm::{closure#0}> (inlined)
+            |          <akantu_core::eigen_order::Reduction>::reduce::<akantu_contact::eigen_ops::squared_norm::{closure#0}> (inlined)
+            |          <akantu_core::eigen_order::Reduction>::sum::<akantu_contact::eigen_ops::squared_norm::{closure#0}> (inlined)
+            |          akantu_contact::eigen_ops::squared_norm (inlined)
+            |          akantu_contact::eigen_ops::norm (inlined)
+            |          <akantu_contact::detector::ContactDetector>::local_search_into (inlined)
+            |          <akantu_contact::detector::ContactDetector>::local_search
+            |          <akantu_contact::detector::ContactDetector>::search
+            |          <akantu_contact::model::ContactMechanicsModel>::search_keeping_history
+            |          <akantu_contact::model::ContactMechanicsModel>::search
+            |          suite_models::suite_models::contact::search::{closure#0} (inlined)
+            |          <suite_models::suite_models::harness::Run>::looped::<suite_models::suite_models::contact::search::{closure#0}>
+            |          suite_models::suite_models::contact::search
+            |          suite_models::suite_models::contact::search_quad4
+            |          suite_models::suite_models::harness::main::<suite_models::suite_models::common::world>
+            |          suite_models::main
+            |          <fn() -> std::process::ExitCode as core::ops::function::FnOnce<()>>::call_once (inlined)
+            |          std::sys::backtrace::__rust_begin_short_backtrace::<fn() -> std::process::ExitCode, std::process::ExitCode>
+            |          std::rt::lang_start::<std::process::ExitCode>::{closure#0} (inlined)
+            |          <&dyn core::ops::function::Fn<(), Output = i32> + core::panic::unwind_safe::RefUnwindSafe + core::marker::Sync as core::ops::function::FnOnce<()>>::call_once (inlined)
+            |          std::panicking::catch_unwind::do_call::<&dyn core::ops::function::Fn<(), Output = i32> + core::panic::unwind_safe::RefUnwindSafe + core::marker::Sync, i32> (inlined)
+            |          std::panicking::catch_unwind::<i32, &dyn core::ops::function::Fn<(), Output = i32> + core::panic::unwind_safe::RefUnwindSafe + core::marker::Sync> (inlined)
+            |          std::panic::catch_unwind::<&dyn core::ops::function::Fn<(), Output = i32> + core::panic::unwind_safe::RefUnwindSafe + core::marker::Sync, i32> (inlined)
+            |          std::rt::lang_start_internal::{closure#0} (inlined)
+            |          std::panicking::catch_unwind::do_call::<std::rt::lang_start_internal::{closure#0}, isize> (inlined)
+            |          std::panicking::catch_unwind::<isize, std::rt::lang_start_internal::{closure#0}> (inlined)
+            |          std::panic::catch_unwind::<std::rt::lang_start_internal::{closure#0}, isize> (inlined)
+            |          std::rt::lang_start_internal
+            |          main
+            |          0x74e9bfa2a1c9
+            |          __libc_start_main
+            |          _start
+            |          
+            |--6.62%--<core::slice::iter::Iter<i32> as core::iter::traits::iterator::Iterator>::any::<<i32 as core::slice::cmp::SliceContains>::slice_contains::{closure#1}> (inlined)
+            |          <i32 as core::slice::cmp::SliceContains>::slice_contains (inlined)
+            |          <[i32]>::contains (inlined)
+            |          <akantu_contact::detector::ContactDetector>::local_search_into (inlined)
+            |          <akantu_contact::detector::ContactDetector>::local_search
+            |          <akantu_contact::detector::ContactDetector>::search
+            |          <akantu_contact::model::ContactMechanicsModel>::search_keeping_history
+            |          <akantu_contact::model::ContactMechanicsModel>::search
+            |          suite_models::suite_models::contact::search::{closure#0} (inlined)
+            |          <suite_models::suite_models::harness::Run>::looped::<suite_models::suite_models::contact::search::{closure#0}>
+            |          suite_models::suite_models::contact::search
+            |          suite_models::suite_models::contact::search_quad4
+            |          suite_models::suite_models::harness::main::<suite_models::suite_models::common::world>
+            |          suite_models::main
+            |          <fn() -> std::process::ExitCode as core::ops::function::FnOnce<()>>::call_once (inlined)
+            |          std::sys::backtrace::__rust_begin_short_backtrace::<fn() -> std::process::ExitCode, std::process::ExitCode>
+            |          std::rt::lang_start::<std::process::ExitCode>::{closure#0} (inlined)
+            |          <&dyn core::ops::function::Fn<(), Output = i32> + core::panic::unwind_safe::RefUnwindSafe + core::marker::Sync as core::ops::function::FnOnce<()>>::call_once (inlined)
+            |          std::panicking::catch_unwind::do_call::<&dyn core::ops::function::Fn<(), Output = i32> + core::panic::unwind_safe::RefUnwindSafe + core::marker::Sync, i32> (inlined)
+            |          std::panicking::catch_unwind::<i32, &dyn core::ops::function::Fn<(), Output = i32> + core::panic::unwind_safe::RefUnwindSafe + core::marker::Sync> (inlined)
+            |          std::panic::catch_unwind::<&dyn core::ops::function::Fn<(), Output = i32> + core::panic::unwind_safe::RefUnwindSafe + core::marker::Sync, i32> (inlined)
+            |          std::rt::lang_start_internal::{closure#0} (inlined)
+            |          std::panicking::catch_unwind::do_call::<std::rt::lang_start_internal::{closure#0}, isize> (inlined)
+            |          std::panicking::catch_unwind::<isize, std::rt::lang_start_internal::{closure#0}> (inlined)
+            |          std::panic::catch_unwind::<std::rt::lang_start_internal::{closure#0}, isize> (inlined)
+            |          std::rt::lang_start_internal
+            |          main
+            |          0x74e9bfa2a1c9
+            |          __libc_start_main
+            |          _start
+            |          
+            |--5.61%--<core::ptr::non_null::NonNull<i32> as core::cmp::PartialEq>::eq (inlined)
+            |          <core::slice::iter::Iter<i32> as core::iter::traits::iterator::Iterator>::next (inlined)
+            |          |          
+            |           --4.61%--<core::slice::iter::Iter<i32> as core::iter::traits::iterator::Iterator>::any::<<i32 as core::slice::cmp::SliceContains>::slice_contains::{closure#1}> (inlined)
+            |                     <i32 as core::slice::cmp::SliceContains>::slice_contains (inlined)
+            |                     <[i32]>::contains (inlined)
+            |                     <akantu_contact::detector::ContactDetector>::local_search_into (inlined)
+            |                     <akantu_contact::detector::ContactDetector>::local_search
+            |                     <akantu_contact::detector::ContactDetector>::search
+            |                     <akantu_contact::model::ContactMechanicsModel>::search_keeping_history
+            |                     <akantu_contact::model::ContactMechanicsModel>::search
+            |                     suite_models::suite_models::contact::search::{closure#0} (inlined)
+            |                     <suite_models::suite_models::harness::Run>::looped::<suite_models::suite_models::contact::search::{closure#0}>
+            |                     suite_models::suite_models::contact::search
+            |                     suite_models::suite_models::contact::search_quad4
+            |                     suite_models::suite_models::harness::main::<suite_models::suite_models::common::world>
+            |                     suite_models::main
+            |                     <fn() -> std::process::ExitCode as core::ops::function::FnOnce<()>>::call_once (inlined)
+            |                     std::sys::backtrace::__rust_begin_short_backtrace::<fn() -> std::process::ExitCode, std::process::ExitCode>
+            |                     std::rt::lang_start::<std::process::ExitCode>::{closure#0} (inlined)
+            |                     <&dyn core::ops::function::Fn<(), Output = i32> + core::panic::unwind_safe::RefUnwindSafe + core::marker::Sync as core::ops::function::FnOnce<()>>::call_once (inlined)
+            |                     std::panicking::catch_unwind::do_call::<&dyn core::ops::function::Fn<(), Output = i32> + core::panic::unwind_safe::RefUnwindSafe + core::marker::Sync, i32> (inlined)
+            |                     std::panicking::catch_unwind::<i32, &dyn core::ops::function::Fn<(), Output = i32> + core::panic::unwind_safe::RefUnwindSafe + core::marker::Sync> (inlined)
+            |                     std::panic::catch_unwind::<&dyn core::ops::function::Fn<(), Output = i32> + core::panic::unwind_safe::RefUnwindSafe + core::marker::Sync, i32> (inlined)
+            |                     std::rt::lang_start_internal::{closure#0} (inlined)
+            |                     std::panicking::catch_unwind::do_call::<std::rt::lang_start_internal::{closure#0}, isize> (inlined)
+            |                     std::panicking::catch_unwind::<isize, std::rt::lang_start_internal::{closure#0}> (inlined)
+            |                     std::panic::catch_unwind::<std::rt::lang_start_internal::{closure#0}, isize> (inlined)
+            |                     std::rt::lang_start_internal
+            |                     main
+            |                     0x74e9bfa2a1c9
+            |                     __libc_start_main
+            |                     _start
+            |          
+            |--4.22%--<core::ops::range::Range<usize> as core::iter::range::RangeIteratorImpl>::spec_next (inlined)
+            |          <core::ops::range::Range<usize> as core::iter::traits::iterator::Iterator>::next (inlined)
+            |          |          
+            |           --3.03%--akantu_core::eigen_order::redux_seq::<akantu_contact::eigen_ops::squared_norm::{closure#0}> (inlined)
+            |                     <akantu_core::eigen_order::Reduction>::reduce::<akantu_contact::eigen_ops::squared_norm::{closure#0}> (inlined)
+            |                     <akantu_core::eigen_order::Reduction>::sum::<akantu_contact::eigen_ops::squared_norm::{closure#0}> (inlined)
+            |                     akantu_contact::eigen_ops::squared_norm (inlined)
+            |                     akantu_contact::eigen_ops::norm (inlined)
+            |                     <akantu_contact::detector::ContactDetector>::local_search_into (inlined)
+            |                     <akantu_contact::detector::ContactDetector>::local_search
+            |                     <akantu_contact::detector::ContactDetector>::search
+            |                     <akantu_contact::model::ContactMechanicsModel>::search_keeping_history
+            |                     <akantu_contact::model::ContactMechanicsModel>::search
+            |                     suite_models::suite_models::contact::search::{closure#0} (inlined)
+            |                     <suite_models::suite_models::harness::Run>::looped::<suite_models::suite_models::contact::search::{closure#0}>
+            |                     suite_models::suite_models::contact::search
+            |                     suite_models::suite_models::contact::search_quad4
+            |                     suite_models::suite_models::harness::main::<suite_models::suite_models::common::world>
+            |                     suite_models::main
+            |                     <fn() -> std::process::ExitCode as core::ops::function::FnOnce<()>>::call_once (inlined)
+            |                     std::sys::backtrace::__rust_begin_short_backtrace::<fn() -> std::process::ExitCode, std::process::ExitCode>
+            |                     std::rt::lang_start::<std::process::ExitCode>::{closure#0} (inlined)
+            |                     <&dyn core::ops::function::Fn<(), Output = i32> + core::panic::unwind_safe::RefUnwindSafe + core::marker::Sync as core::ops::function::FnOnce<()>>::call_once (inlined)
+            |                     std::panicking::catch_unwind::do_call::<&dyn core::ops::function::Fn<(), Output = i32> + core::panic::unwind_safe::RefUnwindSafe + core::marker::Sync, i32> (inlined)
+            |                     std::panicking::catch_unwind::<i32, &dyn core::ops::function::Fn<(), Output = i32> + core::panic::unwind_safe::RefUnwindSafe + core::marker::Sync> (inlined)
+            |                     std::panic::catch_unwind::<&dyn core::ops::function::Fn<(), Output = i32> + core::panic::unwind_safe::RefUnwindSafe + core::marker::Sync, i32> (inlined)
+            |                     std::rt::lang_start_internal::{closure#0} (inlined)
+            |                     std::panicking::catch_unwind::do_call::<std::rt::lang_start_internal::{closure#0}, isize> (inlined)
+            |                     std::panicking::catch_unwind::<isize, std::rt::lang_start_internal::{closure#0}> (inlined)
+            |                     std::panic::catch_unwind::<std::rt::lang_start_internal::{closure#0}, isize> (inlined)
+            |                     std::rt::lang_start_internal
+            |                     main
+            |                     0x74e9bfa2a1c9
+            |                     __libc_start_main
+            |                     _start
+            |          
+             --3.04%--<akantu_core::array::Array<f64>>::tuple (inlined)
+                       <akantu_core::array::Array<f64>>::get_tuple (inlined)
+                       <akantu_contact::detector::ContactDetector>::pos (inlined)
+                       <akantu_contact::detector::ContactDetector>::local_search_into (inlined)
+                       <akantu_contact::detector::ContactDetector>::local_search
+                       <akantu_contact::detector::ContactDetector>::search
+                       <akantu_contact::model::ContactMechanicsModel>::search_keeping_history
+                       <akantu_contact::model::ContactMechanicsModel>::search
+                       suite_models::suite_models::contact::search::{closure#0} (inlined)
+                       <suite_models::suite_models::harness::Run>::looped::<suite_models::suite_models::contact::search::{closure#0}>
+                       suite_models::suite_models::contact::search
+                       suite_models::suite_models::contact::search_quad4
+                       suite_models::suite_models::harness::main::<suite_models::suite_models::common::world>
+                       suite_models::main
+                       <fn() -> std::process::ExitCode as core::ops::function::FnOnce<()>>::call_once (inlined)
+                       std::sys::backtrace::__rust_begin_short_backtrace::<fn() -> std::process::ExitCode, std::process::ExitCode>
+                       std::rt::lang_start::<std::process::ExitCode>::{closure#0} (inlined)
+                       <&dyn core::ops::function::Fn<(), Output = i32> + core::panic::unwind_safe::RefUnwindSafe + core::marker::Sync as core::ops::function::FnOnce<()>>::call_once (inlined)
+                       std::panicking::catch_unwind::do_call::<&dyn core::ops::function::Fn<(), Output = i32> + core::panic::unwind_safe::RefUnwindSafe + core::marker::Sync, i32> (inlined)
+                       std::panicking::catch_unwind::<i32, &dyn core::ops::function::Fn<(), Output = i32> + core::panic::unwind_safe::RefUnwindSafe + core::marker::Sync> (inlined)
+                       std::panic::catch_unwind::<&dyn core::ops::function::Fn<(), Output = i32> + core::panic::unwind_safe::RefUnwindSafe + core::marker::Sync, i32> (inlined)
+                       std::rt::lang_start_internal::{closure#0} (inlined)
+                       std::panicking::catch_unwind::do_call::<std::rt::lang_start_internal::{closure#0}, isize> (inlined)
+                       std::panicking::catch_unwind::<isize, std::rt::lang_start_internal::{closure#0}> (inlined)
+                       std::panic::catch_unwind::<std::rt::lang_start_internal::{closure#0}, isize> (inlined)
+                       std::rt::lang_start_internal
+                       main
+                       0x74e9bfa2a1c9
+                       __libc_start_main
+                       _start

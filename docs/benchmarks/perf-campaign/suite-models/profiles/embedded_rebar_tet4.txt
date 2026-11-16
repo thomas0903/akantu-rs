@@ -1,0 +1,165 @@
+# embedded_rebar_tet4: perf record -F 499 --call-graph dwarf, size m, --loop-seconds 6, one process on core 2
+# commit c339c611d, 2026-11-16T07:31:41Z, AMD Ryzen 7 9700X 8-Core Processor (boat sandbox: shares only, no timing)
+# phases of the profiled run (seconds; loop phases extended to >= 6 s):
+#   mesh                         calls      1      0.017 s
+#   init                         calls      1      0.873 s
+#   intersect                    calls     10      8.833 s
+#   solve_step                   calls      1      2.557 s
+#   assemble_internal_forces     calls   5100      6.001 s
+#   assemble_stiffness           calls     75      6.139 s
+
+## Flat profile (self time), top 25 (shared object, symbol)
+    39.90%  suite_models          [.] <akantu_geometry::index::LinearScan as akantu_geometry::index::TriangleIndex>::all_intersections                                                                                                          
+    10.18%  suite_models          [.] <akantu_linalg::sparse::SparseMatrixAij>::resolve_block                                                                                                                                                   
+     6.75%  suite_models          [.] akantu_core::eigen_gebp::product_into::<akantu_fe::eigen::product_slices::{closure#1}, akantu_fe::eigen::product_slices::{closure#2}>                                                                     
+     6.54%  suite_models          [.] akantu_linalg::eigen_sparse_lu::dense::sparselu_gemm                                                                                                                                                      
+     4.62%  suite_models          [.] akantu_geometry::intersections::ray_triangle_do_intersect                                                                                                                                                 
+     3.88%  suite_models          [.] akantu_fe::engine::fast::integrate::<<akantu_fe::engine::FeEngine>::integrate::{closure#0}>                                                                                                               
+     3.74%  suite_models          [.] akantu_fe::engine::fast::gradient::<akantu_fe::element_class::types::Tetrahedron4>                                                                                                                        
+     3.24%  suite_models          [.] <akantu_solver::dof_manager::DofManager>::assemble_elemental_array_local_view                                                                                                                             
+     2.52%  suite_models          [.] akantu_fe::engine::fast::btd                                                                                                                                                                              
+     1.96%  suite_models          [.] <std::hash::random::DefaultHasher as core::hash::Hasher>::write                                                                                                                                           
+     1.50%  suite_models          [.] <std::hash::random::RandomState as core::hash::BuildHasher>::hash_one::<&(i64, i64)>                                                                                                                      
+     1.28%  suite_models          [.] <akantu_linalg::sparse::SparseMatrixAij>::add_values                                                                                                                                                      
+     0.83%  suite_models          [.] akantu_core::eigen_gebp::route                                                                                                                                                                            
+     0.83%  suite_models          [.] <akantu_embedded::material::MaterialReinforcement<3> as akantu_solid::material::Material>::compute_all_stresses                                                                                           
+     0.78%  suite_models          [.] akantu_linalg::eigen_sparse_lu::kernels::panel_bmod                                                                                                                                                       
+     0.67%  suite_models          [.] akantu_fe::eigen::product_slices                                                                                                                                                                          
+     0.66%  suite_models          [.] <akantu_embedded::material::MaterialReinforcement<3> as akantu_solid::material::Material>::assemble_internal_forces_custom                                                                                
+     0.66%  suite_models          [.] <akantu_solid::materials::elastic::MaterialElastic<3> as akantu_solid::material::Material>::compute_stress                                                                                                
+     0.62%  suite_models          [.] akantu_core::eigen_order::redux_tree::<<[[f64; 3]; 3] as akantu_core::tensor::SquareMatrixExt<3>>::trace::{closure#0}>                                                                                    
+     0.61%  suite_models          [.] <alloc::vec::Vec<usize> as alloc::vec::spec_from_iter::SpecFromIter<usize, core::iter::adapters::GenericShunt<core::iter::adapters::map::Map<core::slice::iter::Iter<i32>, akantu_fe::engine::resolve_filt
+     0.55%  suite_models          [.] akantu_solid::material::grad_u_in_place                                                                                                                                                                   
+     0.51%  suite_models          [.] <akantu_core::array_storage::ArrayStorage<f64>>::try_resize                                                                                                                                               
+     0.48%  [unknown]             [k] 0xffffffffacba571a                                                                                                                                                                                        
+     0.41%  suite_models          [.] <akantu_solver::dof_manager::DofManager>::element_equations                                                                                                                                               
+     0.40%  suite_models          [.] akantu_linalg::eigen_sparse_lu::dense::trsm_unit_lower                                                                                                                                                    
+
+## Inclusive time (children), top 40 symbols
+    98.36%     0.00%  [.] 0xffffffffffffffff                                                                                                                                                                                                    
+    52.77%     0.00%  [.] suite_models::suite_models::embedded::rebar                                                                                                                                                                           
+    45.48%     0.00%  [.] <akantu_embedded::intersector::EmbeddedInterfaceIntersector>::construct_data                                                                                                                                          
+    45.39%     0.02%  [.] <akantu_geometry::segment_intersector::MeshSegmentIntersector>::compute_intersection_query_list                                                                                                                       
+    45.39%     0.00%  [.] <akantu_geometry::segment_intersector::MeshSegmentIntersector>::compute_intersection_query (inlined)                                                                                                                  
+    45.37%     0.00%  [.] <akantu_geometry::segment_intersector::MeshSegmentIntersector>::build_result_from_query_list (inlined)                                                                                                                
+    45.36%     0.00%  [.] <akantu_geometry::segment_intersector::MeshSegmentIntersector>::compute_segments (inlined)                                                                                                                            
+    45.32%     0.00%  [.] <akantu_geometry::segment_intersector::MeshSegmentIntersector>::collect_segments (inlined)                                                                                                                            
+    42.28%     0.00%  [.] suite_models::suite_models::embedded::rebar::{closure#3}                                                                                                                                                              
+    40.48%    39.90%  [.] <akantu_geometry::index::LinearScan as akantu_geometry::index::TriangleIndex>::all_intersections                                                                                                                      
+    39.99%     0.00%  [.] <core::result::Result<core::option::Option<akantu_geometry::intersections::TriangleSegmentIntersection>, akantu_core::error::Error> as core::ops::try_trait::Try>::branch (inlined)                                   
+    33.88%     0.00%  [.] <akantu_geometry::segment_intersector::MeshSegmentIntersector>::compute_segments_with_report (inlined)                                                                                                                
+    23.08%     0.00%  [.] <akantu_solid::model::SolidMechanicsPhysics>::assemble_stiffness_matrix                                                                                                                                               
+    22.50%     0.00%  [.] <suite_models::suite_models::harness::Run>::looped::<suite_models::suite_models::embedded::rebar::{closure#6}>                                                                                                        
+    22.50%     0.00%  [.] <akantu_solver::dof_manager::DofManager>::collective::<(), <akantu_solid::model::SolidMechanicsModel>::assemble_stiffness_matrix::{closure#0}>                                                                        
+    22.50%     0.00%  [.] <akantu_solid::model::SolidMechanicsModel>::assemble_stiffness_matrix::{closure#0} (inlined)                                                                                                                          
+    22.50%     0.00%  [.] suite_models::suite_models::embedded::rebar::{closure#6} (inlined)                                                                                                                                                    
+    22.50%     0.00%  [.] <akantu_embedded::model::EmbeddedInterfaceModel>::assemble_stiffness_matrix                                                                                                                                           
+    22.50%     0.00%  [.] <akantu_solid::model::SolidMechanicsModel>::assemble_stiffness_matrix                                                                                                                                                 
+    21.19%     0.00%  [.] <suite_models::suite_models::harness::Run>::looped::<suite_models::suite_models::embedded::rebar::{closure#5}>                                                                                                        
+    21.19%     0.00%  [.] <akantu_solver::dof_manager::DofManager>::collective::<(), <akantu_solid::model::SolidMechanicsModel>::assemble_internal_forces::{closure#0}>                                                                         
+    21.19%     0.00%  [.] suite_models::suite_models::embedded::rebar::{closure#5} (inlined)                                                                                                                                                    
+    21.19%     0.00%  [.] <akantu_embedded::model::EmbeddedInterfaceModel>::assemble_internal_forces                                                                                                                                            
+    21.14%     0.00%  [.] <akantu_solid::model::SolidMechanicsPhysics>::assemble_internal_forces                                                                                                                                                
+    21.13%     0.00%  [.] <akantu_solid::model::SolidMechanicsModel>::assemble_internal_forces::{closure#0} (inlined)                                                                                                                           
+    15.65%     0.03%  [.] <akantu_solver::dof_manager::DofManager>::assemble_elemental_matrices_to_matrix                                                                                                                                       
+    14.83%     0.02%  [.] <akantu_solver::backend::AijBackend as akantu_solver::backend::LinearSystemBackend>::add_values                                                                                                                       
+    14.81%     1.28%  [.] <akantu_linalg::sparse::SparseMatrixAij>::add_values                                                                                                                                                                  
+    13.53%    10.18%  [.] <akantu_linalg::sparse::SparseMatrixAij>::resolve_block                                                                                                                                                               
+    12.85%     0.00%  [.] <hashbrown::map::HashMap<(i64, i64), usize, std::hash::random::RandomState>>::get::<(i64, i64)> (inlined)                                                                                                             
+    12.85%     0.00%  [.] <std::collections::hash::map::HashMap<(i64, i64), usize>>::get::<(i64, i64)> (inlined)                                                                                                                                
+    11.48%     0.00%  [.] <akantu_geometry::segment_intersector::MeshSegmentIntersector>::compute_segments_with_report (inlined)                                                                                                                
+     9.52%     0.00%  [.] <hashbrown::raw::RawTable<((i64, i64), usize)>>::get::<hashbrown::map::equivalent_key<(i64, i64), (i64, i64), usize>::{closure#0}> (inlined)                                                                          
+     9.52%     0.00%  [.] <hashbrown::raw::RawTable<((i64, i64), usize)>>::find::<hashbrown::map::equivalent_key<(i64, i64), (i64, i64), usize>::{closure#0}> (inlined)                                                                         
+     9.52%     0.00%  [.] <hashbrown::raw::RawTableInner>::find_inner (inlined)                                                                                                                                                                 
+     9.08%     0.00%  [.] <suite_models::suite_models::harness::Run>::once::<(), suite_models::suite_models::embedded::rebar::{closure#4}>                                                                                                      
+     9.08%     0.00%  [.] <akantu_solver::dof_manager::DofManager>::collective::<(), <akantu_solver::non_linear_newton_raphson::NonLinearSolverNewtonRaphson as akantu_solver::non_linear::NonLinearSolver>::solve::{closure#1}>                
+     9.08%     0.00%  [.] suite_models::suite_models::embedded::rebar::{closure#4} (inlined)                                                                                                                                                    
+     9.08%     0.00%  [.] <akantu_solver::non_linear_newton_raphson::NonLinearSolverNewtonRaphson as akantu_solver::non_linear::NonLinearSolver>::solve::{closure#1} (inlined)                                                                  
+     9.08%     0.00%  [.] <akantu_solver::time_step::TimeStepSolver>::solve_step (inlined)                                                                                                                                                      
+
+## Call chains of the hottest symbols (caller graph, >= 3 % self, branches >= 1 %)
+    39.90%  [.] <akantu_geometry::index::LinearScan as akantu_geometry::index::TriangleIndex>::all_intersections                                                                                                                                
+            |
+            ---<akantu_geometry::index::LinearScan as akantu_geometry::index::TriangleIndex>::all_intersections
+               <akantu_geometry::segment_intersector::MeshSegmentIntersector>::collect_segments (inlined)
+               <akantu_geometry::segment_intersector::MeshSegmentIntersector>::compute_segments_with_report (inlined)
+               <akantu_geometry::segment_intersector::MeshSegmentIntersector>::compute_segments (inlined)
+               <akantu_geometry::segment_intersector::MeshSegmentIntersector>::compute_intersection_query (inlined)
+               <akantu_geometry::segment_intersector::MeshSegmentIntersector>::compute_intersection_query_list
+               <akantu_geometry::segment_intersector::MeshSegmentIntersector>::build_result_from_query_list (inlined)
+               <akantu_embedded::intersector::EmbeddedInterfaceIntersector>::construct_data
+               |          
+                --37.14%--suite_models::suite_models::embedded::rebar::{closure#3}
+                          0xffffffffffffffff
+    10.18%  [.] <akantu_linalg::sparse::SparseMatrixAij>::resolve_block                                                                                                                                                                         
+            |          
+             --5.65%--core::intrinsics::likely (inlined)
+                       <hashbrown::raw::RawTableInner>::find_inner (inlined)
+                       <hashbrown::raw::RawTable<((i64, i64), usize)>>::find::<hashbrown::map::equivalent_key<(i64, i64), (i64, i64), usize>::{closure#0}> (inlined)
+                       <hashbrown::raw::RawTable<((i64, i64), usize)>>::get::<hashbrown::map::equivalent_key<(i64, i64), (i64, i64), usize>::{closure#0}> (inlined)
+                       <hashbrown::map::HashMap<(i64, i64), usize, std::hash::random::RandomState>>::get::<(i64, i64)> (inlined)
+                       <std::collections::hash::map::HashMap<(i64, i64), usize>>::get::<(i64, i64)> (inlined)
+                       <akantu_linalg::sparse::SparseMatrixAij>::resolve_block
+                       <akantu_linalg::sparse::SparseMatrixAij>::add_values
+                       <akantu_solver::backend::AijBackend as akantu_solver::backend::LinearSystemBackend>::add_values
+                       <akantu_solver::dof_manager::DofManager>::assemble_elemental_matrices_to_matrix
+                       <akantu_solid::model::SolidMechanicsPhysics>::assemble_stiffness_matrix
+                       |          
+                        --5.57%--<akantu_solid::model::SolidMechanicsModel>::assemble_stiffness_matrix::{closure#0} (inlined)
+                                  <akantu_solver::dof_manager::DofManager>::collective::<(), <akantu_solid::model::SolidMechanicsModel>::assemble_stiffness_matrix::{closure#0}>
+                                  <akantu_solid::model::SolidMechanicsModel>::assemble_stiffness_matrix
+                                  <akantu_embedded::model::EmbeddedInterfaceModel>::assemble_stiffness_matrix
+                                  suite_models::suite_models::embedded::rebar::{closure#6} (inlined)
+                                  <suite_models::suite_models::harness::Run>::looped::<suite_models::suite_models::embedded::rebar::{closure#6}>
+                                  suite_models::suite_models::embedded::rebar
+                                  0xffffffffffffffff
+     6.75%  [.] akantu_core::eigen_gebp::product_into::<akantu_fe::eigen::product_slices::{closure#1}, akantu_fe::eigen::product_slices::{closure#2}>                                                                                           
+     6.54%  [.] akantu_linalg::eigen_sparse_lu::dense::sparselu_gemm                                                                                                                                                                            
+            |          
+             --6.31%--akantu_linalg::eigen_sparse_lu::dense::sparselu_gemm
+                       |          
+                        --6.30%--akantu_linalg::eigen_sparse_lu::kernels::panel_bmod
+                                  <akantu_linalg::eigen_sparse_lu::SparseLu>::factorize
+                                  <akantu_linalg::eigen_sparse_lu::EigenSparseLuSolver as akantu_linalg::direct::SparseDirectSolver>::factorize
+                                  <akantu_solver::backend::AijBackend as akantu_solver::backend::LinearSystemBackend>::solve::{closure#2}::{closure#0} (inlined)
+                                  <akantu_solver::backend::AijBackend as akantu_solver::backend::LinearSystemBackend>::solve::{closure#2} (inlined)
+                                  <akantu_comm::phase::Phases>::run::<(alloc::vec::Vec<f64>, alloc::vec::Vec<i64>), alloc::vec::Vec<(i64, f64)>, <akantu_solver::backend::AijBackend as akantu_solver::backend::LinearSystemBackend>::solve::{cl
+                                  <akantu_solver::backend::AijBackend as akantu_solver::backend::LinearSystemBackend>::solve
+                                  <akantu_solver::dof_manager::DofManager>::solve_linear_system::{closure#0}::{closure#2} (inlined)
+                                  <akantu_solver::dof_manager::DofManager>::lend::<(), <akantu_solver::dof_manager::DofManager>::solve_linear_system::{closure#0}::{closure#2}> (inlined)
+                                  <akantu_solver::dof_manager::DofManager>::solve_linear_system::{closure#0} (inlined)
+                                  <akantu_solver::dof_manager::DofManager>::collective::<(), <akantu_solver::dof_manager::DofManager>::solve_linear_system::{closure#0}> (inlined)
+                                  <akantu_solver::dof_manager::DofManager>::solve_linear_system
+                                  <akantu_solver::dof_manager::DofManager>::solve::{closure#0} (inlined)
+                                  <akantu_solver::dof_manager::DofManager>::collective::<(), <akantu_solver::dof_manager::DofManager>::solve::{closure#0}> (inlined)
+                                  <akantu_solver::dof_manager::DofManager>::solve
+                                  <akantu_solver::non_linear_newton_raphson::NonLinearSolverNewtonRaphson>::solve_nr
+                                  <akantu_solver::non_linear_newton_raphson::NonLinearSolverNewtonRaphson as akantu_solver::non_linear::NonLinearSolver>::solve::{closure#1} (inlined)
+                                  <akantu_solver::dof_manager::DofManager>::collective::<(), <akantu_solver::non_linear_newton_raphson::NonLinearSolverNewtonRaphson as akantu_solver::non_linear::NonLinearSolver>::solve::{closure#1}>
+                                  <akantu_solver::non_linear_newton_raphson::NonLinearSolverNewtonRaphson as akantu_solver::non_linear::NonLinearSolver>::solve
+                                  <akantu_solver::time_step::TimeStepSolver>::solve_step (inlined)
+                                  <akantu_solver::model_solver::ModelSolver>::solve_step
+                                  <akantu_solid::model::SolidMechanicsModel>::solve_step
+                                  <akantu_embedded::model::EmbeddedInterfaceModel>::solve_step
+                                  suite_models::suite_models::embedded::rebar::{closure#4} (inlined)
+                                  <suite_models::suite_models::harness::Run>::once::<(), suite_models::suite_models::embedded::rebar::{closure#4}>
+                                  suite_models::suite_models::embedded::rebar
+                                  0xffffffffffffffff
+     4.62%  [.] akantu_geometry::intersections::ray_triangle_do_intersect                                                                                                                                                                       
+     3.88%  [.] akantu_fe::engine::fast::integrate::<<akantu_fe::engine::FeEngine>::integrate::{closure#0}>                                                                                                                                     
+            |          
+             --3.42%--akantu_fe::engine::fast::integrate::<<akantu_fe::engine::FeEngine>::integrate::{closure#0}>
+                       akantu_fe::engine::ops::integrate_with_jacobians::<<akantu_fe::engine::FeEngine>::integrate::{closure#0}>
+                       <akantu_fe::engine::FeEngine>::integrate
+                       |          
+                        --3.10%--akantu_solid::model::assembly::assemble_internal_forces_of
+                                  <akantu_solid::model::SolidMechanicsPhysics>::assemble_internal_forces
+                                  <akantu_solid::model::SolidMechanicsModel>::assemble_internal_forces::{closure#0} (inlined)
+                                  <akantu_solver::dof_manager::DofManager>::collective::<(), <akantu_solid::model::SolidMechanicsModel>::assemble_internal_forces::{closure#0}>
+                                  <akantu_embedded::model::EmbeddedInterfaceModel>::assemble_internal_forces
+                                  suite_models::suite_models::embedded::rebar::{closure#5} (inlined)
+                                  <suite_models::suite_models::harness::Run>::looped::<suite_models::suite_models::embedded::rebar::{closure#5}>
+                                  suite_models::suite_models::embedded::rebar
+                                  0xffffffffffffffff
+     3.74%  [.] akantu_fe::engine::fast::gradient::<akantu_fe::element_class::types::Tetrahedron4>                                                                                                                                              
+     3.24%  [.] <akantu_solver::dof_manager::DofManager>::assemble_elemental_array_local_view                                                                                                                                                   
