@@ -28,12 +28,16 @@
 use std::any::Any;
 use std::cell::{Cell, UnsafeCell};
 use std::panic::{AssertUnwindSafe, catch_unwind, resume_unwind};
-use std::sync::atomic::{AtomicU64, AtomicUsize, Ordering};
+use std::sync::atomic::{AtomicBool, AtomicU64, AtomicUsize, Ordering};
 use std::sync::{Arc, Condvar, Mutex};
 use std::time::{Duration, Instant};
 
 /// How long an idle worker spins before it parks.
 const SPIN_FOR: Duration = Duration::from_millis(5);
+
+/// Parts per thread for which the claim flags exist (regions with more parts
+/// claim them with a counter).
+const MAX_PARTS_PER_THREAD: usize = 8;
 
 /// `state`: closed bit.
 const CLOSED: u64 = 1 << 63;
@@ -49,8 +53,13 @@ struct JobPtr(*const (dyn Fn(usize) + Sync));
 struct Shared {
     /// Bumped (SeqCst) to publish a region.
     generation: AtomicU64,
-    /// Next unclaimed part of the running region.
+    /// Next unclaimed part of the running region (regions with more parts
+    /// than `claimed` holds).
     next: AtomicUsize,
+    /// Per part of the running region: claimed by a thread.
+    claimed: Box<[AtomicBool]>,
+    /// Participants of a region: the caller (0) and the workers (1…).
+    participants: usize,
     /// Parts of the running region.
     nb_parts: AtomicUsize,
     /// The region's generation (bits 16..63), its closed bit (63) and the
@@ -98,6 +107,10 @@ impl SpinPool {
         let shared = Arc::new(Shared {
             generation: AtomicU64::new(0),
             next: AtomicUsize::new(0),
+            claimed: (0..threads * MAX_PARTS_PER_THREAD)
+                .map(|_| AtomicBool::new(false))
+                .collect(),
+            participants: threads.max(1),
             nb_parts: AtomicUsize::new(0),
             state: AtomicU64::new(CLOSED),
             sleepers: AtomicUsize::new(0),
@@ -111,7 +124,7 @@ impl SpinPool {
             let s = shared.clone();
             std::thread::Builder::new()
                 .name(format!("akantu-exec-{threads}-{w}"))
-                .spawn(move || worker(&s))?;
+                .spawn(move || worker(&s, w + 1))?;
         }
         Ok(Self {
             shared,
@@ -143,6 +156,9 @@ impl SpinPool {
         // worker inside, so no worker reads `job` now.
         unsafe { *s.job.get() = Some(JobPtr(erased)) };
         s.next.store(0, Ordering::Relaxed);
+        for c in s.claimed.iter().take(nb_parts) {
+            c.store(false, Ordering::Relaxed);
+        }
         s.nb_parts.store(nb_parts, Ordering::Relaxed);
         let g = s.generation.load(Ordering::Relaxed).wrapping_add(1);
         // open the region, then announce it
@@ -152,7 +168,7 @@ impl SpinPool {
             let _g = s.sleep.lock().unwrap_or_else(|e| e.into_inner());
             s.wake.notify_all();
         }
-        run_parts(s, f);
+        run_parts(s, 0, f);
         // no part left: close the region, wait for the workers inside
         s.state.fetch_or(CLOSED, Ordering::SeqCst);
         while s.state.load(Ordering::Acquire) & ACTIVE != 0 {
@@ -169,25 +185,44 @@ impl SpinPool {
 }
 
 /// Claim and run parts of the current region until none is left.
-fn run_parts(s: &Shared, f: &(dyn Fn(usize) + Sync)) {
+/// Participant `index` first takes the parts of its own block (the
+/// `index`-th of `participants` contiguous blocks), then those left in the
+/// other blocks: a thread keeps its elements from one region to the next,
+/// so their data stays in its caches.
+fn run_parts(s: &Shared, index: usize, f: &(dyn Fn(usize) + Sync)) {
     let n = s.nb_parts.load(Ordering::Relaxed);
     IN_REGION.with(|r| r.set(true));
-    loop {
-        let p = s.next.fetch_add(1, Ordering::Relaxed);
-        if p >= n {
-            break;
-        }
+    let run = |p: usize| {
         if let Err(e) = catch_unwind(AssertUnwindSafe(|| f(p))) {
             let mut slot = s.panic.lock().unwrap_or_else(|e| e.into_inner());
             if slot.is_none() {
                 *slot = Some(e);
             }
         }
+    };
+    if n <= s.claimed.len() {
+        let t = s.participants;
+        for k in 0..t {
+            let block = (index + k) % t;
+            for p in block * n / t..(block + 1) * n / t {
+                if !s.claimed[p].swap(true, Ordering::Relaxed) {
+                    run(p);
+                }
+            }
+        }
+    } else {
+        loop {
+            let p = s.next.fetch_add(1, Ordering::Relaxed);
+            if p >= n {
+                break;
+            }
+            run(p);
+        }
     }
     IN_REGION.with(|r| r.set(false));
 }
 
-fn worker(s: &Shared) {
+fn worker(s: &Shared, index: usize) {
     // the generation at the pool's creation: a region published before
     // this thread started is not missed
     let mut seen = 0;
@@ -239,7 +274,7 @@ fn worker(s: &Shared) {
         let job = unsafe { *s.job.get() };
         if let Some(JobPtr(f)) = job {
             // SAFETY: as above: the closure outlives the region.
-            run_parts(s, unsafe { &*f });
+            run_parts(s, index, unsafe { &*f });
         }
         s.state.fetch_sub(1, Ordering::Release);
     }
