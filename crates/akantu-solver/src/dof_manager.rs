@@ -2284,16 +2284,7 @@ impl DofManager {
                 akantu_core::exec::TuplesRef::new(&f.local_equation_numbers[..n], 1),
             );
             exec.try_for_each(items, 16_384, |_, (mut s, eqs)| {
-                for (s, &eq) in s.as_mut_slice().iter_mut().zip(eqs.as_slice()) {
-                    *s = *x
-                        .get(akantu_core::try_to_usize(eq)?)
-                        .ok_or(Error::OutOfRange {
-                            what: "local equation",
-                            index: akantu_core::try_to_usize(eq)?,
-                            len: x.len(),
-                        })?;
-                }
-                Ok(())
+                gather_part(s.as_mut_slice(), eqs.as_slice(), x)
             })?;
         }
         Ok(())
@@ -2513,6 +2504,21 @@ impl DofManager {
             }
         }
     }
+}
+
+/// `s[k] = x[eq[k]]` of one part (no-alias parameters, not inlined into the
+/// part closure).
+#[inline(never)]
+fn gather_part(s: &mut [Real], eqs: &[Idx], x: &[Real]) -> Result<()> {
+    for (s, &eq) in s.iter_mut().zip(eqs) {
+        let e = akantu_core::try_to_usize(eq)?;
+        *s = *x.get(e).ok_or(Error::OutOfRange {
+            what: "local equation",
+            index: e,
+            len: x.len(),
+        })?;
+    }
+    Ok(())
 }
 
 impl MeshEventHandler for DofManager {

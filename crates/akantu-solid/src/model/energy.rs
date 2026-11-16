@@ -111,9 +111,14 @@ impl SolidMechanicsPhysics {
         };
         let exec = self.base.fems.exec();
         if !exec.is_parallel() {
+            // the serial loop as before the threads (D-123)
             let mut work = 0.0;
             for n in 0..nn {
-                work += term(n)?;
+                let c = if counted(&mesh, n)? { 1.0 } else { 0.0 };
+                let i = &inc.as_slice()[n * d..(n + 1) * d];
+                let a = dot(&fe.as_slice()[n * d..(n + 1) * d], i);
+                let b = dot(&fi.as_slice()[n * d..(n + 1) * d], i);
+                work += c * (a - b);
             }
             return Ok(work);
         }

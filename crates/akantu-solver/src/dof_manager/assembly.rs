@@ -51,6 +51,34 @@ impl DofData {
     }
 }
 
+/// `r += a ∘ x` of one part (no-alias parameters, not inlined into the
+/// part closure).
+#[inline(never)]
+fn lumped_mul_add_part(r: &mut [Real], a: &[Real], x: &[Real]) {
+    for ((r, &ai), &xi) in r.iter_mut().zip(a).zip(x) {
+        *r += ai * xi;
+    }
+}
+
+/// `x = α · (b / a)` of one part (no-alias parameters).
+#[inline(never)]
+fn lumped_solve_part(alpha: Real, x: &mut [Real], a: &[Real], b: &[Real]) {
+    for ((x, &ai), &bi) in x.iter_mut().zip(a).zip(b) {
+        *x = alpha * (bi / ai);
+    }
+}
+
+/// `t[j] += scale · values[inv[j]]` for the equations of one part that have
+/// a DOF (no-alias parameters).
+#[inline(never)]
+fn inverse_scatter_part(inv: &[u32], values: &[Real], scale: Real, target: &mut [Real]) {
+    for (t, &k) in target.iter_mut().zip(inv) {
+        if k != u32::MAX {
+            *t += scale * values[k as usize];
+        }
+    }
+}
+
 /// Equations per part of a threaded per-equation loop (D-123).
 const EQUATIONS_PER_PART: usize = 16_384;
 
@@ -118,12 +146,7 @@ impl DofManager {
             return Self::assemble_to_global(f, periodic, values, target, scale);
         };
         exec.for_each(Tuples::new(target, 1), EQUATIONS_PER_PART, |e0, mut t| {
-            for (j, t) in t.as_mut_slice().iter_mut().enumerate() {
-                let k = inv[e0 + j];
-                if k != u32::MAX {
-                    *t += scale * values[k as usize];
-                }
-            }
+            inverse_scatter_part(&inv[e0..], values, scale, t.as_mut_slice());
         });
         Ok(())
     }
@@ -697,14 +720,7 @@ impl DofManager {
         );
         self.exec
             .for_each(items, EQUATIONS_PER_PART, |_, (mut r, a, x)| {
-                for ((r, &ai), &xi) in r
-                    .as_mut_slice()
-                    .iter_mut()
-                    .zip(a.as_slice())
-                    .zip(x.as_slice())
-                {
-                    *r += ai * xi;
-                }
+                lumped_mul_add_part(r.as_mut_slice(), a.as_slice(), x.as_slice());
             });
         drop(residual);
         // symmetric 3×3 couplings of a block-lumped matrix (D-059)
@@ -749,14 +765,7 @@ impl DofManager {
         );
         self.exec
             .for_each(items, EQUATIONS_PER_PART, |_, (mut x, a, b)| {
-                for ((x, &ai), &bi) in x
-                    .as_mut_slice()
-                    .iter_mut()
-                    .zip(a.as_slice())
-                    .zip(b.as_slice())
-                {
-                    *x = alpha * (bi / ai);
-                }
+                lumped_solve_part(alpha, x.as_mut_slice(), a.as_slice(), b.as_slice());
             });
         drop(residual);
         // free sub-blocks of a block-lumped matrix (D-059)
