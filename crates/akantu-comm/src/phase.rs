@@ -231,11 +231,38 @@ pub fn agreed_or_transport<R>(r: Result<R>) -> Result<Result<R>> {
     }
 }
 
+/// Agreements performed by this process ([`agreement_stats`]).
+static AGREEMENTS: std::sync::atomic::AtomicU64 = std::sync::atomic::AtomicU64::new(0);
+/// Nanoseconds spent in them, waiting for the other ranks included.
+static AGREEMENT_NANOS: std::sync::atomic::AtomicU64 = std::sync::atomic::AtomicU64::new(0);
+
+/// Number of agreements (the all-reduce of every [`agree`],
+/// [`Phases::agree`], [`Phases::run`] step, …) this process performed so
+/// far, and the seconds spent in them, waiting for slower ranks included:
+/// a measurement aid for the cost of the collective error protocol
+/// (counts of every communicator of the process; with the in-process
+/// world of [`crate::run_local`], of every rank together).
+#[must_use]
+pub fn agreement_stats() -> (u64, f64) {
+    use std::sync::atomic::Ordering::Relaxed;
+    #[allow(clippy::cast_precision_loss)] // a duration in ns
+    let s = AGREEMENT_NANOS.load(Relaxed) as f64 * 1e-9;
+    (AGREEMENTS.load(Relaxed), s)
+}
+
 fn reduce_status(comm: &Communicator, id: u64, status: Severity, digest: u64) -> Result<Reduced> {
     // max(status), max(id), max(!id) = !min(id), likewise for the digest:
     // one bounded all-reduce of five words.
     let mut v = [status as u64, id, !id, digest, !digest];
-    comm.all_reduce(&mut v, ReduceOp::Max)?;
+    let t = std::time::Instant::now();
+    let r = comm.all_reduce(&mut v, ReduceOp::Max);
+    {
+        use std::sync::atomic::Ordering::Relaxed;
+        AGREEMENTS.fetch_add(1, Relaxed);
+        let ns = u64::try_from(t.elapsed().as_nanos()).unwrap_or(u64::MAX);
+        AGREEMENT_NANOS.fetch_add(ns, Relaxed);
+    }
+    r?;
     Ok(Reduced {
         worst: v[0],
         ids_match: v[1] == !v[2],
