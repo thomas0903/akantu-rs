@@ -687,7 +687,9 @@ impl DofManager {
         let mut residual = self.residual.values_mut();
         // every equation from its own entries: contiguous parts on the
         // threads (D-123)
-        let n = residual.len().min(a.values.len()).min(cache.len());
+        let n = (residual.as_slice().len())
+            .min(a.values.len())
+            .min(cache.len());
         let items = (
             Tuples::new(&mut residual.as_mut_slice()[..n], 1),
             TuplesRef::new(&a.values[..n], 1),
@@ -739,7 +741,7 @@ impl DofManager {
         self.solution.clear();
         self.solution.resize(n, 0.0);
         let residual = self.residual.values();
-        let m = n.min(a.values.len()).min(residual.len());
+        let m = n.min(a.values.len()).min(residual.as_slice().len());
         let items = (
             Tuples::new(&mut self.solution[..m], 1),
             TuplesRef::new(&a.values[..m], 1),

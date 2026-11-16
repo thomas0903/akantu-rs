@@ -812,7 +812,10 @@ impl IntegrationScheme for NewmarkBeta {
         };
         let mut u = u.write()?;
         // the equations the zipped loop visits (the shortest array)
-        let n = u.len().min(v.len()).min(a.len()).min(blocked.len());
+        let n = (u.as_slice().len())
+            .min(v.as_slice().len())
+            .min(a.as_slice().len())
+            .min(blocked.len());
         // every equation from its own values: contiguous parts on the DOF
         // manager's threads (D-123)
         let items = (
@@ -863,10 +866,9 @@ impl IntegrationScheme for NewmarkBeta {
         let mut u = u.write()?;
         let sol = solution.as_slice();
         // the equations the zipped loop visits (the shortest array)
-        let n = u
-            .len()
-            .min(v.len())
-            .min(a.len())
+        let n = (u.as_slice().len())
+            .min(v.as_slice().len())
+            .min(a.as_slice().len())
             .min(sol.len())
             .min(blocked.len());
         let items = (

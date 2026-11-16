@@ -2278,7 +2278,7 @@ impl DofManager {
         let exec = &self.exec;
         for f in self.families.values_mut() {
             // a gather: every DOF reads its own equation (D-123)
-            let n = f.solution.len().min(f.local_equation_numbers.len());
+            let n = (f.solution.as_slice().len()).min(f.local_equation_numbers.len());
             let items = (
                 akantu_core::exec::Tuples::new(&mut f.solution.as_mut_slice()[..n], 1),
                 akantu_core::exec::TuplesRef::new(&f.local_equation_numbers[..n], 1),
