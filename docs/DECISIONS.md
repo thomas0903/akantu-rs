@@ -866,6 +866,17 @@ Consequence: one golden corpus serves both platforms; this is not a
 tolerance on computed values. An undocumented NaN in a fixture is a defect
 of the fixture.
 
+Addendum (2026-11-17, kernel tests in payload mode): the bitwise kernel
+tests feed a single NaN with a payload among finite values. For an
+algorithm that can combine that NaN with a negated copy of itself (an
+iterative kernel that negates its inputs, such as the Householder updates
+of the fixed-size `EigenSolver`), the sign of a NaN result is free and the
+payload stays exact: when both operands are NaNs with the same payload and
+opposite signs, which one IEEE 754 returns is unspecified and the compiler
+may commute the operation. The rule is
+`akantu_core::bitwise_testing::same_payload_sign_free`; kernels that never
+meet their input NaN twice keep the exact comparison.
+
 ## D-047: Python arrays are zero-copy views
 
 2026-11-11. Every array Python sees for model, mesh and material data is a

@@ -23,13 +23,30 @@ pub const PAYLOAD_NAN: u64 = 0xfff8_0000_0000_0abc;
 /// returns the first operand's; the compiler may commute the operands of an
 /// addition in either code path). Default-mode inputs therefore carry
 /// default NaNs only, and payload propagation is checked in payload mode,
-/// where a single NaN enters each case and every result bit is determined
-/// (compare those results with [`Real::to_bits`]).
+/// where a single NaN enters each case. For a kernel that never combines
+/// that NaN with a negated copy of itself, every result bit is then
+/// determined (compare those results with [`Real::to_bits`]); for one that
+/// can (an iterative algorithm that negates its inputs, e.g. a Householder
+/// update `a −= (τ·e)·t` where `τ` and `e` derive from the same NaN with
+/// opposite signs), use [`same_payload_sign_free`].
 #[must_use]
 pub fn same(a: Real, b: Real) -> bool {
     let (x, y) = (a.to_bits(), b.to_bits());
     let sign = 1u64 << 63;
     x == y || (x & !sign == DEFAULT_NAN && y & !sign == DEFAULT_NAN)
+}
+
+/// The payload-mode rule for kernels that can combine the input NaN with a
+/// negated copy of itself (D-046): identical bits, or two NaNs with the
+/// same payload and quiet bit that differ only in the sign. When both
+/// operands of an operation are NaNs carrying the same payload with
+/// opposite signs, which one IEEE 754 returns is unspecified and the
+/// compiler may commute a multiplication or an addition, so the sign of
+/// the result is free; the payload must survive exactly.
+#[must_use]
+pub fn same_payload_sign_free(a: Real, b: Real) -> bool {
+    let (x, y) = (a.to_bits(), b.to_bits());
+    x == y || (a.is_nan() && b.is_nan() && (x ^ y) == 1u64 << 63)
 }
 
 /// Deterministic test values. Default mode: special values (signed zeros,
@@ -135,5 +152,24 @@ impl Values {
     /// Back to the default mode.
     pub fn default_mode(&mut self) {
         self.nan_at = None;
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn payload_sign_free_rule() {
+        let p = Real::from_bits(PAYLOAD_NAN);
+        let q = Real::from_bits(PAYLOAD_NAN & !(1 << 63));
+        assert!(same_payload_sign_free(p, q));
+        assert!(same_payload_sign_free(1.5, 1.5));
+        // another payload, a default NaN, NaN against a number, ±0
+        assert!(!same_payload_sign_free(p, Real::from_bits(PAYLOAD_NAN + 1)));
+        assert!(!same_payload_sign_free(p, Real::from_bits(DEFAULT_NAN)));
+        assert!(!same_payload_sign_free(p, 1.0));
+        assert!(!same_payload_sign_free(0.0, -0.0));
+        assert!(!same_payload_sign_free(1.0, -1.0));
     }
 }
