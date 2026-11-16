@@ -491,3 +491,243 @@ fn wider_models_are_bitwise_for_every_thread_count() {
         }
     }
 }
+
+// ---------------------------------------------------------------------------
+// Laws whose points are independent (`Material::independent_points`): every
+// nodal array, every internal field of the law (current and previous
+// values), the energies, bit for bit with the one-thread run at 1, 2, 3, 4
+// and 8 threads, finest and automatic grain, in 2-D and 3-D.
+// ---------------------------------------------------------------------------
+
+type State = Vec<(String, Vec<u64>)>;
+
+/// One law on the whole mesh: the left side clamped at a non-zero
+/// prescribed displacement, the right side's second component prescribed,
+/// an initial field of amplitude `amp` elsewhere.
+fn law_model(mesh: Mesh, dat: &str, amp: Real, policy: ExecPolicy) -> SolidMechanicsModel {
+    let dim = mesh.spatial_dimension();
+    let parser = Parser::parse_str(dat, "material.dat").unwrap();
+    let mut m =
+        SolidMechanicsModel::with_parser(SharedMesh::new(mesh), None, "smm", parser).unwrap();
+    m.set_exec_policy(policy).unwrap();
+    m.init_full(&ModelOptions::new(AnalysisMethod::ExplicitLumpedMass))
+        .unwrap();
+    let dt = m.stable_time_step().unwrap() * 0.5;
+    m.set_time_step(dt, None).unwrap();
+    let x: Vec<Real> = m
+        .physics
+        .base
+        .mesh
+        .read()
+        .unwrap()
+        .nodes()
+        .as_slice()
+        .to_vec();
+    let nodes = x.len() / dim;
+    let mut prescribed = vec![false; nodes * dim];
+    {
+        let mut u = m.displacement_mut().unwrap();
+        let u = u.as_mut_slice();
+        for n in 0..nodes {
+            let p = &x[n * dim..(n + 1) * dim];
+            for c in 0..dim {
+                u[n * dim + c] = amp * ((5.0 + c as Real) * p[0]).sin() * (p[1] + 0.2);
+            }
+            if p[0] < 1e-9 {
+                for c in 0..dim {
+                    u[n * dim + c] = 0.2 * amp * (c as Real + 1.0) * (p[1] - 0.5);
+                    prescribed[n * dim + c] = true;
+                }
+            } else if p[0] > 1.0 - 1e-9 {
+                u[n * dim + 1] = -0.3 * amp * p[1];
+                prescribed[n * dim + 1] = true;
+            }
+        }
+    }
+    m.blocked_dofs_mut()
+        .unwrap()
+        .as_mut_slice()
+        .copy_from_slice(&prescribed);
+    m
+}
+
+/// The values of every block of `field` on the not-ghost types of
+/// `types`, then its previous values when it keeps a history.
+fn field_bits<T: Copy>(
+    name: &str,
+    field: &akantu_model::InternalField<T>,
+    types: &[ElementType],
+    to_bits: impl Fn(T) -> u64,
+    out: &mut State,
+) {
+    for &ty in types {
+        if !field.exists(ty, GhostType::NotGhost) {
+            continue;
+        }
+        let cur = field.get(ty, GhostType::NotGhost).unwrap();
+        out.push((
+            format!("{name}/{ty:?}"),
+            cur.as_slice().iter().map(|&v| to_bits(v)).collect(),
+        ));
+        drop(cur);
+        if field.has_history() {
+            let prev = field.previous(ty, GhostType::NotGhost).unwrap();
+            out.push((
+                format!("{name}/{ty:?}/previous"),
+                prev.as_slice().iter().map(|&v| to_bits(v)).collect(),
+            ));
+        }
+    }
+}
+
+/// Every nodal array, every internal field of every law, the energies.
+fn law_state(m: &mut SolidMechanicsModel) -> State {
+    use akantu_model::constitutive_law::InternalFieldRef;
+    let bits = |v: &[Real]| v.iter().map(|x| x.to_bits()).collect::<Vec<u64>>();
+    let mut out = vec![
+        ("u".into(), bits(m.displacement().unwrap().as_slice())),
+        ("v".into(), bits(m.velocity().unwrap().as_slice())),
+        ("a".into(), bits(m.acceleration().unwrap().as_slice())),
+        ("f_int".into(), bits(m.internal_force().unwrap().as_slice())),
+    ];
+    for (i, law) in m.physics.materials.laws().iter().enumerate() {
+        let types = law.base().filter_types(GhostType::NotGhost);
+        assert!(!types.is_empty(), "law {i} has elements");
+        law.for_each_internal(&mut |name, f| {
+            let name = format!("law{i}/{name}");
+            match f {
+                InternalFieldRef::Real(f) => field_bits(&name, f, &types, Real::to_bits, &mut out),
+                InternalFieldRef::Int(f) => field_bits(&name, f, &types, |v| v as u64, &mut out),
+                InternalFieldRef::UInt(f) => {
+                    field_bits(&name, f, &types, |v| v as u64, &mut out);
+                }
+                InternalFieldRef::Bool(f) => {
+                    field_bits(&name, f, &types, u64::from, &mut out);
+                }
+            }
+        });
+    }
+    // an energy a law does not define is recorded as missing (the same for
+    // every thread count)
+    let energies = [
+        "kinetic",
+        "potential",
+        "dissipated",
+        "plastic",
+        "external work",
+    ]
+    .map(|id| m.energy(id).map_or(u64::MAX, Real::to_bits))
+    .to_vec();
+    out.push(("energies".into(), energies));
+    out
+}
+
+/// A law case: the `.dat` text per dimension, the amplitude of the initial
+/// field, the steps, and the internal that must have left its initial value
+/// (the law's non-linear branch was reached).
+struct LawCase {
+    name: &'static str,
+    dat: fn(usize) -> String,
+    amp: Real,
+    steps: usize,
+    active: &'static str,
+}
+
+fn run_law(case: &LawCase, mesh: Mesh, policy: ExecPolicy) -> State {
+    let dim = mesh.spatial_dimension();
+    let mut m = law_model(mesh, &(case.dat)(dim), case.amp, policy);
+    for _ in 0..case.steps {
+        m.solve_step(None).unwrap();
+    }
+    law_state(&mut m)
+}
+
+/// The thread counts and grains of the invariance tests.
+fn threaded_policies() -> Vec<ExecPolicy> {
+    let serial = ExecPolicy::serial();
+    let mut v = Vec::new();
+    for threads in [1, 2, 3, 4, 8] {
+        for grain in [Grain::Finest, Grain::Auto] {
+            v.push(serial.with_threads(threads).unwrap().with_grain(grain));
+        }
+    }
+    v
+}
+
+fn check_law(case: &LawCase) {
+    type MeshFn = fn() -> Mesh;
+    let meshes: [(&str, MeshFn); 2] = [
+        ("2-D triangles and quadrangles", || grid2d(6, false)),
+        ("3-D tetrahedra and hexahedra", || mixed_cube(3)),
+    ];
+    for (mesh_name, mesh) in meshes {
+        let reference = run_law(case, mesh(), ExecPolicy::serial());
+        let moved = reference
+            .iter()
+            .filter(|(n, _)| n.contains(&format!("/{}/", case.active)))
+            .any(|(_, v)| v.iter().any(|&b| b != 0 && b != 1.0f64.to_bits()));
+        assert!(
+            moved,
+            "{} ({mesh_name}): `{}` never left its initial value",
+            case.name, case.active
+        );
+        for p in threaded_policies() {
+            compare(
+                &reference,
+                &run_law(case, mesh(), p),
+                &format!(
+                    "{} ({mesh_name}): threads={} {:?}",
+                    case.name,
+                    p.threads(),
+                    p.grain()
+                ),
+            );
+        }
+    }
+}
+
+fn orthotropic_dat(dim: usize) -> String {
+    let axes = if dim == 2 {
+        "  n1 = [0.6, 0.8]\n  n2 = [-0.8, 0.6]\n  E1 = 140e9\n  E2 = 10e9\n  nu12 = 0.3\n  \
+         G12 = 5e9\n"
+    } else {
+        "  n1 = [0.6, 0.8, 0]\n  n2 = [-0.8, 0.6, 0]\n  n3 = [0, 0, 1]\n  E1 = 140e9\n  \
+         E2 = 10e9\n  E3 = 10e9\n  nu12 = 0.3\n  nu13 = 0.3\n  nu23 = 0.4\n  G12 = 5e9\n  \
+         G13 = 5e9\n  G23 = 3.5e9\n"
+    };
+    format!("material elastic_orthotropic [\n  name = body\n  rho = 2500\n{axes}]\n")
+}
+
+#[test]
+fn orthotropic_law_is_bitwise_for_every_thread_count() {
+    check_law(&LawCase {
+        name: "elastic_orthotropic",
+        dat: orthotropic_dat,
+        amp: 1e-3,
+        steps: 6,
+        active: "stress",
+    });
+}
+
+fn anisotropic_dat(dim: usize) -> String {
+    let c = if dim == 2 {
+        "  n1 = [0.6, 0.8]\n  n2 = [-0.8, 0.6]\n  C11 = 90e9\n  C12 = 30e9\n  C13 = 4e9\n  \
+         C22 = 60e9\n  C23 = -3e9\n  C33 = 20e9\n"
+    } else {
+        "  n1 = [0.6, 0.8, 0]\n  n2 = [-0.8, 0.6, 0]\n  n3 = [0, 0, 1]\n  C11 = 90e9\n  \
+         C12 = 30e9\n  C13 = 25e9\n  C14 = 3e9\n  C22 = 70e9\n  C23 = 28e9\n  C33 = 80e9\n  \
+         C44 = 20e9\n  C55 = 22e9\n  C56 = -2e9\n  C66 = 24e9\n"
+    };
+    format!("material elastic_anisotropic [\n  name = body\n  rho = 2500\n{c}]\n")
+}
+
+#[test]
+fn anisotropic_law_is_bitwise_for_every_thread_count() {
+    check_law(&LawCase {
+        name: "elastic_anisotropic",
+        dat: anisotropic_dat,
+        amp: 1e-3,
+        steps: 6,
+        active: "stress",
+    });
+}

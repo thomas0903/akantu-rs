@@ -743,7 +743,15 @@ macro_rules! impl_anisotropic_law {
 impl_anisotropic_law!(MaterialElasticLinearAnisotropic);
 
 /// Shared stress/tangent/energy batch kernels.
+///
+/// The points split over `exec`'s threads ([`crate::material::points_exec`]
+/// of the calling law): a point's stress is a function of its own gradient
+/// and the law's constant `C`. A point fails only on the law's Voigt sizes,
+/// the same for every point: the first point of every part fails before
+/// writing, so an error leaves the stress as the serial loop leaves it
+/// (unchanged), whatever the split.
 pub(crate) fn anisotropic_compute_stress<const DIM: usize>(
+    exec: &akantu_core::exec::Exec,
     base: &mut MaterialBase,
     core: &AnisotropicCore<DIM>,
     ty: ElementType,
@@ -762,11 +770,32 @@ pub(crate) fn anisotropic_compute_stress<const DIM: usize>(
             got: sigma.len(),
         });
     }
-    for (g, s) in grad_u
-        .as_slice()
-        .chunks_exact(n)
-        .zip(sigma.as_mut_slice().chunks_exact_mut(n))
-    {
+    if grad_u.nb_component() != n || sigma.nb_component() != n {
+        return Err(Error::DimensionMismatch {
+            context: "MaterialElasticLinearAnisotropic::computeStress: components",
+            expected: n,
+            got: sigma.nb_component(),
+        });
+    }
+    let items = (
+        akantu_core::exec::TuplesRef::new(grad_u.as_slice(), n),
+        akantu_core::exec::Tuples::new(sigma.as_mut_slice(), n),
+    );
+    exec.try_for_each(items, 1024, |_, (g, mut s)| {
+        anisotropic_stress_part(core, g.as_slice(), s.as_mut_slice())
+    })
+}
+
+/// The stress of a contiguous run of points (a part of
+/// [`anisotropic_compute_stress`]): stops at the first failing point, as
+/// the serial loop.
+fn anisotropic_stress_part<const DIM: usize>(
+    core: &AnisotropicCore<DIM>,
+    grad_u: &[Real],
+    sigma: &mut [Real],
+) -> Result<()> {
+    let n = DIM * DIM;
+    for (g, s) in grad_u.chunks_exact(n).zip(sigma.chunks_exact_mut(n)) {
         let g: &Matrix<DIM, DIM> = as_matrix(g)?;
         let s: &mut Matrix<DIM, DIM> = as_matrix_mut(s)?;
         core.stress_on_quad(g, s)?;
@@ -865,11 +894,18 @@ impl<const DIM: usize> Material for MaterialElasticLinearAnisotropic<DIM> {
 
     fn compute_stress(
         &mut self,
-        _ctx: &LawContext<'_>,
+        ctx: &LawContext<'_>,
         ty: ElementType,
         ghost: GhostType,
     ) -> Result<()> {
-        anisotropic_compute_stress(&mut self.base, &self.core, ty, ghost)
+        let exec = crate::material::points_exec(self, ctx);
+        anisotropic_compute_stress(exec, &mut self.base, &self.core, ty, ghost)
+    }
+
+    /// A point's stress reads only its own gradient and the constant `C`;
+    /// the tangent is the constant `C` (no state written per point).
+    fn independent_points(&self) -> bool {
+        true
     }
 
     fn compute_tangent_moduli(
