@@ -124,7 +124,11 @@ change of default results or of a public API raises the minor version.
   panel solves and the GEMV kernels; rule
   `fixtures/fast_mode/linalg/tolerances.json`). Its dense kernels take the
   executor's SIMD level (`AKANTU_SIMD`); the environment variable
-  `AKANTU_SPARSELU_ISA` is gone.
+  `AKANTU_SPARSELU_ISA` is gone. A new DOF manager
+  (`akantu_solver::model_solver::new_dof_manager`) takes the process
+  default execution policy, so the heat-transfer, structural and
+  phase-field models' solves follow `AKANTU_NUM_THREADS` /
+  `AKANTU_PRECISION` too (the solid model sets its own policy as before).
 - Small dense products and Eigen-order reductions are faster with bitwise
   identical results: the halving-tree reduction is non-recursive and
   inlined, fixed-size tensor products select their route at compile time,
