@@ -285,6 +285,16 @@ impl Lanes4 {
         v.copy_from_slice(&self.0[..N]);
         v
     }
+
+    /// FAST MODE only (D-122): `self · b + c` per lane with one rounding
+    /// (`f64::mul_add`; one instruction inside [`with_fma`]). Not the
+    /// bitwise result of `self * b + c`.
+    #[inline(always)]
+    #[must_use]
+    pub fn mul_add(self, b: Self, c: Self) -> Self {
+        let (x, y, z) = (self.0, b.0, c.0);
+        Self(std::array::from_fn(|k| x[k].mul_add(y[k], z[k])))
+    }
 }
 
 macro_rules! lanes_op {

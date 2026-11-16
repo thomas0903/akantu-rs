@@ -314,6 +314,7 @@ pub(crate) struct ResidualPlan<'a> {
     jac: &'a [Real],
     filter: &'a [Idx],
     simd: akantu_core::exec::SimdToken,
+    fast: Option<akantu_core::exec::FastToken>,
 }
 
 impl<'a> ResidualPlan<'a> {
@@ -342,6 +343,7 @@ impl<'a> ResidualPlan<'a> {
             jac: jac.as_slice(),
             filter,
             simd: fe.exec().simd_token(),
+            fast: fe.exec().fast_token(),
         })
     }
 
@@ -363,6 +365,7 @@ impl<'a> ResidualPlan<'a> {
         let n = out.len() / self.s.bt;
         fast::residuals_integrate_serial(
             self.simd,
+            self.fast,
             &self.s,
             self.table,
             self.dsh,

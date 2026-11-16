@@ -128,6 +128,7 @@ pub struct BtdIntegratePlan<'a> {
     r: usize,
     sdim: usize,
     simd: SimdToken,
+    fast: Option<FastToken>,
 }
 
 impl std::fmt::Debug for BtdIntegratePlan<'_> {
@@ -168,7 +169,8 @@ impl BtdIntegratePlan<'_> {
         );
         let ids = &self.filter[first..first + n];
         fast::btd_integrate_serial(
-            self.simd, self.r, self.sdim, self.nn, ids, self.nq, self.bs, d, self.jac, out,
+            self.simd, self.fast, self.r, self.sdim, self.nn, ids, self.nq, self.bs, d, self.jac,
+            out,
         );
     }
 }
@@ -260,6 +262,7 @@ impl FeEngine {
                 r,
                 sdim,
                 simd: self.exec.simd_token(),
+                fast: self.exec.fast_token(),
             },
         )
     }

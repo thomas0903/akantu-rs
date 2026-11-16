@@ -27,7 +27,7 @@
 use akantu_core::eigen_gebp::{GEMV_BLOCKING_MIN_DEPTH, GemvMatrix, Order, Reduction, Route};
 use akantu_core::eigen_unrolled::{TREE_MAX, tree_sum_of};
 use akantu_core::exec::{
-    Exec, FmaTask, Lanes4, SimdTask, SimdToken, Tuples, TuplesRef, with_fma, with_simd,
+    Exec, FastToken, FmaTask, Lanes4, SimdTask, SimdToken, Tuples, TuplesRef, with_fma, with_simd,
 };
 use akantu_core::{Idx, Real, Result};
 
@@ -190,7 +190,7 @@ pub(super) struct Gradient<'a, E> {
 /// otherwise, for `nb_dof ∈ 1…3`.
 #[inline(always)]
 pub(super) fn run_gradient<E: LagrangeElement>(
-    fast: Option<akantu_core::exec::FastToken>,
+    fast: Option<FastToken>,
     simd: SimdToken,
     nb_dof: usize,
     g: Gradient<'_, E>,
@@ -470,6 +470,16 @@ fn db_column<const S: usize>(dcol: &[Lanes4; S], bj: &[Real]) -> Lanes4 {
     acc
 }
 
+/// FAST MODE (D-122): [`db_column`] as a chain of fused multiply-adds.
+#[inline(always)]
+fn db_column_fma<const S: usize>(dcol: &[Lanes4; S], bj: &[Real]) -> Lanes4 {
+    let mut acc = dcol[0] * Lanes4::splat(bj[0]);
+    for l in 1..S {
+        acc = dcol[l].mul_add(Lanes4::splat(bj[l]), acc);
+    }
+    acc
+}
+
 /// `D·B` of the points of a part, lanes over the `R` rows of `D`.
 struct LaneBtd<'a, const R: usize, const S: usize> {
     nn: usize,
@@ -551,10 +561,11 @@ pub(super) fn btd_integrate(
         TuplesRef::new(ds, nq * r * sdim),
         TuplesRef::new(ids, 1),
     );
-    let simd = exec.simd_token();
+    let (simd, fast) = (exec.simd_token(), exec.fast_token());
     exec.for_each(items, min, |_, (mut o, d, ids)| {
         run(
             simd,
+            fast,
             nn,
             ids.as_slice(),
             nq,
@@ -614,6 +625,7 @@ fn btd_integrate_kernel(r: usize, sdim: usize) -> Option<BtdIntegratePart> {
 #[allow(clippy::too_many_arguments)]
 pub(super) fn btd_integrate_serial(
     simd: SimdToken,
+    fast: Option<FastToken>,
     r: usize,
     sdim: usize,
     nn: usize,
@@ -625,17 +637,19 @@ pub(super) fn btd_integrate_serial(
     os: &mut [Real],
 ) {
     if let Some(run) = btd_integrate_kernel(r, sdim) {
-        run(simd, nn, ids, nq, bs, ds, jac, os);
+        run(simd, fast, nn, ids, nq, bs, ds, jac, os);
     }
 }
 
 /// One part of [`btd_integrate`].
-type BtdIntegratePart = fn(SimdToken, usize, &[Idx], usize, &[Real], &[Real], &[Real], &mut [Real]);
+type BtdIntegratePart =
+    fn(SimdToken, Option<FastToken>, usize, &[Idx], usize, &[Real], &[Real], &[Real], &mut [Real]);
 
 #[inline(never)] // as `btd_part`
 #[allow(clippy::too_many_arguments)]
 fn btd_integrate_part<const R: usize, const S: usize>(
     simd: SimdToken,
+    fast: Option<FastToken>,
     nn: usize,
     ids: &[Idx],
     nq: usize,
@@ -644,23 +658,40 @@ fn btd_integrate_part<const R: usize, const S: usize>(
     jac: &[Real],
     os: &mut [Real],
 ) {
-    with_simd(
-        simd,
-        LaneBtdIntegrate::<R, S> {
-            nn,
-            ids,
-            nq,
-            bs,
-            ds,
-            jac,
-            os,
-        },
-    );
+    match fast {
+        // FAST MODE (D-122): fused multiply-adds in D·B and in the
+        // integration, validated by `akantu-solid/tests/fast_mode_gradient.rs`
+        Some(t) => with_fma(
+            t,
+            LaneBtdIntegrate::<R, S, true> {
+                nn,
+                ids,
+                nq,
+                bs,
+                ds,
+                jac,
+                os,
+            },
+        ),
+        None => with_simd(
+            simd,
+            LaneBtdIntegrate::<R, S, false> {
+                nn,
+                ids,
+                nq,
+                bs,
+                ds,
+                jac,
+                os,
+            },
+        ),
+    }
 }
 
 /// [`btd_integrate`] of the elements of a part, lanes over the `R` rows of
-/// `D`.
-struct LaneBtdIntegrate<'a, const R: usize, const S: usize> {
+/// `D`. With `FMA` (fast mode only, through [`with_fma`]) the sums of
+/// `D·B` and the integration are chains of fused multiply-adds.
+struct LaneBtdIntegrate<'a, const R: usize, const S: usize, const FMA: bool> {
     nn: usize,
     ids: &'a [Idx],
     nq: usize,
@@ -670,7 +701,16 @@ struct LaneBtdIntegrate<'a, const R: usize, const S: usize> {
     os: &'a mut [Real],
 }
 
-impl<const R: usize, const S: usize> SimdTask for LaneBtdIntegrate<'_, R, S> {
+impl<const R: usize, const S: usize, const FMA: bool> FmaTask for LaneBtdIntegrate<'_, R, S, FMA> {
+    type Output = ();
+
+    #[inline(always)]
+    fn run(self) {
+        SimdTask::run(self);
+    }
+}
+
+impl<const R: usize, const S: usize, const FMA: bool> SimdTask for LaneBtdIntegrate<'_, R, S, FMA> {
     type Output = ();
 
     #[inline(always)]
@@ -701,7 +741,11 @@ impl<const R: usize, const S: usize> SimdTask for LaneBtdIntegrate<'_, R, S> {
                 let dcol = d_columns::<R, S>(d);
                 let jq = Lanes4::splat(jq);
                 for (cj, bj) in c.iter_mut().zip(b.chunks_exact(S)) {
-                    *cj = *cj + db_column(&dcol, bj) * jq;
+                    *cj = if FMA {
+                        db_column_fma(&dcol, bj).mul_add(jq, *cj)
+                    } else {
+                        *cj + db_column(&dcol, bj) * jq
+                    };
                 }
             }
             // res = 0 + c (zeroed destination)
@@ -783,10 +827,11 @@ pub(super) fn integrate<'j>(
     }
     let min = (4096 / (nq * nb_dof).max(1)).max(1);
     let items = (Tuples::new(o, nb_dof), TuplesRef::new(f, nq * nb_dof));
-    let simd = exec.simd_token();
+    let (simd, fast) = (exec.simd_token(), exec.fast_token());
     exec.for_each(items, min, |first, (mut o, f)| {
         integrate_part(
             simd,
+            fast,
             f.as_slice(),
             nb_dof,
             nq,
@@ -803,27 +848,41 @@ pub(super) fn integrate<'j>(
 #[inline(never)] // as `btd_part`
 fn integrate_part<'j>(
     simd: SimdToken,
+    fast: Option<FastToken>,
     f: &[Real],
     nb_dof: usize,
     nq: usize,
     jac: impl Fn(usize) -> &'j [Real],
     o: &mut [Real],
 ) {
-    with_simd(
-        simd,
-        LaneIntegrate {
-            f,
-            nb_dof,
-            nq,
-            jac,
-            o,
-        },
-    );
+    match fast {
+        // FAST MODE (D-122): the accumulation as fused multiply-adds
+        Some(t) => with_fma(
+            t,
+            LaneIntegrate::<_, true> {
+                f,
+                nb_dof,
+                nq,
+                jac,
+                o,
+            },
+        ),
+        None => with_simd(
+            simd,
+            LaneIntegrate::<_, false> {
+                f,
+                nb_dof,
+                nq,
+                jac,
+                o,
+            },
+        ),
+    }
 }
 
 /// [`integrate_part`]'s body: the accumulators of one element are
 /// independent lanes (one per component).
-struct LaneIntegrate<'a, J> {
+struct LaneIntegrate<'a, J, const FMA: bool> {
     f: &'a [Real],
     nb_dof: usize,
     nq: usize,
@@ -831,7 +890,16 @@ struct LaneIntegrate<'a, J> {
     o: &'a mut [Real],
 }
 
-impl<'a, 'j, J: Fn(usize) -> &'j [Real]> SimdTask for LaneIntegrate<'a, J> {
+impl<'j, J: Fn(usize) -> &'j [Real], const FMA: bool> FmaTask for LaneIntegrate<'_, J, FMA> {
+    type Output = ();
+
+    #[inline(always)]
+    fn run(self) {
+        SimdTask::run(self);
+    }
+}
+
+impl<'a, 'j, J: Fn(usize) -> &'j [Real], const FMA: bool> SimdTask for LaneIntegrate<'a, J, FMA> {
     type Output = ();
 
     #[inline(always)]
@@ -857,7 +925,11 @@ impl<'a, 'j, J: Fn(usize) -> &'j [Real]> SimdTask for LaneIntegrate<'a, J> {
             c.fill(0.0);
             for (col, &jl) in fe.chunks_exact(nb_dof).zip(j) {
                 for (ci, &fl) in c.iter_mut().zip(col) {
-                    *ci += fl * jl; // c = c + fl(f·J)
+                    if FMA {
+                        *ci = fl.mul_add(jl, *ci);
+                    } else {
+                        *ci += fl * jl; // c = c + fl(f·J)
+                    }
                 }
             }
             for (oi, &ci) in oe.iter_mut().zip(&c) {

@@ -23,7 +23,9 @@
 
 use akantu_core::eigen_gebp::{GEMV_BLOCKING_MIN_DEPTH, GemvMatrix, Order, Reduction, Route};
 use akantu_core::eigen_unrolled::{TREE_MAX, tree_sum, tree_sum_of};
-use akantu_core::exec::{Lanes4, SimdTask, SimdToken, Tuples, TuplesRef, with_simd};
+use akantu_core::exec::{
+    FastToken, FmaTask, Lanes4, SimdTask, SimdToken, Tuples, TuplesRef, with_fma, with_simd,
+};
 use akantu_core::voigt::VoigtTable;
 use akantu_core::{Idx, Real};
 use akantu_fe::eigen::{Dims, product_route};
@@ -228,10 +230,11 @@ pub(super) fn residuals_integrate(
         Tuples::new(out, s.bt),
     );
     let min = (2048 / s.nq).max(1);
-    let simd = exec.simd_token();
+    let (simd, fast) = (exec.simd_token(), exec.fast_token());
     exec.for_each(items, min, |_, (f, g, p, mut o)| {
         run(
             simd,
+            fast,
             s,
             table,
             dsh.data,
@@ -287,6 +290,7 @@ fn residual_integrate_kernel(dim: usize) -> Option<ResidualIntegratePart> {
 #[allow(clippy::too_many_arguments)]
 pub(super) fn residuals_integrate_serial(
     simd: SimdToken,
+    fast: Option<FastToken>,
     s: &Sizes,
     table: &VoigtTable,
     dsh: &[Real],
@@ -297,18 +301,29 @@ pub(super) fn residuals_integrate_serial(
     out: &mut [Real],
 ) {
     if let Some(run) = residual_integrate_kernel(s.dim) {
-        run(simd, s, table, dsh, jac, filter, gs, ps, out);
+        run(simd, fast, s, table, dsh, jac, filter, gs, ps, out);
     }
 }
 
 /// One part of [`residuals_integrate`].
-type ResidualIntegratePart =
-    fn(SimdToken, &Sizes, &VoigtTable, &[Real], &[Real], &[Idx], &[Real], &[Real], &mut [Real]);
+type ResidualIntegratePart = fn(
+    SimdToken,
+    Option<FastToken>,
+    &Sizes,
+    &VoigtTable,
+    &[Real],
+    &[Real],
+    &[Idx],
+    &[Real],
+    &[Real],
+    &mut [Real],
+);
 
 #[inline(never)] // a part: its slices are no-alias parameters
 #[allow(clippy::too_many_arguments)]
 fn residual_integrate_part<const D: usize, const TS: usize>(
     simd: SimdToken,
+    fast: Option<FastToken>,
     s: &Sizes,
     table: &VoigtTable,
     dsh: &[Real],
@@ -319,25 +334,43 @@ fn residual_integrate_part<const D: usize, const TS: usize>(
     out: &mut [Real],
 ) {
     let voigt: [(usize, usize); TS] = std::array::from_fn(|big_i| table.vec(big_i));
-    with_simd(
-        simd,
-        LaneResidualIntegrate::<D, TS> {
-            nn: s.nn,
-            nq: s.nq,
-            voigt,
-            dsh,
-            jac,
-            filter,
-            gs,
-            ps,
-            out,
-        },
-    );
+    match fast {
+        // FAST MODE (D-122): fused multiply-adds in B, in Bᵀ·S and in the
+        // integration, validated by `tests/fast_mode_gradient.rs`
+        Some(t) => with_fma(
+            t,
+            LaneResidualIntegrate::<D, TS, true> {
+                nn: s.nn,
+                nq: s.nq,
+                voigt,
+                dsh,
+                jac,
+                filter,
+                gs,
+                ps,
+                out,
+            },
+        ),
+        None => with_simd(
+            simd,
+            LaneResidualIntegrate::<D, TS, false> {
+                nn: s.nn,
+                nq: s.nq,
+                voigt,
+                dsh,
+                jac,
+                filter,
+                gs,
+                ps,
+                out,
+            },
+        ),
+    }
 }
 
 /// [`residuals_integrate`] of the elements of a part, lanes over the
 /// displacement component `k` of each node.
-struct LaneResidualIntegrate<'a, const D: usize, const TS: usize> {
+struct LaneResidualIntegrate<'a, const D: usize, const TS: usize, const FMA: bool> {
     nn: usize,
     nq: usize,
     voigt: [(usize, usize); TS],
@@ -349,7 +382,20 @@ struct LaneResidualIntegrate<'a, const D: usize, const TS: usize> {
     out: &'a mut [Real],
 }
 
-impl<const D: usize, const TS: usize> SimdTask for LaneResidualIntegrate<'_, D, TS> {
+impl<const D: usize, const TS: usize, const FMA: bool> FmaTask
+    for LaneResidualIntegrate<'_, D, TS, FMA>
+{
+    type Output = ();
+
+    #[inline(always)]
+    fn run(self) {
+        SimdTask::run(self);
+    }
+}
+
+impl<const D: usize, const TS: usize, const FMA: bool> SimdTask
+    for LaneResidualIntegrate<'_, D, TS, FMA>
+{
     type Output = ();
 
     #[inline(always)]
@@ -408,7 +454,11 @@ impl<const D: usize, const TS: usize> SimdTask for LaneResidualIntegrate<'_, D, 
                 let jq = Lanes4::splat(jq);
                 for (cg, dg) in c.iter_mut().zip(&dt).take(groups) {
                     for (k, ck) in cg.iter_mut().enumerate() {
-                        *ck = *ck + node_lanes::<D, TS>(k, dg, gu, &sv) * jq;
+                        *ck = if FMA {
+                            node_lanes_fma::<D, TS>(k, dg, gu, &sv).mul_add(jq, *ck)
+                        } else {
+                            *ck + node_lanes::<D, TS>(k, dg, gu, &sv) * jq
+                        };
                     }
                 }
             }
@@ -472,6 +522,51 @@ pub(super) fn node_lanes<const D: usize, const TS: usize>(
         p[big_i] = b[big_i] * sp(sv[big_i]);
     }
     tree_sum_of(&p, TS)
+}
+
+/// FAST MODE (D-122): [`node_lanes`] with fused multiply-adds: every
+/// `L0 + g·dN` and `(0 + g·dN) + g·dN` of `B` and the sum `Σ_I B(I)·S_I`
+/// (a chain in `I` order instead of the halving tree) round once per
+/// multiply-add.
+#[inline(always)]
+pub(super) fn node_lanes_fma<const D: usize, const TS: usize>(
+    k: usize,
+    d: &[Lanes4; D],
+    gu: &[Real],
+    sv: &[Real; TS],
+) -> Lanes4 {
+    let sp = Lanes4::splat;
+    let zero = sp(0.0);
+    let g = |j: usize| sp(gu[k + j * D]);
+    let mut b = [zero; TS];
+    match D {
+        1 => {
+            let dx = d[0];
+            b[0] = g(0).mul_add(dx, dx);
+        }
+        2 => {
+            let (dx, dy) = (d[0], d[1]);
+            let (g0, g1) = (g(0), g(1));
+            b[0] = g0.mul_add(dx, if k == 0 { dx } else { zero });
+            b[1] = g1.mul_add(dy, if k == 1 { dy } else { zero });
+            b[2] = g1.mul_add(dx, g0 * dy) + if k == 0 { dy } else { dx };
+        }
+        _ => {
+            let (dx, dy, dz) = (d[0], d[1], d[2]);
+            let (g0, g1, g2) = (g(0), g(1), g(2));
+            b[0] = g0.mul_add(dx, if k == 0 { dx } else { zero });
+            b[1] = g1.mul_add(dy, if k == 1 { dy } else { zero });
+            b[2] = g2.mul_add(dz, if k == 2 { dz } else { zero });
+            b[3] = g2.mul_add(dy, g1 * dz) + [zero, dz, dy][k];
+            b[4] = g2.mul_add(dx, g0 * dz) + [dz, zero, dx][k];
+            b[5] = g1.mul_add(dx, g0 * dy) + [dy, dx, zero][k];
+        }
+    }
+    let mut r = b[0] * sp(sv[0]);
+    for big_i in 1..TS {
+        r = b[big_i].mul_add(sp(sv[big_i]), r);
+    }
+    r
 }
 
 #[cfg(test)]
