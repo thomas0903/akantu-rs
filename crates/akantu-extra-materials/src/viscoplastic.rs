@@ -287,11 +287,12 @@ impl<const DIM: usize> Material for MaterialViscoPlastic<DIM> {
 
     fn compute_stress(
         &mut self,
-        _ctx: &LawContext<'_>,
+        ctx: &LawContext<'_>,
         ty: ElementType,
         ghost: GhostType,
     ) -> Result<()> {
         small_strain_only("visco_plastic", self.elastic.base().finite_deformation)?;
+        let exec = akantu_solid::material::points_exec(self, ctx);
         let n = DIM * DIM;
         let per_point = self.extra_options.viscoplastic_previous_state_per_point;
         let committed = self.extra_options.viscoplastic_committed_flow;
@@ -319,35 +320,75 @@ impl<const DIM: usize> Material for MaterialViscoPlastic<DIM> {
                 prev_iso.len(),
             ],
         )?;
-        for q in 0..nq {
-            let r = q * n..(q + 1) * n;
-            // UD-583: upstream reads the first point's previous stress and
-            // previous inelastic strain
-            let rp = if per_point { r.clone() } else { 0..n };
-            let g: &Matrix<DIM, DIM> = as_matrix(&grad_u.as_slice()[r.clone()])?;
-            let pg: &Matrix<DIM, DIM> = as_matrix(&prev_grad_u.as_slice()[r.clone()])?;
-            let ps: Matrix<DIM, DIM> = *as_matrix(&prev_sigma.as_slice()[rp.clone()])?;
-            let pe: &Matrix<DIM, DIM> = as_matrix(&prev_inel.as_slice()[rp])?;
-            let (sigma_in, r_in) = if committed {
-                // UD-583: the committed state of the point
-                (
-                    *as_matrix::<DIM, DIM>(&prev_sigma.as_slice()[r.clone()])?,
-                    prev_iso.as_slice()[q],
-                )
-            } else {
-                (
-                    *as_matrix::<DIM, DIM>(&sigma.as_slice()[r.clone()])?,
-                    iso.as_slice()[q],
-                )
-            };
-            let (delta, r_new) = self.flow(&sigma_in, r_in);
-            iso.as_mut_slice()[q] = r_new;
-            let grad_delta_u = g.sub(pg);
-            let (s_new, e_new) =
-                stress_and_inelastic_strain_on_quad(&constants, &grad_delta_u, &delta, &ps, pe, 0.);
-            sigma.as_mut_slice()[r.clone()].copy_from_slice(s_new.as_flattened());
-            inel.as_mut_slice()[r].copy_from_slice(e_new.as_flattened());
-        }
+        check_lengths(
+            "MaterialViscoPlastic::computeStress: components",
+            n,
+            &[
+                grad_u.nb_component(),
+                prev_grad_u.nb_component(),
+                sigma.nb_component(),
+                inel.nb_component(),
+            ],
+        )?;
+        // every point from its own values (copies of the blocks; the
+        // upstream mode's first-point previous state is read-only): parts on
+        // the model's threads (D-123); `first` = the part's first point
+        let (prev_sigma, prev_inel, prev_iso) = (
+            prev_sigma.as_slice(),
+            prev_inel.as_slice(),
+            prev_iso.as_slice(),
+        );
+        let items = (
+            akantu_core::exec::TuplesRef::new(grad_u.as_slice(), n),
+            akantu_core::exec::TuplesRef::new(prev_grad_u.as_slice(), n),
+            akantu_core::exec::Tuples::new(sigma.as_mut_slice(), n),
+            akantu_core::exec::Tuples::new(inel.as_mut_slice(), n),
+            akantu_core::exec::Tuples::new(iso.as_mut_slice(), 1),
+        );
+        let this = &*self;
+        exec.try_for_each(
+            items,
+            512,
+            |first, (g, pg, mut sigma, mut inel, mut iso)| {
+                let (sigma, inel, iso) = (
+                    sigma.as_mut_slice(),
+                    inel.as_mut_slice(),
+                    iso.as_mut_slice(),
+                );
+                for k in 0..iso.len() {
+                    let q = first + k;
+                    let r = k * n..(k + 1) * n;
+                    let rq = q * n..(q + 1) * n;
+                    // UD-583: upstream reads the first point's previous stress
+                    // and previous inelastic strain
+                    let rp = if per_point { rq.clone() } else { 0..n };
+                    let g: &Matrix<DIM, DIM> = as_matrix(&g.as_slice()[r.clone()])?;
+                    let pg: &Matrix<DIM, DIM> = as_matrix(&pg.as_slice()[r.clone()])?;
+                    let ps: Matrix<DIM, DIM> = *as_matrix(&prev_sigma[rp.clone()])?;
+                    let pe: &Matrix<DIM, DIM> = as_matrix(&prev_inel[rp])?;
+                    let (sigma_in, r_in) = if committed {
+                        // UD-583: the committed state of the point
+                        (*as_matrix::<DIM, DIM>(&prev_sigma[rq])?, prev_iso[q])
+                    } else {
+                        (*as_matrix::<DIM, DIM>(&sigma[r.clone()])?, iso[k])
+                    };
+                    let (delta, r_new) = this.flow(&sigma_in, r_in);
+                    iso[k] = r_new;
+                    let grad_delta_u = g.sub(pg);
+                    let (s_new, e_new) = stress_and_inelastic_strain_on_quad(
+                        &constants,
+                        &grad_delta_u,
+                        &delta,
+                        &ps,
+                        pe,
+                        0.,
+                    );
+                    sigma[r.clone()].copy_from_slice(s_new.as_flattened());
+                    inel[r].copy_from_slice(e_new.as_flattened());
+                }
+                Ok(())
+            },
+        )?;
         self.elastic
             .base_mut()
             .stress
@@ -362,6 +403,15 @@ impl<const DIM: usize> Material for MaterialViscoPlastic<DIM> {
             .get_mut(ty, ghost)?
             .copy_from(&iso)?;
         Ok(())
+    }
+
+    /// A point's flow and return read only that point's gradients, stress,
+    /// inelastic strain and hardening (copies of the blocks, written back
+    /// after the loop) and the law's constants; in the upstream mode
+    /// (UD-583) every point also reads the first point's previous stress
+    /// and inelastic strain, history values that the loop does not write.
+    fn independent_points(&self) -> bool {
+        true
     }
 
     fn compute_tangent_moduli(

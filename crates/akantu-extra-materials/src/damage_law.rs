@@ -106,6 +106,10 @@ macro_rules! impl_damage_law {
                 self.stress_impl(ctx, ty, ghost)
             }
 
+            fn independent_points(&self) -> bool {
+                self.points_are_independent()
+            }
+
             fn compute_tangent_moduli(
                 &mut self,
                 _ctx: &akantu_model::constitutive_law::LawContext<'_>,
