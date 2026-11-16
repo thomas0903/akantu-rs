@@ -844,3 +844,49 @@ fn mazars_law_is_bitwise_for_every_thread_count() {
 fn mazars_error_path_is_bitwise_for_every_thread_count() {
     check_law_error(&MAZARS, "eig: no convergence");
 }
+
+const NEOHOOKEAN: LawCase = LawCase {
+    name: "neohookean",
+    dat: |_| {
+        "material neohookean [\n  name = body\n  rho = 2500\n  E = 70e9\n  nu = 0.3\n]\n".into()
+    },
+    amp: 2e-2,
+    steps: 6,
+    active: "grad_u",
+};
+
+/// Plane stress in 2-D (the `C33` solve before the stress), plain in 3-D.
+const NEOHOOKEAN_PLANE_STRESS: LawCase = LawCase {
+    name: "neohookean, plane stress",
+    dat: |dim| {
+        let ps = if dim == 2 {
+            "  Plane_Stress = true\n"
+        } else {
+            ""
+        };
+        format!(
+            "material neohookean [\n  name = body\n  rho = 2500\n  E = 70e9\n  nu = 0.3\n{ps}]\n"
+        )
+    },
+    amp: 2e-2,
+    steps: 6,
+    active: "grad_u",
+};
+
+#[test]
+fn neohookean_law_is_bitwise_for_every_thread_count() {
+    check_law(&NEOHOOKEAN);
+    check_law(&NEOHOOKEAN_PLANE_STRESS);
+}
+
+#[test]
+fn neohookean_error_path_is_bitwise_for_every_thread_count() {
+    check_law_error(&NEOHOOKEAN, "is not positive");
+}
+
+/// In 2-D the plane-stress `C33` solve fails first (its points before the
+/// failing one keep their new `C33`); in 3-D the stress loop.
+#[test]
+fn neohookean_plane_stress_error_path_is_bitwise_for_every_thread_count() {
+    check_law_error(&NEOHOOKEAN_PLANE_STRESS, "neohookean");
+}

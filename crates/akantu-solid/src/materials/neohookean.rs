@@ -86,8 +86,8 @@ struct Kinematics<const D: usize> {
 fn kinematics<const D: usize>(grad_u: &Matrix<D, D>, c33: Real) -> Result<Kinematics<D>> {
     let f = grad_u_to_f(grad_u);
     let c = right_cauchy(&f);
-    let j = f.det() * c33.sqrt();
-    if !(j.is_finite() && j > 0.) {
+    let j = jacobian(&f, c33);
+    if !jacobian_is_valid(j) {
         return Err(Error::Numerical(format!(
             "neohookean: J = det(F)·√C33 = {j} is not positive (inverted element)"
         )));
@@ -98,6 +98,49 @@ fn kinematics<const D: usize>(grad_u: &Matrix<D, D>, c33: Real) -> Result<Kinema
         ln_j: glibc_libm::log(j),
     })
 }
+
+/// `J = det F·√C33`.
+fn jacobian<const D: usize>(f: &Matrix<D, D>, c33: Real) -> Real {
+    f.det() * c33.sqrt()
+}
+
+/// The condition under which [`kinematics`] accepts `J`.
+fn jacobian_is_valid(j: Real) -> bool {
+    j.is_finite() && j > 0.
+}
+
+/// Index of the first point of `grad_u` (tuples of `D²`) whose `J` is
+/// refused by [`kinematics`] (the first point at which the stress loop
+/// fails), `grad_u.len() / D²` when none: a read-only pass on `exec`'s
+/// threads, the same predicate on the same values as the kernel.
+fn first_invalid_jacobian<const D: usize>(
+    exec: &akantu_core::exec::Exec,
+    grad_u: &[Real],
+    c33: &[Real],
+) -> usize {
+    use std::sync::atomic::{AtomicUsize, Ordering};
+    let n = D * D;
+    let nq = c33.len();
+    let first = AtomicUsize::new(nq);
+    let items = (
+        akantu_core::exec::TuplesRef::new(&grad_u[..nq * n], n),
+        akantu_core::exec::TuplesRef::new(c33, 1),
+    );
+    exec.for_each(items, POINTS_PER_PART, |start, (g, c)| {
+        for (k, (g, &x)) in g.as_slice().chunks_exact(n).zip(c.as_slice()).enumerate() {
+            let valid =
+                as_matrix::<D, D>(g).is_ok_and(|g| jacobian_is_valid(jacobian(&grad_u_to_f(g), x)));
+            if !valid {
+                first.fetch_min(start + k, Ordering::Relaxed);
+                break;
+            }
+        }
+    });
+    first.into_inner()
+}
+
+/// Smallest part of the threaded point loops.
+const POINTS_PER_PART: usize = 512;
 
 /// The documented second Piola–Kirchhoff stress `S = μI + (λ ln J − μ)C⁻¹`
 /// of one point (upstream `computeStressOnQuad`, Eigen order:
@@ -541,10 +584,11 @@ impl<const DIM: usize> Material for MaterialNeohookean<DIM> {
 
     fn compute_stress(
         &mut self,
-        _ctx: &LawContext<'_>,
+        ctx: &LawContext<'_>,
         ty: ElementType,
         ghost: GhostType,
     ) -> Result<()> {
+        let exec = crate::material::points_exec(self, ctx);
         if self.upstream_mode() {
             return Err(Error::NotImplemented(
                 "computeStress : not implemented yet !",
@@ -567,10 +611,37 @@ impl<const DIM: usize> Material for MaterialNeohookean<DIM> {
                     got: c33.len(),
                 });
             }
-            for (g, x) in grad_u.as_slice().chunks_exact(n).zip(c33.as_mut_slice()) {
-                let g: &Matrix<2, 2> = as_matrix(g)?;
-                *x = solve_c33(lambda, mu, g, *x)?;
-            }
+            // every point from its own gradient and stored C33, into a
+            // copy on the model's threads; the field takes the values of
+            // the points before the first failing one (those the serial
+            // loop writes before it stops), all of them without a failure
+            let mut new = c33.as_slice().to_vec();
+            let failed = std::sync::atomic::AtomicUsize::new(nq);
+            let items = (
+                akantu_core::exec::TuplesRef::new(grad_u.as_slice(), n),
+                akantu_core::exec::Tuples::new(&mut new, 1),
+            );
+            let r = exec.try_for_each(items, POINTS_PER_PART, |start, (g, mut x)| {
+                for (k, (g, x)) in g
+                    .as_slice()
+                    .chunks_exact(n)
+                    .zip(x.as_mut_slice())
+                    .enumerate()
+                {
+                    let g: &Matrix<2, 2> = as_matrix(g)?;
+                    match solve_c33(lambda, mu, g, *x) {
+                        Ok(v) => *x = v,
+                        Err(e) => {
+                            failed.fetch_min(start + k, std::sync::atomic::Ordering::Relaxed);
+                            return Err(e);
+                        }
+                    }
+                }
+                Ok(())
+            });
+            let done = failed.into_inner();
+            c33.as_mut_slice()[..done].copy_from_slice(&new[..done]);
+            r?;
         }
         let c33 = self.c33_values(ty, ghost, nq)?;
         let mut sigma = self.base.sigma_field_mut()?.get_mut(ty, ghost)?;
@@ -581,17 +652,52 @@ impl<const DIM: usize> Material for MaterialNeohookean<DIM> {
                 got: sigma.len(),
             });
         }
-        for ((g, s), &x) in grad_u
-            .as_slice()
-            .chunks_exact(n)
-            .zip(sigma.as_mut_slice().chunks_exact_mut(n))
-            .zip(&c33)
-        {
-            let g: &Matrix<DIM, DIM> = as_matrix(g)?;
-            let s: &mut Matrix<DIM, DIM> = as_matrix_mut(s)?;
-            *s = neohookean_stress(lambda, mu, g, x)?;
+        if grad_u.nb_component() != n || sigma.nb_component() != n {
+            return Err(Error::DimensionMismatch {
+                context: "MaterialNeohookean::computeStress: components",
+                expected: n,
+                got: sigma.nb_component(),
+            });
         }
-        Ok(())
+        let stress_part = |g: &[Real], s: &mut [Real], c33: &[Real]| -> Result<()> {
+            for ((g, s), &x) in g.chunks_exact(n).zip(s.chunks_exact_mut(n)).zip(c33) {
+                let g: &Matrix<DIM, DIM> = as_matrix(g)?;
+                let s: &mut Matrix<DIM, DIM> = as_matrix_mut(s)?;
+                *s = neohookean_stress(lambda, mu, g, x)?;
+            }
+            Ok(())
+        };
+        // The serial loop stops at the first point with J ≤ 0 and leaves
+        // the later points unchanged. Split over threads, the points before
+        // the first such point (found by a read-only pass with the kernel's
+        // predicate) run on the threads, the rest serially, which fails at
+        // its first point: the same error and the same state for every
+        // thread count. One part: the serial loop alone.
+        let (g_all, s_all) = (grad_u.as_slice(), sigma.as_mut_slice());
+        let split = if exec.nb_parts(nq, POINTS_PER_PART) > 1 {
+            first_invalid_jacobian::<DIM>(exec, g_all, &c33)
+        } else {
+            0
+        };
+        if split > 0 {
+            let items = (
+                akantu_core::exec::TuplesRef::new(&g_all[..split * n], n),
+                akantu_core::exec::Tuples::new(&mut s_all[..split * n], n),
+                akantu_core::exec::TuplesRef::new(&c33[..split], 1),
+            );
+            exec.try_for_each(items, POINTS_PER_PART, |_, (g, mut s, c)| {
+                stress_part(g.as_slice(), s.as_mut_slice(), c.as_slice())
+            })?;
+        }
+        stress_part(&g_all[split * n..], &mut s_all[split * n..], &c33[split..])
+    }
+
+    /// A point's stress (and its plane-stress `C33`) reads only that
+    /// point's gradient and stored `C33` and the Lamé constants. The first
+    /// point with `J ≤ 0` (or without a `C33`) ends the loop with the error
+    /// and the state of the serial loop (see `compute_stress`).
+    fn independent_points(&self) -> bool {
+        true
     }
 
     fn compute_tangent_moduli(
