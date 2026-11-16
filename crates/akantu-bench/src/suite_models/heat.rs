@@ -145,7 +145,7 @@ fn explicit(run: &mut Run, cell: Cell, n: usize, steps: usize) -> Result<Digest>
 
 fn explicit_tet4(run: &mut Run) -> Result<Digest> {
     let s = run.size();
-    explicit(run, Cell::Tet4, s.pick(6, 36, 72), s.pick(10, 400, 400))
+    explicit(run, Cell::Tet4, s.pick(6, 36, 72), s.pick(10, 100, 100))
 }
 
 fn explicit_quad4(run: &mut Run) -> Result<Digest> {

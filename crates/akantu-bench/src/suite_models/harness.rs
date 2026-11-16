@@ -197,9 +197,14 @@ impl Run {
         calls: usize,
         mut f: impl FnMut(usize) -> Result<()>,
     ) -> Result<()> {
+        let tw = Instant::now();
         for i in 0..3 {
             f(i)?;
         }
+        self.note(&format!(
+            "{name}: warm-up {:.6} s per call",
+            tw.elapsed().as_secs_f64() / 3.0
+        ));
         let t0 = Instant::now();
         let mut done = 0;
         let min = self.opts.loop_seconds.unwrap_or(0.0);
@@ -223,6 +228,7 @@ impl Run {
     }
 
     fn push(&mut self, name: &str, calls: usize, seconds: f64) {
+        self.note(&format!("{name}: {calls} calls, {seconds:.6} s"));
         if let Some(p) = self.phases.iter_mut().find(|p| p.name == name) {
             p.calls += calls;
             p.seconds += seconds;
