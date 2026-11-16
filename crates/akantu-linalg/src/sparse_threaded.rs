@@ -16,7 +16,7 @@
 //!   zeroing, Dirichlet rows): every entry is an independent output.
 //! * Matrix-vector product ([`SparseMatrixAij::mat_vec_mul_with`]): rows are
 //!   independent outputs once each row's terms are listed in storage order
-//!   ([`RowGather`]); every row adds them in that order, as the serial pass
+//!   (`RowGather`); every row adds them in that order, as the serial pass
 //!   over the entries does.
 
 use std::sync::{Arc, Mutex};
@@ -529,7 +529,7 @@ impl SparseMatrixAij {
     /// `exec`: on a layout whose global and local equations coincide, every
     /// row adds its terms (direct entries of the row and, for symmetric
     /// storage, the mirrors of the entries of its column) in storage order
-    /// ([`RowGather`]), the order of the serial pass over the entries, so
+    /// (`RowGather`), the order of the serial pass over the entries, so
     /// each row gets the bits of the serial product. Other layouts and
     /// small matrices run the serial product.
     #[allow(clippy::too_many_arguments)] // `mat_vec_mul` + the executor
