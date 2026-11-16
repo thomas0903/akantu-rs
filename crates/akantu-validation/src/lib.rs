@@ -27,6 +27,7 @@
 //! * [`regression`]: persisting failing inputs as new cases;
 //! * [`solver`]: solver acceptance: the port's own stopping decision
 //!   against the solver rule recorded in a fixture;
+//! * [`fast_mode`]: the fast mode against the bitwise default (D-123);
 //! * [`verified`]: reuse of upstream `.verified` text outputs;
 //! * [`writer`]: writing fixtures from Rust.
 //!
@@ -42,6 +43,7 @@ pub mod checksum;
 pub mod compare;
 pub mod error;
 pub mod exact;
+pub mod fast_mode;
 pub mod fixture;
 pub mod harness;
 pub mod manifest;

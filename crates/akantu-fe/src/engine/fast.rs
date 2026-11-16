@@ -26,7 +26,7 @@
 
 use akantu_core::eigen_gebp::{GEMV_BLOCKING_MIN_DEPTH, GemvMatrix, Order, Reduction, Route};
 use akantu_core::eigen_unrolled::{TREE_MAX, seq_sum, tree_sum};
-use akantu_core::exec::{Exec, Tuples, TuplesRef};
+use akantu_core::exec::{Exec, FmaTask, Precision, Tuples, TuplesRef, with_fma};
 use akantu_core::{Real, Result};
 
 use super::Block;
@@ -69,6 +69,28 @@ pub(super) fn gradient<E: LagrangeElement>(
     // parts of at least ~2048 quadrature points (tens of microseconds)
     let min = (2048 / nq.max(1)).max(1);
     let items = (Tuples::new(out, nq * nb_dof * nd), TuplesRef::new(ids, 1));
+    if exec.precision() == Precision::Fast {
+        // FAST MODE (D-122): the FMA demonstrator, validated against this
+        // kernel by `tests/fast_mode_gradient.rs`
+        let token = exec.simd_token();
+        return Some(exec.try_for_each(items, min, |_, (mut o, ids)| {
+            let (o, ids) = (o.as_mut_slice(), ids.as_slice());
+            match nb_dof {
+                1 => with_fma(
+                    token,
+                    FmaGradient::<E, 1>::new(block, u, dshapes, nq, ids, o),
+                ),
+                2 => with_fma(
+                    token,
+                    FmaGradient::<E, 2>::new(block, u, dshapes, nq, ids, o),
+                ),
+                _ => with_fma(
+                    token,
+                    FmaGradient::<E, 3>::new(block, u, dshapes, nq, ids, o),
+                ),
+            }
+        }));
+    }
     Some(exec.try_for_each(items, min, |_, (mut o, ids)| {
         let (o, ids) = (o.as_mut_slice(), ids.as_slice());
         match nb_dof {
@@ -77,6 +99,93 @@ pub(super) fn gradient<E: LagrangeElement>(
             _ => gradient_impl::<E, 3>(block, u, dshapes, nq, ids, o),
         }
     }))
+}
+
+/// FAST MODE (D-122), the demonstrator of the fast-mode harness (D-123):
+/// `∇u = U·Bᵀ` with each entry `Σ_l U(i, l)·B(j, l)` evaluated as a chain of
+/// fused multiply-adds in the order `l = 0, 1, …` (one rounding per step
+/// instead of a rounded product and the halving tree of
+/// [`gradient_impl`]). Not bitwise the default path; its difference is
+/// bounded by the rule of `fixtures/fast_mode/fe/tolerances.json`.
+struct FmaGradient<'a, 'b, E, const NBD: usize> {
+    block: &'a Block<'b>,
+    u: &'a [Real],
+    dshapes: &'a [Real],
+    nq: usize,
+    ids: &'a [usize],
+    out: &'a mut [Real],
+    element: std::marker::PhantomData<E>,
+}
+
+impl<'a, 'b, E, const NBD: usize> FmaGradient<'a, 'b, E, NBD> {
+    fn new(
+        block: &'a Block<'b>,
+        u: &'a [Real],
+        dshapes: &'a [Real],
+        nq: usize,
+        ids: &'a [usize],
+        out: &'a mut [Real],
+    ) -> Self {
+        Self {
+            block,
+            u,
+            dshapes,
+            nq,
+            ids,
+            out,
+            element: std::marker::PhantomData,
+        }
+    }
+}
+
+impl<E: LagrangeElement, const NBD: usize> FmaTask for FmaGradient<'_, '_, E, NBD> {
+    type Output = Result<()>;
+
+    #[inline(always)]
+    fn run(self) -> Result<()> {
+        let Self {
+            block,
+            u,
+            dshapes,
+            nq,
+            ids,
+            out,
+            ..
+        } = self;
+        let nd = E::NATURAL_DIM;
+        let nn = E::NB_SHAPES;
+        let bsz = nd * nn;
+        let tsz = NBD * nd;
+        let mut ue = [[0.0; NBD]; TREE_MAX];
+        for (pos, &e) in ids.iter().enumerate() {
+            for (n, ue_n) in ue.iter_mut().enumerate().take(nn) {
+                let node = block.node(e, n)?;
+                let Some(src) = u.get(node * NBD..(node + 1) * NBD) else {
+                    return Err(akantu_core::Error::OutOfRange {
+                        what: "nodal field node",
+                        index: node,
+                        len: u.len() / NBD,
+                    });
+                };
+                ue_n.copy_from_slice(src);
+            }
+            for q in 0..nq {
+                let b = &dshapes[(e * nq + q) * bsz..(e * nq + q + 1) * bsz];
+                let t = pos * nq + q;
+                let g = &mut out[t * tsz..(t + 1) * tsz];
+                for j in 0..nd {
+                    for i in 0..NBD {
+                        let mut acc = ue[0][i] * b[j];
+                        for l in 1..nn {
+                            acc = ue[l][i].mul_add(b[j + l * nd], acc);
+                        }
+                        g[i + j * NBD] = acc;
+                    }
+                }
+            }
+        }
+        Ok(())
+    }
 }
 
 #[inline(always)]

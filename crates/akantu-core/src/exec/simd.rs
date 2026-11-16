@@ -45,9 +45,10 @@ use crate::types::Real;
 pub enum SimdLevel {
     /// Portable scalar code (the compiler's baseline target).
     Scalar,
-    /// x86-64 AVX2 (256-bit vectors).
+    /// x86-64 AVX2 with FMA3 (256-bit vectors; every AVX2 processor of
+    /// Intel and AMD has both).
     Avx2,
-    /// x86-64 AVX-512F (512-bit vectors).
+    /// x86-64 AVX-512F (512-bit vectors), with AVX2 and FMA3.
     Avx512,
     /// aarch64 Advanced SIMD (128-bit vectors).
     Neon,
@@ -74,9 +75,14 @@ impl SimdLevel {
         match self {
             Self::Scalar => true,
             #[cfg(target_arch = "x86_64")]
-            Self::Avx2 => std::arch::is_x86_feature_detected!("avx2"),
+            Self::Avx2 => {
+                std::arch::is_x86_feature_detected!("avx2")
+                    && std::arch::is_x86_feature_detected!("fma")
+            }
             #[cfg(target_arch = "x86_64")]
-            Self::Avx512 => std::arch::is_x86_feature_detected!("avx512f"),
+            Self::Avx512 => {
+                std::arch::is_x86_feature_detected!("avx512f") && Self::Avx2.is_supported()
+            }
             #[cfg(target_arch = "aarch64")]
             Self::Neon => std::arch::is_aarch64_feature_detected!("neon"),
             #[allow(unreachable_patterns)] // the levels of the other architecture
@@ -149,6 +155,40 @@ impl SimdToken {
     pub const fn level(self) -> SimdLevel {
         self.0
     }
+}
+
+/// A computation that [`with_fma`] runs with fused multiply-add
+/// instructions enabled. Its `run` must be `#[inline(always)]` (and every
+/// function it calls in its hot loop), so that it is compiled inside the
+/// FMA-enabled entry point.
+pub trait FmaTask {
+    /// Result.
+    type Output;
+    /// The computation.
+    fn run(self) -> Self::Output;
+}
+
+/// Fast mode only (D-122): run `task` compiled with the FMA instructions of
+/// `token`'s level when it has them (`Avx2`, `Avx512`; every aarch64
+/// processor has them in its baseline), so that `f64::mul_add` in it is one
+/// instruction instead of a library call. Without FMA (`Scalar`) the task
+/// runs as compiled for the baseline (`mul_add` stays fused, but slower).
+pub fn with_fma<T: FmaTask>(token: SimdToken, task: T) -> T::Output {
+    match token.level() {
+        #[cfg(target_arch = "x86_64")]
+        SimdLevel::Avx2 | SimdLevel::Avx512 => {
+            // SAFETY: a token of `Avx2` or `Avx512` exists only when the CPU
+            // reports avx2 and fma (`SimdLevel::is_supported`).
+            unsafe { run_with_fma(task) }
+        }
+        _ => task.run(),
+    }
+}
+
+#[cfg(target_arch = "x86_64")]
+#[target_feature(enable = "avx2,fma")]
+unsafe fn run_with_fma<T: FmaTask>(task: T) -> T::Output {
+    task.run()
 }
 
 /// Example of the convention: `out[i] += a · x[i]` (the product rounded,
@@ -322,6 +362,29 @@ mod tests {
                     }
                 }
             }
+        }
+    }
+
+    struct Fused(Real, Real, Real);
+    impl FmaTask for Fused {
+        type Output = Real;
+        #[inline(always)]
+        fn run(self) -> Real {
+            self.0.mul_add(self.1, self.2)
+        }
+    }
+
+    #[test]
+    fn fma_tasks_are_fused_at_every_level() {
+        // (1 + 2⁻³⁰)² − 1 rounded once keeps the 2⁻⁶⁰ term
+        let x = 1.0 + (2.0 as Real).powi(-30);
+        let exact = (2.0 as Real).powi(-29) + (2.0 as Real).powi(-60);
+        for level in SimdLevel::supported() {
+            assert_eq!(
+                with_fma(level.token().unwrap(), Fused(x, x, -1.0)),
+                exact,
+                "{level:?}"
+            );
         }
     }
 

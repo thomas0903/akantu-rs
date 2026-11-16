@@ -3,13 +3,14 @@
 `src/lib.rs` has `#![deny(unsafe_code)]`. The only module that allows it is
 `src/exec/simd.rs` (D-123): the example kernel of the SIMD dispatch
 convention, whose `#[target_feature]` versions are `unsafe fn`s called from
-one dispatch point. Every site is listed below (`scripts/unsafe_inventory.py
+one dispatch point, and the FMA entry point of fast-mode kernels
+(`with_fma`). Every site is listed below (`scripts/unsafe_inventory.py
 --check`, run by `cargo test -p akantu-validation --test unsafe_inventory`;
 `--update-lines` after an edit that only moves code). Each row is pinned to
 a fingerprint of its site's code in `UNSAFE.fingerprints`.
 
-**Counts**: `unsafe fn` 3, block 6 (on one architecture at a time: x86-64
-compiles the AVX2 and AVX-512 sites, aarch64 the NEON sites).
+**Counts**: `unsafe fn` 4, block 7 (on one architecture at a time: x86-64
+compiles the AVX2, AVX-512 and FMA sites, aarch64 the NEON sites).
 
 ## Site table
 
@@ -21,15 +22,17 @@ when the CPU reports the level's target feature (`SimdLevel::token` and
 
 | Id | Line | Site | What it does | Invariant (its `SAFETY:` comment) | Established by | Test |
 |---|---|---|---|---|---|---|
-| CO-01 | 168 | `fn scaled_add` block 1 | calls the AVX-512F version | CPU has avx512f; equal lengths | `SimdToken` constructors; `assert_eq!` of the lengths | `exec::simd::tests::every_level_gives_the_scalar_bits` |
-| CO-02 | 174 | `fn scaled_add` block 2 | calls the AVX2 version | CPU has avx2; equal lengths | as CO-01 | as CO-01 |
-| CO-03 | 180 | `fn scaled_add` block 3 | calls the NEON version | CPU has neon; equal lengths | as CO-01 | as CO-01 (aarch64) |
-| CO-04 | 196 | `fn scaled_add_avx2` fn 1 | `#[target_feature(enable = "avx2")]` version | caller guarantees avx2 | CO-02 | as CO-01 |
-| CO-05 | 207 | `fn scaled_add_avx2` block 1 | unaligned 4-wide loads, multiply, add, store | `i + 4 ≤ len` of both slices | loop bound `body = n − n % 4`, `n = min(len)` | as CO-01 |
-| CO-06 | 219 | `fn scaled_add_avx512` fn 1 | `#[target_feature(enable = "avx512f")]` version | caller guarantees avx512f | CO-01 | as CO-01 |
-| CO-07 | 230 | `fn scaled_add_avx512` block 1 | unaligned 8-wide loads, multiply, add, store | `i + 8 ≤ len` of both slices | loop bound `body = n − n % 8` | as CO-01 |
-| CO-08 | 242 | `fn scaled_add_neon` fn 1 | `#[target_feature(enable = "neon")]` version | caller guarantees neon | CO-03 | as CO-01 (aarch64) |
-| CO-09 | 252 | `fn scaled_add_neon` block 1 | 2-wide loads, multiply, add, store | `i + 2 ≤ len` of both slices | loop bound `body = n − n % 2` | as CO-01 (aarch64) |
+| CO-01 | 208 | `fn scaled_add` block 1 | calls the AVX-512F version | CPU has avx512f; equal lengths | `SimdToken` constructors; `assert_eq!` of the lengths | `exec::simd::tests::every_level_gives_the_scalar_bits` |
+| CO-02 | 214 | `fn scaled_add` block 2 | calls the AVX2 version | CPU has avx2; equal lengths | as CO-01 | as CO-01 |
+| CO-03 | 220 | `fn scaled_add` block 3 | calls the NEON version | CPU has neon; equal lengths | as CO-01 | as CO-01 (aarch64) |
+| CO-04 | 236 | `fn scaled_add_avx2` fn 1 | `#[target_feature(enable = "avx2")]` version | caller guarantees avx2 | CO-02 | as CO-01 |
+| CO-05 | 247 | `fn scaled_add_avx2` block 1 | unaligned 4-wide loads, multiply, add, store | `i + 4 ≤ len` of both slices | loop bound `body = n − n % 4`, `n = min(len)` | as CO-01 |
+| CO-06 | 259 | `fn scaled_add_avx512` fn 1 | `#[target_feature(enable = "avx512f")]` version | caller guarantees avx512f | CO-01 | as CO-01 |
+| CO-07 | 270 | `fn scaled_add_avx512` block 1 | unaligned 8-wide loads, multiply, add, store | `i + 8 ≤ len` of both slices | loop bound `body = n − n % 8` | as CO-01 |
+| CO-08 | 282 | `fn scaled_add_neon` fn 1 | `#[target_feature(enable = "neon")]` version | caller guarantees neon | CO-03 | as CO-01 (aarch64) |
+| CO-09 | 292 | `fn scaled_add_neon` block 1 | 2-wide loads, multiply, add, store | `i + 2 ≤ len` of both slices | loop bound `body = n − n % 2` | as CO-01 (aarch64) |
+| CO-10 | 182 | `fn with_fma` block 1 | calls the FMA-enabled entry point | CPU has avx2 and fma | `SimdToken` constructors (`Avx2` and `Avx512` require both) | `exec::simd::tests::fma_tasks_are_fused_at_every_level` |
+| CO-11 | 190 | `fn run_with_fma` fn 1 | `#[target_feature(enable = "avx2,fma")]` entry point that runs a task inlined into it | caller guarantees avx2 and fma | CO-10 | as CO-10 |
 
 ## Guarantees the `unsafe` code of other crates relies on
 
