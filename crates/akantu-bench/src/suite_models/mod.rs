@@ -3,7 +3,7 @@
 // performance campaign (no upstream counterpart).
 
 //! Benchmark suite of the models other than plain solid mechanics and
-//! cohesive elements (`docs/briefs/perf/SUITE.md`): heat transfer, phase
+//! cohesive elements (crate README, "Benchmark suite"): heat transfer, phase
 //! field, contact, structural mechanics, embedded interfaces, IGFEM,
 //! node-to-node contact and the geometry queries. Every case builds its
 //! mesh in code, times its phases and hashes its results.

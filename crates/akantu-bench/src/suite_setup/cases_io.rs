@@ -284,7 +284,6 @@ pub fn py_twin_explicit_tri3(ctx: &Ctx) -> Result<CaseOut> {
     let mut d = Digest::new();
     d.reals(model.displacement()?.as_slice());
     d.reals(model.velocity()?.as_slice());
-    out.digest = d.value();
     let (ne, nn, nd) = (out.n_elements, out.n_nodes, out.n_dofs);
     let mut tiny_out = CaseOut::default();
     let mut tiny = tri3_model(4, &mut tiny_out)?;
@@ -294,6 +293,10 @@ pub fn py_twin_explicit_tri3(ctx: &Ctx) -> Result<CaseOut> {
         ctx.size.pick(20, 300_000, 300_000),
         || tiny.solve_step(None),
     )?;
+    // the tiny model's state too (the Python twin hashes the same arrays)
+    d.reals(tiny.displacement()?.as_slice());
+    d.reals(tiny.velocity()?.as_slice());
+    out.digest = d.value();
     (out.n_elements, out.n_nodes, out.n_dofs) = (ne, nn, nd);
     Ok(out)
 }

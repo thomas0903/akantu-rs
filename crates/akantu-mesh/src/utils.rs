@@ -1180,11 +1180,22 @@ pub fn check_facet_mesh_consistency(mesh: &Mesh) -> Result<()> {
             f.nb_element(ty, g)
         }
     };
+    // block size of the last block looked up (the references of a block
+    // mostly designate one block; the mesh does not change during the check)
+    let last = std::cell::Cell::new(None::<(ElementType, GhostType, usize)>);
     let check_ref = |owner: &str, e: Element| -> Result<()> {
         if e.is_null() {
             return Ok(());
         }
-        let n = count(e.ty(), e.ghost_type());
+        let (ty, g) = (e.ty(), e.ghost_type());
+        let n = match last.get() {
+            Some((t, gg, n)) if t == ty && gg == g => n,
+            _ => {
+                let n = count(ty, g);
+                last.set(Some((ty, g, n)));
+                n
+            }
+        };
         if e.idx() < n {
             Ok(())
         } else {

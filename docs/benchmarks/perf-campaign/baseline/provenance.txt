@@ -20,3 +20,29 @@ Oracle image: oracle/docker/Dockerfile built on the machine
   under oracle/docker/ were not changed (the image was tagged, not promoted).
 Reference: 35a851780d0b9471d258ed53a003ae98aaa95ea0 (git bundle of the local
   reference checkout with its tags; git describe --tags v5.0.7-post1-554-g35a851780).
+Oracle installs (Docker volume akantu-oracle-build), built with
+  oracle/scripts/configure-build.sh (configure) and oracle-build-chunked.sh
+  (ninja -j2 in 20-minute chunks of the installed targets: akantu,
+  py11_akantu, gtest, gtest_main; upstream's test and example executables
+  were not built), then configure-build.sh --install-only and
+  finalize-install.sh (C++ consumer and Python smoke tests; READY names
+  scripts commit 6932fa1e). Build trees, source copies and ccache deleted
+  afterwards (15.5 GB); installs 1.3 GB each.
+  install-strict: CMAKE_CXX_FLAGS -ffp-contract=off -DEIGEN_DONT_VECTORIZE
+    -DEIGEN_NO_CPUID -DEIGEN_DEFAULT_L1_CACHE_SIZE=16384
+    -DEIGEN_DEFAULT_L2_CACHE_SIZE=524288 -DEIGEN_DEFAULT_L3_CACHE_SIZE=524288
+    (D-050 pins; no cpuid and no FMA instruction in libakantu.so.5.0.7),
+    libakantu.so.5.0.7 sha256 554ecfc7838d8c8aa3955f37f2efb556a7f09426083b74af262ffdcccff657ff
+  install-default: the same without -ffp-contract=off -DEIGEN_DONT_VECTORIZE,
+    libakantu.so.5.0.7 sha256 a8588519ac04e773d06da29d9f977bdda53cba67ce6ed489398c1dafeccd6847
+  Image environment: OPENBLAS_CORETYPE=Haswell OPENBLAS_NUM_THREADS=1 OMP_NUM_THREADS=1.
+C++ harnesses:
+  explicit_step_timing_strict  sha256 2d2bf33e9d6bd183a022f48bed0694cc92137fc2e20edda045ba6a18ed340991
+  explicit_step_timing_default sha256 df8af9fc59df03b54aea2578adc3a3b5e207421b2d80a69ae2e515733718e15d
+    (the same digest prefixes as the binaries of docs/benchmarks/explicit-step/final/digests.txt)
+  cohesive_extrinsic strict  (benchmarks/cohesive-perf, volume akantu-perf-cohesive /perf/builds/strict)
+    sha256 5b85f3108cb666b4e2ebad6f0eac9b508bce2bfff4ed31bf153444b9be2472b7, sparse_solver_auto=mumps
+  cohesive_extrinsic default sha256 404ee8c0a3256e400f6046b6bc84515ade81f6b13aca6657ea11a45776eb59d3
+Pinning: serial runs taskset / docker --cpuset-cpus core 2 inside the
+  machine's timing cores 0-3 (other agents' builds on cores 4-7 at the same
+  time); the scaling series in exclusive jobs, ranks on cores 0..N-1.

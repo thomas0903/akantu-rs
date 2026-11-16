@@ -1,0 +1,30 @@
+# Flat profiles (self time, perf record -F 1999 / -F 199, no usable call graph) of the
+# driver at the branch point 59dd2229 on the measurement machine (AMD EPYC 9R14),
+# h = 0.12 frozen mesh, core 3, 2026-11-16 05:05-05:10 UTC. Shares of all samples.
+## 500 steps with the static preload (no insertion)
+34.31%  akantu_linalg::eigen_sparse_lu::dense::sparselu_gemm          (static solve)
+21.05%  akantu_core::eigen_gebp::product_into<product_slices closures> (facet stress interpolation)
+ 8.56%  SolidMechanicsModelCohesive::interpolate_stress                (copy plan)
+ 7.36%  Linear::check_insertion
+ 3.46%  eigen_sparse_lu::kernels::panel_bmod                           (static solve)
+ 2.42%  finite_deformation::fast::residuals                            (explicit step)
+## full schedule, 5000 steps (insertions from step 710, 11,736 cohesive elements at the end)
+24.63%  akantu_core::eigen_gebp::product_into<product_slices closures>
+14.41%  SolidMechanicsModelCohesive::interpolate_stress
+ 9.16%  Linear::check_insertion
+ 4.92%  akantu_mesh::utils::check_facet_mesh_consistency::{closure#3}
+ 3.76%  eigen_sparse_lu::dense::sparselu_gemm
+ 3.37%  akantu_mesh::utils::check_facet_mesh_consistency
+ 2.68%  finite_deformation::fast::residuals
+ 2.52%  stable quicksort of (usize, usize) in sort_by_destination
+ 2.34%  eigen_order::redux_tree<eval_product<product_slices closures>>
+ 2.33%  akantu_fe::eigen::product_slices
+ 2.06%  material_tensor::s_to_cauchy<3>
+ 1.95%  DofManager::assemble_elemental_array_local_view
+ 1.72%  akantu_core::eigen_gebp::route
+ 1.39%  fast::gradient<Tetrahedron4>
+ 1.19%  unstable quicksort of i32 (mesh)
+ 1.16%  fast::integrate
+ 1.12%  small_sort of (usize, usize) in sort_by_destination
+ 0.68%  InserterHelper::find_elements_around_subfacet
+ 0.40%  GroupManager::rebuild_element_group_nodes

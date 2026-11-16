@@ -129,7 +129,8 @@ fn frame_model(
     let mut model = StructuralMechanicsModel::new(SharedMesh::new(mesh), None, "structural")?;
     model.set_extra_normals(ElementType::BernoulliBeam3, &normals)?;
     model.add_material(beam_material(), "")?;
-    run.once("init", || model.init_full_with(method))?;
+    let options = super::common::eigen_options(run, method);
+    run.once("init", || model.init_full(&options))?;
     let top = n as Real;
     {
         let mut b = model.blocked_dofs_mut()?;
@@ -231,7 +232,8 @@ fn plate_static(run: &mut Run) -> Result<Digest> {
         },
         "",
     )?;
-    run.once("init", || model.init_full_with(AnalysisMethod::Static))?;
+    let options = super::common::eigen_options(run, AnalysisMethod::Static);
+    run.once("init", || model.init_full(&options))?;
     {
         let mut b = model.blocked_dofs_mut()?;
         let b = b.as_mut_slice();
