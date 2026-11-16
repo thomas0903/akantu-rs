@@ -66,6 +66,7 @@ def bar_inputs(upstream_dir):
 
 STATE_SCRIPT = r"""
 import hashlib, sys
+import numpy as np
 import akantu as aka
 aka.parseInput("material_exec.dat")
 mesh = aka.Mesh(2)
