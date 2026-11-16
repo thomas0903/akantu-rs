@@ -76,8 +76,23 @@
 //! detects cycles exactly: a reference to a parameter whose value is being
 //! evaluated can only recurse forever, so it is a hard error with
 //! [`ConversionError::is_cyclic_reference`] (category A).
+//!
+//! Variable values are cached per evaluation: upstream parses a variable's
+//! value again at every reference, so a chain in which each parameter refers
+//! twice to the previous one costs 2^k parses. The port stores the value of
+//! each variable after its first successful evaluation and reuses it for the
+//! later references of the same top-level evaluation. The value bits are the
+//! same (the expression functions are deterministic, and a value is always
+//! evaluated with the X3 grammar in the scope that defines it), and so are
+//! the errors: only successes are stored, and an evaluation stops at its
+//! first error. A parameter that is being evaluated is never in the cache
+//! (it is stored when its evaluation completes), so the cycle check sees the
+//! same references; and a variable whose evaluation succeeded once cannot
+//! reach a parameter that is active at a later reference (that parameter
+//! would have reached the variable, a cycle the first evaluation would have
+//! reported).
 
-use std::collections::HashSet;
+use std::collections::{HashMap, HashSet};
 use std::fmt;
 
 use crate::cmath::{BINARY, Binary, CONSTANTS, UNARY, Unary};
@@ -819,6 +834,10 @@ struct Eval<'x> {
     /// Parameters whose value is being evaluated (by address): a reference
     /// to one of them is a cycle.
     active: HashSet<*const ParserParameter>,
+    /// Values of the variables already evaluated successfully in this
+    /// evaluation (by address of the parameter, which also fixes the scope
+    /// that defines it).
+    cache: HashMap<*const ParserParameter, f64>,
     /// Context of an error unwinding through variable references, innermost
     /// first.
     wraps: Vec<String>,
@@ -838,6 +857,7 @@ impl<'x> Eval<'x> {
                 scope,
             },
             active: HashSet::new(),
+            cache: HashMap::new(),
             wraps: Vec::new(),
         }
     }
@@ -1099,6 +1119,9 @@ impl<'x> Eval<'x> {
                 start,
             ))));
         };
+        if let Some(&v) = self.cache.get(&std::ptr::from_ref(param)) {
+            return Some(Step::Return(Ok(Some(v))));
+        }
         if !self.active.insert(std::ptr::from_ref(param)) {
             return Some(Step::Return(Err(ConversionError {
                 cyclic: true,
@@ -1188,7 +1211,10 @@ impl<'x> Eval<'x> {
             self.ctx = outer;
             self.active.remove(&std::ptr::from_ref(param));
             return Step::Return(match r {
-                Ok(v) => Ok(Some(v)),
+                Ok(v) => {
+                    self.cache.insert(std::ptr::from_ref(param), v);
+                    Ok(Some(v))
+                }
                 Err(e) => {
                     self.wraps
                         .push(format!("in variable '{}' = '{}'", param.name, param.value));
@@ -1684,6 +1710,65 @@ mod tests {
         assert!(eval_random(b"10 uniform [0.2, ]", sc).is_err());
         assert!(eval_random(b"10 uniform [0.2 0.5]", sc).is_err());
         assert!(eval_random(b"10 normalx [1, 2]", sc).is_err());
+    }
+
+    /// A section `a0 = 1`, `a<i> = a<i-1> + a<i-1>`, plus `extra` lines.
+    fn chain(k: usize, extra: &[(&str, &str)]) -> ParserSection {
+        let mut s = ParserSection::new(ParserType::Global, "global");
+        s.parameters.push(ParserParameter::new("a0", "1"));
+        for i in 1..k {
+            let v = format!("a{} + a{}", i - 1, i - 1);
+            s.parameters
+                .push(ParserParameter::new(format!("a{i}").as_str(), v.as_str()));
+        }
+        for &(n, v) in extra {
+            s.parameters.push(ParserParameter::new(n, v));
+        }
+        s
+    }
+
+    #[test]
+    fn doubling_chain_is_linear() {
+        // Without the per-evaluation cache this is 2^200 parses.
+        let s = chain(200, &[]);
+        let sc = ScopeRef::Section(&s);
+        let v = eval_real(b"a199", sc).unwrap();
+        assert_eq!(v.to_bits(), 2f64.powi(199).to_bits());
+        let v = eval_vector(b"[a199, a198 * 2, a0]", sc).unwrap();
+        assert_eq!(v, vec![2f64.powi(199), 2f64.powi(199), 1.0]);
+    }
+
+    #[test]
+    fn cache_keeps_errors_and_cycles() {
+        // An error below a cached variable: the same message as without a
+        // cache (the error comes from the first failing reference).
+        let s = chain(5, &[("bad", "a4 + a3 + 1 +"), ("top", "a4 * bad")]);
+        let sc = ScopeRef::Section(&s);
+        let e = eval_real(b"top", sc).unwrap_err();
+        assert!(e.is_hard() && !e.is_cyclic_reference(), "{e:?}");
+        assert_eq!(
+            e.message(),
+            "in variable 'top' = 'a4 * bad': in variable 'bad' = 'a4 + a3 + 1 +': \
+             expecting a term at 'a4 + a3 + 1 +<HERE>'"
+        );
+        // A cycle reached through a diamond: `x` refers twice to `y`, `y`
+        // to `z`, `z` back to `x`. The cycle is reported at the first
+        // reference, with the same chain of contexts.
+        let s = chain(2, &[("x", "y + y"), ("y", "z * 2"), ("z", "a1 + x")]);
+        let sc = ScopeRef::Section(&s);
+        let e = eval_real(b"x", sc).unwrap_err();
+        assert!(e.is_hard() && e.is_cyclic_reference(), "{e:?}");
+        assert_eq!(
+            e.message(),
+            "in variable 'x' = 'y + y': in variable 'y' = 'z * 2': \
+             in variable 'z' = 'a1 + x': cyclic variable reference: the value of 'x' \
+             depends on itself (at 'a1 + x<HERE>')"
+        );
+        // A variable used again after an error-free first use at another
+        // depth: same value.
+        let s = chain(3, &[("p", "a2 + q"), ("q", "a2 * a1")]);
+        let sc = ScopeRef::Section(&s);
+        assert_eq!(eval_real(b"p + q + a2", sc).unwrap(), 4.0 + 8.0 + 8.0 + 4.0);
     }
 
     #[test]
