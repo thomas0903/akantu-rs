@@ -970,7 +970,7 @@ Table "Build configurations, paired ratio to the release profile":
   explicit step 6–10 % slower on tet4, thin LTO changes nothing, and fat
   LTO gains 2–5 % only in the insertion check, the static solve and the
   mesh set-up. The clean build of the three timing binaries takes 1.3×
-  (thin LTO, one codegen unit) to 2.5× (fat LTO) as long. The workspace
+  (thin LTO or one codegen unit) to 2.5× (fat LTO) as long. The workspace
   profile stays as it is.
 - `x86-64-v3` and `znver4` take 0.96–0.98 of the explicit-step time and
   0.98 of the cohesive driver's wall time, but 1.03–1.05 of the facet

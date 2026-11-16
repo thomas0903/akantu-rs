@@ -14,8 +14,8 @@ CPU". Tooling: `scripts/perf/build/`.
   fat LTO make the explicit step 6–10 % slower on tet4. Thin LTO is
   within ±1.5 % everywhere. Fat LTO without one codegen unit gains 2–5 %
   in the insertion check, the static solve and the mesh set-up. The
-  clean build takes 1.3× (one codegen unit, thin LTO) to 2.4× (fat LTO)
-  as long. `Cargo.toml` keeps its profile.
+  clean build takes 1.3× (one codegen unit or thin LTO), 1.7× (both) and
+  2.3–2.5× (fat LTO) as long. `Cargo.toml` keeps its profile.
 - **Target CPU: bitwise at every level; `x86-64-v3` / `native` gain
   2–4 %, `x86-64-v4` loses up to 37 %.** The CI `test` and `release`
   tiers pass built with `x86-64-v2`, `-v3`, `-v4` and `znver4`; every
@@ -65,7 +65,9 @@ paired ratios variant / base (`summarize.py`). A ratio whose range
 contains 1 is "no measurable change". Builds running on the other four
 cores share the memory system and the L3 cache with the timed process:
 absolute times of different series are not compared, only the paired
-ratios within a series.
+ratios within a series. The first repetition of series 1 ran before the
+machine's wrappers took their present form (06:40 UTC), when a timing
+job had the whole machine to itself.
 
 Cases (`series.sh`):
 
@@ -178,7 +180,6 @@ File size with `debug = 1`, and the `.text` section.
 | fat | 220, 215 | 2.47, 2.33 | 49.1 / 6.60 | 62.2 / 8.24 | 0.79 | 2.13, 2.23 |
 | thin+cgu1 | 153, 157 | 1.71, 1.70 | 50.3 / 6.55 | 64.4 / 8.29 | 0.82 | 3.34, 3.01 |
 | fat+cgu1 | 220, 210 | 2.47, 2.27 | 46.7 / 6.20 | 59.5 / 7.80 | 0.77 | 2.23, 1.34 |
-{"variant":"thin","build_s":106.5,"rustflags":"","lto":"thin","cgu":"","panic":"","load":"5.61 6.06 3.62","utc":"2026-11-16T06:25:42Z","commit":"72ebd0629","explicit_bytes":59563400,"explicit_text":7181254,"cohesive_bytes":76826264,"cohesive_text":9117958,"facet_bytes":9314088,"facet_text":914336}
 
 PGO costs an instrumented build, the training runs (about 3 minutes on
 the sandbox for the second set) and a second build.
@@ -193,9 +194,9 @@ lowering of operations whose IEEE 754 result is not unique. Four checks:
    untracked `.cargo/config.toml` in a scratch clone sets the rustflags or
    the release-profile settings; `ci/run-all.sh --backend docker` in the
    project image; boat.dev sandbox, AMD EPYC 4585PX (Zen 5), 2026-11-16).
-   The `test` tier is the whole workspace test suite (3,769 tests in 462 binaries and 27 doc-test crates, the
-   oracle replays and bitwise fixtures included, debug profile with the
-   rustflags); the `release` tier is the optimised-build runs (cohesive,
+   The `test` tier is the whole workspace test suite (3,769 tests in 462
+   test binaries and 27 doc-test crates, the oracle replays and bitwise
+   fixtures included, dev profile with the rustflags); the `release` tier is the optimised-build runs (cohesive,
    linalg, solid implicit dynamics, core and parser, dumpers, the facade
    examples).
 
