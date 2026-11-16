@@ -15,6 +15,7 @@
 pub mod drivers;
 pub mod my_model;
 pub mod oracle;
+pub mod release;
 
 use std::collections::BTreeMap;
 use std::sync::{Arc, Mutex};

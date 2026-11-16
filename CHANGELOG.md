@@ -56,6 +56,35 @@ change of default results or of a public API raises the minor version.
   shape_derivatives_product, shape_derivatives_with}`.
 - `akantu_core::eigen_order::{redux_tree_recursive, TREE_LEVELS_MAX}`;
   `akantu_core::eigen_gebp::route` is a `const fn`.
+- Sparse assembly without per-entry hashing, bitwise equal to the former
+  code: `akantu_linalg::sparse::BlockPositionCache` and
+  `SparseMatrixAij::add_values_cached` (entry positions per element
+  block, stored from the second assembly with unchanged positions),
+  `SparseMatrixAij::{add_block_to_profile_and_values, would_promote}`
+  (profile and first values in one pass), `EquationLayout::{try_local,
+  is_identity}`, the module `akantu_linalg::int_hash` (a deterministic
+  hasher for integer keys), `DofManager::{set_assembly_cache,
+  assembly_cache_bytes}`, and the `LinearSystemBackend` methods
+  `begin_cached_assembly`, `add_values_cached`,
+  `can_fuse_profile_and_values` and `add_block_to_profile_and_values`
+  (default implementations forward to the former methods).
+
+- Release of the static solver's memory, off unless called (upstream
+  keeps the factors): `SolidMechanicsModel::release_static_solver`
+  (Python `SolidMechanicsModel.releaseStaticSolver`), built on
+  `DofManager::{release_factorization, release_matrix,
+  release_matrix_values}`, `LinearSystemBackend::{release_factorization,
+  release_matrix_storage, release_matrix_values}` (PETSc: not supported),
+  `SparseDirectSolver::release_factorization` (MUMPS: the collective
+  `destroy`) and `SparseMatrixAij::{release_storage, release_values,
+  is_released}`. Freed: the factors, `J`, `K`'s values and lookup map;
+  kept: `K`'s coordinates and profile, so a later solve assembles,
+  analyses and factorises again with the results of a run without the
+  release, bit for bit. The cohesive
+  benchmark driver uses it after the static preload with
+  `rust_release_static_solver = true` (default false) and records
+  `rss_after_release`. Manual: "Solver configuration", "Releasing the
+  static solver's memory".
 - `akantu_model::InternalField::prepare_overwrite` and
   `InternalField::commit_overwrite`: a caller that rewrites a whole block
   of an internal field announces it, or commits a block it computed
@@ -102,6 +131,11 @@ change of default results or of a public API raises the minor version.
   element's point matrices as they are computed instead of materialising
   all of them first (memory `nq·(nb_dof·nn)²` instead of
   `ne·nq·(nb_dof·nn)²` reals; 35 k `_tetrahedron_10` needed 4.4 GB).
+- `DofManager::assemble_elemental_matrices_to_matrix` keeps the entry
+  positions of each element (4 bytes per assembled entry and per element
+  equation, e.g. 360 bytes per `Tetrahedron4` element of a 3-D solid)
+  from the second assembly into an unchanged profile on;
+  `DofManager::set_assembly_cache(false)` turns this off.
 - The explicit step of the solid model repeats less work, with bitwise
   identical results:
   - `InternalField::save_current_values` defers the copy of a block whose
