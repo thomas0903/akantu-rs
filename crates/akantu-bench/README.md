@@ -17,7 +17,7 @@ all; this section is the contract every suite follows:
 ```text
 suite_<area> --list
 suite_<area> --case <name>[,<name>...]|all --size s|m|l [--reps N] [--out FILE]
-             [--loop-seconds S] [--threads N]
+             [--loop-seconds S] [--threads N] [--grain finest|auto]
 ```
 
 - `--size s`: every case under about a second (the crate's test runs each
@@ -27,7 +27,14 @@ suite_<area> --case <name>[,<name>...]|all --size s|m|l [--reps N] [--out FILE]
   and model, so the digest does not depend on `N`.
 - `--loop-seconds S`: the case's main loop runs for at least `S` seconds
   (for `perf record`); the digest then describes that longer run.
-- `--threads N`: recorded only (the library has no threads yet).
+- `--threads N`, `--grain finest|auto`: the thread count and split grain
+  of the process default execution policy, set before any model is
+  created (`akantu_bench::suite::apply_exec_options`); every model of the
+  run uses them. Without them the environment decides
+  (`AKANTU_NUM_THREADS`, `AKANTU_EXEC_GRAIN`; defaults 1 and `auto`). A
+  value given both ways must agree (otherwise the binary stops with an
+  error naming both). The JSON lines record the count and grain in force.
+  Pin a threaded run to as many cores (`taskset -c 0-(N-1)`).
 - MPI cases take their rank count from `mpirun -n`; the binary must be built
   with the `mpi` feature. A case that cannot run in the build or at the
   rank count (a missing feature, a serial-only case at P > 1) prints
@@ -39,12 +46,12 @@ standard output or appended to `--out`:
 ```json
 {"suite":"solid","case":"explicit_tet4_ss","size":"m","rep":0,"phase":"solve_step",
  "calls":200,"seconds":2.1,"n_elements":162000,"n_nodes":29791,"n_dofs":89373,
- "ranks":1,"threads":1,"digest":"9f3c…","commit":"f81a63c8c","features":"",
+ "ranks":1,"threads":1,"grain":"auto","digest":"9f3c…","commit":"f81a63c8c","features":"",
  "profile":"release"}
 ```
 
 Fields: `suite`, `case`, `size`, `rep`, `phase`, `calls`, `seconds`,
-`n_elements`, `n_nodes`, `n_dofs`, `ranks`, `threads`, `digest`, `commit`
+`n_elements`, `n_nodes`, `n_dofs`, `ranks`, `threads`, `grain`, `digest`, `commit`
 (the commit at build time, from `build.rs`), `features`; `suite_solid`
 adds `profile`. Set-up phases (`mesh`, `init`, ...) are timed once
 (`calls` = 1); loop phases are totals over `calls`, after three untimed
