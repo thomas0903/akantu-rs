@@ -187,19 +187,59 @@ fn branch_voigt(t: &VoigtTable, tuple: &[Real], k: usize) -> [Real; VMAX] {
 
 /// Coefficient-based product `(s·M)·x` of a fixed `v × v` matrix and a
 /// fixed vector: per row the halving-tree sum of `(s·M(I, k))·x(k)`.
+/// The Voigt sizes of the law (1, 3, 6) are dispatched to
+/// [`scaled_matvec_n`], where the size is a constant and the tree is
+/// straight-line code (same terms, same tree).
+#[inline(always)]
 fn scaled_matvec(v: usize, s: Real, m: &Voigt, x: &[Real; VMAX]) -> [Real; VMAX] {
+    match v {
+        1 => scaled_matvec_n::<1>(s, m, x),
+        3 => scaled_matvec_n::<3>(s, m, x),
+        6 => scaled_matvec_n::<6>(s, m, x),
+        _ => {
+            let mut out = [0.0; VMAX];
+            for (big_i, o) in out.iter_mut().enumerate().take(v) {
+                *o = eo::product_coeff(v, true, &|k| (s * m[big_i][k]) * x[k]);
+            }
+            out
+        }
+    }
+}
+
+/// [`scaled_matvec`] of the constant size `V`.
+#[inline(always)]
+fn scaled_matvec_n<const V: usize>(s: Real, m: &Voigt, x: &[Real; VMAX]) -> [Real; VMAX] {
     let mut out = [0.0; VMAX];
-    for (big_i, o) in out.iter_mut().enumerate().take(v) {
-        *o = eo::product_coeff(v, true, &|k| (s * m[big_i][k]) * x[k]);
+    for (big_i, o) in out.iter_mut().enumerate().take(V) {
+        *o = eo::product_coeff(V, true, &|k| (s * m[big_i][k]) * x[k]);
     }
     out
 }
 
-/// Coefficient-based product `M·x` (no scaling).
+/// Coefficient-based product `M·x` (no scaling), sizes as
+/// [`scaled_matvec`].
+#[inline(always)]
 fn matvec(v: usize, m: &Voigt, x: &[Real; VMAX]) -> [Real; VMAX] {
+    match v {
+        1 => matvec_n::<1>(m, x),
+        3 => matvec_n::<3>(m, x),
+        6 => matvec_n::<6>(m, x),
+        _ => {
+            let mut out = [0.0; VMAX];
+            for (big_i, o) in out.iter_mut().enumerate().take(v) {
+                *o = eo::product_coeff(v, true, &|k| m[big_i][k] * x[k]);
+            }
+            out
+        }
+    }
+}
+
+/// [`matvec`] of the constant size `V`.
+#[inline(always)]
+fn matvec_n<const V: usize>(m: &Voigt, x: &[Real; VMAX]) -> [Real; VMAX] {
     let mut out = [0.0; VMAX];
-    for (big_i, o) in out.iter_mut().enumerate().take(v) {
-        *o = eo::product_coeff(v, true, &|k| m[big_i][k] * x[k]);
+    for (big_i, o) in out.iter_mut().enumerate().take(V) {
+        *o = eo::product_coeff(V, true, &|k| m[big_i][k] * x[k]);
     }
     out
 }
@@ -390,6 +430,15 @@ impl<const DIM: usize> MaterialViscoelasticMaxwell<DIM> {
         (exp_dt_lambda, e_additional)
     }
 
+    /// [`Self::branch_factors`] of every branch for the time step `dt`
+    /// (the same values for every point of a block: computed once per
+    /// block instead of once per point).
+    fn all_branch_factors(&self, dt: Real) -> Vec<(Real, Real)> {
+        (0..self.nb_branches())
+            .map(|k| self.branch_factors(k, dt))
+            .collect()
+    }
+
     /// The thermal domain of the corrected law
     /// (UD-327): without a checked thermo-viscoelastic formulation, thermal
     /// expansion is refused unless [`MaxwellThermal::Upstream`] is selected.
@@ -422,7 +471,7 @@ impl<const DIM: usize> MaterialViscoelasticMaxwell<DIM> {
     /// Upstream `computeStressOnQuad` for one point.
     fn stress_on_quad(
         &self,
-        dt: Real,
+        factors: &[(Real, Real)],
         grad_u: &Matrix<DIM, DIM>,
         previous_grad_u: &Matrix<DIM, DIM>,
         sigma_v: &[Real],
@@ -438,8 +487,7 @@ impl<const DIM: usize> MaterialViscoelasticMaxwell<DIM> {
             delta[i] = cur[i] - prev[i];
         }
         let stress = matvec(v, &self.c, &delta);
-        for k in 0..self.nb_branches() {
-            let (e, e_add) = self.branch_factors(k, dt);
+        for (k, &(e, e_add)) in factors.iter().enumerate() {
             let sv = branch_voigt(t, sigma_v, k);
             for i in 0..v {
                 voigt_stress[i] += e_add * stress[i] + e * sv[i];
@@ -484,7 +532,7 @@ impl<const DIM: usize> MaterialViscoelasticMaxwell<DIM> {
     fn update_int_var_on_quad(
         &self,
         mode: MaxwellUpdate,
-        dt: Real,
+        factors: &[(Real, Real)],
         grad_u: &Matrix<DIM, DIM>,
         previous_grad_u: &Matrix<DIM, DIM>,
         sigma_v: &mut [Real],
@@ -510,7 +558,7 @@ impl<const DIM: usize> MaterialViscoelasticMaxwell<DIM> {
             let sv = branch_voigt(t, sigma_v, k);
             let (q, eps) = match (mode, delta) {
                 (MaxwellUpdate::Recurrence, Some(stress)) => {
-                    let (e, e_add) = self.branch_factors(k, dt);
+                    let (e, e_add) = factors[k];
                     let mut q = [0.0; VMAX];
                     for i in 0..v {
                         q[i] = e_add * stress[i] + e * sv[i];
@@ -548,6 +596,7 @@ impl<const DIM: usize> MaterialViscoelasticMaxwell<DIM> {
         let mode = self.elastic.options.maxwell_update;
         let n = DIM * DIM;
         let nb = self.nb_branches();
+        let factors = self.all_branch_factors(dt);
         for ty in self
             .elastic
             .base()
@@ -577,7 +626,7 @@ impl<const DIM: usize> MaterialViscoelasticMaxwell<DIM> {
                     &mut sv.as_mut_slice()[q * n * nb..(q + 1) * n * nb],
                     &mut ev.as_mut_slice()[q * n * nb..(q + 1) * n * nb],
                 );
-                self.update_int_var_on_quad(mode, dt, g, pg, svs, evs);
+                self.update_int_var_on_quad(mode, &factors, g, pg, svs, evs);
             }
             self.sigma_v
                 .as_mut()
@@ -883,12 +932,13 @@ impl<const DIM: usize> Material for MaterialViscoelasticMaxwell<DIM> {
                 got: prev.len().min(sv.len()).min(th.len()),
             });
         }
+        let factors = self.all_branch_factors(dt);
         let mut out = Vec::with_capacity(nq * n);
         for q in 0..nq {
             let g: &Matrix<DIM, DIM> = as_matrix(&grad_u.as_slice()[q * n..(q + 1) * n])?;
             let pg: &Matrix<DIM, DIM> = as_matrix(&prev.as_slice()[q * n..(q + 1) * n])?;
             let s = self.stress_on_quad(
-                dt,
+                &factors,
                 g,
                 pg,
                 &sv.as_slice()[q * n * nb..(q + 1) * n * nb],
@@ -1118,6 +1168,56 @@ pub fn register(factory: &mut MaterialFactory) -> Result<()> {
 #[cfg(test)]
 mod tests {
     use super::*;
+
+    /// The constant-size products against the general product with a
+    /// run-time size, bit for bit (D-046 rule; payload NaNs exact).
+    #[test]
+    fn constant_size_matvec_matches_the_general_product_bitwise() {
+        use akantu_core::bitwise_testing::{Values, same};
+        let general = |v: usize, s: Option<Real>, m: &Voigt, x: &[Real; VMAX]| {
+            let v = std::hint::black_box(v);
+            let mut out = [0.0; VMAX];
+            for (i, o) in out.iter_mut().enumerate().take(v) {
+                *o = match s {
+                    Some(s) => eo::product_coeff(v, true, &|k| (s * m[i][k]) * x[k]),
+                    None => eo::product_coeff(v, true, &|k| m[i][k] * x[k]),
+                };
+            }
+            out
+        };
+        let mut vals = Values::new(0x003a_8e11);
+        for round in 0..30_000 {
+            let payload = round % 5 == 4;
+            if payload {
+                let k = 1 + vals.next_u64() % 43;
+                vals.payload_at(k);
+            }
+            let mut m = [[0.0; VMAX]; VMAX];
+            for row in &mut m {
+                vals.fill(row);
+            }
+            let mut x = [0.0; VMAX];
+            vals.fill(&mut x);
+            let s = vals.draw();
+            vals.default_mode();
+            for v in [1, 3, 6] {
+                let pairs = [
+                    (scaled_matvec(v, s, &m, &x), general(v, Some(s), &m, &x)),
+                    (matvec(v, &m, &x), general(v, None, &m, &x)),
+                ];
+                for (a, b) in pairs {
+                    for i in 0..VMAX {
+                        let ok = if payload {
+                            a[i].to_bits() == b[i].to_bits()
+                        } else {
+                            same(a[i], b[i])
+                        };
+                        assert!(ok, "v={v} i={i}: {:e} {:e}", a[i], b[i]);
+                    }
+                }
+            }
+        }
+    }
 
     /// The corrected compliance is the inverse of the stiffness in every
     /// dimension (2-D plane strain included); upstream's `D` is not in 2-D.

@@ -534,18 +534,21 @@ trait InverseImpl: Sized {
 
 impl<const N: usize> InverseImpl for Matrix<N, N> {
     fn inverse_impl(&self) -> (Self, bool) {
-        let mut out = vec![0.0; N * N];
-        let singular = if N <= 4 {
-            let m = |i: usize, j: usize| self[j][i];
-            closed_form_inverse(N, &m, &mut out) == 0.0
-        } else {
-            let mut a = self.as_flattened().to_vec();
-            lu::inverse(&mut a, N, &mut out)
-        };
         let mut inv = [[0.0; N]; N];
-        for (j, col) in inv.iter_mut().enumerate() {
-            col.copy_from_slice(&out[j * N..(j + 1) * N]);
-        }
+        let singular = if N <= 4 {
+            // the closed forms write into the result directly (no heap
+            // buffer per call)
+            let m = |i: usize, j: usize| self[j][i];
+            closed_form_inverse(N, &m, inv.as_flattened_mut()) == 0.0
+        } else {
+            let mut out = vec![0.0; N * N];
+            let mut a = self.as_flattened().to_vec();
+            let singular = lu::inverse(&mut a, N, &mut out);
+            for (j, col) in inv.iter_mut().enumerate() {
+                col.copy_from_slice(&out[j * N..(j + 1) * N]);
+            }
+            singular
+        };
         (inv, singular)
     }
 }
