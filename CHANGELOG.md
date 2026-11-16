@@ -32,6 +32,17 @@ change of default results or of a public API raises the minor version.
   writes `chrono_rank<r>.csv` (the phase times of every rank) and, for the
   cohesive model, `insertion_stats_rank<r>.csv` (the split of the
   insertion check) on every rank.
+- `akantu_core::eigen_kernels`: `SliceProduct` (a product of slice operands
+  with its Eigen route, strides and kernel decided once; `eval` gives the
+  bits of `eigen_gebp::product_into`), `product_slices`, and
+  `fast_mode` (order-free dot and GEMM variants for the fast mode of
+  D-122; not called by the library; hidden from the documentation and
+  unstable: it will move behind the precision switch).
+  `akantu_fe::eigen::prepare` (the
+  `SliceProduct` of two `Dims`), `akantu_fe::kernels::{
+  shape_derivatives_product, shape_derivatives_with}`.
+- `akantu_core::eigen_order::{redux_tree_recursive, TREE_LEVELS_MAX}`;
+  `akantu_core::eigen_gebp::route` is a `const fn`.
 
 ### Changed
 
@@ -42,6 +53,20 @@ change of default results or of a public API raises the minor version.
   route once per block, the copy plan after an insertion is built in
   linear time, and the linear law's effective norm uses fixed-size loops
   (`docs/BENCHMARKS.md`, "The insertion check").
+- Small dense products and Eigen-order reductions are faster with bitwise
+  identical results: the halving-tree reduction is non-recursive and
+  inlined, fixed-size tensor products select their route at compile time,
+  the FE products of slices run fixed-order kernels (one per route and
+  depth class), and the FE per-element loops decide each product once.
+- `akantu_fe::eigen::product_slices` checks the operands' inner
+  dimension before the slice lengths: a call with both wrong now reports
+  the inner-dimension mismatch (still `Error::DimensionMismatch`, with
+  another context). Errors of `SliceProduct` carry their own context
+  strings (`SliceProduct ...`).
+- `FeEngine::field_matrix_elemental` (consistent mass) integrates each
+  element's point matrices as they are computed instead of materialising
+  all of them first (memory `nq·(nb_dof·nn)²` instead of
+  `ne·nq·(nb_dof·nn)²` reals; 35 k `_tetrahedron_10` needed 4.4 GB).
 - The input-file parser evaluates each variable once per evaluation (it
   parsed a variable's expression again at every reference, so a chain of
   k parameters that each refer twice to the previous one cost 2^k

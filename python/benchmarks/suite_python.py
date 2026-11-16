@@ -47,8 +47,8 @@ def fnv1a(chunks):
     return h
 
 
-def pick(size, s, m, l):
-    return {"s": s, "m": m, "l": l}[size]
+def pick(size, s, m, large):
+    return {"s": s, "m": m, "l": large}[size]
 
 
 # ---------------------------------------------------------------- meshes
@@ -114,11 +114,11 @@ LOCAL = """material local_elastic [
 
 def pulse(x):
     """The Rust suite's ``cases_dist::pulse`` (same operation order)."""
-    l = 0.25
+    width = 0.25
     a = 1e-4
     x = x - 0.5
-    k = 0.1 * 2.0 * math.pi * 3.0 / l
-    return a * math.sin(k * x) * math.exp(-(k * x) * (k * x) / (l * l))
+    k = 0.1 * 2.0 * math.pi * 3.0 / width
+    return a * math.sin(k * x) * math.exp(-(k * x) * (k * x) / (width * width))
 
 
 class Ctx:

@@ -913,9 +913,13 @@ mod tests {
                             (0..nq * nbc).map(|_| draw(&mut state)).collect();
                         let mut itp: Vec<Real> = (0..nip * nq).map(|_| draw(&mut state)).collect();
                         if round == 0 {
-                            // finite values and one payload NaN
+                            // finite values and one payload NaN; values
+                            // above 1e100 are replaced too, since an
+                            // overflow (inf − inf) would create a second
+                            // NaN, and which of two NaNs an addition
+                            // returns is unspecified (D-046)
                             for v in inv.iter_mut().chain(&mut field).chain(&mut itp) {
-                                if !v.is_finite() {
+                                if !v.is_finite() || v.abs() > 1e100 {
                                     *v = 0.5;
                                 }
                             }
@@ -943,7 +947,9 @@ mod tests {
                             };
                             assert!(
                                 ok,
-                                "nq {nq} nip {nip} nbc {nbc} round {round}: {x:e} vs {y:e}"
+                                "nq {nq} nip {nip} nbc {nbc} round {round}: {x:e} vs {y:e} ({:#x} vs {:#x})",
+                                x.to_bits(),
+                                y.to_bits()
                             );
                         }
                     }
