@@ -131,7 +131,7 @@ fn cube_root(v: Real) -> Real {
 /// box it overlaps.
 ///
 /// **Queries.** A segment is cut into pieces about one cell long; each
-/// piece's bounding box, grown by `δ_q = δ + 64 ε max|query coordinate|`
+/// piece's bounding box, grown by `δ_q = δ + 8 ε max|query coordinate|`
 /// (the rounding of the cut points), selects cells. A ray is first clipped
 /// to the parameter range in which its points project onto `B` (grown),
 /// then walked as a segment. The candidates are sorted by primitive order,
@@ -170,8 +170,6 @@ struct Grid {
     n: [usize; 3],
     /// Margin `δ`.
     delta: Real,
-    /// `max |coordinate|` of the primitives.
-    scale: Real,
     /// CSR: items of cell `c` are `items[start[c]..start[c + 1]]`.
     start: Vec<u32>,
     items: Vec<u32>,
@@ -193,7 +191,6 @@ impl Grid {
         }
         let mut lo = [Real::INFINITY; 3];
         let mut hi = [Real::NEG_INFINITY; 3];
-        let mut scale: Real = 0.0;
         for p in primitives {
             for v in &p.triangle.v {
                 if !finite3(v) {
@@ -202,7 +199,6 @@ impl Grid {
                 for (d, x) in coords(v).into_iter().enumerate() {
                     lo[d] = lo[d].min(x);
                     hi[d] = hi[d].max(x);
-                    scale = scale.max(x.abs());
                 }
             }
         }
@@ -259,7 +255,6 @@ impl Grid {
             h,
             n,
             delta,
-            scale,
             start: Vec::new(),
             items: Vec::new(),
         };
@@ -288,7 +283,6 @@ impl Grid {
             h,
             n,
             delta,
-            scale,
             start: vec![0; total + 1],
             items: Vec::new(),
         };
@@ -357,9 +351,105 @@ impl Grid {
 
     /// Candidates of the segment `a`–`b` (sorted, unique).
     fn segment_candidates(&self, a: [Real; 3], b: [Real; 3], out: &mut Vec<u32>) {
+        self.walk(a, b, Some(b), out);
+    }
+
+    /// Candidates of the ray from `s` through `q` (sorted, unique);
+    /// `false` when the ray needs a full scan (degenerate or non-finite).
+    fn ray_candidates(&self, s: [Real; 3], q: [Real; 3], out: &mut Vec<u32>) -> bool {
+        let d = [q[0] - s[0], q[1] - s[1], q[2] - s[2]];
+        let dd = d[0] * d[0] + d[1] * d[1] + d[2] * d[2];
+        if !(dd.is_finite() && dd > 0.0) {
+            return false;
+        }
+        self.walk(s, q, None, out);
+        true
+    }
+
+    /// Candidates of the points `s + t (q − s)` for `t ∈ [0, 1]` (segment,
+    /// `end = Some(q)`) or `t ≥ 0` (ray, `end = None`).
+    ///
+    /// The parameter range is first clipped to the projections of the
+    /// corners of `B` (every primitive point lies in `B`, so its parameter
+    /// lies in that range); a range that misses them, up to rounding, is
+    /// reduced to the nearest end of the query. The clipped part is cut
+    /// into pieces about one cell long; each piece's box is grown by
+    /// `δ_q = δ + 8 ε max|piece coordinate| + e`, where the second term
+    /// bounds the rounding of the cut points (below) and `e` that of the
+    /// clipped end points and of the corner projections.
+    fn walk(&self, s: [Real; 3], q: [Real; 3], end: Option<[Real; 3]>, out: &mut Vec<u32>) {
+        let d = [q[0] - s[0], q[1] - s[1], q[2] - s[2]];
+        let dd = d[0] * d[0] + d[1] * d[1] + d[2] * d[2];
+        let tmax = if end.is_some() { 1.0 } else { Real::INFINITY };
+        // parameter range of the projections of the corners of `B`
+        let (mut c0, mut c1) = (Real::INFINITY, Real::NEG_INFINITY);
+        let mut cmax: Real = 0.0;
+        if dd > 0.0 && dd.is_finite() {
+            for corner in 0..8 {
+                let c = [
+                    if corner & 1 == 0 {
+                        self.lo[0]
+                    } else {
+                        self.hi[0]
+                    },
+                    if corner & 2 == 0 {
+                        self.lo[1]
+                    } else {
+                        self.hi[1]
+                    },
+                    if corner & 4 == 0 {
+                        self.lo[2]
+                    } else {
+                        self.hi[2]
+                    },
+                ];
+                let e = [c[0] - s[0], c[1] - s[1], c[2] - s[2]];
+                cmax = cmax.max(e[0].abs()).max(e[1].abs()).max(e[2].abs());
+                let t = (e[0] * d[0] + e[1] * d[1] + e[2] * d[2]) / dd;
+                c0 = c0.min(t);
+                c1 = c1.max(t);
+            }
+        } else {
+            // a point (zero-length segment): no clipping
+            c0 = 0.0;
+            c1 = tmax;
+        }
+        let (t0, t1) = if c1 < 0.0 {
+            (0.0, 0.0)
+        } else if c0 > tmax {
+            (tmax, tmax)
+        } else {
+            (c0.max(0.0), c1.min(tmax))
+        };
+        let at = |t: Real| -> [Real; 3] {
+            if t == 0.0 {
+                s
+            } else if let (Some(b), true) = (end, t == 1.0) {
+                b
+            } else {
+                [s[0] + t * d[0], s[1] + t * d[1], s[2] + t * d[2]]
+            }
+        };
+        // rounding of a clipped end point `s + t d` (`d` itself rounded) and
+        // of the corner projections (a parameter error of a few
+        // `ε |c − s| / |d|`, i.e. a few `ε |c − s|` along the query): a few ε
+        // of `|s|`, `|t d|` and `|c − s|`, bounded with a factor 2
+        let clipped = t0 != 0.0 || (t1 != 1.0 || end.is_none());
+        let extra = if clipped {
+            let smax = s[0].abs().max(s[1].abs()).max(s[2].abs());
+            let dmax = d[0].abs().max(d[1].abs()).max(d[2].abs());
+            8.0 * Real::EPSILON * (smax + t1 * dmax + cmax)
+        } else {
+            0.0
+        };
+        let (a, b) = (at(t0), at(t1));
         let qscale = a.iter().chain(&b).fold(0.0, |m: Real, x| m.max(x.abs()));
-        let delta = self.delta + 64.0 * Real::EPSILON * qscale.max(self.scale);
-        let span = (0..3).fold(0.0, |m: Real, d| m.max((b[d] - a[d]).abs()));
+        // the cut points `a + t (b − a)` carry at most `|a| ε/2` (sum),
+        // `|t (b − a)| ε/2` (product), `|b − a| ε/2` (difference, scaled by
+        // `t ≤ 1`) and the rounding of `t` (`ε/2` relative): below
+        // `(|a| + 3 |b − a|) ε ≤ 7 ε max|coordinate|`
+        let delta = self.delta + 8.0 * Real::EPSILON * qscale + extra;
+        let span = (0..3).fold(0.0, |m: Real, k| m.max((b[k] - a[k]).abs()));
         let steps = (span / self.h).ceil().clamp(1.0, 16384.0);
         #[allow(clippy::cast_possible_truncation, clippy::cast_sign_loss)] // clamped
         let k = steps as usize;
@@ -394,53 +484,6 @@ impl Grid {
         out.sort_unstable();
         out.dedup();
     }
-
-    /// Candidates of the ray from `s` through `q` (sorted, unique), or
-    /// `None` when the ray needs a full scan.
-    fn ray_candidates(&self, s: [Real; 3], q: [Real; 3], out: &mut Vec<u32>) -> bool {
-        let d = [q[0] - s[0], q[1] - s[1], q[2] - s[2]];
-        let dd = d[0] * d[0] + d[1] * d[1] + d[2] * d[2];
-        if !(dd.is_finite() && dd > 0.0) {
-            return false;
-        }
-        // parameter range of the projections of the (grown) box corners
-        let g = self.delta;
-        let (mut t0, mut t1) = (Real::INFINITY, Real::NEG_INFINITY);
-        for corner in 0..8 {
-            let c = [
-                if corner & 1 == 0 {
-                    self.lo[0] - g
-                } else {
-                    self.hi[0] + g
-                },
-                if corner & 2 == 0 {
-                    self.lo[1] - g
-                } else {
-                    self.hi[1] + g
-                },
-                if corner & 4 == 0 {
-                    self.lo[2] - g
-                } else {
-                    self.hi[2] + g
-                },
-            ];
-            let t = ((c[0] - s[0]) * d[0] + (c[1] - s[1]) * d[1] + (c[2] - s[2]) * d[2]) / dd;
-            t0 = t0.min(t);
-            t1 = t1.max(t);
-        }
-        let pad = 1e-6 * (t1 - t0).abs() + 1e-6;
-        let (t0, t1) = ((t0 - pad).max(0.0), t1 + pad);
-        if !(t0.is_finite() && t1.is_finite()) {
-            return false;
-        }
-        if t1 < 0.0 {
-            // the whole box lies behind the source
-            return true;
-        }
-        let at = |t: Real| [s[0] + t * d[0], s[1] + t * d[1], s[2] + t * d[2]];
-        self.segment_candidates(at(t0), at(t1), out);
-        true
-    }
 }
 
 impl GridIndex {
@@ -460,6 +503,13 @@ impl GridIndex {
     #[must_use]
     pub fn margin(&self) -> Option<Real> {
         self.grid.as_ref().map(|g| g.delta)
+    }
+
+    /// Lower corner, cell size and cells per direction of the grid (`None`
+    /// without a grid).
+    #[must_use]
+    pub fn cell_layout(&self) -> Option<([Real; 3], Real, [usize; 3])> {
+        self.grid.as_ref().map(|g| (g.lo, g.h, g.n))
     }
 
     /// Cell count and cell-item count of the grid (`None` without a grid).
