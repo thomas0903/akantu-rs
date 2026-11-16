@@ -335,6 +335,13 @@ pub trait LinearSystemBackend: std::fmt::Debug + Send {
     fn set_sparse_solver_compat(&mut self, compat: SparseSolverCompat) {
         let _ = compat;
     }
+    /// The DOF manager's executor (D-123), passed before every solve like
+    /// the compatibility switches: the backend hands it to the solver of
+    /// every solve (`SparseDirectSolver::set_exec`). Default: nothing to
+    /// apply.
+    fn set_sparse_solver_exec(&mut self, exec: &akantu_core::exec::Exec) {
+        let _ = exec;
+    }
     /// `true` if the backend solves a multi-rank system with a serial
     /// sparse direct solver by centralising it on rank 0 inside the solve's
     /// agreed collective scope (D-040: [`AijBackend`]); the Newton–Raphson
@@ -791,6 +798,8 @@ pub struct AijBackend {
     /// Manager-wide sparse-solver compatibility switches, applied to the
     /// solver of every solve (D-041 (4)).
     sparse_compat: SparseSolverCompat,
+    /// The manager's executor, handed to the solver of every solve.
+    exec: akantu_core::exec::Exec,
 }
 
 /// Rank-0 change detector of a centralised multi-rank solve.
@@ -1102,6 +1111,7 @@ impl LinearSystemBackend for AijBackend {
             // it was (re)allocated; identical on every rank (and part of a
             // MUMPS solve's agreed options descriptor).
             solver.set_upstream_compat(self.sparse_compat);
+            solver.set_exec(&self.exec);
         }
         if let Some(solver) = self.solvers.get_mut(id)
             && solver.capabilities().matrix == MatrixDistribution::DistributedAssembled
@@ -1283,6 +1293,9 @@ impl LinearSystemBackend for AijBackend {
     }
     fn set_sparse_solver_compat(&mut self, compat: SparseSolverCompat) {
         self.sparse_compat = compat;
+    }
+    fn set_sparse_solver_exec(&mut self, exec: &akantu_core::exec::Exec) {
+        self.exec = exec.clone();
     }
     fn centralizes_sparse_solves(&self) -> bool {
         true

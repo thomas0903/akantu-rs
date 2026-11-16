@@ -2189,6 +2189,8 @@ impl DofManager {
                 // this solve (whatever allocated it).
                 dm.backend
                     .set_sparse_solver_compat(dm.compat.sparse_solver());
+                // D-123: the manager's executor reaches the sparse solver
+                dm.backend.set_sparse_solver_exec(&dm.exec);
                 let mut ctx = BackendContext {
                     layout: &dm.layout,
                     phases: &mut *ph,

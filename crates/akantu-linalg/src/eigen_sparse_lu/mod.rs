@@ -78,7 +78,7 @@ mod kernels;
 mod simd;
 
 use akantu_core::enums::{MatrixType, SparseSolverType};
-use akantu_core::exec::FastToken;
+use akantu_core::exec::{Exec, FastToken};
 use akantu_core::{Error, Real, Result};
 
 use crate::direct::{
@@ -142,6 +142,11 @@ pub struct SparseLu {
     spare_glu: Option<Glu>,
     /// Fast mode ([`SparseLu::set_fast_mode`]).
     fma: bool,
+    /// Executor of the factorisation's threaded kernels
+    /// ([`SparseLu::set_exec`]; default serial).
+    exec: Exec,
+    /// Test override of the threaded panel updates' size threshold.
+    threaded_min: Option<usize>,
 }
 
 impl SparseLu {
@@ -204,6 +209,23 @@ impl SparseLu {
     /// `set_solver`) resets it to the bitwise default.
     pub fn set_fast_mode(&mut self, fast: Option<FastToken>) {
         self.fma = fast.is_some();
+    }
+
+    /// The executor of the following factorisations (D-123; default
+    /// serial): the large panel updates run on its threads. Every factor
+    /// entry and every solution entry is the same for every thread count
+    /// and grain (`tests::factors_are_thread_invariant`).
+    pub fn set_exec(&mut self, exec: Exec) {
+        self.exec = exec;
+    }
+
+    /// Test hook: the least multiply-add count of a panel update that runs
+    /// on threads (default about 2.6e5; `Some(0)` threads every supernode
+    /// update, so that thread-invariance tests reach the threaded code on
+    /// small matrices). Not part of the supported interface.
+    #[doc(hidden)]
+    pub fn set_threaded_update_min(&mut self, min: Option<usize>) {
+        self.threaded_min = min;
     }
 
     /// `colsPermutation().indices()`.
@@ -280,7 +302,16 @@ impl SparseLu {
                 panel_size = n - jcol;
             }
             let nseg1 = kernels::panel_dfs(m, panel_size, jcol, &pc, &perm_r, &mut wk, &mut glu);
-            kernels::panel_bmod(m, panel_size, jcol, nseg1, &mut wk, &mut glu);
+            kernels::panel_bmod(
+                m,
+                panel_size,
+                jcol,
+                nseg1,
+                &mut wk,
+                &mut glu,
+                &self.exec,
+                self.threaded_min.unwrap_or(kernels::THREADED_UPDATE_MIN),
+            );
             for jj in jcol..jcol + panel_size {
                 let col_off = (jj - jcol) * m;
                 let mut nseg = nseg1;
@@ -560,6 +591,10 @@ impl SparseDirectSolver for EigenSparseLuSolver {
         self.lu.solve_with(b, x, &mut self.scratch)
     }
 
+    fn set_exec(&mut self, exec: &Exec) {
+        self.lu.set_exec(exec.clone());
+    }
+
     fn destroy_internal_data(&mut self) {
         *self = Self::default();
     }
@@ -727,6 +762,90 @@ mod tests {
             x2.iter().map(|v| v.to_bits()).collect::<Vec<_>>(),
             x0.iter().map(|v| v.to_bits()).collect::<Vec<_>>()
         );
+    }
+
+    /// A 3-D 7-point stencil of `k³` unknowns with unsymmetric values.
+    fn stencil3(k: usize, seed: u64) -> CscMatrix {
+        let mut r = seed | 1;
+        let mut next = || {
+            r ^= r << 13;
+            r ^= r >> 7;
+            r ^= r << 17;
+            (r >> 11) as f64 / (1u64 << 53) as f64
+        };
+        let id = |i: usize, j: usize, l: usize| (i * k + j) * k + l;
+        let mut t = Vec::new();
+        for i in 0..k {
+            for j in 0..k {
+                for l in 0..k {
+                    let p = id(i, j, l);
+                    t.push((p, p, 6.5 + next()));
+                    let nb = [
+                        (i.wrapping_sub(1), j, l),
+                        (i + 1, j, l),
+                        (i, j.wrapping_sub(1), l),
+                        (i, j + 1, l),
+                        (i, j, l.wrapping_sub(1)),
+                        (i, j, l + 1),
+                    ];
+                    for &(a, b, c) in &nb {
+                        if a < k && b < k && c < k {
+                            t.push((p, id(a, b, c), -1.0 + 0.4 * next()));
+                        }
+                    }
+                }
+            }
+        }
+        CscMatrix::from_triplets(k * k * k, &t).unwrap()
+    }
+
+    fn exec_of(threads: usize, grain: akantu_core::exec::Grain) -> Exec {
+        use akantu_core::exec::ExecPolicy;
+        Exec::new(
+            ExecPolicy::serial()
+                .with_threads(threads)
+                .unwrap()
+                .with_grain(grain),
+        )
+        .unwrap()
+    }
+
+    fn lu_bits(a: &CscMatrix, b: &[f64], exec: Option<(Exec, Option<usize>)>) -> Vec<u64> {
+        let mut lu = SparseLu::default();
+        if let Some((exec, min)) = exec {
+            lu.set_exec(exec);
+            lu.set_threaded_update_min(min);
+        }
+        lu.analyze_pattern(a).unwrap();
+        lu.factorize(a).unwrap();
+        // twice: the second factorisation reuses the storage
+        lu.factorize(a).unwrap();
+        let mut x = vec![0.0; a.n()];
+        lu.solve(b, &mut x).unwrap();
+        let mut bits = factor_bits(&lu);
+        bits.extend(x.iter().map(|v| v.to_bits()));
+        bits
+    }
+
+    #[test]
+    fn factors_are_thread_invariant() {
+        use akantu_core::exec::Grain;
+        for (a, label) in [(stencil3(10, 3), "3-D k=10"), (stencil(24, 5), "2-D k=24")] {
+            let b: Vec<f64> = (0..a.n()).map(|i| ((i * 7) % 11) as f64 - 5.0).collect();
+            let want = lu_bits(&a, &b, None);
+            for threads in [1, 2, 3, 4, 8] {
+                for grain in [Grain::Auto, Grain::Finest] {
+                    // the default threshold, and every update threaded
+                    for min in [None, Some(0)] {
+                        let got = lu_bits(&a, &b, Some((exec_of(threads, grain), min)));
+                        assert!(
+                            got == want,
+                            "{label}: {threads} threads, {grain:?}, threshold {min:?}"
+                        );
+                    }
+                }
+            }
+        }
     }
 
     #[test]

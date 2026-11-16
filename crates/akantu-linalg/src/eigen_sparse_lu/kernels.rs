@@ -400,6 +400,7 @@
 #![allow(clippy::needless_range_loop, clippy::explicit_counter_loop)]
 
 use super::dense;
+use akantu_core::exec::{Exec, Tuples};
 
 /// `emptyIdxLU`.
 pub(crate) const EMPTY: i64 = -1;
@@ -930,8 +931,19 @@ fn kernel_bmod(
     }
 }
 
-/// `panel_bmod(m, w, jcol, nseg, dense, tempv, segrep, repfnz, glu)`.
-pub(crate) fn panel_bmod(m: usize, w: usize, jcol: usize, nseg: i64, wk: &mut Work, glu: &mut Glu) {
+/// `panel_bmod(m, w, jcol, nseg, dense, tempv, segrep, repfnz, glu)`; the
+/// updates of at least `threaded_min` multiply-adds run on `exec`'s threads.
+#[allow(clippy::too_many_arguments)] // translation of SparseLUImpl::panel_bmod + the executor
+pub(crate) fn panel_bmod(
+    m: usize,
+    w: usize,
+    jcol: usize,
+    nseg: i64,
+    wk: &mut Work,
+    glu: &mut Glu,
+    exec: &Exec,
+    threaded_min: usize,
+) {
     let mut k = nseg - 1;
     for _ in 0..nseg {
         let krep = wk.segrep[u(k)];
@@ -995,22 +1007,40 @@ pub(crate) fn panel_bmod(m: usize, w: usize, jcol: usize, nseg: i64, wk: &mut Wo
             luptr += ur;
             let ldl = nr;
             let (tu, tl) = wk.tempv.split_at_mut(w * ldu);
-            // `L = 0; L += B·U` (Eigen zero-fills `L`, then `sparselu_gemm`)
-            super::simd::gemm_into_zero_mode(
-                wk.fma, nr, u_cols, ur, &glu.lusup, luptr, lda, tu, 0, ldu, tl, 0, ldl,
-            );
-            // scatter U (assignments) and L (one subtraction per entry; the
-            // entries are distinct, so row by row is the same arithmetic)
+            // scatter U (assignments; the U rows are not L rows)
             for (u_col, &(dc, segsize)) in ucols.iter().enumerate() {
                 let offz = ur - segsize;
                 for t in offz..ur {
                     wk.dense[spa(ru(glu.lsub[urows + t]), dc)] = tu[t + u_col * ldu];
                 }
             }
-            for (i, &irow) in lrows.iter().enumerate() {
-                let row = &mut wk.dense[spa(ru(irow), 0)..][..SPA_W];
-                for (u_col, &(dc, _)) in ucols.iter().enumerate() {
-                    row[dc] -= tl[i + u_col * ldl];
+            if exec.is_parallel() && nr * u_cols * ur >= threaded_min {
+                let upd = PanelUpdate {
+                    nr,
+                    u_cols,
+                    ur,
+                    lusup: &glu.lusup,
+                    luptr,
+                    lda,
+                    tu,
+                    ldu,
+                    lrows,
+                    ucols,
+                    fma: wk.fma,
+                };
+                upd.run_threaded(exec, tl, &mut wk.dense[..m * SPA_W]);
+            } else {
+                // `L = 0; L += B·U` (Eigen zero-fills `L`, then `sparselu_gemm`)
+                super::simd::gemm_into_zero_mode(
+                    wk.fma, nr, u_cols, ur, &glu.lusup, luptr, lda, tu, 0, ldu, tl, 0, ldl,
+                );
+                // scatter L: one subtraction per entry (the entries are
+                // distinct, so row by row is the same arithmetic)
+                for (i, &irow) in lrows.iter().enumerate() {
+                    let row = &mut wk.dense[spa(ru(irow), 0)..][..SPA_W];
+                    for (u_col, &(dc, _)) in ucols.iter().enumerate() {
+                        row[dc] -= tl[i + u_col * ldl];
+                    }
                 }
             }
         } else {
@@ -1043,6 +1073,104 @@ pub(crate) fn panel_bmod(m: usize, w: usize, jcol: usize, nseg: i64, wk: &mut Wo
                 );
             }
         }
+    }
+}
+
+/// Multiply-adds (`rows × columns × depth`) of a panel update from which
+/// its product and scatter run on the executor's threads (two regions of
+/// about a microsecond each against tens of microseconds of work).
+pub(crate) const THREADED_UPDATE_MIN: usize = 1 << 18;
+
+/// Rows of a part of a threaded panel product: whole 16-row tiles.
+const PART_ROW_ALIGN: usize = 16;
+
+/// The `L = B·U` product and the scatter `dense[lrows[i], c] -= L(i, c)`
+/// of one supernode's panel update, on threads, with the serial code's
+/// arithmetic for every entry at every thread count:
+///
+/// 1. the product over contiguous strips of rows: a part computes its rows
+///    of `L` (each entry by the same tile sequence as the serial kernel:
+///    the entries are independent) into its own contiguous chunk of `tl`,
+///    column-major with its own row count (one part: the serial layout);
+/// 2. the scatter over contiguous blocks of rows of the panel accumulator:
+///    a part applies the `L` rows whose accumulator row falls in its block
+///    (each accumulator entry receives its one subtraction; a supernode's
+///    rows are distinct).
+pub(crate) struct PanelUpdate<'a> {
+    pub nr: usize,
+    pub u_cols: usize,
+    pub ur: usize,
+    pub lusup: &'a [f64],
+    pub luptr: usize,
+    pub lda: usize,
+    pub tu: &'a [f64],
+    pub ldu: usize,
+    pub lrows: &'a [i32],
+    pub ucols: &'a [(usize, usize)],
+    pub fma: bool,
+}
+
+impl PanelUpdate<'_> {
+    pub(crate) fn run_threaded(&self, exec: &Exec, tl: &mut [f64], dense: &mut [f64]) {
+        let (nr, nc) = (self.nr, self.u_cols);
+        // 1. the product, strips of whole tiles
+        let tiles = nr.div_ceil(PART_ROW_ALIGN);
+        let parts = exec.nb_parts(tiles, 4).max(1);
+        let mut bounds = Vec::with_capacity(parts + 1);
+        for p in 0..=parts {
+            bounds.push((tiles * p / parts * PART_ROW_ALIGN).min(nr));
+        }
+        bounds.dedup();
+        let bounds = &bounds;
+        exec.for_each_bounds(
+            bounds,
+            Tuples::new(&mut tl[..nr * nc], nc),
+            |first, part| {
+                let chunk = part.into_slice();
+                let rows = chunk.len() / nc.max(1);
+                super::simd::gemm_into_zero_mode(
+                    self.fma,
+                    rows,
+                    nc,
+                    self.ur,
+                    self.lusup,
+                    self.luptr + first,
+                    self.lda,
+                    self.tu,
+                    0,
+                    self.ldu,
+                    chunk,
+                    0,
+                    rows,
+                );
+            },
+        );
+        // 2. the scatter, blocks of accumulator rows
+        let tl: &[f64] = tl;
+        let m = dense.len() / SPA_W;
+        let threads = exec.threads().max(1);
+        let rparts = exec.nb_parts(m, m.div_ceil(threads)).max(1);
+        let rbounds: Vec<usize> = (0..=rparts).map(|p| m * p / rparts).collect();
+        exec.for_each_bounds(&rbounds, Tuples::new(dense, SPA_W), |lo, part| {
+            let block = part.into_slice();
+            let hi = lo + block.len() / SPA_W;
+            let mut p = 0;
+            for (i, &irow) in self.lrows.iter().enumerate() {
+                while i >= bounds[p + 1] {
+                    p += 1;
+                }
+                let r = ru(irow);
+                if r < lo || r >= hi {
+                    continue;
+                }
+                let (s, len) = (bounds[p], bounds[p + 1] - bounds[p]);
+                let base = s * nc + (i - s);
+                let row = &mut block[(r - lo) * SPA_W..][..SPA_W];
+                for (u_col, &(dc, _)) in self.ucols.iter().enumerate() {
+                    row[dc] -= tl[base + u_col * len];
+                }
+            }
+        });
     }
 }
 
