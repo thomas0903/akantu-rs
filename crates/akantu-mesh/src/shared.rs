@@ -90,6 +90,14 @@ pub(crate) struct DomainState {
     pub(crate) poisoned: Option<(akantu_core::FatalKind, String)>,
     /// Revision of the last committed mutation.
     pub(crate) committed: u64,
+    /// Revision at which the mesh last passed the cross-part check of the
+    /// facet mesh ([`crate::utils::check_facet_mesh_consistency`]) at a
+    /// commit or set-up operation: a mutation starting from that revision
+    /// may check only the adjacency rows it touches.
+    pub(crate) facets_verified: Option<u64>,
+    /// Every mutation checks the cross-part invariants in full
+    /// ([`SharedMesh::set_full_consistency_checks`]).
+    pub(crate) full_consistency_checks: bool,
 }
 
 impl DomainState {
@@ -177,6 +185,8 @@ impl SharedMesh {
                 phase: Phase::Idle,
                 poisoned: None,
                 committed: 0,
+                facets_verified: None,
+                full_consistency_checks: cfg!(debug_assertions),
             }),
             attachments: Mutex::new(Vec::new()),
         }))
@@ -265,6 +275,23 @@ impl SharedMesh {
             part,
             domain: Arc::downgrade(&self.0),
         })
+    }
+
+    /// Check the cross-part invariants of the facet mesh
+    /// ([`crate::utils::check_facet_mesh_consistency`]) in full at every
+    /// mutation (`true`, the default of debug builds), or — the default of
+    /// release builds — only in the adjacency rows a mutation replaced or
+    /// appended when the mutation starts from a state that passed the check
+    /// at the previous commit (node arrays, index domains, types, row counts
+    /// and components are always checked in full; a removal, a snapshot of
+    /// a part's mesh data or a facet mesh created by the mutation take the
+    /// full check). Local to this rank's domain.
+    ///
+    /// # Errors
+    /// A poisoned lock.
+    pub fn set_full_consistency_checks(&self, full: bool) -> Result<()> {
+        self.state()?.full_consistency_checks = full;
+        Ok(())
     }
 
     /// Revision of the last committed mutation.

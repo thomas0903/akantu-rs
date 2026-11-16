@@ -139,6 +139,13 @@ enum Undo {
     },
     /// The facet mesh was created by this transaction.
     FacetsCreated,
+    /// The node lists of the element groups of a part before
+    /// [`MeshTransaction::rebuild_element_group_nodes`] (instead of a
+    /// snapshot of the whole group manager; performance).
+    GroupNodes {
+        part: MeshPart,
+        lists: Vec<(crate::group::NodeGroupId, Vec<Idx>)>,
+    },
     /// Copy-on-write snapshot of a part's mesh data, taken on the first
     /// [`MeshTransaction::data_mut`] access. Kept **in the journal**
     /// so that rollback restores it at its position: data-row
@@ -262,6 +269,12 @@ pub struct MeshTransaction<'m> {
     /// `MeshPart::Facets` consumers are registered: the facet mesh must not
     /// be created by this transaction (they could not follow it).
     facet_consumers: bool,
+    /// The state the transaction started from passed the cross-part check
+    /// ([`crate::utils::check_facet_mesh_consistency`]) and the domain
+    /// allows the restricted form: the adjacency references are read only
+    /// from the rows this transaction replaced or appended
+    /// ([`MeshTransaction::touched_rows`]).
+    restricted_check: bool,
 }
 
 impl std::fmt::Debug for MeshTransaction<'_> {
@@ -305,7 +318,7 @@ fn check_node(m: &Mesh, n: usize) -> Result<()> {
 }
 
 impl<'m> MeshTransaction<'m> {
-    fn new(mesh: &'m mut Mesh, facet_consumers: bool) -> Self {
+    fn new(mesh: &'m mut Mesh, facet_consumers: bool, restricted_check: bool) -> Self {
         let announced_nodes = mesh.nodes.len();
         Self {
             mesh,
@@ -316,7 +329,82 @@ impl<'m> MeshTransaction<'m> {
             recording_internal: false,
             announced_nodes,
             facet_consumers,
+            restricted_check,
         }
+    }
+
+    /// The adjacency rows this transaction replaced or appended
+    /// ([`crate::utils::TouchedRows`]), or `None` when the journal holds an
+    /// edit after which the restricted cross-part check proves nothing: a
+    /// removal (blocks shrink, every row is renumbered), a snapshot of a
+    /// part's mesh data (any row may have changed), or a facet mesh
+    /// created by the transaction.
+    fn touched_rows(&self) -> Option<crate::utils::TouchedRows> {
+        use crate::utils::{
+            AdjacencySet as A, ELEMENT_TO_SUBELEMENT, MESH_TO_MESH_FACET, SUBELEMENT_TO_ELEMENT,
+        };
+        let set = |part: MeshPart, name: &str| match (part, name) {
+            (MeshPart::Facets, ELEMENT_TO_SUBELEMENT) => Some(A::ElementToSubelement),
+            (MeshPart::Facets, SUBELEMENT_TO_ELEMENT) => Some(A::SubelementToElement),
+            (MeshPart::Main, MESH_TO_MESH_FACET) => Some(A::MeshToMeshFacet),
+            _ => None,
+        };
+        let mut t = crate::utils::TouchedRows::default();
+        for u in &self.journal {
+            match u {
+                Undo::Core { .. } | Undo::Data { .. } | Undo::FacetsCreated => return None,
+                Undo::DataElementRow {
+                    part,
+                    name,
+                    element,
+                    ..
+                }
+                | Undo::DataListRow {
+                    part,
+                    name,
+                    element,
+                    ..
+                } => {
+                    if let Some(a) = set(*part, name) {
+                        t.rows.push((a, *element));
+                    }
+                }
+                Undo::DataRows {
+                    part,
+                    name,
+                    ty,
+                    ghost,
+                    len,
+                    ..
+                } => {
+                    if let Some(a) = set(*part, name) {
+                        t.tails.push((a, *ty, *ghost, *len));
+                    }
+                }
+                Undo::Nodes { .. }
+                | Undo::Elements { .. }
+                | Undo::Reconnect { .. }
+                | Undo::Flag { .. }
+                | Undo::GlobalId { .. }
+                | Undo::GlobalIdsCreated { .. }
+                | Undo::NbGlobalNodes { .. }
+                | Undo::Prank { .. }
+                | Undo::GroupNodes { .. } => {}
+            }
+        }
+        Some(t)
+    }
+
+    /// The cross-part check of the mesh as it is now: restricted to the
+    /// touched rows when the transaction started from a checked state and
+    /// its journal allows it, in full otherwise.
+    fn check_facet_consistency(&self) -> Result<()> {
+        let touched = if self.restricted_check {
+            self.touched_rows()
+        } else {
+            None
+        };
+        crate::utils::check_facet_mesh_consistency_rows(self.mesh, touched.as_ref())
     }
 
     /// Read access to the mesh being modified.
@@ -589,7 +677,17 @@ impl<'m> MeshTransaction<'m> {
         let m = part_mut(self.mesh, part)?;
         let s = &mut self.saved.groups[slot(part)];
         if s.is_none() {
-            *s = Some(m.groups.clone());
+            // the snapshot is the state before the transaction: node lists
+            // rebuilt earlier in it are put back in the copy
+            let mut g = m.groups.clone();
+            for u in self.journal.iter().rev() {
+                if let Undo::GroupNodes { part: p, lists } = u
+                    && *p == part
+                {
+                    g.restore_node_lists(lists);
+                }
+            }
+            *s = Some(g);
         }
         Ok(&mut m.groups)
     }
@@ -1180,7 +1278,7 @@ impl<'m> MeshTransaction<'m> {
                 self.announced_nodes
             )));
         }
-        crate::utils::check_facet_mesh_consistency(self.mesh)
+        self.check_facet_consistency()
     }
 
     /// Stage 1 local dependents (upstream `ElementGroup::onNodesAdded` for
@@ -1228,8 +1326,13 @@ impl<'m> MeshTransaction<'m> {
     /// # Errors
     /// An absent part.
     pub fn rebuild_element_group_nodes(&mut self, part: MeshPart) -> Result<()> {
-        self.groups_mut(part)?;
         let m = part_mut(self.mesh, part)?;
+        if self.saved.groups[slot(part)].is_none() {
+            // only the node lists change: they are journaled instead of a
+            // snapshot of every group
+            let lists = m.groups.element_group_node_lists();
+            self.journal.push(Undo::GroupNodes { part, lists });
+        }
         m.groups.rebuild_element_group_nodes(&m.connectivities);
         Ok(())
     }
@@ -1332,6 +1435,11 @@ impl<'m> MeshTransaction<'m> {
                 }
                 Undo::FacetsCreated => {
                     mesh.mesh_facets = None;
+                }
+                Undo::GroupNodes { part, lists } => {
+                    if let Ok(m) = part_mut(mesh, part) {
+                        m.groups.restore_node_lists(&lists);
+                    }
                 }
                 Undo::Data { part, data } => {
                     if let Ok(m) = part_mut(mesh, part) {
@@ -1783,7 +1891,11 @@ impl SharedMesh {
             }
         };
         let facet_consumers = order.iter().any(|(_, _, _, p)| *p == MeshPart::Facets);
-        let mut tx = MeshTransaction::new(&mut guard, facet_consumers);
+        let restricted = {
+            let s = self.state()?;
+            !s.full_consistency_checks && s.facets_verified == Some(s.committed)
+        };
+        let mut tx = MeshTransaction::new(&mut guard, facet_consumers, restricted);
 
         // ---- stage 1: topology + local dependents + schedule, agreed -------
         let hook_present = distributed.is_some();
@@ -1933,6 +2045,9 @@ impl SharedMesh {
             let mut s = self.state()?;
             s.committed += 1;
             s.phase = Phase::Dispatching;
+            // the committed state passed the cross-part check (stage 1 and,
+            // with a hook, after it)
+            s.facets_verified = Some(s.committed);
             s.committed
         };
         if let Some(h) = distributed {
@@ -2086,13 +2201,18 @@ impl SharedMesh {
         // parent's node numbering: rejected before the
         // revision step (the edit itself cannot be undone; every later
         // mutation reports the same inconsistency at stage 1).
-        crate::utils::check_facet_mesh_consistency(&g)?;
+        if let Err(e) = crate::utils::check_facet_mesh_consistency(&g) {
+            // the edit stays; the next mutation checks in full
+            self.state()?.facets_verified = None;
+            return Err(e);
+        }
         // exactly one revision per set-up operation, whether or not `op`
         // advanced it itself
         g.revision = before + 1;
         drop(g);
         let mut s = self.state()?;
         s.committed += 1;
+        s.facets_verified = Some(s.committed);
         Ok(s.committed)
     }
 }
