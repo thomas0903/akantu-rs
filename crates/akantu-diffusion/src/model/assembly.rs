@@ -367,20 +367,13 @@ pub(crate) fn elemental_diffusivity_of(
         }
         let nn = ty.nb_nodes_per_element();
         let diffusivity = base.diffusivity.get(ty, GhostType::NotGhost)?;
-        let mut bt_d_b = Array::new(nn * nn);
-        fe.compute_btdb(
-            diffusivity.view(),
-            &mut bt_d_b,
-            2,
-            ty,
-            GhostType::NotGhost,
-            Some(&filter),
-        )?;
+        // `computeBtDB` then `integrate`, fused per element (the same
+        // products, on the engine's threads)
         let mut k_e = Array::new(nn * nn);
-        fe.integrate(
-            bt_d_b.view(),
+        fe.compute_btdb_integrated(
+            diffusivity.view(),
             &mut k_e,
-            nn * nn,
+            2,
             ty,
             GhostType::NotGhost,
             Some(&filter),
