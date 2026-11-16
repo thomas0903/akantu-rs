@@ -38,8 +38,8 @@ change of default results or of a public API raises the minor version.
   (debug builds keep the full check; `SharedMesh::set_full_consistency_checks`
   selects it explicitly); element-group node lists and the node
   synchronizer are journaled instead of snapshotted; the stress copy plan
-  follows an insertion instead of being rebuilt; on a mesh on one process
-  the facet stresses and the linear laws' checks run per block of facets;
+  follows an insertion instead of being rebuilt; the cohesive laws keep
+  their residual and energy work arrays between steps;
   a distributed check without any flagged facet skips the insertion-order
   exchanges; the DOF manager's global-number exchange indexes the
   equations of each node once; `plan_facets`, `transfer_physical_names`
@@ -47,11 +47,6 @@ change of default results or of a public API raises the minor version.
 - `CohesiveSynchronizers::element_to_prank` is an
   `Arc<ElementTypeMapArray<Rank>>` (shared, never changed after
   construction) instead of an `ElementTypeMapArray<Rank>`.
-- `Linear::check_insertion` (crate-internal) is split into
-  `scan_begin` / `scan_until` / `scan_finish`.
-- `InsertionStats::interpolation` covers only the preparation of the
-  facet stresses when the fused check runs; the facet stresses are then
-  counted in `InsertionStats::checks`.
 
 ### Added (insertion step)
 

@@ -80,14 +80,9 @@ pub const FACETS_FE_ENGINE: &str = "FacetsFEEngine";
 pub struct InsertionStats {
     /// Number of calls.
     pub calls: usize,
-    /// Total time spent in the stress interpolation (s). In the fused form
-    /// of the check (a mesh on one process with laws of the linear family,
-    /// `fused_insertion_checks`) only its preparation (plans, revisions):
-    /// the facet stresses are then computed with the checks and counted in
-    /// `checks`.
+    /// Total time spent in the stress interpolation (s).
     pub interpolation: f64,
-    /// Total time spent in the laws' checks (s); in the fused form also the
-    /// facet stresses.
+    /// Total time spent in the laws' checks (s).
     pub checks: f64,
     /// Total time spent in insertion transactions (s).
     pub insertion: f64,
@@ -120,11 +115,6 @@ pub struct CohesiveExtension {
     /// Copy plans of [`SolidMechanicsModelCohesive::interpolate_stress`]
     /// per bulk law (performance).
     stress_plans: BTreeMap<usize, StressCopyPlan>,
-    /// The fused form of the insertion check may run
-    /// (`fused_insertion_checks`; tests compare it with the two passes).
-    fused_check_enabled: bool,
-    /// Checks that ran in the fused form (tests).
-    fused_checks: usize,
     selector_state: Arc<std::sync::RwLock<crate::selector::CohesiveSelectorState>>,
     custom_selector: bool,
     dim: usize,
@@ -1476,8 +1466,6 @@ impl SolidMechanicsModelCohesive {
                 stress_interpolation: BTreeMap::new(),
                 by_elem_buffer: ElementTypeMapArray::new("temporary_stress_by_facets"),
                 stress_plans: BTreeMap::new(),
-                fused_check_enabled: true,
-                fused_checks: 0,
                 selector_state: Arc::default(),
                 custom_selector: false,
                 dim,
@@ -2180,13 +2168,7 @@ impl SolidMechanicsModelCohesive {
             ));
         }
         let t0 = Instant::now();
-        // fused form (performance): the facet stresses and the linear laws'
-        // checks per block of facets, when every law allows it; otherwise
-        // the facet stresses first, then the checks
-        let fused = self.fused_check_ready()?;
-        if !fused {
-            self.interpolate_stress()?;
-        }
+        self.interpolate_stress()?;
         let t1 = Instant::now();
         // The laws append the new elements' parameters
         // before the transaction; a failure before commit restores them and
@@ -2217,13 +2199,7 @@ impl SolidMechanicsModelCohesive {
             foreign_laws: Vec::new(),
             times: (t0, t1, t1),
         };
-        let checks = if fused {
-            self.ext.fused_checks += 1;
-            self.fused_insertion_checks().map(|p| (p, Vec::new()))
-        } else {
-            self.builtin_insertion_checks()
-        };
-        match checks {
+        match self.builtin_insertion_checks() {
             Ok((prepared, foreign)) => {
                 check.prepared = prepared;
                 check.foreign_laws = foreign;
@@ -2531,328 +2507,6 @@ impl SolidMechanicsModelCohesive {
             prepared.push((i, law.check_insertion_prepared(core, &mut inputs)?));
         }
         Ok((prepared, foreign))
-    }
-
-    /// Whether [`SolidMechanicsModelCohesive::fused_insertion_checks`] may
-    /// replace `interpolate_stress` followed by the built-in checks, with
-    /// the same values, flags and errors: a mesh on one process (no
-    /// facet-stress exchange between the two), every cohesive law of the
-    /// linear family, every bulk law's copy plan in its fused form, every
-    /// block the checks read present, the checks' validations passed and
-    /// every law's facet filter strictly increasing (the order of its
-    /// appended parameters is then the facet order). Writes nothing but the
-    /// plans and the interpolations' revisions, which `interpolate_stress`
-    /// brings up to date first in the same way.
-    ///
-    /// # Errors
-    /// The errors `interpolate_stress` reports first (interpolation
-    /// revision, plan construction).
-    fn fused_check_ready(&mut self) -> Result<bool> {
-        if self.ext.parallel.is_some() || !self.ext.fused_check_enabled {
-            return Ok(false);
-        }
-        let laws = self.smm.physics.materials.laws();
-        for law in laws {
-            if is_cohesive(law.as_ref()) {
-                let c = law
-                    .as_any()
-                    .and_then(|a| a.downcast_ref::<MaterialCohesive>());
-                if c.and_then(|c| c.law.linear()).is_none() {
-                    return Ok(false);
-                }
-            }
-        }
-        let mesh_h = self.smm.physics.base.mesh.clone();
-        let m = mesh_h.read()?;
-        let Some(fm) = m.mesh_facets() else {
-            return Ok(false);
-        };
-        let dim = self.ext.dim;
-        let stress_size = dim * dim;
-        let CohesiveExtension {
-            stress_interpolation,
-            by_elem_buffer,
-            facet_stress,
-            stress_plans,
-            inserter,
-            tangents,
-            facet_fe,
-            ..
-        } = &mut self.ext;
-        for (&i, interp) in stress_interpolation.iter_mut() {
-            if interp.mesh_revision() != m.revision() {
-                interp.accept_revision_unchanged_geometry(&m)?;
-            }
-            let law = self.smm.physics.materials.law(i)?;
-            let filter = &law.base().element_filter;
-            let types: Vec<ElementType> = law.base().filter_types(GhostType::NotGhost);
-            let accepted = types.iter().all(|&t| {
-                let g = GhostType::NotGhost;
-                match (
-                    by_elem_buffer.get(t, g),
-                    interp.nb_interpolation_points(t, g),
-                ) {
-                    (Ok(b), Some(nip)) => {
-                        b.nb_component() == stress_size
-                            && b.len() >= m.nb_element(t, g).saturating_mul(nip)
-                    }
-                    _ => false,
-                }
-            });
-            if !accepted {
-                return Ok(false);
-            }
-            let plan = stress_plans.entry(i).or_default();
-            update_stress_plan(plan, &m, fm, filter, &types, interp, stress_size)?;
-            if plan.fused.is_none() {
-                plan.fused = Some(build_fused(plan, filter, interp, stress_size));
-            }
-            if !fused_ready(
-                plan,
-                law.base().stress.values(),
-                filter,
-                interp,
-                facet_stress,
-                stress_size,
-            )? {
-                return Ok(false);
-            }
-            // the blocks of facets follow the layout of `facet_stress`
-            for block in &plan.blocks {
-                if nb_quad_facet(block.facet).ok() != Some(block.nq) {
-                    return Ok(false);
-                }
-            }
-        }
-        let g = GhostType::NotGhost;
-        let check = inserter.check_facets();
-        for law in self.smm.physics.materials.laws() {
-            let Some(c) = law
-                .as_any()
-                .and_then(|a| a.downcast_ref::<MaterialCohesive>())
-            else {
-                continue;
-            };
-            let Some(l) = c.law.linear() else {
-                return Ok(false);
-            };
-            for ty in crate::laws::linear::Linear::check_types(&c.core, fm) {
-                let blocks_present = check.get(ty, g).is_ok()
-                    && facet_stress.get(ty, g).is_ok()
-                    && tangents.get(ty, g).is_ok()
-                    && facet_fe.normals_on_integration_points(ty, g).is_ok();
-                if !blocks_present || l.scan_begin(&c.core, ty).is_err() {
-                    return Ok(false);
-                }
-                if let Ok(f) = c.core.facet_filter.get(ty, g) {
-                    let f = f.as_slice();
-                    if f.first().is_some_and(|&x| x < 0) || f.windows(2).any(|w| w[0] >= w[1]) {
-                        return Ok(false);
-                    }
-                }
-            }
-        }
-        Ok(true)
-    }
-
-    /// The fused form of `interpolate_stress` followed by the built-in
-    /// checks ([`SolidMechanicsModelCohesive::fused_check_ready`] holds):
-    /// per facet type, blocks of facets in increasing order — every bulk
-    /// law's facet stresses of the block (the plans' pairs whose destination
-    /// lies in it, the laws in index order), then every linear law's check
-    /// of its filter entries in the block (filter order). Each facet's
-    /// stresses are final before a law reads them and each law flags and
-    /// appends in its filter's order, so the facet stresses, the flags, the
-    /// appended parameters and the returned facets are those of the two
-    /// passes, bit for bit; the stresses are read back while they are in
-    /// the cache instead of from memory. A failing check stops the checks;
-    /// the facet stresses are still written in full before the error is
-    /// returned (as the two passes leave them).
-    fn fused_insertion_checks(&mut self) -> Result<Vec<(usize, Vec<Element>)>> {
-        use crate::laws::linear::{Linear, LinearScan, ScanInputs};
-        // facets per block: the block's facet stresses (2·nq·dim² values a
-        // facet), normals and tangents stay in a core's L2 cache
-        const BLOCK: usize = 256;
-        let mesh_h = self.smm.physics.base.mesh.clone();
-        let m = mesh_h.read()?;
-        let fm = m
-            .mesh_facets()
-            .ok_or_else(|| Error::Mesh("no facet mesh".into()))?;
-        let dim = self.ext.dim;
-        let stress_size = dim * dim;
-        let g = GhostType::NotGhost;
-        let CohesiveExtension {
-            stress_interpolation,
-            facet_stress,
-            stress_plans,
-            inserter,
-            tangents,
-            facet_fe,
-            ..
-        } = &mut self.ext;
-        let (check_map, insertion) = inserter.flags_mut();
-        let materials = &self.smm.physics.materials;
-        // the writers: (law, block) in the laws' index order, then the
-        // plan's block order (the order of the two passes' writes)
-        let mut writers: Vec<(usize, usize)> = Vec::new();
-        for (&i, plan) in stress_plans.iter() {
-            if stress_interpolation.contains_key(&i) {
-                writers.extend((0..plan.blocks.len()).map(|b| (i, b)));
-            }
-        }
-        let block_of = |i: usize, b: usize| -> Result<&StressCopyBlock> {
-            stress_plans
-                .get(&i)
-                .and_then(|p| p.blocks.get(b))
-                .ok_or_else(|| Error::invalid("interpolateStress: copy plan changed while in use"))
-        };
-        // the cohesive laws (index order) and their scans per facet type
-        let mut scans: Vec<(usize, Vec<LinearScan>)> = Vec::new();
-        for (i, law) in materials.laws().iter().enumerate() {
-            let Some(c) = law
-                .as_any()
-                .and_then(|a| a.downcast_ref::<MaterialCohesive>())
-            else {
-                continue;
-            };
-            let l = c.law.linear().ok_or_else(|| {
-                Error::invalid("internal error: fused check of a law outside the linear family")
-            })?;
-            let mut v = Vec::new();
-            for ty in Linear::check_types(&c.core, fm) {
-                v.push(l.scan_begin(&c.core, ty)?);
-            }
-            scans.push((i, v));
-        }
-        let law_of = |i: usize| -> Result<(&Linear, &crate::material::CohesiveCore)> {
-            let c = materials
-                .law(i)?
-                .as_any()
-                .and_then(|a| a.downcast_ref::<MaterialCohesive>())
-                .ok_or_else(|| Error::invalid("internal error: cohesive law index"))?;
-            let l = c
-                .law
-                .linear()
-                .ok_or_else(|| Error::invalid("internal error: cohesive law index"))?;
-            Ok((l, &c.core))
-        };
-        // the facet types the checks read, in their order (the same for
-        // every law: the regular not-ghost facet types)
-        let types: Vec<ElementType> = scans
-            .first()
-            .map(|(_, v)| v.iter().map(|s| s.type_facet).collect())
-            .unwrap_or_default();
-        let mut cursors = vec![0usize; writers.len()];
-        let mut failure: Option<Error> = None;
-        // write the writers' pairs of (ty, ghost) below `dst_limit`
-        let write = |ty: ElementType,
-                     ghost: GhostType,
-                     dst_limit: usize,
-                     cursors: &mut [usize],
-                     facet_stress: &mut ElementTypeMapArray<Real>|
-         -> Result<()> {
-            for (k, &(i, b)) in writers.iter().enumerate() {
-                let block = block_of(i, b)?;
-                if block.facet != ty || block.facet_ghost != ghost {
-                    continue;
-                }
-                let plan = &stress_plans[&i];
-                let pairs = plan
-                    .fused
-                    .as_ref()
-                    .and_then(|f| f.get(b))
-                    .and_then(Option::as_deref);
-                let interp = stress_interpolation
-                    .get(&i)
-                    .ok_or_else(|| Error::invalid("interpolateStress: no interpolation"))?;
-                let law = materials.law(i)?;
-                let f = law.base().stress.values().get(block.bulk, g)?;
-                let rs = facet_stress.get_mut(ty, ghost)?.as_mut_slice();
-                cursors[k] = write_fused_block(
-                    interp,
-                    block,
-                    pairs,
-                    f.as_slice(),
-                    rs,
-                    stress_size,
-                    cursors[k],
-                    dst_limit,
-                )?;
-            }
-            Ok(())
-        };
-        for (t, &ty) in types.iter().enumerate() {
-            let nq = nb_quad_facet(ty)?;
-            let per_facet = 2 * nq * stress_size;
-            let n_facets = facet_stress.get(ty, g)?.as_slice().len() / per_facet.max(1);
-            let mut start = 0;
-            loop {
-                let end = if start >= n_facets {
-                    usize::MAX
-                } else {
-                    (start + BLOCK).min(n_facets)
-                };
-                let dst_limit = end.saturating_mul(per_facet);
-                write(ty, g, dst_limit, &mut cursors, facet_stress)?;
-                if failure.is_none() {
-                    let inputs = ScanInputs {
-                        facet_stress: facet_stress.get(ty, g)?.as_slice(),
-                        facets_check: check_map.get(ty, g)?.as_slice(),
-                        normals: facet_fe.normals_on_integration_points(ty, g)?.as_slice(),
-                        tangents: tangents.get(ty, g)?.as_slice(),
-                    };
-                    for (i, v) in &mut scans {
-                        let (l, core) = law_of(*i)?;
-                        if let Err(e) = l.scan_until(core, &mut v[t], inputs, insertion, end, false)
-                        {
-                            failure = Some(e);
-                            break;
-                        }
-                    }
-                }
-                if end == usize::MAX {
-                    break;
-                }
-                start = end;
-            }
-        }
-        // every other block of the plans (facet types no law checks, ghost
-        // facets): written in full
-        let others: Vec<(ElementType, GhostType)> = {
-            let mut o: Vec<(ElementType, GhostType)> = Vec::new();
-            for &(i, b) in &writers {
-                let block = block_of(i, b)?;
-                let key = (block.facet, block.facet_ghost);
-                if !(key.1 == g && types.contains(&key.0)) && !o.contains(&key) {
-                    o.push(key);
-                }
-            }
-            o
-        };
-        for (ty, ghost) in others {
-            write(ty, ghost, usize::MAX, &mut cursors, facet_stress)?;
-        }
-        if let Some(e) = failure {
-            return Err(e);
-        }
-        // the appended parameters, per law and facet type in the checks'
-        // order
-        let mut prepared = Vec::with_capacity(scans.len());
-        for (i, v) in scans {
-            let law = self.smm.physics.materials.law_mut(i)?;
-            let c = as_cohesive(law)
-                .ok_or_else(|| Error::invalid("internal error: cohesive law index"))?;
-            let MaterialCohesive { core, law, .. } = c;
-            let l = law
-                .linear_mut()
-                .ok_or_else(|| Error::invalid("internal error: cohesive law index"))?;
-            let mut facets = Vec::new();
-            for scan in v {
-                facets.extend(l.scan_finish(core, scan)?);
-            }
-            prepared.push((i, facets));
-        }
-        Ok(prepared)
     }
 
     /// The insertion of a finished check: the runtime laws' flagged facets
@@ -4123,79 +3777,6 @@ mod perf_tests {
                 model.ext.stats.inserted > 0,
                 "{file}: insertions between the rounds"
             );
-        }
-    }
-
-    /// Bits of a cohesive law's arrays the check appends to, per cohesive
-    /// type.
-    fn cohesive_law_bits(model: &SolidMechanicsModelCohesive) -> Vec<u64> {
-        let mut out = Vec::new();
-        for law in model.smm.physics.materials.laws() {
-            let Some(c) = law
-                .as_any()
-                .and_then(|a| a.downcast_ref::<MaterialCohesive>())
-            else {
-                continue;
-            };
-            let Some(l) = c.law.linear() else { continue };
-            for (_, _, a) in l.sigma_c_eff.values().as_map().iter_all() {
-                out.extend(a.borrow().as_slice().iter().map(|x| x.to_bits()));
-            }
-            for (_, _, a) in l.delta_c_eff.values().as_map().iter_all() {
-                out.extend(a.borrow().as_slice().iter().map(|x| x.to_bits()));
-            }
-            for (_, _, a) in l.insertion_stress.values().as_map().iter_all() {
-                out.extend(a.borrow().as_slice().iter().map(|x| x.to_bits()));
-            }
-        }
-        out
-    }
-
-    /// The fused insertion check (facet stresses and the linear law's
-    /// check per block of facets) gives bitwise the facet stresses, the
-    /// inserted elements and the laws' appended parameters of the two
-    /// passes, over a sequence of checks with insertions, in 2-D and 3-D.
-    #[test]
-    fn fused_insertion_check_is_bitwise_the_two_passes() {
-        for (file, dim) in [
-            ("_cohesive_3d_6_tetrahedron_4.msh", 3),
-            ("_cohesive_2d_4_triangle_3.msh", 2),
-        ] {
-            let (mut fused, _m1) = fixture_model(file, dim);
-            let (mut two, _m2) = fixture_model(file, dim);
-            two.ext.fused_check_enabled = false;
-            let mut inserted = 0;
-            for round in 0..6u8 {
-                for model in [&mut fused, &mut two] {
-                    set_wobbly_displacement(model, dim, 2e-3 * Real::from(round + 1));
-                    model.assemble_internal_forces().unwrap();
-                }
-                let n1 = fused.check_cohesive_stress().unwrap();
-                let n2 = two.check_cohesive_stress().unwrap();
-                assert_eq!(n1, n2, "{file}, round {round}: inserted");
-                inserted += n1;
-                let bits = |m: &SolidMechanicsModelCohesive| -> Vec<u64> {
-                    m.ext
-                        .facet_stress
-                        .as_map()
-                        .iter_all()
-                        .flat_map(|(_, _, a)| a.as_slice().iter().map(|x| x.to_bits()))
-                        .collect()
-                };
-                assert_eq!(
-                    bits(&fused),
-                    bits(&two),
-                    "{file}, round {round}: facet stress"
-                );
-                assert_eq!(
-                    cohesive_law_bits(&fused),
-                    cohesive_law_bits(&two),
-                    "{file}, round {round}: appended parameters"
-                );
-            }
-            assert!(inserted > 0, "{file}: insertions");
-            assert!(fused.ext.fused_checks >= 6, "{file}: the fused form ran");
-            assert_eq!(two.ext.fused_checks, 0, "{file}: the two passes ran");
         }
     }
 
