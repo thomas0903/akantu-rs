@@ -301,7 +301,7 @@ fn hessenberg<const N: usize>(a: &mut FMat<N>, hcoeffs: &mut [f64; N]) {
     if N < 2 {
         return;
     }
-    for i in 0..N - 1 {
+    for (i, hc) in hcoeffs.iter_mut().enumerate().take(N - 1) {
         let rs = N - i - 1;
         let c0 = a.at(i + 1, i);
         let tl = rs - 1;
@@ -314,7 +314,7 @@ fn hessenberg<const N: usize>(a: &mut FMat<N>, hcoeffs: &mut [f64; N]) {
             a.set(i + 2 + k, i, *e);
         }
         a.set(i + 1, i, beta);
-        hcoeffs[i] = tau;
+        *hc = tau;
         // A = H A
         apply_householder_left(a, i + 1, i + 1, rs, rs, &essential[..tl], tau);
         // A = A H'
@@ -753,6 +753,7 @@ mod tests {
         info
     }
 
+    #[allow(clippy::needless_range_loop)] // symmetric fills write a[j][i] and a[i][j]
     fn draw<const N: usize>(v: &mut Values, kind: usize) -> FMat<N> {
         let mut a = FMat::<N>::zeros();
         match kind {
@@ -774,8 +775,12 @@ mod tests {
                 for j in 0..N {
                     for i in j..N {
                         let x = if i == j {
-                            if v.next_u64() % 2 == 0 { d } else { v.finite() }
-                        } else if v.next_u64() % 3 == 0 {
+                            if v.next_u64().is_multiple_of(2) {
+                                d
+                            } else {
+                                v.finite()
+                            }
+                        } else if v.next_u64().is_multiple_of(3) {
                             0.0
                         } else {
                             v.finite()

@@ -1185,7 +1185,7 @@ mod tests {
             }
             out
         };
-        let mut vals = Values::new(0x3a8e_11);
+        let mut vals = Values::new(0x003a_8e11);
         for round in 0..30_000 {
             let payload = round % 5 == 4;
             if payload {

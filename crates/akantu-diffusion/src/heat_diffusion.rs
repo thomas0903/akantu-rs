@@ -397,8 +397,10 @@ fn temperature_term_vanishes(var: Real, t_ref: Real, cond: &[Real], nodal_t: &[R
 #[inline(always)]
 fn d_grad_u_fixed<const D: usize>(grad: &[Real], diff: &[Real], out: &mut [Real]) {
     for ((k_bt, bt), c) in out
-        .chunks_exact_mut(D)
-        .zip(grad.chunks_exact(D))
+        .as_chunks_mut::<D>()
+        .0
+        .iter_mut()
+        .zip(grad.as_chunks::<D>().0)
         .zip(diff.chunks_exact(D * D))
     {
         for (i, ki) in k_bt.iter_mut().enumerate() {
@@ -412,7 +414,12 @@ fn d_grad_u_fixed<const D: usize>(grad: &[Real], diff: &[Real], out: &mut [Real]
 #[inline(always)]
 fn d_grad_u_constant<const D: usize>(grad: &[Real], c: &[Real], out: &mut [Real]) {
     let c = &c[..D * D];
-    for (k_bt, bt) in out.chunks_exact_mut(D).zip(grad.chunks_exact(D)) {
+    for (k_bt, bt) in out
+        .as_chunks_mut::<D>()
+        .0
+        .iter_mut()
+        .zip(grad.as_chunks::<D>().0)
+    {
         for (i, ki) in k_bt.iter_mut().enumerate() {
             *ki = eigen_order::product_coeff(D, true, &|k| c[i + k * D] * bt[k]);
         }
@@ -677,17 +684,26 @@ mod tests {
         let mut v = Values::new(0x7e4a_0001);
         let mut checked = 0usize;
         for _ in 0..200_000 {
-            let var = if v.next_u64() % 2 == 0 { 0.0 } else { -0.0 };
+            let var = if v.next_u64().is_multiple_of(2) {
+                0.0
+            } else {
+                -0.0
+            };
             let mut cond = [0.0; 4];
             v.fill(&mut cond);
             let mut nodal = [0.0; 27];
             v.fill(&mut nodal);
             // some draws at the bound or beyond
-            if v.next_u64() % 4 == 0 {
+            if v.next_u64().is_multiple_of(4) {
                 let k = (v.next_u64() % 27) as usize;
-                nodal[k] = BOUNDED_TEMPERATURE * if v.next_u64() % 2 == 0 { 1.0 } else { -1.0 };
+                nodal[k] = BOUNDED_TEMPERATURE
+                    * if v.next_u64().is_multiple_of(2) {
+                        1.0
+                    } else {
+                        -1.0
+                    };
             }
-            let t_ref = if v.next_u64() % 3 == 0 {
+            let t_ref = if v.next_u64().is_multiple_of(3) {
                 -BOUNDED_TEMPERATURE
             } else {
                 v.draw()
