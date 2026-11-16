@@ -258,6 +258,7 @@ impl SlsConstants {
     /// One quadrature point: from `grad_u` and the state `(s_old, h, e_d)`
     /// the law starts from, the stress and the new state.
     #[allow(clippy::type_complexity)] // (σ, s, h, e_d) of one point
+    #[inline(always)]
     fn on_quad<const D: usize>(
         &self,
         grad_u: &Matrix<D, D>,
@@ -312,6 +313,40 @@ impl SlsConstants {
         };
         (sigma, s, h, e_diss_old + increment)
     }
+}
+
+/// The stress and new state of a contiguous run of points (a part of
+/// `compute_stress`): `inputs` = gradient, deviatoric stress, history
+/// integral, dissipated energy of the start state. No-alias slice
+/// parameters, not inlined into the part closure.
+#[inline(never)]
+fn sls_stress_part<const DIM: usize>(
+    c: &SlsConstants,
+    inputs: [&[Real]; 4],
+    so: &mut [Real],
+    dout: &mut [Real],
+    hout: &mut [Real],
+    eout: &mut [Real],
+) -> Result<()> {
+    let n = DIM * DIM;
+    let [g, d0, h0, e0] = inputs;
+    let points = g
+        .chunks_exact(n)
+        .zip(d0.chunks_exact(n))
+        .zip(h0.chunks_exact(n))
+        .zip(e0)
+        .zip(so.chunks_exact_mut(n))
+        .zip(dout.chunks_exact_mut(n))
+        .zip(hout.chunks_exact_mut(n))
+        .zip(eout);
+    for (((((((g, d0), h0), &e0), so), dout), hout), e_q) in points {
+        let (sigma, s, h, e) = c.on_quad(as_matrix(g)?, as_matrix(d0)?, as_matrix(h0)?, e0);
+        *as_matrix_mut::<DIM, DIM>(so)? = sigma;
+        *as_matrix_mut::<DIM, DIM>(dout)? = s;
+        *as_matrix_mut::<DIM, DIM>(hout)? = h;
+        *e_q = e;
+    }
+    Ok(())
 }
 
 /// Standard linear solid with deviatoric viscosity (upstream
@@ -764,25 +799,14 @@ impl<const DIM: usize> Material for MaterialStandardLinearSolidDeviatoric<DIM> {
             items,
             1024,
             |_, ((g, d0, h0, e0), mut so, mut dout, mut hout, mut eout)| {
-                let points = g
-                    .as_slice()
-                    .chunks_exact(n)
-                    .zip(d0.as_slice().chunks_exact(n))
-                    .zip(h0.as_slice().chunks_exact(n))
-                    .zip(e0.as_slice())
-                    .zip(so.as_mut_slice().chunks_exact_mut(n))
-                    .zip(dout.as_mut_slice().chunks_exact_mut(n))
-                    .zip(hout.as_mut_slice().chunks_exact_mut(n))
-                    .zip(eout.as_mut_slice());
-                for (((((((g, d0), h0), &e0), so), dout), hout), e_q) in points {
-                    let (sigma, s, h, e) =
-                        c.on_quad(as_matrix(g)?, as_matrix(d0)?, as_matrix(h0)?, e0);
-                    *as_matrix_mut::<DIM, DIM>(so)? = sigma;
-                    *as_matrix_mut::<DIM, DIM>(dout)? = s;
-                    *as_matrix_mut::<DIM, DIM>(hout)? = h;
-                    *e_q = e;
-                }
-                Ok(())
+                sls_stress_part::<DIM>(
+                    &c,
+                    [g.as_slice(), d0.as_slice(), h0.as_slice(), e0.as_slice()],
+                    so.as_mut_slice(),
+                    dout.as_mut_slice(),
+                    hout.as_mut_slice(),
+                    eout.as_mut_slice(),
+                )
             },
         )?;
         let mut sigma = self
