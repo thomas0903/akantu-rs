@@ -1040,6 +1040,9 @@ predecessor fails. Declared:
 | `viscoelastic_maxwell` | stress, branch update, potential and dissipated energy | a point from its own gradients and branch state; block constants set outside the loops |
 | `sls_deviatoric` | stress and history | a point from its own gradient and history (copies) |
 | `phasefield` | stress, tangent, thermal pre-step | a point from its own gradient, damage (written by the phase-field model) and thermal strain |
+| `visco_plastic` (extra materials) | flow and return, plastic work | a point from its own values (copies); upstream mode (UD-583): also the first point's previous state, which the loop does not write |
+| `damage_linear` (extra materials), per-point thresholds | stress and damage | a point from its own damage and threshold (copies) |
+| `ve_stiffness_prop` (extra materials) | viscous stress | a point from its own velocity gradient |
 
 Must stay serial: `anisotropic_damage` in its upstream model (a point
 exceeding `Dc` rewrites the law's own `E` and `ν`, which later points
@@ -1055,10 +1058,7 @@ laws (insertion state; `akantu-cohesive`, not reviewed here). Update each
 point from its own data and can opt in after the same review and test
 (not done: no benchmark case uses them): `brittle` (its point loop hands
 each point's state to a sequential sink used by the non-local variant),
-`damage_linear` with per-point thresholds, `vreepeerlings`,
-`visco_plastic` (UD-583: in upstream mode every point reads the first
-point's previous state, read-only), `ve_stiffness_prop` and
-`reinforcement` (embedded). The thermal pre-step of `thermal.rs` is the
+`vreepeerlings` and `reinforcement` (embedded). The thermal pre-step of `thermal.rs` is the
 elastic law's (`MaterialElastic::compute_thermal_with`).
 
 SIMD convention (`exec::simd` module documentation): one portable body

@@ -41,7 +41,8 @@ change of default results or of a public API raises the minor version.
   local loop of `mazars_non_local` / `marigo_non_local`,
   `anisotropic_damage` (experimental and corrected models),
   `viscoelastic_maxwell`, `sls_deviatoric`, `phasefield` (stress and
-  tangent), with their per-step hooks (plastic work, dissipated energy,
+  tangent), and in the extra materials `visco_plastic`, `damage_linear`
+  (per-point thresholds) and `ve_stiffness_prop`, with their per-step hooks (plastic work, dissipated energy,
   Maxwell branch update, thermal refresh). `docs/ARCHITECTURE.md`,
   "Execution policy", lists the laws and why the others stay serial.
 - Threads in the explicit step of the heat transfer model
