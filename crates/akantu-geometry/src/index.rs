@@ -95,6 +95,25 @@ impl TriangleIndex for LinearScan {
 /// Below this many primitives [`GridIndex`] scans (no grid).
 const GRID_MIN_PRIMITIVES: usize = 32;
 
+/// Cube root of a positive finite `v` with a fixed sequence of IEEE
+/// operations (the same result on every platform; not necessarily
+/// correctly rounded, which the cell size does not need): a power-of-two
+/// start from the exponent, then a fixed number of Newton steps.
+fn cube_root(v: Real) -> Real {
+    if !(v.is_finite() && v > 0.0) {
+        return v;
+    }
+    // 2^(e/3) with e the binary exponent of v: within a factor 2 of the root
+    // (built from its bits: exact, no library call)
+    let e = i64::try_from((v.to_bits() >> 52) & 0x7ff).unwrap_or(1023) - 1023;
+    let bits = u64::try_from(e / 3 + 1023).unwrap_or(1023) << 52;
+    let mut x = Real::from_bits(bits);
+    for _ in 0..12 {
+        x -= (x * x * x - v) / (3.0 * x * x);
+    }
+    x
+}
+
 /// Uniform-grid search structure with the reports of [`LinearScan`] (LGPL).
 ///
 /// **Structure.** The cells cover the union `B` of the primitives' bounding
@@ -190,8 +209,16 @@ impl Grid {
         let vol: Real = active.iter().map(|&d| ext[d]).product();
         #[allow(clippy::cast_precision_loss)] // a cell-count target, any rounding is fine
         let target = np as Real;
-        #[allow(clippy::cast_precision_loss)] // the dimension count (1 to 3)
-        let h_volume = (vol / target).powf(1.0 / active.len() as Real);
+        // the cell edge of one primitive per cell: a root of the volume per
+        // primitive, with correctly rounded or fixed-sequence IEEE operations
+        // only (no platform libm), so the grid is the same on every platform
+        let v = vol / target;
+        let h_volume = match active.len() {
+            1 => v,
+            2 => v.sqrt(),
+            _ => cube_root(v),
+        };
+
         // cells not much smaller than the primitives (a primitive spans
         // about two cells per direction at most)
         let mean_extent = primitives
@@ -466,6 +493,26 @@ impl TriangleIndex for GridIndex {
                     out.push(p.id);
                 }
             }
+        }
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::cube_root;
+
+    /// The cube root of the cell size: exact cubes come back exactly, other
+    /// values within an ulp or two of the platform's `cbrt`.
+    #[test]
+    fn cube_root_of_cell_volumes() {
+        for k in [1.0f64, 2.0, 3.0, 0.5, 0.25, 0.125, 1e-3, 7.0] {
+            assert_eq!(cube_root(k * k * k), k, "{k}");
+        }
+        let mut v = 1e-12;
+        while v < 1e12 {
+            let r = cube_root(v);
+            assert!((r - v.cbrt()).abs() <= 4.0 * f64::EPSILON * r, "{v}: {r}");
+            v *= 1.37;
         }
     }
 }
