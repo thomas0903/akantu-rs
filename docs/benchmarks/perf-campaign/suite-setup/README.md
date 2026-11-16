@@ -13,7 +13,6 @@ suite"); the ranked findings are in `HOTSPOTS.md`.
 | `baseline/dist-l-p*/` | `dist_mesh_tet4`, size `l`, 2, 4, 8 ranks, 3 repetitions | same | `6b12c7d8c` |
 | `baseline/coh-l/` | `cohesive_insert_tet4` at `l` with `/usr/bin/time -v` | same | `e2bebff49` |
 | `scaling/{s,m,l}/` | serial mesh cases at the three sizes (screening) | 4-core AMD EPYC Milan development machine | `f51cea974` (same library and suite code as `e2bebff49`) |
-| `screening-mpi/m-p*/` | parallel cases, size `m`, 1, 2, 4 ranks (screening; the `commit` field reads `unknown`: the container did not receive the variable; binary built from `c4a879451`) | development machine | `c4a879451` |
 | `scaling/exponents.md` | growth exponents b of t ∝ N^b (`scaling.py`) | | |
 | `profiles/` | `perf record --call-graph dwarf` text reports | boat.dev sandbox (AMD Ryzen 9 9950X, 4 vCPU); the two Python files on the development machine | `e865bfe04`, `6b12c7d8c` for `ghost_elements` |
 
