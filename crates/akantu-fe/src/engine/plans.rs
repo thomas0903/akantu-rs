@@ -19,7 +19,7 @@
 
 use akantu_core::array::ArrayView;
 use akantu_core::exec::{FastToken, SimdToken};
-use akantu_core::{ElementKind, ElementType, GhostType, Idx, Real};
+use akantu_core::{ElementKind, ElementType, Error, GhostType, Idx, Real, Result};
 use akantu_mesh::Mesh;
 
 use super::{Block, FeEngine, batch_ids, check_input, check_precomputed, fast};
@@ -100,21 +100,43 @@ impl GradientPlan<'_> {
     /// non-empty `minus` (the same length as `out`) each value is
     /// `fl(∇u − minus)`, as the full call followed by `out -= minus`.
     ///
-    /// # Panics
-    /// `out` (or a non-empty `minus`) not a whole number of the filter's
-    /// elements from `first` (a caller's invariant).
-    pub fn run(&self, first: usize, minus: &[Real], out: &mut [Real]) {
+    /// # Errors
+    /// `Error::DimensionMismatch` when `out` is not a whole number of
+    /// elements or a non-empty `minus` has another length;
+    /// `Error::OutOfRange` when the elements run past the filter. Nothing is
+    /// written then.
+    pub fn run(&self, first: usize, minus: &[Real], out: &mut [Real]) -> Result<()> {
         let per = self.nq * self.tuple_size();
-        assert!(
-            per > 0
-                && out.len().is_multiple_of(per)
-                && (minus.is_empty() || minus.len() == out.len()),
-            "GradientPlan::run: {} values are not whole elements",
-            out.len()
-        );
-        let ids = &self.filter[first..first + out.len() / per];
+        if per == 0 || !out.len().is_multiple_of(per) {
+            return Err(Error::DimensionMismatch {
+                context: "GradientPlan::run: output (whole elements)",
+                expected: per,
+                got: out.len(),
+            });
+        }
+        if !minus.is_empty() && minus.len() != out.len() {
+            return Err(Error::DimensionMismatch {
+                context: "GradientPlan::run: minus (the output's length)",
+                expected: out.len(),
+                got: minus.len(),
+            });
+        }
+        let ids = filter_range(self.filter, first, out.len() / per)?;
         (self.run)(self, ids, minus, out);
+        Ok(())
     }
+}
+
+/// The filter's entries `first .. first + n`, or `Error::OutOfRange`.
+fn filter_range(filter: &[Idx], first: usize, n: usize) -> Result<&[Idx]> {
+    first
+        .checked_add(n)
+        .and_then(|end| filter.get(first..end))
+        .ok_or(Error::OutOfRange {
+            what: "plan: element range of the filter",
+            index: first.saturating_add(n),
+            len: filter.len(),
+        })
 }
 
 /// [`FeEngine::compute_btd_integrate`] over the elements of a filter,
@@ -159,19 +181,34 @@ impl BtdIntegratePlan<'_> {
     /// out.len() / element_size`, from their `D` values `d` (quadrature
     /// points in filter order): the values the full call writes for them.
     ///
-    /// # Panics
-    /// `out` and `d` not of the same whole number of elements from `first`.
-    pub fn run(&self, first: usize, d: &[Real], out: &mut [Real]) {
-        let n = out.len() / self.element_size();
-        assert!(
-            out.len() == n * self.element_size() && d.len() == n * self.operand_size(),
-            "BtdIntegratePlan::run: operands of different element counts"
-        );
-        let ids = &self.filter[first..first + n];
+    /// # Errors
+    /// `Error::DimensionMismatch` when `out` is not a whole number of
+    /// elements or `d` holds another number of elements;
+    /// `Error::OutOfRange` when the elements run past the filter. Nothing is
+    /// written then.
+    pub fn run(&self, first: usize, d: &[Real], out: &mut [Real]) -> Result<()> {
+        let es = self.element_size();
+        let n = out.len() / es;
+        if out.len() != n * es {
+            return Err(Error::DimensionMismatch {
+                context: "BtdIntegratePlan::run: output (whole elements)",
+                expected: es,
+                got: out.len(),
+            });
+        }
+        if d.len() != n * self.operand_size() {
+            return Err(Error::DimensionMismatch {
+                context: "BtdIntegratePlan::run: D (the output's elements)",
+                expected: n * self.operand_size(),
+                got: d.len(),
+            });
+        }
+        let ids = filter_range(self.filter, first, n)?;
         fast::btd_integrate_serial(
             self.simd, self.fast, self.r, self.sdim, self.nn, ids, self.nq, self.bs, d, self.jac,
             out,
         );
+        Ok(())
     }
 }
 

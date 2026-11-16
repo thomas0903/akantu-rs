@@ -471,7 +471,7 @@ impl<const DIM: usize> MaterialElastic<DIM> {
                 let k = rest.len().min(block);
                 let (head, tail) = rest.split_at(k);
                 let ((mut g, e, dt), (mut eps, mut sig_th, mut sigma, mut r)) = head;
-                gp.run(at, e.as_slice(), g.as_mut_slice());
+                gp.run(at, e.as_slice(), g.as_mut_slice())?;
                 thermal_part::<DIM>(
                     thermal,
                     plane_stress,
@@ -488,7 +488,7 @@ impl<const DIM: usize> MaterialElastic<DIM> {
                     sig_th.as_mut_slice(),
                 )?;
                 match &assembly {
-                    Assembly::Btd(p) => p.run(at, sigma.as_mut_slice(), r.as_mut_slice()),
+                    Assembly::Btd(p) => p.run(at, sigma.as_mut_slice(), r.as_mut_slice())?,
                     Assembly::Residual(p) => {
                         p.run(at, g.as_mut_slice(), sigma.as_mut_slice(), r.as_mut_slice());
                     }
