@@ -891,27 +891,34 @@ pub(crate) fn panel_bmod(m: usize, w: usize, jcol: usize, nseg: i64, wk: &mut Wo
         if nsupc >= 2 {
             let ldu = u(u_rows);
             let ur = u(u_rows);
-            // gather U
-            let mut u_col = 0;
+            let nsupc = u(nsupc);
+            let lptr = u(lptr);
+            // the panel columns with a segment in this supernode: (column
+            // in the panel, segment size); `u_col` = position in this list
+            let mut ucols = [(0usize, 0usize); SPA_W];
+            let mut nu = 0;
             for jj in jcol..jcol + w {
-                let off = (jj - jcol) * m;
-                let kfnz = wk.repfnz[off + u(krep)];
-                if kfnz == EMPTY {
-                    continue;
+                let kfnz = wk.repfnz[(jj - jcol) * m + u(krep)];
+                if kfnz != EMPTY {
+                    ucols[nu] = (jj - jcol, u(krep - kfnz + 1));
+                    nu += 1;
                 }
-                let segsize = u(krep - kfnz + 1);
-                let no_zeros = u(kfnz - fsupc);
-                let mut isub = u(lptr) + no_zeros;
+            }
+            let ucols = &ucols[..nu];
+            // the supernode's rows of the U block (`ur`, ending at `krep`)
+            // and of the L block (`nr`): every segment ends at `krep`, so
+            // row `t` of the U block is `lsub[urows + t]` in every column
+            let urows = lptr + nsupc - ur;
+            let nr = u(nrow);
+            let lrows = &glu.lsub[lptr + nsupc..lptr + nsupc + nr];
+            // gather U
+            for (u_col, &(dc, segsize)) in ucols.iter().enumerate() {
                 let offz = ur - segsize;
-                for i in 0..offz {
-                    wk.tempv[i + u_col * ldu] = 0.0;
+                let col = &mut wk.tempv[u_col * ldu..(u_col + 1) * ldu];
+                col[..offz].fill(0.0);
+                for (t, x) in col.iter_mut().enumerate().skip(offz) {
+                    *x = wk.dense[spa(u(glu.lsub[urows + t]), dc)];
                 }
-                for i in 0..segsize {
-                    let irow = u(glu.lsub[isub]);
-                    wk.tempv[i + offz + u_col * ldu] = wk.dense[spa(irow, jj - jcol)];
-                    isub += 1;
-                }
-                u_col += 1;
             }
             // solve U = A^-1 U
             let mut luptr = u(glu.xlusup[u(fsupc)]);
@@ -921,38 +928,25 @@ pub(crate) fn panel_bmod(m: usize, w: usize, jcol: usize, nseg: i64, wk: &mut Wo
             dense::trsm_unit_lower(ur, u_cols, &glu.lusup, luptr, lda, &mut wk.tempv, 0, ldu);
             // update: L = B * U
             luptr += ur;
-            let nr = u(nrow);
             let ldl = nr;
             let (tu, tl) = wk.tempv.split_at_mut(w * ldu);
             // `L = 0; L += B·U` (Eigen zero-fills `L`, then `sparselu_gemm`)
             dense::sparselu_gemm_into_zero(
                 nr, u_cols, ur, &glu.lusup, luptr, lda, tu, 0, ldu, tl, 0, ldl,
             );
-            // scatter U and L
-            let mut u_col = 0;
-            for jj in jcol..jcol + w {
-                let off = (jj - jcol) * m;
-                let kfnz = wk.repfnz[off + u(krep)];
-                if kfnz == EMPTY {
-                    continue;
-                }
-                let segsize = u(krep - kfnz + 1);
-                let no_zeros = u(kfnz - fsupc);
-                let mut isub = u(lptr) + no_zeros;
+            // scatter U (assignments) and L (one subtraction per entry; the
+            // entries are distinct, so row by row is the same arithmetic)
+            for (u_col, &(dc, segsize)) in ucols.iter().enumerate() {
                 let offz = ur - segsize;
-                for i in 0..segsize {
-                    let irow = u(glu.lsub[isub]);
-                    isub += 1;
-                    wk.dense[spa(irow, jj - jcol)] = tu[i + offz + u_col * ldu];
-                    tu[i + offz + u_col * ldu] = 0.0;
+                for t in offz..ur {
+                    wk.dense[spa(u(glu.lsub[urows + t]), dc)] = tu[t + u_col * ldu];
                 }
-                for i in 0..nr {
-                    let irow = u(glu.lsub[isub]);
-                    isub += 1;
-                    wk.dense[spa(irow, jj - jcol)] -= tl[i + u_col * ldl];
-                    tl[i + u_col * ldl] = 0.0;
+            }
+            for (i, &irow) in lrows.iter().enumerate() {
+                let row = &mut wk.dense[spa(u(irow), 0)..][..SPA_W];
+                for (u_col, &(dc, _)) in ucols.iter().enumerate() {
+                    row[dc] -= tl[i + u_col * ldl];
                 }
-                u_col += 1;
             }
         } else {
             // level 2 only: each column of the panel
