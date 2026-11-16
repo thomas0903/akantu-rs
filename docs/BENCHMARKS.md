@@ -393,10 +393,10 @@ Milan machine (5 interleaved repetitions; the slowest rank), ms per step:
   digits) and `insertions.csv` are identical at 2, 4 and 8 ranks
   (`parallel-bitwise/`).
 
-A `-C target-cpu` build is not used: its bit identity is not established by
-any test (the explicit-step digests matched for `target-cpu=native`, but
-`f64::min`/`max` on signed zeros and the sign of default NaNs can change
-elsewhere).
+The tables above use the baseline build. Builds with `-C target-cpu`
+(`x86-64-v2`, `-v3`, `-v4`, `znver4`), LTO, one codegen unit,
+`panic = "abort"` and PGO give the same bits (section "Build
+configuration").
 
 ## Static solves and solvers
 
@@ -1069,6 +1069,73 @@ measurement isolates the exchanges' share of a simulation.
 - `before_step` (lumped mass, step-0 energies, stable time step): 2.9 s
   (port) and 2.3 s (upstream) at 64 ranks; about 25 s for both at h = 0.04
   on one rank.
+
+## Build configuration
+
+The build configurations of the release profile and the code-generation
+flags, timed against the workspace release profile (`opt-level = 3`, no
+LTO, 16 codegen units, x86-64 baseline) and checked for bit identity.
+Machine: an AWS `m7a.2xlarge` (AMD EPYC 9R14, Zen 4, 8 cores, 32 GiB),
+2026-11-16, every run pinned to one core inside the machine's timing
+slot (builds of other jobs ran on the other four cores), 5 interleaved
+repetitions in rotated order; paired ratio variant / base, median
+[min, max]. Data, method and the full tables:
+`docs/benchmarks/perf-campaign/build-profile/`.
+
+Table "Build configurations, paired ratio to the release profile":
+
+| configuration | tet4 ss step | tet4 fd step | hex8 ss step | hex8 fd step | driver explicit step | driver insertion check | driver static solve | driver wall | facet set-up |
+|---|---|---|---|---|---|---|---|---|---|
+| `cgu1` | 1.098 [1.074, 1.103] | 1.061 [1.057, 1.073] | 1.019 [1.013, 1.031] | 0.999 [0.996, 1.009] | 1.034 [1.016, 1.037] | 0.971 [0.960, 0.988] | 0.980 [0.974, 0.993] | 0.981 [0.978, 0.993] | 0.984 [0.983, 0.984] |
+| `thin` | 0.991 [0.986, 1.013] | 0.997 [0.987, 1.003] | 0.999 [0.982, 1.006] | 0.996 [0.991, 1.002] | 1.003 [0.997, 1.010] | 0.999 [0.991, 1.012] | 0.996 [0.988, 1.016] | 0.998 [0.994, 1.013] | 0.987 [0.987, 0.989] |
+| `fat` | 1.101 [1.085, 1.112] | 1.072 [1.056, 1.080] | 1.025 [1.021, 1.032] | 1.007 [1.000, 1.024] | 1.036 [1.032, 1.060] | 0.948 [0.941, 0.970] | 0.975 [0.969, 0.989] | 0.970 [0.967, 0.981] | 0.968 [0.966, 0.970] |
+| `fat+cgu1` | 1.088 [1.077, 1.108] | 1.073 [1.060, 1.083] | 1.012 [0.984, 1.019] | 1.012 [0.992, 1.015] | 1.031 [1.027, 1.056] | 1.043 [1.030, 1.046] | 0.986 [0.978, 1.014] | 1.012 [1.008, 1.028] | 0.973 [0.971, 0.977] |
+| `v3` | 0.964 [0.960, 1.022] | 0.977 [0.969, 0.994] | 0.964 [0.959, 0.965] | 0.965 [0.934, 0.968] | 0.972 [0.949, 0.974] | 0.970 [0.958, 0.987] | 0.995 [0.973, 1.017] | 0.984 [0.973, 0.997] | 1.052 [1.051, 1.089] |
+| `v4` | 1.010 [0.983, 1.081] | 1.011 [1.006, 1.022] | 1.367 [1.356, 1.382] | 1.193 [1.177, 1.198] | 0.991 [0.987, 1.012] | 0.935 [0.932, 0.958] | 0.992 [0.985, 1.002] | 0.972 [0.966, 0.983] | 1.052 [1.050, 1.055] |
+| `znver4` | 0.968 [0.930, 0.998] | 0.981 [0.968, 1.014] | 0.962 [0.945, 0.968] | 0.967 [0.939, 0.974] | 1.011 [0.969, 1.029] | 0.940 [0.922, 0.964] | 1.023 [1.014, 1.030] | 0.984 [0.979, 1.000] | 1.029 [1.027, 1.031] |
+| `abort` | 0.996 [0.978, 1.004] | 0.995 [0.986, 1.002] | 0.996 [0.981, 1.000] | 1.003 [1.002, 1.005] | 0.995 [0.994, 1.000] | 0.978 [0.972, 0.992] | 0.997 [0.991, 1.031] | 0.988 [0.984, 1.015] | 0.977 [0.971, 1.029] |
+| `pgo2-base` | 0.950 [0.938, 0.963] | 0.962 [0.956, 0.974] | 0.981 [0.975, 1.011] | 0.975 [0.973, 0.980] | 0.854 [0.845, 0.866] | 0.887 [0.852, 0.906] | 0.957 [0.934, 0.992] | 0.917 [0.914, 0.922] | 0.958 [0.955, 0.966] |
+| `pgo2-fat` | 0.936 [0.921, 0.952] | 0.952 [0.943, 0.955] | 0.981 [0.974, 1.019] | 0.966 [0.960, 0.981] | 0.843 [0.834, 0.862] | 0.847 [0.811, 0.867] | 0.968 [0.953, 0.983] | 0.904 [0.882, 0.923] | 1.033 [1.031, 1.041] |
+| `base@mimalloc` | 1.040 [1.020, 1.070] | 1.019 [1.010, 1.030] | 1.052 [1.027, 1.062] | 1.100 [1.089, 1.106] | 1.008 [0.952, 1.035] | 1.003 [0.990, 1.045] | 1.015 [0.995, 1.026] | 1.006 [0.996, 1.033] | 0.958 [0.949, 0.963] |
+| `nobc` | 0.899 [0.880, 0.920] | 0.938 [0.934, 0.949] | 0.975 [0.971, 1.026] | 0.992 [0.981, 1.005] | 0.938 [0.919, 0.958] | 0.999 [0.995, 1.006] | 0.997 [0.994, 1.002] | 0.997 [0.986, 0.999] | 1.001 [0.994, 1.005] |
+
+- No release-profile setting gains: one codegen unit and fat LTO make the
+  explicit step 6–10 % slower on tet4, thin LTO changes nothing, and fat
+  LTO gains 2–5 % only in the insertion check, the static solve and the
+  mesh set-up. The clean build of the three timing binaries takes 1.3×
+  (thin LTO or one codegen unit) to 2.5× (fat LTO) as long. The workspace
+  profile stays as it is.
+- `x86-64-v3` and `znver4` take 0.96–0.98 of the explicit-step time and
+  0.98 of the cohesive driver's wall time, but 1.03–1.05 of the facet
+  set-up's.
+  `x86-64-v4` is 1.19–1.37 times slower on hex8: LLVM's generic v4 cost
+  model vectorises the strided loads of `fast::gradient` with AVX-512
+  gathers and scatters, which are slow on AMD Zen 4/5 (the hex8 `stress`
+  phase takes twice the time). `znver4` (the Zen 4 cost model) does not
+  slow down.
+- PGO, trained on cases disjoint from the measured ones, gains most: the
+  cohesive driver 0.92 (0.90 with fat LTO), its insertion check 0.85–0.89,
+  its explicit step 0.84–0.85, the explicit-step harness 0.95–0.98, the
+  untrained mesh set-up 0.96. A training set without the cohesive
+  material made the insertion check 1.35 times slower: PGO helps only
+  where the training covers the code.
+- `panic = "abort"` changes nothing measurable (0.98–1.00). mimalloc and
+  jemalloc (preloaded) slow the explicit step by 2–10 %; mimalloc lowers
+  the driver's peak RSS by 11 % and speeds up element removal (0.65).
+- Every configuration gives the same bits: the CI `test` and `release`
+  tiers pass when built with `x86-64-v2`, `-v3`, `-v4` and `znver4`, the
+  `release` tier with fat or thin LTO and one codegen unit; the
+  explicit-step digests, the 5,000-step fragmenting cohesive run and the
+  71 cases of the benchmark suites are identical for the configurations
+  checked, PGO included (list in the study's README). `f64::min`/`max` give the same bits at every level; only
+  the choice between two NaN operands can differ, as it already does
+  between debug and release builds. The manual states which levels keep
+  the results (`docs/manual/src/getting-started.md`).
+- Bounds checks: removing those of `fast::gradient`, `fast::btd` and the
+  internal-force scatter by hand made the tet4 explicit step 0.90 (small
+  strain) and 0.94 (finite deformation) and the driver's explicit step
+  0.94, with the same results. The kernels with the most checks are
+  listed with their restructuring in the study's README.
 
 ## Known slow paths
 
