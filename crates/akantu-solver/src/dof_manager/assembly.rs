@@ -19,6 +19,7 @@ use std::cell::RefCell;
 use akantu_comm::phase::Severity;
 use akantu_core::array::{ArrayView, ArrayViewMut};
 use akantu_core::array_shared::ArrayRef;
+use akantu_core::exec::{Tuples, TuplesRef};
 use akantu_core::{Array, ElementType, Error, GhostType, Idx, Real, Result};
 use akantu_mesh::Mesh;
 
@@ -47,6 +48,9 @@ impl DofData {
         }
     }
 }
+
+/// Equations per part of a threaded per-equation loop (D-123).
+const EQUATIONS_PER_PART: usize = 16_384;
 
 impl DofManager {
     /// Upstream `DOFManagerDefault::assembleToGlobalArray`: `target[eq] +=
@@ -600,9 +604,25 @@ impl DofManager {
             cache.len(),
         )?;
         let mut residual = self.residual.values_mut();
-        for ((r, &ai), &xi) in residual.as_mut_slice().iter_mut().zip(&a.values).zip(cache) {
-            *r += ai * xi;
-        }
+        // every equation from its own entries: contiguous parts on the
+        // threads (D-123)
+        let n = residual.len().min(a.values.len()).min(cache.len());
+        let items = (
+            Tuples::new(&mut residual.as_mut_slice()[..n], 1),
+            TuplesRef::new(&a.values[..n], 1),
+            TuplesRef::new(&cache[..n], 1),
+        );
+        self.exec
+            .for_each(items, EQUATIONS_PER_PART, |_, (mut r, a, x)| {
+                for ((r, &ai), &xi) in r
+                    .as_mut_slice()
+                    .iter_mut()
+                    .zip(a.as_slice())
+                    .zip(x.as_slice())
+                {
+                    *r += ai * xi;
+                }
+            });
         drop(residual);
         // symmetric 3×3 couplings of a block-lumped matrix (D-059)
         self.add_lumped_coupling_product(a_id, cache)
@@ -638,9 +658,23 @@ impl DofManager {
         self.solution.clear();
         self.solution.resize(n, 0.0);
         let residual = self.residual.values();
-        for ((x, &ai), &bi) in self.solution.iter_mut().zip(&a.values).zip(residual.iter()) {
-            *x = alpha * (bi / ai);
-        }
+        let m = n.min(a.values.len()).min(residual.len());
+        let items = (
+            Tuples::new(&mut self.solution[..m], 1),
+            TuplesRef::new(&a.values[..m], 1),
+            TuplesRef::new(&residual.as_slice()[..m], 1),
+        );
+        self.exec
+            .for_each(items, EQUATIONS_PER_PART, |_, (mut x, a, b)| {
+                for ((x, &ai), &bi) in x
+                    .as_mut_slice()
+                    .iter_mut()
+                    .zip(a.as_slice())
+                    .zip(b.as_slice())
+                {
+                    *x = alpha * (bi / ai);
+                }
+            });
         drop(residual);
         // free sub-blocks of a block-lumped matrix (D-059)
         self.solve_lumped_free_blocks(lumped_id, alpha)?;

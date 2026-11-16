@@ -2272,15 +2272,26 @@ impl DofManager {
                 got: x.len(),
             });
         }
+        let exec = &self.exec;
         for f in self.families.values_mut() {
-            for (s, &eq) in f
-                .solution
-                .as_mut_slice()
-                .iter_mut()
-                .zip(&f.local_equation_numbers)
-            {
-                *s = x[akantu_core::try_to_usize(eq)?];
-            }
+            // a gather: every DOF reads its own equation (D-123)
+            let n = f.solution.len().min(f.local_equation_numbers.len());
+            let items = (
+                akantu_core::exec::Tuples::new(&mut f.solution.as_mut_slice()[..n], 1),
+                akantu_core::exec::TuplesRef::new(&f.local_equation_numbers[..n], 1),
+            );
+            exec.try_for_each(items, 16_384, |_, (mut s, eqs)| {
+                for (s, &eq) in s.as_mut_slice().iter_mut().zip(eqs.as_slice()) {
+                    *s = *x
+                        .get(akantu_core::try_to_usize(eq)?)
+                        .ok_or(Error::OutOfRange {
+                            what: "local equation",
+                            index: akantu_core::try_to_usize(eq)?,
+                            len: x.len(),
+                        })?;
+                }
+                Ok(())
+            })?;
         }
         Ok(())
     }
