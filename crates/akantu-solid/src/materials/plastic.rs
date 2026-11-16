@@ -963,7 +963,7 @@ impl<const DIM: usize> MaterialLinearIsotropicHardening<DIM> {
                 iso.as_mut_slice(),
                 inel.as_mut_slice(),
             );
-            for k in 0..iso.len() {
+            for (k, r_iso) in iso.iter_mut().enumerate() {
                 let r = k * n..(k + 1) * n;
                 let g: &Matrix<DIM, DIM> = as_matrix(&g.as_slice()[r.clone()])?;
                 let pg: &Matrix<DIM, DIM> = as_matrix(&pg.as_slice()[r.clone()])?;
@@ -971,7 +971,6 @@ impl<const DIM: usize> MaterialLinearIsotropicHardening<DIM> {
                 let pe: &Matrix<DIM, DIM> = as_matrix(&pe.as_slice()[r.clone()])?;
                 let th = ThermalIncrements::new(corrected, th.as_slice()[k], pth.as_slice()[k]);
                 let r_prev = piso.as_slice()[k];
-                let r_iso = &mut iso[k];
                 // UD-138: the yield predicate reads the committed hardening
                 if committed {
                     *r_iso = r_prev;

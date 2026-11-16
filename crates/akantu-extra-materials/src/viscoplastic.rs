@@ -355,7 +355,7 @@ impl<const DIM: usize> Material for MaterialViscoPlastic<DIM> {
                     inel.as_mut_slice(),
                     iso.as_mut_slice(),
                 );
-                for k in 0..iso.len() {
+                for (k, iso_k) in iso.iter_mut().enumerate() {
                     let q = first + k;
                     let r = k * n..(k + 1) * n;
                     let rq = q * n..(q + 1) * n;
@@ -370,10 +370,10 @@ impl<const DIM: usize> Material for MaterialViscoPlastic<DIM> {
                         // UD-583: the committed state of the point
                         (*as_matrix::<DIM, DIM>(&prev_sigma[rq])?, prev_iso[q])
                     } else {
-                        (*as_matrix::<DIM, DIM>(&sigma[r.clone()])?, iso[k])
+                        (*as_matrix::<DIM, DIM>(&sigma[r.clone()])?, *iso_k)
                     };
                     let (delta, r_new) = this.flow(&sigma_in, r_in);
-                    iso[k] = r_new;
+                    *iso_k = r_new;
                     let grad_delta_u = g.sub(pg);
                     let (s_new, e_new) = stress_and_inelastic_strain_on_quad(
                         &constants,

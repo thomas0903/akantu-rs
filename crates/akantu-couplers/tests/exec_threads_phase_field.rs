@@ -110,7 +110,9 @@ fn run(policy: ExecPolicy) -> State {
         let mesh = c.solid.physics.base.mesh.read().unwrap();
         mesh.nodes()
             .as_slice()
-            .chunks_exact(2)
+            .as_chunks::<2>()
+            .0
+            .iter()
             .map(|p| p[1])
             .collect()
     };
