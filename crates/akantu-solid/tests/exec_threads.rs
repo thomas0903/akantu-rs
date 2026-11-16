@@ -938,3 +938,18 @@ fn marigo_thermal_law_is_bitwise_for_every_thread_count() {
         active: "damage",
     });
 }
+
+#[test]
+fn sls_law_is_bitwise_for_every_thread_count() {
+    check_law(&LawCase {
+        name: "sls_deviatoric",
+        dat: |_| {
+            "material sls_deviatoric [\n  name = body\n  rho = 2500\n  E = 70e9\n  nu = 0.22\n  \
+             Eta = 1e3\n  Ev = 20e9\n]\n"
+                .into()
+        },
+        amp: 1e-3,
+        steps: 6,
+        active: "history_integral",
+    });
+}
