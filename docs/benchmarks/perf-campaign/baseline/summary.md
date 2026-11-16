@@ -97,7 +97,69 @@ solver. Raw: `raw/static-h0.12/`.
 C++ SparseLU / C++ MUMPS: 4.64 [3.34, 5.89]. `init_full` in the same runs:
 C++ 0.968 [0.967, 1.08] s, port 0.377 [0.376, 0.415] s (0.39 [0.35, 0.43]).
 
-SCALING_PLACEHOLDER
+## Cohesive benchmark h = 0.06 at 1, 2, 4, 8 ranks
+
+177,328 tetrahedra (x86_64 mesh `20523d2d…`), static solve with MUMPS 5.7.3
+on both sides, 500 steps (before the first insertion: none inserted in any
+run), C++ strict with the JOSS `fillNodesToElements` emulation, the same
+C++ Scotch partition replayed by the port at every rank count
+(`partition_matches` in all 9 multi-rank C++ runs), 3 repetitions; one
+exclusive job per repetition holding the four points (order reversed in
+repetition 2) and the two codes rotated per point; ranks on cores
+0..N-1. The full 5,000-step schedule was not run at this size: a 1-rank
+C++ run of 500 steps already takes 4–5 min, the schedule's insertion phase
+costs more per step, and `scaling_analyze.py` describes pre-insertion
+series. Raw: `raw/scaling/` (`infra-scal-s500-summary.md` of
+`scaling_analyze.py`, `infra-scal-s500-paired.md` of `paired.py`).
+
+| ranks | phase | unit | C++ strict | port | port / C++ (paired) |
+|---|---|---|---|---|---|
+| 1 | `read_mesh` | s | 0.251 [0.251, 0.253] | 0.142 [0.142, 0.143] | 0.565 [0.564, 0.568] |
+| 1 | `init_full` | s | 14.0 [14.0, 14.0] | 3.11 [3.11, 3.12] | 0.223 [0.222, 0.223] |
+| 1 | `static_solve` | s | 13.1 [13.1, 13.1] | 14.3 [14.3, 14.4] | 1.09 [1.09, 1.10] |
+| 1 | `solve_step` | ms/step | 63.6 [63.5, 63.6] | 28.2 [28.2, 28.2] | 0.444 [0.443, 0.444] |
+| 1 | `check_cohesive_stress` | ms/step | 245 [245, 245] | 110 [110, 111] | 0.450 [0.449, 0.454] |
+| 1 | `energies` | ms/step | 22.1 [22.1, 22.1] | 18.2 [18.2, 18.2] | 0.827 [0.825, 0.827] |
+| 1 | loop | core-µs/el/step | 1.74 [1.74, 1.74] | 0.781 [0.780, 0.785] | 0.449 [0.448, 0.452] |
+| 2 | `dist_mesh` | s | 1.76 [1.76, 1.78] | 0.283 [0.283, 0.284] | 0.160 [0.159, 0.161] |
+| 2 | `init_full` | s | 6.29 [5.74, 6.29] | 1.71 [1.71, 1.71] | 0.273 [0.273, 0.298] |
+| 2 | `static_solve` | s | 8.74 [8.73, 8.75] | 9.33 [9.32, 9.37] | 1.07 [1.07, 1.07] |
+| 2 | `solve_step` | ms/step | 41.6 [41.3, 43.8] | 18.8 [18.8, 18.8] | 0.452 [0.428, 0.454] |
+| 2 | `check_cohesive_stress` | ms/step | 137 [135, 137] | 58.3 [58.2, 58.5] | 0.427 [0.425, 0.431] |
+| 2 | `energies` | ms/step | 11.9 [11.1, 12.2] | 9.66 [9.66, 9.71] | 0.817 [0.791, 0.874] |
+| 2 | loop | core-µs/el/step | 2.01 [1.99, 2.04] | 0.869 [0.868, 0.872] | 0.432 [0.427, 0.436] |
+| 4 | `dist_mesh` | s | 1.81 [1.80, 1.81] | 0.325 [0.322, 0.331] | 0.180 [0.179, 0.183] |
+| 4 | `init_full` | s | 2.57 [2.57, 2.61] | 0.893 [0.892, 0.893] | 0.347 [0.343, 0.348] |
+| 4 | `static_solve` | s | 4.66 [4.66, 4.66] | 4.90 [4.89, 4.95] | 1.05 [1.05, 1.06] |
+| 4 | `solve_step` | ms/step | 27.8 [27.7, 28.1] | 13.4 [13.4, 13.4] | 0.484 [0.478, 0.484] |
+| 4 | `check_cohesive_stress` | ms/step | 74.5 [74.2, 74.5] | 35.6 [35.6, 35.7] | 0.479 [0.478, 0.480] |
+| 4 | `energies` | ms/step | 5.63 [5.52, 5.93] | 5.49 [5.46, 5.51] | 0.979 [0.921, 0.995] |
+| 4 | loop | core-µs/el/step | 2.31 [2.30, 2.32] | 1.11 [1.11, 1.11] | 0.480 [0.478, 0.481] |
+| 8 | `dist_mesh` | s | 1.89 [1.89, 1.89] | 0.426 [0.426, 0.432] | 0.226 [0.225, 0.229] |
+| 8 | `init_full` | s | 1.17 [1.17, 1.17] | 0.473 [0.467, 0.475] | 0.404 [0.401, 0.406] |
+| 8 | `static_solve` | s | 3.25 [3.11, 3.29] | 3.27 [3.26, 3.32] | 1.02 [0.99, 1.05] |
+| 8 | `solve_step` | ms/step | 19.2 [18.9, 19.2] | 13.1 [13.1, 13.2] | 0.689 [0.682, 0.693] |
+| 8 | `check_cohesive_stress` | ms/step | 46.8 [46.5, 46.9] | 25.7 [25.7, 25.8] | 0.551 [0.549, 0.552] |
+| 8 | `energies` | ms/step | 4.10 [3.96, 4.44] | 3.69 [3.67, 3.70] | 0.903 [0.831, 0.928] |
+| 8 | loop | core-µs/el/step | 2.96 [2.96, 2.98] | 1.75 [1.75, 1.76] | 0.592 [0.588, 0.592] |
+
+`read_mesh` is the same at every rank count (rank 0 reads). Peak memory (the
+container's cgroup peak, all ranks together): C++ 3.15 / 3.68 / 3.74 /
+4.05 GiB, port 2.84 / 3.35 / 3.42 / 3.75 GiB at 1 / 2 / 4 / 8 ranks (port /
+C++ 0.90–0.93).
+
+Strong scaling of the loop (`solve_step` + `check_cohesive_stress`), speed-up
+over 1 rank and efficiency (per repetition in brackets):
+
+| ranks | C++ speed-up | C++ efficiency | port speed-up | port efficiency |
+|---|---|---|---|---|
+| 2 | 1.73 | 0.865 [0.853, 0.872] | 1.80 | 0.899 [0.895, 0.903] |
+| 4 | 3.02 | 0.754 [0.752, 0.756] | 2.82 | 0.705 [0.704, 0.710] |
+| 8 | 4.69 | 0.587 [0.584, 0.587] | 3.56 | 0.446 [0.444, 0.448] |
+
+The port's `solve_step` does not get faster from 4 to 8 ranks (13.4 → 13.1
+ms/step) while upstream's does (27.8 → 19.2): at 8 ranks the port's lead on
+the loop shrinks from 0.48 to 0.59 of upstream's core time.
 
 ## Profile of the port's cohesive driver (h = 0.12, 500 steps)
 
@@ -141,9 +203,18 @@ Bitwise-safe candidates, by share of the profiles above:
    scalars), checked bitwise against the current kernel.
 3. `interpolate_stress` and `check_insertion` (8.2 % and 7.7 %): per-facet
    work of the check.
-4. The MUMPS path's static solve (1.29× upstream with the same MUMPS): the
-   port's assembly and hand-over around the same factorisation.
-5. Peak RSS of the host driver (1.72× upstream at h = 0.12, mostly the
+4. The port's `solve_step` at 8 ranks (h = 0.06: 13.1 ms/step at 8 ranks
+   against 13.4 at 4; 34 % of the 8-rank loop; loop efficiency 0.45
+   against upstream's 0.59). Not profiled here: a profile of the 8-rank run
+   (per-rank time in the ghost synchronisation and the per-node solver
+   loops against the element kernels) comes first.
+5. The MUMPS path's static solve (1.29× upstream at h = 0.12 with the same
+   MUMPS, 1.02–1.09× at h = 0.06): the port's assembly and hand-over around
+   the same factorisation.
+6. The `energies` phase at 1–2 ranks (0.82–0.83× upstream, against 0.43–
+   0.45× for the rest of the loop; 13 % of the port's 1-rank loop at
+   h = 0.06).
+7. Peak RSS of the host driver (1.72× upstream at h = 0.12, mostly the
    SparseLU factorisation's storage).
 
 Fast-mode candidates (results change): FMA in the explicit kernels and the
