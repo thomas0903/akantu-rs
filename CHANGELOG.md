@@ -178,11 +178,11 @@ change of default results or of a public API raises the minor version.
     allocation and see the same values at the same times (D-047).
     `InternalField::previous` of a deferred block returns the current
     block, with its id.
-  - The plastic, Marigo, Mazars, standard linear solid and Maxwell laws
-    compute their blocks into scratch storage kept between steps and
-    commit them by exchange, instead of cloning their inputs and results
-    at every step; the elastic potential energy, the Neo-Hookean and
-    anisotropic kernels read their inputs in place.
+  - The plastic, Marigo, standard linear solid and Maxwell laws compute
+    their blocks into scratch storage kept between steps and commit them
+    by exchange, instead of cloning their inputs and results at every
+    step; the elastic potential energy does the same, and the Neo-Hookean
+    and anisotropic kernels read their inputs in place.
   - A non-local neighbourhood whose weight function depends on the
     distance only keeps its weights while the radius, points, pairs,
     slots, integration weights and incoming volumes are unchanged, instead
