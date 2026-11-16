@@ -104,6 +104,37 @@ pub struct NonLocalNeighborhood {
     /// computed with the pair weights (so the key-order route follows the
     /// `update_rate` schedule like upstream's route).
     key_weights: Vec<Vec<Real>>,
+    /// Inputs and volume outputs of the last weight computation, kept for
+    /// weight functions whose weights depend on the distance only
+    /// ([`WeightFunction::weights_depend_only_on_distance`]); dropped by
+    /// every change of the points, pairs, radius or weight function.
+    weight_memo: Option<Box<WeightMemo>>,
+}
+
+/// What [`NonLocalNeighborhood::compute_weights`] read and produced besides
+/// the pair weights (which stay stored): with the same inputs a new
+/// computation gives the same bits, so it is skipped and the volumes are
+/// set to the stored outputs.
+#[derive(Clone, Debug, PartialEq)]
+struct WeightMemo {
+    radius: u64,
+    identity: PointIdentity,
+    key_order: bool,
+    slots: Vec<usize>,
+    /// `jacobians[slot]` per point, as bits.
+    jacobians: Vec<u64>,
+    /// `volumes[slot]` per point on entry, as bits.
+    volumes_in: Vec<u64>,
+    /// `volumes[slot]` per point on exit.
+    volumes_out: Vec<Real>,
+}
+
+/// `values[slot]` of every slot, as bits (`None` if a slot is out of range).
+fn slot_bits(values: &[Real], slots: &[usize]) -> Option<Vec<u64>> {
+    slots
+        .iter()
+        .map(|&s| values.get(s).map(|v| v.to_bits()))
+        .collect()
 }
 
 impl NonLocalNeighborhood {
@@ -133,6 +164,7 @@ impl NonLocalNeighborhood {
             variables: BTreeSet::new(),
             key_lists: Vec::new(),
             key_weights: Vec::new(),
+            weight_memo: None,
         }
     }
 
@@ -142,6 +174,7 @@ impl NonLocalNeighborhood {
     /// # Errors
     /// `center` of the wrong length.
     pub fn init_neighborhood(&mut self, center: &[Real]) -> Result<()> {
+        self.weight_memo = None;
         let safety_factor = 1.2;
         let spacing = vec![self.radius * safety_factor; self.spatial_dimension];
         self.grid = SpatialGrid::with_spacing(self.spatial_dimension, &spacing, center)?;
@@ -168,6 +201,7 @@ impl NonLocalNeighborhood {
 
     /// The weight function, mutable (upstream access through the parser).
     pub fn weight_function_mut(&mut self) -> &mut dyn WeightFunction {
+        self.weight_memo = None;
         &mut *self.weight
     }
 
@@ -224,6 +258,7 @@ impl NonLocalNeighborhood {
                 got: coords.len(),
             });
         }
+        self.weight_memo = None;
         let index = self.points.len();
         self.grid.insert(index, coords)?;
         self.points.push(q);
@@ -234,6 +269,7 @@ impl NonLocalNeighborhood {
     /// Drop the points, pairs and weights (rebuild), keep the grid
     /// geometry, the weight function and the variables.
     pub(crate) fn clear_points(&mut self) -> Result<()> {
+        self.weight_memo = None;
         let spacing = self.grid.spacing().to_vec();
         let center = self.grid.center().to_vec();
         self.grid = SpatialGrid::with_spacing(self.spatial_dimension, &spacing, &center)?;
@@ -272,6 +308,7 @@ impl NonLocalNeighborhood {
     /// # Errors
     /// A point whose cell cannot be computed (non-finite coordinates).
     pub fn update_pair_list(&mut self, identity: PointIdentity, tolerance: Real) -> Result<()> {
+        self.weight_memo = None;
         let reach = self.radius + tolerance;
         let mut lists: [Vec<(usize, usize)>; 2] = [Vec::new(), Vec::new()];
         for (_, cell) in self.grid.cells() {
@@ -344,6 +381,7 @@ impl NonLocalNeighborhood {
         new_numbering: &ElementTypeMapArray<Idx>,
         nb_quad: &dyn Fn(ElementType) -> Result<usize>,
     ) -> Result<()> {
+        self.weight_memo = None;
         let n_old = self.points.len();
         let mut new_index = vec![usize::MAX; n_old];
         let mut points = Vec::with_capacity(n_old);
@@ -452,6 +490,30 @@ impl NonLocalNeighborhood {
     ) -> Result<()> {
         self.weight.set_radius(self.radius);
         self.weight.update_internals(internals)?;
+        // the same inputs as the stored computation: the same weights and
+        // volumes (the pair and key weights are still stored)
+        let memo_inputs = if self.weight.weights_depend_only_on_distance()
+            && self.slots.len() == self.points.len()
+        {
+            slot_bits(jacobians, &self.slots).zip(slot_bits(volumes, &self.slots))
+        } else {
+            None
+        };
+        if let (Some(m), Some((jac, vin))) = (&self.weight_memo, &memo_inputs)
+            && self.weights_computed
+            && m.radius == self.radius.to_bits()
+            && m.identity == identity
+            && m.key_order == key_order
+            && m.slots == self.slots
+            && &m.jacobians == jac
+            && &m.volumes_in == vin
+        {
+            for (&s, &v) in self.slots.iter().zip(&m.volumes_out) {
+                volumes[s] = v;
+            }
+            return Ok(());
+        }
+        self.weight_memo = None;
         for g in 0..2 {
             let mut weights = vec![[0.; 2]; self.pair_list[g].len()];
             for (w, &(i, j)) in weights.iter_mut().zip(&self.pair_list[g]) {
@@ -495,6 +557,17 @@ impl NonLocalNeighborhood {
                 .collect();
         }
         self.weights_computed = true;
+        if let Some((jac, vin)) = memo_inputs {
+            self.weight_memo = Some(Box::new(WeightMemo {
+                radius: self.radius.to_bits(),
+                identity,
+                key_order,
+                slots: self.slots.clone(),
+                jacobians: jac,
+                volumes_in: vin,
+                volumes_out: self.slots.iter().map(|&s| volumes[s]).collect(),
+            }));
+        }
         Ok(())
     }
 
@@ -708,6 +781,7 @@ impl ParameterRegistry for NonLocalNeighborhood {
         })
     }
     fn set_param_from_input(&mut self, name: &str, value: ParamValue) -> Result<()> {
+        self.weight_memo = None;
         match (name, value) {
             ("radius", ParamValue::Real(r)) => {
                 self.radius = r;
@@ -739,6 +813,7 @@ impl Parsable for NonLocalNeighborhood {
     /// Upstream `registerSubSection(_weight_function, "weight_parameter",
     /// weight_function)`.
     fn parse_sub_section(&mut self, section: &ParserSection, permissive: bool) -> Result<()> {
+        self.weight_memo = None;
         if section.section_type == ParserType::WeightFunction && section.name == "weight_parameter"
         {
             return self.weight.parse_section(section, permissive);
@@ -753,5 +828,82 @@ impl Parsable for NonLocalNeighborhood {
         } else {
             Err(Error::invalid(msg))
         }
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+    use crate::non_local::weight::BaseWeightFunction;
+
+    /// A `base_wf` neighbourhood on a 2-D grid of points with slots.
+    fn grid_neighborhood() -> NonLocalNeighborhood {
+        let mut n = NonLocalNeighborhood::new(
+            "nl",
+            "non_local:nl",
+            2,
+            Box::new(BaseWeightFunction::default()),
+        );
+        n.set_param_from_input("radius", ParamValue::Real(0.35))
+            .unwrap();
+        n.init_neighborhood(&[0.5, 0.5]).unwrap();
+        let mut k = 0;
+        for i in 0..6 {
+            for j in 0..6 {
+                let q = QuadPoint::new(ElementType::Triangle3, GhostType::NotGhost, k, 0, 1);
+                let x = [0.1 + 0.17 * f64::from(i), 0.05 + 0.18 * f64::from(j)];
+                n.insert_integration_point(q, &x).unwrap();
+                k += 1;
+            }
+        }
+        n.update_pair_list(PointIdentity::Complete, 1e-12).unwrap();
+        n.slots = (0..n.points().len()).map(|i| 2 * i + 1).collect();
+        n
+    }
+
+    /// The stored weights of a distance-only weight function are reused
+    /// while the inputs are unchanged and give the bits of a computation
+    /// from scratch, also when the incoming volumes change (another
+    /// neighbourhood's contributions to shared slots).
+    #[test]
+    fn stored_weights_equal_recomputed_weights() {
+        let mut a = grid_neighborhood();
+        let mut b = grid_neighborhood();
+        let nslots = 2 * a.points().len() + 2;
+        let jac: Vec<Real> = (0..nslots).map(|s| 0.5 + 0.01 * s as Real).collect();
+        let internals = WeightInternals::new();
+        let mut first_ptr = None;
+        for round in 0..5 {
+            let mut va = vec![0.; nslots];
+            if round == 3 {
+                va[3] = 0.25; // a contribution of another neighbourhood
+            }
+            let mut vb = va.clone();
+            a.compute_weights(PointIdentity::Complete, true, &jac, &mut va, &internals)
+                .unwrap();
+            let _ = b.weight_function_mut(); // drops b's stored weights
+            b.compute_weights(PointIdentity::Complete, true, &jac, &mut vb, &internals)
+                .unwrap();
+            let bits = |v: &[Real]| v.iter().map(|x| x.to_bits()).collect::<Vec<_>>();
+            assert_eq!(bits(&va), bits(&vb), "round {round}");
+            for g in [GhostType::NotGhost, GhostType::Ghost] {
+                let (wa, wb) = (a.pair_weights(g), b.pair_weights(g));
+                assert_eq!(wa.len(), wb.len());
+                for (x, y) in wa.iter().zip(wb) {
+                    assert_eq!(
+                        [x[0].to_bits(), x[1].to_bits()],
+                        [y[0].to_bits(), y[1].to_bits()]
+                    );
+                }
+            }
+            assert_eq!(a.key_weights, b.key_weights);
+            let ptr = a.pair_weights(GhostType::NotGhost).as_ptr();
+            match round {
+                0 => first_ptr = Some(ptr),
+                1 | 2 => assert_eq!(Some(ptr), first_ptr, "reused in round {round}"),
+                _ => {}
+            }
+        }
+        assert!(!a.pair_weights(GhostType::NotGhost).is_empty());
     }
 }
