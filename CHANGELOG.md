@@ -23,6 +23,9 @@ change of default results or of a public API raises the minor version.
   `OutwardCache` and `orthogonal_projection_in`: outward directions of the
   facets memoised for one set of positions; the contact detector uses them
   within a search (identical normals).
+- `akantu_contact::geometry::outside_direction_with_nodes`: the reference
+  outward direction with node arrays read once by the caller (the nodal
+  areas of a search use it).
 - `akantu_fe::engine::PointInterpolation`
   (`ElementalFieldInterpolation::point_interpolation`): the value of one
   interpolation point of one element of an elemental-field interpolation

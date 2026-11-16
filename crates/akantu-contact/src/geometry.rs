@@ -451,6 +451,70 @@ pub fn outside_direction(view: &MeshView<'_>, element: Element, out: &mut [Real]
     Ok(())
 }
 
+/// Barycentre of `element` of `mesh` on the node coordinates `nodes`
+/// (`dim` values per node): the arithmetic of `Mesh::barycenter_into` (sum
+/// in connectivity order, then division) without its per-call lock.
+fn barycenter_in(mesh: &Mesh, nodes: &[Real], element: Element, out: &mut [Real]) -> Result<()> {
+    let dim = out.len();
+    let conn = mesh.element_connectivity(element)?;
+    out.fill(0.0);
+    for &n in &conn {
+        let i = try_to_usize(n)?;
+        let x = nodes.get(i * dim..(i + 1) * dim).ok_or(Error::OutOfRange {
+            what: "outward direction: node",
+            index: i,
+            len: nodes.len() / dim.max(1),
+        })?;
+        for (xi, &c) in out.iter_mut().zip(x) {
+            *xi += c;
+        }
+    }
+    #[allow(clippy::cast_precision_loss)] // node counts are tiny
+    let inv = conn.len() as Real;
+    for xi in out {
+        *xi /= inv;
+    }
+    Ok(())
+}
+
+/// [`outside_direction`] with the node coordinates of the mesh
+/// (`mesh_nodes`) and of the parent mesh of a facet view (`parent_nodes`)
+/// read once by the caller: the same values, without a lock per
+/// barycentre.
+///
+/// # Errors
+/// As [`outside_direction`]; node arrays shorter than the meshes' nodes.
+pub fn outside_direction_with_nodes(
+    view: &MeshView<'_>,
+    mesh_nodes: &[Real],
+    parent_nodes: Option<&[Real]>,
+    element: Element,
+    out: &mut [Real],
+) -> Result<()> {
+    let dim = view.dim();
+    let row = view.element_to_subelement(element)?;
+    let first = row
+        .first()
+        .copied()
+        .filter(|e| !e.is_null())
+        .ok_or_else(|| Error::Mesh(format!("facet {element} has no neighbour element")))?;
+    let mut inside = [0.0; 3];
+    match (view.parent, parent_nodes) {
+        (Some(p), Some(pn)) => barycenter_in(p, pn, first, &mut inside[..dim])?,
+        (Some(_), None) => {
+            return Err(Error::invalid(
+                "outside_direction_with_nodes: a facet view needs the parent's nodes",
+            ));
+        }
+        (None, _) => barycenter_in(view.mesh, mesh_nodes, first, &mut inside[..dim])?,
+    }
+    barycenter_in(view.mesh, mesh_nodes, element, &mut out[..dim])?;
+    for (o, i) in out[..dim].iter_mut().zip(&inside) {
+        *o -= i;
+    }
+    Ok(())
+}
+
 /// Flip `normal` (and `tangents`) when it points into the neighbour
 /// element (`outsideDirection · n < 0`), the direction evaluated on
 /// `frame` (UD-371).
