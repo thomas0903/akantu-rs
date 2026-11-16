@@ -250,18 +250,32 @@ pub fn agreement_stats() -> (u64, f64) {
     (AGREEMENTS.load(Relaxed), s)
 }
 
-fn reduce_status(comm: &Communicator, id: u64, status: Severity, digest: u64) -> Result<Reduced> {
-    // max(status), max(id), max(!id) = !min(id), likewise for the digest:
-    // one bounded all-reduce of five words.
-    let mut v = [status as u64, id, !id, digest, !digest];
-    let t = std::time::Instant::now();
-    let r = comm.all_reduce(&mut v, ReduceOp::Max);
-    {
-        use std::sync::atomic::Ordering::Relaxed;
-        AGREEMENTS.fetch_add(1, Relaxed);
+/// Count one agreement and, when it communicated, the time since `start`.
+fn count_agreement(start: Option<std::time::Instant>) {
+    use std::sync::atomic::Ordering::Relaxed;
+    AGREEMENTS.fetch_add(1, Relaxed);
+    if let Some(t) = start {
         let ns = u64::try_from(t.elapsed().as_nanos()).unwrap_or(u64::MAX);
         AGREEMENT_NANOS.fetch_add(ns, Relaxed);
     }
+}
+
+fn reduce_status(comm: &Communicator, id: u64, status: Severity, digest: u64) -> Result<Reduced> {
+    // max(status), max(id), max(!id) = !min(id), likewise for the digest:
+    // one bounded all-reduce of five words.
+    if comm.size() == 1 {
+        // one rank: the all-reduce returns the rank's own words
+        count_agreement(None);
+        return Ok(Reduced {
+            worst: status as u64,
+            ids_match: true,
+            digests_match: true,
+        });
+    }
+    let mut v = [status as u64, id, !id, digest, !digest];
+    let t = std::time::Instant::now();
+    let r = comm.all_reduce(&mut v, ReduceOp::Max);
+    count_agreement(Some(t));
     r?;
     Ok(Reduced {
         worst: v[0],
@@ -790,6 +804,21 @@ impl Phases {
             return local;
         }
         let status = reported_severity(&local, severity);
+        if self.core.comm.size() == 1 {
+            // One rank: the agreement is this rank's own outcome (what the
+            // one-rank all-reduce returns), without the all-reduce, the
+            // qualified name or the step guard.
+            self.core.count += 1;
+            count_agreement(None);
+            if local.is_err() {
+                self.core.state = ScopeState::Failed(if status >= Severity::Fatal {
+                    Severity::Fatal
+                } else {
+                    Severity::Recoverable
+                });
+            }
+            return local;
+        }
         let q = self.qualified(name);
         let reduced = {
             let _step = self.core.comm.scope_step(self.core.uid);
