@@ -96,6 +96,7 @@ use akantu_parser::param::{ParamDescriptor, ParameterAccess};
 
 use super::damage::{DamageParent, integrate_field};
 use super::elastic::{ElasticConstants, MaterialElastic};
+use super::scratch::ScratchBlocks;
 use super::thermal::{ThermalEnergy, thermal_energy_correction};
 use crate::material::{
     FiniteStrainPlasticity, J2ReducedReturn, LawOptions, Material, MaterialBase, MaterialFactory,
@@ -784,6 +785,11 @@ pub struct MaterialLinearIsotropicHardening<const DIM: usize> {
     pub h: Real,
     /// Yield stress `sigma_y`.
     pub sigma_y: Real,
+    /// Per-block results of the return mapping before they are committed
+    /// (kept between steps: no allocation, no page faults per step).
+    /// The new stress, hardening and plastic strain of a block
+    /// ([`Self::j2_block`]).
+    scratch: ScratchBlocks<3>,
 }
 
 impl<const DIM: usize> MaterialLinearIsotropicHardening<DIM> {
@@ -797,6 +803,7 @@ impl<const DIM: usize> MaterialLinearIsotropicHardening<DIM> {
             plastic: PlasticFields::new(DIM)?,
             h: 0.,
             sigma_y: 0.,
+            scratch: ScratchBlocks::default(),
         })
     }
 
@@ -844,128 +851,140 @@ impl<const DIM: usize> MaterialLinearIsotropicHardening<DIM> {
         let reduced = DIM < 3 && options.j2_reduced_return == J2ReducedReturn::Consistent;
         let plane_stress = self.elastic.plane_stress;
         let n = DIM * DIM;
-        let (sigma_th, prev_sigma_th) = {
-            let (c, p) = self.elastic.sigma_th.current_and_previous_mut(ty, ghost)?;
-            (c.clone(), p.clone())
-        };
-        let base = self.elastic.base();
-        let grad_u = base.grad_u.get(ty, ghost)?.clone();
-        let prev_grad_u = base.grad_u.previous(ty, ghost)?.clone();
-        let prev_sigma = match previous_sigma {
-            Some(p) => p,
-            None => base.stress.previous(ty, ghost)?.clone(),
-        };
-        let mut sigma = base.sigma_field()?.get(ty, ghost)?.clone();
-        let (mut iso, prev_iso) = {
-            let (c, p) = self
-                .plastic
-                .iso_hardening
-                .current_and_previous_mut(ty, ghost)?;
-            (c.clone(), p.clone())
-        };
-        let (mut inel, prev_inel) = {
-            let (c, p) = self
-                .plastic
-                .inelastic_strain
-                .current_and_previous_mut(ty, ghost)?;
-            (c.clone(), p.clone())
-        };
-        let nq = grad_u.len();
-        if [
-            prev_grad_u.len(),
-            prev_sigma.len(),
-            sigma.len(),
-            iso.len(),
-            prev_iso.len(),
-            inel.len(),
-            prev_inel.len(),
-            sigma_th.len(),
-            prev_sigma_th.len(),
-        ]
-        .iter()
-        .any(|&l| l != nq)
-            || prev_sigma.nb_component() != n
-        {
-            return Err(Error::DimensionMismatch {
-                context: "MaterialLinearIsotropicHardening::computeStress",
-                expected: nq,
-                got: sigma.len().min(inel.len()).min(iso.len()),
-            });
-        }
+        let Self {
+            elastic,
+            plastic,
+            scratch,
+            ..
+        } = self;
         let mut green_out = Vec::new();
-        for q in 0..nq {
-            let r = q * n..(q + 1) * n;
-            let g: &Matrix<DIM, DIM> = as_matrix(&grad_u.as_slice()[r.clone()])?;
-            let pg: &Matrix<DIM, DIM> = as_matrix(&prev_grad_u.as_slice()[r.clone()])?;
-            let ps: &Matrix<DIM, DIM> = as_matrix(&prev_sigma.as_slice()[r.clone()])?;
-            let pe: &Matrix<DIM, DIM> = as_matrix(&prev_inel.as_slice()[r.clone()])?;
-            let th = ThermalIncrements::new(
-                corrected,
-                sigma_th.as_slice()[q],
-                prev_sigma_th.as_slice()[q],
-            );
-            let r_prev = prev_iso.as_slice()[q];
-            let r_iso = &mut iso.as_mut_slice()[q];
-            // UD-138: the yield predicate reads the committed hardening
-            if committed {
-                *r_iso = r_prev;
-            }
-            let hist = J2History {
-                previous_grad_u: pg,
-                previous_sigma: ps,
-                previous_inelastic_strain: pe,
-                previous_iso_hardening: r_prev,
+        {
+            // the inputs read in place (current and previous values); the
+            // results go to the scratch blocks, committed below
+            let base = elastic.base();
+            let sigma_th = elastic.sigma_th.get(ty, ghost)?;
+            let prev_sigma_th = elastic.sigma_th.previous(ty, ghost)?;
+            let grad_u = base.grad_u.get(ty, ghost)?;
+            let prev_grad_u = base.grad_u.previous(ty, ghost)?;
+            let prev_sigma = match &previous_sigma {
+                Some(p) => p,
+                None => base.stress.previous(ty, ghost)?,
             };
-            if finite_legacy {
-                let green = grad_u_to_green(g);
-                let prev_green = grad_u_to_green(pg);
-                let f = grad_u_to_f(g);
-                let hist_f = J2History {
-                    previous_grad_u: &prev_green,
-                    ..hist
-                };
-                let (s, e) = j2_finite_legacy_quad(&c, &green, &f, &hist_f, th, r_iso);
-                sigma.as_mut_slice()[r.clone()].copy_from_slice(s.as_flattened());
-                inel.as_mut_slice()[r.clone()].copy_from_slice(e.as_flattened());
-                green_out.push(green);
+            let sigma_cur = base.sigma_field()?.get(ty, ghost)?;
+            let iso_cur = plastic.iso_hardening.get(ty, ghost)?;
+            let prev_iso = plastic.iso_hardening.previous(ty, ghost)?;
+            let inel_cur = plastic.inelastic_strain.get(ty, ghost)?;
+            let prev_inel = plastic.inelastic_strain.previous(ty, ghost)?;
+            let nq = grad_u.len();
+            if [
+                prev_grad_u.len(),
+                prev_sigma.len(),
+                sigma_cur.len(),
+                iso_cur.len(),
+                prev_iso.len(),
+                inel_cur.len(),
+                prev_inel.len(),
+                sigma_th.len(),
+                prev_sigma_th.len(),
+            ]
+            .iter()
+            .any(|&l| l != nq)
+                || prev_sigma.nb_component() != n
+            {
+                return Err(Error::DimensionMismatch {
+                    context: "MaterialLinearIsotropicHardening::computeStress",
+                    expected: nq,
+                    got: sigma_cur.len().min(inel_cur.len()).min(iso_cur.len()),
+                });
             }
-            let (s, e) = if reduced {
-                let r_pred = *r_iso;
-                j2_reduced_quad(
-                    &c,
-                    plane_stress,
-                    g,
-                    &hist,
+            // every point writes all `n` values of its stress and plastic
+            // strain: the scratch needs the current values only for a block
+            // of another width (never for the registered fields)
+            let [sigma, iso, inel] = scratch.sized([
+                (nq, sigma_cur.nb_component()),
+                (nq, iso_cur.nb_component()),
+                (nq, inel_cur.nb_component()),
+            ])?;
+            if sigma_cur.nb_component() != n {
+                sigma.copy_from(&sigma_cur)?;
+            }
+            if inel_cur.nb_component() != n {
+                inel.copy_from(&inel_cur)?;
+            }
+            // the hardening is read before it is written (UD-138)
+            iso.copy_from(&iso_cur)?;
+            for q in 0..nq {
+                let r = q * n..(q + 1) * n;
+                let g: &Matrix<DIM, DIM> = as_matrix(&grad_u.as_slice()[r.clone()])?;
+                let pg: &Matrix<DIM, DIM> = as_matrix(&prev_grad_u.as_slice()[r.clone()])?;
+                let ps: &Matrix<DIM, DIM> = as_matrix(&prev_sigma.as_slice()[r.clone()])?;
+                let pe: &Matrix<DIM, DIM> = as_matrix(&prev_inel.as_slice()[r.clone()])?;
+                let th = ThermalIncrements::new(
+                    corrected,
+                    sigma_th.as_slice()[q],
                     prev_sigma_th.as_slice()[q],
-                    th,
-                    r_pred,
-                    r_iso,
-                )?
-            } else {
-                j2_small_strain_quad(&c, g, &hist, th, r_iso)
-            };
-            let s_out: &mut Matrix<DIM, DIM> = as_matrix_mut(&mut sigma.as_mut_slice()[r.clone()])?;
-            *s_out = s;
-            inel.as_mut_slice()[r].copy_from_slice(e.as_flattened());
+                );
+                let r_prev = prev_iso.as_slice()[q];
+                let r_iso = &mut iso.as_mut_slice()[q];
+                // UD-138: the yield predicate reads the committed hardening
+                if committed {
+                    *r_iso = r_prev;
+                }
+                let hist = J2History {
+                    previous_grad_u: pg,
+                    previous_sigma: ps,
+                    previous_inelastic_strain: pe,
+                    previous_iso_hardening: r_prev,
+                };
+                if finite_legacy {
+                    let green = grad_u_to_green(g);
+                    let prev_green = grad_u_to_green(pg);
+                    let f = grad_u_to_f(g);
+                    let hist_f = J2History {
+                        previous_grad_u: &prev_green,
+                        ..hist
+                    };
+                    let (s, e) = j2_finite_legacy_quad(&c, &green, &f, &hist_f, th, r_iso);
+                    sigma.as_mut_slice()[r.clone()].copy_from_slice(s.as_flattened());
+                    inel.as_mut_slice()[r.clone()].copy_from_slice(e.as_flattened());
+                    green_out.push(green);
+                }
+                let (s, e) = if reduced {
+                    let r_pred = *r_iso;
+                    j2_reduced_quad(
+                        &c,
+                        plane_stress,
+                        g,
+                        &hist,
+                        prev_sigma_th.as_slice()[q],
+                        th,
+                        r_pred,
+                        r_iso,
+                    )?
+                } else {
+                    j2_small_strain_quad(&c, g, &hist, th, r_iso)
+                };
+                let s_out: &mut Matrix<DIM, DIM> =
+                    as_matrix_mut(&mut sigma.as_mut_slice()[r.clone()])?;
+                *s_out = s;
+                inel.as_mut_slice()[r].copy_from_slice(e.as_flattened());
+            }
         }
-        let base = self.elastic.base_mut();
+        let base = elastic.base_mut();
         base.sigma_field_mut()?
-            .get_mut(ty, ghost)?
-            .copy_from(&sigma)?;
+            .commit_overwrite(ty, ghost, scratch.get_mut(0))?;
         if finite_legacy && let Some(gs) = &mut base.green_strain {
             let mut out = gs.get_mut(ty, ghost)?;
             for (o, g) in out.as_mut_slice().chunks_exact_mut(n).zip(&green_out) {
                 o.copy_from_slice(g.as_flattened());
             }
         }
-        self.plastic
+        plastic
             .iso_hardening
-            .get_mut(ty, ghost)?
-            .copy_from(&iso)?;
-        self.plastic
+            .commit_overwrite(ty, ghost, scratch.get_mut(1))?;
+        plastic
             .inelastic_strain
-            .get_mut(ty, ghost)?
-            .copy_from(&inel)?;
+            .commit_overwrite(ty, ghost, scratch.get_mut(2))?;
         Ok(())
     }
 }
@@ -1081,6 +1100,14 @@ impl<const DIM: usize> Material for MaterialLinearIsotropicHardening<DIM> {
         self.elastic.compute_thermal(ty, ghost)?;
         let finite = self.elastic.base().finite_deformation;
         self.j2_block(ty, ghost, finite, None)
+    }
+
+    /// `compute_stress` rewrites the thermal blocks first (the stress,
+    /// hardening and plastic strain are committed from scratch blocks).
+    fn prepare_stress_overwrite(&mut self, ty: ElementType, ghost: GhostType) {
+        if self.check_finite().is_ok() {
+            self.elastic.prepare_thermal_overwrite(ty, ghost);
+        }
     }
 
     /// Upstream: the elastic tangent per point, then

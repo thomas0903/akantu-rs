@@ -16,11 +16,14 @@
 //! eigen-gradient, 2-D meshes of triangles and quadrangles, and six-node
 //! triangles.
 
+use akantu_core::array_shared::ForeignRuntime;
+use akantu_core::array_storage::ExportLease;
 use akantu_core::enums::AnalysisMethod;
 use akantu_core::exec::{ExecPolicy, Grain};
 use akantu_core::{Element, ElementType, GhostType, Real};
 use akantu_mesh::{Mesh, MeshAccessor, MeshEvent, MeshPart, SharedMesh};
 use akantu_model::ModelOptions;
+use akantu_model::constitutive_law::{ConstitutiveLaw, InternalFieldMut};
 use akantu_parser::Parser;
 use akantu_solid::SolidMechanicsModel;
 
@@ -591,8 +594,12 @@ impl akantu_model::constitutive_law::ConstitutiveLawSelector for AllFirst {
 /// (optionally with an eigen-gradient and a temperature change that varies
 /// per quadrature point), or the same model with a second, empty law, which
 /// makes the model run the separate passes. Returns the nodal fields, the
-/// first law's gradient, stress and thermal fields, and the energies after
-/// `steps` steps.
+/// first law's gradient, stress and thermal fields, the previous values of
+/// every internal field with history, and the energies after `steps`
+/// steps. With `copy_every_save` the blocks of the fields with history are
+/// exported to a foreign runtime (as NumPy views would be), which makes
+/// every history save a copy, as upstream does; otherwise the saves are
+/// deferred and exchanged.
 fn block_state(
     mesh: Mesh,
     fd: bool,
@@ -600,6 +607,7 @@ fn block_state(
     second_law: bool,
     policy: ExecPolicy,
     steps: usize,
+    copy_every_save: bool,
 ) -> Vec<(String, Vec<u64>)> {
     let dim = mesh.spatial_dimension();
     let extra = if thermal {
@@ -680,6 +688,30 @@ fn block_state(
             }
         }
     }
+    let rt = ForeignRuntime::new();
+    let mut leases: Vec<ExportLease<Real>> = Vec::new();
+    if copy_every_save {
+        let law = m.physics.materials.laws_mut()[0].as_mut();
+        ConstitutiveLaw::for_each_internal_mut(law, &mut |_, field| {
+            if let InternalFieldMut::Real(f) = field
+                && f.has_history()
+            {
+                leases.push(
+                    f.values_mut()
+                        .shared_mut(ty, GhostType::NotGhost)?
+                        .export(&rt)?,
+                );
+            }
+            Ok(())
+        })
+        .unwrap();
+        assert!(
+            leases.len() >= 4,
+            "grad_u, the stress and the thermal fields"
+        );
+    }
+    let mut interp = rt.enter().unwrap();
+    let _native = interp.native().unwrap();
     for _ in 0..steps {
         m.solve_step(None).unwrap();
     }
@@ -719,6 +751,22 @@ fn block_state(
     });
     assert_eq!(thermal_fields.len(), 2);
     out.extend(thermal_fields);
+    let mut previous = Vec::new();
+    law.for_each_internal(&mut |name, field| {
+        if let akantu_model::constitutive_law::InternalFieldRef::Real(f) = field
+            && f.has_history()
+        {
+            previous.push((
+                format!("previous {name}"),
+                bits(f.previous(ty, GhostType::NotGhost).unwrap().as_slice()),
+            ));
+        }
+    });
+    assert!(
+        previous.len() >= 4,
+        "grad_u, the stress and the thermal fields"
+    );
+    out.extend(previous);
     let energies = ["external work new", "kinetic", "potential", "external work"]
         .map(|id| m.energy(id).unwrap().to_bits())
         .to_vec();
@@ -730,7 +778,8 @@ fn block_state(
 /// element type): the same bits at 1, 2, 3, 4 and 8 threads with the finest
 /// grain (one element per block, every part split) and the automatic one,
 /// and the same bits as the separate passes the model runs when a second
-/// (empty) law is present.
+/// (empty) law is present; the previous values of every internal field
+/// included, also against runs whose history saves are copies.
 #[test]
 fn block_pass_is_bitwise_for_every_thread_count_and_equals_the_separate_passes() {
     type Case = (&'static str, fn() -> Mesh, bool, bool);
@@ -762,12 +811,24 @@ fn block_pass_is_bitwise_for_every_thread_count_and_equals_the_separate_passes()
     ];
     for (name, mesh, fd, thermal) in cases {
         let serial = ExecPolicy::serial();
-        let separate = block_state(mesh(), fd, thermal, true, serial, 6);
+        let separate = block_state(mesh(), fd, thermal, true, serial, 6, false);
         assert!(
             separate[0].1.iter().any(|&b| b != 0),
             "{name}: the displacement is not zero"
         );
-        let reference = block_state(mesh(), fd, thermal, false, serial, 6);
+        let reference = block_state(mesh(), fd, thermal, false, serial, 6, false);
+        // the history saved by copy at every step (upstream), against the
+        // deferred saves and exchanges of the block pass
+        compare(
+            &reference,
+            &block_state(mesh(), fd, thermal, false, serial, 6, true),
+            &format!("{name}: block pass, saves by copy"),
+        );
+        compare(
+            &separate,
+            &block_state(mesh(), fd, thermal, true, serial, 6, true),
+            &format!("{name}: separate passes, saves by copy"),
+        );
         compare(
             &separate,
             &reference,
@@ -778,7 +839,7 @@ fn block_pass_is_bitwise_for_every_thread_count_and_equals_the_separate_passes()
                 let p = serial.with_threads(threads).unwrap().with_grain(grain);
                 compare(
                     &reference,
-                    &block_state(mesh(), fd, thermal, false, p, 6),
+                    &block_state(mesh(), fd, thermal, false, p, 6, false),
                     &format!("{name}: threads={threads} {grain:?}"),
                 );
             }

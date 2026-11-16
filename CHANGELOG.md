@@ -149,6 +149,20 @@ change of default results or of a public API raises the minor version.
   `rust_release_static_solver = true` (default false) and records
   `rss_after_release`. Manual: "Solver configuration", "Releasing the
   static solver's memory".
+- `akantu_model::InternalField::prepare_overwrite` and
+  `InternalField::commit_overwrite`: a caller that rewrites a whole block
+  of an internal field announces it, or commits a block it computed
+  elsewhere, so that the history save of the block becomes an exchange of
+  allocations instead of a copy (see "Changed").
+- `akantu_core::array_shared::SharedArray::as_unexported` and
+  `SharedArray::try_swap_values` (the array of a block no foreign code can
+  see, and an exchange of values with a plain array when it is not
+  exported).
+- `akantu_solid::Material::prepare_stress_overwrite` (default: nothing):
+  `compute_all_stresses` calls it before `compute_stress`; a law announces
+  there the blocks its `compute_stress` rewrites completely.
+- `akantu_model::non_local::WeightFunction::weights_depend_only_on_distance`
+  (default `false`; `true` for `base_wf`).
 
 ### Changed
 
@@ -271,6 +285,28 @@ change of default results or of a public API raises the minor version.
   equation, e.g. 360 bytes per `Tetrahedron4` element of a 3-D solid)
   from the second assembly into an unchanged profile on;
   `DofManager::set_assembly_cache(false)` turns this off.
+- The explicit step of the solid model repeats less work, with bitwise
+  identical results:
+  - `InternalField::save_current_values` defers the copy of a block whose
+    current values are not exported: the previous values are the current
+    ones until the block is written; the copy is skipped when nothing
+    writes the block before the next save and becomes an exchange of
+    allocations when the writer rewrites the whole block (the gradient and
+    the stresses of most laws). A block with a live NumPy view is copied
+    at once, as before, and never exchanged, so views keep their
+    allocation and see the same values at the same times (D-047).
+    `InternalField::previous` of a deferred block returns the current
+    block, with its id.
+  - The plastic, Marigo, standard linear solid and Maxwell laws compute
+    their blocks into scratch storage kept between steps and commit them
+    by exchange, instead of cloning their inputs and results at every
+    step; the elastic potential energy does the same, and the Neo-Hookean
+    and anisotropic kernels read their inputs in place.
+  - A non-local neighbourhood whose weight function depends on the
+    distance only keeps its weights while the radius, points, pairs,
+    slots, integration weights and incoming volumes are unchanged, instead
+    of recomputing them at every stress computation (`update_rate = 1`).
+  - `compute_all_stresses` no longer copies the element filter per step.
 - The input-file parser evaluates each variable once per evaluation (it
   parsed a variable's expression again at every reference, so a chain of
   k parameters that each refer twice to the previous one cost 2^k

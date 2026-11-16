@@ -630,8 +630,10 @@ Built-in laws describe parameters in static `ParamDescriptor` tables,
 runtime laws (Python subclasses, user Rust laws) own `DynamicParameters`;
 both are `Parsable`, so `.dat` sections fill them byte for byte.
 `InternalField<T>` covers the law's filtered elements with a default value
-and optional history; history copies are in place, so foreign views stay
-attached. The cohesive laws' maximal openings
+and optional history. A history save of a block that is not exported is
+deferred until the block is written (and becomes an exchange of the two
+allocations when the writer rewrites the whole block); an exported block is
+copied in place, so foreign views stay attached. The cohesive laws' maximal openings
 are committed at the end of a converged step, not at step entry (D-052).
 An internal field with a random default (upstream's `RandomInternalField`)
 draws through `akantu_core::random`, which reproduces libstdc++'s engine

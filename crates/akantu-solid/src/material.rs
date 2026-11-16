@@ -1013,6 +1013,93 @@ pub fn points_exec<'a, M: Material + ?Sized>(
     }
 }
 
+/// `grad_u ← ∇(displacement) − eigen_grad_u` of `(ty, ghost)` for the
+/// law-local elements `filter` (the first part of upstream
+/// `computeAllStresses` for one block): in the stored gradient when its
+/// shape allows ([`grad_u_in_place`]), else through a temporary copied into
+/// it. Every value of the block is written, so a deferred history save of
+/// it needs no copy when the in-place shape checks pass (the computation
+/// can then fail only in the gradient service, as the temporary path can).
+fn grad_u_of_block(
+    base: &mut MaterialBase,
+    ctx: &LawContext<'_>,
+    dim: usize,
+    ty: ElementType,
+    ghost: GhostType,
+    filter: &[Idx],
+) -> Result<()> {
+    let n = filter.len() * ctx.services.nb_integration_points(ty, ghost);
+    let swapped = prepare_grad_u_overwrite(base, dim, ty, ghost, n);
+    let result = grad_u_compute(base, ctx, dim, ty, ghost, filter);
+    if result.is_err() && swapped {
+        // The gradient failed in its input checks (displacement field,
+        // filter, shape derivatives) before writing: the block gets the
+        // values of the last save back, as a save by copy leaves it. (A
+        // failure after the first write, possible only for a connectivity
+        // that points outside the nodal field, leaves these values instead
+        // of a partial gradient.)
+        base.grad_u.undo_overwrite(ty, ghost)?;
+    }
+    result
+}
+
+/// The two paths of [`grad_u_of_block`] (in place, or through a temporary).
+fn grad_u_compute(
+    base: &mut MaterialBase,
+    ctx: &LawContext<'_>,
+    dim: usize,
+    ty: ElementType,
+    ghost: GhostType,
+    filter: &[Idx],
+) -> Result<()> {
+    // In the stored gradient when its shape allows (same values, no
+    // per-step temporary); else the temporary below
+    if grad_u_in_place(base, ctx, dim, ty, ghost, filter)? {
+        return Ok(());
+    }
+    let mut gu = Array::new(dim * dim);
+    ctx.services
+        .gradient_on_integration_points("displacement", &mut gu, dim, ty, ghost, filter)?;
+    let eigen = base.eigen_grad_u.get(ty, ghost)?;
+    if eigen.len() != gu.len() {
+        return Err(Error::DimensionMismatch {
+            context: "computeAllStresses: grad_u -= eigen_grad_u",
+            expected: eigen.len(),
+            got: gu.len(),
+        });
+    }
+    for (g, e) in gu.as_mut_slice().iter_mut().zip(eigen.as_slice()) {
+        *g -= *e;
+    }
+    drop(eigen);
+    base.grad_u.get_mut(ty, ghost)?.copy_from(&gu)
+}
+
+/// [`InternalField::prepare_overwrite`] of the `grad_u` block when the
+/// in-place gradient of [`Material::compute_all_stresses`] will write all
+/// of it (`n = filter length · nb_quad` tuples of `dim²` values, an
+/// `eigen_grad_u` block of the same length); otherwise nothing, and the
+/// write performs the save. Either path of the caller rewrites the whole
+/// block. Returns `true` if the history was exchanged.
+fn prepare_grad_u_overwrite(
+    base: &mut MaterialBase,
+    dim: usize,
+    ty: ElementType,
+    ghost: GhostType,
+    n: usize,
+) -> bool {
+    let shape = |f: &InternalField<Real>| {
+        f.values()
+            .shared(ty, ghost)
+            .map_or((usize::MAX, 0), |a| (a.len(), a.nb_component()))
+    };
+    let (len, nbc) = shape(&base.grad_u);
+    if n == 0 || len != n || nbc != dim * dim || shape(&base.eigen_grad_u).0 != n {
+        return false;
+    }
+    base.grad_u.prepare_overwrite(ty, ghost)
+}
+
 /// Built-in laws: a static parameter table on top of [`BASE_PARAMS`]
 /// (upstream registers the parameters of every class of the hierarchy in
 /// one registry).
@@ -1422,48 +1509,33 @@ pub trait Material: ConstitutiveLaw {
     fn compute_all_stresses(&mut self, ctx: &LawContext<'_>, ghost: GhostType) -> Result<()> {
         let dim = self.base().spatial_dimension;
         for ty in self.base().filter_types(ghost) {
-            let filter = self
-                .base()
-                .element_filter
-                .get(ty, ghost)?
-                .as_slice()
-                .to_vec();
-            if filter.is_empty() {
+            if self.base().element_filter.get(ty, ghost)?.is_empty() {
                 continue;
             }
-            // In the stored gradient when its shape allows (same
-            // values, no per-step temporary); else the temporary below
-            if grad_u_in_place(self.base_mut(), ctx, dim, ty, ghost, &filter)? {
-                self.compute_stress(ctx, ty, ghost)?;
-                continue;
-            }
-            let mut gu = Array::new(dim * dim);
-            ctx.services.gradient_on_integration_points(
-                "displacement",
-                &mut gu,
-                dim,
-                ty,
-                ghost,
-                &filter,
-            )?;
-            {
-                let base = self.base_mut();
-                let eigen = base.eigen_grad_u.get(ty, ghost)?;
-                if eigen.len() != gu.len() {
-                    return Err(Error::DimensionMismatch {
-                        context: "computeAllStresses: grad_u -= eigen_grad_u",
-                        expected: eigen.len(),
-                        got: gu.len(),
-                    });
-                }
-                for (g, e) in gu.as_mut_slice().iter_mut().zip(eigen.as_slice()) {
-                    *g -= *e;
-                }
-                base.grad_u.get_mut(ty, ghost)?.copy_from(&gu)?;
-            }
+            // The filter block is moved out of the law while the gradient
+            // is computed (nothing in that computation reads the law's
+            // filter) and put back before the stress: no per-step copy
+            let filter = std::mem::take(self.base_mut().element_filter.get_mut(ty, ghost)?);
+            let gradient = grad_u_of_block(self.base_mut(), ctx, dim, ty, ghost, filter.as_slice());
+            *self.base_mut().element_filter.get_mut(ty, ghost)? = filter;
+            gradient?;
+            self.prepare_stress_overwrite(ty, ghost);
             self.compute_stress(ctx, ty, ghost)?;
         }
         Ok(())
+    }
+
+    /// Called by [`Material::compute_all_stresses`] right before
+    /// `compute_stress(ctx, ty, ghost)`. A law whose
+    /// [`Material::compute_stress`] writes every value of some internal
+    /// blocks before reading them, and cannot fail once the shapes it checks
+    /// are right, checks those shapes here and calls
+    /// [`InternalField::prepare_overwrite`] on these blocks, so that a
+    /// deferred history save of them costs no copy. Calling it without the
+    /// `compute_stress` that follows would leave those blocks unspecified.
+    /// Default: nothing (the law's writes perform the saves).
+    fn prepare_stress_overwrite(&mut self, ty: ElementType, ghost: GhostType) {
+        let _ = (ty, ghost);
     }
 
     /// The rank reductions upstream performs at the end of
