@@ -210,12 +210,16 @@ pub fn ghost_nodes_tet4(ctx: &Ctx) -> Result<CaseOut> {
         Ok(())
     };
     let calls = ctx.size.pick(5, 5000, 2000);
-    out.loop_phase(ctx, "reduce_synchronize", calls, || exchange(&mut data))?;
-    // the digest of one exchange from the initial values (independent of
-    // the number of calls)
-    let mut once = init;
-    exchange(&mut once)?;
-    out.digest = owned_nodal_digest(ctx, &mesh, &once, nc)?;
+    // every call exchanges the initial values (a sum repeated on its own
+    // result would grow without bound over the calls); the copy is a small
+    // share of the call
+    out.loop_phase(ctx, "reduce_synchronize", calls, || {
+        data.copy_from_slice(&init);
+        exchange(&mut data)
+    })?;
+    // the last call's result: one exchange from the initial values
+    // (independent of the number of calls)
+    out.digest = owned_nodal_digest(ctx, &mesh, &data, nc)?;
     out.digest_global = true;
     let shared: usize = sync
         .as_ref()

@@ -15,8 +15,9 @@ Same command line and JSON lines as the Rust suites
 ``explicit_tri3`` runs exactly the loop of the Rust case
 ``suite_setup py_twin_explicit_tri3`` (same mesh, material, initial
 displacement, three warm-up steps, same step count) and prints the same
-FNV-1a digest of the displacement and velocity: equal digests show that
-the two drivers computed the same bits.
+FNV-1a digest of the displacement and velocity (of the main model, then of
+the tiny model of ``solve_step_tiny``): equal digests show that the two
+drivers computed the same bits.
 """
 
 import argparse
@@ -228,12 +229,20 @@ def case_explicit(ctx):
     out = Out()
     mesh, model = explicit_model(ctx, out, tri3_n(ctx.size))
     out.loop_phase(ctx, "solve_step", tri3_steps(ctx.size), model.solveStep)
-    out.digest = fnv1a([model.getDisplacement(), model.getVelocity()])
     keep = (out.n_elements, out.n_nodes, out.n_dofs)
     tiny_out = Out()
     _, tiny = explicit_model(ctx, tiny_out, 4)
     out.loop_phase(
         ctx, "solve_step_tiny", pick(ctx.size, 20, 300000, 300000), tiny.solveStep
+    )
+    # the tiny model's state too (the Rust twin hashes the same arrays)
+    out.digest = fnv1a(
+        [
+            model.getDisplacement(),
+            model.getVelocity(),
+            tiny.getDisplacement(),
+            tiny.getVelocity(),
+        ]
     )
     out.n_elements, out.n_nodes, out.n_dofs = keep
     return out

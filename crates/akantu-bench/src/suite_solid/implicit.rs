@@ -128,7 +128,7 @@ pub fn static_linear(ctx: &mut Ctx<'_>, sparse: SparseSolverType) -> Result<Outc
     let first = t.elapsed().as_secs_f64();
     ctx.record("solve_step", 1, first);
     split.record(ctx, 1, first);
-    let digest = if mumps {
+    let mut digest = if mumps {
         super::parallel::counts_and_digest(ctx, &m)?;
         None
     } else {
@@ -152,6 +152,11 @@ pub fn static_linear(ctx: &mut Ctx<'_>, sparse: SparseSolverType) -> Result<Outc
             solver.solve(&rhs, &mut x)
         })?;
         ctx.extra("nnz", Extra::Int(a.nnz() as i64));
+        // the direct solver's result (factorisation and back-substitution
+        // are timed work too)
+        if let Some(d) = digest.as_mut() {
+            d.reals(&x);
+        }
     }
     ctx.extra("sparse_solver", Extra::Text(sparse_name(sparse).into()));
     if let Some(d) = digest {
