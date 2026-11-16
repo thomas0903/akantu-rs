@@ -104,7 +104,23 @@ impl<V: Copy> TagMap<V> {
             .unwrap_or(u64::MAX)
             .saturating_mul(2)
             .saturating_add(1024);
-        self.limit = self.limit.max(want);
+        if want <= self.limit {
+            return;
+        }
+        self.limit = want;
+        // tags stored in the map that the dense table now covers move there
+        let moved: Vec<(u64, V)> = self
+            .sparse
+            .iter()
+            .filter(|&(&t, _)| t < want)
+            .map(|(&t, &v)| (t, v))
+            .collect();
+        for (t, v) in moved {
+            self.sparse.remove(&t);
+            if let Some(slot) = self.slot(t) {
+                *slot = Some(v);
+            }
+        }
     }
 
     fn slot(&mut self, tag: u64) -> Option<&mut Option<V>> {
@@ -1134,6 +1150,32 @@ impl<'a> Reader<'a> {
 #[cfg(test)]
 mod tests {
     use super::super::lexer::Source;
+    use super::TagMap;
+
+    #[test]
+    fn tag_map_keeps_entries_when_the_dense_range_grows() {
+        let mut m: TagMap<i32> = TagMap::new();
+        m.expect(10);
+        let big = 1u64 << 40;
+        for (t, v) in [(1u64, 1), (5000, 2), (70_000, 3), (big, 4)] {
+            assert_eq!(m.insert(t, v), None);
+        }
+        assert_eq!(m.insert(5000, 9), Some(2));
+        m.update(70_001, |old| old.map_or(5, |o| o + 1));
+        m.update(70_001, |old| old.map_or(5, |o| o + 1));
+        // a second section announces more entries: 70,000 moves into the
+        // dense table
+        m.expect(100_000);
+        assert_eq!(m.get(1), Some(1));
+        assert_eq!(m.get(5000), Some(9));
+        assert_eq!(m.get(70_000), Some(3));
+        assert_eq!(m.get(70_001), Some(6));
+        assert_eq!(m.get(big), Some(4));
+        assert_eq!(m.get(2), None);
+        assert_eq!(m.get(big + 1), None);
+        assert_eq!(m.insert(70_000, 7), Some(3));
+        assert!(m.sparse.len() == 1);
+    }
 
     #[test]
     fn quoted_names() {
