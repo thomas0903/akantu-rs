@@ -17,8 +17,12 @@
 //! AVX-512F enabled and calls the widest instance the CPU supports, so the
 //! results are bitwise those of the portable instance on every CPU
 //! (`dense::tests` compare every instance the test machine supports with
-//! the reference kernels). `AKANTU_SPARSELU_ISA=portable` (read once)
-//! forces the portable instance, for A/B timing.
+//! the reference kernels).
+//!
+//! Test and benchmark hook, not a supported setting: the environment
+//! variable `AKANTU_SPARSELU_ISA=portable` (read once per process) forces
+//! the portable instance, for A/B timing of the instances. The instances
+//! give the same bits, so it never changes a result.
 //!
 //! Every `unsafe` block here calls a `#[target_feature]` function after
 //! `is_x86_feature_detected!` returned true for that feature (`UNSAFE.md`,
@@ -41,7 +45,8 @@ pub(crate) enum Isa {
 }
 
 /// The widest instance this CPU runs, or `Portable` when the environment
-/// variable `AKANTU_SPARSELU_ISA` is `portable`.
+/// variable `AKANTU_SPARSELU_ISA` is `portable` (the module's test and
+/// benchmark hook).
 pub(crate) fn isa() -> Isa {
     static ISA: OnceLock<Isa> = OnceLock::new();
     *ISA.get_or_init(|| {
