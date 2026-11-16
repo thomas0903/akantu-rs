@@ -515,27 +515,17 @@ impl FeEngine {
             let o = o.as_mut_slice();
             let fs = f.as_slice();
             let mut coeff = vec![0.0; nq * nbc];
+            // coefficients = inv_quad_coord (nq × nq) · fieldᵀ (nq × nbc)
+            let p_coeff = eigen::prepare(Dims::dynamic(nq, nq), Dims::dynamic(nbc, nq).t())?;
+            // result(el) = coefficientsᵀ (nbc × nq) · itp_coordᵀ (nq × nip)
+            let p_res = eigen::prepare(Dims::dynamic(nq, nbc).t(), Dims::dynamic(nip, nq).t())?;
             for (pos, (&e, &slot)) in ids.iter().zip(&slots).enumerate() {
                 let fe = &fs[pos * nq * nbc..(pos + 1) * nq * nbc];
                 let ie = &inv[slot * nq * nq..(slot + 1) * nq * nq];
                 let me = &itp[slot * nip * nq..(slot + 1) * nip * nq];
-                // coefficients = inv_quad_coord (nq × nq) · fieldᵀ (nq × nbc)
-                eigen::product_slices(
-                    Dims::dynamic(nq, nq),
-                    Dims::dynamic(nbc, nq).t(),
-                    ie,
-                    fe,
-                    &mut coeff,
-                )?;
-                // result(el) = coefficientsᵀ (nbc × nq) · itp_coordᵀ (nq × nip)
+                p_coeff.eval(ie, fe, &mut coeff)?;
                 let r = &mut o[e * nip * nbc..(e + 1) * nip * nbc];
-                eigen::product_slices(
-                    Dims::dynamic(nq, nbc).t(),
-                    Dims::dynamic(nip, nq).t(),
-                    &coeff,
-                    me,
-                    r,
-                )?;
+                p_res.eval(&coeff, me, r)?;
             }
         }
         Ok(())
