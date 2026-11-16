@@ -25,9 +25,33 @@ pub struct FixtureWriter {
     bytes: u64,
 }
 
+/// The environment variable of the process default precision mode
+/// (`akantu_core::exec::ENV_PRECISION`).
+pub const PRECISION_ENV: &str = "AKANTU_PRECISION";
+
+/// `Err` when `precision` (the value of [`PRECISION_ENV`]) selects the fast
+/// mode.
+fn refuse_fast_precision(precision: Option<&str>, root: &Path) -> Result<()> {
+    if precision.is_some_and(|v| v.trim().eq_ignore_ascii_case("fast")) {
+        return Err(Error::manifest(
+            root,
+            format!(
+                "{PRECISION_ENV}=fast: fixtures and regression cases are written from bitwise \
+                 runs only (D-122, D-123); unset {PRECISION_ENV} or set it to `bitwise`"
+            ),
+        ));
+    }
+    Ok(())
+}
+
 impl FixtureWriter {
     /// Start a case `case_id` under `root`. Fails if the directory already
-    /// holds a manifest (fixtures are never overwritten implicitly).
+    /// holds a manifest (fixtures are never overwritten implicitly), and when
+    /// the process default precision is the fast mode (`AKANTU_PRECISION=fast`,
+    /// D-122, D-123): fixtures and regression cases are written from bitwise
+    /// runs only. (This crate does not depend on `akantu-core`: a program
+    /// that selects the fast mode through `ExecPolicy::set_process_default`
+    /// must not write fixtures either.)
     pub fn create(
         root: &Path,
         case_id: &str,
@@ -37,6 +61,32 @@ impl FixtureWriter {
         reference: ReferenceInfo,
         build: Option<BuildInfo>,
     ) -> Result<Self> {
+        let precision = std::env::var(PRECISION_ENV).ok();
+        Self::create_with_precision(
+            root,
+            case_id,
+            description,
+            status,
+            generator,
+            reference,
+            build,
+            precision.as_deref(),
+        )
+    }
+
+    /// [`FixtureWriter::create`] with the value of [`PRECISION_ENV`] given.
+    #[allow(clippy::too_many_arguments)] // `create`'s arguments and the precision
+    fn create_with_precision(
+        root: &Path,
+        case_id: &str,
+        description: &str,
+        status: FixtureStatus,
+        generator: Generator,
+        reference: ReferenceInfo,
+        build: Option<BuildInfo>,
+        precision: Option<&str>,
+    ) -> Result<Self> {
+        refuse_fast_precision(precision, root)?;
         if !valid_case_id(case_id) {
             return Err(Error::manifest(
                 root,
@@ -219,6 +269,34 @@ pub fn sanitize(name: &str) -> String {
 
 #[cfg(test)]
 mod tests {
+
+    #[test]
+    fn fast_precision_refuses_to_write() {
+        let root = Path::new("/nonexistent-root");
+        for v in ["fast", " Fast ", "FAST"] {
+            let e = refuse_fast_precision(Some(v), root).unwrap_err();
+            assert!(e.to_string().contains("AKANTU_PRECISION"), "{e}");
+        }
+        for v in [None, Some("bitwise"), Some(""), Some("auto")] {
+            assert!(refuse_fast_precision(v, root).is_ok());
+        }
+        // through the writer: an error naming the variable, nothing written
+        let dir = tempfile::tempdir().unwrap();
+        let r = FixtureWriter::create_with_precision(
+            dir.path(),
+            "selftest/fast_mode_refused",
+            "must not be written",
+            FixtureStatus::PendingOracle,
+            Generator::default(),
+            ReferenceInfo::default(),
+            None,
+            Some("fast"),
+        );
+        let Err(e) = r else { panic!("refused") };
+        assert!(e.to_string().contains("AKANTU_PRECISION"), "{e}");
+        assert!(std::fs::read_dir(dir.path()).unwrap().next().is_none());
+    }
+
     use super::*;
     use crate::fixture::Fixture;
 

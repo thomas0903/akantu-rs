@@ -101,6 +101,12 @@ impl MyModel {
     /// Upstream constructor: registers `disp` (+ derivatives 1, 2, blocked
     /// flags), force `F` on the last global node, node 0 blocked, initial
     /// lengths `|x2 − x1|`.
+    /// The stiffness matrix was released (`DofManager::release_matrix`):
+    /// assemble it again at the next `assemble_matrix("K")`.
+    pub fn release_stiffness(&mut self) {
+        self.is_stiffness_assembled = false;
+    }
+
     pub fn new(f: Real, mesh: Mesh, lumped: bool, dm: &mut DofManager) -> Result<Self> {
         let nb_dofs = mesh.nb_nodes();
         let global_ids = (0..nb_dofs as Idx)

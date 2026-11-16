@@ -641,3 +641,69 @@ fn promoted_stiffness_propagates_to_j_and_mass_is_mirrored() {
     println!("mirror fix: {n} iterations; upstream add: converged {ok_up} after {n_up} iterations");
     assert!(!ok_up || n_up > 2, "upstream add policy unexpectedly exact");
 }
+
+/// Two filters (two materials) on one element type share the position
+/// cache of `(K, u, type, ghost)`: each element keeps its own slot (its
+/// index in the connectivity), so from the third round on no block is
+/// looked up again, and every round gives the bits of the uncached
+/// assembly.
+#[test]
+fn two_filters_on_one_type_hit_the_position_cache() {
+    let n_el = 40;
+    let filters: [Vec<Idx>; 2] = [
+        (0..n_el as Idx).filter(|e| e % 3 != 0).collect(),
+        (0..n_el as Idx).filter(|e| e % 3 == 0).collect(),
+    ];
+    let values = |round: usize, f: usize, n: usize| {
+        let mut k = Array::new(4);
+        for i in 0..n {
+            let a = 1.0 + (round * 7 + f * 3 + i) as f64 * 0.125;
+            k.push_tuple(&[a, -a / 3.0, -a / 3.0, a * 1.5]);
+        }
+        k
+    };
+    let run = |cached: bool| {
+        let mut dm = DofManager::new("dm", Communicator::serial());
+        let model = MyModel::new(1.0, gen_mesh(n_el + 1), false, &mut dm).unwrap();
+        let mesh = &model.mesh;
+        dm.set_assembly_cache(cached);
+        dm.new_matrix("K", MatrixType::Symmetric).unwrap();
+        let mut resolves = Vec::new();
+        let mut bits = Vec::new();
+        for round in 0..4 {
+            dm.zero_matrix("K").unwrap();
+            for (f, filter) in filters.iter().enumerate() {
+                let k = values(round, f, filter.len());
+                dm.assemble_elemental_matrices_to_matrix(
+                    mesh,
+                    "K",
+                    "disp",
+                    k.view(),
+                    SEG,
+                    GhostType::NotGhost,
+                    MatrixType::Symmetric,
+                    Some(filter),
+                )
+                .unwrap();
+            }
+            resolves.push(dm.assembly_cache_resolves());
+            let (_, _, a) = dm.matrix("K").unwrap().coo();
+            bits.push(a.iter().map(|v| v.to_bits()).collect::<Vec<_>>());
+        }
+        (resolves, bits)
+    };
+    let (resolves, cached_bits) = run(true);
+    let (_, plain_bits) = run(false);
+    assert_eq!(cached_bits, plain_bits, "the bits of the uncached assembly");
+    // rounds 0-1 look the blocks up (round 0 without storing); from then on
+    // every element is found in its slot
+    assert!(resolves[1] > 0, "{resolves:?}");
+    assert_eq!(
+        resolves[2], resolves[1],
+        "round 2 resolved again: {resolves:?}"
+    );
+    assert_eq!(
+        resolves[3], resolves[1],
+        "round 3 resolved again: {resolves:?}"
+    );
+}

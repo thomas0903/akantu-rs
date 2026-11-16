@@ -89,9 +89,8 @@ use akantu_core::eigen_order as eo;
 use akantu_core::tensor::MatrixX;
 use akantu_core::{Error, Real, Result};
 use eigen::Mat;
-use eigen::real_schur::{
-    EigenSolver, Info, do_compute_eigenvectors, eigenvectors_into, real_schur, schur_eigenvalues,
-};
+use eigen::fixed::{FMat, real_schur_fixed, schur_eigenvalues_fixed};
+use eigen::real_schur::{EigenSolver, Info, do_compute_eigenvectors, eigenvectors_into};
 use eigen::self_adjoint::self_adjoint_eigen;
 
 /// Ordering of eigenpairs returned with eigenvectors (upstream `sort`
@@ -167,14 +166,11 @@ pub fn eig3_fixed(a: &[[Real; 3]; 3]) -> Result<[Real; 3]> {
 /// As [`eig`]: no convergence or a non-finite eigenvalue.
 pub fn eig_fixed<const N: usize>(a: &[[Real; N]; N]) -> Result<[Real; N]> {
     const { assert!(N >= 1 && N <= 4, "eig_fixed: 1 <= N <= 4 (inline buffers)") };
-    let m = Mat {
-        n: N,
-        d: eigen::Buf::from_slice(a.as_flattened()),
-    };
-    let rs = real_schur(&m, false, Storage::Fixed);
-    check_info(rs.info, "eig")?;
+    // the general path's operations on stack arrays (`eigen::fixed`)
+    let (t, _, info) = real_schur_fixed::<N, false>(&FMat(*a));
+    check_info(info, "eig")?;
     let mut values = [Complex::default(); N];
-    check_info(schur_eigenvalues(&rs.t, &mut values), "eig")?;
+    check_info(schur_eigenvalues_fixed(&t, &mut values), "eig")?;
     Ok(values.map(|z| z.re))
 }
 
@@ -198,17 +194,20 @@ pub fn eig_vectors_fixed<const N: usize>(
             "eig_vectors_fixed: 1 <= N <= 4 (inline buffers)"
         )
     };
-    let m = Mat {
-        n: N,
-        d: eigen::Buf::from_slice(a.as_flattened()),
-    };
-    // EigenSolver::compute(matrix, true)
-    let rs = real_schur(&m, true, Storage::Fixed);
-    check_info(rs.info, "eig")?;
-    let mut t = rs.t;
+    // EigenSolver::compute(matrix, true): the Schur form on stack arrays
+    // (`eigen::fixed`), the eigenvectors by the general kernels
+    let (tf, uf, info) = real_schur_fixed::<N, true>(&FMat(*a));
+    check_info(info, "eig")?;
     let mut values = [Complex::default(); N];
-    check_info(schur_eigenvalues(&t, &mut values), "eig")?;
-    let mut eivec = rs.u.unwrap_or_else(|| Mat::identity(N));
+    check_info(schur_eigenvalues_fixed(&tf, &mut values), "eig")?;
+    let mut t = Mat {
+        n: N,
+        d: eigen::Buf::from_slice(tf.0.as_flattened()),
+    };
+    let mut eivec = Mat {
+        n: N,
+        d: eigen::Buf::from_slice(uf.0.as_flattened()),
+    };
     do_compute_eigenvectors(
         &mut t,
         &values,

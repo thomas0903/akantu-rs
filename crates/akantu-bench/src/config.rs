@@ -200,6 +200,12 @@ pub struct Config {
     /// whose static solve the port's sparse solvers cannot do in reasonable
     /// time (the physics then differ from upstream; the summary records it).
     pub static_solve: bool,
+    /// `rust_release_static_solver` (default false: upstream keeps the
+    /// static solver's factors and matrices for the whole run). `true`
+    /// releases them after the static preload, once its solver statistics
+    /// were read (`SolidMechanicsModel::release_static_solver`); the
+    /// explicit loop does not use them, so results are unchanged.
+    pub release_static_solver: bool,
     /// Print upstream's progress messages on rank 0.
     pub verbose: bool,
     /// Diagnostics (`rust_diag_*`, all off by default;
@@ -399,6 +405,11 @@ impl Config {
             doubled_node_load,
             seed,
             static_solve: s.get_parameter_or("rust_static_solve", true, SearchScope::Current)?,
+            release_static_solver: s.get_parameter_or(
+                "rust_release_static_solver",
+                false,
+                SearchScope::Current,
+            )?,
             verbose: true,
             diag,
             load_check,

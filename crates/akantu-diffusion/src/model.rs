@@ -172,6 +172,9 @@ pub struct DiffusionPhysics {
     need_to_reassemble_capacity: bool,
     need_to_reassemble_capacity_lumped: bool,
     time_step: Real,
+    /// `Bᵀ D∇u` per point and its integral per element of the last
+    /// internal-flow block (kept between steps: no allocation per step).
+    flow_scratch: (Array<Real>, Array<Real>),
 }
 
 /// Diffusion model (upstream `DiffusionModel`): a scalar diffusion field
@@ -303,6 +306,7 @@ impl DiffusionModel {
             need_to_reassemble_capacity: true,
             need_to_reassemble_capacity_lumped: true,
             time_step: 0.0,
+            flow_scratch: (Array::new(1), Array::new(1)),
         };
         // upstream initDOFManager(dof_manager) (`diffusion_model.cc:65`,
         // `model_solver.cc:78-95`): the section's dof_manager_type through

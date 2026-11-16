@@ -56,13 +56,32 @@ prefer one crate's tests while you work.
 
 - `f64` wherever upstream uses `Real`. Use the index types of `akantu-core`
   (`docs/ARCHITECTURE.md`); do not invent new ones.
-- No fast-math of any kind: no reassociation, no approximate intrinsics, no
-  compiler flags that relax IEEE 754, and no `mul_add` unless it is shown to
-  give the C++ build's results and the reason is documented next to it (the
-  three existing places reproduce fused operations of the oracle's build:
+- Two precision modes (D-122, D-123, `akantu_core::exec::Precision`). The
+  default, `Bitwise`, keeps every result bit: no fast-math of any kind, no
+  reassociation, no approximate intrinsics, no compiler flags that relax
+  IEEE 754, and no `mul_add` unless it is shown to give the C++ build's
+  results and the reason is documented next to it (the three existing
+  places reproduce fused operations of the oracle's build:
   `crates/akantu-core/src/glibc_libm/sincos.rs`,
   `crates/akantu-core/src/random/libm.rs`,
-  `crates/akantu-linalg/src/dense/complex.rs`).
+  `crates/akantu-linalg/src/dense/complex.rs`). `Fast` is off by default:
+  only there may a kernel round differently (FMA, another summation order,
+  a vectorised or thread-count-dependent reduction). Such code is marked
+  `FAST MODE`, is selected once per batch by `exec.precision() == Fast`, and
+  has a test that compares it with the bitwise run through
+  `akantu_validation::fast_mode::check_fast_mode` under a justified rule in
+  `fixtures/fast_mode/<area>/tolerances.json`.
+- In `Bitwise`, every result is the same for every thread count and every
+  SIMD level. Threads go through `akantu_core::exec` (never a hand-made
+  pool): split only independent outputs (per element, per quadrature
+  point, per equation) with `Exec::for_each`; keep the serial order of
+  every sum into shared data (`NodeScatter` for element-to-node assembly,
+  `Exec::sum_in_order` or a serial fold of per-item values for
+  reductions). A SIMD kernel performs per lane the scalar sequence and is
+  dispatched once per batch on a `SimdToken`. Every threaded or SIMD kernel
+  gets a test that compares it bit for bit with the serial scalar run
+  (`AKANTU_NUM_THREADS`, `AKANTU_SIMD=scalar`, `AKANTU_EXEC_GRAIN=finest`;
+  `docs/ARCHITECTURE.md`, "Execution policy").
 - Mathematical functions come from `akantu_core::glibc_libm` (the oracle's
   glibc, translated), not the platform libm. The functions of `.dat`
   expressions are the exception, on purpose: upstream calls `<cmath>`.

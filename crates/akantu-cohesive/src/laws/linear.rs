@@ -742,21 +742,32 @@ impl Linear {
             // branch is decided from the converged damage, not from the
             // damage the previous trial left
             let contact_damage = prev.map_or(da[q], |m| committed_damage(m, dc[q], floor));
-            let st = self.traction_on_quad(
-                dim,
-                &n[r.clone()],
-                &mut op[r.clone()],
-                &mut tr[r.clone()],
-                &mut ct[r.clone()],
-                &mut co[r.clone()],
-                &mut dm[q],
-                prev,
-                contact_damage,
-                &mut da[q],
-                sc[q],
-                dc[q],
-                &is[r.clone()],
-            );
+            // the point kernel with the dimension as a literal (it is
+            // always inlined: its loops and reductions unroll)
+            macro_rules! point {
+                ($d:expr) => {
+                    self.traction_on_quad(
+                        $d,
+                        &n[r.clone()],
+                        &mut op[r.clone()],
+                        &mut tr[r.clone()],
+                        &mut ct[r.clone()],
+                        &mut co[r.clone()],
+                        &mut dm[q],
+                        prev,
+                        contact_damage,
+                        &mut da[q],
+                        sc[q],
+                        dc[q],
+                        &is[r.clone()],
+                    )
+                };
+            }
+            let st = match dim {
+                2 => point!(2),
+                3 => point!(3),
+                _ => point!(dim),
+            };
             after(&st, &mut tr[r]);
         }
         Ok(())
@@ -771,6 +782,7 @@ impl Linear {
     // the arguments are upstream's per-point `getArguments` tuple (one slice
     // per internal); bundling them would copy per quadrature point
     #[allow(clippy::too_many_arguments)]
+    #[inline(always)]
     fn traction_on_quad(
         &self,
         dim: usize,
