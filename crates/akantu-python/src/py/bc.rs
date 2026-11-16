@@ -29,9 +29,10 @@ use akantu::core::array_shared::SharedArray;
 use akantu::core::enums::SpatialDirection;
 use akantu::core::{Idx, Real, Result};
 use akantu::fe::integration_point::IntegrationPoint;
+use akantu::mesh::Mesh;
 use akantu::model::boundary_condition::{
     DirichletFunctor, FixedValue, FreeBoundary, FromHigherDim, FromSameDim, Increment,
-    IncrementValue, NeumannFunctor, apply_rows_by_copy,
+    IncrementValue, NeumannFunctor, apply_rows_by_copy, apply_shared_per_node,
 };
 use numpy::{PyArray1, PyArrayMethods};
 use pyo3::prelude::*;
@@ -393,6 +394,45 @@ impl DirichletFunctor for DirichletAdapter {
                 None => read_only(py, coord)?.into_any(),
             };
             obj.call1(py, (node, fl, pr, co))?;
+            Ok(())
+        })
+    }
+
+    /// Python functors: the arrays are exported once and Python is entered
+    /// once for the group; `__call__` is still called once per node, in
+    /// order, with views of the node's live rows (as
+    /// [`DirichletFunctor::apply_shared`] passes them), and the first
+    /// exception stops the loop.
+    fn apply_shared_nodes(
+        &self,
+        nodes: &[Idx],
+        mesh: &Mesh,
+        blocked: &mut SharedArray<bool>,
+        primal: &mut SharedArray<Real>,
+    ) -> Result<()> {
+        let Self::Python { obj, coords } = self else {
+            return apply_shared_per_node(self, nodes, mesh, blocked, primal);
+        };
+        let Some(coords) = coords else {
+            return apply_shared_per_node(self, nodes, mesh, blocked, primal);
+        };
+        if nodes.is_empty() {
+            return Ok(());
+        }
+        let rt = runtime();
+        let fv = ForeignView::new(blocked, rt, true)?;
+        let pv = ForeignView::new(primal, rt, true)?;
+        akantu::core::array_shared::export_all::callback_site("DirichletFunctor::apply_shared");
+        callback(|py| {
+            let to_py = |e| super::runtime::to_py(py, e);
+            for &node in nodes {
+                let row = akantu::core::try_to_usize(node).map_err(to_py)?;
+                let rows = row..row + 1;
+                let fl = to_numpy(py, fv.rows(rows.clone()).map_err(to_py)?, Layout::Tuple)?;
+                let pr = to_numpy(py, pv.rows(rows.clone()).map_err(to_py)?, Layout::Tuple)?;
+                let co = to_numpy(py, coords.rows(rows).map_err(to_py)?, Layout::Tuple)?;
+                obj.call1(py, (node, fl, pr, co))?;
+            }
             Ok(())
         })
     }
