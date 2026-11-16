@@ -57,6 +57,8 @@ pub mod array_print;
 pub mod array_shared;
 pub mod array_storage;
 pub mod bbox;
+#[doc(hidden)]
+pub mod bitwise_testing;
 pub mod circular_array;
 pub mod csr;
 pub mod debug;

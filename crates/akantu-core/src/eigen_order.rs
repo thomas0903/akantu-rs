@@ -70,8 +70,34 @@ pub const UNARY_TERM_COST: usize = READ_COST + OP_COST;
 
 /// Halving-tree reduction of `t(start..start+len)` with `op` (Eigen's
 /// complete unrolling). `len` must be `≥ 1`.
-#[inline]
+///
+/// Lengths up to [`TREE_LEVELS_MAX`] (every tree Eigen unrolls: at most 55
+/// terms) are evaluated by six levels of non-recursive, always-inlined
+/// functions, so a length known at compile time folds to straight-line code
+/// and a run-time length costs a few branches instead of recursive calls;
+/// longer reductions use [`redux_tree_recursive`]. Both evaluate the same
+/// expression tree: `op(left half, right half)` with `half = len / 2`.
+#[inline(always)]
 pub fn redux_tree(
+    start: usize,
+    len: usize,
+    t: &impl Fn(usize) -> f64,
+    op: fn(f64, f64) -> f64,
+) -> f64 {
+    debug_assert!(len >= 1);
+    if len <= TREE_LEVELS_MAX {
+        tree_l6(start, len, t, op)
+    } else {
+        redux_tree_recursive(start, len, t, op)
+    }
+}
+
+/// Largest length [`redux_tree`] evaluates without recursion (`2⁶`).
+pub const TREE_LEVELS_MAX: usize = 64;
+
+/// The recursive definition of [`redux_tree`] (reference implementation,
+/// and the evaluation of lengths above [`TREE_LEVELS_MAX`]).
+pub fn redux_tree_recursive(
     start: usize,
     len: usize,
     t: &impl Fn(usize) -> f64,
@@ -83,15 +109,42 @@ pub fn redux_tree(
     } else {
         let half = len / 2;
         op(
-            redux_tree(start, half, t, op),
-            redux_tree(start + half, len - half, t, op),
+            redux_tree_recursive(start, half, t, op),
+            redux_tree_recursive(start + half, len - half, t, op),
         )
     }
 }
 
+// Level `L` evaluates lengths `1 ≤ n ≤ 2^L`; the halves of such a length
+// are at most `2^(L−1)` long, so each level calls the one below.
+macro_rules! tree_level {
+    ($name:ident, $below:ident) => {
+        #[inline(always)]
+        fn $name(s: usize, n: usize, t: &impl Fn(usize) -> f64, op: fn(f64, f64) -> f64) -> f64 {
+            if n == 1 {
+                t(s)
+            } else {
+                let h = n / 2;
+                op($below(s, h, t, op), $below(s + h, n - h, t, op))
+            }
+        }
+    };
+}
+
+#[inline(always)]
+fn tree_l0(s: usize, _n: usize, t: &impl Fn(usize) -> f64, _op: fn(f64, f64) -> f64) -> f64 {
+    t(s)
+}
+tree_level!(tree_l1, tree_l0);
+tree_level!(tree_l2, tree_l1);
+tree_level!(tree_l3, tree_l2);
+tree_level!(tree_l4, tree_l3);
+tree_level!(tree_l5, tree_l4);
+tree_level!(tree_l6, tree_l5);
+
 /// Sequential reduction from the first term: `r = t0; r = op(r, t_i)`.
 /// `len` must be `≥ 1`.
-#[inline]
+#[inline(always)]
 pub fn redux_seq(len: usize, t: &impl Fn(usize) -> f64, op: fn(f64, f64) -> f64) -> f64 {
     debug_assert!(len >= 1);
     let mut r = t(0);
@@ -157,7 +210,7 @@ impl Reduction {
     }
 
     /// Reduce `t(0..len)` with `op` in this order (`len ≥ 1`).
-    #[inline]
+    #[inline(always)]
     pub fn reduce(self, len: usize, t: &impl Fn(usize) -> f64, op: fn(f64, f64) -> f64) -> f64 {
         match self {
             Reduction::Tree => redux_tree(0, len, t, op),
@@ -166,7 +219,7 @@ impl Reduction {
     }
 
     /// Sum `t(0..len)` in this order; empty → `+0`.
-    #[inline]
+    #[inline(always)]
     pub fn sum(self, len: usize, t: &impl Fn(usize) -> f64) -> f64 {
         if len == 0 {
             0.0
@@ -275,6 +328,52 @@ pub fn product_coeff(depth: usize, lhs_cols_fixed: bool, t: &impl Fn(usize) -> f
 #[cfg(test)]
 mod tests {
     use super::*;
+
+    /// The levelled [`redux_tree`] against its recursive definition, for
+    /// every length up to past [`TREE_LEVELS_MAX`], with `+` and `·`, on
+    /// special values (D-051 rule) and in payload mode (exact bits).
+    #[test]
+    fn levelled_tree_matches_the_recursive_definition_bitwise() {
+        use crate::bitwise_testing::{Values, same};
+        let mut v = Values::new(0x0ddb_1a5e_5bad_5eed);
+        let mut p = [0.0; 80];
+        let mut cases = 0usize;
+        for round in 0..1_500 {
+            v.fill(&mut p);
+            for n in 1..=80 {
+                let t = |l: usize| p[l];
+                for (op, name) in [(add as fn(f64, f64) -> f64, "add"), (mul, "mul")] {
+                    let a = redux_tree(0, n, &t, op);
+                    let b = redux_tree_recursive(0, n, &t, op);
+                    assert!(same(a, b), "{name} n={n} round={round}: {a:e} {b:e}");
+                    cases += 1;
+                }
+                // an offset start
+                if n <= 70 {
+                    let a = redux_tree(10, n, &t, add);
+                    let b = redux_tree_recursive(10, n, &t, add);
+                    assert!(same(a, b), "start 10 n={n} round={round}");
+                }
+            }
+        }
+        assert!(cases > 200_000);
+        // payload mode: one NaN with a payload among finite terms
+        let mut nan_results = 0;
+        for _ in 0..1_000 {
+            let k = 1 + v.next_u64() % 64;
+            v.payload_at(k);
+            v.fill(&mut p);
+            v.default_mode();
+            for n in 1..=64 {
+                let t = |l: usize| p[l];
+                let a = redux_tree(0, n, &t, add);
+                let b = redux_tree_recursive(0, n, &t, add);
+                assert_eq!(a.to_bits(), b.to_bits(), "payload n={n} k={k}");
+                nan_results += usize::from(a.is_nan());
+            }
+        }
+        assert!(nan_results > 10_000, "{nan_results}");
+    }
 
     #[test]
     fn tree_shapes() {
