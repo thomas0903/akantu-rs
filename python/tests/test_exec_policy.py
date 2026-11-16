@@ -5,8 +5,11 @@
 """Execution policy from Python: round trips, refused values, and an explicit
 step whose state is bitwise the same with one and with two threads."""
 
+import os
+import subprocess
+import sys
+
 import akantu as aka
-import numpy as np
 import pytest
 from _paths import MESHES
 
@@ -61,29 +64,62 @@ def bar_inputs(upstream_dir):
     upstream_dir(**{"bar.msh": MESHES / SC / "bar.msh"})
 
 
+STATE_SCRIPT = r"""
+import hashlib, sys
+import akantu as aka
+aka.parseInput("material_exec.dat")
+mesh = aka.Mesh(2)
+mesh.read("bar.msh")
+model = aka.SolidMechanicsModel(mesh)
+model.initFull(_analysis_method=aka._explicit_lumped_mass)
+model.setTimeStep(model.getStableTimeStep() * 0.8)
+x = mesh.getNodes()
+u = model.getDisplacement()
+u[:, 0] = 1e-4 * np.sin(0.9 * x[:, 0]) * (x[:, 1] + 0.3)
+u[:, 1] = 1e-4 * np.cos(0.5 * x[:, 1]) * x[:, 0]
+for _ in range(5):
+    model.solveStep()
+h = hashlib.sha256()
+for a in (model.getDisplacement(), model.getVelocity(), model.getAcceleration(),
+          model.getInternalForce()):
+    h.update(np.ascontiguousarray(a).tobytes())
+print(aka.getNumThreads(), float(np.abs(model.getDisplacement()).max()), h.hexdigest())
+"""
+
+
 def _explicit_state(threads):
-    aka.setNumThreads(threads)
+    """The state digest of five explicit steps in a fresh interpreter with
+    `threads` threads and every batch split as finely as possible
+    (`AKANTU_EXEC_GRAIN=finest`: on this small mesh the automatic grain
+    would not split any batch)."""
     with open("material_exec.dat", "w") as f:
         f.write(MATERIAL)
-    aka.parseInput("material_exec.dat")
-    mesh = aka.Mesh(2)
-    mesh.read("bar.msh")
-    model = aka.SolidMechanicsModel(mesh)
-    model.initFull(_analysis_method=aka._explicit_lumped_mass)
-    model.setTimeStep(model.getStableTimeStep() * 0.8)
-    x = mesh.getNodes()
-    u = model.getDisplacement()
-    u[:, 0] = 1e-4 * np.sin(0.9 * x[:, 0]) * (x[:, 1] + 0.3)
-    u[:, 1] = 1e-4 * np.cos(0.5 * x[:, 1]) * x[:, 0]
-    for _ in range(5):
-        model.solveStep()
-    return [np.array(a, copy=True) for a in (model.getDisplacement(), model.getVelocity(),
-                                             model.getAcceleration(), model.getInternalForce())]
+    env = dict(os.environ, AKANTU_NUM_THREADS=str(threads), AKANTU_EXEC_GRAIN="finest",
+               MPLBACKEND="Agg")
+    out = subprocess.run([sys.executable, "-c", STATE_SCRIPT], env=env, check=True,
+                         capture_output=True, text=True).stdout.split()
+    assert int(out[0]) == threads
+    return float(out[1]), out[2]
 
 
-def test_two_threads_give_the_one_thread_bits(bar_inputs, restore_policy):
-    one = _explicit_state(1)
-    two = _explicit_state(2)
-    assert np.abs(one[0]).max() > 0.0
-    for a, b in zip(one, two):
-        assert a.tobytes() == b.tobytes()
+def test_two_threads_give_the_one_thread_bits(bar_inputs):
+    u_max, one = _explicit_state(1)
+    assert u_max > 0.0
+    for threads in (2, 3):
+        assert _explicit_state(threads)[1] == one
+
+
+def test_setters_replace_an_invalid_environment():
+    """With an invalid `AKANTU_NUM_THREADS` the setters still set the
+    default (from the serial policy) instead of raising the environment's
+    error; the getters raise it until a setter ran."""
+    script = (
+        "import akantu as aka\n"
+        "try:\n    aka.getNumThreads()\n    print('no error')\n"
+        "except Exception as e:\n    print('error', 'AKANTU_NUM_THREADS' in str(e))\n"
+        "aka.setNumThreads(2)\nprint(aka.getNumThreads())\n"
+    )
+    env = dict(os.environ, AKANTU_NUM_THREADS="two")
+    out = subprocess.run([sys.executable, "-c", script], env=env, check=True,
+                         capture_output=True, text=True).stdout.splitlines()
+    assert out == ["error True", "2"]

@@ -256,12 +256,14 @@ fn get_array_copy_mode() -> bool {
 // --- execution policy (D-123) ---------------------------------------------------------
 
 /// The process default execution policy with `f` applied (models created
-/// afterwards take it; existing models keep theirs).
+/// afterwards take it; existing models keep theirs). An invalid environment
+/// variable does not prevent replacing it: the setters then start from
+/// [`ExecPolicy::serial`].
 fn update_exec_default(
     py: Python<'_>,
     f: impl FnOnce(ExecPolicy) -> akantu::core::Result<ExecPolicy>,
 ) -> PyResult<()> {
-    let p = ExecPolicy::process_default().py_err(py)?;
+    let p = ExecPolicy::process_default().unwrap_or_else(|_| ExecPolicy::serial());
     ExecPolicy::set_process_default(f(p).py_err(py)?);
     Ok(())
 }
