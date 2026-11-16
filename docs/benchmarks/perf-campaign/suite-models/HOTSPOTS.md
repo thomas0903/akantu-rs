@@ -1,7 +1,7 @@
 # Model suite: where the time goes
 
 Ranked hot spots of the model suite (`suite_models`, crates/akantu-bench,
-README section "Model suite"): heat transfer, phase field, contact,
+README section "Benchmark suite", "Models"): heat transfer, phase field, contact,
 structural mechanics, embedded reinforcement and node-to-node contact.
 No optimisation was made; this list is the input of the next tasks.
 

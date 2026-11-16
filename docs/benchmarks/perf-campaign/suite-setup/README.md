@@ -1,7 +1,7 @@
 # Set-up suite: baseline, scaling, profiles
 
-Raw data of the set-up suite (`crates/akantu-bench/README.md`, "Set-up
-suite"); the ranked findings are in `HOTSPOTS.md`.
+Raw data of the set-up suite (`crates/akantu-bench/README.md`, "Benchmark
+suite", "Set-up"); the ranked findings are in `HOTSPOTS.md`.
 
 | Directory | What | Machine | Commit |
 |---|---|---|---|

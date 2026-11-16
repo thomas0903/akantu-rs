@@ -4,7 +4,7 @@
 // problems follow upstream's examples and tests named in each case.
 
 //! Cases of the `suite_solid` benchmark binary (`crates/akantu-bench/README.md`,
-//! section "Benchmark suite: solid mechanics").
+//! section "Benchmark suite", "Solid mechanics").
 
 pub mod cohesive;
 pub mod common;

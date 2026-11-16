@@ -1,7 +1,7 @@
 # Benchmark suite, solid mechanics and cohesive elements: data
 
 The cases are those of `suite_solid` (`crates/akantu-bench/README.md`,
-section "Benchmark suite: solid mechanics"). Ranked hot spots:
+section "Benchmark suite", "Solid mechanics"). Ranked hot spots:
 `HOTSPOTS.md`.
 
 ## Baseline (`baseline/`, `baseline/summary.md`)
