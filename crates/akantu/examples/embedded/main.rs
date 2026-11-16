@@ -13,7 +13,7 @@
 //!
 //! Upstream builds the example with the package `CGAL` (`USE_PACKAGES
 //! CGAL`): it lives behind the facade feature `cgal` as well, although the
-//! port's intersector uses the LGPL `LinearScan` search structure of
+//! port's intersector uses the LGPL `GridIndex` search structure of
 //! `akantu-geometry`, whose result does not depend on the traversal order
 //! (D-042: no GPL-derived code is used). Upstream reads the reinforcement
 //! mesh inside a `try` that ignores the exception raised because it holds
