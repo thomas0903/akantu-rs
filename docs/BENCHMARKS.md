@@ -549,13 +549,15 @@ What did not pay:
 
 What remains (shares of the profiles after the change, not times):
 
-- Serial: the facet stresses (about 21 % of the full schedule) are bound
-  by gathers of each pair's bulk stress tuple and coefficients (random over
-  about 4 MiB) and by writing `facet_stress` (about 26 MB per step at
-  h = 0.12, all of it public model state); the linear law's check (11 %)
-  streams `facet_stress`, normals and tangents. The insertion is about 6 %
-  of the run, spread over the subfacet searches, the event dispatch and
-  the transaction's bookkeeping.
+- Serial (`profiles/serial-final-5000-*`, the full schedule): the check is
+  39 % of the run, the explicit step 60 %. The facet stresses (18.8 %) are
+  bound by gathers of each pair's bulk stress tuple and coefficients
+  (random over about 4 MiB) and by writing `facet_stress` (about 26 MB per
+  step at h = 0.12, all of it public model state); the linear law's check
+  (14.2 %) streams `facet_stress`, normals and tangents. The insertion is
+  6.0 % of the run, spread over the subfacet searches (1.6 %), the group
+  node lists (0.9 %), the event dispatch and the transaction's
+  bookkeeping.
 - 8 ranks (`profiles/np8-p8-c9-*`): the insertion is 18.6 % of all
   samples, most of it in the transaction's agreements (one per stage and
   one per dispatched event, consumer and level), which also absorb the

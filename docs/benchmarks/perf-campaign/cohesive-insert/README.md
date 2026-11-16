@@ -47,8 +47,8 @@ evidence at P > 1 is `bitwise/`.
 (`-C force-frame-pointers=yes`), shares of samples, not times:
 `serial-base-5000-*` (the branch point) and `serial-c3-5000-*` (after the
 restricted check, the group journal, the copy-plan update and a fused
-facet-stress and law check that was later removed) of the full serial
-schedule; `np8-p8-c8-*` and
+facet-stress and law check that was later removed) and
+`serial-final-5000-*` (the final commit) of the full serial schedule; `np8-p8-c8-*` and
 `np8-p8-c9-*` (whole machine, 8 ranks, before and after the
 global-number fix); `setup-*` (flat, the set-up suite's facet and insertion
 cases; `setup-facets-insert-binary-search-flat.txt` is the first
