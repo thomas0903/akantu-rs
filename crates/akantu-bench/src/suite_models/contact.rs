@@ -53,8 +53,9 @@ pub const CASES: &[Case] = &[
     },
     Case {
         name: "contact_cohesive_quad4",
-        description: "solid + cohesive + contact coupler, explicit steps: extrinsic insertion \
-                      along an internal line, then contact between the crack faces",
+        description: "solid + cohesive + contact coupler, explicit steps: the extrinsic \
+                      insertion check and insertions along an internal line plus the explicit \
+                      step; at most a handful of crack-face contacts at size m",
         run: cohesive_contact_quad4,
     },
 ];
