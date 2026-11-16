@@ -72,6 +72,9 @@
 //!   failed local validation (invalid root, unsupported operator, invalid
 //!   root data, sizes beyond the int count limit) all fail **together**
 //!   before any data collective is posted (no hang, communicator usable).
+//!   The header has a fixed 64-byte payload slot: an all-gather, gather or
+//!   broadcast whose contributions all fit (an agreement of the collective
+//!   error protocol, a scalar reduction) completes with the header alone.
 //! * **Reduction policies** (D-039). Rank-ordered (default): reductions,
 //!   scans and their loc variants gather the contributions and fold them in
 //!   rank order on every rank (`crate::communicator`), bitwise identical to
@@ -928,6 +931,19 @@ fn allocated<T>(mut v: Vec<T>) -> Vec<T> {
         v.reserve(1);
     }
     v
+}
+
+/// The header's inline slot for a payload: the payload and its length if
+/// it fits in [`INLINE_BYTES`], else an empty slot.
+fn inline_slot(payload: &Result<Vec<u8>>) -> ([u8; INLINE_BYTES], usize) {
+    let mut slot = [0u8; INLINE_BYTES];
+    match payload {
+        Ok(p) if p.len() <= INLINE_BYTES => {
+            slot[..p.len()].copy_from_slice(p);
+            (slot, p.len())
+        }
+        _ => (slot, 0),
+    }
 }
 
 /// `len` zero bytes, [`allocated`].
@@ -1938,7 +1954,17 @@ fn ensure_intra(policy: &ThreadPolicy, comm: RawComm, what: &str) -> Result<()> 
 
 /// Header words: sequence, info, ok, then the descriptor.
 const HEADER_WORDS: usize = 3 + DESC_WORDS;
-const HEADER_BYTES: usize = 8 * HEADER_WORDS;
+/// Bytes of the header words.
+const HEADER_WORDS_BYTES: usize = 8 * HEADER_WORDS;
+/// Inline payload slot of every header (zero-padded): a payload collective
+/// whose contributions all fit (`info ≤ INLINE_BYTES` on every rank: an
+/// agreement, a scalar reduction) completes with the header all-gather
+/// alone, without its second MPI collective. Every rank sends the same
+/// header size whatever it puts in the slot, so the header collectives
+/// always match.
+const INLINE_BYTES: usize = 64;
+/// Bytes sent by every rank in the header all-gather.
+const HEADER_BYTES: usize = HEADER_WORDS_BYTES + INLINE_BYTES;
 
 /// Wait at most this long for the `Serialized` MPI lock before the
 /// emergency abort falls back to process termination.
@@ -2691,6 +2717,25 @@ impl MpiBackend {
     /// returns its own error, the others a common `Error::Communication`).
     /// Returns the local value and every rank's `info`.
     fn header<T>(&self, desc: &CollDesc, info: u64, local: Result<T>) -> Result<(T, Vec<u64>)> {
+        self.header_inline(desc, info, local, &[])
+            .map(|(v, infos, _)| (v, infos))
+    }
+
+    /// [`MpiBackend::header`] that also carries `inline` (at most
+    /// [`INLINE_BYTES`]; longer is not inlined) in the header's payload
+    /// slot. Returns every rank's inline block as well when **every** rank's
+    /// `info` (the payload length of the payload collectives) is at most
+    /// [`INLINE_BYTES`]: the caller then has every contribution and skips
+    /// its data collective. The decision is taken from the gathered infos,
+    /// identical on every rank.
+    #[allow(clippy::type_complexity)] // the value, the infos, the inline blocks
+    fn header_inline<T>(
+        &self,
+        desc: &CollDesc,
+        info: u64,
+        local: Result<T>,
+        inline: &[u8],
+    ) -> Result<(T, Vec<u64>, Option<Vec<Vec<u8>>>)> {
         let seq = self.seq.fetch_add(1, Ordering::SeqCst);
         let mut mine = Vec::with_capacity(HEADER_BYTES);
         for w in [seq, info, u64::from(local.is_ok())]
@@ -2699,6 +2744,10 @@ impl MpiBackend {
         {
             mine.extend_from_slice(&w.to_le_bytes());
         }
+        if inline.len() <= INLINE_BYTES {
+            mine.extend_from_slice(inline);
+        }
+        mine.resize(HEADER_BYTES, 0);
         let total = HEADER_BYTES
             .checked_mul(self.size)
             .ok_or_else(|| transport("header size overflow"))?;
@@ -2745,8 +2794,19 @@ impl MpiBackend {
         if let Err(msg) = check_entries(&entries) {
             return Err(local.err().unwrap_or(Error::Communication(msg)));
         }
-        let infos = (0..self.size).map(|r| word(r, 1)).collect();
-        Ok((local?, infos))
+        let infos: Vec<u64> = (0..self.size).map(|r| word(r, 1)).collect();
+        let inlined = infos.iter().all(|&i| i <= INLINE_BYTES as u64).then(|| {
+            infos
+                .iter()
+                .enumerate()
+                .map(|(r, &i)| {
+                    let o = r * HEADER_BYTES + HEADER_WORDS_BYTES;
+                    // i ≤ INLINE_BYTES: inside the slot of rank r
+                    all[o..o + usize::try_from(i).unwrap_or(0)].to_vec()
+                })
+                .collect()
+        });
+        Ok((local?, infos, inlined))
     }
 
     /// Barrier (a header all-gather is synchronising).
@@ -2779,7 +2839,11 @@ impl MpiBackend {
         mine: Result<Vec<u8>>,
     ) -> Result<Vec<Vec<u8>>> {
         let len = mine.as_ref().map_or(0, Vec::len) as u64;
-        let (mine, infos) = self.header(desc, len, mine)?;
+        let (slot, n_inline) = inline_slot(&mine);
+        let (mine, infos, inlined) = self.header_inline(desc, len, mine, &slot[..n_inline])?;
+        if let Some(all) = inlined {
+            return Ok(all);
+        }
         // Every rank computes the same counts: a size overflow fails on all.
         let (counts, displs, total) = Self::counts_from(&infos, "all_gather_v")?;
         let layout = (counts.clone(), displs.clone());
@@ -2832,11 +2896,15 @@ impl MpiBackend {
         root: Rank,
     ) -> Result<Option<Vec<Vec<u8>>>> {
         let len = mine.as_ref().map_or(0, Vec::len) as u64;
-        let (mine, infos) = self.header(desc, len, mine)?;
+        let (slot, n_inline) = inline_slot(&mine);
+        let (mine, infos, inlined) = self.header_inline(desc, len, mine, &slot[..n_inline])?;
+        let is_root = self.rank == root;
+        if let Some(all) = inlined {
+            return Ok(is_root.then_some(all));
+        }
         let (counts, displs, total) = Self::counts_from(&infos, "gather_v")?;
         let layout = (counts.clone(), displs.clone());
         let (counts, displs) = (allocated(counts), allocated(displs));
-        let is_root = self.rank == root;
         let mine = allocated(mine);
         let mut all = zeroed(if is_root { total } else { 0 });
         let n = count(mine.len(), "gather_v")?;
@@ -3014,12 +3082,19 @@ impl MpiBackend {
         root: Rank,
     ) -> Result<Vec<u8>> {
         let len = bytes.as_ref().map_or(0, Vec::len) as u64;
-        let (bytes, infos) = self.header(desc, len, bytes)?;
+        let (slot, n_inline) = inline_slot(&bytes);
+        let (bytes, infos, inlined) = self.header_inline(desc, len, bytes, &slot[..n_inline])?;
         if let Some(r) = infos.iter().position(|&i| i != infos[0]) {
             return Err(Error::Communication(format!(
                 "broadcast: ranks disagree on the length ({} bytes on rank 0, {} on rank {r})",
                 infos[0], infos[r]
             )));
+        }
+        if let Some(mut all) = inlined {
+            let r = usize::try_from(root).ok().filter(|&r| r < all.len());
+            return r
+                .map(|r| all.swap_remove(r))
+                .ok_or_else(|| transport("broadcast: root outside the communicator"));
         }
         let n = count(bytes.len(), "broadcast")?;
         let mut bytes = allocated(bytes);

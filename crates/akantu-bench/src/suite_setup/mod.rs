@@ -164,7 +164,7 @@ pub fn cases() -> Vec<Case> {
         ),
         parallel(
             "explicit_step_dist_tet4",
-            "distributed explicit elastic solve_step (the exchanges inside a real step); also runs serially",
+            "distributed explicit elastic solve_step (the exchanges inside a real step); also runs serially; extra fields: agreements per call and their time on the fastest / slowest rank",
             d::explicit_step_dist_tet4,
         ),
         serial(

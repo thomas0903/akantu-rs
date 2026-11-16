@@ -726,7 +726,9 @@ Non-blocking operations own their buffers (dropping an incomplete send
 completes it, dropping an unmatched receive cancels it). On MPI every
 collective first agrees a descriptor (operation, root, reduction, type,
 count, local validity), so contract violations fail on every rank instead
-of hanging. Self-messages never enter MPI, and every remote receive is
+of hanging; contributions of at most 64 bytes (agreements, scalar
+reductions) travel in that header, so such a collective is one MPI
+collective. Self-messages never enter MPI, and every remote receive is
 filled by `MPI_Improbe` and an exact-length `MPI_Imrecv`, which avoids an
 Open MPI 5.0.7 defect (`docs/DEPENDENCIES.md`); a truncated receive
 allocates the whole message (at most 2 GiB), and posted receives progress

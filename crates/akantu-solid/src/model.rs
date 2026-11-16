@@ -301,8 +301,11 @@ pub struct SolidMechanicsPhysics {
     handlers: Vec<RegisteredHandler>,
     /// Next [`EventHandlerId`] (registration counter).
     next_handler_id: u64,
-    /// Reused buffers of the internal-force assembly.
-    assembly_scratch: assembly::AssemblyScratch,
+    /// Reused buffers of the internal-force assembly, one set per ghost
+    /// type: the not-ghost and the ghost passes of a distributed step have
+    /// different block sizes, and one shared set would be shrunk and grown
+    /// back (zero-filled) twice per step.
+    assembly_scratch: [assembly::AssemblyScratch; 2],
 }
 
 /// Handle of a user event handler, returned by
@@ -547,7 +550,7 @@ impl SolidMechanicsModel {
             time_step: 0.0,
             handlers: Vec::new(),
             next_handler_id: 0,
-            assembly_scratch: assembly::AssemblyScratch::default(),
+            assembly_scratch: Default::default(),
         };
         // upstream initDOFManager(dof_manager) (`model_solver.cc:78-95`):
         // the section's dof_manager_type (`default`; `petsc` with the opt-in
