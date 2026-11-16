@@ -26,8 +26,12 @@ change of default results or of a public API raises the minor version.
   `getSimdLevel` (the default of models created afterwards).
 - Threads in the explicit step of `SolidMechanicsModel`, bitwise equal to
   one thread for every thread count: FE gradient, `BᵀD` and integration
-  kernels, elastic stresses, finite-deformation residual, internal-force
-  scatter, Newmark-β predictor and corrector.
+  kernels, `grad_u −= eigen_grad_u` (for every law), elastic stresses and
+  thermal strains, finite-deformation residual, internal-force scatter,
+  external-work increment (per-node terms), Newmark-β predictor and
+  corrector, lumped solve, residual scatter and solution gather (the
+  per-node and per-equation loops only for parts of at least 131,072
+  nodes / 262,144 equations).
 - Fast-mode harness `akantu_validation::fast_mode` with the rules of
   `fixtures/fast_mode/`, and its demonstrator (the gradient kernel with
   fused multiply-adds under `Precision::Fast`).

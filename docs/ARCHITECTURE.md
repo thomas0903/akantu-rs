@@ -980,10 +980,18 @@ Rules for a threaded kernel:
 
 Threaded today (all bitwise, `akantu-solid/tests/exec_threads.rs`): the FE
 gradient, `BᵀD` and integration batch kernels (`akantu-fe`
-`engine/fast.rs`), the finite-deformation residual (`akantu-solid`
-`model/assembly/finite_deformation/fast.rs`), the internal-force scatter,
-the elastic law's stress and thermal loops, the Newmark-β predictor and
-corrector (`akantu-solver` `integration_scheme.rs`).
+`engine/fast.rs`); `grad_u −= eigen_grad_u` in `computeAllStresses`, on
+the model's threads for every law, whatever the law declares (a
+per-value subtraction, `material.rs`); the finite-deformation residual
+(`akantu-solid` `model/assembly/finite_deformation/fast.rs`); the
+internal-force scatter; the elastic law's stress and thermal loops; the
+external-work increment's per-node terms (summed in node order,
+`model/energy.rs`); in `akantu-solver`, the Newmark-β predictor and
+corrector (`integration_scheme.rs`), the lumped solve (`r += M∘a`,
+`x = α·(b / m)`), the residual scatter through the inverse equation map
+and the solution gather (`dof_manager/assembly.rs`, `dof_manager.rs`).
+The per-node and per-equation loops split only into parts of at least
+131,072 nodes or 262,144 equations; below, they run serially.
 
 A law opts in with `Material::independent_points() -> true` and uses
 `material::points_exec(self, ctx)` in its per-point loop. Declared: the
