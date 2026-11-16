@@ -19,6 +19,11 @@ operations under it".
   release profile, toolchain 1.99.1; serial binaries on the host
   (`scripts/build.sh`), MPI binaries in the MUMPS image with the features
   `mumps,scotch` (`scripts/build-par.sh`).
+- One code change came after the series: the cohesive part of
+  `SolidMechanicsModelCohesive` is boxed (`19f8eabe`, the model's size by
+  value, for debug stacks). It was not timed; the serial state digests of
+  both inputs were run again with it and are unchanged
+  (`bitwise/serial-digests.txt`, `fsrc3-*`).
 
 ## Series
 
