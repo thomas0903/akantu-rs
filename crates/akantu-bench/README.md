@@ -52,7 +52,12 @@ the slowest rank) and case-specific counts (`n_facets`, `n_cohesive`, …).
   P` (the in-process ranks of `akantu-comm`, for tests). Rank 0 generates
   the mesh and partitions it (Scotch with the feature `scotch`, otherwise
   RCB); at one rank the mesh stays serial (no peer to exchange with).
-  Serial cases print `skip:` at P > 1.
+  Serial cases print `skip:` at P > 1. Run Scotch builds with
+  `SCOTCH_PTHREAD_NUMBER=1`: Scotch 7 otherwise partitions with one thread
+  per core and its partition changes from run to run (3 different
+  partitions in 5 runs of `partition_scotch_tet4`, seed 0; see
+  `crates/akantu-mesh/src/scotch.rs`), and with it every distributed
+  digest; its threads would also run on the other ranks' cores.
 - `py_twin_explicit_tri3` is the Rust twin of the Python case
   `explicit_tri3`: same mesh, material, initial displacement, warm-up and
   step count; both print the same digest when the two drivers compute the
