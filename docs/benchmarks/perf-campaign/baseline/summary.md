@@ -212,7 +212,7 @@ Bitwise-safe candidates, by share of the profiles above:
    MUMPS, 1.02–1.09× at h = 0.06): the port's assembly and hand-over around
    the same factorisation.
 6. The `energies` phase at 1–2 ranks (0.82–0.83× upstream, against 0.43–
-   0.45× for the rest of the loop; 13 % of the port's 1-rank loop at
+   0.45× for the rest of the loop; 12 % of the port's 1-rank loop with energies at
    h = 0.06).
 7. Peak RSS of the host driver (1.72× upstream at h = 0.12, mostly the
    SparseLU factorisation's storage).

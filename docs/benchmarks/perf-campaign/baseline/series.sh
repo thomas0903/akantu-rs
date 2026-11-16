@@ -28,7 +28,7 @@
 # port-*/, cpp-bin/), PORT_DIR (BASE/port-59dd2229: `port` = explicit_step_timing,
 # `bench` = host cohesive_extrinsic), RUST_BIN (the MPI+MUMPS driver inside
 # the akantu-rs-mumps:dev image, in the volume akantu-rs-mpi-target:
-# /target/infra-bench/release/cohesive_extrinsic), PIN_CPU (2: serial runs on
+# /target/baseline-59dd2229/cohesive_extrinsic), PIN_CPU (2: serial runs on
 # that core, inside the tjob cores 0-3), LABEL (infra: job label prefix).
 set -euo pipefail
 here="$(cd "$(dirname "$0")" && pwd)"
@@ -36,7 +36,7 @@ repo="$(cd "${here}/../../../.." && pwd)"
 OUT="${OUT:-$HOME/w/infra/data}"
 BASE="${BASE:-$HOME/baseline}"
 PORT_DIR="${PORT_DIR:-$BASE/port-59dd2229}"
-export RUST_BIN="${RUST_BIN:-/target/infra-bench/release/cohesive_extrinsic}"
+export RUST_BIN="${RUST_BIN:-/target/baseline-59dd2229/cohesive_extrinsic}"
 PIN="${PIN_CPU:-2}"
 L="${LABEL:-infra}"
 mkdir -p "$OUT"
