@@ -27,6 +27,24 @@ use crate::buffer::{CommunicationBuffer, Packable};
 use crate::communicator::{CommData, ReduceOp, reduce_value};
 use crate::synchronizer::DataAccessor;
 
+/// [`record`] for an index in range (the common case), without building
+/// an error; `None` when [`record`] would fail.
+#[inline]
+fn record_in_range(entity: Idx, nb_component: usize, len: usize) -> Option<std::ops::Range<usize>> {
+    let start = usize::try_from(entity).ok()?.checked_mul(nb_component)?;
+    let end = start.checked_add(nb_component)?;
+    (end <= len).then_some(start..end)
+}
+
+/// The range of `entity`'s record, or [`record`]'s error.
+#[inline]
+fn record_checked(entity: Idx, nb_component: usize, len: usize) -> Result<std::ops::Range<usize>> {
+    match record_in_range(entity, nb_component, len) {
+        Some(r) => Ok(r),
+        None => record(entity, nb_component, len),
+    }
+}
+
 fn record(entity: Idx, nb_component: usize, len: usize) -> Result<std::ops::Range<usize>> {
     let i = usize::try_from(entity)
         .map_err(|_| Error::InvalidArgument(format!("negative entity index {entity}")))?;
@@ -65,7 +83,7 @@ pub fn pack_entity_data<T: Packable + Copy>(
     entities: &[Idx],
 ) -> Result<()> {
     for &e in entities {
-        buffer.pack_slice(&data[record(e, nb_component, data.len())?]);
+        buffer.pack_slice(&data[record_checked(e, nb_component, data.len())?]);
     }
     Ok(())
 }
@@ -79,7 +97,7 @@ pub fn unpack_entity_data<T: Packable + Copy>(
     entities: &[Idx],
 ) -> Result<()> {
     for &e in entities {
-        let r = record(e, nb_component, data.len())?;
+        let r = record_checked(e, nb_component, data.len())?;
         buffer.unpack_slice(&mut data[r])?;
     }
     Ok(())
@@ -195,11 +213,15 @@ impl<T: CommData> DataAccessor<Idx> for ReduceDataAccessor<'_, T> {
         if tag != self.tag {
             return Ok(());
         }
+        // each record is unpacked at once, then combined value by value
+        // in order (the operations of a value-by-value unpacking)
+        let nc = self.nb_component;
+        let mut received: Vec<T> = vec![T::zero(); nc];
         for &e in entities {
-            let r = record(e, self.nb_component, self.data.len())?;
-            for v in &mut self.data[r] {
-                let received: T = buffer.unpack()?;
-                *v = reduce_value(*v, received, self.op)?;
+            let r = record_checked(e, nc, self.data.len())?;
+            buffer.unpack_slice(&mut received)?;
+            for (v, &x) in self.data[r].iter_mut().zip(&received) {
+                *v = reduce_value(*v, x, self.op)?;
             }
         }
         Ok(())

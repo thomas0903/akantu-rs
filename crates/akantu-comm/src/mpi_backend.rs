@@ -72,6 +72,9 @@
 //!   failed local validation (invalid root, unsupported operator, invalid
 //!   root data, sizes beyond the int count limit) all fail **together**
 //!   before any data collective is posted (no hang, communicator usable).
+//!   The header has a fixed 64-byte payload slot: an all-gather, gather or
+//!   broadcast whose contributions all fit (an agreement of the collective
+//!   error protocol, a scalar reduction) completes with the header alone.
 //! * **Reduction policies** (D-039). Rank-ordered (default): reductions,
 //!   scans and their loc variants gather the contributions and fold them in
 //!   rank order on every rank (`crate::communicator`), bitwise identical to
