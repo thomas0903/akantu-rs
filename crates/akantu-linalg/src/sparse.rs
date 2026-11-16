@@ -483,6 +483,102 @@ impl SparseMatrixAij {
         Ok(())
     }
 
+    /// `true` if `add_values` with blocks of type `values_type` would
+    /// promote this matrix to unsymmetric storage
+    /// ([`SymmetryPolicy::PromoteOnUnsymmetric`]).
+    #[must_use]
+    pub fn would_promote(&self, values_type: MatrixType) -> bool {
+        self.matrix_type == MatrixType::Symmetric
+            && values_type != MatrixType::Symmetric
+            && self.policy == SymmetryPolicy::PromoteOnUnsymmetric
+    }
+
+    /// `add_block_to_profile(rows, cols)` followed by `add_values(rows,
+    /// cols, values, values_type)` with one profile lookup per pair instead
+    /// of two: the positions found while profiling are the ones
+    /// `add_values` would look up. The profile, the values, their order and
+    /// the release counters are those of the two calls. Refused (an error,
+    /// nothing changed) when `add_values` would promote the matrix
+    /// ([`SparseMatrixAij::would_promote`]): a promotion between the
+    /// profiling of two elements would change the entry order, so the
+    /// caller profiles every element first in that case.
+    pub fn add_block_to_profile_and_values(
+        &mut self,
+        rows: &[GlobalIdx],
+        cols: &[GlobalIdx],
+        values: &[Real],
+        values_type: MatrixType,
+    ) -> Result<()> {
+        let (nr, nc) = (rows.len(), cols.len());
+        if self.would_promote(values_type) {
+            return Err(Error::invalid(
+                "add_block_to_profile_and_values: the block would promote the matrix",
+            ));
+        }
+        if values.len() != nr * nc {
+            return Err(Error::DimensionMismatch {
+                context: "SparseMatrixAij::add_values",
+                expected: nr * nc,
+                got: values.len(),
+            });
+        }
+        let symmetric = self.matrix_type == MatrixType::Symmetric;
+        if symmetric && values_type == MatrixType::Symmetric && nr != nc {
+            return Err(Error::InvalidArgument(
+                "a symmetric elemental block must be square".into(),
+            ));
+        }
+        for &g in rows.iter().chain(cols) {
+            if g < self.size {
+                Self::check_coordinate(g)?;
+            }
+        }
+        // Profile (upstream order), recording the position of each pair.
+        let mut pos = std::mem::take(&mut self.scratch);
+        pos.clear();
+        pos.resize(nr * nc, usize::MAX);
+        for (i, &gi) in rows.iter().enumerate() {
+            if gi < self.size {
+                for (j, &gj) in cols.iter().enumerate() {
+                    if gj < self.size {
+                        match self.add_to_profile(gi, gj) {
+                            Ok(k) => pos[i * nc + j] = k,
+                            Err(e) => {
+                                self.scratch = pos;
+                                return Err(e);
+                            }
+                        }
+                    }
+                }
+            }
+        }
+        // Values: the loop of `add_values`, positions from the profiling.
+        let mode = if symmetric && values_type == MatrixType::Symmetric {
+            Selection::LocalUpper
+        } else if symmetric {
+            Selection::GlobalUpper
+        } else {
+            Selection::All
+        };
+        let mut touched: u64 = 0;
+        for (i, &gi) in rows.iter().enumerate() {
+            if gi >= self.size {
+                continue;
+            }
+            let j0 = if mode == Selection::LocalUpper { i } else { 0 };
+            for (j, &gj) in cols.iter().enumerate().skip(j0) {
+                if gj >= self.size || (mode == Selection::GlobalUpper && gj < gi) {
+                    continue;
+                }
+                self.a[pos[i * nc + j]] += values[i + j * nr];
+                touched += 1;
+            }
+        }
+        self.bump_values(touched);
+        self.scratch = pos;
+        Ok(())
+    }
+
     /// Add `value` at `(i, j)`, creating the entry if needed (upstream
     /// `add(i, j, value)`, used for pre-assembled terms and matrix sums).
     pub fn add(&mut self, i: GlobalIdx, j: GlobalIdx, value: Real) -> Result<()> {

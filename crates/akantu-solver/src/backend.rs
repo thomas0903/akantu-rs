@@ -131,6 +131,26 @@ pub trait LinearSystemBackend: std::fmt::Debug + Send {
         values: &[Real],
         values_type: MatrixType,
     ) -> Result<()>;
+    /// `true` if [`LinearSystemBackend::add_block_to_profile_and_values`]
+    /// may replace a loop of `add_block_to_profile` over every element
+    /// followed by a loop of `add_values` over the same elements in the
+    /// same order (the same profile, values and order). Default: `false`.
+    fn can_fuse_profile_and_values(&self, _id: &str, _values_type: MatrixType) -> bool {
+        false
+    }
+    /// `add_block_to_profile` then `add_values` of one block (see
+    /// [`LinearSystemBackend::can_fuse_profile_and_values`]).
+    fn add_block_to_profile_and_values(
+        &mut self,
+        id: &str,
+        rows: &[GlobalIdx],
+        cols: &[GlobalIdx],
+        values: &[Real],
+        values_type: MatrixType,
+    ) -> Result<()> {
+        self.add_block_to_profile(id, rows, cols)?;
+        self.add_values(id, rows, cols, values, values_type)
+    }
     /// Start a repeated element loop into `id` with the position cache
     /// `cache` (see [`LinearSystemBackend::add_values_cached`]). Default:
     /// nothing (the cache stays unused).
@@ -927,6 +947,20 @@ impl LinearSystemBackend for AijBackend {
     ) -> Result<()> {
         self.get_mut(id)?
             .add_values(rows, cols, values, values_type)
+    }
+    fn can_fuse_profile_and_values(&self, id: &str, values_type: MatrixType) -> bool {
+        self.get(id).is_ok_and(|m| !m.would_promote(values_type))
+    }
+    fn add_block_to_profile_and_values(
+        &mut self,
+        id: &str,
+        rows: &[GlobalIdx],
+        cols: &[GlobalIdx],
+        values: &[Real],
+        values_type: MatrixType,
+    ) -> Result<()> {
+        self.get_mut(id)?
+            .add_block_to_profile_and_values(rows, cols, values, values_type)
     }
     fn begin_cached_assembly(&self, id: &str, cache: &mut BlockPositionCache) {
         if let Ok(m) = self.get(id) {

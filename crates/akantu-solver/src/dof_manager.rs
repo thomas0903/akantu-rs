@@ -1873,6 +1873,34 @@ impl DofManager {
         for &e in elements.iter().chain(&profile_elems) {
             self.element_equations(f, conn.tuple(e), &mut eqs)?;
         }
+        // First assembly of every element of the connectivity/group in
+        // order, without a promotion: profile and values element by
+        // element with one lookup per entry (the profile and the sums of
+        // the two loops below).
+        if !profile_elems.is_empty()
+            && profile_elems == elements
+            && self
+                .backend
+                .can_fuse_profile_and_values(matrix_id, elemental_matrix_type)
+        {
+            for (k, &e) in elements.iter().enumerate() {
+                self.element_equations(f, conn.tuple(e), &mut eqs)?;
+                self.backend.add_block_to_profile_and_values(
+                    matrix_id,
+                    &eqs,
+                    &eqs,
+                    elementary.tuple(k),
+                    elemental_matrix_type,
+                )?;
+            }
+            self.profiled.insert(key.clone());
+            if self.assembly_cache_enabled {
+                let mut cache = self.assembly_caches.remove(&key).unwrap_or_default();
+                self.backend.begin_cached_assembly(matrix_id, &mut cache);
+                self.assembly_caches.insert(key, cache);
+            }
+            return Ok(());
+        }
         // addToProfile once per (matrix, family, type, ghost), all elements
         // of the connectivity/group in order.
         for &e in &profile_elems {

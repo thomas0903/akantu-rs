@@ -458,3 +458,80 @@ fn copy_profile_matches_the_rebuild() {
         }
     }
 }
+
+/// Profiling every element and then adding every element's values gives
+/// the state of the fused `add_block_to_profile_and_values` per element
+/// (no promotion possible); the promoting combination is refused without
+/// a change.
+#[test]
+fn fused_first_assembly_is_profile_then_values() {
+    let combos = [
+        (
+            MatrixType::Symmetric,
+            MatrixType::Symmetric,
+            SymmetryPolicy::PromoteOnUnsymmetric,
+        ),
+        (
+            MatrixType::Symmetric,
+            MatrixType::Unsymmetric,
+            SymmetryPolicy::UpstreamUpperSelection,
+        ),
+        (
+            MatrixType::Unsymmetric,
+            MatrixType::Symmetric,
+            SymmetryPolicy::PromoteOnUnsymmetric,
+        ),
+        (
+            MatrixType::Unsymmetric,
+            MatrixType::Unsymmetric,
+            SymmetryPolicy::PromoteOnUnsymmetric,
+        ),
+    ];
+    for &(mt, vt, policy) in &combos {
+        for trial in 0..40u64 {
+            let mut rng = Rng(trial * 7 + 11, if trial % 2 == 0 { 0 } else { 30 });
+            let n: GlobalIdx = 6 + GlobalIdx::try_from(rng.below(10)).unwrap();
+            let nb = 1 + (trial as usize) % 5;
+            let elems: Vec<Vec<GlobalIdx>> = (0..10).map(|_| element_of(&mut rng, n, nb)).collect();
+            let values: Vec<Vec<Real>> = elems
+                .iter()
+                .map(|e| (0..e.len() * e.len()).map(|_| rng.value()).collect())
+                .collect();
+            let mut two_pass = SparseMatrixAij::new("K", n, mt);
+            two_pass.set_symmetry_policy(policy);
+            if trial % 3 == 0 {
+                // a profile that already holds entries
+                two_pass.add(1, 2, 0.5).unwrap();
+                two_pass.add(3, 3, -0.0).unwrap();
+            }
+            let mut fused = two_pass.clone();
+            fused.value_release = two_pass.value_release;
+            fused.profile_release = two_pass.profile_release;
+            for e in &elems {
+                two_pass.add_block_to_profile(e, e).unwrap();
+            }
+            for (e, v) in elems.iter().zip(&values) {
+                two_pass.add_values(e, e, v, vt).unwrap();
+            }
+            for (e, v) in elems.iter().zip(&values) {
+                fused.add_block_to_profile_and_values(e, e, v, vt).unwrap();
+            }
+            same_state(
+                &two_pass,
+                &fused,
+                &format!("{mt:?}/{vt:?}/{policy:?} trial {trial}"),
+            );
+            assert_eq!(two_pass.profile, fused.profile);
+        }
+    }
+    let mut m = SparseMatrixAij::new("K", 4, MatrixType::Symmetric);
+    let before = m.clone();
+    assert!(
+        m.add_block_to_profile_and_values(&[0, 1], &[0, 1], &[1.0; 4], MatrixType::Unsymmetric)
+            .is_err()
+    );
+    assert_eq!(
+        (m.nnz(), m.value_release),
+        (before.nnz(), before.value_release)
+    );
+}
