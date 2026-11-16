@@ -178,6 +178,68 @@ impl NewtonRaphson {
     }
 }
 
+/// Below this length [`sort_total`] uses the comparison sort.
+const RADIX_MIN_LEN: usize = 512;
+/// Bits per digit of [`sort_total`]'s radix passes (6 passes for 64 bits).
+const RADIX_BITS: u32 = 11;
+
+/// Order-preserving key of `f64::total_cmp`: unsigned comparison of the
+/// keys is `total_cmp` of the values (negative values have every bit
+/// flipped, non-negative ones the sign bit).
+#[inline]
+fn total_key(x: f64) -> u64 {
+    let b = x.to_bits();
+    if b >> 63 == 1 { !b } else { b | (1 << 63) }
+}
+
+/// Sort ascending by `f64::total_cmp`. Values with equal keys have equal
+/// bits, so the result is the same array as any correct sort by
+/// `total_cmp` (`sort_unstable_by(f64::total_cmp)` for short slices); long
+/// slices use a least-significant-digit radix sort of the
+/// [`total_key`]s (passes on which every key has the same digit are
+/// skipped).
+pub fn sort_total(values: &mut [f64]) {
+    let n = values.len();
+    if n < RADIX_MIN_LEN {
+        values.sort_unstable_by(f64::total_cmp);
+        return;
+    }
+    const BUCKETS: usize = 1 << RADIX_BITS;
+    const PASSES: usize = 64usize.div_ceil(RADIX_BITS as usize);
+    let mask = (BUCKETS - 1) as u64;
+    let mut keys: Vec<u64> = values.iter().map(|&x| total_key(x)).collect();
+    // one histogram per pass, from a single read of the keys
+    let mut hist = vec![[0usize; BUCKETS]; PASSES];
+    for &k in &keys {
+        for (p, h) in hist.iter_mut().enumerate() {
+            h[((k >> (p as u32 * RADIX_BITS)) & mask) as usize] += 1;
+        }
+    }
+    let mut tmp = vec![0u64; n];
+    for (p, h) in hist.iter_mut().enumerate() {
+        if h.contains(&n) {
+            continue; // every key has the same digit: the pass keeps the order
+        }
+        let mut sum = 0usize;
+        for c in h.iter_mut() {
+            let here = *c;
+            *c = sum;
+            sum += here;
+        }
+        let shift = p as u32 * RADIX_BITS;
+        for &k in &keys {
+            let d = ((k >> shift) & mask) as usize;
+            tmp[h[d]] = k;
+            h[d] += 1;
+        }
+        std::mem::swap(&mut keys, &mut tmp);
+    }
+    for (v, &k) in values.iter_mut().zip(&keys) {
+        // inverse of total_key
+        *v = f64::from_bits(if k >> 63 == 1 { k & !(1 << 63) } else { !k });
+    }
+}
+
 /// Upstream `Math::reduce` (`aka_math.cc`): deterministic pairwise sum used
 /// for scalar integrals (`IntegratorGauss::integrate` → `Real`).
 ///
@@ -197,7 +259,7 @@ pub fn reduce(values: &mut [Real]) -> Real {
         return 0.0;
     }
     let mut half = n >> 1;
-    values.sort_unstable_by(f64::total_cmp);
+    sort_total(values);
     while half != 0 {
         if n - 2 * half != 0 {
             values[n - 2] += values[n - 1];
@@ -232,6 +294,78 @@ mod tests {
         // n = 6: [a+b, c+d, e+f] → fold → [a+b, (c+d)+(e+f)] → sum
         let mut x = [6.0, 5.0, 4.0, 3.0, 2.0, 1.0];
         assert_eq!(reduce(&mut x), (1.0 + 2.0) + ((3.0 + 4.0) + (5.0 + 6.0)));
+    }
+
+    fn special_or_random(rng: &mut u64) -> f64 {
+        // xorshift64
+        *rng ^= *rng << 13;
+        *rng ^= *rng >> 7;
+        *rng ^= *rng << 17;
+        let r = *rng;
+        match r % 16 {
+            0 => 0.0,
+            1 => -0.0,
+            2 => f64::INFINITY,
+            3 => f64::NEG_INFINITY,
+            4 => f64::from_bits(0x7ff8_0000_0000_0000 | (r >> 20)), // NaNs, both signs below
+            5 => -f64::from_bits(0x7ff0_0000_0000_0001 | (r >> 24)),
+            6 => f64::from_bits(r >> 13), // subnormals and small
+            7 => -f64::from_bits(r >> 12),
+            8 => f64::MIN_POSITIVE,
+            9 => ((r >> 40) % 7) as f64, // many equal values
+            _ => f64::from_bits(r),      // any bit pattern
+        }
+    }
+
+    /// The radix sort gives the bits of the comparison sort, on random
+    /// bit patterns with signed zeros, infinities, NaNs (both signs,
+    /// several payloads), subnormals and repeated values, around the
+    /// switch length; and `reduce` gives the same bits.
+    #[test]
+    fn sort_total_matches_the_comparison_sort_bitwise() {
+        let mut rng = 0x9e37_79b9_7f4a_7c15_u64;
+        for &n in &[0usize, 1, 2, 511, 512, 513, 1000, 4096, 20_000] {
+            for _ in 0..4 {
+                let v: Vec<f64> = (0..n).map(|_| special_or_random(&mut rng)).collect();
+                let mut a = v.clone();
+                a.sort_unstable_by(f64::total_cmp);
+                let mut b = v.clone();
+                sort_total(&mut b);
+                assert!(
+                    a.iter().zip(&b).all(|(x, y)| x.to_bits() == y.to_bits()),
+                    "n = {n}"
+                );
+                // narrow positive data (the radix passes skip digits)
+                let w: Vec<f64> = (0..n)
+                    .map(|_| 1.0 + (special_or_random(&mut rng).to_bits() >> 40) as f64 * 1e-9)
+                    .collect();
+                let mut a = w.clone();
+                a.sort_unstable_by(f64::total_cmp);
+                let mut b = w.clone();
+                sort_total(&mut b);
+                assert!(a.iter().zip(&b).all(|(x, y)| x.to_bits() == y.to_bits()));
+                // reduce: the comparison-sorted reference algorithm
+                let mut c = w.clone();
+                let mut r = w.clone();
+                r.sort_unstable_by(f64::total_cmp);
+                let reference = {
+                    let mut n = r.len();
+                    let mut half = n >> 1;
+                    while half != 0 {
+                        if n - 2 * half != 0 {
+                            r[n - 2] += r[n - 1];
+                        }
+                        for i in 0..half {
+                            r[i] = r[2 * i] + r[2 * i + 1];
+                        }
+                        n = half;
+                        half >>= 1;
+                    }
+                    r.first().copied().unwrap_or(0.0)
+                };
+                assert_eq!(reduce(&mut c).to_bits(), reference.to_bits());
+            }
+        }
     }
 
     #[test]

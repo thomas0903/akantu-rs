@@ -410,7 +410,53 @@ pub fn explicit_model(mesh: Mesh, out: &mut CaseOut) -> Result<SolidMechanicsMod
     Ok(model)
 }
 
+/// Extra fields of a loop phase: agreements of the collective error
+/// protocol per call (rank 0) and the microseconds per call spent in them,
+/// waiting included, on the fastest and the slowest rank
+/// (`akantu_comm::phase::agreement_stats`).
+fn agreement_extras(
+    ctx: &Ctx,
+    out: &mut CaseOut,
+    before: (u64, f64),
+    calls: usize,
+    what: &'static str,
+) -> Result<()> {
+    let after = akantu_comm::phase::agreement_stats();
+    #[allow(clippy::cast_precision_loss)] // counts
+    let per = |x: f64| x / calls.max(1) as f64;
+    #[allow(clippy::cast_precision_loss)] // counts
+    let n = per((after.0 - before.0) as f64);
+    let us = per(after.1 - before.1) * 1e6;
+    let (mut lo, mut hi) = ([us], [us]);
+    ctx.comm.all_reduce(&mut lo, ReduceOp::Min)?;
+    ctx.comm.all_reduce(&mut hi, ReduceOp::Max)?;
+    let names: [&'static str; 3] = match what {
+        "step" => [
+            "agreements_per_step",
+            "agree_us_per_step_min",
+            "agree_us_per_step_max",
+        ],
+        _ => [
+            "agreements_per_energies",
+            "agree_us_per_energies_min",
+            "agree_us_per_energies_max",
+        ],
+    };
+    out.extra.push((names[0], n));
+    out.extra.push((names[1], lo[0]));
+    out.extra.push((names[2], hi[0]));
+    Ok(())
+}
+
 /// Distributed explicit step and the per-step energies.
+///
+/// Since commit 26d0f8365 the lines carry extra fields (outside the timed
+/// phases; the digest is unchanged): `agreements_per_step` and
+/// `agreements_per_energies` (agreements of the collective error protocol
+/// per call, rank 0) and `agree_us_per_*_min` / `_max` (microseconds per
+/// call spent in them on the fastest and the slowest rank, from
+/// `akantu_comm::phase::agreement_stats`, gathered with two raw
+/// `all_reduce`s).
 pub fn explicit_step_dist_tet4(ctx: &Ctx) -> Result<CaseOut> {
     let mut out = CaseOut::default();
     let n = ctx.size.pick(6, 30, 60);
@@ -418,12 +464,22 @@ pub fn explicit_step_dist_tet4(ctx: &Ctx) -> Result<CaseOut> {
     let mut model = explicit_model(mesh, &mut out)?;
     out.n_dofs = out.n_nodes * 3;
     let steps = ctx.size.pick(5, 100, 50);
-    out.loop_phase(ctx, "solve_step", steps, || model.solve_step(None))?;
+    let mut calls = 0usize;
+    let before = akantu_comm::phase::agreement_stats();
+    out.loop_phase(ctx, "solve_step", steps, || {
+        calls += 1;
+        model.solve_step(None)
+    })?;
+    agreement_extras(ctx, &mut out, before, calls, "step")?;
     let mut e = [0.0; 2];
+    let mut calls = 0usize;
+    let before = akantu_comm::phase::agreement_stats();
     out.loop_phase(ctx, "energies", ctx.size.pick(5, 200, 100), || {
+        calls += 1;
         e = [model.energy("potential")?, model.energy("kinetic")?];
         Ok(())
     })?;
+    agreement_extras(ctx, &mut out, before, calls, "energies")?;
     let mesh_h = model.mesh().clone();
     let m = mesh_h.read()?;
     let u = model.displacement()?;

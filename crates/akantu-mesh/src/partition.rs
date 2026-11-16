@@ -38,8 +38,6 @@
 //! The partition is computed on the root rank only (centralised
 //! distribution, the documented capacity limit of this path).
 
-use std::collections::BTreeMap;
-
 use akantu_core::{
     Element, ElementKind, ElementType, ElementTypeMap, ElementTypeMapArray, Error, GhostType, Idx,
     Int, Real, Result, TypeFilter, try_idx, try_to_usize,
@@ -241,19 +239,6 @@ pub fn linearized_offsets(mesh: &Mesh, dim: usize) -> Vec<(ElementType, usize)> 
         .collect()
 }
 
-fn linearized(offsets: &[(ElementType, usize)], el: Element) -> Result<usize> {
-    offsets
-        .iter()
-        .find(|(t, _)| *t == el.ty())
-        .map(|(_, o)| o + el.idx())
-        .ok_or_else(|| {
-            Error::Mesh(format!(
-                "element {el} is not of a partitioned type (upstream: debug assertion, \
-                 undefined behaviour in release)"
-            ))
-        })
-}
-
 fn unlinearized(offsets: &[(ElementType, usize)], lin: usize) -> Result<Element> {
     let mut found = None;
     for &(t, o) in offsets {
@@ -290,24 +275,69 @@ fn effective_nodes<'m>(
 /// Node → element rows over the not-ghost elements of dimension `dim` (all
 /// kinds, `elementTypes` order), on the (periodically tweaked)
 /// connectivity: upstream `MeshUtils::buildNode2Elements(mesh, csr, dim)`
-/// as called by the partitioners.
-fn node_to_elements(mesh: &Mesh, dim: usize, periodic: bool) -> Result<Vec<Vec<Element>>> {
-    let mut rows: Vec<Vec<Element>> = vec![Vec::new(); mesh.nb_nodes()];
+/// as called by the partitioners. One CSR of **linearised** element
+/// indices ([`linearized_offsets`]); a row lists its elements in element
+/// order (types in enum order, then index: the order of `Element` for
+/// not-ghost elements).
+struct LinearNodeToElements {
+    offsets: Vec<usize>,
+    elements: Vec<usize>,
+}
+
+impl LinearNodeToElements {
+    fn row(&self, node: Idx) -> Result<&[usize]> {
+        let n = try_to_usize(node)?;
+        match (self.offsets.get(n), self.offsets.get(n + 1)) {
+            (Some(&a), Some(&b)) => Ok(&self.elements[a..b]),
+            _ => Err(Error::OutOfRange {
+                what: "node",
+                index: n,
+                len: self.offsets.len().saturating_sub(1),
+            }),
+        }
+    }
+}
+
+fn node_to_elements(mesh: &Mesh, dim: usize, periodic: bool) -> Result<LinearNodeToElements> {
+    let nb_nodes = mesh.nb_nodes();
+    let offsets_t = linearized_offsets(mesh, dim);
     let mut scratch = Vec::new();
-    for ty in mesh.element_types(TypeFilter::new().dim(dim)) {
+    let check = |n: Idx| -> Result<usize> {
+        let i = try_to_usize(n)?;
+        if i < nb_nodes {
+            Ok(i)
+        } else {
+            Err(Error::OutOfRange {
+                what: "node",
+                index: i,
+                len: nb_nodes,
+            })
+        }
+    };
+    // counts, then the rows in element order
+    let mut offsets = vec![0usize; nb_nodes + 1];
+    for &(ty, _) in &offsets_t {
         for e in 0..mesh.nb_element(ty, NG) {
-            let el = Element::try_new(ty, e, NG)?;
             for &n in effective_nodes(mesh, ty, e, periodic, &mut scratch)? {
-                let row = rows.get_mut(try_to_usize(n)?).ok_or(Error::OutOfRange {
-                    what: "node",
-                    index: try_to_usize(n)?,
-                    len: mesh.nb_nodes(),
-                })?;
-                row.push(el);
+                offsets[check(n)? + 1] += 1;
             }
         }
     }
-    Ok(rows)
+    for i in 0..nb_nodes {
+        offsets[i + 1] += offsets[i];
+    }
+    let mut fill = offsets.clone();
+    let mut elements = vec![0usize; offsets[nb_nodes]];
+    for &(ty, off) in &offsets_t {
+        for e in 0..mesh.nb_element(ty, NG) {
+            for &n in effective_nodes(mesh, ty, e, periodic, &mut scratch)? {
+                let i = check(n)?;
+                elements[fill[i]] = off + e;
+                fill[i] += 1;
+            }
+        }
+    }
+    Ok(LinearNodeToElements { offsets, elements })
 }
 
 // --------------------------------------------------------------- dual graph
@@ -376,31 +406,48 @@ pub fn build_dual_graph(
         .last()
         .map_or(0, |&(t, o)| o + mesh.nb_element(t, NG));
     let n2e = node_to_elements(mesh, dim, periodic)?;
+    let cohesive: Vec<bool> = offsets
+        .iter()
+        .map(|&(t, _)| t.kind() == ElementKind::Cohesive)
+        .collect();
+    let type_of = |lin: usize| offsets.partition_point(|&(_, o)| o <= lin) - 1;
     let mut neighbours: Vec<Vec<usize>> = vec![Vec::new(); n];
     let mut scratch = Vec::new();
-    for &(ty, off) in &offsets {
+    // shared-node counts per adjacent element: `stamp[c] == v + 1` marks
+    // `count[c]` as counted for vertex v; the touched elements, sorted,
+    // are the adjacent elements in `Element` order (upstream iterates a
+    // `std::map<Element, Int>`)
+    let mut stamp = vec![0usize; n];
+    let mut count = vec![0usize; n];
+    let mut touched: Vec<usize> = Vec::new();
+    for (ti, &(ty, off)) in offsets.iter().enumerate() {
         let magic = (0..ty.nb_facet_types())
             .filter_map(|t| ty.facet_type(t))
             .map(ElementType::nb_nodes_per_element)
             .fold(ty.nb_nodes_per_element(), usize::min);
         for e in 0..mesh.nb_element(ty, NG) {
-            let el = Element::try_new(ty, e, NG)?;
-            let mut hits: BTreeMap<Element, usize> = BTreeMap::new();
+            let v = off + e;
+            touched.clear();
             for &node in effective_nodes(mesh, ty, e, periodic, &mut scratch)? {
-                for &c in &n2e[try_to_usize(node)?] {
-                    *hits.entry(c).or_default() += 1;
+                for &c in n2e.row(node)? {
+                    if stamp[c] == v + 1 {
+                        count[c] += 1;
+                    } else {
+                        stamp[c] = v + 1;
+                        count[c] = 1;
+                        touched.push(c);
+                    }
                 }
             }
-            for (adj, count) in hits {
-                if adj == el || count < magic {
+            touched.sort_unstable();
+            for &adj in &touched {
+                if adj == v || count[adj] < magic {
                     continue;
                 }
-                if el.ty().kind() == ElementKind::Cohesive
-                    && adj.ty().kind() == ElementKind::Cohesive
-                {
+                if cohesive[ti] && cohesive[type_of(adj)] {
                     continue;
                 }
-                neighbours[off + e].push(linearized(&offsets, adj)?);
+                neighbours[v].push(adj);
             }
         }
     }
@@ -558,8 +605,8 @@ pub fn fill_partition_information_with(
             parts.as_mut_slice()[e] = part;
             let mut adj: Vec<Idx> = Vec::new();
             for &node in effective_nodes(mesh, ty, e, mesh.is_periodic(), &mut scratch)? {
-                for &a in &n2e[try_to_usize(node)?] {
-                    let ap = linearized_parts[linearized(&offsets, a)?];
+                for &a in n2e.row(node)? {
+                    let ap = linearized_parts[a];
                     if ap != part {
                         adj.push(ap);
                     }
@@ -1249,6 +1296,281 @@ mod tests {
         assert_eq!(c.partition(ElementType::Segment2).unwrap(), &[0, 0]);
     }
 
+    /// The dual graph of the port before the counting-array rewrite
+    /// (`BTreeMap<Element, usize>` of shared-node counts per element, a
+    /// `Vec<Element>` per node): the reference of
+    /// `dual_graph_matches_the_ordered_map_construction`.
+    fn reference_dual_graph(
+        mesh: &Mesh,
+        edge_load: &dyn Fn(Element, Element) -> Int,
+        vertex_load: &dyn Fn(Element) -> Int,
+    ) -> DualGraph {
+        use std::collections::BTreeMap;
+        let dim = mesh.spatial_dimension();
+        let offsets = linearized_offsets(mesh, dim);
+        let lin = |el: Element| {
+            offsets
+                .iter()
+                .find(|(t, _)| *t == el.ty())
+                .map(|(_, o)| o + el.idx())
+                .unwrap()
+        };
+        let n: usize = offsets
+            .last()
+            .map_or(0, |&(t, o)| o + mesh.nb_element(t, NG));
+        let mut rows: Vec<Vec<Element>> = vec![Vec::new(); mesh.nb_nodes()];
+        for &(ty, _) in &offsets {
+            let conn = mesh.connectivity(ty, NG).unwrap();
+            for e in 0..mesh.nb_element(ty, NG) {
+                for &nd in conn.tuple(e) {
+                    rows[nd as usize].push(Element::try_new(ty, e, NG).unwrap());
+                }
+            }
+        }
+        let mut g = DualGraph::default();
+        g.xadj.push(0);
+        for &(ty, _) in &offsets {
+            let magic = (0..ty.nb_facet_types())
+                .filter_map(|t| ty.facet_type(t))
+                .map(ElementType::nb_nodes_per_element)
+                .fold(ty.nb_nodes_per_element(), usize::min);
+            let conn = mesh.connectivity(ty, NG).unwrap();
+            for e in 0..mesh.nb_element(ty, NG) {
+                let el = Element::try_new(ty, e, NG).unwrap();
+                let mut hits: BTreeMap<Element, usize> = BTreeMap::new();
+                for &nd in conn.tuple(e) {
+                    for &c in &rows[nd as usize] {
+                        *hits.entry(c).or_default() += 1;
+                    }
+                }
+                g.vertex_loads.push(vertex_load(el));
+                for (adj, count) in hits {
+                    if adj == el || count < magic {
+                        continue;
+                    }
+                    if el.ty().kind() == ElementKind::Cohesive
+                        && adj.ty().kind() == ElementKind::Cohesive
+                    {
+                        continue;
+                    }
+                    g.adjncy.push(Int::try_from(lin(adj)).unwrap());
+                    g.edge_loads.push(edge_load(el, adj));
+                }
+                g.xadj.push(Int::try_from(g.adjncy.len()).unwrap());
+            }
+        }
+        assert_eq!(g.xadj.len(), n + 1);
+        g
+    }
+
+    /// The counting-array dual graph equals the ordered-map construction
+    /// (same neighbour order, loads and offsets) on a mixed triangle and
+    /// quadrangle mesh with scrambled connectivities and element-dependent
+    /// loads.
+    #[test]
+    fn dual_graph_matches_the_ordered_map_construction() {
+        let mut m = Mesh::new(2, "mixed").unwrap();
+        let (nx, ny) = (9usize, 7usize);
+        {
+            let mut a = MeshAccessor::new(&mut m);
+            for j in 0..=ny {
+                for i in 0..=nx {
+                    #[allow(clippy::cast_precision_loss)] // small
+                    a.push_node(&[i as f64, j as f64]).unwrap();
+                }
+            }
+            let id = |i: usize, j: usize| Idx::try_from(j * (nx + 1) + i).unwrap();
+            // a pseudo-random visiting order of the cells
+            let mut cells: Vec<(usize, usize)> =
+                (0..ny).flat_map(|j| (0..nx).map(move |i| (i, j))).collect();
+            let mut r = 12_345u64;
+            for k in (1..cells.len()).rev() {
+                r = r.wrapping_mul(6_364_136_223_846_793_005).wrapping_add(1);
+                cells.swap(k, (r >> 33) as usize % (k + 1));
+            }
+            for (k, &(i, j)) in cells.iter().enumerate() {
+                let (a0, a1, a2, a3) = (id(i, j), id(i + 1, j), id(i + 1, j + 1), id(i, j + 1));
+                if k % 3 == 0 {
+                    a.connectivity_mut(ElementType::Quadrangle4, NG)
+                        .push_tuple(&[a1, a2, a3, a0]);
+                } else {
+                    let mut c = a.connectivity_mut(ElementType::Triangle3, NG);
+                    c.push_tuple(&[a0, a1, a2]);
+                    c.push_tuple(&[a2, a3, a0]);
+                }
+            }
+        }
+        let el_key = |e: Element| Int::try_from(e.idx() * 3 + e.ty().index()).unwrap();
+        let edge = |a: Element, b: Element| 1 + (el_key(a) * 7 + el_key(b)) % 5;
+        let vertex = |a: Element| 1 + el_key(a) % 4;
+        let got = build_dual_graph(&m, &edge, &vertex).unwrap();
+        let want = reference_dual_graph(&m, &edge, &vertex);
+        assert_eq!(got, want);
+        assert!(got.adjncy.len() > 100);
+    }
+
+    /// Deterministic pseudo-random sequence of the cohesive dual-graph tests.
+    fn lcg(r: &mut u64) -> usize {
+        *r = r.wrapping_mul(6_364_136_223_846_793_005).wrapping_add(1);
+        (*r >> 33) as usize
+    }
+
+    /// Element-dependent edge and vertex loads (so that a vertex or a
+    /// neighbour taken from the wrong element shows in the loads).
+    fn graph_with_loads(m: &Mesh) -> (DualGraph, DualGraph) {
+        let key = |e: Element| Int::try_from(e.idx() * 31 + e.ty().index()).unwrap();
+        let edge = |a: Element, b: Element| 1 + (key(a) * 7 + key(b)) % 11;
+        let vertex = |a: Element| 1 + key(a) % 5;
+        (
+            build_dual_graph(m, &edge, &vertex).unwrap(),
+            reference_dual_graph(m, &edge, &vertex),
+        )
+    }
+
+    /// The counting-array dual graph equals the ordered-map construction
+    /// on a 2-D mesh with triangles, quadrangles, `_cohesive_2d_4` elements
+    /// (unopened ones with repeated nodes, several sharing nodes, two on
+    /// the same edge) and lower-dimensional `_segment_2` elements: the rule
+    /// that two cohesive elements are never adjacent and the linear-index →
+    /// type lookup are exercised.
+    #[test]
+    fn dual_graph_with_cohesive_elements_matches_the_reference_2d() {
+        let mut m = Mesh::new(2, "cohesive-2d").unwrap();
+        let (nx, ny) = (7usize, 6usize);
+        let id = |i: usize, j: usize| Idx::try_from(j * (nx + 1) + i).unwrap();
+        {
+            let mut a = MeshAccessor::new(&mut m);
+            for j in 0..=ny {
+                for i in 0..=nx {
+                    #[allow(clippy::cast_precision_loss)] // small
+                    a.push_node(&[i as f64, j as f64]).unwrap();
+                }
+            }
+            let mut r = 7u64;
+            for j in 0..ny {
+                for i in 0..nx {
+                    let (a0, a1, a2, a3) = (id(i, j), id(i + 1, j), id(i + 1, j + 1), id(i, j + 1));
+                    if lcg(&mut r).is_multiple_of(3) {
+                        a.connectivity_mut(ElementType::Quadrangle4, NG)
+                            .push_tuple(&[a0, a1, a2, a3]);
+                    } else {
+                        let mut c = a.connectivity_mut(ElementType::Triangle3, NG);
+                        c.push_tuple(&[a0, a1, a2]);
+                        c.push_tuple(&[a2, a3, a0]);
+                    }
+                }
+            }
+            {
+                let mut coh = a.connectivity_mut(ElementType::Cohesive2d4, NG);
+                // unopened cohesive elements on interior vertical edges (repeated
+                // nodes); neighbours along a column share a node
+                for j in 0..ny {
+                    for i in [2usize, 5] {
+                        let (p, q) = (id(i, j), id(i, j + 1));
+                        coh.push_tuple(&[p, q, p, q]);
+                    }
+                }
+                // two cohesive elements on the same edge, and opened ones
+                // joining two different edges
+                coh.push_tuple(&[id(3, 3), id(4, 3), id(3, 3), id(4, 3)]);
+                coh.push_tuple(&[id(3, 3), id(4, 3), id(3, 3), id(4, 3)]);
+                coh.push_tuple(&[id(1, 1), id(2, 1), id(1, 2), id(2, 2)]);
+                coh.push_tuple(&[id(5, 4), id(6, 4), id(5, 5), id(6, 5)]);
+            }
+            let mut seg = a.connectivity_mut(ElementType::Segment2, NG);
+            for i in 0..nx {
+                seg.push_tuple(&[id(i, 0), id(i + 1, 0)]);
+            }
+        }
+        let (got, want) = graph_with_loads(&m);
+        assert_eq!(got, want);
+        // the cohesive elements have neighbours (bulk ones only)
+        let n_bulk =
+            m.nb_element(ElementType::Triangle3, NG) + m.nb_element(ElementType::Quadrangle4, NG);
+        let n = got.xadj.len() - 1;
+        let first_coh = n - m.nb_element(ElementType::Cohesive2d4, NG);
+        assert!(
+            first_coh >= n_bulk,
+            "cohesive elements are listed after the bulk types"
+        );
+        for v in first_coh..n {
+            let (a, b) = (got.xadj[v] as usize, got.xadj[v + 1] as usize);
+            assert!(b > a, "cohesive vertex {v} without neighbour");
+            assert!(got.adjncy[a..b].iter().all(|&w| (w as usize) < first_coh));
+        }
+    }
+
+    /// The 3-D variant: tetrahedra (Kuhn split cells), hexahedra and
+    /// `_cohesive_3d_6` elements (unopened, sharing nodes, two on the same
+    /// face, opened ones).
+    #[test]
+    fn dual_graph_with_cohesive_elements_matches_the_reference_3d() {
+        let mut m = Mesh::new(3, "cohesive-3d").unwrap();
+        let n = 4usize;
+        let id =
+            |i: usize, j: usize, k: usize| Idx::try_from((k * (n + 1) + j) * (n + 1) + i).unwrap();
+        {
+            let mut a = MeshAccessor::new(&mut m);
+            for k in 0..=n {
+                for j in 0..=n {
+                    for i in 0..=n {
+                        #[allow(clippy::cast_precision_loss)] // small
+                        a.push_node(&[i as f64, j as f64, k as f64]).unwrap();
+                    }
+                }
+            }
+            let mut r = 11u64;
+            for k in 0..n {
+                for j in 0..n {
+                    for i in 0..n {
+                        // corner c = x + 2y + 4z of the cell
+                        let v: Vec<Idx> = (0..8)
+                            .map(|c| id(i + (c & 1), j + ((c >> 1) & 1), k + ((c >> 2) & 1)))
+                            .collect();
+                        if lcg(&mut r).is_multiple_of(3) {
+                            a.connectivity_mut(ElementType::Hexahedron8, NG)
+                                .push_tuple(&[v[0], v[1], v[3], v[2], v[4], v[5], v[7], v[6]]);
+                        } else {
+                            let mut c = a.connectivity_mut(ElementType::Tetrahedron4, NG);
+                            for t in [
+                                [0, 1, 3, 7],
+                                [0, 1, 5, 7],
+                                [0, 2, 3, 7],
+                                [0, 2, 6, 7],
+                                [0, 4, 5, 7],
+                                [0, 4, 6, 7],
+                            ] {
+                                c.push_tuple(&[v[t[0]], v[t[1]], v[t[2]], v[t[3]]]);
+                            }
+                        }
+                    }
+                }
+            }
+            let mut coh = a.connectivity_mut(ElementType::Cohesive3d6, NG);
+            for j in 0..n {
+                for k in 0..n {
+                    // unopened, on the plane x = 2, neighbours share an edge
+                    let (p, q, s) = (id(2, j, k), id(2, j + 1, k), id(2, j + 1, k + 1));
+                    coh.push_tuple(&[p, q, s, p, q, s]);
+                }
+            }
+            let (p, q, s) = (id(1, 1, 1), id(2, 1, 1), id(2, 2, 1));
+            coh.push_tuple(&[p, q, s, p, q, s]);
+            coh.push_tuple(&[p, q, s, p, q, s]);
+            coh.push_tuple(&[
+                id(1, 1, 2),
+                id(2, 1, 2),
+                id(2, 2, 2),
+                id(1, 1, 3),
+                id(2, 1, 3),
+                id(2, 2, 3),
+            ]);
+        }
+        let (got, want) = graph_with_loads(&m);
+        assert_eq!(got, want);
+        assert!(got.adjncy.len() > 500);
+    }
+
     /// UD-234: an isolated element (sharing no node) is a vertex without
     /// edges; upstream sizes `xadj` by the elements that have neighbours
     /// and writes out of bounds.
@@ -1303,8 +1625,8 @@ mod tests {
                 parts.as_mut_slice()[e] = part;
                 let mut adj: Vec<Idx> = Vec::new();
                 for &node in effective_nodes(mesh, ty, e, mesh.is_periodic(), &mut scratch)? {
-                    for &a in &n2e[try_to_usize(node)?] {
-                        let ap = lin[linearized(&offsets, a)?];
+                    for &a in n2e.row(node)? {
+                        let ap = lin[a];
                         if ap != part {
                             adj.push(ap);
                         }

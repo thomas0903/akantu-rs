@@ -1,0 +1,71 @@
+# perf record -F 999 --call-graph dwarf, CPU 0 (rank 0 or the single process); binary h4 (h3+radix); development VM, AMD EPYC Milan
+## flat (self)
+    36.64%          1833  suite_setup        [.] akantu_core::eigen_order::redux_tree::<<[[f64; 2]; 2] as akantu_core::tensor::MatrixExt<2, 2>>::double_dot::{closure#0}>
+    12.65%           631  suite_setup        [.] akantu_core::eigen_gebp::route
+    11.36%           566  suite_setup        [.] akantu_core::math::sort_total
+     8.33%           416  suite_setup        [.] akantu_core::eigen_gebp::product_into::<akantu_fe::eigen::product_slices::{closure#1}, akantu_fe::eigen::product_slices::{closure#2}>
+     7.88%           393  suite_setup        [.] akantu_fe::eigen::product_slices
+     4.77%           238  suite_setup        [.] <akantu_solid::materials::elastic::MaterialElastic<3>>::point_energy
+     2.40%           120  libc.so.6          [.] 0x0000000000162a45
+     2.25%           112  suite_setup        [.] akantu_fe::engine::ops::integrate_with_jacobians::<<akantu_fe::engine::FeEngine>::integrate::{closure#0}>
+     1.77%            88  libc.so.6          [.] 0x0000000000162a40
+     1.76%            88  suite_setup        [.] <akantu_solid::materials::elastic::MaterialElastic<3> as akantu_solid::material::Material>::compute_potential_energy
+     1.65%            82  libc.so.6          [.] 0x0000000000162a3b
+     1.30%            65  libc.so.6          [.] 0x0000000000162a4a
+     0.98%            49  suite_setup        [.] <alloc::vec::Vec<usize> as alloc::vec::spec_from_iter::SpecFromIter<usize, core::iter::adapters::GenericShunt<core::iter::adapters::map::Map<core::slic
+     0.92%            46  libc.so.6          [.] 0x0000000000162a33
+     0.82%            41  suite_setup        [.] <akantu_solid::model::SolidMechanicsPhysics>::kinetic_energy_local
+     0.52%            26  [kernel.kallsyms]  [k] 0xffffffff9c400f30
+     0.50%            25  libc.so.6          [.] 0x0000000000162a2e
+
+## inclusive
+    99.63%     0.00%  [.] <akantu_solid::model::SolidMechanicsModel>::energy
+    98.87%     0.00%  [.] <akantu_solver::dof_manager::DofManager>::collective::<f64, <akantu_solid::model::SolidMechanicsModel>::energy::{closure#0}>
+    98.85%     0.00%  [.] <akantu_solid::model::SolidMechanicsModel>::energy::{closure#0} (inlined)
+    98.76%     0.00%  [.] <akantu_solid::materials::elastic::MaterialElastic<3> as akantu_solid::material::Material>::potential_energy (inlined)
+    98.61%     0.00%  [.] <akantu_solid::model::SolidMechanicsPhysics>::materials_energy_local
+    98.61%     0.00%  [.] <akantu_solid::materials::elastic::MaterialElastic<3> as akantu_solid::material::Material>::energy_of
+    53.68%     1.76%  [.] <akantu_solid::materials::elastic::MaterialElastic<3> as akantu_solid::material::Material>::compute_potential_energy
+    44.91%     0.00%  [.] <akantu_solid::model::services::SmmServices as akantu_model::constitutive_law::ModelServices>::integrate_scalar
+    44.89%     0.00%  [.] <akantu_fe::engine::FeEngine>::integrate_scalar
+    44.67%     0.02%  [.] <akantu_solid::material::MaterialBase>::integrate_potential_energy
+    41.90%     4.77%  [.] <akantu_solid::materials::elastic::MaterialElastic<3>>::point_energy
+    40.91%     0.00%  [.] <akantu_solid::materials::elastic::MaterialElastic<3>>::energy_density (inlined)
+    40.83%     0.00%  [.] <akantu_solid::materials::elastic::MaterialElastic<3>>::energy_on_quad (inlined)
+    37.38%     0.00%  [.] <[[f64; 3]; 3] as akantu_core::tensor::MatrixExt<3, 3>>::double_dot (inlined)
+    37.28%     0.00%  [.] <akantu_core::eigen_order::Reduction>::sum::<<[[f64; 3]; 3] as akantu_core::tensor::MatrixExt<3, 3>>::double_dot::{closure#0}> (inlined)
+    37.28%     0.00%  [.] <akantu_core::eigen_order::Reduction>::reduce::<<[[f64; 3]; 3] as akantu_core::tensor::MatrixExt<3, 3>>::double_dot::{closure#0}> (inlined)
+    37.28%     0.00%  [.] akantu_core::eigen_order::sum::<<[[f64; 3]; 3] as akantu_core::tensor::MatrixExt<3, 3>>::double_dot::{closure#0}> (inlined)
+    37.22%     0.00%  [.] akantu_core::eigen_order::redux_tree::<<[[f64; 2]; 2] as akantu_core::tensor::MatrixExt<2, 2>>::double_dot::{closure#0}> (inlined)
+    36.64%    36.64%  [.] akantu_core::eigen_order::redux_tree::<<[[f64; 2]; 2] as akantu_core::tensor::MatrixExt<2, 2>>::double_dot::{closure#0}>
+    32.94%     0.00%  [.] <akantu_fe::engine::FeEngine>::integrate
+    31.72%     2.25%  [.] akantu_fe::engine::ops::integrate_with_jacobians::<<akantu_fe::engine::FeEngine>::integrate::{closure#0}>
+    29.21%     7.88%  [.] akantu_fe::eigen::product_slices
+    26.65%     0.00%  [.] akantu_fe::eigen::product::<akantu_fe::eigen::product_slices::{closure#1}, akantu_fe::eigen::product_slices::{closure#2}> (inlined)
+    14.39%     8.33%  [.] akantu_core::eigen_gebp::product_into::<akantu_fe::eigen::product_slices::{closure#1}, akantu_fe::eigen::product_slices::{closure#2}>
+    12.75%    12.65%  [.] akantu_core::eigen_gebp::route
+    11.92%     0.26%  [.] akantu_core::math::reduce
+    11.72%    11.36%  [.] akantu_core::math::sort_total
+     9.70%     0.00%  [.] <akantu_core::array_storage::ArrayStorage<f64> as core::clone::Clone>::clone (inlined)
+     9.70%     0.00%  [.] <akantu_core::array::Array<f64> as core::clone::Clone>::clone (inlined)
+     7.21%     0.00%  [.] akantu_core::eigen_gebp::eval_product::<akantu_fe::eigen::product_slices::{closure#1}, akantu_fe::eigen::product_slices::{closure#2}> (inlined)
+     5.17%     0.00%  [.] <[[f64; 2]; 2] as akantu_core::tensor::MatrixExt<2, 2>>::double_dot::{closure#0} (inlined)
+     4.93%     0.00%  [.] <akantu_core::eigen_gebp::Extent>::size (inlined)
+     4.81%     0.00%  [.] <akantu_core::eigen_gebp::Extent>::size_class (inlined)
+     2.83%     0.00%  [.] <akantu_core::eigen_gebp::ProductShape>::depth (inlined)
+     2.63%     0.00%  [.] akantu_fe::eigen::product_shape (inlined)
+     2.24%     0.00%  [.] akantu_core::eigen_order::product_kind (inlined)
+     2.01%     0.00%  [.] <core::result::Result<(), akantu_core::error::Error> as core::ops::try_trait::Try>::branch (inlined)
+     1.32%     0.00%  [.] <core::option::Option<&[i32]>>::map::<core::result::Result<alloc::vec::Vec<usize>, akantu_core::error::Error>, akantu_fe::engine::resolve_filter::{closure#0}> (inlined)
+     1.32%     0.00%  [.] akantu_fe::engine::resolve_filter::{closure#0} (inlined)
+     1.32%     0.00%  [.] akantu_fe::engine::resolve_filter (inlined)
+     1.30%     0.00%  [.] akantu_fe::eigen::extent (inlined)
+     1.26%     0.00%  [.] <akantu_fe::eigen::Dims>::col_extent (inlined)
+     1.05%     0.00%  [.] akantu_core::eigen_gebp::gemv_scale_and_add (inlined)
+     1.02%     0.00%  [.] <akantu_core::eigen_gebp::ProductShape>::result_len (inlined)
+     1.00%     0.00%  [.] <akantu_core::eigen_gebp::ProductShape>::new (inlined)
+     0.92%     0.82%  [.] <akantu_solid::model::SolidMechanicsPhysics>::kinetic_energy_local
+     0.92%     0.00%  [.] <akantu_solver::dof_manager::DofManager>::collective::<f64, <akantu_solid::model::SolidMechanicsModel>::kinetic_energy::{closure#0}>
+     0.92%     0.00%  [.] <akantu_solid::model::SolidMechanicsModel>::kinetic_energy::{closure#0} (inlined)
+     0.92%     0.00%  [.] <akantu_solid::model::SolidMechanicsModel>::kinetic_energy (inlined)
+     0.82%     0.00%  [.] <akantu_fe::engine::FeEngine>::integrate::{closure#0} (inlined)
