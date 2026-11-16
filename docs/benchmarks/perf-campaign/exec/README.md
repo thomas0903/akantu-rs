@@ -6,7 +6,7 @@ Branch `perf/exec-policy`. Two machines:
   Ubuntu 24.04, shared by the campaign's agents through job wrappers:
   runs of 1, 2 and 4 threads on cores 0–3 while builds run on cores 4–7,
   runs of 8 threads with the machine alone.
-- **Screening**: an OVHcloud VM (AMD EPYC Milan, 8 vCPUs shown as 8 sockets
+- **Screening** ("o1"): a cloud VM (AMD EPYC Milan, 8 vCPUs shown as 8 sockets
   of one core, 15 GiB), used alone. Its numbers decided the changes; they
   are not the report's tables.
 
@@ -22,7 +22,7 @@ base / variant per round, median [min, max]; efficiency = speed-up /
 threads; "rest" = step − fint per run: integration scheme, residual,
 lumped solve, external work).
 
-## Thread pool: cost of one region (AWS)
+## Thread pool: cost of one region (m7a.2xlarge)
 
 `scripts/perf/exec/pool-overhead` (D-123 pool choice): median time of one
 region, 2,000 regions per point, 5 rounds, variants interleaved; "overhead"
@@ -59,14 +59,13 @@ o1, 20 µs nominal regions): with workers parking after 500 µs, a region
 after a 1–2 ms serial gap took 18.2–31.8 µs against 7.4–8.1 µs of serial
 work (the caller paid the futex wake-up); with 5 ms of spinning, 4.7–5.2 µs.
 
-## Explicit step at 1, 2 and 4 threads (AWS)
+## Explicit step at 1, 2 and 4 threads (m7a.2xlarge)
 
 Commit `3b6d0257`, 5 rounds, cores 0–3 (other agents' builds on cores
-4–7), 2026-11-16 09:28 UTC (`series-aws-t124.jsonl`, `summary-aws-t124.md`).
-The 200 k-element meshes and the 8-thread points were not run on AWS (the
-timing lane was the bottleneck of the campaign; orchestrator's rule of
-2026-11-16: o1 numbers are the before/after evidence, AWS repeats are done
-in the final campaign). Speed-up = base (branch point, one thread) /
+4–7), 2026-11-16 09:28 UTC (`series-m7a-t124.jsonl`, `summary-m7a-t124.md`).
+The 200 k-element meshes and the 8-thread points were measured on o1 only
+(below); they are to be repeated on the m7a.2xlarge with the C++
+reference. Speed-up = base (branch point, one thread) /
 variant, paired per round.
 
 | mesh | mode | phase | base ns/el/step | 1 thread | 2 threads | 4 threads |
@@ -121,21 +120,21 @@ alongside). Same columns, plus 8 threads.
 |  hex8-200k  |  fd  |  fint  |  1143.6 [1129.7, 1151.0]  |  **1.01** [1.00, 1.02]  |  **1.80** [1.77, 1.90]  |  **2.74** [2.66, 2.80]  |  **4.05** [3.98, 4.11]  |
 |  hex8-200k  |  fd  |  rest  |  165.8 [162.7, 189.4]  |  **0.96** [0.96, 1.09]  |  **0.75** [0.69, 0.84]  |  **1.08** [0.83, 1.20]  |  **0.80** [0.76, 0.90]  |
 
-**AWS and o1 disagree on the small tet4 mesh**: AWS gives 1.24× (2 threads)
+**The m7a.2xlarge and o1 disagree on the small tet4 mesh**: the m7a.2xlarge gives 1.24× (2 threads)
 and 1.53× (4 threads) on tet4-20k small strain with spreads of ±1 %, o1
 gives 1.23× and 0.55× with spreads from 0.38 to 1.26. o1 is a VM whose 8
 vCPUs are shown as 8 sockets; its host placement is unknown, and on it the
 serial part of the step ("rest") becomes 2–4 times slower while the
-workers spin, which points at vCPUs sharing physical cores. AWS (8 cores,
-no SMT) is authoritative.
+workers spin, which points at vCPUs sharing physical cores. The
+m7a.2xlarge (8 cores, no SMT) is authoritative.
 
 ## Bitwise evidence
 
 `scripts/perf/explicit-step/digests.sh 30` (FNV-1a of `u`, `v`, `a`,
 `f_int` after 30 steps), base against the head at 1, 2, 4 and 8 threads,
 tet4-20k, hex8-20k, tet4-200k, hex8-200k, small strain and finite
-deformation: identical for every commit measured, on AWS
-(`digests-aws-3b6d0257.txt`; also `e1aa744e`, `0ec6efbf`, `fe18d3a0`,
+deformation: identical for every commit measured, on the m7a.2xlarge
+(`digests-m7a-3b6d0257.txt`; also `e1aa744e`, `0ec6efbf`, `fe18d3a0`,
 `5c7543bb`) and on o1 (`screening-o1/digests-*.txt`). Before the fix of
 `e1aa744e` the head differed from base at every thread count (the
 integration scheme updated a third of the equations); the digests caught
@@ -154,15 +153,14 @@ it.
 - The rest of the step (Newmark-β updates, residual assembly, lumped solve,
   external work) stays serial below 262,144 equations per part: threading
   it with parts of 16,384 equations made it 2–3 times slower on o1 (short
-  streaming loops whose data then lives in other cores' caches). On AWS it
-  costs 0.79–0.96 of its one-thread time with threads, because its inputs
+  streaming loops whose data then lives in other cores' caches). On the m7a.2xlarge it
+  runs at 0.79–0.96 of its one-thread speed with threads, because its inputs
   (the internal forces) were written by the workers.
 - A sandbox profile (Ryzen 9 9950X, shares only) of tet4-200k at 8 threads
   spent about 20 % of all samples in workers waiting for the next region,
   i.e. in the serial stretches.
-- `perf stat` counters on AWS were not taken (the AWS timing lane was
-  closed for this task before they ran); the counters of the sandbox were
-  disturbed by a concurrent test run and are not reported.
+- `perf stat` counters on the m7a.2xlarge were not taken; those of the
+  sandbox were disturbed by a concurrent test run and are not reported.
 
 What would raise it: threading the residual and integration-scheme loops
 with the caller's own block (node ranges that match the scatter's), so that
@@ -171,7 +169,7 @@ update and `BᵀD` into one pass per element block (one region, the
 intermediate arrays stay in cache); removing the per-call copies of the
 law filters and the `Vec<usize>` of element ids (2.4–7.8 % of the samples).
 
-## One-thread overhead (AWS)
+## One-thread overhead (m7a.2xlarge)
 
 The head at one thread against the branch point: step 0.97–1.01, fint
 0.98–1.02, stress 0.98–1.00 (all four 20 k cases); the rest 0.90–0.98,
