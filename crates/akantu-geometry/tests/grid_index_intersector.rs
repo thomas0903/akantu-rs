@@ -102,7 +102,6 @@ fn triangle_grid(n: usize) -> Mesh {
     mesh
 }
 
-
 struct Rng(u64);
 
 impl Rng {
@@ -124,7 +123,11 @@ fn queries(mesh: &Mesh, n: usize, rng: &mut Rng) -> Vec<Segment3> {
         Point3::new(x[0], x[1], if dim == 3 { x[2] } else { 0.0 })
     };
     let nb = mesh.nb_nodes();
-    #[allow(clippy::cast_possible_truncation, clippy::cast_sign_loss, clippy::cast_precision_loss)]
+    #[allow(
+        clippy::cast_possible_truncation,
+        clippy::cast_sign_loss,
+        clippy::cast_precision_loss
+    )]
     let pick = |rng: &mut Rng| ((rng.unit() * nb as Real) as usize).min(nb - 1);
     let z = |v: Real| if dim == 3 { v } else { 0.0 };
     let mut out = Vec::new();
@@ -134,10 +137,18 @@ fn queries(mesh: &Mesh, n: usize, rng: &mut Rng) -> Vec<Segment3> {
         let t = 1.0 + rng.unit();
         out.push(Segment3::new(
             a,
-            Point3::new(a.x + t * (b.x - a.x), a.y + t * (b.y - a.y), a.z + t * (b.z - a.z)),
+            Point3::new(
+                a.x + t * (b.x - a.x),
+                a.y + t * (b.y - a.y),
+                a.z + t * (b.z - a.z),
+            ),
         ));
         let p = |rng: &mut Rng| {
-            Point3::new(1.4 * rng.unit() - 0.2, 1.4 * rng.unit() - 0.2, z(1.4 * rng.unit() - 0.2))
+            Point3::new(
+                1.4 * rng.unit() - 0.2,
+                1.4 * rng.unit() - 0.2,
+                z(1.4 * rng.unit() - 0.2),
+            )
         };
         out.push(Segment3::new(p(rng), p(rng)));
     }
@@ -183,7 +194,10 @@ fn compare(mesh: &Mesh, ty: ElementType, n: usize) -> (usize, usize) {
             let scan = MeshSegmentIntersector::<LinearScan>::new(mesh, ty, options).unwrap();
             let grid = MeshSegmentIntersector::<GridIndex>::new(mesh, ty, options).unwrap();
             for q in &qs {
-                let (a, b) = match (scan.compute_segments(mesh, q), grid.compute_segments(mesh, q)) {
+                let (a, b) = match (
+                    scan.compute_segments(mesh, q),
+                    grid.compute_segments(mesh, q),
+                ) {
                     (Ok(a), Ok(b)) => (a, b),
                     // a zero-length query meets the CGAL_error() branch of
                     // the coplanar case on its first coplanar primitive
@@ -210,7 +224,9 @@ fn compare(mesh: &Mesh, ty: ElementType, n: usize) -> (usize, usize) {
                         j += 1;
                     } else {
                         let gap = element_gap(mesh, ty, piece.1, q);
-                        assert!(gap > 1.0 / n as Real, "{q:?}: {piece:?} (gap {gap})");
+                        // the grid's margin is at least an eighth of the
+                        // mesh spacing here
+                        assert!(gap > 0.125 / n as Real, "{q:?}: {piece:?} (gap {gap})");
                         differ += 1;
                     }
                 }
@@ -222,25 +238,126 @@ fn compare(mesh: &Mesh, ty: ElementType, n: usize) -> (usize, usize) {
     (pieces, differ)
 }
 
-/// Largest per-coordinate gap between the bounding boxes of an element and
-/// of a query.
+type V = [Real; 3];
+
+fn v(p: Point3) -> V {
+    [p.x, p.y, p.z]
+}
+
+fn sub(a: V, b: V) -> V {
+    [a[0] - b[0], a[1] - b[1], a[2] - b[2]]
+}
+
+fn dot(a: V, b: V) -> Real {
+    a[0] * b[0] + a[1] * b[1] + a[2] * b[2]
+}
+
+fn cross(a: V, b: V) -> V {
+    [
+        a[1] * b[2] - a[2] * b[1],
+        a[2] * b[0] - a[0] * b[2],
+        a[0] * b[1] - a[1] * b[0],
+    ]
+}
+
+fn at(a: V, d: V, t: Real) -> V {
+    [a[0] + t * d[0], a[1] + t * d[1], a[2] + t * d[2]]
+}
+
+fn dist(a: V, b: V) -> Real {
+    dot(sub(a, b), sub(a, b)).sqrt()
+}
+
+/// Distance from `p` to the segment `a`–`b`.
+fn point_segment(p: V, a: V, b: V) -> Real {
+    let d = sub(b, a);
+    let dd = dot(d, d);
+    let t = if dd > 0.0 {
+        (dot(sub(p, a), d) / dd).clamp(0.0, 1.0)
+    } else {
+        0.0
+    };
+    dist(p, at(a, d, t))
+}
+
+/// Distance between two segments (sampled minimisation refined on the
+/// closer one: an estimate accurate far below the margins of these tests).
+fn segment_segment(a: V, b: V, c: V, d: V) -> Real {
+    let mut best = Real::INFINITY;
+    for k in 0..=200 {
+        #[allow(clippy::cast_precision_loss)] // sample count
+        let t = Real::from(k) / 200.0;
+        best = best.min(point_segment(at(a, sub(b, a), t), c, d));
+        best = best.min(point_segment(at(c, sub(d, c), t), a, b));
+    }
+    best
+}
+
+/// Distance from `p` to the triangle `t`.
+fn point_triangle(p: V, t: &[V; 3]) -> Real {
+    let n = cross(sub(t[1], t[0]), sub(t[2], t[0]));
+    let nn = dot(n, n);
+    if nn > 0.0 {
+        // projection inside the triangle?
+        let s = dot(sub(p, t[0]), n) / nn;
+        let q = at(p, n, -s);
+        let inside = (0..3).all(|i| dot(cross(sub(t[(i + 1) % 3], t[i]), sub(q, t[i])), n) >= 0.0);
+        if inside {
+            return dist(p, q);
+        }
+    }
+    (0..3)
+        .map(|i| point_segment(p, t[i], t[(i + 1) % 3]))
+        .fold(Real::INFINITY, Real::min)
+}
+
+/// Distance between the segment `a`–`b` and the triangle `t` (zero when the
+/// segment crosses it).
+fn segment_triangle(a: V, b: V, t: &[V; 3]) -> Real {
+    let n = cross(sub(t[1], t[0]), sub(t[2], t[0]));
+    let (sa, sb) = (dot(sub(a, t[0]), n), dot(sub(b, t[0]), n));
+    if sa * sb < 0.0 {
+        let x = at(a, sub(b, a), sa / (sa - sb));
+        if point_triangle(x, t) == 0.0 {
+            return 0.0;
+        }
+    }
+    let mut best = point_triangle(a, t).min(point_triangle(b, t));
+    for i in 0..3 {
+        best = best.min(segment_segment(a, b, t[i], t[(i + 1) % 3]));
+    }
+    best
+}
+
+/// Distance between an element (triangle, or the faces of a tetrahedron)
+/// and a query.
 fn element_gap(mesh: &Mesh, ty: ElementType, e: Int, q: &Segment3) -> Real {
     let conn = mesh.connectivity(ty, GhostType::NotGhost).unwrap();
     let dim = mesh.spatial_dimension();
-    let qb = q.bbox();
-    let mut lo = [Real::INFINITY; 3];
-    let mut hi = [Real::NEG_INFINITY; 3];
     let nodes = mesh.nodes();
-    for &node in conn.get_tuple(usize::try_from(e).unwrap()).unwrap() {
-        let x = nodes.get_tuple(usize::try_from(node).unwrap()).unwrap();
-        for d in 0..dim {
-            lo[d] = lo[d].min(x[d]);
-            hi[d] = hi[d].max(x[d]);
-        }
-    }
-    (0..dim)
-        .map(|d| (lo[d] - qb.max[d]).max(qb.min[d] - hi[d]))
-        .fold(0.0, Real::max)
+    let x: Vec<V> = conn
+        .get_tuple(usize::try_from(e).unwrap())
+        .unwrap()
+        .iter()
+        .map(|&node| {
+            let c = nodes.get_tuple(usize::try_from(node).unwrap()).unwrap();
+            [c[0], c[1], if dim == 3 { c[2] } else { 0.0 }]
+        })
+        .collect();
+    let faces: Vec<[V; 3]> = if x.len() == 3 {
+        vec![[x[0], x[1], x[2]]]
+    } else {
+        vec![
+            [x[0], x[1], x[2]],
+            [x[0], x[1], x[3]],
+            [x[0], x[2], x[3]],
+            [x[1], x[2], x[3]],
+        ]
+    };
+    faces
+        .iter()
+        .map(|f| segment_triangle(v(q.source), v(q.target), f))
+        .fold(Real::INFINITY, Real::min)
 }
 
 #[test]

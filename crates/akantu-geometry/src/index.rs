@@ -98,12 +98,13 @@ const GRID_MIN_PRIMITIVES: usize = 32;
 /// Uniform-grid search structure with the reports of [`LinearScan`] (LGPL).
 ///
 /// **Structure.** The cells cover the union `B` of the primitives' bounding
-/// boxes, about one primitive per cell (directions in which `B` is flat,
-/// such as `z` of a 2-D mesh, get one cell). Every primitive is listed, in
-/// primitive order, in each cell its bounding box grown by the margin `δ`
-/// overlaps. A cell coordinate is `clamp(floor((x − B_min) / h), 0, n − 1)`,
-/// a monotone function of `x`, so a box grown by `δ` reaches every cell of
-/// every primitive whose grown box it overlaps.
+/// boxes, about one primitive per cell and not smaller than half the mean
+/// primitive extent (directions in which `B` is flat, such as `z` of a 2-D
+/// mesh, get one cell). Every primitive is listed, in primitive order, in
+/// each cell its bounding box overlaps. A cell coordinate is
+/// `clamp(floor((x − B_min) / h), 0, n − 1)`, a monotone function of `x`,
+/// so a query box grown by `δ` reaches every cell of every primitive whose
+/// box it overlaps.
 ///
 /// **Queries.** A segment is cut into pieces about one cell long; each
 /// piece's bounding box, grown by `δ_q = δ + 64 ε max|query coordinate|`
@@ -115,9 +116,9 @@ const GRID_MIN_PRIMITIVES: usize = 32;
 /// that order, so the output is the scan's output restricted to the
 /// candidates, in the scan's order.
 ///
-/// **Why the restriction removes nothing.** Every primitive that comes
-/// within `δ = h / 4` (a quarter of a cell, in each coordinate) of the
-/// query is a candidate. A primitive farther away is reported by the scan
+/// **Why the restriction removes nothing.** Every primitive whose bounding
+/// box comes within `δ = h / 4` (a quarter of a cell, in each coordinate)
+/// of the query is a candidate. A primitive farther away is reported by the scan
 /// only if the predicates' floating-point orientations are wrong by a
 /// distance of a quarter cell, which takes a configuration that is
 /// degenerate up to rounding (the query on the supporting plane of a
@@ -190,7 +191,18 @@ impl Grid {
         #[allow(clippy::cast_precision_loss)] // a cell-count target, any rounding is fine
         let target = np as Real;
         #[allow(clippy::cast_precision_loss)] // the dimension count (1 to 3)
-        let h = (vol / target).powf(1.0 / active.len() as Real);
+        let h_volume = (vol / target).powf(1.0 / active.len() as Real);
+        // cells not much smaller than the primitives (a primitive spans
+        // about two cells per direction at most)
+        let mean_extent = primitives
+            .iter()
+            .map(|p| {
+                let b = p.triangle.bbox();
+                (0..3).fold(0.0, |m: Real, d| m.max(b.max[d] - b.min[d]))
+            })
+            .sum::<Real>()
+            / target;
+        let h = h_volume.max(0.5 * mean_extent);
         if !(h.is_finite() && h > 0.0) {
             return None;
         }
@@ -198,20 +210,13 @@ impl Grid {
         let mut total = 1usize;
         for &d in &active {
             let c = (ext[d] / h).ceil().clamp(1.0, 4096.0);
-            #[allow(clippy::cast_possible_truncation, clippy::cast_sign_loss)] // clamped to [1, 4096]
+            #[allow(clippy::cast_possible_truncation, clippy::cast_sign_loss)]
+            // clamped to [1, 4096]
             let c = c as usize;
             n[d] = c;
             total *= c;
         }
-        // the margin: the largest extent of a primitive's bounding box (at
-        // least a quarter cell)
-        let mut delta = 0.25 * h;
-        for p in primitives {
-            let b = p.triangle.bbox();
-            for d in 0..3 {
-                delta = delta.max(b.max[d] - b.min[d]);
-            }
-        }
+        let delta = 0.25 * h;
         let mut g = Self {
             lo,
             hi,
@@ -222,12 +227,14 @@ impl Grid {
             start: vec![0; total + 1],
             items: Vec::new(),
         };
-        // two passes: counts, then fill (items of a cell in primitive order)
+        // two passes: counts, then fill (items of a cell in primitive order);
+        // a primitive is listed in the cells its exact box overlaps (the
+        // margin is added on the query side)
         let ranges: Vec<[[usize; 2]; 3]> = primitives
             .iter()
             .map(|p| {
                 let b = p.triangle.bbox();
-                g.cell_range(&b.min, &b.max, delta)
+                g.cell_range(&b.min, &b.max, 0.0)
             })
             .collect();
         let n = g.n;
@@ -319,7 +326,9 @@ impl Grid {
             let max = [p0[0].max(p1[0]), p0[1].max(p1[1]), p0[2].max(p1[2])];
             let r = self.cell_range(&min, &max, delta);
             self.for_cells(&r, |c| {
-                out.extend_from_slice(&self.items[self.start[c] as usize..self.start[c + 1] as usize]);
+                out.extend_from_slice(
+                    &self.items[self.start[c] as usize..self.start[c + 1] as usize],
+                );
             });
             p0 = p1;
         }
@@ -340,9 +349,21 @@ impl Grid {
         let (mut t0, mut t1) = (Real::INFINITY, Real::NEG_INFINITY);
         for corner in 0..8 {
             let c = [
-                if corner & 1 == 0 { self.lo[0] - g } else { self.hi[0] + g },
-                if corner & 2 == 0 { self.lo[1] - g } else { self.hi[1] + g },
-                if corner & 4 == 0 { self.lo[2] - g } else { self.hi[2] + g },
+                if corner & 1 == 0 {
+                    self.lo[0] - g
+                } else {
+                    self.hi[0] + g
+                },
+                if corner & 2 == 0 {
+                    self.lo[1] - g
+                } else {
+                    self.hi[1] + g
+                },
+                if corner & 4 == 0 {
+                    self.lo[2] - g
+                } else {
+                    self.hi[2] + g
+                },
             ];
             let t = ((c[0] - s[0]) * d[0] + (c[1] - s[1]) * d[1] + (c[2] - s[2]) * d[2]) / dd;
             t0 = t0.min(t);

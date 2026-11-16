@@ -51,7 +51,12 @@ fn prim(id: usize, a: Point3, b: Point3, c: Point3) -> TrianglePrimitive {
 /// `n × n` squares of side `h`, each split into two triangles (z = 0),
 /// node coordinates `i · h` (`h = 0.1`: not exactly representable),
 /// optionally jittered.
-fn tri_mesh(n: usize, h: Real, jitter: Real, rng: &mut Rng) -> (Vec<TrianglePrimitive>, Vec<Point3>) {
+fn tri_mesh(
+    n: usize,
+    h: Real,
+    jitter: Real,
+    rng: &mut Rng,
+) -> (Vec<TrianglePrimitive>, Vec<Point3>) {
     let mut nodes = Vec::new();
     for j in 0..=n {
         for i in 0..=n {
@@ -59,7 +64,10 @@ fn tri_mesh(n: usize, h: Real, jitter: Real, rng: &mut Rng) -> (Vec<TrianglePrim
             let (x, y) = (i as Real * h, j as Real * h);
             let inner = i > 0 && j > 0 && i < n && j < n;
             let (dx, dy) = if inner {
-                (jitter * (rng.unit() - 0.5) * h, jitter * (rng.unit() - 0.5) * h)
+                (
+                    jitter * (rng.unit() - 0.5) * h,
+                    jitter * (rng.unit() - 0.5) * h,
+                )
             } else {
                 (0.0, 0.0)
             };
@@ -81,7 +89,12 @@ fn tri_mesh(n: usize, h: Real, jitter: Real, rng: &mut Rng) -> (Vec<TrianglePrim
 /// `n³` cubes of side `h`, six tetrahedra each, the four faces of every
 /// tetrahedron as primitives with the tetrahedron's id (the `Faces`
 /// primitives of `_tetrahedron_4`).
-fn tet_faces(n: usize, h: Real, jitter: Real, rng: &mut Rng) -> (Vec<TrianglePrimitive>, Vec<Point3>) {
+fn tet_faces(
+    n: usize,
+    h: Real,
+    jitter: Real,
+    rng: &mut Rng,
+) -> (Vec<TrianglePrimitive>, Vec<Point3>) {
     let mut nodes = Vec::new();
     for k in 0..=n {
         for j in 0..=n {
@@ -193,14 +206,99 @@ fn queries(nodes: &[Point3], dim: usize, len: Real, h: Real, rng: &mut Rng) -> V
     out
 }
 
-/// Distance between the bounding boxes of a primitive and of two points
-/// (largest per-coordinate gap).
-fn box_gap(p: &TrianglePrimitive, a: Point3, b: Point3) -> Real {
-    let t = p.triangle.bbox();
-    let q = Segment3::new(a, b).bbox();
+type V = [Real; 3];
+
+fn v(p: Point3) -> V {
+    [p.x, p.y, p.z]
+}
+
+fn sub(a: V, b: V) -> V {
+    [a[0] - b[0], a[1] - b[1], a[2] - b[2]]
+}
+
+fn dot(a: V, b: V) -> Real {
+    a[0] * b[0] + a[1] * b[1] + a[2] * b[2]
+}
+
+fn cross(a: V, b: V) -> V {
+    [
+        a[1] * b[2] - a[2] * b[1],
+        a[2] * b[0] - a[0] * b[2],
+        a[0] * b[1] - a[1] * b[0],
+    ]
+}
+
+fn at(a: V, d: V, t: Real) -> V {
+    [a[0] + t * d[0], a[1] + t * d[1], a[2] + t * d[2]]
+}
+
+fn dist(a: V, b: V) -> Real {
+    dot(sub(a, b), sub(a, b)).sqrt()
+}
+
+/// Distance from `p` to the segment `a`–`b`.
+fn point_segment(p: V, a: V, b: V) -> Real {
+    let d = sub(b, a);
+    let dd = dot(d, d);
+    let t = if dd > 0.0 {
+        (dot(sub(p, a), d) / dd).clamp(0.0, 1.0)
+    } else {
+        0.0
+    };
+    dist(p, at(a, d, t))
+}
+
+/// Distance between two segments (sampled minimisation refined on the
+/// closer one: an estimate accurate far below the margins of these tests).
+fn segment_segment(a: V, b: V, c: V, d: V) -> Real {
+    let mut best = Real::INFINITY;
+    for k in 0..=200 {
+        #[allow(clippy::cast_precision_loss)] // sample count
+        let t = Real::from(k) / 200.0;
+        best = best.min(point_segment(at(a, sub(b, a), t), c, d));
+        best = best.min(point_segment(at(c, sub(d, c), t), a, b));
+    }
+    best
+}
+
+/// Distance from `p` to the triangle `t`.
+fn point_triangle(p: V, t: &[V; 3]) -> Real {
+    let n = cross(sub(t[1], t[0]), sub(t[2], t[0]));
+    let nn = dot(n, n);
+    if nn > 0.0 {
+        // projection inside the triangle?
+        let s = dot(sub(p, t[0]), n) / nn;
+        let q = at(p, n, -s);
+        let inside = (0..3).all(|i| dot(cross(sub(t[(i + 1) % 3], t[i]), sub(q, t[i])), n) >= 0.0);
+        if inside {
+            return dist(p, q);
+        }
+    }
     (0..3)
-        .map(|d| (t.min[d] - q.max[d]).max(q.min[d] - t.max[d]))
-        .fold(0.0, Real::max)
+        .map(|i| point_segment(p, t[i], t[(i + 1) % 3]))
+        .fold(Real::INFINITY, Real::min)
+}
+
+/// Distance between the segment `a`–`b` and the triangle `t` (zero when the
+/// segment crosses it).
+fn segment_triangle(a: V, b: V, t: &[V; 3]) -> Real {
+    let n = cross(sub(t[1], t[0]), sub(t[2], t[0]));
+    let (sa, sb) = (dot(sub(a, t[0]), n), dot(sub(b, t[0]), n));
+    if sa * sb < 0.0 {
+        let x = at(a, sub(b, a), sa / (sa - sb));
+        if point_triangle(x, t) == 0.0 {
+            return 0.0;
+        }
+    }
+    let mut best = point_triangle(a, t).min(point_triangle(b, t));
+    for i in 0..3 {
+        best = best.min(segment_segment(a, b, t[i], t[(i + 1) % 3]));
+    }
+    best
+}
+
+fn tri(p: &TrianglePrimitive) -> [V; 3] {
+    [v(p.triangle.v[0]), v(p.triangle.v[1]), v(p.triangle.v[2])]
 }
 
 /// The grid's reports are the scan's reports in the scan's order, except
@@ -220,7 +318,10 @@ fn compare<T: std::fmt::Debug, K: PartialEq>(
         if j < grid.len() && key(s) == key(&grid[j]) {
             j += 1;
         } else {
-            assert!(far(prim_of(s)), "{what}: report {s:?} missing from the grid");
+            assert!(
+                far(prim_of(s)),
+                "{what}: report {s:?} missing from the grid"
+            );
             dropped += 1;
         }
     }
@@ -242,9 +343,19 @@ fn check(prims: &[TrianglePrimitive], qs: &[Segment3]) -> (usize, usize, usize) 
         assert_eq!(ra.is_ok(), rb.is_ok(), "{q:?}");
         // a primitive is far when every primitive with its id is
         let far = |id: u32, a: Point3, b: Point3| {
-            prims.iter().filter(|p| p.id == id).all(|p| box_gap(p, a, b) > delta)
+            prims
+                .iter()
+                .filter(|p| p.id == id)
+                .all(|p| segment_triangle(v(a), v(b), &tri(p)) > delta)
         };
-        dropped += compare(&a, &b, report_key, |x| pos(x.1), |i| far(prims[i].id, q.source, q.target), &format!("{q:?}"));
+        dropped += compare(
+            &a,
+            &b,
+            report_key,
+            |x| pos(x.1),
+            |i| far(prims[i].id, q.source, q.target),
+            &format!("{q:?}"),
+        );
         hits += a.len();
         for r in [Ray3::new(q.source, q.target), Ray3::new(q.target, q.source)] {
             let mut a = Vec::new();
@@ -255,9 +366,19 @@ fn check(prims: &[TrianglePrimitive], qs: &[Segment3]) -> (usize, usize, usize) 
             // it inside the mesh box (checked as: not hit by the ray's
             // segment grown by the margin; conservative test below)
             let far_ray = |id: u32| {
-                prims.iter().filter(|p| p.id == id).all(|p| ray_gap(p, &r) > delta)
+                prims
+                    .iter()
+                    .filter(|p| p.id == id)
+                    .all(|p| ray_gap(p, &r) > delta)
             };
-            dropped += compare(&a, &b, |&id| id, |&id| pos(id), |i| far_ray(prims[i].id), &format!("{r:?}"));
+            dropped += compare(
+                &a,
+                &b,
+                |&id| id,
+                |&id| pos(id),
+                |i| far_ray(prims[i].id),
+                &format!("{r:?}"),
+            );
             rays += a.len();
         }
     }
@@ -279,36 +400,30 @@ fn report_key(r: &(TriangleSegmentIntersection, u32)) -> (u8, [u64; 6], u32) {
     }
 }
 
-/// Distance from a primitive's bounding box to the ray (sampled finely
-/// along the ray; a lower bound up to the sampling step, which is far below
-/// the margins of these meshes).
+/// Distance from a primitive to the ray (cut at a thousand times its
+/// direction vector, far beyond these meshes).
 fn ray_gap(p: &TrianglePrimitive, r: &Ray3) -> Real {
-    let t = p.triangle.bbox();
-    let d = [r.second.x - r.source.x, r.second.y - r.source.y, r.second.z - r.source.z];
-    let s = [r.source.x, r.source.y, r.source.z];
-    let mut best = Real::INFINITY;
-    for k in 0..20_000 {
-        #[allow(clippy::cast_precision_loss)] // sample count
-        let u = k as Real * 1e-3;
-        let x = [s[0] + u * d[0], s[1] + u * d[1], s[2] + u * d[2]];
-        let g = (0..3)
-            .map(|i| (t.min[i] - x[i]).max(x[i] - t.max[i]))
-            .fold(0.0, Real::max);
-        best = best.min(g);
-    }
-    best
+    let (s, q) = (v(r.source), v(r.second));
+    segment_triangle(s, at(s, sub(q, s), 1e3), &tri(p))
 }
 
 #[test]
 fn grid_index_reports_the_scan_on_triangles() {
     let mut rng = Rng(0x9E37_79B9_7F4A_7C15);
-    for (n, h, jitter) in [(12, 0.1, 0.0), (17, 0.1, 0.3), (10, 0.25, 0.0), (9, 1e5, 0.2)] {
+    for (n, h, jitter) in [
+        (12, 0.1, 0.0),
+        (17, 0.1, 0.3),
+        (10, 0.25, 0.0),
+        (9, 1e5, 0.2),
+    ] {
         let (prims, nodes) = tri_mesh(n, h, jitter, &mut rng);
         #[allow(clippy::cast_precision_loss)] // small grids
         let len = n as Real * h;
         let qs = queries(&nodes, 2, len, h, &mut rng);
         let (hits, rays, dropped) = check(&prims, &qs);
-        eprintln!("n {n} h {h} jitter {jitter}: {hits} hits, {rays} ray hits, {dropped} far reports of the scan");
+        eprintln!(
+            "n {n} h {h} jitter {jitter}: {hits} hits, {rays} ray hits, {dropped} far reports of the scan"
+        );
         assert!(hits > 500 && rays > 500, "{hits} {rays}");
     }
 }
@@ -322,7 +437,9 @@ fn grid_index_reports_the_scan_on_tetrahedron_faces() {
         let len = n as Real * h;
         let qs = queries(&nodes, 3, len, h, &mut rng);
         let (hits, rays, dropped) = check(&prims, &qs);
-        eprintln!("n {n} h {h} jitter {jitter}: {hits} hits, {rays} ray hits, {dropped} far reports of the scan");
+        eprintln!(
+            "n {n} h {h} jitter {jitter}: {hits} hits, {rays} ray hits, {dropped} far reports of the scan"
+        );
         assert!(hits > 500 && rays > 500, "{hits} {rays}");
     }
 }
@@ -337,7 +454,13 @@ fn grid_index_small_and_non_finite_inputs_scan() {
     // a non-finite query is a full scan: same result as the scan
     let nan = Point3::new(Real::NAN, 0.5, 0.0);
     let q = Segment3::new(nodes[3], nan);
-    check(&prims, &[q, Segment3::new(nodes[0], Point3::new(Real::INFINITY, 0.1, 0.0))]);
+    check(
+        &prims,
+        &[
+            q,
+            Segment3::new(nodes[0], Point3::new(Real::INFINITY, 0.1, 0.0)),
+        ],
+    );
     prims[5].triangle.v[1].x = Real::NAN;
     assert!(!GridIndex::build(&prims).unwrap().has_grid());
 }
