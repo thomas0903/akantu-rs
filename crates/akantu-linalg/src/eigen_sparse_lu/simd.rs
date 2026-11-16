@@ -101,6 +101,8 @@ pub(crate) fn gemm_into_zero(
 /// token's level: AVX-512F + FMA, AVX2 + FMA; on the other levels the
 /// bitwise kernel.
 #[allow(clippy::too_many_arguments)] // BLAS-style kernel signature
+#[cold] // FAST MODE: keeps the bitwise dispatch small
+#[inline(never)]
 pub(crate) fn gemm_into_zero_fma(
     fast: FastToken,
     m: usize,
@@ -223,6 +225,8 @@ pub(crate) fn gemv(
 /// `c·α + res`), the instance of the token's level (AVX-512F + FMA, AVX2 +
 /// FMA; the bitwise kernel on the other levels).
 #[allow(clippy::too_many_arguments)] // BLAS-style kernel signature
+#[cold] // FAST MODE: keeps the bitwise dispatch small
+#[inline(never)]
 fn gemv_fma(
     fast: FastToken,
     rows: usize,
@@ -263,6 +267,8 @@ fn gemv_fma(
 /// `gebp` updates, the instance of the token's level (AVX-512F + FMA,
 /// AVX2 + FMA; the bitwise kernel on the other levels).
 #[allow(clippy::too_many_arguments)] // BLAS-style kernel signature
+#[cold] // FAST MODE: keeps the bitwise dispatch small
+#[inline(never)]
 pub(crate) fn trsm_fma(
     fast: FastToken,
     size: usize,
@@ -288,12 +294,12 @@ pub(crate) fn trsm_fma(
     }
     #[cfg(not(target_arch = "x86_64"))]
     let _ = fast;
-    dense::trsm_unit_lower_impl::<false>(size, cols, t, t_off, ldt, o, o_off, ldo);
+    dense::trsm_unit_lower_bitwise(size, cols, t, t_off, ldt, o, o_off, ldo);
 }
 
 #[cfg(target_arch = "x86_64")]
 mod x86 {
-    use super::dense::{gemm_tiles, gemv_tiles, trsm_unit_lower_impl};
+    use super::dense::{gemm_tiles, gemv_tiles, trsm_unit_lower_fused};
 
     /// `gemv_tiles` compiled with AVX-512F: tiles of 32 rows (four vectors).
     #[target_feature(enable = "avx512f")]
@@ -453,7 +459,7 @@ mod x86 {
         o_off: usize,
         ldo: usize,
     ) {
-        trsm_unit_lower_impl::<true>(size, cols, t, t_off, ldt, o, o_off, ldo);
+        trsm_unit_lower_fused(size, cols, t, t_off, ldt, o, o_off, ldo);
     }
 
     /// Fast mode: the triangular panel solve with fused multiply-adds, AVX2.
@@ -469,7 +475,7 @@ mod x86 {
         o_off: usize,
         ldo: usize,
     ) {
-        trsm_unit_lower_impl::<true>(size, cols, t, t_off, ldt, o, o_off, ldo);
+        trsm_unit_lower_fused(size, cols, t, t_off, ldt, o, o_off, ldo);
     }
 }
 
@@ -557,7 +563,7 @@ mod tests {
             let t: Vec<f64> = (0..ldt * size + 1).map(|_| v.finite() / 8.0).collect();
             let o0: Vec<f64> = (0..size * cols).map(|_| v.finite()).collect();
             let mut want = o0.clone();
-            super::dense::trsm_unit_lower_impl::<true>(size, cols, &t, 0, ldt, &mut want, 0, size);
+            super::dense::trsm_unit_lower_fused(size, cols, &t, 0, ldt, &mut want, 0, size);
             // gemv: rows, columns around the 128-column block rule
             let (rows, gc) = (1 + case % 70, [1, 7, 30, 127, 140][case % 5]);
             let a: Vec<f64> = (0..rows * gc).map(|_| v.finite()).collect();

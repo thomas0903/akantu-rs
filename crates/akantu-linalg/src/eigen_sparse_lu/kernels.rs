@@ -939,8 +939,8 @@ fn kernel_bmod(
     luptr += segsize;
     let (useg, l) = tempv.split_at_mut(segsize);
     // `l = 0; l += B·u` (Eigen zero-fills `l`, then `sparselu_gemm`)
-    super::simd::gemm_into_zero_mode(
-        mode, nrow, 1, segsize, lusup, luptr, lda, useg, 0, segsize, l, 0, nrow,
+    super::simd::gemm_into_zero(
+        mode.simd, nrow, 1, segsize, lusup, luptr, lda, useg, 0, segsize, l, 0, nrow,
     );
     let mut isub = lptr + no_zeros;
     for &t in useg.iter() {

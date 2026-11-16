@@ -553,14 +553,16 @@ pub(crate) fn trsm_unit_lower(
 ) {
     match mode.fast {
         Some(fast) => super::simd::trsm_fma(fast, size, cols, t, t_off, ldt, o, o_off, ldo),
-        None => trsm_unit_lower_impl::<false>(size, cols, t, t_off, ldt, o, o_off, ldo),
+        None => trsm_unit_lower_bitwise(size, cols, t, t_off, ldt, o, o_off, ldo),
     }
 }
 
-/// The body of [`trsm_unit_lower`]; `FMA`: FAST MODE (`simd::trsm_fma`).
+/// `triangular_solve_matrix<double, …, OnTheLeft, Lower|UnitDiag,
+/// ColMajor (tri), ColMajor (other)>`: solves `L X = B` in place for the
+/// `size × cols` block `X(i, j) = o[o_off + i + j·ldo]`, `L(i, j) =
+/// t[t_off + i + j·ldt]`.
 #[allow(clippy::too_many_arguments)] // BLAS-style kernel signature
-#[inline(always)]
-pub(super) fn trsm_unit_lower_impl<const FMA: bool>(
+pub(super) fn trsm_unit_lower_bitwise(
     size: usize,
     cols: usize,
     t: &[f64],
@@ -611,7 +613,7 @@ pub(super) fn trsm_unit_lower_impl<const FMA: bool>(
                 let start_block = k2 + k1;
                 if length_target > 0 {
                     let start_target = k2 + k1 + apw;
-                    gebp_minus::<FMA>(
+                    gebp_minus(
                         apw,
                         start_block,
                         start_target..start_target + length_target,
@@ -633,7 +635,104 @@ pub(super) fn trsm_unit_lower_impl<const FMA: bool>(
         let full_cols = (cols / GEBP_NR) * GEBP_NR;
         let below = (k2 + kc).min(size);
         if below < size {
-            gebp_minus::<FMA>(
+            gebp_minus(
+                akc,
+                k2,
+                below..size,
+                0..cols,
+                full_cols,
+                t,
+                t_off,
+                ldt,
+                o,
+                o_off,
+                ldo,
+            );
+        }
+        k2 += kc;
+    }
+}
+
+/// FAST MODE body of [`trsm_unit_lower`] (`simd::trsm_fma`): its `gebp`
+/// updates with fused multiply-adds. Only instantiated in the functions
+/// compiled with the `fma` feature, and as the tests' software reference.
+#[allow(clippy::too_many_arguments)] // BLAS-style kernel signature
+#[inline(always)]
+#[cfg_attr(not(target_arch = "x86_64"), allow(dead_code))] // the x86-64 FMA instances
+pub(super) fn trsm_unit_lower_fused(
+    size: usize,
+    cols: usize,
+    t: &[f64],
+    t_off: usize,
+    ldt: usize,
+    o: &mut [f64],
+    o_off: usize,
+    ldo: usize,
+) {
+    if size == 0 {
+        return;
+    }
+    let tri = |i: usize, j: usize| t[t_off + i + j * ldt];
+    let kc = trsm_kc(size, size, cols);
+    let subcols = if cols > 0 {
+        L2 / (4 * SCALAR * ldo.max(size))
+    } else {
+        0
+    };
+    let subcols = ((subcols / GEBP_NR) * GEBP_NR).max(GEBP_NR);
+    let mut k2 = 0;
+    while k2 < size {
+        let akc = (size - k2).min(kc);
+        let mut j2 = 0;
+        while j2 < cols {
+            let acols = (cols - j2).min(subcols);
+            let full_cols = (acols / GEBP_NR) * GEBP_NR;
+            let mut k1 = 0;
+            while k1 < akc {
+                let apw = (akc - k1).min(TRSM_SMALL_PANEL);
+                // tr solve of the small panel (unit diagonal: a = 1)
+                for k in 0..apw {
+                    let i = k2 + k1 + k;
+                    let rs = apw - k - 1;
+                    let s = i + 1;
+                    for j in j2..j2 + acols {
+                        let oij = &mut o[o_off + i + j * ldo];
+                        *oij *= 1.0;
+                        let b = *oij;
+                        for i3 in 0..rs {
+                            let r = &mut o[o_off + (s + i3) + j * ldo];
+                            *r -= b * tri(s + i3, i);
+                        }
+                    }
+                }
+                // gebp update of the rows below the panel, inside the kc block
+                let length_target = akc - k1 - apw;
+                let start_block = k2 + k1;
+                if length_target > 0 {
+                    let start_target = k2 + k1 + apw;
+                    gebp_minus_fused(
+                        apw,
+                        start_block,
+                        start_target..start_target + length_target,
+                        j2..j2 + acols,
+                        full_cols,
+                        t,
+                        t_off,
+                        ldt,
+                        o,
+                        o_off,
+                        ldo,
+                    );
+                }
+                k1 += TRSM_SMALL_PANEL;
+            }
+            j2 += subcols;
+        }
+        // R2 -= A21 * B (rows below the kc block)
+        let full_cols = (cols / GEBP_NR) * GEBP_NR;
+        let below = (k2 + kc).min(size);
+        if below < size {
+            gebp_minus_fused(
                 akc,
                 k2,
                 below..size,
@@ -659,8 +758,7 @@ pub(super) fn trsm_unit_lower_impl<const FMA: bool>(
 /// over tiles of rows, each lane with [`gebp_acc`]'s sequence
 /// (`tests::trsm_matches_reference_bitwise`).
 #[allow(clippy::too_many_arguments)] // BLAS-style kernel signature
-#[inline(always)]
-fn gebp_minus<const FMA: bool>(
+fn gebp_minus(
     depth: usize,
     k0: usize,
     rows: std::ops::Range<usize>,
@@ -690,7 +788,7 @@ fn gebp_minus<const FMA: bool>(
         let ocol = &mut o[o_off + j * ldo..];
         let mut row = rows.start;
         while row + 8 <= rows.end {
-            gebp_minus_tile::<8, FMA>(
+            gebp_minus_tile::<8>(
                 depth,
                 full,
                 tcol,
@@ -702,7 +800,7 @@ fn gebp_minus<const FMA: bool>(
             row += 8;
         }
         if row + 4 <= rows.end {
-            gebp_minus_tile::<4, FMA>(
+            gebp_minus_tile::<4>(
                 depth,
                 full,
                 tcol,
@@ -714,7 +812,79 @@ fn gebp_minus<const FMA: bool>(
             row += 4;
         }
         while row < rows.end {
-            gebp_minus_tile::<1, FMA>(
+            gebp_minus_tile::<1>(
+                depth,
+                full,
+                tcol,
+                row + k0 * ldt,
+                ldt,
+                x,
+                &mut ocol[row..=row],
+            );
+            row += 1;
+        }
+    }
+}
+
+/// [`gebp_minus`] with fused multiply-adds (FAST MODE).
+#[allow(clippy::too_many_arguments)] // BLAS-style kernel signature
+#[inline(always)]
+#[cfg_attr(not(target_arch = "x86_64"), allow(dead_code))] // the x86-64 FMA instances
+fn gebp_minus_fused(
+    depth: usize,
+    k0: usize,
+    rows: std::ops::Range<usize>,
+    cols: std::ops::Range<usize>,
+    full_cols: usize,
+    t: &[f64],
+    t_off: usize,
+    ldt: usize,
+    o: &mut [f64],
+    o_off: usize,
+    ldo: usize,
+) {
+    debug_assert!(rows.start >= k0 + depth || rows.end <= k0);
+    const XMAX: usize = 128;
+    let mut xbuf = [0.0f64; XMAX];
+    let mut xheap = Vec::new();
+    let x: &mut [f64] = if depth <= XMAX {
+        &mut xbuf[..depth]
+    } else {
+        xheap.resize(depth, 0.0);
+        &mut xheap
+    };
+    let tcol = &t[t_off..];
+    for (jj, j) in cols.enumerate() {
+        let full = jj < full_cols;
+        x.copy_from_slice(&o[o_off + k0 + j * ldo..][..depth]);
+        let ocol = &mut o[o_off + j * ldo..];
+        let mut row = rows.start;
+        while row + 8 <= rows.end {
+            gebp_minus_tile_fused::<8>(
+                depth,
+                full,
+                tcol,
+                row + k0 * ldt,
+                ldt,
+                x,
+                &mut ocol[row..row + 8],
+            );
+            row += 8;
+        }
+        if row + 4 <= rows.end {
+            gebp_minus_tile_fused::<4>(
+                depth,
+                full,
+                tcol,
+                row + k0 * ldt,
+                ldt,
+                x,
+                &mut ocol[row..row + 4],
+            );
+            row += 4;
+        }
+        while row < rows.end {
+            gebp_minus_tile_fused::<1>(
                 depth,
                 full,
                 tcol,
@@ -730,7 +900,7 @@ fn gebp_minus<const FMA: bool>(
 
 /// `MR` rows of [`gebp_minus`]: `t(r, l) = t[t0 + r + l·ldt]`, `x(l)`.
 #[inline(always)]
-fn gebp_minus_tile<const MR: usize, const FMA: bool>(
+fn gebp_minus_tile<const MR: usize>(
     depth: usize,
     full: bool,
     t: &[f64],
@@ -753,14 +923,8 @@ fn gebp_minus_tile<const MR: usize, const FMA: bool>(
             let (t0v, t1v) = (tl(l), tl(l + 1));
             let (x0, x1) = (x[l], x[l + 1]);
             for r in 0..MR {
-                if FMA {
-                    // FAST MODE: one rounding per term
-                    c[r] = t0v[r].mul_add(x0, c[r]);
-                    dd[r] = t1v[r].mul_add(x1, dd[r]);
-                } else {
-                    c[r] += t0v[r] * x0;
-                    dd[r] += t1v[r] * x1;
-                }
+                c[r] += t0v[r] * x0;
+                dd[r] += t1v[r] * x1;
             }
             l += 2;
         }
@@ -772,11 +936,56 @@ fn gebp_minus_tile<const MR: usize, const FMA: bool>(
         let tv = tl(l);
         let xl = x[l];
         for r in 0..MR {
-            if FMA {
-                c[r] = tv[r].mul_add(xl, c[r]);
-            } else {
-                c[r] += tv[r] * xl;
+            c[r] += tv[r] * xl;
+        }
+        l += 1;
+    }
+    for r in 0..MR {
+        out[r] = c[r] * -1.0 + out[r];
+    }
+}
+
+/// [`gebp_minus_tile`] with fused multiply-adds (FAST MODE).
+#[inline(always)]
+#[cfg_attr(not(target_arch = "x86_64"), allow(dead_code))] // the x86-64 FMA instances
+fn gebp_minus_tile_fused<const MR: usize>(
+    depth: usize,
+    full: bool,
+    t: &[f64],
+    t0: usize,
+    ldt: usize,
+    x: &[f64],
+    out: &mut [f64],
+) {
+    let tl = |l: usize| -> &[f64; MR] {
+        t[t0 + l * ldt..][..MR]
+            .try_into()
+            .unwrap_or_else(|_| unreachable!())
+    };
+    let mut c = [0.0f64; MR];
+    let mut l = 0;
+    if full {
+        let peeled = depth & !(GEBP_PK - 1);
+        let mut dd = [0.0f64; MR];
+        while l < peeled {
+            let (t0v, t1v) = (tl(l), tl(l + 1));
+            let (x0, x1) = (x[l], x[l + 1]);
+            for r in 0..MR {
+                // FAST MODE: one rounding per term
+                c[r] = t0v[r].mul_add(x0, c[r]);
+                dd[r] = t1v[r].mul_add(x1, dd[r]);
             }
+            l += 2;
+        }
+        for r in 0..MR {
+            c[r] = c[r] + dd[r];
+        }
+    }
+    while l < depth {
+        let tv = tl(l);
+        let xl = x[l];
+        for r in 0..MR {
+            c[r] = tv[r].mul_add(xl, c[r]);
         }
         l += 1;
     }
