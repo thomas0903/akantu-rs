@@ -21,7 +21,7 @@
 //!
 //! Every `unsafe` block here calls a `#[target_feature]` function after
 //! `is_x86_feature_detected!` returned true for that feature (`UNSAFE.md`,
-//! class L7).
+//! class L6).
 
 use std::sync::OnceLock;
 

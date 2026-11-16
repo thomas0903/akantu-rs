@@ -14,12 +14,12 @@ it that sets up its invariants, and not C sources (here `src/mumps/shim.c`, `src
 does not read; a change there shows only in the commit's diff and its
 review.
 
-**Where `unsafe` is allowed.** `src/lib.rs`:
-`#![cfg_attr(not(any(feature = "mumps", feature = "petsc")), forbid(unsafe_code))]`,
-`deny(unsafe_code)` with either feature. Without `mumps` / `petsc` (the
-default build) the crate contains no `unsafe` code in its library. The
-opt-outs: `src/mumps/mod.rs` (`#![allow(unsafe_code)]`, feature `mumps`) and
-the module `petsc` (`#[allow(unsafe_code)] pub mod petsc;` in `lib.rs`,
+**Where `unsafe` is allowed.** `src/lib.rs`: `#![deny(unsafe_code)]`.
+The opt-outs: the module `eigen_sparse_lu::simd`
+(`#[allow(unsafe_code)] mod simd;` in `src/eigen_sparse_lu/mod.rs`,
+every build: the run-time instruction-set dispatch of the SparseLU dense
+kernels, class L6), `src/mumps/mod.rs` (`#![allow(unsafe_code)]`, feature
+`mumps`) and the module `petsc` (`#[allow(unsafe_code)] pub mod petsc;` in `lib.rs`,
 feature `petsc`). The C sides of the FFI edges are `src/mumps/shim.c`
 (the opaque `DMUMPS_STRUC_C`; `_Static_assert` of 32-bit `MUMPS_INT` and
 64-bit `MUMPS_INT8`) and `src/petsc/shim.c` (plain C types only;
@@ -29,8 +29,10 @@ compiled by `build.rs`. This audit compared every `extern` declaration of
 the two blocks below with its shim prototype (names, argument order, C
 types): no mismatch.
 
-**Counts** (library / tests): block 68 / 4, `unsafe fn` 4 / 4, `unsafe impl`
-6 / 2, `extern` block 2 / 0 — **80 library sites, 10 test sites**.
+**Counts** (library / tests): block 72 / 4, `unsafe fn` 4 / 4, `unsafe impl`
+6 / 2, `extern` block 2 / 0 — **84 library sites, 10 test sites** (4
+library blocks in the default build: `src/eigen_sparse_lu/simd.rs`; the
+others need `mumps` or `petsc`).
 
 ## Invariant classes
 
@@ -97,8 +99,26 @@ types): no mismatch.
   panics are caught (`catch_unwind`), never unwinding into C.
 * **L5 — argument-free shim query.** `sizeof` constants, version macros,
   `dlsym` lookups of OpenBLAS's getters returning a static string or null.
+* **L6 — call of a `#[target_feature]` kernel after the CPU check.** The
+  callee is safe Rust (bounds-checked slices, no raw pointers) compiled
+  with AVX or AVX-512F enabled; its only precondition is that the CPU
+  supports that feature, which `is_x86_feature_detected!` checked in the
+  guard of the same `match` arm. The `fma` feature is never enabled, so
+  the kernels keep separate multiplies and adds (bitwise the portable
+  instance; `dense::tests` compare every instance the machine runs with
+  the reference kernels on random inputs with signed zeros, infinities,
+  NaNs and subnormals).
 
 ## Site table
+
+### src/eigen_sparse_lu/simd.rs
+
+| Id | Line | Site | What it does | Invariant (its `SAFETY:` comment) | Established by | Test |
+|---|---|---|---|---|---|---|
+| LA-81 | 114 | `fn gemm_into_zero_with` block 1 | calls `x86::gemm_avx512` (`sparselu_gemm`, 16-row tiles) | the CPU supports AVX-512F | L6 (`is_x86_feature_detected!("avx512f")` in the arm's guard) | `dense::tests::gemm_matches_reference_bitwise`, `eigen_sparse_lu_oracle` |
+| LA-82 | 121 | `fn gemm_into_zero_with` block 2 | calls `x86::gemm_avx` (8-row tiles) | the CPU supports AVX | L6 (`is_x86_feature_detected!("avx")`) | `dense::tests::gemm_matches_reference_bitwise` |
+| LA-83 | 167 | `fn gemv_with` block 1 | calls `x86::gemv_avx512` (column-major GEMV, 32-row tiles) | the CPU supports AVX-512F | L6 | `dense::tests::gemv_matches_reference_bitwise`, `eigen_sparse_lu_oracle` |
+| LA-84 | 172 | `fn gemv_with` block 2 | calls `x86::gemv_avx` (16-row tiles) | the CPU supports AVX | L6 | `dense::tests::gemv_matches_reference_bitwise` |
 
 ### src/mumps/mod.rs
 
