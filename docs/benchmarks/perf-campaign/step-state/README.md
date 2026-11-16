@@ -215,9 +215,11 @@ there is repeated or quadratic.
 
 ### Profiles after (`profiles/`)
 
-`perf record -F 499 --call-graph dwarf` of the after binary
-(`scripts/perf/suite/profile.sh`, 6 s loops; shares, recorded while other
-work ran on the other cores). No `memmove`, page-clearing or allocator
+`perf record -F 499 --call-graph dwarf` of `suite_solid` built at
+`dbb3ca2c5` (this branch before the Mazars files were restored and before
+the last two merges of the base, which brought the execution policy and
+the sparse assembly; `scripts/perf/suite/profile.sh`, 6 s loops; shares,
+recorded while other work ran on the other cores). No `memmove`, page-clearing or allocator
 symbol is left in the top 25 of any of the eight cases; the explicit
 elastic cases are the FE kernels (gradient, `BᵀD`, integration, scatter:
 60–65 %), the stress loop and `grad_u` (13–16 %), `resolve_filter`'s per-call
