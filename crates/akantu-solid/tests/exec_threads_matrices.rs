@@ -200,7 +200,7 @@ fn clamp_and_pull(m: &mut SolidMechanicsModel) -> Vec<usize> {
     {
         let mut u = m.displacement_mut().unwrap();
         let u = u.as_mut_slice();
-        for (n, p) in x.chunks_exact(3).enumerate() {
+        for (n, p) in x.as_chunks::<3>().0.iter().enumerate() {
             if p[0] < 1e-9 {
                 for c in 0..3 {
                     u[3 * n + c] = 1e-4 * (c as Real + 1.0) * (p[1] - 0.5);
@@ -297,8 +297,10 @@ fn implicit_dynamic(policy: ExecPolicy) -> State {
         .displacement_mut()
         .unwrap()
         .as_mut_slice()
-        .chunks_exact_mut(3)
-        .zip(x.chunks_exact(3))
+        .as_chunks_mut::<3>()
+        .0
+        .iter_mut()
+        .zip(x.as_chunks::<3>().0)
     {
         u[0] = 1e-3 * (6.0 * p[0]).sin() * (p[1] + 0.3);
         u[1] = 1e-3 * (5.0 * p[2]).cos() * p[0];
