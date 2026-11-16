@@ -40,22 +40,26 @@ when the CPU reports the level's target feature (`SimdLevel::token` and
 ### src/exec/spin.rs
 
 The region protocol every site relies on: the owner of a region holds
-`SpinPool::busy`, writes `job` before publishing the region (SeqCst bump of
-`generation`), takes parts itself, waits until every worker incremented
-`done` (Release / Acquire), and only then clears `job` and returns; a worker
-reads `job` only after observing the new generation and before
-incrementing `done`. A worker starts from generation 0, so a region
-published before it started is not missed.
+`SpinPool::busy`, writes `job` while no worker is inside a region, opens
+the region (SeqCst store of `state`: its generation, not closed, nobody
+inside), takes parts itself, closes it (`fetch_or` of the closed bit),
+waits until no worker is inside (Acquire), and only then clears `job` and
+returns. A worker reads `job` only after entering the open region of the
+generation it observed (SeqCst compare-exchange that increments the count
+of workers inside, refused once the region is closed or replaced) and
+before leaving it (Release decrement); a worker that comes too late skips
+the region. A worker starts from generation 0, so a region published
+before it started is not missed.
 
 | Id | Line | Site | What it does | Invariant (its `SAFETY:` comment) | Established by | Test |
 |---|---|---|---|---|---|---|
-| CO-12 | 66 | `impl Sync for Shared` impl 1 | shares the pool state (with the `UnsafeCell` job slot) between threads | writes and reads of `job` never overlap | the region protocol | `exec::spin::tests::*`, `exec::pool::tests::*` |
-| CO-13 | 68 | `impl Send for Shared` impl 1 | moves the shared state into the workers | as CO-12 | as CO-12 | as CO-12 |
-| CO-14 | 130 | `impl SpinPool › fn run` block 1 | erases the lifetime of the region's closure | the pointer is not used after `run` returns | `run` waits for `done == workers` and clears the slot first | `every_part_runs_once`, `concurrent_callers` |
-| CO-15 | 133 | `impl SpinPool › fn run` block 2 | writes the job slot | no worker reads it now | `busy` held; the previous region ended | as CO-14 |
-| CO-16 | 148 | `impl SpinPool › fn run` block 3 | clears the job slot | every worker reported the end of the region | `done == workers` observed | as CO-14 |
-| CO-17 | 205 | `fn worker` block 1 | reads the job slot | the region is published and not ended | new generation observed; `done` not yet incremented | as CO-14, `regions_after_parking_and_nested_regions` |
-| CO-18 | 208 | `fn worker` block 2 | calls the region's closure | the closure outlives the region | as CO-17 | `a_panic_reaches_the_caller_and_the_pool_survives` |
+| CO-12 | 77 | `impl Sync for Shared` impl 1 | shares the pool state (with the `UnsafeCell` job slot) between threads | writes and reads of `job` never overlap | the region protocol (enter / close) | `exec::spin::tests::*`, `exec::pool::tests::*` |
+| CO-13 | 79 | `impl Send for Shared` impl 1 | moves the shared state into the workers | as CO-12 | as CO-12 | as CO-12 |
+| CO-14 | 141 | `impl SpinPool › fn run` block 1 | erases the lifetime of the region's closure | the pointer is not used after `run` returns | `run` closes the region, waits until no worker is inside and clears the slot first | `every_part_runs_once`, `concurrent_callers` |
+| CO-15 | 144 | `impl SpinPool › fn run` block 2 | writes the job slot | no worker reads it now | `busy` held; the previous region is closed with nobody inside | as CO-14 |
+| CO-16 | 163 | `impl SpinPool › fn run` block 3 | clears the job slot | the region is closed and nobody is inside | closed bit set, count 0 observed | as CO-14 |
+| CO-17 | 237 | `fn worker` block 1 | reads the job slot | this worker is inside the open region | successful enter (compare-exchange); not yet left | as CO-14, `regions_after_parking_and_nested_regions` |
+| CO-18 | 240 | `fn worker` block 2 | calls the region's closure | the closure outlives the region | as CO-17 | `a_panic_reaches_the_caller_and_the_pool_survives` |
 
 ## Guarantees the `unsafe` code of other crates relies on
 

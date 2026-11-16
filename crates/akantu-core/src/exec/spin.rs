@@ -5,12 +5,14 @@
 //! A fixed pool of worker threads for short parallel regions.
 //!
 //! One region at a time: the caller publishes a job (`Fn(part)`) and the
-//! number of parts, wakes the workers, takes parts itself, and returns when
-//! every worker has reported the end of the region. Parts are claimed with an
-//! atomic counter, so a delayed thread does not hold the others up. Between
-//! regions a worker spins for a short time (regions of an explicit step
-//! follow each other within microseconds), then parks on a condition
-//! variable. Measured cost of one region on 8 cores of an AMD EPYC 9R14:
+//! number of parts, wakes the workers, and takes parts itself; parts are
+//! claimed with an atomic counter. A worker joins a region only by entering
+//! it while it is open; when the caller has no part left it closes the
+//! region and waits only for the workers that entered, so a worker that
+//! wakes late (parked during a serial stretch) skips the region instead of
+//! making the caller wait for its wake-up. Between regions a worker spins
+//! for a short time (regions of an explicit step follow each other within
+//! microseconds), then parks on a condition variable. Measured cost of one region on 8 cores of an AMD EPYC 9R14:
 //! below 1 µs at 2 and 4 threads, against 5–14 µs for a `rayon` pool
 //! (`docs/benchmarks/perf-campaign/exec/README.md`).
 //!
@@ -31,7 +33,14 @@ use std::sync::{Arc, Condvar, Mutex};
 use std::time::{Duration, Instant};
 
 /// How long an idle worker spins before it parks.
-const SPIN_FOR: Duration = Duration::from_micros(200);
+const SPIN_FOR: Duration = Duration::from_micros(500);
+
+/// `state`: closed bit.
+const CLOSED: u64 = 1 << 63;
+/// `state`: workers inside the region (low bits).
+const ACTIVE: u64 = 0xFFFF;
+/// `state`: the region's generation (bits 16..63).
+const GEN_MASK: u64 = (1 << 47) - 1;
 
 /// The job of the running region: a part runner with its lifetime erased.
 #[derive(Clone, Copy)]
@@ -44,12 +53,13 @@ struct Shared {
     next: AtomicUsize,
     /// Parts of the running region.
     nb_parts: AtomicUsize,
-    /// Workers that finished the running region.
-    done: AtomicUsize,
+    /// The region's generation (bits 16..63), its closed bit (63) and the
+    /// number of workers inside it (bits 0..16).
+    state: AtomicU64,
     /// Parked workers.
     sleepers: AtomicUsize,
     /// The running region's job; written only by the region's owner while
-    /// no worker can read it (see [`SpinPool::run`]).
+    /// no worker is inside a region (see [`SpinPool::run`]).
     job: UnsafeCell<Option<JobPtr>>,
     /// The first panic of a part of the running region.
     panic: Mutex<Option<Box<dyn Any + Send>>>,
@@ -58,11 +68,12 @@ struct Shared {
 }
 
 // SAFETY: every field but `job` is `Sync`; `job` is written by the owner of
-// the region (who holds `SpinPool::busy`) only before it publishes the
-// region (SeqCst bump of `generation`) and after every worker reported its
-// end (Acquire load of `done`), and read by workers only between those two
-// points, so writes and reads never overlap. The closure behind the pointer
-// is `Sync`.
+// the region (who holds `SpinPool::busy`) only while no worker is inside a
+// region: before it opens the region (SeqCst store of `state`) and after it
+// closed it and saw no worker inside (Acquire load of `state`); a worker
+// reads it only after entering the open region (SeqCst CAS on `state`) and
+// before leaving it, so writes and reads never overlap. The closure behind
+// the pointer is `Sync`.
 unsafe impl Sync for Shared {}
 // SAFETY: as above; the pointer is only dereferenced under that protocol.
 unsafe impl Send for Shared {}
@@ -88,7 +99,7 @@ impl SpinPool {
             generation: AtomicU64::new(0),
             next: AtomicUsize::new(0),
             nb_parts: AtomicUsize::new(0),
-            done: AtomicUsize::new(0),
+            state: AtomicU64::new(CLOSED),
             sleepers: AtomicUsize::new(0),
             job: UnsafeCell::new(None),
             panic: Mutex::new(None),
@@ -123,28 +134,32 @@ impl SpinPool {
         };
         let s = &*self.shared;
         // SAFETY: lifetime erasure of `f`; the pointer is published to the
-        // workers below and this function returns only after every worker
-        // reported the end of the region (`done == workers`) and the slot was
-        // cleared, so no worker dereferences it after `f`'s borrow ends.
+        // workers below and this function returns only after it closed the
+        // region, saw no worker inside, and cleared the slot, so no worker
+        // dereferences it after `f`'s borrow ends.
         let erased: *const (dyn Fn(usize) + Sync) =
             unsafe { std::mem::transmute(f as *const (dyn Fn(usize) + Sync)) };
-        // SAFETY: we hold `busy` and the previous region ended (its owner
-        // waited for `done == workers`), so no worker reads `job` now.
+        // SAFETY: we hold `busy` and the previous region is closed with no
+        // worker inside, so no worker reads `job` now.
         unsafe { *s.job.get() = Some(JobPtr(erased)) };
         s.next.store(0, Ordering::Relaxed);
         s.nb_parts.store(nb_parts, Ordering::Relaxed);
-        s.done.store(0, Ordering::Relaxed);
-        s.generation.fetch_add(1, Ordering::SeqCst);
+        let g = s.generation.load(Ordering::Relaxed).wrapping_add(1);
+        // open the region, then announce it
+        s.state.store((g & GEN_MASK) << 16, Ordering::SeqCst);
+        s.generation.store(g, Ordering::SeqCst);
         if s.sleepers.load(Ordering::SeqCst) > 0 {
             let _g = s.sleep.lock().unwrap_or_else(|e| e.into_inner());
             s.wake.notify_all();
         }
         run_parts(s, f);
-        while s.done.load(Ordering::Acquire) != self.workers {
+        // no part left: close the region, wait for the workers inside
+        s.state.fetch_or(CLOSED, Ordering::SeqCst);
+        while s.state.load(Ordering::Acquire) & ACTIVE != 0 {
             std::hint::spin_loop();
         }
-        // SAFETY: every worker reported the end of the region: none reads
-        // `job` until the next publication.
+        // SAFETY: the region is closed and no worker is inside: none reads
+        // `job` until the next region opens.
         unsafe { *s.job.get() = None };
         let panic = s.panic.lock().unwrap_or_else(|e| e.into_inner()).take();
         if let Some(p) = panic {
@@ -199,15 +214,34 @@ fn worker(s: &Shared) {
             drop(guard);
         }
         seen = s.generation.load(Ordering::SeqCst);
-        // SAFETY: the region was published (SeqCst bump observed above) and
-        // has not ended (its owner waits for this worker's `done`), so
-        // `job` holds the region's live closure and is not being written.
+        // enter the region of generation `seen` if it is still open
+        let mut state = s.state.load(Ordering::SeqCst);
+        let entered = loop {
+            if state & CLOSED != 0 || (state >> 16) & GEN_MASK != seen & GEN_MASK {
+                break false;
+            }
+            match s.state.compare_exchange_weak(
+                state,
+                state + 1,
+                Ordering::SeqCst,
+                Ordering::SeqCst,
+            ) {
+                Ok(_) => break true,
+                Err(now) => state = now,
+            }
+        };
+        if !entered {
+            continue;
+        }
+        // SAFETY: this worker is inside the open region (counted in `state`):
+        // its owner neither clears nor rewrites `job` before every worker
+        // inside has left, so `job` holds the region's live closure.
         let job = unsafe { *s.job.get() };
         if let Some(JobPtr(f)) = job {
             // SAFETY: as above: the closure outlives the region.
             run_parts(s, unsafe { &*f });
         }
-        s.done.fetch_add(1, Ordering::Release);
+        s.state.fetch_sub(1, Ordering::Release);
     }
 }
 
