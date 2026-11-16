@@ -459,7 +459,8 @@ fn increments_at(step: usize) -> usize {
 }
 
 /// Run the benchmark on `comm` (collective). Writes the output files on
-/// rank 0 (and `summary_rank<r>.json` on every rank) into
+/// rank 0 (and `summary_rank<r>.json`, `chrono_rank<r>.csv` and, for the
+/// cohesive model, `insertion_stats_rank<r>.csv` on every rank) into
 /// [`Config::output_dir`].
 ///
 /// # Errors
@@ -947,6 +948,28 @@ pub fn run(comm: &Communicator, cfg: &Config) -> Result<RunReport> {
         &format!("summary_rank{prank}.json"),
         &rank_summary.to_json(),
     )?;
+    // port-specific: this rank's phase times (the harness writes rank 0's
+    // only) and, for the cohesive model, the split of its insertion check
+    write_file(
+        &cfg.output_dir,
+        &format!("chrono_rank{prank}.csv"),
+        &chrono.to_csv(),
+    )?;
+    if let Driven::Cohesive(m) = &model {
+        let st = &m.ext.stats;
+        write_file(
+            &cfg.output_dir,
+            &format!("insertion_stats_rank{prank}.csv"),
+            &format!(
+                "calls, interpolation, checks, insertion, inserted\n{}, {}, {}, {}, {}\n",
+                st.calls,
+                crate::output::g(st.interpolation, 6),
+                crate::output::g(st.checks, 6),
+                crate::output::g(st.insertion, 6),
+                st.inserted
+            ),
+        )?;
+    }
     let summary = Summary {
         psize,
         mesh: cfg.mesh.clone(),

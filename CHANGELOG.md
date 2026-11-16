@@ -6,7 +6,7 @@ All notable changes to akantu-rs are recorded in this file. The format follows
 [semantic versioning](https://semver.org/spec/v2.0.0.html); before 1.0, a
 change of default results or of a public API raises the minor version.
 
-## [Unreleased]
+## Unreleased
 
 ### Added
 
@@ -35,6 +35,16 @@ change of default results or of a public API raises the minor version.
 - Fast-mode harness `akantu_validation::fast_mode` with the rules of
   `fixtures/fast_mode/`, and its demonstrator (the gradient kernel with
   fused multiply-adds under `Precision::Fast`).
+- `akantu_fe::engine::PointInterpolation`
+  (`ElementalFieldInterpolation::point_interpolation`): the value of one
+  interpolation point of one element of an elemental-field interpolation
+  with one quadrature point per element, with the operations
+  `interpolate_elemental_field` performs (`value`, or `coefficients` then
+  `value_from_coefficients`).
+- The cohesive benchmark driver (`akantu-bench`, `cohesive_extrinsic`)
+  writes `chrono_rank<r>.csv` (the phase times of every rank) and, for the
+  cohesive model, `insertion_stats_rank<r>.csv` (the split of the
+  insertion check) on every rank.
 
 ### Changed
 
@@ -46,6 +56,13 @@ change of default results or of a public API raises the minor version.
 - `akantu-core` denies `unsafe` instead of forbidding it: the thread pool
   of `exec::spin` and the SIMD kernels of `exec::simd` (listed in its
   `UNSAFE.md`) are the only sites.
+- The cohesive insertion check is faster with bitwise identical results:
+  the facet stresses are computed directly from the bulk stresses (the
+  by-element buffer is no longer written per step; it is still allocated
+  by the first check), the elemental interpolation selects its products'
+  route once per block, the copy plan after an insertion is built in
+  linear time, and the linear law's effective norm uses fixed-size loops
+  (`docs/BENCHMARKS.md`, "The insertion check").
 
 ## [0.1.0] - Unreleased
 

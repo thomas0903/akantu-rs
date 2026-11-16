@@ -1,0 +1,248 @@
+# structural_dkt18_plate_static: perf record -F 499 --call-graph dwarf, size m, --loop-seconds 6, one process on core 2
+# commit c339c611d, 2026-11-16T07:29:46Z, AMD Ryzen 7 9700X 8-Core Processor (boat sandbox: shares only, no timing)
+# phases of the profiled run (seconds; loop phases extended to >= 6 s):
+#   mesh                         calls      1      0.000 s
+#   init                         calls      1      0.036 s
+#   assemble_stiffness           calls     60      6.016 s
+#   solve_step                   calls      1      1.404 s
+
+## Flat profile (self time), top 25 (shared object, symbol)
+    30.40%  suite_models      [.] <akantu_linalg::sparse::SparseMatrixAij>::resolve_block                                                                                                                                            -      -   
+    28.06%  suite_models      [.] akantu_core::eigen_gebp::product_into::<akantu_fe::eigen::product_slices::{closure#1}, akantu_fe::eigen::product_slices::{closure#2}>                                                                         
+     9.10%  suite_models      [.] akantu_linalg::eigen_sparse_lu::dense::sparselu_gemm                                                                                                                                                    -     
+     3.62%  suite_models      [.] <akantu_linalg::sparse::SparseMatrixAij>::add_values                                                                                                                                               -      -   
+     3.47%  suite_models      [.] akantu_linalg::eigen_sparse_lu::kernels::panel_bmod                                                                                                                                                     -     
+     3.21%  suite_models      [.] <std::hash::random::DefaultHasher as core::hash::Hasher>::write                                                                                              -      -            
+     2.41%  suite_models      [.] <std::hash::random::RandomState as core::hash::BuildHasher>::hash_one::<&(i64, i64)>                                                                                   -      -            
+     1.87%  [unknown]         [k] 0xffffffffacba571a                                                                                                                                                                                            
+     1.56%  suite_models      [.] <akantu_core::array_storage::ArrayStorage<f64>>::try_resize                                                                                                                 -      -            
+     1.26%  [unknown]         [k] 0xffffffffadc653f7                                                                                                                                                                                            
+     1.12%  libc.so.6         [.] 0x00000000001a1d7a                                                                                                                                                                                            
+     1.05%  [unknown]         [k] 0xffffffffadbd4c27                                                                                                                                                                                            
+     1.05%  [unknown]         [k] 0xfffffffface49123                                                                                                                                                                                            
+     0.93%  suite_models      [.] <akantu_linalg::sparse::SparseMatrixAij>::add_to_profile                                                                                                                                           -      -   
+     0.82%  [unknown]         [k] 0xfffffffface45cc6                                                                                                                                                                                            
+     0.57%  [unknown]         [k] 0xffffffffade00f30                                                                                                                                                                                            
+     0.47%  suite_models      [.] akantu_core::eigen_gebp::route                                                                                                                                                                            -   
+     0.45%  suite_models      [.] akantu_linalg::eigen_sparse_lu::kernels::dfs_kernel                                                                                                                                                     -     
+     0.43%  [unknown]         [k] 0xfffffffface28906                                                                                                                                                                                            
+     0.40%  suite_models      [.] akantu_linalg::eigen_sparse_lu::dense::trsm_unit_lower                                                                                                                                                  -     
+     0.38%  suite_models      [.] <akantu_solver::dof_manager::DofManager>::element_equations                                                                                                                                       -      -    
+     0.36%  [unknown]         [k] 0xffffffffacdd97de                                                                                                                                                                                            
+     0.33%  [unknown]         [k] 0xffffffffadc65620                                                                                                                                                                                            
+     0.33%  [unknown]         [k] 0xffffffffacdd914c                                                                                                                                                                                            
+     0.31%  [unknown]         [k] 0xfffffffface45cd0                                                                                                                                                                                            
+
+## Inclusive time (children), top 40 symbols
+    99.84%     0.00%  [.] suite_models::suite_models::structural::plate_static                                                                                                                                                                  
+    99.84%     0.00%  [k] 0xffffffffffffffff                                                                                                                                                                                                    
+    81.53%     0.00%  [.] <suite_models::suite_models::harness::Run>::looped::<suite_models::suite_models::structural::frame_static::{closure#0}> (inlined)                                                                                     
+    81.53%     0.00%  [.] <akantu_solver::dof_manager::DofManager>::collective::<(), <akantu_structural::model::StructuralMechanicsModel>::assemble_stiffness_matrix::{closure#0}>                                                              
+    81.53%     0.00%  [.] <akantu_structural::model::StructuralMechanicsModel>::assemble_stiffness_matrix::{closure#0} (inlined)                                                                                                                
+    81.53%     0.00%  [.] suite_models::suite_models::structural::frame_static::{closure#0} (inlined)                                                                                                                                           
+    81.50%     0.00%  [.] <akantu_structural::model::StructuralMechanicsPhysics>::assemble_stiffness_matrix                                                                                                                                     
+    41.15%     0.03%  [.] <akantu_solver::dof_manager::DofManager>::assemble_elemental_matrices_to_matrix                                                                                                                                       
+    39.86%     0.00%  [.] <akantu_fe::structural::engine::StructuralFeEngine>::element_stiffness                                                                                                                                                
+    39.63%     0.05%  [.] <akantu_solver::backend::AijBackend as akantu_solver::backend::LinearSystemBackend>::add_values                                                                                                                       
+    39.58%     3.62%  [.] <akantu_linalg::sparse::SparseMatrixAij>::add_values                                                                                                                                                                  
+    35.97%    30.40%  [.] <akantu_linalg::sparse::SparseMatrixAij>::resolve_block                                                                                                                                                               
+    34.91%     0.00%  [.] <hashbrown::map::HashMap<(i64, i64), usize, std::hash::random::RandomState>>::get::<(i64, i64)> (inlined)                                                                                                             
+    34.91%     0.00%  [.] <std::collections::hash::map::HashMap<(i64, i64), usize>>::get::<(i64, i64)> (inlined)                                                                                                                                
+    30.28%     0.10%  [.] <akantu_fe::structural::engine::StructuralFeEngine>::compute_btdb                                                                                                                                                     
+    29.64%     0.20%  [.] akantu_fe::eigen::product_slices                                                                                                                                                                                      
+    29.58%     0.00%  [.] <hashbrown::raw::RawTable<((i64, i64), usize)>>::get::<hashbrown::map::equivalent_key<(i64, i64), (i64, i64), usize>::{closure#0}> (inlined)                                                                          
+    29.58%     0.00%  [.] <hashbrown::raw::RawTable<((i64, i64), usize)>>::find::<hashbrown::map::equivalent_key<(i64, i64), (i64, i64), usize>::{closure#0}> (inlined)                                                                         
+    29.58%     0.00%  [.] <hashbrown::raw::RawTableInner>::find_inner (inlined)                                                                                                                                                                 
+    29.54%     0.00%  [.] akantu_fe::eigen::product::<akantu_fe::eigen::product_slices::{closure#1}, akantu_fe::eigen::product_slices::{closure#2}> (inlined)                                                                                   
+    29.18%    28.06%  [.] akantu_core::eigen_gebp::product_into::<akantu_fe::eigen::product_slices::{closure#1}, akantu_fe::eigen::product_slices::{closure#2}>                                                                                 
+    29.13%     0.00%  [.] akantu_core::eigen_gebp::eval_product::<akantu_fe::eigen::product_slices::{closure#1}, akantu_fe::eigen::product_slices::{closure#2}> (inlined)                                                                       
+    22.00%     0.00%  [.] akantu_core::eigen_gebp::gebp_into::<akantu_fe::eigen::product_slices::{closure#1}, akantu_fe::eigen::product_slices::{closure#2}> (inlined)                                                                          
+    20.04%     0.00%  [.] core::intrinsics::likely (inlined)                                                                                                                                                                                    
+    17.67%     0.00%  [.] <suite_models::suite_models::harness::Run>::once::<(), suite_models::suite_models::structural::frame_static::{closure#1}> (inlined)                                                                                   
+    17.67%     0.00%  [.] <akantu_solver::dof_manager::DofManager>::collective::<(), <akantu_solver::non_linear_newton_raphson::NonLinearSolverNewtonRaphson as akantu_solver::non_linear::NonLinearSolver>::solve::{closure#1}>                
+    17.67%     0.00%  [.] suite_models::suite_models::structural::frame_static::{closure#1} (inlined)                                                                                                                                           
+    17.67%     0.00%  [.] <akantu_solver::non_linear_newton_raphson::NonLinearSolverNewtonRaphson as akantu_solver::non_linear::NonLinearSolver>::solve::{closure#1} (inlined)                                                                  
+    17.67%     0.00%  [.] <akantu_solver::non_linear_newton_raphson::NonLinearSolverNewtonRaphson>::solve_nr                                                                                                                                    
+    17.67%     0.00%  [.] <akantu_solver::time_step::TimeStepSolver>::solve_step (inlined)                                                                                                                                                      
+    17.67%     0.00%  [.] <akantu_structural::model::StructuralMechanicsModel>::solve_step                                                                                                                                                      
+    17.67%     0.00%  [.] <akantu_solver::model_solver::ModelSolver>::solve_step                                                                                                                                                                
+    17.67%     0.00%  [.] <akantu_solver::non_linear_newton_raphson::NonLinearSolverNewtonRaphson as akantu_solver::non_linear::NonLinearSolver>::solve                                                                                         
+    16.16%     0.00%  [.] <akantu_comm::phase::Phases>::run::<(alloc::vec::Vec<f64>, alloc::vec::Vec<i64>), alloc::vec::Vec<(i64, f64)>, <akantu_solver::backend::AijBackend as akantu_solver::backend::LinearSystemBackend>::solve::{closure#2}
+    16.16%     0.00%  [.] <akantu_solver::dof_manager::DofManager>::collective::<(), <akantu_solver::dof_manager::DofManager>::solve_linear_system::{closure#0}> (inlined)                                                                      
+    16.16%     0.00%  [.] <akantu_solver::dof_manager::DofManager>::collective::<(), <akantu_solver::dof_manager::DofManager>::solve::{closure#0}> (inlined)                                                                                    
+    16.16%     0.00%  [.] <akantu_solver::dof_manager::DofManager>::lend::<(), <akantu_solver::dof_manager::DofManager>::solve_linear_system::{closure#0}::{closure#2}> (inlined)                                                               
+    16.16%     0.00%  [.] <akantu_solver::dof_manager::DofManager>::solve_linear_system::{closure#0}::{closure#2} (inlined)                                                                                                                     
+    16.16%     0.00%  [.] <akantu_solver::backend::AijBackend as akantu_solver::backend::LinearSystemBackend>::solve::{closure#2}::{closure#0} (inlined)                                                                                        
+    16.16%     0.00%  [.] <akantu_solver::dof_manager::DofManager>::solve_linear_system::{closure#0} (inlined)                                                                                                                                  
+
+## Call chains of the hottest symbols (caller graph, >= 3 % self, branches >= 1 %)
+    30.40%  [.] <akantu_linalg::sparse::SparseMatrixAij>::resolve_block                                                                                                                                            -      -            
+            |          
+            |--19.86%--core::intrinsics::likely (inlined)
+            |          <hashbrown::raw::RawTableInner>::find_inner (inlined)
+            |          <hashbrown::raw::RawTable<((i64, i64), usize)>>::find::<hashbrown::map::equivalent_key<(i64, i64), (i64, i64), usize>::{closure#0}> (inlined)
+            |          <hashbrown::raw::RawTable<((i64, i64), usize)>>::get::<hashbrown::map::equivalent_key<(i64, i64), (i64, i64), usize>::{closure#0}> (inlined)
+            |          <hashbrown::map::HashMap<(i64, i64), usize, std::hash::random::RandomState>>::get::<(i64, i64)> (inlined)
+            |          <std::collections::hash::map::HashMap<(i64, i64), usize>>::get::<(i64, i64)> (inlined)
+            |          <akantu_linalg::sparse::SparseMatrixAij>::resolve_block
+            |          <akantu_linalg::sparse::SparseMatrixAij>::add_values
+            |          <akantu_solver::backend::AijBackend as akantu_solver::backend::LinearSystemBackend>::add_values
+            |          <akantu_solver::dof_manager::DofManager>::assemble_elemental_matrices_to_matrix
+            |          <akantu_structural::model::StructuralMechanicsPhysics>::assemble_stiffness_matrix
+            |          <akantu_structural::model::StructuralMechanicsModel>::assemble_stiffness_matrix::{closure#0} (inlined)
+            |          <akantu_solver::dof_manager::DofManager>::collective::<(), <akantu_structural::model::StructuralMechanicsModel>::assemble_stiffness_matrix::{closure#0}>
+            |          suite_models::suite_models::structural::frame_static::{closure#0} (inlined)
+            |          <suite_models::suite_models::harness::Run>::looped::<suite_models::suite_models::structural::frame_static::{closure#0}> (inlined)
+            |          suite_models::suite_models::structural::plate_static
+            |          0xffffffffffffffff
+            |          
+             --6.92%--core::core_arch::x86::sse2::_mm_movemask_epi8 (inlined)
+                       <hashbrown::control::group::sse2::Group>::match_tag (inlined)
+                       <hashbrown::raw::RawTableInner>::find_inner (inlined)
+                       <hashbrown::raw::RawTable<((i64, i64), usize)>>::find::<hashbrown::map::equivalent_key<(i64, i64), (i64, i64), usize>::{closure#0}> (inlined)
+                       <hashbrown::raw::RawTable<((i64, i64), usize)>>::get::<hashbrown::map::equivalent_key<(i64, i64), (i64, i64), usize>::{closure#0}> (inlined)
+                       <hashbrown::map::HashMap<(i64, i64), usize, std::hash::random::RandomState>>::get::<(i64, i64)> (inlined)
+                       <std::collections::hash::map::HashMap<(i64, i64), usize>>::get::<(i64, i64)> (inlined)
+                       <akantu_linalg::sparse::SparseMatrixAij>::resolve_block
+                       <akantu_linalg::sparse::SparseMatrixAij>::add_values
+                       <akantu_solver::backend::AijBackend as akantu_solver::backend::LinearSystemBackend>::add_values
+                       <akantu_solver::dof_manager::DofManager>::assemble_elemental_matrices_to_matrix
+                       <akantu_structural::model::StructuralMechanicsPhysics>::assemble_stiffness_matrix
+                       <akantu_structural::model::StructuralMechanicsModel>::assemble_stiffness_matrix::{closure#0} (inlined)
+                       <akantu_solver::dof_manager::DofManager>::collective::<(), <akantu_structural::model::StructuralMechanicsModel>::assemble_stiffness_matrix::{closure#0}>
+                       suite_models::suite_models::structural::frame_static::{closure#0} (inlined)
+                       <suite_models::suite_models::harness::Run>::looped::<suite_models::suite_models::structural::frame_static::{closure#0}> (inlined)
+                       suite_models::suite_models::structural::plate_static
+                       0xffffffffffffffff
+    28.06%  [.] akantu_core::eigen_gebp::product_into::<akantu_fe::eigen::product_slices::{closure#1}, akantu_fe::eigen::product_slices::{closure#2}>                                                                                           
+            |          
+            |--7.78%--akantu_fe::eigen::product_slices::{closure#1} (inlined)
+            |          |          
+            |           --6.91%--akantu_core::eigen_gebp::gebp_into::<akantu_fe::eigen::product_slices::{closure#1}, akantu_fe::eigen::product_slices::{closure#2}>::{closure#0} (inlined)
+            |                     akantu_core::eigen_gebp::gebp_into::<akantu_fe::eigen::product_slices::{closure#1}, akantu_fe::eigen::product_slices::{closure#2}> (inlined)
+            |                     akantu_core::eigen_gebp::eval_product::<akantu_fe::eigen::product_slices::{closure#1}, akantu_fe::eigen::product_slices::{closure#2}> (inlined)
+            |                     akantu_core::eigen_gebp::product_into::<akantu_fe::eigen::product_slices::{closure#1}, akantu_fe::eigen::product_slices::{closure#2}>
+            |                     akantu_fe::eigen::product::<akantu_fe::eigen::product_slices::{closure#1}, akantu_fe::eigen::product_slices::{closure#2}> (inlined)
+            |                     akantu_fe::eigen::product_slices
+            |                     |          
+            |                      --6.67%--<akantu_fe::structural::engine::StructuralFeEngine>::compute_btdb
+            |                                <akantu_fe::structural::engine::StructuralFeEngine>::element_stiffness
+            |                                <akantu_structural::model::StructuralMechanicsPhysics>::assemble_stiffness_matrix
+            |                                <akantu_structural::model::StructuralMechanicsModel>::assemble_stiffness_matrix::{closure#0} (inlined)
+            |                                <akantu_solver::dof_manager::DofManager>::collective::<(), <akantu_structural::model::StructuralMechanicsModel>::assemble_stiffness_matrix::{closure#0}>
+            |                                suite_models::suite_models::structural::frame_static::{closure#0} (inlined)
+            |                                <suite_models::suite_models::harness::Run>::looped::<suite_models::suite_models::structural::frame_static::{closure#0}> (inlined)
+            |                                suite_models::suite_models::structural::plate_static
+            |                                0xffffffffffffffff
+            |          
+            |--5.22%--akantu_core::eigen_gebp::gebp_into::<akantu_fe::eigen::product_slices::{closure#1}, akantu_fe::eigen::product_slices::{closure#2}> (inlined)
+            |          akantu_core::eigen_gebp::eval_product::<akantu_fe::eigen::product_slices::{closure#1}, akantu_fe::eigen::product_slices::{closure#2}> (inlined)
+            |          akantu_core::eigen_gebp::product_into::<akantu_fe::eigen::product_slices::{closure#1}, akantu_fe::eigen::product_slices::{closure#2}>
+            |          akantu_fe::eigen::product::<akantu_fe::eigen::product_slices::{closure#1}, akantu_fe::eigen::product_slices::{closure#2}> (inlined)
+            |          akantu_fe::eigen::product_slices
+            |          |          
+            |           --5.03%--<akantu_fe::structural::engine::StructuralFeEngine>::compute_btdb
+            |                     <akantu_fe::structural::engine::StructuralFeEngine>::element_stiffness
+            |                     <akantu_structural::model::StructuralMechanicsPhysics>::assemble_stiffness_matrix
+            |                     <akantu_structural::model::StructuralMechanicsModel>::assemble_stiffness_matrix::{closure#0} (inlined)
+            |                     <akantu_solver::dof_manager::DofManager>::collective::<(), <akantu_structural::model::StructuralMechanicsModel>::assemble_stiffness_matrix::{closure#0}>
+            |                     suite_models::suite_models::structural::frame_static::{closure#0} (inlined)
+            |                     <suite_models::suite_models::harness::Run>::looped::<suite_models::suite_models::structural::frame_static::{closure#0}> (inlined)
+            |                     suite_models::suite_models::structural::plate_static
+            |                     0xffffffffffffffff
+            |          
+            |--4.58%--akantu_core::eigen_gebp::gemv_into::<akantu_core::eigen_gebp::eval_product<akantu_fe::eigen::product_slices::{closure#1}, akantu_fe::eigen::product_slices::{closure#2}>::{closure#2}, akantu_core::eigen_gebp::eval_produ
+            |          akantu_core::eigen_gebp::eval_product::<akantu_fe::eigen::product_slices::{closure#1}, akantu_fe::eigen::product_slices::{closure#2}> (inlined)
+            |          akantu_core::eigen_gebp::product_into::<akantu_fe::eigen::product_slices::{closure#1}, akantu_fe::eigen::product_slices::{closure#2}>
+            |          akantu_fe::eigen::product::<akantu_fe::eigen::product_slices::{closure#1}, akantu_fe::eigen::product_slices::{closure#2}> (inlined)
+            |          akantu_fe::eigen::product_slices
+            |          |          
+            |           --4.55%--akantu_fe::structural::engine::integrate_rows::<<akantu_fe::structural::engine::StructuralFeEngine>::integrate::{closure#0}>
+            |                     <akantu_fe::structural::engine::StructuralFeEngine>::integrate
+            |                     <akantu_fe::structural::engine::StructuralFeEngine>::element_stiffness
+            |                     <akantu_structural::model::StructuralMechanicsPhysics>::assemble_stiffness_matrix
+            |                     <akantu_structural::model::StructuralMechanicsModel>::assemble_stiffness_matrix::{closure#0} (inlined)
+            |                     <akantu_solver::dof_manager::DofManager>::collective::<(), <akantu_structural::model::StructuralMechanicsModel>::assemble_stiffness_matrix::{closure#0}>
+            |                     suite_models::suite_models::structural::frame_static::{closure#0} (inlined)
+            |                     <suite_models::suite_models::harness::Run>::looped::<suite_models::suite_models::structural::frame_static::{closure#0}> (inlined)
+            |                     suite_models::suite_models::structural::plate_static
+            |                     0xffffffffffffffff
+            |          
+             --3.96%--akantu_fe::eigen::product_slices::{closure#2} (inlined)
+                       |          
+                        --3.71%--akantu_core::eigen_gebp::gebp_into::<akantu_fe::eigen::product_slices::{closure#1}, akantu_fe::eigen::product_slices::{closure#2}>::{closure#0} (inlined)
+                                  akantu_core::eigen_gebp::gebp_into::<akantu_fe::eigen::product_slices::{closure#1}, akantu_fe::eigen::product_slices::{closure#2}> (inlined)
+                                  akantu_core::eigen_gebp::eval_product::<akantu_fe::eigen::product_slices::{closure#1}, akantu_fe::eigen::product_slices::{closure#2}> (inlined)
+                                  akantu_core::eigen_gebp::product_into::<akantu_fe::eigen::product_slices::{closure#1}, akantu_fe::eigen::product_slices::{closure#2}>
+                                  akantu_fe::eigen::product::<akantu_fe::eigen::product_slices::{closure#1}, akantu_fe::eigen::product_slices::{closure#2}> (inlined)
+                                  akantu_fe::eigen::product_slices
+                                  |          
+                                   --3.68%--<akantu_fe::structural::engine::StructuralFeEngine>::compute_btdb
+                                             <akantu_fe::structural::engine::StructuralFeEngine>::element_stiffness
+                                             <akantu_structural::model::StructuralMechanicsPhysics>::assemble_stiffness_matrix
+                                             <akantu_structural::model::StructuralMechanicsModel>::assemble_stiffness_matrix::{closure#0} (inlined)
+                                             <akantu_solver::dof_manager::DofManager>::collective::<(), <akantu_structural::model::StructuralMechanicsModel>::assemble_stiffness_matrix::{closure#0}>
+                                             suite_models::suite_models::structural::frame_static::{closure#0} (inlined)
+                                             <suite_models::suite_models::harness::Run>::looped::<suite_models::suite_models::structural::frame_static::{closure#0}> (inlined)
+                                             suite_models::suite_models::structural::plate_static
+                                             0xffffffffffffffff
+     9.10%  [.] akantu_linalg::eigen_sparse_lu::dense::sparselu_gemm                                                                                                                                                    -      -            
+            |          
+             --8.79%--akantu_linalg::eigen_sparse_lu::dense::sparselu_gemm
+                       |          
+                        --8.77%--akantu_linalg::eigen_sparse_lu::kernels::panel_bmod
+                                  <akantu_linalg::eigen_sparse_lu::SparseLu>::factorize
+                                  <akantu_linalg::eigen_sparse_lu::EigenSparseLuSolver as akantu_linalg::direct::SparseDirectSolver>::factorize
+                                  <akantu_solver::backend::AijBackend as akantu_solver::backend::LinearSystemBackend>::solve::{closure#2}::{closure#0} (inlined)
+                                  <akantu_solver::backend::AijBackend as akantu_solver::backend::LinearSystemBackend>::solve::{closure#2} (inlined)
+                                  <akantu_comm::phase::Phases>::run::<(alloc::vec::Vec<f64>, alloc::vec::Vec<i64>), alloc::vec::Vec<(i64, f64)>, <akantu_solver::backend::AijBackend as akantu_solver::backend::LinearSystemBackend>::solve::{cl
+                                  <akantu_solver::backend::AijBackend as akantu_solver::backend::LinearSystemBackend>::solve
+                                  <akantu_solver::dof_manager::DofManager>::solve_linear_system::{closure#0}::{closure#2} (inlined)
+                                  <akantu_solver::dof_manager::DofManager>::lend::<(), <akantu_solver::dof_manager::DofManager>::solve_linear_system::{closure#0}::{closure#2}> (inlined)
+                                  <akantu_solver::dof_manager::DofManager>::solve_linear_system::{closure#0} (inlined)
+                                  <akantu_solver::dof_manager::DofManager>::collective::<(), <akantu_solver::dof_manager::DofManager>::solve_linear_system::{closure#0}> (inlined)
+                                  <akantu_solver::dof_manager::DofManager>::solve_linear_system
+                                  <akantu_solver::dof_manager::DofManager>::solve::{closure#0} (inlined)
+                                  <akantu_solver::dof_manager::DofManager>::collective::<(), <akantu_solver::dof_manager::DofManager>::solve::{closure#0}> (inlined)
+                                  <akantu_solver::dof_manager::DofManager>::solve
+                                  <akantu_solver::non_linear_newton_raphson::NonLinearSolverNewtonRaphson>::solve_nr
+                                  <akantu_solver::non_linear_newton_raphson::NonLinearSolverNewtonRaphson as akantu_solver::non_linear::NonLinearSolver>::solve::{closure#1} (inlined)
+                                  <akantu_solver::dof_manager::DofManager>::collective::<(), <akantu_solver::non_linear_newton_raphson::NonLinearSolverNewtonRaphson as akantu_solver::non_linear::NonLinearSolver>::solve::{closure#1}>
+                                  <akantu_solver::non_linear_newton_raphson::NonLinearSolverNewtonRaphson as akantu_solver::non_linear::NonLinearSolver>::solve
+                                  <akantu_solver::time_step::TimeStepSolver>::solve_step (inlined)
+                                  <akantu_solver::model_solver::ModelSolver>::solve_step
+                                  <akantu_structural::model::StructuralMechanicsModel>::solve_step
+                                  suite_models::suite_models::structural::frame_static::{closure#1} (inlined)
+                                  <suite_models::suite_models::harness::Run>::once::<(), suite_models::suite_models::structural::frame_static::{closure#1}> (inlined)
+                                  suite_models::suite_models::structural::plate_static
+                                  0xffffffffffffffff
+     3.62%  [.] <akantu_linalg::sparse::SparseMatrixAij>::add_values                                                                                                                                               -      -            
+     3.47%  [.] akantu_linalg::eigen_sparse_lu::kernels::panel_bmod                                                                                                                                                     -      -            
+            |          
+             --3.10%--akantu_linalg::eigen_sparse_lu::kernels::panel_bmod
+                       <akantu_linalg::eigen_sparse_lu::SparseLu>::factorize
+                       <akantu_linalg::eigen_sparse_lu::EigenSparseLuSolver as akantu_linalg::direct::SparseDirectSolver>::factorize
+                       <akantu_solver::backend::AijBackend as akantu_solver::backend::LinearSystemBackend>::solve::{closure#2}::{closure#0} (inlined)
+                       <akantu_solver::backend::AijBackend as akantu_solver::backend::LinearSystemBackend>::solve::{closure#2} (inlined)
+                       <akantu_comm::phase::Phases>::run::<(alloc::vec::Vec<f64>, alloc::vec::Vec<i64>), alloc::vec::Vec<(i64, f64)>, <akantu_solver::backend::AijBackend as akantu_solver::backend::LinearSystemBackend>::solve::{closure#2}>
+                       <akantu_solver::backend::AijBackend as akantu_solver::backend::LinearSystemBackend>::solve
+                       <akantu_solver::dof_manager::DofManager>::solve_linear_system::{closure#0}::{closure#2} (inlined)
+                       <akantu_solver::dof_manager::DofManager>::lend::<(), <akantu_solver::dof_manager::DofManager>::solve_linear_system::{closure#0}::{closure#2}> (inlined)
+                       <akantu_solver::dof_manager::DofManager>::solve_linear_system::{closure#0} (inlined)
+                       <akantu_solver::dof_manager::DofManager>::collective::<(), <akantu_solver::dof_manager::DofManager>::solve_linear_system::{closure#0}> (inlined)
+                       <akantu_solver::dof_manager::DofManager>::solve_linear_system
+                       <akantu_solver::dof_manager::DofManager>::solve::{closure#0} (inlined)
+                       <akantu_solver::dof_manager::DofManager>::collective::<(), <akantu_solver::dof_manager::DofManager>::solve::{closure#0}> (inlined)
+                       <akantu_solver::dof_manager::DofManager>::solve
+                       <akantu_solver::non_linear_newton_raphson::NonLinearSolverNewtonRaphson>::solve_nr
+                       <akantu_solver::non_linear_newton_raphson::NonLinearSolverNewtonRaphson as akantu_solver::non_linear::NonLinearSolver>::solve::{closure#1} (inlined)
+                       <akantu_solver::dof_manager::DofManager>::collective::<(), <akantu_solver::non_linear_newton_raphson::NonLinearSolverNewtonRaphson as akantu_solver::non_linear::NonLinearSolver>::solve::{closure#1}>
+                       <akantu_solver::non_linear_newton_raphson::NonLinearSolverNewtonRaphson as akantu_solver::non_linear::NonLinearSolver>::solve
+                       <akantu_solver::time_step::TimeStepSolver>::solve_step (inlined)
+                       <akantu_solver::model_solver::ModelSolver>::solve_step
+                       <akantu_structural::model::StructuralMechanicsModel>::solve_step
+                       suite_models::suite_models::structural::frame_static::{closure#1} (inlined)
+                       <suite_models::suite_models::harness::Run>::once::<(), suite_models::suite_models::structural::frame_static::{closure#1}> (inlined)
+                       suite_models::suite_models::structural::plate_static
+                       0xffffffffffffffff
+     3.21%  [.] <std::hash::random::DefaultHasher as core::hash::Hasher>::write                                                                                              -      -            

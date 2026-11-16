@@ -167,6 +167,9 @@ struct StressCopyPlan {
     /// Per bulk type: filter length and an order-sensitive digest.
     filter_key: Vec<(ElementType, usize, u64)>,
     blocks: Vec<StressCopyBlock>,
+    /// The fused form of every block ([`build_fused`]), once built for
+    /// these blocks (`None` for a block without it).
+    fused: Option<Vec<Option<Vec<FusedPair>>>>,
 }
 
 #[derive(Clone, Debug, PartialEq)]
@@ -176,12 +179,107 @@ struct StressCopyBlock {
     facet_ghost: GhostType,
     /// Quadrature points per facet.
     nq: usize,
+    /// Interpolation points per bulk element (the by-element buffer's).
+    nip: usize,
     /// `(source, destination)` offsets of the first quadrature point,
     /// ordered by destination.
     pairs: Vec<(usize, usize)>,
     /// Exclusive bounds the offsets need (checked before copying).
     src_end: usize,
     dst_end: usize,
+}
+
+/// One `(source, destination)` pair of a [`StressCopyBlock`] in the fused
+/// form of [`SolidMechanicsModelCohesive::interpolate_stress`]: instead of
+/// interpolating every element into the by-element buffer and copying the
+/// buffer's tuples, the value of the pair's interpolation points is
+/// computed directly into `facet_stress` from the element's stress tuple
+/// ([`akantu_fe::engine::PointInterpolation::value`], the operations the
+/// interpolation performs for that element and point). The element's tuple
+/// and slot are those of its position in the law's filter and that
+/// position's interpolation slot (a filter that lists an element twice has
+/// no fused form, [`fuse_block`]).
+#[derive(Clone, Copy, Debug, PartialEq)]
+struct FusedPair {
+    /// Offset of the element's stress tuple in the law's stress block.
+    field: u32,
+    /// Interpolation slot of the element.
+    slot: u32,
+    /// Interpolation point of the facet's first quadrature point.
+    point: u32,
+    /// Destination offset (the pair's).
+    dst: u32,
+}
+
+/// The fused form of every block of `plan` for the law filter `filter`
+/// and its stress interpolation `interp`: `None` for a block whose bulk
+/// type has no [`akantu_fe::engine::PointInterpolation`] (more than one quadrature
+/// point, other routes), whose filter does not match the interpolation or
+/// lists an element twice, or whose offsets do not fit `u32`; such a block
+/// makes the law take the general path.
+fn build_fused(
+    plan: &StressCopyPlan,
+    filter: &ElementTypeMapArray<Idx>,
+    interp: &ElementalFieldInterpolation,
+    stress_size: usize,
+) -> Vec<Option<Vec<FusedPair>>> {
+    plan.blocks
+        .iter()
+        .map(|block| fuse_block(block, filter, interp, stress_size))
+        .collect()
+}
+
+fn fuse_block(
+    block: &StressCopyBlock,
+    filter: &ElementTypeMapArray<Idx>,
+    interp: &ElementalFieldInterpolation,
+    stress_size: usize,
+) -> Option<Vec<FusedPair>> {
+    let view = interp
+        .point_interpolation(block.bulk, GhostType::NotGhost, stress_size)
+        .ok()??;
+    let nip = view.nb_interpolation_points();
+    if nip != block.nip || stress_size == 0 || block.nq == 0 {
+        return None;
+    }
+    let ids: Vec<usize> = filter
+        .get(block.bulk, GhostType::NotGhost)
+        .ok()?
+        .as_slice()
+        .iter()
+        .map(|&e| usize::try_from(e).ok())
+        .collect::<Option<_>>()?;
+    let slots = view.slots(&ids).ok()?;
+    let mut last = vec![usize::MAX; ids.iter().max().map_or(0, |&m| m + 1)];
+    for (pos, &e) in ids.iter().enumerate() {
+        if last[e] != usize::MAX {
+            // an element listed twice: the general path (whose later
+            // positions overwrite earlier ones) decides its values
+            return None;
+        }
+        last[e] = pos;
+    }
+    let u = |x: usize| u32::try_from(x).ok();
+    // Threading candidate (independent outputs): one entry per pair.
+    let mut out = Vec::with_capacity(block.pairs.len());
+    for &(src, dst) in &block.pairs {
+        if src % stress_size != 0 {
+            return None;
+        }
+        let p = src / stress_size;
+        let (element, point) = (p / nip, p % nip);
+        let pos = *last.get(element)?;
+        if pos == usize::MAX || point + block.nq > nip {
+            return None;
+        }
+        out.push(FusedPair {
+            field: u(pos.checked_mul(stress_size)?)?,
+            slot: u(slots[pos])?,
+            point: u(point)?,
+            dst: u(dst)?,
+        });
+    }
+    Some(out)
 }
 
 /// Length and digest of a law's not-ghost filter per type (plan key).
@@ -219,53 +317,89 @@ fn copy_points_dyn(by: &[Real], rs: &mut [Real], src: usize, dst: usize, nq: usi
     }
 }
 
+/// One facet block of [`build_stress_plan`]: its type and ghost type, its
+/// `element_to_subelement` lists and the first neighbour of each facet.
+type FacetBlockTable<'a> = (
+    ElementType,
+    GhostType,
+    &'a akantu_core::Array<Vec<Element>>,
+    Vec<Option<Element>>,
+);
+
 /// Build the [`StressCopyPlan`] of one bulk law (upstream
 /// `interpolateStress` loop: for every element of the filter and every
 /// facet of it, the side is 1 unless the element is the facet's first
-/// neighbour in `element_to_subelement`).
+/// neighbour in `element_to_subelement`). The interpolation points per
+/// element come from the law's stress interpolation `interp` (not from the
+/// by-element buffer's length, which may be stale when the element count
+/// changed).
 fn build_stress_plan(
-    m: &Mesh,
     fm: &Mesh,
     filter: &ElementTypeMapArray<Idx>,
     types: &[ElementType],
-    by_elem_buffer: &ElementTypeMapArray<Real>,
+    interp: &ElementalFieldInterpolation,
     stress_size: usize,
 ) -> Result<StressCopyPlan> {
     let s2e = fm.data().element_map(SUBELEMENT_TO_ELEMENT)?;
     let e2s = fm.data().element_lists(ELEMENT_TO_SUBELEMENT)?;
     let mut plan = StressCopyPlan::default();
+    // per facet block met (not-ghost and ghost facets alternate on a
+    // distributed mesh): its neighbour lists and the first neighbour of each
+    // of its facets, read once in facet order (no per-pair visit of the lists)
+    let mut tables: Vec<FacetBlockTable<'_>> = Vec::new();
     for &ty in types {
         let elems = filter.get(ty, GhostType::NotGhost)?.as_slice();
         if elems.is_empty() {
             continue;
         }
-        let ne_full = m.nb_element(ty, GhostType::NotGhost);
-        let by_len = by_elem_buffer.get(ty, GhostType::NotGhost)?.len();
-        let nip = by_len / ne_full.max(1);
+        let nip = interp
+            .nb_interpolation_points(ty, GhostType::NotGhost)
+            .ok_or_else(|| {
+                Error::invalid(format!(
+                    "interpolateStress: no stress interpolation for {} (not ghost)",
+                    ty.name()
+                ))
+            })?;
         let f2e = s2e.get(ty, GhostType::NotGhost)?;
         let nfe = f2e.nb_component();
         let nq = nip / nfe.max(1);
         let first_block = plan.blocks.len();
-        // last facet-type array looked up (one type per bulk type normally)
-        let mut cached: Option<(ElementType, GhostType, &akantu_core::Array<Vec<Element>>)> = None;
+        // Threading candidate: the pairs of each element are independent;
+        // per-chunk vectors concatenated in filter order before
+        // `sort_by_destination` give the same plan (rebuilt after every
+        // insertion step).
         for &ge in elems {
             let ge_u = akantu_core::try_to_usize(ge)?;
             let element = Element::new(ty, ge, GhostType::NotGhost);
             let row = f2e.get_tuple(ge_u)?;
             for (f, facet) in row.iter().enumerate() {
-                let lists = match cached {
-                    Some((t, g, a)) if t == facet.ty() && g == facet.ghost_type() => a,
-                    _ => {
+                let k = match tables
+                    .iter()
+                    .position(|(t, g, _, _)| *t == facet.ty() && *g == facet.ghost_type())
+                {
+                    Some(k) => k,
+                    None => {
                         let a = e2s.get(facet.ty(), facet.ghost_type())?;
-                        cached = Some((facet.ty(), facet.ghost_type(), a));
-                        a
+                        let firsts = if a.nb_component() == 1 {
+                            a.as_slice().iter().map(|l| l.first().copied()).collect()
+                        } else {
+                            Vec::new()
+                        };
+                        tables.push((facet.ty(), facet.ghost_type(), a, firsts));
+                        tables.len() - 1
                     }
                 };
+                let (_, _, lists, first_of) = &tables[k];
                 let fi = facet.try_idx().ok_or_else(|| {
                     Error::invalid("interpolateStress: a bulk element without facet")
                 })?;
-                let neighbours = lists.get_tuple(fi)?;
-                let second = usize::from(neighbours[0].first() != Some(&element));
+                let first = match first_of.get(fi) {
+                    Some(&f) => f,
+                    // other layouts and out-of-range rows: the lists
+                    // themselves (and their errors)
+                    None => lists.get_tuple(fi)?[0].first().copied(),
+                };
+                let second = usize::from(first != Some(element));
                 let src = (ge_u * nip + f * nq) * stress_size;
                 let dst = (fi * nq * 2 + second) * stress_size;
                 let block = match plan.blocks[first_block..]
@@ -279,6 +413,7 @@ fn build_stress_plan(
                             facet: facet.ty(),
                             facet_ghost: facet.ghost_type(),
                             nq,
+                            nip,
                             pairs: Vec::with_capacity(elems.len() * nfe),
                             src_end: 0,
                             dst_end: 0,
@@ -296,9 +431,113 @@ fn build_stress_plan(
         }
     }
     for block in &mut plan.blocks {
-        sort_by_destination(&mut block.pairs);
+        sort_by_destination(&mut block.pairs, stress_size);
     }
     Ok(plan)
+}
+
+/// The fused form of [`SolidMechanicsModelCohesive::interpolate_stress`]
+/// for one bulk law ([`FusedPair`]): every destination of the plan written
+/// from the law's stress tuple of its element, in the plan's order (the
+/// values the interpolation and the copy write, bit for bit). `Ok(false)`,
+/// nothing written, when a block has no fused form or the law's stress,
+/// filter or `facet_stress` do not have the sizes the plan was built for:
+/// the general path then runs (and reports what it reports).
+fn interpolate_fused(
+    plan: &StressCopyPlan,
+    stress: &akantu_core::SharedElementTypeMapArray<Real>,
+    filter: &ElementTypeMapArray<Idx>,
+    interp: &ElementalFieldInterpolation,
+    facet_stress: &mut ElementTypeMapArray<Real>,
+    stress_size: usize,
+) -> Result<bool> {
+    let Some(fused) = &plan.fused else {
+        return Ok(false);
+    };
+    if fused.len() != plan.blocks.len() || fused.iter().any(Option::is_none) {
+        return Ok(false);
+    }
+    let g = GhostType::NotGhost;
+    for block in &plan.blocks {
+        let Ok(f) = stress.get(block.bulk, g) else {
+            return Ok(false);
+        };
+        let n = filter.get(block.bulk, g).map_or(usize::MAX, Array::len);
+        if f.nb_component() != stress_size || f.len() != n {
+            return Ok(false);
+        }
+        match facet_stress.get(block.facet, block.facet_ghost) {
+            Ok(a) if a.as_slice().len() >= block.dst_end => {}
+            _ => return Ok(false),
+        }
+        if interp
+            .point_interpolation(block.bulk, g, stress_size)?
+            .is_none()
+        {
+            return Ok(false);
+        }
+    }
+    for (block, pairs) in plan.blocks.iter().zip(fused) {
+        let (Some(pairs), Some(view)) = (
+            pairs,
+            interp.point_interpolation(block.bulk, g, stress_size)?,
+        ) else {
+            return Err(Error::invalid(
+                "interpolateStress: fused plan changed while in use",
+            ));
+        };
+        let f = stress.get(block.bulk, g)?;
+        let fs = f.as_slice();
+        let rs = facet_stress
+            .get_mut(block.facet, block.facet_ghost)?
+            .as_mut_slice();
+        // Threading candidate (the execution policy's primitives, independent outputs):
+        // every pair writes only its own destination tuples (the plan holds
+        // one pair per destination), so any chunking of `pairs` keeps every
+        // bit; chunks by destination range keep the writes sequential.
+        match stress_size {
+            9 => fused_pairs::<9>(&view, pairs, fs, rs, block.nq),
+            4 => fused_pairs::<4>(&view, pairs, fs, rs, block.nq),
+            n => {
+                for p in pairs {
+                    let src = &fs[p.field as usize..p.field as usize + n];
+                    for q in 0..block.nq {
+                        let d = p.dst as usize + 2 * q * n;
+                        view.value(
+                            p.slot as usize,
+                            p.point as usize + q,
+                            src,
+                            &mut rs[d..d + n],
+                        );
+                    }
+                }
+            }
+        }
+    }
+    Ok(true)
+}
+
+/// The pairs of one fused block for stress tuples of `N` values: the
+/// element's coefficients once per pair (shared by the facet's `nq`
+/// points), then each point's value (`PointInterpolation::value`, in two
+/// steps).
+#[inline]
+fn fused_pairs<const N: usize>(
+    view: &akantu_fe::engine::PointInterpolation<'_>,
+    pairs: &[FusedPair],
+    fs: &[Real],
+    rs: &mut [Real],
+    nq: usize,
+) {
+    let mut c = [0.0; N];
+    for p in pairs {
+        let (slot, field) = (p.slot as usize, p.field as usize);
+        view.coefficients(slot, &fs[field..field + N], &mut c);
+        for q in 0..nq {
+            let d = p.dst as usize + 2 * q * N;
+            view.value_from_coefficients(&c, slot, p.point as usize + q, &mut rs[d..d + N]);
+        }
+    }
 }
 
 /// Rebuild `plan` when it was never built, the bulk mesh revision changed
@@ -311,14 +550,14 @@ fn update_stress_plan(
     fm: &Mesh,
     filter: &ElementTypeMapArray<Idx>,
     types: &[ElementType],
-    by_elem_buffer: &ElementTypeMapArray<Real>,
+    interp: &ElementalFieldInterpolation,
     stress_size: usize,
 ) -> Result<bool> {
     let key = filter_key(filter, types)?;
     if !plan.blocks.is_empty() && plan.revision == m.revision() && plan.filter_key == key {
         return Ok(false);
     }
-    *plan = build_stress_plan(m, fm, filter, types, by_elem_buffer, stress_size)?;
+    *plan = build_stress_plan(fm, filter, types, interp, stress_size)?;
     plan.revision = m.revision();
     plan.filter_key = key;
     Ok(true)
@@ -332,7 +571,27 @@ fn update_stress_plan(
 /// upstream's order is kept (the stable sort keeps equal destinations in
 /// that order), which leaves exactly the values upstream's loop leaves.
 /// Pairs with different destinations write disjoint tuples.
-fn sort_by_destination(pairs: &mut Vec<(usize, usize)>) {
+///
+/// Linear time when every destination is a multiple of `unit` (the stress
+/// size: the plan's destinations are tuple offsets) and the destinations
+/// span at most a few slots per pair: a table of the last pair written to
+/// each destination, read in destination order — the same pairs in the
+/// same order as the stable sort and deduplication of the general case.
+fn sort_by_destination(pairs: &mut Vec<(usize, usize)>, unit: usize) {
+    let max = pairs.iter().map(|&(_, d)| d).max().unwrap_or(0);
+    let slots = max / unit.max(1) + 1;
+    if unit > 0 && pairs.iter().all(|&(_, d)| d % unit == 0) && slots <= 4 * pairs.len() + 1024 {
+        let mut last = vec![usize::MAX; slots];
+        for (k, &(_, d)) in pairs.iter().enumerate() {
+            last[d / unit] = k;
+        }
+        *pairs = last
+            .iter()
+            .filter(|&&k| k != usize::MAX)
+            .map(|&k| pairs[k])
+            .collect();
+        return;
+    }
     pairs.sort_by_key(|&(_, dst)| dst);
     let mut out: Vec<(usize, usize)> = Vec::with_capacity(pairs.len());
     for &(src, dst) in pairs.iter() {
@@ -1505,6 +1764,42 @@ impl SolidMechanicsModelCohesive {
             }
             let law = self.smm.physics.materials.law(i)?;
             let filter = &law.base().element_filter;
+            // fused form (performance): once the by-element buffer has its
+            // blocks (first call) with the length the general path accepts
+            // (otherwise the general path runs and reports what it reports),
+            // the plan is brought up to date first and the facet values are
+            // computed directly from the stresses
+            let types: Vec<ElementType> = law.base().filter_types(GhostType::NotGhost);
+            let buffer_accepted = |t: ElementType| {
+                let g = GhostType::NotGhost;
+                match (
+                    by_elem_buffer.get(t, g),
+                    interp.nb_interpolation_points(t, g),
+                ) {
+                    (Ok(b), Some(nip)) => {
+                        b.nb_component() == stress_size
+                            && b.len() >= m.nb_element(t, g).saturating_mul(nip)
+                    }
+                    _ => false,
+                }
+            };
+            if types.iter().all(|&t| buffer_accepted(t)) {
+                let plan = stress_plans.entry(i).or_default();
+                update_stress_plan(plan, &m, fm, filter, &types, interp, stress_size)?;
+                if plan.fused.is_none() {
+                    plan.fused = Some(build_fused(plan, filter, interp, stress_size));
+                }
+                if interpolate_fused(
+                    plan,
+                    law.base().stress.values(),
+                    filter,
+                    interp,
+                    facet_stress,
+                    stress_size,
+                )? {
+                    continue;
+                }
+            }
             // one guard per stress block instead of a copy of the whole
             // stress map per check
             fe.interpolate_elemental_field_shared(
@@ -1515,9 +1810,8 @@ impl SolidMechanicsModelCohesive {
                 GhostType::NotGhost,
                 Some(filter),
             )?;
-            let types: Vec<ElementType> = law.base().filter_types(GhostType::NotGhost);
             let plan = stress_plans.entry(i).or_default();
-            update_stress_plan(plan, &m, fm, filter, &types, by_elem_buffer, stress_size)?;
+            update_stress_plan(plan, &m, fm, filter, &types, interp, stress_size)?;
             for block in &plan.blocks {
                 let by = by_elem_buffer
                     .get(block.bulk, GhostType::NotGhost)?
@@ -3012,9 +3306,17 @@ mod perf_tests {
     #[test]
     fn sorting_by_destination_keeps_the_last_writer() {
         // (source, destination) in loop order; destination 9 written twice
-        let mut pairs = vec![(0, 18), (9, 9), (18, 0), (27, 9), (36, 27)];
-        sort_by_destination(&mut pairs);
-        assert_eq!(pairs, vec![(18, 0), (27, 9), (0, 18), (36, 27)]);
+        let pairs = vec![(0, 18), (9, 9), (18, 0), (27, 9), (36, 27)];
+        // the table (unit 9), the sort (a unit that does not divide every
+        // destination) and the sort of a sparse range give the same pairs
+        for unit in [9, 1, 7, 0] {
+            let mut p = pairs.clone();
+            sort_by_destination(&mut p, unit);
+            assert_eq!(p, vec![(18, 0), (27, 9), (0, 18), (36, 27)], "unit {unit}");
+        }
+        let mut sparse = vec![(1, 9_000_000), (2, 0), (3, 9_000_000)];
+        sort_by_destination(&mut sparse, 9);
+        assert_eq!(sparse, vec![(2, 0), (3, 9_000_000)]);
     }
 
     const DAT: &str = "model solid_mechanics_model_cohesive [
@@ -3094,7 +3396,15 @@ mod perf_tests {
             .map(|(t, _, _)| t)
             .collect();
         let dim = model.ext.dim;
-        build_stress_plan(&m, fm, filter, &types, &model.ext.by_elem_buffer, dim * dim).unwrap()
+        let i = bulk_law(model);
+        build_stress_plan(
+            fm,
+            filter,
+            &types,
+            &model.ext.stress_interpolation[&i],
+            dim * dim,
+        )
+        .unwrap()
     }
 
     /// The copy plan follows an insertion: after the mesh revision changed,
@@ -3139,6 +3449,189 @@ mod perf_tests {
         );
     }
 
+    /// An extrinsic model on a fixture mesh of `test_cohesive` (the DAT
+    /// above: every interior facet checked).
+    fn fixture_model(file: &str, dim: usize) -> (SolidMechanicsModelCohesive, SharedMesh) {
+        let path = akantu_validation::fixtures_root().join(format!(
+            "meshes/gmsh-4.13.1/test/test_model/test_solid_mechanics_model/test_cohesive/{file}"
+        ));
+        let mut mesh = Mesh::new(dim, "mesh").unwrap();
+        akantu_io::read_mesh(&mut mesh, &path, akantu_core::enums::MeshIoType::Gmsh).unwrap();
+        let shared = SharedMesh::new(mesh);
+        let parser = Parser::parse_str(DAT, "material.dat").unwrap();
+        let mut model =
+            SolidMechanicsModelCohesive::with_parser(shared.clone(), None, DEFAULT_ID, parser)
+                .unwrap();
+        model
+            .init_full(&ModelOptions::new(AnalysisMethod::ExplicitLumpedMass), true)
+            .unwrap();
+        (model, shared)
+    }
+
+    /// Bits of every `facet_stress` value after `interpolate_stress` with
+    /// every value set to a sentinel before; `general` forces the general
+    /// path (interpolation into the by-element buffer, then the copy),
+    /// otherwise the fused path must be taken.
+    fn facet_stress_after(model: &mut SolidMechanicsModelCohesive, general: bool) -> Vec<u64> {
+        model.ext.facet_stress.fill(-7.25);
+        let i = bulk_law(model);
+        if let Some(plan) = model.ext.stress_plans.get_mut(&i) {
+            plan.fused = general.then(|| vec![None; plan.blocks.len()]);
+        }
+        model.interpolate_stress().unwrap();
+        if !general {
+            let fused = model.ext.stress_plans[&i].fused.as_ref().unwrap();
+            assert!(!fused.is_empty() && fused.iter().all(Option::is_some));
+        }
+        model
+            .ext
+            .facet_stress
+            .as_map()
+            .iter_all()
+            .flat_map(|(_, _, a)| a.as_slice().iter().map(|x| x.to_bits()))
+            .collect()
+    }
+
+    /// The fused interpolation of the facet stresses (linear tetrahedra and
+    /// triangles) writes bitwise the values of the general path, before and
+    /// after insertions (plan and fused pairs rebuilt).
+    #[test]
+    fn fused_interpolation_is_bitwise_the_general_path() {
+        for (file, dim) in [
+            ("_cohesive_3d_6_tetrahedron_4.msh", 3),
+            ("_cohesive_2d_4_triangle_3.msh", 2),
+        ] {
+            let (mut model, mesh) = fixture_model(file, dim);
+            // first call: the general path allocates the by-element buffer
+            model.interpolate_stress().unwrap();
+            for round in 0..4 {
+                let nodes = mesh.read().unwrap().nodes().as_slice().to_vec();
+                {
+                    // a non-uniform field: stresses differ between elements
+                    let mut u_g = model.smm.displacement_mut().unwrap();
+                    let u = u_g.as_mut_slice();
+                    let scale = 2e-3 * Real::from(round + 1);
+                    for (k, (x, ui)) in nodes.chunks(dim).zip(u.chunks_mut(dim)).enumerate() {
+                        for d in 0..dim {
+                            let wobble = Real::from(u8::try_from(k % 7).unwrap()) * 0.05;
+                            ui[d] = scale * (x[d] * (1.0 + x[(d + 1) % dim]) + wobble);
+                        }
+                    }
+                }
+                model.assemble_internal_forces().unwrap();
+                let general = facet_stress_after(&mut model, true);
+                let fused = facet_stress_after(&mut model, false);
+                assert_eq!(general, fused, "{file}, round {round}");
+                let sentinel = (-7.25_f64).to_bits();
+                assert!(
+                    fused.iter().any(|&b| b != sentinel),
+                    "{file}: values written"
+                );
+                model.check_cohesive_stress().unwrap();
+            }
+            assert!(
+                model.ext.stats.inserted > 0,
+                "{file}: insertions between the rounds"
+            );
+        }
+    }
+
+    /// A non-uniform displacement field (stresses differ between elements).
+    fn set_wobbly_displacement(model: &mut SolidMechanicsModelCohesive, dim: usize, scale: Real) {
+        let mesh = model.smm.physics.base.mesh.clone();
+        let nodes = mesh.read().unwrap().nodes().as_slice().to_vec();
+        let mut u_g = model.smm.displacement_mut().unwrap();
+        let u = u_g.as_mut_slice();
+        for (k, (x, ui)) in nodes.chunks(dim).zip(u.chunks_mut(dim)).enumerate() {
+            for d in 0..dim {
+                let wobble = Real::from(u8::try_from(k % 7).unwrap()) * 0.05;
+                ui[d] = scale * (x[d] * (1.0 + x[(d + 1) % dim]) + wobble);
+            }
+        }
+    }
+
+    /// A by-element buffer shorter than the mesh needs (its state after the
+    /// number of bulk elements grew since it was allocated, which
+    /// `accept_revision_unchanged_geometry` admits) is refused by the general
+    /// path, and the fused path does not run on it: the error is the general
+    /// path's, and no plan sized from the stale buffer is cached. Once the
+    /// buffer is allocated again, the facet stresses equal a fresh model's,
+    /// bitwise. (A plan taking its points per element from the buffer's
+    /// length was rebuilt with a wrong size here and then kept.)
+    #[test]
+    fn a_stale_by_element_buffer_leaves_no_plan_of_the_wrong_size() {
+        const T4: ElementType = ElementType::Tetrahedron4;
+        const NG: GhostType = GhostType::NotGhost;
+        let file = "_cohesive_3d_6_tetrahedron_4.msh";
+        let (mut model, _mesh) = fixture_model(file, 3);
+        set_wobbly_displacement(&mut model, 3, 2e-3);
+        model.assemble_internal_forces().unwrap();
+        model.interpolate_stress().unwrap();
+        let i = bulk_law(&model);
+        let nip = model.ext.stress_interpolation[&i]
+            .nb_interpolation_points(T4, NG)
+            .unwrap();
+        // the buffer of one element fewer than the mesh has
+        let full = model.ext.by_elem_buffer.get(T4, NG).unwrap().len();
+        model
+            .ext
+            .by_elem_buffer
+            .get_mut(T4, NG)
+            .unwrap()
+            .truncate(full - nip);
+        // a new revision: a plan would be rebuilt now
+        model.mutate_mesh(|_| Ok(()), None).unwrap();
+        let r = model.interpolate_stress();
+        assert!(matches!(r, Err(Error::DimensionMismatch { .. })), "{r:?}");
+        assert!(
+            model.ext.stress_plans[&i]
+                .blocks
+                .iter()
+                .all(|b| b.nip == nip),
+            "a plan sized from the stale buffer"
+        );
+        // allocated again by the general path, then the fused path
+        model.ext.by_elem_buffer.as_map_mut().remove(T4, NG);
+        model.interpolate_stress().unwrap();
+        let got = facet_stress_after(&mut model, false);
+        let (mut fresh, _) = fixture_model(file, 3);
+        set_wobbly_displacement(&mut fresh, 3, 2e-3);
+        fresh.assemble_internal_forces().unwrap();
+        fresh.interpolate_stress().unwrap();
+        let want = facet_stress_after(&mut fresh, true);
+        assert_eq!(got, want);
+    }
+
+    /// A filter that lists an element twice has no fused form (the law takes
+    /// the general path); the same filter without the duplicate has one.
+    #[test]
+    fn a_filter_with_a_duplicated_element_has_no_fused_form() {
+        const T4: ElementType = ElementType::Tetrahedron4;
+        const NG: GhostType = GhostType::NotGhost;
+        let (mut model, _mesh) = fixture_model("_cohesive_3d_6_tetrahedron_4.msh", 3);
+        model.interpolate_stress().unwrap();
+        let i = bulk_law(&model);
+        let plan = model.ext.stress_plans[&i].clone();
+        let interp = &model.ext.stress_interpolation[&i];
+        let filter = model
+            .smm
+            .physics
+            .materials
+            .law(i)
+            .unwrap()
+            .base()
+            .element_filter
+            .clone();
+        let block = plan.blocks.iter().find(|b| b.bulk == T4).unwrap();
+        assert!(fuse_block(block, &filter, interp, 9).is_some());
+        let mut twice = filter.clone();
+        let ids = twice.get_mut(T4, NG).unwrap();
+        assert!(ids.len() >= 2);
+        let first = ids.as_slice()[0];
+        ids.as_mut_slice()[1] = first;
+        assert!(fuse_block(block, &twice, interp, 9).is_none());
+    }
+
     /// The copy plan follows a change of the law's filter without a mesh
     /// revision (an element dropped): rebuilt and equal to a fresh plan; an
     /// unchanged revision and filter keep the cached plan.
@@ -3161,7 +3654,7 @@ mod perf_tests {
             .element_filter
             .clone();
         let types = vec![ElementType::Quadrangle4];
-        let by = &model.ext.by_elem_buffer;
+        let by = &model.ext.stress_interpolation[&i];
         // same revision, same filter: kept
         assert!(!update_stress_plan(&mut plan, &m, fm, &filter, &types, by, ss).unwrap());
         // the last element leaves the law: rebuilt

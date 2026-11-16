@@ -1,0 +1,260 @@
+{
+  "schema": "akantu-rs-ci-summary/1",
+  "verdict": "INCOMPLETE",
+  "failed_tiers": [],
+  "incomplete_tiers": [
+    "lint"
+  ],
+  "provenance": {
+    "schema": "akantu-rs-ci-summary/1",
+    "label": "",
+    "started": "2026-11-16T04:43:04Z",
+    "backend": "docker",
+    "image": "akantu-rs-mpi:dev",
+    "target_name": "infra",
+    "tiers": "lint test fixtures parity licence",
+    "extra_args": "",
+    "dry_run": "0",
+    "git_head": "59dd2229c61e4feb98dd38829283a153174ba4eb",
+    "git_tree": "4bd37cd0e43052223196cb35d2d9803084916ff0",
+    "git_dirty_files": "0",
+    "host": "Linux x86_64 <kernel>",
+    "host_cargo": "none",
+    "host_rustc": "none",
+    "host_python": "Python 3.12.3",
+    "image_id[akantu-rs-mpi:dev]": "sha256:736f765eb5c89a2527ae05ec7fb85838d1c2dfb13ba5594d10131a922bf6169b",
+    "image_id[akantu-rs-scotch:dev]": "sha256:d818d76dea70b75a5bf034fc2653155da86e70eea08f6a6c7677998a4e960d8a",
+    "image_id[akantu-rs-mumps:dev]": "sha256:0bf8962ad1a6665fb90f3d516ad763d919b2abcad9f91d256c49c6954b5bddaf",
+    "image_id[akantu-rs-petsc:dev]": "sha256:bc6218e5d4fccd18adaf4f8003d497deae66fa5ce876a9bac1e54595b53ae9c9",
+    "finished": "2026-11-16T05:05:23Z"
+  },
+  "tiers": [
+    {
+      "name": "lint",
+      "status": "incomplete",
+      "seconds": 81,
+      "reason": null,
+      "step_counts": {
+        "pass": 3,
+        "fail": 0,
+        "skip": 2,
+        "na": 0
+      },
+      "steps": [
+        {
+          "name": "fmt",
+          "status": "pass",
+          "exit_code": 0,
+          "seconds": 9,
+          "reason": null,
+          "backend": "docker",
+          "command": "cargo fmt --all --check",
+          "log": "lint/fmt.log"
+        },
+        {
+          "name": "clippy",
+          "status": "pass",
+          "exit_code": 0,
+          "seconds": 72,
+          "reason": null,
+          "backend": "docker",
+          "command": "cargo clippy --workspace --all-targets --locked -- -D warnings",
+          "log": "lint/clippy.log"
+        },
+        {
+          "name": "bash-n",
+          "status": "pass",
+          "exit_code": 0,
+          "seconds": 0,
+          "reason": null,
+          "backend": "host",
+          "command": "sh -c 'cd \"$1\" && rc=0; while IFS= read -r f; do bash -n \"$f\" || rc=1; done < \"$2\"; exit $rc' sh ~/w/infra/akantu-rs ~/w/infra/ci-fast/lint/shell-files.txt",
+          "log": "lint/bash-n.log"
+        },
+        {
+          "name": "shellcheck",
+          "status": "skip",
+          "exit_code": null,
+          "seconds": 0,
+          "reason": "shellcheck not installed on the host",
+          "log": null
+        },
+        {
+          "name": "ruff",
+          "status": "skip",
+          "exit_code": null,
+          "seconds": 0,
+          "reason": "python/pyproject.toml present but ruff is not installed",
+          "log": null
+        }
+      ]
+    },
+    {
+      "name": "test",
+      "status": "pass",
+      "seconds": 1247,
+      "reason": null,
+      "step_counts": {
+        "pass": 6,
+        "fail": 0,
+        "skip": 0,
+        "na": 0
+      },
+      "steps": [
+        {
+          "name": "fetch",
+          "status": "pass",
+          "exit_code": 0,
+          "seconds": 1,
+          "reason": null,
+          "backend": "docker",
+          "command": "cargo fetch --locked",
+          "log": "test/fetch.log"
+        },
+        {
+          "name": "metadata",
+          "status": "pass",
+          "exit_code": 0,
+          "seconds": 0,
+          "reason": null,
+          "backend": "docker",
+          "command": "cargo metadata --no-deps --format-version 1 --locked > metadata.json",
+          "log": "test/metadata.log"
+        },
+        {
+          "name": "build",
+          "status": "pass",
+          "exit_code": 0,
+          "seconds": 140,
+          "reason": null,
+          "backend": "docker",
+          "command": "cargo test --workspace --locked --no-run --message-format=json > test-artifacts.jsonl",
+          "log": "test/build.log"
+        },
+        {
+          "name": "test",
+          "status": "pass",
+          "exit_code": 0,
+          "seconds": 1105,
+          "reason": null,
+          "backend": "docker",
+          "command": "cargo test --workspace --locked --no-fail-fast",
+          "log": "test/test.log"
+        },
+        {
+          "name": "analyze",
+          "status": "pass",
+          "exit_code": 0,
+          "seconds": 0,
+          "reason": null,
+          "backend": "host",
+          "command": "python3 ~/w/infra/akantu-rs/ci/tools/analyze_tests.py --job-dir ~/w/infra/ci-fast/test --repo ~/w/infra/akantu-rs --known-failures ~/w/infra/akantu-rs/ci/tools/known-failures.txt",
+          "log": "test/analyze.log"
+        },
+        {
+          "name": "floor",
+          "status": "pass",
+          "exit_code": 0,
+          "seconds": 1,
+          "reason": null,
+          "backend": "host",
+          "command": "python3 -I ~/w/infra/akantu-rs/ci/tools/count_tests.py ~/w/infra/ci-fast/test/test.log --floors ~/w/infra/akantu-rs/ci/floors.txt --key test",
+          "log": "test/floor.log"
+        }
+      ]
+    },
+    {
+      "name": "fixtures",
+      "status": "pass",
+      "seconds": 1,
+      "reason": null,
+      "step_counts": {
+        "pass": 3,
+        "fail": 0,
+        "skip": 0,
+        "na": 0
+      },
+      "steps": [
+        {
+          "name": "sha256:fixtures/SHA256SUMS",
+          "status": "pass",
+          "exit_code": 0,
+          "seconds": 1,
+          "reason": null,
+          "backend": "host",
+          "command": "sh -c 'cd \"$1/$2\" && sha256sum -c --quiet SHA256SUMS && echo \"$(grep -c . SHA256SUMS) entries OK\"' sh ~/w/infra/akantu-rs fixtures",
+          "log": "fixtures/sha256_fixtures_SHA256SUMS.log"
+        },
+        {
+          "name": "sha256:fixtures/dump/SHA256SUMS",
+          "status": "pass",
+          "exit_code": 0,
+          "seconds": 0,
+          "reason": null,
+          "backend": "host",
+          "command": "sh -c 'cd \"$1/$2\" && sha256sum -c --quiet SHA256SUMS && echo \"$(grep -c . SHA256SUMS) entries OK\"' sh ~/w/infra/akantu-rs fixtures/dump",
+          "log": "fixtures/sha256_fixtures_dump_SHA256SUMS.log"
+        },
+        {
+          "name": "sha256:fixtures/examples/SHA256SUMS",
+          "status": "pass",
+          "exit_code": 0,
+          "seconds": 0,
+          "reason": null,
+          "backend": "host",
+          "command": "sh -c 'cd \"$1/$2\" && sha256sum -c --quiet SHA256SUMS && echo \"$(grep -c . SHA256SUMS) entries OK\"' sh ~/w/infra/akantu-rs fixtures/examples",
+          "log": "fixtures/sha256_fixtures_examples_SHA256SUMS.log"
+        }
+      ]
+    },
+    {
+      "name": "parity",
+      "status": "pass",
+      "seconds": 0,
+      "reason": null,
+      "step_counts": {
+        "pass": 1,
+        "fail": 0,
+        "skip": 0,
+        "na": 0
+      },
+      "steps": [
+        {
+          "name": "stats",
+          "status": "pass",
+          "exit_code": 0,
+          "seconds": 0,
+          "reason": null,
+          "backend": "host",
+          "command": "sh -c 'python3 -I \"$1/scripts/parity/stats.py\" --update > /dev/null && diff -u \"$2/docs/FEATURE_PARITY.md\" \"$1/docs/FEATURE_PARITY.md\" && { [ ! -f \"$2/README.md\" ] || diff -u \"$2/README.md\" \"$1/README.md\"; } && echo \"STATS block and README status block up to date\"' sh ~/w/infra/ci-fast/parity/scratch ~/w/infra/akantu-rs",
+          "log": "parity/stats.log"
+        }
+      ]
+    },
+    {
+      "name": "licence",
+      "status": "pass",
+      "seconds": 9,
+      "reason": null,
+      "step_counts": {
+        "pass": 1,
+        "fail": 0,
+        "skip": 0,
+        "na": 0
+      },
+      "steps": [
+        {
+          "name": "audit",
+          "status": "pass",
+          "exit_code": 0,
+          "seconds": 9,
+          "reason": null,
+          "backend": "docker",
+          "command": "python3 -I -B ci/tools/licence_audit.py --repo . --policy ci/licence-policy.toml > report.json",
+          "log": "licence/audit.log"
+        }
+      ],
+      "report": "licence/report.json"
+    }
+  ]
+}

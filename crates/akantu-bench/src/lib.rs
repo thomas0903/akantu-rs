@@ -27,6 +27,8 @@ pub mod driver;
 pub mod load_check;
 pub mod memory;
 pub mod output;
+pub mod suite;
+pub mod suite_solid;
 
 pub use config::{BlockedNode, CompatMode, Config, ModelChoice, PartitionChoice};
 pub use driver::{RunReport, run};

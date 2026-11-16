@@ -1,0 +1,172 @@
+# perf record -F 499 --call-graph dwarf; msh22_read_hex8-m
+# phases of the profiled run (seconds, calls):
+#   generate                         4.881 s     111 calls  25.5 %
+#   read                            14.269 s     111 calls  74.5 %
+
+## flat profile (self), top symbols
+     6.74%  suite_setup        [.] <akantu_io::mesh_io::msh::Reader>::node_index
+     6.30%  suite_setup        [.] <akantu_io::mesh_io::lexer::Line>::token
+     5.66%  libc.so.6          [.] 0x00000000001a14f9
+     4.62%  libc.so.6          [.] 0x00000000001a155b
+     3.98%  suite_setup        [.] core::slice::sort::unstable::quicksort::quicksort::<i32, <i32 as core::cmp::PartialOrd>::lt>
+     3.94%  suite_setup        [.] <std::hash::random::RandomState as core::hash::BuildHasher>::hash_one::<&u64>
+     3.89%  libc.so.6          [.] 0x0000000000198525
+     3.80%  suite_setup        [.] suite_setup::suite_setup::mesh_digest
+     2.95%  suite_setup        [.] core::num::imp::flt2dec::strategy::grisu::format_shortest_opt
+     2.92%  suite_setup        [.] <akantu_io::mesh_io::lexer::Source>::expect_line
+     2.55%  suite_setup        [.] <akantu_io::mesh_io::msh::Reader>::elements_v2
+     2.50%  suite_setup        [.] core::fmt::float::float_to_decimal_common_shortest::<f64>
+     2.42%  suite_setup        [.] <u64 as core::fmt::Display>::fmt
+     2.29%  suite_setup        [.] <akantu_io::mesh_io::msh::Reader>::element_nodes
+     1.77%  suite_setup        [.] core::fmt::write
+     1.70%  suite_setup        [.] <std::hash::random::DefaultHasher as core::hash::Hasher>::write
+     1.65%  suite_setup        [.] <alloc::string::String as core::fmt::Write>::write_str
+     1.55%  suite_setup        [.] akantu_io::mesh_io::lexer::parse_i64
+     1.53%  libc.so.6          [.] malloc
+     1.43%  suite_setup        [.] <core::str::lossy::Utf8Chunks as core::iter::traits::iterator::Iterator>::next
+     1.43%  suite_setup        [.] alloc::fmt::format::format_inner
+     1.42%  suite_setup        [.] <f64 as core::str::traits::FromStr>::from_str
+     1.37%  suite_setup        [.] <hashbrown::raw::RawTable<(u64, akantu_io::mesh_io::msh::ElementRef)>>::reserve_rehash::<hashbrown::map::make_hasher<u64, akantu_io::mesh_io::msh::ElementRef, std::hash::random::RandomState>::{closure#0}>
+     1.23%  suite_setup        [.] core::slice::memchr::memchr_aligned
+     1.21%  suite_setup        [.] akantu_mesh::utils::node_to_elements_unchecked
+
+## inclusive (children), top entries
+    69.94%     0.00%  [k] 0xffffffffffffffff
+    64.48%     0.00%  [.] akantu_io::mesh_io::read_mesh_with
+    64.46%     0.00%  [.] akantu_io::mesh_io::parse
+    62.00%     0.00%  [.] akantu_io::mesh_io::msh::read
+    50.09%     0.00%  [.] <akantu_io::mesh_io::msh::Reader>::run
+    41.16%     2.55%  [.] <akantu_io::mesh_io::msh::Reader>::elements_v2
+    32.24%     0.00%  [.] suite_setup::suite_setup::cases_mesh::read_case
+    29.78%     0.02%  [.] suite_setup::suite_setup::harness::run_cases
+    29.78%     0.00%  [.] <core::result::Result<akantu_comm::communicator::Communicator, akantu_core::error::Error>>::and_then::<(), suite_setup::main::{closure#1}> (inlined)
+    29.78%     0.00%  [.] std::panic::catch_unwind::<std::rt::lang_start_internal::{closure#0}, isize> (inlined)
+    29.78%     0.00%  [.] std::panic::catch_unwind::<&dyn core::ops::function::Fn<(), Output = i32> + core::panic::unwind_safe::RefUnwindSafe + core::marker::Sync, i32> (inlined)
+    29.78%     0.00%  [.] std::panicking::catch_unwind::<isize, std::rt::lang_start_internal::{closure#0}> (inlined)
+    29.78%     0.00%  [.] std::panicking::catch_unwind::<i32, &dyn core::ops::function::Fn<(), Output = i32> + core::panic::unwind_safe::RefUnwindSafe + core::marker::Sync> (inlined)
+    29.78%     0.00%  [.] std::panicking::catch_unwind::do_call::<std::rt::lang_start_internal::{closure#0}, isize> (inlined)
+    29.78%     0.00%  [.] std::panicking::catch_unwind::do_call::<&dyn core::ops::function::Fn<(), Output = i32> + core::panic::unwind_safe::RefUnwindSafe + core::marker::Sync, i32> (inlined)
+    29.78%     0.00%  [.] std::rt::lang_start::<std::process::ExitCode>::{closure#0} (inlined)
+    29.78%     0.00%  [.] suite_setup::main::{closure#1} (inlined)
+    29.78%     0.00%  [.] std::rt::lang_start_internal::{closure#0} (inlined)
+    29.78%     0.00%  [.] suite_setup::main
+    29.78%     0.00%  [.] std::rt::lang_start_internal
+    29.78%     0.00%  [.] <&dyn core::ops::function::Fn<(), Output = i32> + core::panic::unwind_safe::RefUnwindSafe + core::marker::Sync as core::ops::function::FnOnce<()>>::call_once (inlined)
+    29.78%     0.00%  [.] <fn() -> std::process::ExitCode as core::ops::function::FnOnce<()>>::call_once (inlined)
+    29.78%     0.00%  [.] __libc_start_main
+    29.78%     0.00%  [.] _start
+    29.78%     0.00%  [.] 0x00007d48b922a1c9
+    29.78%     0.00%  [.] std::sys::backtrace::__rust_begin_short_backtrace::<fn() -> std::process::ExitCode, std::process::ExitCode>
+    29.75%     0.00%  [.] suite_setup::suite_setup::cases_mesh::msh22_read_hex8
+    26.32%     0.00%  [.] main
+    24.22%     0.00%  [.] <suite_setup::suite_setup::harness::CaseOut>::phase::<std::path::PathBuf, suite_setup::suite_setup::cases_mesh::read_case::{closure#0}>
+    24.22%     0.00%  [.] suite_setup::suite_setup::cases_mesh::read_case::{closure#0} (inlined)
+    21.87%     0.34%  [.] suite_setup::suite_setup::meshgen::msh22
+    21.17%     1.77%  [.] core::fmt::write
+    19.68%     0.00%  [.] <&mut alloc::string::String as core::fmt::Write::write_fmt::SpecWriteFmt>::spec_write_fmt (inlined)
+    19.68%     0.00%  [.] <alloc::string::String as core::fmt::Write>::write_fmt (inlined)
+    17.83%     0.00%  [.] <core::fmt::rt::Argument>::fmt (inlined)
+    16.28%     2.29%  [.] <akantu_io::mesh_io::msh::Reader>::element_nodes
+    11.91%     0.00%  [.] <akantu_io::mesh_io::msh::Reader>::finish (inlined)
+    10.68%     6.74%  [.] <akantu_io::mesh_io::msh::Reader>::node_index
+    10.62%     0.00%  [.] suite_setup::suite_setup::meshgen::msh22::{closure#1} (inlined)
+    10.40%     0.00%  [.] <hashbrown::map::HashMap<u64, i32, std::hash::random::RandomState>>::get::<u64> (inlined)
+    10.40%     0.00%  [.] <std::collections::hash::map::HashMap<u64, i32>>::get::<u64> (inlined)
+    10.40%     0.04%  [.] <akantu_io::mesh_io::staging::MeshBuild>::create_groups_from_string_data
+     9.78%     2.42%  [.] <u64 as core::fmt::Display>::fmt
+     8.91%     0.30%  [.] <akantu_io::mesh_io::msh::Reader>::nodes_v2
+     8.51%     1.65%  [.] <alloc::string::String as core::fmt::Write>::write_str
+
+## call chains of the top self symbols (callers, >= 1 %)
+     6.74%  [.] <akantu_io::mesh_io::msh::Reader>::node_index
+            |
+             --3.46%--core::intrinsics::likely (inlined)
+                       <hashbrown::raw::RawTableInner>::find_inner (inlined)
+                       <hashbrown::raw::RawTable<(u64, i32)>>::find::<hashbrown::map::equivalent_key<u64, u64, i32>::{closure#0}> (inlined)
+                       <hashbrown::raw::RawTable<(u64, i32)>>::get::<hashbrown::map::equivalent_key<u64, u64, i32>::{closure#0}> (inlined)
+                       <hashbrown::map::HashMap<u64, i32, std::hash::random::RandomState>>::get::<u64> (inlined)
+                       <std::collections::hash::map::HashMap<u64, i32>>::get::<u64> (inlined)
+                       <akantu_io::mesh_io::msh::Reader>::node_index
+                       <akantu_io::mesh_io::msh::Reader>::element_nodes
+                       <akantu_io::mesh_io::msh::Reader>::elements_v2
+                       <akantu_io::mesh_io::msh::Reader>::run
+                       akantu_io::mesh_io::msh::read
+                       akantu_io::mesh_io::parse
+                       akantu_io::mesh_io::read_mesh_with
+                       0xffffffffffffffff
+     6.30%  [.] <akantu_io::mesh_io::lexer::Line>::token
+            |
+             --3.76%--<akantu_io::mesh_io::lexer::Line>::token
+                       |
+                        --3.15%--<akantu_io::mesh_io::lexer::Line>::i32
+                                  <akantu_io::mesh_io::msh::Reader>::elements_v2
+                                  <akantu_io::mesh_io::msh::Reader>::run
+                                  akantu_io::mesh_io::msh::read
+                                  akantu_io::mesh_io::parse
+                                  akantu_io::mesh_io::read_mesh_with
+                                  0xffffffffffffffff
+     5.66%  [.] 0x00000000001a14f9
+            |
+             --5.64%--core::ptr::copy_nonoverlapping::<u8> (inlined)
+                       <alloc::vec::Vec<u8>>::append_elements_unreserved (inlined)
+                       <alloc::vec::Vec<u8>>::append_elements (inlined)
+                       <alloc::vec::Vec<u8> as alloc::vec::spec_extend::SpecExtend<&u8, core::slice::iter::Iter<u8>>>::spec_extend (inlined)
+                       <alloc::vec::Vec<u8>>::extend_from_slice (inlined)
+                       <alloc::string::String>::push_str (inlined)
+                       <alloc::string::String as core::fmt::Write>::write_str
+                       |
+                        --5.13%--<u64 as core::fmt::Display>::fmt
+                                  <core::fmt::rt::Argument>::fmt (inlined)
+                                  core::fmt::write
+                                  <&mut alloc::string::String as core::fmt::Write::write_fmt::SpecWriteFmt>::spec_write_fmt (inlined)
+                                  <alloc::string::String as core::fmt::Write>::write_fmt (inlined)
+                                  |
+                                   --4.62%--suite_setup::suite_setup::meshgen::msh22::{closure#1} (inlined)
+                                             suite_setup::suite_setup::meshgen::msh22
+                                             suite_setup::suite_setup::cases_mesh::read_case::{closure#0} (inlined)
+                                             <suite_setup::suite_setup::harness::CaseOut>::phase::<std::path::PathBuf, suite_setup::suite_setup::cases_mesh::read_case::{closure#0}>
+                                             suite_setup::suite_setup::cases_mesh::read_case
+                                             suite_setup::suite_setup::cases_mesh::msh22_read_hex8
+                                             suite_setup::suite_setup::harness::run_cases
+                                             suite_setup::main::{closure#1} (inlined)
+                                             <core::result::Result<akantu_comm::communicator::Communicator, akantu_core::error::Error>>::and_then::<(), suite_setup::main::{closure#1}> (inlined)
+                                             suite_setup::main
+                                             <fn() -> std::process::ExitCode as core::ops::function::FnOnce<()>>::call_once (inlined)
+                                             std::sys::backtrace::__rust_begin_short_backtrace::<fn() -> std::process::ExitCode, std::process::ExitCode>
+                                             std::rt::lang_start::<std::process::ExitCode>::{closure#0} (inlined)
+                                             <&dyn core::ops::function::Fn<(), Output = i32> + core::panic::unwind_safe::RefUnwindSafe + core::marker::Sync as core::ops::function::FnOnce<()>>::call_once (inlined)
+                                             std::panicking::catch_unwind::do_call::<&dyn core::ops::function::Fn<(), Output = i32> + core::panic::unwind_safe::RefUnwindSafe + core::marker::Sync, i32> (inlined)
+                                             std::panicking::catch_unwind::<i32, &dyn core::ops::function::Fn<(), Output = i32> + core::panic::unwind_safe::RefUnwindSafe + core::marker::Sync> (inlined)
+                                             std::panic::catch_unwind::<&dyn core::ops::function::Fn<(), Output = i32> + core::panic::unwind_safe::RefUnwindSafe + core::marker::Sync, i32> (inlined)
+                                             std::rt::lang_start_internal::{closure#0} (inlined)
+                                             std::panicking::catch_unwind::do_call::<std::rt::lang_start_internal::{closure#0}, isize> (inlined)
+                                             std::panicking::catch_unwind::<isize, std::rt::lang_start_internal::{closure#0}> (inlined)
+                                             std::panic::catch_unwind::<std::rt::lang_start_internal::{closure#0}, isize> (inlined)
+                                             std::rt::lang_start_internal
+                                             main
+                                             0x7d48b922a1c9
+                                             __libc_start_main
+                                             _start
+     4.62%  [.] 0x00000000001a155b
+            |
+             --4.60%--core::ptr::copy_nonoverlapping::<i32> (inlined)
+                       <alloc::vec::Vec<i32>>::append_elements_unreserved (inlined)
+                       <alloc::vec::Vec<i32>>::append_elements (inlined)
+                       <alloc::vec::Vec<i32> as alloc::vec::spec_extend::SpecExtend<&i32, core::slice::iter::Iter<i32>>>::spec_extend (inlined)
+                       <alloc::vec::Vec<i32>>::extend_from_slice (inlined)
+                       <akantu_io::mesh_io::staging::MeshBuild>::push_element
+                       <akantu_io::mesh_io::msh::Reader>::elements_v2
+                       <akantu_io::mesh_io::msh::Reader>::run
+                       akantu_io::mesh_io::msh::read
+                       akantu_io::mesh_io::parse
+                       akantu_io::mesh_io::read_mesh_with
+                       0xffffffffffffffff
+     3.98%  [.] core::slice::sort::unstable::quicksort::quicksort::<i32, <i32 as core::cmp::PartialOrd>::lt>
+     3.94%  [.] <std::hash::random::RandomState as core::hash::BuildHasher>::hash_one::<&u64>
+     3.89%  [.] 0x0000000000198525
+            |
+            ---<u8 as core::slice::cmp::SliceOrd>::compare (inlined)
+               <[u8] as core::cmp::Ord>::cmp (inlined)
+               <alloc::vec::Vec<u8> as core::cmp::Ord>::cmp (inlined)
+               <alloc::string::String as core::cmp::Ord>::cmp (inlined)
+     3.80%  [.] suite_setup::suite_setup::mesh_digest

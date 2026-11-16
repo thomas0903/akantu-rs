@@ -21,6 +21,10 @@
 # akantu-rs-mpi-<pid>): ci/lib.sh names the container of each step so that a
 # timeout kills only that container.
 #
+# DOCKER_CPUSET (default: AKANTU_JOB_CPUS, which only the job wrappers of a
+# shared measurement host set) restricts the container to those cores
+# (docker --cpuset-cpus); unset, no restriction.
+#
 # AKANTU_RS_MPI_TARGET (default /target) selects the cargo target directory
 # inside the target volume: give each worktree its own (never share a target
 # directory between worktrees).
@@ -30,8 +34,11 @@ image="${AKANTU_RS_MPI_IMAGE:-akantu-rs-mpi:dev}"
 cpus="${AKANTU_RS_DOCKER_CPUS:-4}"
 memory="${AKANTU_RS_DOCKER_MEMORY:-6g}"
 tty=()
+cpuset=()
+cs="${DOCKER_CPUSET:-${AKANTU_JOB_CPUS:-}}"
+[ -z "$cs" ] || cpuset=(--cpuset-cpus "$cs")
 if [ -t 0 ] && [ -t 1 ]; then tty=(-it); fi
-exec docker run --rm ${tty[@]+"${tty[@]}"} \
+exec docker run --rm ${tty[@]+"${tty[@]}"} ${cpuset[@]+"${cpuset[@]}"} \
   --memory "$memory" --memory-swap "$memory" --cpus "$cpus" \
   --shm-size 512m \
   --name "${AKANTU_RS_CONTAINER_NAME:-akantu-rs-mpi-$$}" \

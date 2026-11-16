@@ -8,7 +8,8 @@
 # Usage (on a Linux host with Docker, e.g. an x86_64 Linux host; never on the
 # shared Mac):
 #   timing_ab.sh --out DIR --meshes DIR [--h "0.12"] [--steps 500] [--reps 5]
-#                [--materials "cohesive elastic"] [--memory 13g] VARIANT...
+#                [--materials "cohesive elastic"] [--memory 13g] [--rep-start K]
+#                VARIANT...
 #   VARIANT = <label>=cpp:<config>            C++ harness /perf/builds/<config>/
 #                                              (benchmarks/cohesive-perf/scripts/
 #                                              build.sh <config>), install-<config>
@@ -19,7 +20,10 @@
 # Method (ADR proposal "interleaved A/B medians"): one run at
 # a time; every repetition runs every (h, material) point with every variant,
 # the variants in a rotated order (repetition k starts with variant
-# (k - 1) mod n), so a drift of the machine speed favours no variant. Both
+# (k - 1) mod n), so a drift of the machine speed favours no variant.
+# --rep-start K (default 1) numbers the repetitions K..K+reps-1 (rotation and
+# rep<k> directories included): a long series split into several calls with
+# the same --out continues where the previous call stopped. Both
 # sides read the same mesh file (<meshes>/cube-h<h>.msh, copied into the
 # harness volume) and an input derived from benchmarks/cohesive-perf/inputs/
 # material-<material>.dat exactly as the harness does (`mesh`, `max_steps`
@@ -29,10 +33,13 @@
 # out.txt, err.txt, time.txt (GNU time -v), exit and run.json (variant,
 # binary digest, host CPU, load at start, start time); <out>/provenance.txt
 # and <out>/schedule.log. Summarise with compare_cpp.py.
+# PIN_CPU (optional, e.g. 2): every run on that core only (taskset for the
+# Rust driver, docker --cpuset-cpus for the C++ harness); recorded in
+# provenance.txt.
 set -euo pipefail
 here="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 repo="$(cd "${here}/../../.." && pwd)"
-out=""; meshes=""; hs="0.12"; steps=500; reps=5; materials="cohesive elastic"; memory=13g
+out=""; meshes=""; hs="0.12"; steps=500; reps=5; materials="cohesive elastic"; memory=13g; rep_start=1
 variants=()
 while [ $# -gt 0 ]; do
   case "$1" in
@@ -43,6 +50,7 @@ while [ $# -gt 0 ]; do
     --reps) reps="$2"; shift 2 ;;
     --materials) materials="$2"; shift 2 ;;
     --memory) memory="$2"; shift 2 ;;
+    --rep-start) rep_start="$2"; shift 2 ;;
     *=cpp:*|*=rust:*) variants+=("$1"); shift ;;
     *) echo "unknown argument $1" >&2; exit 2 ;;
   esac
@@ -50,6 +58,7 @@ done
 [ -n "${out}" ] || { echo "--out is required" >&2; exit 2; }
 [ -d "${meshes}" ] || { echo "--meshes: ${meshes} missing" >&2; exit 2; }
 [ ${#variants[@]} -gt 0 ] || { echo "no variant" >&2; exit 2; }
+[[ "${rep_start}" =~ ^[1-9][0-9]*$ ]] || { echo "--rep-start: positive integer" >&2; exit 2; }
 case "${out}" in /|"${HOME}"|"${repo}") echo "refusing --out ${out}" >&2; exit 2 ;; esac
 img="${PERF_IMAGE:-akantu-oracle:dev}"
 vol="${PERF_VOLUME:-akantu-perf-cohesive}"
@@ -59,6 +68,8 @@ out="$(cd "${out}" && pwd)"
 meshes="$(cd "${meshes}" && pwd)"
 tag="tab-$(date -u +%Y%m%dT%H%M%S)"
 cpu="$(grep -m1 'model name' /proc/cpuinfo | cut -d: -f2 | sed 's/^ //')"
+pin_rust=(); pin_cpp=()
+if [ -n "${PIN_CPU:-}" ]; then pin_rust=(taskset -c "${PIN_CPU}"); pin_cpp=(--cpuset-cpus "${PIN_CPU}"); fi
 
 have_cpp=0
 for v in "${variants[@]}"; do case "${v#*=}" in cpp:*) have_cpp=1 ;; esac; done
@@ -81,7 +92,7 @@ fi
 
 {
   echo "host=$(hostname) cpu=${cpu} nproc=$(nproc) kernel=$(uname -r) mem_total_kib=$(awk '/MemTotal/ {print $2}' /proc/meminfo)"
-  echo "steps=${steps} reps=${reps} h=${hs} materials=${materials} memory_cap_cpp=${memory} started_utc=$(date -u +%FT%TZ)"
+  echo "steps=${steps} reps=${reps} h=${hs} materials=${materials} memory_cap_cpp=${memory} pin_cpu=${PIN_CPU:-none} started_utc=$(date -u +%FT%TZ)"
   [ "${have_cpp}" = 0 ] || echo "image=$(docker image inspect --format '{{.Id}}' "${img}")"
   for h in ${hs}; do echo "mesh h${h} sha256=$(sha256sum "${meshes}/cube-h${h}.msh" | cut -d' ' -f1)"; done
   for v in "${variants[@]}"; do
@@ -94,7 +105,7 @@ fi
         echo "variant ${v%%=*} rust bin=${bin} sha256=$(sha256sum "${bin}" | cut -d' ' -f1) extra=${spec#rust:${bin}}" ;;
     esac
   done
-} > "${out}/provenance.txt"
+} >> "${out}/provenance.txt"
 
 input_for() { # material mesh extra(comma list) -> stdout
   local material=$1 mesh=$2 extra=$3 src="${repo}/benchmarks/cohesive-perf/inputs/material-$1.dat"
@@ -131,7 +142,7 @@ run_cpp() { # label config material h rep
   local start load
   start="$(date -u +%FT%TZ)"; load="$(cut -d' ' -f1 /proc/loadavg)"
   echo "${start} ${label} ${material} h${h} rep${rep} load=${load}" >> "${out}/schedule.log"
-  docker run --rm --shm-size=4g --init --memory="${memory}" --memory-swap="${memory}" \
+  docker run --rm ${pin_cpp[@]+"${pin_cpp[@]}"} --shm-size=4g --init --memory="${memory}" --memory-swap="${memory}" \
     -v "${oracle_vol}:/build:ro" -v "${vol}:/perf" -w "${d}" \
     -e AKA_SEED=1 -e SCOTCH_PTHREAD_NUMBER=1 -e AKANTU_RS_FILL_NODES_TO_ELEMENTS=upstream \
     -e OMP_NUM_THREADS=1 -e OPENBLAS_NUM_THREADS=1 "${img}" \
@@ -150,13 +161,13 @@ run_rust() { # label spec material h rep
   local start load status=0
   start="$(date -u +%FT%TZ)"; load="$(cut -d' ' -f1 /proc/loadavg)"
   echo "${start} ${label} ${material} h${h} rep${rep} load=${load}" >> "${out}/schedule.log"
-  (cd "${d}" && OMP_NUM_THREADS=1 OPENBLAS_NUM_THREADS=1 /usr/bin/time -v -o time.txt "${bin}" --aka_input_file input.dat > out.txt 2> err.txt) || status=$?
+  (cd "${d}" && OMP_NUM_THREADS=1 OPENBLAS_NUM_THREADS=1 ${pin_rust[@]+"${pin_rust[@]}"} /usr/bin/time -v -o time.txt "${bin}" --aka_input_file input.dat > out.txt 2> err.txt) || status=$?
   echo "${status}" > "${d}/exit"
   run_json "${d}" "${label}" rust "$(sha256sum "${bin}" | cut -d' ' -f1)" "${material}" "${h}" "${rep}" "${extra}" "${start}" "${load}" "${status}" "${cpu}"
 }
 
 n=${#variants[@]}
-for rep in $(seq 1 "${reps}"); do
+for rep in $(seq "${rep_start}" $((rep_start + reps - 1))); do
   for h in ${hs}; do
     for material in ${materials}; do
       for k in $(seq 0 $((n - 1))); do

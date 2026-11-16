@@ -1,0 +1,224 @@
+# heat_implicit_hex8_kvar: perf record -F 499 --call-graph dwarf, size m, --loop-seconds 6, one process on core 2
+# commit c339c611d, 2026-11-16T07:20:01Z, AMD Ryzen 7 9700X 8-Core Processor (boat sandbox: shares only, no timing)
+# phases of the profiled run (seconds; loop phases extended to >= 6 s):
+#   mesh                         calls      1      0.003 s
+#   init                         calls      1      0.001 s
+#   solve_step                   calls    145      6.152 s
+
+## Flat profile (self time), top 25 (shared object, symbol)
+    31.97%  suite_models      [.] akantu_linalg::eigen_sparse_lu::dense::sparselu_gemm                                                                                                                                                          
+    10.54%  suite_models      [.] akantu_linalg::eigen_sparse_lu::dense::trsm_unit_lower                                                                                                                                                        
+     8.46%  suite_models      [.] akantu_linalg::eigen_sparse_lu::kernels::kernel_bmod                                                                                                                                                          
+     6.87%  suite_models      [.] akantu_core::eigen_gebp::product_into::<akantu_fe::eigen::product_slices::{closure#1}, akantu_fe::eigen::product_slices::{closure#2}>                                                                         
+     6.38%  suite_models      [.] akantu_linalg::eigen_sparse_lu::kernels::dfs_kernel                                                                                                                                                           
+     3.94%  suite_models      [.] akantu_linalg::eigen_sparse_lu::kernels::panel_bmod                                                                                                                                                           
+     3.14%  suite_models      [.] <akantu_linalg::sparse::SparseMatrixAij>::resolve_block                                                                                                                                                       
+     1.93%  suite_models      [.] <std::hash::random::DefaultHasher as core::hash::Hasher>::write                                                                                                                                               
+     1.84%  suite_models      [.] akantu_linalg::eigen_sparse_lu::kernels::copy_to_ucol                                                                                                                                                         
+     1.75%  suite_models      [.] <std::hash::random::RandomState as core::hash::BuildHasher>::hash_one::<&(i64, i64)>                                                                                                                          
+     1.31%  suite_models      [.] akantu_linalg::eigen_sparse_lu::dense::gemv_in_place                                                                                                                                                          
+     1.30%  suite_models      [.] <std::hash::random::RandomState as core::hash::BuildHasher>::hash_one::<&i64>                                                                                                                                 
+     1.22%  suite_models      [.] <akantu_linalg::sparse::SparseMatrixAij>::add_to_profile                                                                                                                                                      
+     1.19%  suite_models      [.] akantu_linalg::eigen_sparse_lu::kernels::column_dfs                                                                                                                                                           
+     1.07%  suite_models      [.] akantu_core::eigen_order::redux_tree::<<akantu_diffusion::heat_diffusion::HeatDiffusion as akantu_diffusion::law::DiffusionLaw>::compute_diffusivity_grad_u_on_quad_points::{closure#0}>                      
+     1.04%  suite_models      [.] <hashbrown::map::HashMap<(i64, i64), usize, std::hash::random::RandomState>>::insert                                                                                                                          
+     1.01%  suite_models      [.] akantu_linalg::eigen_sparse_lu::kernels::prune_l                                                                                                                                                              
+     0.92%  suite_models      [.] <akantu_linalg::sparse::SparseMatrixAij>::mat_vec_mul                                                                                                                                                         
+     0.80%  suite_models      [.] <akantu_core::array_storage::ArrayStorage<f64>>::try_resize                                                                                                                                                   
+     0.80%  suite_models      [.] akantu_linalg::eigen_sparse_lu::kernels::pivot_l                                                                                                                                                              
+     0.77%  libc.so.6         [.] 0x00000000001a1d7a                                                                                                                                                                                            
+     0.71%  suite_models      [.] <akantu_linalg::sparse::SparseMatrixAij>::apply_boundary                                                                                                                                                      
+     0.71%  suite_models      [.] <core::iter::adapters::chain::Chain<core::slice::iter::Iter<f64>, core::slice::iter::Iter<f64>> as core::iter::traits::iterator::Iterator>::find::<<akantu_linalg::eigen_sparse_lu::SparseLu>::factorize::{clo
+     0.51%  suite_models      [.] akantu_core::eigen_gebp::route                                                                                                                                                                                
+     0.51%  suite_models      [.] <akantu_linalg::eigen_sparse_lu::SparseLu>::solve                                                                                                                                                             
+
+## Inclusive time (children), top 40 symbols
+    99.67%     0.00%  [.] <suite_models::suite_models::harness::Run>::looped::<suite_models::suite_models::heat::implicit_hex8::{closure#1}>                                                                                                    
+    99.67%     0.00%  [.] std::panic::catch_unwind::<std::rt::lang_start_internal::{closure#0}, isize> (inlined)                                                                                                                                
+    99.67%     0.00%  [.] std::panic::catch_unwind::<&dyn core::ops::function::Fn<(), Output = i32> + core::panic::unwind_safe::RefUnwindSafe + core::marker::Sync, i32> (inlined)                                                              
+    99.67%     0.00%  [.] std::panicking::catch_unwind::<isize, std::rt::lang_start_internal::{closure#0}> (inlined)                                                                                                                            
+    99.67%     0.00%  [.] std::panicking::catch_unwind::<i32, &dyn core::ops::function::Fn<(), Output = i32> + core::panic::unwind_safe::RefUnwindSafe + core::marker::Sync> (inlined)                                                          
+    99.67%     0.00%  [.] suite_models::suite_models::harness::main::<suite_models::suite_models::common::world>                                                                                                                                
+    99.67%     0.00%  [.] std::sys::backtrace::__rust_begin_short_backtrace::<fn() -> std::process::ExitCode, std::process::ExitCode>                                                                                                           
+    99.67%     0.00%  [.] std::panicking::catch_unwind::do_call::<std::rt::lang_start_internal::{closure#0}, isize> (inlined)                                                                                                                   
+    99.67%     0.00%  [.] std::panicking::catch_unwind::do_call::<&dyn core::ops::function::Fn<(), Output = i32> + core::panic::unwind_safe::RefUnwindSafe + core::marker::Sync, i32> (inlined)                                                 
+    99.67%     0.00%  [.] std::rt::lang_start::<std::process::ExitCode>::{closure#0} (inlined)                                                                                                                                                  
+    99.67%     0.00%  [.] std::rt::lang_start_internal::{closure#0} (inlined)                                                                                                                                                                   
+    99.67%     0.00%  [.] suite_models::suite_models::heat::implicit_hex8::{closure#1} (inlined)                                                                                                                                                
+    99.67%     0.00%  [.] suite_models::main                                                                                                                                                                                                    
+    99.67%     0.00%  [.] <&dyn core::ops::function::Fn<(), Output = i32> + core::panic::unwind_safe::RefUnwindSafe + core::marker::Sync as core::ops::function::FnOnce<()>>::call_once (inlined)                                               
+    99.67%     0.00%  [.] <fn() -> std::process::ExitCode as core::ops::function::FnOnce<()>>::call_once (inlined)                                                                                                                              
+    99.64%     0.00%  [.] <akantu_solver::dof_manager::DofManager>::collective::<(), <akantu_solver::non_linear_newton_raphson::NonLinearSolverNewtonRaphson as akantu_solver::non_linear::NonLinearSolver>::solve::{closure#1}>                
+    99.64%     0.00%  [.] <akantu_solver::non_linear_newton_raphson::NonLinearSolverNewtonRaphson as akantu_solver::non_linear::NonLinearSolver>::solve::{closure#1} (inlined)                                                                  
+    99.64%     0.00%  [.] <akantu_solver::non_linear_newton_raphson::NonLinearSolverNewtonRaphson>::solve_nr                                                                                                                                    
+    99.64%     0.00%  [.] <akantu_solver::time_step::TimeStepSolver>::solve_step (inlined)                                                                                                                                                      
+    99.64%     0.00%  [.] <akantu_solver::model_solver::ModelSolver>::solve_step                                                                                                                                                                
+    99.64%     0.00%  [.] <akantu_diffusion::model::DiffusionModel>::solve_step (inlined)                                                                                                                                                       
+    99.64%     0.00%  [.] <akantu_diffusion::model::DiffusionModel as akantu_model::model::Model>::solve_step (inlined)                                                                                                                         
+    99.11%     0.00%  [.] 0x000078eac5c2a1c9                                                                                                                                                                                                    
+    99.01%     0.00%  [.] __libc_start_main                                                                                                                                                                                                     
+    98.91%     0.00%  [.] _start                                                                                                                                                                                                                
+    91.81%     0.00%  [.] suite_models::suite_models::heat::implicit_hex8                                                                                                                                                                       
+    91.81%     0.00%  [.] main                                                                                                                                                                                                                  
+    91.76%     0.00%  [.] std::rt::lang_start_internal                                                                                                                                                                                          
+    85.08%     0.00%  [.] <akantu_solver::non_linear_newton_raphson::NonLinearSolverNewtonRaphson as akantu_solver::non_linear::NonLinearSolver>::solve                                                                                         
+    73.57%     0.00%  [.] <akantu_solver::dof_manager::DofManager>::collective::<(), <akantu_solver::dof_manager::DofManager>::solve::{closure#0}> (inlined)                                                                                    
+    73.57%     0.00%  [.] <akantu_solver::dof_manager::DofManager>::solve::{closure#0} (inlined)                                                                                                                                                
+    73.57%     0.00%  [.] <akantu_solver::dof_manager::DofManager>::solve                                                                                                                                                                       
+    73.54%     0.00%  [.] <akantu_solver::dof_manager::DofManager>::collective::<(), <akantu_solver::dof_manager::DofManager>::solve_linear_system::{closure#0}> (inlined)                                                                      
+    73.54%     0.00%  [.] <akantu_solver::dof_manager::DofManager>::lend::<(), <akantu_solver::dof_manager::DofManager>::solve_linear_system::{closure#0}::{closure#2}> (inlined)                                                               
+    73.54%     0.00%  [.] <akantu_solver::dof_manager::DofManager>::solve_linear_system::{closure#0}::{closure#2} (inlined)                                                                                                                     
+    73.54%     0.00%  [.] <akantu_solver::dof_manager::DofManager>::solve_linear_system::{closure#0} (inlined)                                                                                                                                  
+    73.54%     0.00%  [.] <akantu_solver::dof_manager::DofManager>::solve_linear_system                                                                                                                                                         
+    73.36%     0.00%  [.] <akantu_comm::phase::Phases>::run::<(alloc::vec::Vec<f64>, alloc::vec::Vec<i64>), alloc::vec::Vec<(i64, f64)>, <akantu_solver::backend::AijBackend as akantu_solver::backend::LinearSystemBackend>::solve::{closure#2}
+    73.36%     0.00%  [.] <akantu_solver::backend::AijBackend as akantu_solver::backend::LinearSystemBackend>::solve::{closure#2}::{closure#0} (inlined)                                                                                        
+    73.36%     0.00%  [.] <akantu_solver::backend::AijBackend as akantu_solver::backend::LinearSystemBackend>::solve::{closure#2} (inlined)                                                                                                     
+
+## Call chains of the hottest symbols (caller graph, >= 3 % self, branches >= 1 %)
+    31.97%  [.] akantu_linalg::eigen_sparse_lu::dense::sparselu_gemm                                                                                                                                                                            
+            |          
+             --31.82%--akantu_linalg::eigen_sparse_lu::dense::sparselu_gemm
+                       akantu_linalg::eigen_sparse_lu::kernels::panel_bmod
+                       <akantu_linalg::eigen_sparse_lu::SparseLu>::factorize
+                       <akantu_linalg::eigen_sparse_lu::EigenSparseLuSolver as akantu_linalg::direct::SparseDirectSolver>::factorize
+                       <akantu_solver::backend::AijBackend as akantu_solver::backend::LinearSystemBackend>::solve::{closure#2}::{closure#0} (inlined)
+                       <akantu_solver::backend::AijBackend as akantu_solver::backend::LinearSystemBackend>::solve::{closure#2} (inlined)
+                       <akantu_comm::phase::Phases>::run::<(alloc::vec::Vec<f64>, alloc::vec::Vec<i64>), alloc::vec::Vec<(i64, f64)>, <akantu_solver::backend::AijBackend as akantu_solver::backend::LinearSystemBackend>::solve::{closure#2}>
+                       <akantu_solver::backend::AijBackend as akantu_solver::backend::LinearSystemBackend>::solve
+                       <akantu_solver::dof_manager::DofManager>::solve_linear_system::{closure#0}::{closure#2} (inlined)
+                       <akantu_solver::dof_manager::DofManager>::lend::<(), <akantu_solver::dof_manager::DofManager>::solve_linear_system::{closure#0}::{closure#2}> (inlined)
+                       <akantu_solver::dof_manager::DofManager>::solve_linear_system::{closure#0} (inlined)
+                       <akantu_solver::dof_manager::DofManager>::collective::<(), <akantu_solver::dof_manager::DofManager>::solve_linear_system::{closure#0}> (inlined)
+                       <akantu_solver::dof_manager::DofManager>::solve_linear_system
+                       <akantu_solver::dof_manager::DofManager>::solve::{closure#0} (inlined)
+                       <akantu_solver::dof_manager::DofManager>::collective::<(), <akantu_solver::dof_manager::DofManager>::solve::{closure#0}> (inlined)
+                       <akantu_solver::dof_manager::DofManager>::solve
+                       <akantu_solver::non_linear_newton_raphson::NonLinearSolverNewtonRaphson>::solve_nr
+                       <akantu_solver::non_linear_newton_raphson::NonLinearSolverNewtonRaphson as akantu_solver::non_linear::NonLinearSolver>::solve::{closure#1} (inlined)
+                       <akantu_solver::dof_manager::DofManager>::collective::<(), <akantu_solver::non_linear_newton_raphson::NonLinearSolverNewtonRaphson as akantu_solver::non_linear::NonLinearSolver>::solve::{closure#1}>
+                       <akantu_solver::non_linear_newton_raphson::NonLinearSolverNewtonRaphson as akantu_solver::non_linear::NonLinearSolver>::solve
+                       <akantu_solver::time_step::TimeStepSolver>::solve_step (inlined)
+                       <akantu_solver::model_solver::ModelSolver>::solve_step
+                       <akantu_diffusion::model::DiffusionModel>::solve_step (inlined)
+                       <akantu_diffusion::model::DiffusionModel as akantu_model::model::Model>::solve_step (inlined)
+                       suite_models::suite_models::heat::implicit_hex8::{closure#1} (inlined)
+                       <suite_models::suite_models::harness::Run>::looped::<suite_models::suite_models::heat::implicit_hex8::{closure#1}>
+                       suite_models::suite_models::heat::implicit_hex8
+                       suite_models::suite_models::harness::main::<suite_models::suite_models::common::world>
+                       suite_models::main
+                       <fn() -> std::process::ExitCode as core::ops::function::FnOnce<()>>::call_once (inlined)
+                       std::sys::backtrace::__rust_begin_short_backtrace::<fn() -> std::process::ExitCode, std::process::ExitCode>
+                       std::rt::lang_start::<std::process::ExitCode>::{closure#0} (inlined)
+                       <&dyn core::ops::function::Fn<(), Output = i32> + core::panic::unwind_safe::RefUnwindSafe + core::marker::Sync as core::ops::function::FnOnce<()>>::call_once (inlined)
+                       std::panicking::catch_unwind::do_call::<&dyn core::ops::function::Fn<(), Output = i32> + core::panic::unwind_safe::RefUnwindSafe + core::marker::Sync, i32> (inlined)
+                       std::panicking::catch_unwind::<i32, &dyn core::ops::function::Fn<(), Output = i32> + core::panic::unwind_safe::RefUnwindSafe + core::marker::Sync> (inlined)
+                       std::panic::catch_unwind::<&dyn core::ops::function::Fn<(), Output = i32> + core::panic::unwind_safe::RefUnwindSafe + core::marker::Sync, i32> (inlined)
+                       std::rt::lang_start_internal::{closure#0} (inlined)
+                       std::panicking::catch_unwind::do_call::<std::rt::lang_start_internal::{closure#0}, isize> (inlined)
+                       std::panicking::catch_unwind::<isize, std::rt::lang_start_internal::{closure#0}> (inlined)
+                       std::panic::catch_unwind::<std::rt::lang_start_internal::{closure#0}, isize> (inlined)
+                       std::rt::lang_start_internal
+                       main
+                       0x78eac5c2a1c9
+                       __libc_start_main
+                       _start
+    10.54%  [.] akantu_linalg::eigen_sparse_lu::dense::trsm_unit_lower                                                                                                                                                                          
+     8.46%  [.] akantu_linalg::eigen_sparse_lu::kernels::kernel_bmod                                                                                                                                                                            
+            |          
+             --8.43%--akantu_linalg::eigen_sparse_lu::kernels::kernel_bmod
+                       |          
+                        --7.87%--akantu_linalg::eigen_sparse_lu::kernels::panel_bmod
+                                  <akantu_linalg::eigen_sparse_lu::SparseLu>::factorize
+                                  <akantu_linalg::eigen_sparse_lu::EigenSparseLuSolver as akantu_linalg::direct::SparseDirectSolver>::factorize
+                                  <akantu_solver::backend::AijBackend as akantu_solver::backend::LinearSystemBackend>::solve::{closure#2}::{closure#0} (inlined)
+                                  <akantu_solver::backend::AijBackend as akantu_solver::backend::LinearSystemBackend>::solve::{closure#2} (inlined)
+                                  <akantu_comm::phase::Phases>::run::<(alloc::vec::Vec<f64>, alloc::vec::Vec<i64>), alloc::vec::Vec<(i64, f64)>, <akantu_solver::backend::AijBackend as akantu_solver::backend::LinearSystemBackend>::solve::{cl
+                                  <akantu_solver::backend::AijBackend as akantu_solver::backend::LinearSystemBackend>::solve
+                                  <akantu_solver::dof_manager::DofManager>::solve_linear_system::{closure#0}::{closure#2} (inlined)
+                                  <akantu_solver::dof_manager::DofManager>::lend::<(), <akantu_solver::dof_manager::DofManager>::solve_linear_system::{closure#0}::{closure#2}> (inlined)
+                                  <akantu_solver::dof_manager::DofManager>::solve_linear_system::{closure#0} (inlined)
+                                  <akantu_solver::dof_manager::DofManager>::collective::<(), <akantu_solver::dof_manager::DofManager>::solve_linear_system::{closure#0}> (inlined)
+                                  <akantu_solver::dof_manager::DofManager>::solve_linear_system
+                                  <akantu_solver::dof_manager::DofManager>::solve::{closure#0} (inlined)
+                                  <akantu_solver::dof_manager::DofManager>::collective::<(), <akantu_solver::dof_manager::DofManager>::solve::{closure#0}> (inlined)
+                                  <akantu_solver::dof_manager::DofManager>::solve
+                                  <akantu_solver::non_linear_newton_raphson::NonLinearSolverNewtonRaphson>::solve_nr
+                                  <akantu_solver::non_linear_newton_raphson::NonLinearSolverNewtonRaphson as akantu_solver::non_linear::NonLinearSolver>::solve::{closure#1} (inlined)
+                                  <akantu_solver::dof_manager::DofManager>::collective::<(), <akantu_solver::non_linear_newton_raphson::NonLinearSolverNewtonRaphson as akantu_solver::non_linear::NonLinearSolver>::solve::{closure#1}>
+                                  <akantu_solver::non_linear_newton_raphson::NonLinearSolverNewtonRaphson as akantu_solver::non_linear::NonLinearSolver>::solve
+                                  <akantu_solver::time_step::TimeStepSolver>::solve_step (inlined)
+                                  <akantu_solver::model_solver::ModelSolver>::solve_step
+                                  <akantu_diffusion::model::DiffusionModel>::solve_step (inlined)
+                                  <akantu_diffusion::model::DiffusionModel as akantu_model::model::Model>::solve_step (inlined)
+                                  suite_models::suite_models::heat::implicit_hex8::{closure#1} (inlined)
+                                  <suite_models::suite_models::harness::Run>::looped::<suite_models::suite_models::heat::implicit_hex8::{closure#1}>
+                                  suite_models::suite_models::heat::implicit_hex8
+                                  suite_models::suite_models::harness::main::<suite_models::suite_models::common::world>
+                                  suite_models::main
+                                  <fn() -> std::process::ExitCode as core::ops::function::FnOnce<()>>::call_once (inlined)
+                                  std::sys::backtrace::__rust_begin_short_backtrace::<fn() -> std::process::ExitCode, std::process::ExitCode>
+                                  std::rt::lang_start::<std::process::ExitCode>::{closure#0} (inlined)
+                                  <&dyn core::ops::function::Fn<(), Output = i32> + core::panic::unwind_safe::RefUnwindSafe + core::marker::Sync as core::ops::function::FnOnce<()>>::call_once (inlined)
+                                  std::panicking::catch_unwind::do_call::<&dyn core::ops::function::Fn<(), Output = i32> + core::panic::unwind_safe::RefUnwindSafe + core::marker::Sync, i32> (inlined)
+                                  std::panicking::catch_unwind::<i32, &dyn core::ops::function::Fn<(), Output = i32> + core::panic::unwind_safe::RefUnwindSafe + core::marker::Sync> (inlined)
+                                  std::panic::catch_unwind::<&dyn core::ops::function::Fn<(), Output = i32> + core::panic::unwind_safe::RefUnwindSafe + core::marker::Sync, i32> (inlined)
+                                  std::rt::lang_start_internal::{closure#0} (inlined)
+                                  std::panicking::catch_unwind::do_call::<std::rt::lang_start_internal::{closure#0}, isize> (inlined)
+                                  std::panicking::catch_unwind::<isize, std::rt::lang_start_internal::{closure#0}> (inlined)
+                                  std::panic::catch_unwind::<std::rt::lang_start_internal::{closure#0}, isize> (inlined)
+                                  std::rt::lang_start_internal
+                                  main
+                                  0x78eac5c2a1c9
+                                  __libc_start_main
+                                  _start
+     6.87%  [.] akantu_core::eigen_gebp::product_into::<akantu_fe::eigen::product_slices::{closure#1}, akantu_fe::eigen::product_slices::{closure#2}>                                                                                           
+     6.38%  [.] akantu_linalg::eigen_sparse_lu::kernels::dfs_kernel                                                                                                                                                                             
+            |          
+             --5.31%--akantu_linalg::eigen_sparse_lu::kernels::dfs_kernel
+                       |          
+                        --3.80%--akantu_linalg::eigen_sparse_lu::kernels::panel_dfs
+                                  <akantu_linalg::eigen_sparse_lu::SparseLu>::factorize
+                                  <akantu_linalg::eigen_sparse_lu::EigenSparseLuSolver as akantu_linalg::direct::SparseDirectSolver>::factorize
+                                  <akantu_solver::backend::AijBackend as akantu_solver::backend::LinearSystemBackend>::solve::{closure#2}::{closure#0} (inlined)
+                                  <akantu_solver::backend::AijBackend as akantu_solver::backend::LinearSystemBackend>::solve::{closure#2} (inlined)
+                                  <akantu_comm::phase::Phases>::run::<(alloc::vec::Vec<f64>, alloc::vec::Vec<i64>), alloc::vec::Vec<(i64, f64)>, <akantu_solver::backend::AijBackend as akantu_solver::backend::LinearSystemBackend>::solve::{cl
+                                  <akantu_solver::backend::AijBackend as akantu_solver::backend::LinearSystemBackend>::solve
+                                  <akantu_solver::dof_manager::DofManager>::solve_linear_system::{closure#0}::{closure#2} (inlined)
+                                  <akantu_solver::dof_manager::DofManager>::lend::<(), <akantu_solver::dof_manager::DofManager>::solve_linear_system::{closure#0}::{closure#2}> (inlined)
+                                  <akantu_solver::dof_manager::DofManager>::solve_linear_system::{closure#0} (inlined)
+                                  <akantu_solver::dof_manager::DofManager>::collective::<(), <akantu_solver::dof_manager::DofManager>::solve_linear_system::{closure#0}> (inlined)
+                                  <akantu_solver::dof_manager::DofManager>::solve_linear_system
+                                  <akantu_solver::dof_manager::DofManager>::solve::{closure#0} (inlined)
+                                  <akantu_solver::dof_manager::DofManager>::collective::<(), <akantu_solver::dof_manager::DofManager>::solve::{closure#0}> (inlined)
+                                  <akantu_solver::dof_manager::DofManager>::solve
+                                  <akantu_solver::non_linear_newton_raphson::NonLinearSolverNewtonRaphson>::solve_nr
+                                  <akantu_solver::non_linear_newton_raphson::NonLinearSolverNewtonRaphson as akantu_solver::non_linear::NonLinearSolver>::solve::{closure#1} (inlined)
+                                  <akantu_solver::dof_manager::DofManager>::collective::<(), <akantu_solver::non_linear_newton_raphson::NonLinearSolverNewtonRaphson as akantu_solver::non_linear::NonLinearSolver>::solve::{closure#1}>
+                                  <akantu_solver::non_linear_newton_raphson::NonLinearSolverNewtonRaphson as akantu_solver::non_linear::NonLinearSolver>::solve
+                                  <akantu_solver::time_step::TimeStepSolver>::solve_step (inlined)
+                                  <akantu_solver::model_solver::ModelSolver>::solve_step
+                                  <akantu_diffusion::model::DiffusionModel>::solve_step (inlined)
+                                  <akantu_diffusion::model::DiffusionModel as akantu_model::model::Model>::solve_step (inlined)
+                                  suite_models::suite_models::heat::implicit_hex8::{closure#1} (inlined)
+                                  <suite_models::suite_models::harness::Run>::looped::<suite_models::suite_models::heat::implicit_hex8::{closure#1}>
+                                  suite_models::suite_models::heat::implicit_hex8
+                                  suite_models::suite_models::harness::main::<suite_models::suite_models::common::world>
+                                  suite_models::main
+                                  <fn() -> std::process::ExitCode as core::ops::function::FnOnce<()>>::call_once (inlined)
+                                  std::sys::backtrace::__rust_begin_short_backtrace::<fn() -> std::process::ExitCode, std::process::ExitCode>
+                                  std::rt::lang_start::<std::process::ExitCode>::{closure#0} (inlined)
+                                  <&dyn core::ops::function::Fn<(), Output = i32> + core::panic::unwind_safe::RefUnwindSafe + core::marker::Sync as core::ops::function::FnOnce<()>>::call_once (inlined)
+                                  std::panicking::catch_unwind::do_call::<&dyn core::ops::function::Fn<(), Output = i32> + core::panic::unwind_safe::RefUnwindSafe + core::marker::Sync, i32> (inlined)
+                                  std::panicking::catch_unwind::<i32, &dyn core::ops::function::Fn<(), Output = i32> + core::panic::unwind_safe::RefUnwindSafe + core::marker::Sync> (inlined)
+                                  std::panic::catch_unwind::<&dyn core::ops::function::Fn<(), Output = i32> + core::panic::unwind_safe::RefUnwindSafe + core::marker::Sync, i32> (inlined)
+                                  std::rt::lang_start_internal::{closure#0} (inlined)
+                                  std::panicking::catch_unwind::do_call::<std::rt::lang_start_internal::{closure#0}, isize> (inlined)
+                                  std::panicking::catch_unwind::<isize, std::rt::lang_start_internal::{closure#0}> (inlined)
+                                  std::panic::catch_unwind::<std::rt::lang_start_internal::{closure#0}, isize> (inlined)
+                                  std::rt::lang_start_internal
+                                  main
+                                  0x78eac5c2a1c9
+                                  __libc_start_main
+                                  _start
+     3.94%  [.] akantu_linalg::eigen_sparse_lu::kernels::panel_bmod                                                                                                                                                                             
+     3.14%  [.] <akantu_linalg::sparse::SparseMatrixAij>::resolve_block                                                                                                                                                                         

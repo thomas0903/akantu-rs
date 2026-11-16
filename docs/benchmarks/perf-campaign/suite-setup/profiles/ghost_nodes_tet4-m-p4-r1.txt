@@ -1,0 +1,139 @@
+# perf record -F 499 --call-graph dwarf; ghost_nodes_tet4-m-p4-r1
+# phases of the profiled run (seconds, calls):
+#   mesh                             0.155 s       1 calls   1.3 %
+#   partition                        0.618 s       1 calls   5.2 %
+#   distribute                       0.857 s       1 calls   7.2 %
+#   reduce_synchronize              10.312 s  155000 calls  86.3 %
+
+## flat profile (self), top symbols
+     9.93%  libmpi.so.40.40.7               [.] 0x0000000000091304
+     5.94%  suite_setup_mpi                 [.] akantu_comm::accessor::record
+     4.74%  suite_setup_mpi                 [.] <u64 as akantu_comm::buffer::Packable>::pack_all
+     4.62%  libc.so.6                       [.] pthread_rwlock_wrlock
+     4.30%  suite_setup_mpi                 [.] <akantu_comm::mpi_backend::MpiInFlight>::finish
+     3.88%  suite_setup_mpi                 [.] <akantu_comm::accessor::ReduceDataAccessor<f64> as akantu_comm::synchronizer::DataAccessor<i32>>::unpack_data
+     3.69%  [vdso]                          [.] 0x00000000000007c7
+     3.14%  suite_setup_mpi                 [.] <f64 as akantu_comm::communicator::private::Sealed>::reduce
+     3.12%  libopen-pal.so.80.0.5           [.] 0x00000000000ea86b
+     2.77%  libc.so.6                       [.] xdr_u_quad_t
+     2.75%  libc.so.6                       [.] xdr_int16_t
+     2.45%  libmpi.so.40.40.7               [.] 0x0000000000270835
+     2.09%  [kernel.kallsyms]               [k] _raw_spin_lock
+     2.05%  libmpi.so.40.40.7               [.] 0x0000000000270be8
+     1.53%  libopen-pal.so.80.0.5           [.] 0x00000000000ea37b
+     1.51%  libc.so.6                       [.] xdr_uint64_t
+     1.46%  libc.so.6                       [.] pthread_mutex_setprioceiling
+     1.18%  suite_setup_mpi                 [.] <akantu_comm::accessor::SimpleIdxDataAccessor<f64> as akantu_comm::synchronizer::DataAccessor<i32>>::pack_data
+     1.11%  [kernel.kallsyms]               [k] __schedule
+     0.98%  suite_setup_mpi                 [.] <akantu_comm::accessor::SimpleIdxDataAccessor<f64> as akantu_comm::synchronizer::DataAccessor<i32>>::unpack_data
+     0.91%  suite_setup_mpi                 [.] <akantu_comm::mpi_backend::MpiBackend>::isend
+     0.89%  suite_setup_mpi                 [.] <f64 as akantu_comm::buffer::Packable>::unpack_all
+     0.88%  [kernel.kallsyms]               [k] __raw_callee_save___pv_queued_spin_unlock
+     0.69%  suite_setup_mpi                 [.] <akantu_comm::mpi_backend::PostedEngine>::pump
+     0.69%  libc.so.6                       [.] 0x000000000017c080
+
+## inclusive (children), top entries
+    36.89%     0.00%  [.] <core::result::Result<akantu_comm::communicator::Communicator, akantu_core::error::Error>>::and_then::<(), suite_setup::main::{closure#1}> (inlined)
+    36.89%     0.00%  [.] <suite_setup::suite_setup::harness::CaseOut>::loop_phase::<suite_setup::suite_setup::cases_dist::ghost_nodes_tet4::{closure#1}>
+    36.89%     0.00%  [.] std::panic::catch_unwind::<std::rt::lang_start_internal::{closure#0}, isize> (inlined)
+    36.89%     0.00%  [.] std::panic::catch_unwind::<&dyn core::ops::function::Fn<(), Output = i32> + core::panic::unwind_safe::RefUnwindSafe + core::marker::Sync, i32> (inlined)
+    36.89%     0.00%  [.] std::panicking::catch_unwind::<isize, std::rt::lang_start_internal::{closure#0}> (inlined)
+    36.89%     0.00%  [.] std::panicking::catch_unwind::<i32, &dyn core::ops::function::Fn<(), Output = i32> + core::panic::unwind_safe::RefUnwindSafe + core::marker::Sync> (inlined)
+    36.89%     0.00%  [.] std::sys::backtrace::__rust_begin_short_backtrace::<fn() -> std::process::ExitCode, std::process::ExitCode>
+    36.89%     0.00%  [.] std::panicking::catch_unwind::do_call::<std::rt::lang_start_internal::{closure#0}, isize> (inlined)
+    36.89%     0.00%  [.] std::panicking::catch_unwind::do_call::<&dyn core::ops::function::Fn<(), Output = i32> + core::panic::unwind_safe::RefUnwindSafe + core::marker::Sync, i32> (inlined)
+    36.89%     0.00%  [.] std::rt::lang_start::<std::process::ExitCode>::{closure#0} (inlined)
+    36.89%     0.00%  [.] suite_setup::main::{closure#1} (inlined)
+    36.89%     0.00%  [.] std::rt::lang_start_internal::{closure#0} (inlined)
+    36.89%     0.00%  [.] suite_setup::suite_setup::cases_dist::ghost_nodes_tet4::{closure#0} (inlined)
+    36.89%     0.00%  [.] suite_setup::suite_setup::cases_dist::ghost_nodes_tet4::{closure#1} (inlined)
+    36.89%     0.00%  [.] std::rt::lang_start_internal
+    36.89%     0.00%  [.] <&dyn core::ops::function::Fn<(), Output = i32> + core::panic::unwind_safe::RefUnwindSafe + core::marker::Sync as core::ops::function::FnOnce<()>>::call_once (inlined)
+    36.89%     0.00%  [.] <fn() -> std::process::ExitCode as core::ops::function::FnOnce<()>>::call_once (inlined)
+    36.89%     0.00%  [.] main
+    36.89%     0.00%  [.] 0x00007072617a3ca7
+    36.48%     0.14%  [.] <akantu_comm::synchronizer::Synchronizer<i32>>::exchange
+    36.44%     0.00%  [.] suite_setup::main
+    26.58%     0.00%  [.] <akantu_comm::phase::Phases>::run::<(alloc::vec::Vec<(i32, alloc::vec::Vec<u8>)>, alloc::vec::Vec<(i32, usize)>), (), <akantu_comm::synchronizer::Synchronizer<i32>>::exchange::{closure#0}> (inlined)
+    20.62%     0.02%  [.] <akantu_comm::synchronizer::Synchronizer<i32>>::slave_reduction
+    20.35%     0.00%  [.] <akantu_comm::synchronizer::Synchronizer<i32>>::slave_reduction_in (inlined)
+    19.61%     0.00%  [.] suite_setup::suite_setup::cases_dist::ghost_nodes_tet4
+    19.61%     0.00%  [.] suite_setup::suite_setup::harness::run_cases
+    17.49%     0.00%  [.] <akantu_comm::synchronizer::Synchronizer<i32>>::exchange::{closure#0} (inlined)
+    17.02%     0.00%  [.] suite_setup::suite_setup::cases_dist::ghost_nodes_tet4
+    17.02%     0.00%  [.] suite_setup::suite_setup::harness::run_cases
+    16.27%     0.02%  [.] <akantu_comm::synchronizer::Synchronizer<i32>>::synchronize
+    16.13%     0.00%  [.] <akantu_comm::synchronizer::Synchronizer<i32>>::synchronize_in (inlined)
+    11.71%     0.00%  [.] akantu_comm::synchronizer::unpack_all::<i32> (inlined)
+    10.15%     0.00%  [.] <akantu_comm::mpi_backend::MpiInFlight>::finish (inlined)
+     9.99%     0.00%  [.] akantu_comm::mpi_backend::complete (inlined)
+     9.96%     0.00%  [.] 0x0000707261b1e304
+     9.93%     9.93%  [.] 0x0000000000091304
+     9.39%     0.00%  [.] akantu_comm::synchronizer::prepack::<i32> (inlined)
+     9.19%     0.00%  [.] akantu_comm::accessor::pack_entity_data::<f64> (inlined)
+     9.19%     0.00%  [.] <akantu_comm::accessor::ReduceDataAccessor<f64> as akantu_comm::synchronizer::DataAccessor<i32>>::pack_data (inlined)
+     8.82%     0.17%  [.] <akantu_comm::phase::Phases>::agree_digest
+     8.82%     0.00%  [.] <akantu_comm::phase::Phases>::agree
+     8.14%     3.88%  [.] <akantu_comm::accessor::ReduceDataAccessor<f64> as akantu_comm::synchronizer::DataAccessor<i32>>::unpack_data
+     8.04%     0.39%  [.] glob64
+     7.93%     0.00%  [.] akantu_comm::phase::reduce_status (inlined)
+     7.91%     0.19%  [.] <akantu_comm::communicator::Communicator>::all_reduce::<u64>
+
+## call chains of the top self symbols (callers, >= 1 %)
+     9.93%  [.] 0x0000000000091304
+     5.94%  [.] akantu_comm::accessor::record
+            |
+             --5.08%--akantu_comm::accessor::record
+     4.74%  [.] <u64 as akantu_comm::buffer::Packable>::pack_all
+     4.62%  [.] pthread_rwlock_wrlock
+     4.30%  [.] <akantu_comm::mpi_backend::MpiInFlight>::finish
+            |
+             --4.10%--akantu_comm::mpi_backend::complete (inlined)
+                       <akantu_comm::mpi_backend::MpiInFlight>::finish (inlined)
+                       |
+                        --3.91%--<akantu_comm::mpi_backend::MpiInFlight>::wait (inlined)
+                                  |
+                                   --3.51%--<akantu_comm::mpi_backend::MpiBackend>::header::<alloc::vec::Vec<u8>>
+                                             <akantu_comm::mpi_backend::MpiBackend>::all_gather_v
+                                             <akantu_comm::communicator::Communicator>::all_reduce::<u64>
+                                             akantu_comm::phase::reduce_status (inlined)
+                                             <akantu_comm::phase::Phases>::agree_digest
+                                             <akantu_comm::phase::Phases>::agree
+     3.88%  [.] <akantu_comm::accessor::ReduceDataAccessor<f64> as akantu_comm::synchronizer::DataAccessor<i32>>::unpack_data
+     3.69%  [.] 0x00000000000007c7
+            |
+            ---0x7fffabfdecef
+               0x707261855c18
+     3.14%  [.] <f64 as akantu_comm::communicator::private::Sealed>::reduce
+            |
+            ---akantu_comm::communicator::reduce_value::<f64> (inlined)
+               <akantu_comm::accessor::ReduceDataAccessor<f64> as akantu_comm::synchronizer::DataAccessor<i32>>::unpack_data
+               akantu_comm::synchronizer::unpack_all::<i32> (inlined)
+               <akantu_comm::synchronizer::Synchronizer<i32>>::exchange::{closure#0} (inlined)
+               <akantu_comm::phase::Phases>::run::<(alloc::vec::Vec<(i32, alloc::vec::Vec<u8>)>, alloc::vec::Vec<(i32, usize)>), (), <akantu_comm::synchronizer::Synchronizer<i32>>::exchange::{closure#0}> (inlined)
+               <akantu_comm::synchronizer::Synchronizer<i32>>::exchange
+               <akantu_comm::synchronizer::Synchronizer<i32>>::slave_reduction_in (inlined)
+               <akantu_comm::synchronizer::Synchronizer<i32>>::slave_reduction
+               suite_setup::suite_setup::cases_dist::ghost_nodes_tet4::{closure#0} (inlined)
+               suite_setup::suite_setup::cases_dist::ghost_nodes_tet4::{closure#1} (inlined)
+               <suite_setup::suite_setup::harness::CaseOut>::loop_phase::<suite_setup::suite_setup::cases_dist::ghost_nodes_tet4::{closure#1}>
+               suite_setup::suite_setup::cases_dist::ghost_nodes_tet4
+               suite_setup::suite_setup::harness::run_cases
+               suite_setup::main::{closure#1} (inlined)
+               <core::result::Result<akantu_comm::communicator::Communicator, akantu_core::error::Error>>::and_then::<(), suite_setup::main::{closure#1}> (inlined)
+               suite_setup::main
+               <fn() -> std::process::ExitCode as core::ops::function::FnOnce<()>>::call_once (inlined)
+               std::sys::backtrace::__rust_begin_short_backtrace::<fn() -> std::process::ExitCode, std::process::ExitCode>
+               std::rt::lang_start::<std::process::ExitCode>::{closure#0} (inlined)
+               <&dyn core::ops::function::Fn<(), Output = i32> + core::panic::unwind_safe::RefUnwindSafe + core::marker::Sync as core::ops::function::FnOnce<()>>::call_once (inlined)
+               std::panicking::catch_unwind::do_call::<&dyn core::ops::function::Fn<(), Output = i32> + core::panic::unwind_safe::RefUnwindSafe + core::marker::Sync, i32> (inlined)
+               std::panicking::catch_unwind::<i32, &dyn core::ops::function::Fn<(), Output = i32> + core::panic::unwind_safe::RefUnwindSafe + core::marker::Sync> (inlined)
+               std::panic::catch_unwind::<&dyn core::ops::function::Fn<(), Output = i32> + core::panic::unwind_safe::RefUnwindSafe + core::marker::Sync, i32> (inlined)
+               std::rt::lang_start_internal::{closure#0} (inlined)
+               std::panicking::catch_unwind::do_call::<std::rt::lang_start_internal::{closure#0}, isize> (inlined)
+               std::panicking::catch_unwind::<isize, std::rt::lang_start_internal::{closure#0}> (inlined)
+               std::panic::catch_unwind::<std::rt::lang_start_internal::{closure#0}, isize> (inlined)
+               std::rt::lang_start_internal
+               main
+               0x7072617a3ca7
+     3.12%  [.] 0x00000000000ea86b

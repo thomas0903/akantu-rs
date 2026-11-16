@@ -1,0 +1,92 @@
+# perf record -F 499 --call-graph dwarf; partition_rcb_tet4-m
+# phases of the profiled run (seconds, calls):
+#   mesh                             6.400 s      52 calls  67.2 %
+#   partition                        3.120 s      52 calls  32.8 %
+
+## flat profile (self), top symbols
+     8.12%  suite_setup        [.] akantu_mesh::partition::fill_partition_information_with
+     5.85%  suite_setup        [.] core::slice::sort::stable::quicksort::quicksort::<(alloc::vec::Vec<f64>, usize), <[(alloc::vec::Vec<f64>, usize)]>::sort_by<akantu_mesh::partition::rcb::{closure#3}>::{closure#0}>
+     5.66%  suite_setup        [.] <akantu_io::mesh_io::lexer::Line>::token
+     4.14%  libc.so.6          [.] 0x0000000000198525
+     3.10%  suite_setup        [.] <std::hash::random::RandomState as core::hash::BuildHasher>::hash_one::<&u64>
+     2.88%  suite_setup        [.] <akantu_io::mesh_io::msh::Reader>::elements_v2
+     2.81%  libc.so.6          [.] 0x00000000001a14f9
+     2.64%  suite_setup        [.] alloc::fmt::format::format_inner
+     2.30%  suite_setup        [.] core::slice::sort::unstable::quicksort::quicksort::<i32, <i32 as core::cmp::PartialOrd>::lt>
+     2.14%  suite_setup        [.] <akantu_io::mesh_io::msh::Reader>::node_index
+     1.98%  suite_setup        [.] akantu_mesh::utils::node_to_elements_unchecked
+     1.90%  libc.so.6          [.] malloc
+     1.84%  suite_setup        [.] <akantu_core::element::Element as core::cmp::PartialOrd>::partial_cmp
+     1.78%  suite_setup        [.] akantu_mesh::partition::rcb
+     1.74%  suite_setup        [.] <akantu_io::mesh_io::lexer::Source>::expect_line
+     1.69%  suite_setup        [.] core::fmt::write
+     1.60%  suite_setup        [.] <u64 as core::fmt::Display>::fmt
+     1.44%  suite_setup        [.] akantu_mesh::partition::node_to_elements
+     1.44%  suite_setup        [.] <akantu_mesh::partition::RcbPartitioner as akantu_mesh::partition::MeshPartitioner>::partition
+     1.44%  suite_setup        [.] akantu_io::mesh_io::lexer::parse_i64
+     1.16%  libc.so.6          [.] cfree
+     1.14%  suite_setup        [.] core::slice::sort::shared::smallsort::small_sort_network::<akantu_core::element::Element, <akantu_core::element::Element as core::cmp::PartialOrd>::lt>
+     1.08%  suite_setup        [.] core::slice::sort::shared::smallsort::small_sort_general_with_scratch::<(alloc::vec::Vec<f64>, usize), <[(alloc::vec::Vec<f64>, usize)]>::sort_by<akantu_mesh::partition::rcb::{closure#3}>::{closure#0}>
+     1.05%  suite_setup        [.] <alloc::vec::Vec<alloc::string::String> as core::clone::Clone>::clone
+     1.04%  suite_setup        [.] <core::iter::adapters::map::Map<core::ops::range::Range<usize>, <akantu_io::mesh_io::msh::Reader>::construct_physical_names::{closure#2}> as core::iter::traits::iterator::Iterator>::fold::<(), core::iter::traits::iterator::Iterator::for_each::call<alloc::string::String, <alloc::vec::Vec<alloc::string::String>>::extend_trusted<core::iter::adapters::map::Map<core::ops::range::Range<usize>, <akantu_io::mesh_io::msh::Reader>::construct_physical_names::{closure#2}>>::{closure#0}>::{closure#0}>  -
+
+## inclusive (children), top entries
+    99.58%     0.00%  [.] 0xffffffffffffffff
+    46.46%     0.00%  [.] akantu_io::mesh_io::parse
+    44.03%     0.00%  [.] akantu_io::mesh_io::read_mesh_from_str
+    43.99%     0.02%  [.] akantu_io::mesh_io::msh::read
+    34.34%     0.02%  [.] <akantu_io::mesh_io::msh::Reader>::run
+    32.49%     0.30%  [.] suite_setup::suite_setup::cases_mesh::partition_rcb_tet4
+    32.49%     0.00%  [.] suite_setup::suite_setup::cases_mesh::partition_case (inlined)
+    32.11%     2.88%  [.] <akantu_io::mesh_io::msh::Reader>::elements_v2
+    30.84%     1.44%  [.] <akantu_mesh::partition::RcbPartitioner as akantu_mesh::partition::MeshPartitioner>::partition
+    30.84%     0.00%  [.] suite_setup::suite_setup::cases_mesh::partition_case::{closure#1} (inlined)
+    30.31%     0.00%  [.] <suite_setup::suite_setup::harness::CaseOut>::phase::<akantu_mesh::partition::MeshPartition, suite_setup::suite_setup::cases_mesh::partition_case::{closure#1}>
+    13.52%     8.12%  [.] akantu_mesh::partition::fill_partition_information_with
+    13.52%     0.00%  [.] akantu_mesh::partition::fill_partition_information (inlined)
+    12.62%     0.30%  [.] suite_setup::suite_setup::meshgen::msh22
+    12.62%     0.00%  [.] <suite_setup::suite_setup::harness::CaseOut>::phase::<akantu_mesh::mesh::Mesh, suite_setup::suite_setup::cases_mesh::groups_tet4::{closure#0}> (inlined)
+    12.62%     0.00%  [.] suite_setup::suite_setup::cases_mesh::groups_tet4::{closure#0} (inlined)
+    12.62%     0.00%  [.] suite_setup::suite_setup::meshgen::mesh
+    12.35%     1.69%  [.] core::fmt::write
+    11.08%     1.78%  [.] akantu_mesh::partition::rcb
+    10.10%     0.00%  [.] <&mut alloc::string::String as core::fmt::Write::write_fmt::SpecWriteFmt>::spec_write_fmt (inlined)
+    10.10%     0.00%  [.] <alloc::string::String as core::fmt::Write>::write_fmt (inlined)
+     9.67%     0.00%  [.] <core::fmt::rt::Argument>::fmt (inlined)
+     9.65%     0.00%  [.] <akantu_io::mesh_io::msh::Reader>::finish (inlined)
+     9.30%     0.00%  [.] <[(alloc::vec::Vec<f64>, usize)]>::sort_by::<akantu_mesh::partition::rcb::{closure#3}> (inlined)
+     9.30%     0.00%  [.] alloc::slice::stable_sort::<(alloc::vec::Vec<f64>, usize), <[(alloc::vec::Vec<f64>, usize)]>::sort_by<akantu_mesh::partition::rcb::{closure#3}>::{closure#0}> (inlined)
+     9.30%     0.00%  [.] core::slice::sort::stable::driftsort_main::<(alloc::vec::Vec<f64>, usize), <[(alloc::vec::Vec<f64>, usize)]>::sort_by<akantu_mesh::partition::rcb::{closure#3}>::{closure#0}, alloc::vec::Vec<(alloc::vec::Vec<f64>, usize)>>
+     9.30%     0.00%  [.] core::slice::sort::stable::sort::<(alloc::vec::Vec<f64>, usize), <[(alloc::vec::Vec<f64>, usize)]>::sort_by<akantu_mesh::partition::rcb::{closure#3}>::{closure#0}, alloc::vec::Vec<(alloc::vec::Vec<f64>, usize)>> (inlined)
+     9.28%     0.72%  [.] core::slice::sort::stable::drift::sort::<(alloc::vec::Vec<f64>, usize), <[(alloc::vec::Vec<f64>, usize)]>::sort_by<akantu_mesh::partition::rcb::{closure#3}>::{closure#0}>
+     8.83%     1.00%  [.] <akantu_io::mesh_io::msh::Reader>::element_nodes
+     8.50%     5.85%  [.] core::slice::sort::stable::quicksort::quicksort::<(alloc::vec::Vec<f64>, usize), <[(alloc::vec::Vec<f64>, usize)]>::sort_by<akantu_mesh::partition::rcb::{closure#3}>::{closure#0}>
+     8.50%     0.00%  [.] core::slice::sort::stable::drift::stable_quicksort::<(alloc::vec::Vec<f64>, usize), <[(alloc::vec::Vec<f64>, usize)]>::sort_by<akantu_mesh::partition::rcb::{closure#3}>::{closure#0}> (inlined)
+     8.03%     0.12%  [.] <akantu_io::mesh_io::staging::MeshBuild>::create_groups_from_string_data
+     7.96%     0.64%  [.] akantu_mesh::utils::compute_element_to_subelements_data
+     7.91%     0.00%  [.] suite_setup::suite_setup::meshgen::msh22::{closure#1} (inlined)
+     6.70%     0.00%  [.] core::slice::sort::stable::quicksort::stable_partition::<(alloc::vec::Vec<f64>, usize), <[(alloc::vec::Vec<f64>, usize)]>::sort_by<akantu_mesh::partition::rcb::{closure#3}>::{closure#0}> (inlined)
+     6.38%     1.16%  [.] cfree
+     6.00%     1.60%  [.] <u64 as core::fmt::Display>::fmt
+     5.66%     5.66%  [.] <akantu_io::mesh_io::lexer::Line>::token
+     5.41%     0.00%  [.] <core::option::Option<&str>>::map_or_else::<alloc::string::String, alloc::fmt::format::{closure#0}, <str as alloc::borrow::ToOwned>::to_owned> (inlined)
+     5.41%     0.00%  [.] alloc::fmt::format::{closure#0} (inlined)
+     5.41%     0.00%  [.] alloc::fmt::format (inlined)
+     5.37%     2.64%  [.] alloc::fmt::format::format_inner
+     4.89%     2.14%  [.] <akantu_io::mesh_io::msh::Reader>::node_index
+     4.75%     1.01%  [.] <alloc::string::String as core::fmt::Write>::write_str
+     4.74%     0.00%  [.] <hashbrown::map::HashMap<u64, i32, std::hash::random::RandomState>>::get::<u64> (inlined)
+
+## call chains of the top self symbols (callers, >= 1 %)
+     8.12%  [.] akantu_mesh::partition::fill_partition_information_with
+     5.85%  [.] core::slice::sort::stable::quicksort::quicksort::<(alloc::vec::Vec<f64>, usize), <[(alloc::vec::Vec<f64>, usize)]>::sort_by<akantu_mesh::partition::rcb::{closure#3}>::{closure#0}>
+     5.66%  [.] <akantu_io::mesh_io::lexer::Line>::token
+            |
+             --3.27%--<akantu_io::mesh_io::lexer::Line>::token
+     4.14%  [.] 0x0000000000198525
+            |
+            ---<u8 as core::slice::cmp::SliceOrd>::compare (inlined)
+               <[u8] as core::cmp::Ord>::cmp (inlined)
+               <alloc::vec::Vec<u8> as core::cmp::Ord>::cmp (inlined)
+               <alloc::string::String as core::cmp::Ord>::cmp (inlined)
+     3.10%  [.] <std::hash::random::RandomState as core::hash::BuildHasher>::hash_one::<&u64>
