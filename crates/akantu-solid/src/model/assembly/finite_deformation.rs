@@ -303,6 +303,78 @@ pub(super) fn internal_forces(
     fe.integrate(bt_s.view(), r_e, s.bt, ty, ghost, Some(filter))
 }
 
+/// The total-Lagrangian residual integrated per element
+/// ([`fast::residuals_integrate`]) over the elements of a filter, prepared
+/// for range calls: the element-block pass of the elastic law runs it on
+/// each block right after the block's stresses.
+pub(crate) struct ResidualPlan<'a> {
+    s: Sizes,
+    table: &'static VoigtTable,
+    dsh: &'a [Real],
+    jac: &'a [Real],
+    filter: &'a [Idx],
+    simd: akantu_core::exec::SimdToken,
+}
+
+impl<'a> ResidualPlan<'a> {
+    /// The plan of `(ty, ghost)` over `filter` (`dim` the law's dimension),
+    /// `None` when [`internal_forces`] would report an error or not take
+    /// the fused kernel (the caller then runs the separate passes).
+    pub(crate) fn new(
+        fe: &'a FeEngine,
+        dim: usize,
+        ty: ElementType,
+        ghost: GhostType,
+        filter: &'a [Idx],
+    ) -> Option<Self> {
+        let s = Sizes::of(fe, dim, ty, ghost).ok()?;
+        let table = voigt::voigt_table(dim).ok()?;
+        let dsh = Derivatives::of(fe, &s, ty, ghost).ok()?;
+        dsh.check_filter(filter).ok()?;
+        let jac = fe.jacobians(ty, ghost).ok()?;
+        if jac.len() != dsh.nb_elements * s.nq {
+            return None;
+        }
+        fast::residuals_integrate_supported(&s, table, &dsh, jac.as_slice()).then_some(Self {
+            s,
+            table,
+            dsh: dsh.data,
+            jac: jac.as_slice(),
+            filter,
+            simd: fe.exec().simd_token(),
+        })
+    }
+
+    /// Quadrature points per element.
+    pub(crate) fn nb_points_per_element(&self) -> usize {
+        self.s.nq
+    }
+
+    /// Values per element of the output (`dim · nn`).
+    pub(crate) fn element_size(&self) -> usize {
+        self.s.bt
+    }
+
+    /// The integrated residuals of the filter's elements `first ..`, one
+    /// per `element_size` values of `out`, from their points' `grad_u`
+    /// (`gs`) and `piola_kirchhoff_2` (`ps`): the values [`internal_forces`]
+    /// writes for them.
+    pub(crate) fn run(&self, first: usize, gs: &[Real], ps: &[Real], out: &mut [Real]) {
+        let n = out.len() / self.s.bt;
+        fast::residuals_integrate_serial(
+            self.simd,
+            &self.s,
+            self.table,
+            self.dsh,
+            self.jac,
+            &self.filter[first..first + n],
+            gs,
+            ps,
+            out,
+        );
+    }
+}
+
 /// `Bᵀ · X · B` of one quadrature point (`B`: `rows × bt`, `X`:
 /// `rows × rows`, both compile-time sized upstream) into `out`
 /// (`bt × bt`, column-major) through the compile-time-sized column-major

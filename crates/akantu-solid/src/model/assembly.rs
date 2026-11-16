@@ -35,6 +35,7 @@ use super::{DOF_ID, SolidMechanicsPhysics, check_nodal, not_allocated};
 use crate::material::Material;
 
 mod finite_deformation;
+pub(crate) use finite_deformation::ResidualPlan;
 
 /// Elemental matrices of one element type: `(type, filter, K_e)`.
 pub(crate) type ElementalBlock = (ElementType, Vec<Idx>, Array<Real>);

@@ -323,12 +323,13 @@ impl<const DIM: usize> MaterialElastic<DIM> {
 const FUSED_BLOCK_BYTES: usize = 192 * 1024;
 
 impl<const DIM: usize> MaterialElastic<DIM> {
-    /// The small-strain stresses of the not-ghost elements of `ty` and their
-    /// element vectors `∫ Bᵀσ` (into `r_e`, one tuple of `DIM·nn` per element
-    /// of the filter) in one pass per block of elements: per block the
-    /// gradient of `u` minus `eigen_grad_u` into `grad_u`, the thermal
-    /// strain and stress, the stress, and `BᵀD` integrated over each
-    /// element, while the block's data is in the cache. Every value is the
+    /// The stresses of the not-ghost elements of `ty` and their element
+    /// vectors `∫ Bᵀσ` (small strain) or `∫ (B_L0 + B_L1)ᵀ S` (finite
+    /// deformation; into `r_e`, one tuple of `DIM·nn` per element of the
+    /// filter) in one pass per block of elements: per block the gradient of
+    /// `u` minus `eigen_grad_u` into `grad_u`, the thermal strain and
+    /// stress, the stress (or the second Piola–Kirchhoff stress), and its
+    /// integral over each element, while the block's data is in the cache. Every value is the
     /// one of the separate passes (`computeAllStresses` of the law, then
     /// `computeBtD` and `integrate` of the assembly) and every array other
     /// code reads (`grad_u`, `stress`, `epsilon_th`, `sigma_th`) receives
@@ -337,9 +338,8 @@ impl<const DIM: usize> MaterialElastic<DIM> {
     /// only, so the bits are the same for every thread count and block
     /// size.
     ///
-    /// `Ok(false)`, with nothing written, when the law, the arrays or the FE
-    /// kernels are not the ones this pass implements (finite deformation, a
-    /// shape check of the separate passes that would fail, a product route
+    /// `Ok(false)`, with nothing written, when the arrays or the FE kernels
+    /// are not the ones this pass implements (a shape check of the separate passes that would fail, a product route
     /// without a fixed-size kernel, a bad connectivity): the caller then
     /// runs the separate passes, which report their errors.
     ///
@@ -354,7 +354,7 @@ impl<const DIM: usize> MaterialElastic<DIM> {
         r_e: &mut Array<Real>,
     ) -> Result<bool> {
         let ghost = GhostType::NotGhost;
-        if self.base.finite_deformation || DIM == 0 {
+        if DIM == 0 {
             return Ok(false);
         }
         let constants = self.constants();
@@ -368,23 +368,47 @@ impl<const DIM: usize> MaterialElastic<DIM> {
             grad_u,
             eigen_grad_u,
             stress,
+            piola_kirchhoff_2,
+            finite_deformation,
             ..
         } = &mut self.base;
+        let finite = *finite_deformation;
         let filter = element_filter.get(ty, ghost)?;
         let filter = filter.as_slice();
         let d2 = DIM * DIM;
         let Some(gp) = fe.gradient_plan(mesh, u, DIM, ty, ghost, filter) else {
             return Ok(false);
         };
-        let Some(bp) = fe.btd_integrate_plan(d2, ty, ghost, filter) else {
-            return Ok(false);
-        };
         let nq = gp.nb_points_per_element();
+        // the assembly of the block: `BᵀD` integrated (small strain) or the
+        // total-Lagrangian residual integrated (finite deformation)
+        let assembly = if finite {
+            match crate::model::assembly::ResidualPlan::new(fe, DIM, ty, ghost, filter) {
+                Some(p) if p.nb_points_per_element() == nq => Assembly::Residual(p),
+                _ => return Ok(false),
+            }
+        } else {
+            match fe.btd_integrate_plan(d2, ty, ghost, filter) {
+                Some(p) if p.operand_size() == nq * d2 => Assembly::Btd(p),
+                _ => return Ok(false),
+            }
+        };
         let n = filter.len() * nq;
+        // finite deformation: the law's stress is the second
+        // Piola–Kirchhoff stress (an error of the separate passes when it is
+        // not registered)
+        let sigma_field = if finite {
+            match piola_kirchhoff_2.as_mut() {
+                Some(p) => p,
+                None => return Ok(false),
+            }
+        } else {
+            stress
+        };
         let (Ok(eigen), Ok(mut gu), Ok(mut sigma)) = (
             eigen_grad_u.get(ty, ghost),
             grad_u.get_mut(ty, ghost),
-            stress.get_mut(ty, ghost),
+            sigma_field.get_mut(ty, ghost),
         ) else {
             return Ok(false);
         };
@@ -397,7 +421,7 @@ impl<const DIM: usize> MaterialElastic<DIM> {
         };
         // the shape checks of the separate passes (grad_u_in_place,
         // MaterialThermal::computeStress, MaterialElastic::computeStress,
-        // computeBtD), all passing
+        // computeBtD or the residual's field checks), all passing
         let shapes_ok = n > 0
             && gp.tuple_size() == d2
             && gu.len() == n
@@ -409,12 +433,11 @@ impl<const DIM: usize> MaterialElastic<DIM> {
             && sig_th.len() == n
             && dt.as_slice().len() == n
             && sigma.len() == n
-            && sigma.nb_component() == d2
-            && bp.operand_size() == nq * d2;
+            && sigma.nb_component() == d2;
         if !shapes_ok {
             return Ok(false);
         }
-        let es = bp.element_size();
+        let es = assembly.element_size();
         // the output preparation of `integrate` (`prepare_out`)
         if r_e.nb_component() != es {
             *r_e = Array::with_id(es, r_e.id().to_owned());
@@ -454,17 +477,39 @@ impl<const DIM: usize> MaterialElastic<DIM> {
                 );
                 stress_part::<DIM>(
                     &constants,
-                    false,
+                    finite,
                     g.as_mut_slice(),
                     sigma.as_mut_slice(),
                     sig_th.as_mut_slice(),
                 )?;
-                bp.run(at, sigma.as_mut_slice(), r.as_mut_slice());
+                match &assembly {
+                    Assembly::Btd(p) => p.run(at, sigma.as_mut_slice(), r.as_mut_slice()),
+                    Assembly::Residual(p) => {
+                        p.run(at, g.as_mut_slice(), sigma.as_mut_slice(), r.as_mut_slice());
+                    }
+                }
                 (rest, at) = (tail, at + k);
             }
             Ok(())
         })?;
         Ok(true)
+    }
+}
+
+/// The assembly step of a block of the fused internal-force pass.
+enum Assembly<'a> {
+    /// `∫ BᵀD` (small strain).
+    Btd(akantu_fe::engine::BtdIntegratePlan<'a>),
+    /// `∫ (B_L0 + B_L1)ᵀ S` (finite deformation).
+    Residual(crate::model::assembly::ResidualPlan<'a>),
+}
+
+impl Assembly<'_> {
+    fn element_size(&self) -> usize {
+        match self {
+            Self::Btd(p) => p.element_size(),
+            Self::Residual(p) => p.element_size(),
+        }
     }
 }
 

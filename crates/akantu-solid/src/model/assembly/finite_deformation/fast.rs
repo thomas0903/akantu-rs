@@ -211,36 +211,16 @@ pub(super) fn residuals_integrate(
     jac: &[Real],
     out: &mut [Real],
 ) -> Option<()> {
-    let route = product_route(Dims::fixed(s.ts, s.bt).t(), Dims::fixed(s.ts, 1));
-    let int_route = product_route(Dims::dynamic(s.bt, s.nq), Dims::new(s.nq, 1, false, true));
-    let gemv = Route::Gemv {
-        matrix: GemvMatrix::Lhs,
-        kernel: Order::ColMajor,
-    };
     let np = filter.len() * s.nq;
     let d2 = s.dim * s.dim;
-    if route != Route::Coeff(Reduction::Tree)
-        || int_route != gemv
-        || s.nq == 0
-        || s.nq >= GEMV_BLOCKING_MIN_DEPTH
-        || s.bt == 0
-        || s.nn > TREE_MAX
-        || table.dim != s.dim
-        || table.size != s.ts
+    if !residuals_integrate_supported(s, table, dsh, jac)
         || gs.len() != np * d2
         || ps.len() != np * d2
         || out.len() != filter.len() * s.bt
-        || dsh.data.len() != dsh.nb_elements * s.nq * s.bt
-        || jac.len() != dsh.nb_elements * s.nq
     {
         return None;
     }
-    let run: ResidualIntegratePart = match s.dim {
-        1 => residual_integrate_part::<1, 1>,
-        2 => residual_integrate_part::<2, 3>,
-        3 => residual_integrate_part::<3, 6>,
-        _ => return None,
-    };
+    let run = residual_integrate_kernel(s.dim)?;
     let items = (
         TuplesRef::new(filter, 1),
         TuplesRef::new(gs, s.nq * d2),
@@ -263,6 +243,62 @@ pub(super) fn residuals_integrate(
         );
     });
     Some(())
+}
+
+/// `true` when [`residuals_integrate`] takes its kernel for the block
+/// (routes, sizes, `dim`; the filter is checked by the caller).
+pub(super) fn residuals_integrate_supported(
+    s: &Sizes,
+    table: &VoigtTable,
+    dsh: &Derivatives<'_>,
+    jac: &[Real],
+) -> bool {
+    let route = product_route(Dims::fixed(s.ts, s.bt).t(), Dims::fixed(s.ts, 1));
+    let int_route = product_route(Dims::dynamic(s.bt, s.nq), Dims::new(s.nq, 1, false, true));
+    let gemv = Route::Gemv {
+        matrix: GemvMatrix::Lhs,
+        kernel: Order::ColMajor,
+    };
+    route == Route::Coeff(Reduction::Tree)
+        && int_route == gemv
+        && s.nq > 0
+        && s.nq < GEMV_BLOCKING_MIN_DEPTH
+        && s.bt > 0
+        && s.nn <= TREE_MAX
+        && table.dim == s.dim
+        && table.size == s.ts
+        && dsh.data.len() == dsh.nb_elements * s.nq * s.bt
+        && jac.len() == dsh.nb_elements * s.nq
+        && residual_integrate_kernel(s.dim).is_some()
+}
+
+/// The fused kernel of `dim`.
+fn residual_integrate_kernel(dim: usize) -> Option<ResidualIntegratePart> {
+    Some(match dim {
+        1 => residual_integrate_part::<1, 1>,
+        2 => residual_integrate_part::<2, 3>,
+        3 => residual_integrate_part::<3, 6>,
+        _ => return None,
+    })
+}
+
+/// [`residuals_integrate`] of the elements `filter` on the calling thread
+/// (a caller that checked [`residuals_integrate_supported`]).
+#[allow(clippy::too_many_arguments)]
+pub(super) fn residuals_integrate_serial(
+    simd: SimdToken,
+    s: &Sizes,
+    table: &VoigtTable,
+    dsh: &[Real],
+    jac: &[Real],
+    filter: &[Idx],
+    gs: &[Real],
+    ps: &[Real],
+    out: &mut [Real],
+) {
+    if let Some(run) = residual_integrate_kernel(s.dim) {
+        run(simd, s, table, dsh, jac, filter, gs, ps, out);
+    }
 }
 
 /// One part of [`residuals_integrate`].

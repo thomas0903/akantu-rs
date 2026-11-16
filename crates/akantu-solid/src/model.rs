@@ -37,7 +37,7 @@
 //! `DofManager::collective` operation whose local part is agreed before the
 //! reduction, so a rank-specific failure surfaces as an error on every rank.
 
-mod assembly;
+pub(crate) mod assembly;
 mod energy;
 mod io;
 mod non_local;

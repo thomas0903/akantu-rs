@@ -35,18 +35,42 @@ use super::{Block, id_index};
 use crate::eigen::{Dims, product_route};
 use crate::element_class::LagrangeElement;
 
+/// The largest of `v` read as unsigned (a negative index reads as at least
+/// `2³¹`), `None` when empty: one vectorisable pass.
+#[inline]
+pub(super) fn max_unsigned(v: &[Idx]) -> Option<usize> {
+    #[allow(clippy::cast_sign_loss)] // the reinterpretation is the point
+    let m = v.iter().fold(0u32, |m, &x| m.max(x as u32));
+    (!v.is_empty()).then_some(m as usize)
+}
+
+/// `true` when `ids` are consecutive (`ids[k] = ids[0] + k`).
+fn consecutive(ids: &[Idx]) -> bool {
+    let Some(&first) = ids.first() else {
+        return true;
+    };
+    ids.iter().zip(0..).fold(true, |ok, (&e, k): (&Idx, Idx)| {
+        ok & (e == first.wrapping_add(k))
+    })
+}
+
 /// `true` when every node of the elements `ids` is a valid index of a
 /// nodal field of `nb_nodes` tuples (`conn` holds `nnpe` nodes per element
-/// and every id is an element of the block, checked by the caller).
-#[inline(always)]
+/// and every id is an element of the block, checked by the caller). One
+/// pass over the connectivity of consecutive ids, else one per element.
 fn nodes_valid(conn: &[Idx], nnpe: usize, ids: &[Idx], nb_nodes: usize) -> bool {
-    ids.iter().all(|&e| {
-        let e = id_index(e);
-        conn.get(e * nnpe..(e + 1) * nnpe).is_some_and(|row| {
-            row.iter()
-                .all(|&n| usize::try_from(n).is_ok_and(|n| n < nb_nodes))
-        })
-    })
+    let rows_ok =
+        |rows: Option<&[Idx]>| rows.is_some_and(|r| max_unsigned(r).is_none_or(|m| m < nb_nodes));
+    match (ids.first(), ids.last()) {
+        (Some(&a), Some(&b)) if consecutive(ids) => {
+            let (a, b) = (id_index(a), id_index(b));
+            rows_ok(conn.get(a * nnpe..(b + 1) * nnpe))
+        }
+        _ => ids.iter().all(|&e| {
+            let e = id_index(e);
+            rows_ok(conn.get(e * nnpe..(e + 1) * nnpe))
+        }),
+    }
 }
 
 /// The checks of [`gradient`] without its connectivity check: route,
@@ -250,20 +274,29 @@ impl<E: LagrangeElement, const NBD: usize, const MINUS: bool> SimdTask
                 *ue_n = Lanes4::from_prefix(&u[id_index(node)]);
             }
             let de = &dshapes[e * nq * bsz..(e + 1) * nq * bsz];
-            for (b, g) in de.chunks_exact(bsz).zip(oe.chunks_exact_mut(tsz)) {
+            // the element's values of `minus` (none without MINUS)
+            let me = if MINUS {
+                &minus[k * nq * tsz..(k + 1) * nq * tsz]
+            } else {
+                &[]
+            };
+            for (t, (b, g)) in de
+                .chunks_exact(bsz)
+                .zip(oe.chunks_exact_mut(tsz))
+                .enumerate()
+            {
                 for (j, gj) in g.chunks_exact_mut(NBD).enumerate() {
                     // lhs(i, l) = U(i, l), rhs(l, j) = B(j, l)
                     for (l, pl) in p.iter_mut().enumerate().take(nn) {
                         *pl = ue[l] * Lanes4::splat(b[j + l * nd]);
                     }
-                    gj.copy_from_slice(&tree_sum_of(&p, nn).prefix::<NBD>());
-                }
-            }
-            if MINUS {
-                // grad_u -= eigen_grad_u on the element's values just written
-                let me = &minus[k * nq * tsz..(k + 1) * nq * tsz];
-                for (o, m) in oe.iter_mut().zip(me) {
-                    *o -= *m;
+                    let mut v = tree_sum_of(&p, nn);
+                    if MINUS {
+                        // grad_u -= eigen_grad_u on the rounded gradient
+                        let (m, _) = me[(t * nd + j) * NBD..].as_chunks::<NBD>();
+                        v = v - Lanes4::from_prefix(&m[0]);
+                    }
+                    gj.copy_from_slice(&v.prefix::<NBD>());
                 }
             }
         }
@@ -322,8 +355,7 @@ impl<E: LagrangeElement, const NBD: usize> FmaTask for FmaGradient<'_, E, NBD> {
 /// `true` when `ids` (elements of a block of `nb_element`, checked by the
 /// caller) can index `nq` shape-derivative tuples of `bsz` values each.
 fn derivatives_cover(ids: &[Idx], nq: usize, bsz: usize, bs: &[Real]) -> bool {
-    ids.iter()
-        .all(|&e| (id_index(e) + 1).saturating_mul(nq * bsz) <= bs.len())
+    max_unsigned(ids).is_none_or(|m| (m + 1).saturating_mul(nq * bsz) <= bs.len())
 }
 
 /// `D·B` per quadrature point (upstream `computeBtD`): `D` dynamic
@@ -848,7 +880,7 @@ mod tests {
     use crate::element_class::ElementClass;
     use crate::with_element_class;
     use akantu_core::array_shared::ArrayRef;
-    use akantu_core::exec::{ExecPolicy, Grain};
+    use akantu_core::exec::{ExecPolicy, Grain, SimdLevel};
     use akantu_core::{Array, ElementType, GhostType, Idx};
 
     /// An executor whose thread count (1 to 4) and SIMD level (every level
@@ -1140,6 +1172,75 @@ mod tests {
             products >= 20_000 && nans > 0,
             "{products} products, {nans} NaNs"
         );
+    }
+
+    /// The gradient with a subtracted array (the plans' `minus`) against
+    /// the gradient then `out -= minus`, at every SIMD level.
+    #[test]
+    fn gradient_minus_matches_gradient_then_subtraction() {
+        type E = crate::element_class::types::Hexahedron8;
+        let mut v = Values::new(0x5eed_0f_9a1d_e7);
+        let (nn, nd, nq, nb_nodes, ne) = (8, 3, 8, 30, 50);
+        for round in 0..40 {
+            let conn: Vec<Idx> = (0..ne * nn)
+                .map(|_| (v.next_u64() % nb_nodes as u64) as Idx)
+                .collect();
+            let nodes = Array::from_vec(vec![0.0; nb_nodes * nd], nd).unwrap();
+            let conn = Array::from_vec(conn, nn).unwrap();
+            let block = Block {
+                ty: E::TYPE,
+                ghost: GhostType::NotGhost,
+                nodes: ArrayRef::from(&nodes),
+                nodes_override: None,
+                nb_nodes,
+                sdim: nd,
+                conn: Some(ArrayRef::from(&conn)),
+                nnpe: nn,
+                nb_element: ne,
+            };
+            let u = v.vec(nb_nodes * 3);
+            let dsh = v.vec(ne * nq * nd * nn);
+            let ids = v.ids(ne);
+            let minus = v.vec(ids.len() * nq * 9);
+            let level = SimdLevel::supported()[round % SimdLevel::supported().len()];
+            let simd = level.token().unwrap();
+            let mut a = vec![Real::NAN; minus.len()];
+            let mut b = vec![Real::NAN; minus.len()];
+            run_gradient(
+                None,
+                simd,
+                3,
+                Gradient {
+                    conn: block.conn(),
+                    u: &u,
+                    dshapes: &dsh,
+                    nq,
+                    ids: &ids,
+                    minus: &minus,
+                    out: &mut a,
+                    element: std::marker::PhantomData::<E>,
+                },
+            );
+            run_gradient(
+                None,
+                simd,
+                3,
+                Gradient {
+                    conn: block.conn(),
+                    u: &u,
+                    dshapes: &dsh,
+                    nq,
+                    ids: &ids,
+                    minus: &[],
+                    out: &mut b,
+                    element: std::marker::PhantomData::<E>,
+                },
+            );
+            for (o, m) in b.iter_mut().zip(&minus) {
+                *o -= *m;
+            }
+            assert_bits(&a, &b, "gradient minus");
+        }
     }
 
     #[test]

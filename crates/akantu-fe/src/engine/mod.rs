@@ -298,6 +298,9 @@ pub(crate) fn batch_ids(
     nb_element: usize,
 ) -> Result<std::borrow::Cow<'_, [Idx]>> {
     match filter {
+        Some(f) if fast::max_unsigned(f).is_none_or(|m| m < nb_element) => {
+            Ok(std::borrow::Cow::Borrowed(f))
+        }
         Some(f) => {
             if let Some(&e) = f
                 .iter()
