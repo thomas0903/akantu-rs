@@ -45,15 +45,23 @@ change of default results or of a public API raises the minor version.
 - The input-file parser evaluates each variable once per evaluation (it
   parsed a variable's expression again at every reference, so a chain of
   k parameters that each refer twice to the previous one cost 2^k
-  parses); values and error messages are unchanged.
-- Dumps and the MSH writer format numbers into the output buffer instead
-  of one `String` per number, and VTU base64 arrays are encoded in one
-  pass; the written bytes are unchanged.
-- The Gmsh reader keeps node and element tags in dense tables, allocates
-  nothing per element and parses integers in one pass; the meshes read are
+  parses: 21 lines 400 ms, now 7 µs); values and error messages are
   unchanged.
+- Dumps and the MSH writer format numbers into the output buffer instead
+  of one `String` per number, with a faster exact digit generator for up
+  to 17 significant digits; ParaView `.vtu` pieces are validated first and
+  then written to the file through a buffer (no copy of the whole file in
+  memory), base64 arrays encoded in one pass. The written bytes are
+  unchanged. On 162,000 Tet4: a base64 ParaView dump 208 → 99 ms, ASCII
+  913 → 296 ms, a text dump 74 → 17 ms, the MSH writer 54 → 26 ms
+  (`docs/benchmarks/perf-campaign/io-python/`).
+- The Gmsh reader keeps node and element tags in dense tables, allocates
+  nothing per element, parses integers in one pass and sorts dense group
+  node lists through a bitmap; the meshes read are unchanged (162,000
+  Tet4: 153 → 85 ms in MSH 2.2).
 - Python Dirichlet functors (`__call__` per node) enter Python once per
-  group instead of once per node.
+  group instead of once per node (40,401 nodes: 31.5 → 23.4 ms per
+  `applyBC`; with `callNodes` 1.0 ms).
 
 ## [0.1.0] - Unreleased
 
