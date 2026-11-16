@@ -535,3 +535,52 @@ fn fused_first_assembly_is_profile_then_values() {
         (before.nnz(), before.value_release)
     );
 }
+
+/// `CscMatrix::from_aij` (no triplet vector) equals `from_triplets` of the
+/// triplets upstream's `setA` builds (storage order, mirror after each
+/// off-diagonal entry of symmetric storage), bit for bit; duplicate
+/// coordinates (a copied profile with a collapsed key rule) included.
+#[test]
+fn csc_from_aij_matches_the_triplet_path() {
+    use crate::direct::CscMatrix;
+    for trial in 0..60u64 {
+        let mut rng = Rng(trial * 13 + 1, if trial % 2 == 0 { 0 } else { 30 });
+        let ty = if trial % 3 == 0 {
+            MatrixType::Unsymmetric
+        } else {
+            MatrixType::Symmetric
+        };
+        let mut m = random_matrix(&mut rng, 12, ty, 50);
+        if trial % 5 == 0 {
+            // duplicate coordinates: an unsymmetric profile copied into a
+            // symmetric matrix keeps both (i, j) and (j, i)
+            let src = random_matrix(&mut rng, 12, MatrixType::Unsymmetric, 50);
+            let mut d = SparseMatrixAij::new("D", 12, MatrixType::Symmetric);
+            d.copy_profile(&src);
+            for k in 0..d.a.len() {
+                d.a[k] = rng.value();
+            }
+            m = d;
+        }
+        let n = usize::try_from(m.size()).unwrap();
+        let mut triplets = Vec::new();
+        for ((&i, &j), &v) in m.irn.iter().zip(&m.jcn).zip(&m.a) {
+            let (iu, ju) = (i as usize, j as usize);
+            triplets.push((iu, ju, v));
+            if m.matrix_type == MatrixType::Symmetric && i != j {
+                triplets.push((ju, iu, v));
+            }
+        }
+        let a = CscMatrix::from_aij(&m).unwrap();
+        let b = CscMatrix::from_triplets(n, &triplets).unwrap();
+        assert_eq!(a.col_ptr(), b.col_ptr(), "trial {trial}");
+        assert_eq!(a.row_idx(), b.row_idx(), "trial {trial}");
+        assert_eq!(bits(a.values()), bits(b.values()), "trial {trial}");
+    }
+    // a coordinate outside the order: the error of the triplet path's check
+    let mut m = SparseMatrixAij::new("A", 4, MatrixType::Unsymmetric);
+    m.add(1, 3, 1.0).unwrap();
+    m.set_size(3);
+    let e = CscMatrix::from_aij(&m).unwrap_err().to_string();
+    assert!(e.contains("coordinate 3 outside the matrix order 3"), "{e}");
+}

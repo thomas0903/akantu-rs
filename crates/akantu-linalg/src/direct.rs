@@ -496,6 +496,15 @@ impl CscMatrix {
                 });
             }
         }
+        Self::from_checked_triplets(n, triplets.len(), || triplets.iter().copied())
+    }
+
+    /// [`CscMatrix::from_triplets`] on `count` triplets produced (twice, the
+    /// same sequence each time) by `triplets`, every coordinate below `n`.
+    fn from_checked_triplets<I>(n: usize, count: usize, triplets: impl Fn() -> I) -> Result<Self>
+    where
+        I: Iterator<Item = (usize, usize, Real)>,
+    {
         let np1 = n.checked_add(1).ok_or(Error::CapacityExceeded {
             what: "CSC matrix order",
             requested: n as u128,
@@ -503,21 +512,22 @@ impl CscMatrix {
         })?;
         // Row-major temporary: per row, (col, value) in triplet order.
         let mut row_count = try_filled("CSC row counts", np1, 0usize)?;
-        for &(i, _, _) in triplets {
+        for (i, _, _) in triplets() {
             row_count[i + 1] += 1;
         }
         for r in 0..n {
             row_count[r + 1] += row_count[r];
         }
         let mut fill = row_count.clone();
-        let mut tr_cols = vec![0usize; triplets.len()];
-        let mut tr_vals = vec![0.0; triplets.len()];
-        for &(i, j, v) in triplets {
+        let mut tr_cols = try_filled("CSC triplet columns", count, 0usize)?;
+        let mut tr_vals = try_filled("CSC triplet values", count, 0.0)?;
+        for (i, j, v) in triplets() {
             let p = fill[i];
             tr_cols[p] = j;
             tr_vals[p] = v;
             fill[i] += 1;
         }
+        drop(fill);
         // collapseDuplicates: first occurrence keeps its position, later
         // ones are summed into it in insertion order.
         let mut first = try_filled("CSC duplicate markers", n, usize::MAX)?;
@@ -539,6 +549,8 @@ impl CscMatrix {
             }
             tr_ptr[r + 1] = out;
         }
+        drop(first);
+        drop(row_count);
         // Transposed copy: rows visited in increasing order, so each column
         // receives increasing row indices.
         let nnz = out;
@@ -550,8 +562,8 @@ impl CscMatrix {
             col_ptr[c + 1] += col_ptr[c];
         }
         let mut pos = col_ptr.clone();
-        let mut row_idx = vec![0usize; nnz];
-        let mut values = vec![0.0; nnz];
+        let mut row_idx = try_filled("CSC row indices", nnz, 0usize)?;
+        let mut values = try_filled("CSC values", nnz, 0.0)?;
         for r in 0..n {
             for p in tr_ptr[r]..tr_ptr[r + 1] {
                 let c = tr_cols[p];
@@ -569,26 +581,41 @@ impl CscMatrix {
     }
 
     /// The matrix upstream's Eigen backend factorises for `a` (symmetric
-    /// storage expanded).
+    /// storage expanded): the triplets of the type documentation, built
+    /// from the COO arrays without an intermediate triplet vector.
     pub fn from_aij(a: &SparseMatrixAij) -> Result<Self> {
         let n = usize::try_from(a.size())
             .map_err(|_| Error::invalid("matrix order exceeds the address space"))?;
         let (irn, jcn, vals) = a.coo();
         let symmetric = a.matrix_type() == MatrixType::Symmetric;
-        let mut triplets = Vec::with_capacity(vals.len() * if symmetric { 2 } else { 1 });
-        let idx = |g: GlobalIdx| -> Result<usize> {
-            usize::try_from(g).ok().filter(|&u| u < n).ok_or_else(|| {
-                Error::invalid(format!("coordinate {g} outside the matrix order {n}"))
-            })
-        };
-        for ((&i, &j), &v) in irn.iter().zip(jcn).zip(vals) {
-            let (iu, ju) = (idx(i)?, idx(j)?);
-            triplets.push((iu, ju, v));
-            if symmetric && i != j {
-                triplets.push((ju, iu, v));
-            }
+        let inside = |g: GlobalIdx| usize::try_from(g).is_ok_and(|u| u < n);
+        if let Some(g) = irn
+            .iter()
+            .zip(jcn)
+            .flat_map(|(&i, &j)| [i, j])
+            .find(|&g| !inside(g))
+        {
+            return Err(Error::invalid(format!(
+                "coordinate {g} outside the matrix order {n}"
+            )));
         }
-        Self::from_triplets(n, &triplets)
+        let mirrored = if symmetric {
+            irn.iter().zip(jcn).filter(|(i, j)| i != j).count()
+        } else {
+            0
+        };
+        // Coordinates checked above: `0 <= g < n`.
+        #[allow(clippy::cast_sign_loss, clippy::cast_possible_truncation)]
+        let u = |g: GlobalIdx| g as usize;
+        Self::from_checked_triplets(n, vals.len() + mirrored, || {
+            irn.iter()
+                .zip(jcn)
+                .zip(vals)
+                .flat_map(move |((&i, &j), &v)| {
+                    let (iu, ju) = (u(i), u(j));
+                    std::iter::once((iu, ju, v)).chain((symmetric && i != j).then_some((ju, iu, v)))
+                })
+        })
     }
 
     /// Order.
