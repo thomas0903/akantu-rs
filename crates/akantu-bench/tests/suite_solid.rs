@@ -29,6 +29,7 @@ fn every_case_runs_at_size_s_and_its_digest_repeats() {
     let comm = Communicator::serial();
     let o = opts();
     for case in akantu_bench::suite_solid::cases() {
+        eprintln!("{}", case.name);
         let a = run_case(&case, &o, &comm, 0).unwrap_or_else(|e| panic!("{}: {e}", case.name));
         if let Outcome::Skip(why) = &a.outcome {
             eprintln!("{}: skipped ({why})", case.name);
