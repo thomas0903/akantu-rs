@@ -105,7 +105,7 @@ pub(super) fn gradient<E: LagrangeElement>(
 /// fused multiply-adds in the order `l = 0, 1, …` (one rounding per step
 /// instead of a rounded product and the halving tree of
 /// [`gradient_impl`]). Not bitwise the default path; its difference is
-/// bounded by the rule of `fixtures/fast_mode/fe/tolerances.json`.
+/// bounded by the rule of `fixtures/fast_mode/solid/tolerances.json`.
 struct FmaGradient<'a, 'b, E, const NBD: usize> {
     block: &'a Block<'b>,
     u: &'a [Real],
