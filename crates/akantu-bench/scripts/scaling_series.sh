@@ -37,12 +37,18 @@
 #   3. scaling_analyze.py OUT SERIES -> OUT/SERIES-summary.{md,json}.
 #
 # Options and environment as c1prep_campaign.sh (--memory, default 14g; --cpus,
-# default 8; OUT, default ~/c1prep-results; CPP_CONFIG strict; FNTE joss).
+# default 8; OUT, default ~/c1prep-results; CPP_CONFIG strict; FNTE joss;
+# PIN_CPUS_FROM).
+# CAMPAIGN_WRAPPER (optional): a command prefix for every campaign of step 2
+# and every partition export of step 1, e.g. "tjob infra-scal --" on a
+# shared host where each campaign must hold the machine alone; split into
+# words, so no quoting inside it.
 # Exit status: 0 iff every campaign and the analysis succeeded; 1 otherwise
 # (the series continues after a failed campaign and lists it at the end).
 set -uo pipefail
 here="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 camp="${here}/c1prep_campaign.sh"
+read -r -a wrap <<< "${CAMPAIGN_WRAPPER:-}"
 
 opts=()
 while [ $# -gt 0 ]; do
@@ -78,7 +84,7 @@ for p in "${point_list[@]}"; do
   pdir="${out}/${series}-parts/h${h}"
   [ -s "${pdir}/partition-np${np}.csv" ] && continue
   pc="${series}-part-h${h}-np${np}"
-  if bash "${camp}" ${opts[@]+"${opts[@]}"} --export-partition "${pc}" "${h}" "${np}"; then
+  if ${wrap[@]+"${wrap[@]}"} bash "${camp}" ${opts[@]+"${opts[@]}"} --export-partition "${pc}" "${h}" "${np}"; then
     mkdir -p "${pdir}" && cp "${out}/${pc}/partition-np${np}.csv" "${pdir}/partition-np${np}.csv"
     say "partition h=${h} np=${np}: $(sha256sum "${pdir}/partition-np${np}.csv" | cut -c1-16)…"
   else
@@ -103,7 +109,7 @@ for rep in $(seq 1 "${reps}"); do
     c="${series}-h${h}-np${np}-r${rep}"
     popt=()
     [ "${np}" -gt 1 ] && popt=(--partitions "${out}/${series}-parts/h${h}")
-    if bash "${camp}" ${opts[@]+"${opts[@]}"} ${popt[@]+"${popt[@]}"} "${c}" "${h}" "${steps}" "${np}" 1 "${rot[*]}" ${extra[@]+"${extra[@]}"} \
+    if ${wrap[@]+"${wrap[@]}"} bash "${camp}" ${opts[@]+"${opts[@]}"} ${popt[@]+"${popt[@]}"} "${c}" "${h}" "${steps}" "${np}" 1 "${rot[*]}" ${extra[@]+"${extra[@]}"} \
          > "${out}/${c}.log" 2>&1; then
       say "  ${c}: ok"
     else
