@@ -162,7 +162,42 @@ step; driver wall 16.90 s (static solve 7.65 s, 500 explicit steps
 
 ### Benchmark suites (not trained by PGO)
 
-@@SUITES@@
+Fifteen cases of the benchmark suites (branches `perf/suite-solid`
+`c698395e`, `perf/suite-models` `ee4140ce`, `perf/suite-setup`
+`c4a87945`, size `m`; one case per area, chosen from a calibration of all
+71 cases), each binary built as `base`, `v3` and PGO. The PGO build
+reuses the profile of the second training set: the suites were not
+trained, so this measures how far that training carries into the rest
+of the library. `suite_series.sh` (one repetition of one suite per
+`tjob`, the variants of a case adjacent, order rotated), 5 repetitions;
+the total of each case's timed phases (seconds) and the paired ratios
+(`suite_summary.py`; raw data `suite-series.jsonl`).
+
+| case | base [s] | pgouse [s] | v3 [s] | pgouse / base | v3 / base | digests |
+|---|---|---|---|---|---|---|
+| cohesive_extrinsic_insertion | 7.911 [7.903, 8.194] | 7.748 [7.718, 8.001] | 7.898 [7.894, 8.277] | **0.978** [0.973, 0.981] | **0.999** [0.995, 1.010] | identical (5 reps) |
+| cohesive_insert_tet4 | 6.393 [6.193, 7.446] | 6.469 [6.293, 7.548] | 6.402 [6.289, 7.469] | **1.012** [0.997, 1.018] | **1.014** [0.939, 1.016] | identical (5 reps) |
+| contact_explicit_quad4 | 5.299 [5.249, 5.396] | 5.545 [5.520, 5.588] | 5.319 [5.284, 5.679] | **1.047** [1.023, 1.056] | **0.997** [0.997, 1.052] | identical (5 reps) |
+| dump_paraview_tet4 | 3.366 [3.359, 3.869] | 3.596 [3.572, 4.104] | 3.422 [3.390, 3.919] | **1.064** [1.061, 1.072] | **1.014** [1.009, 1.064] | identical (5 reps) |
+| embedded_rebar_tri3 | 10.162 [9.872, 11.777] | 9.536 [9.510, 10.986] | 9.701 [9.598, 11.579] | **0.938** [0.910, 0.964] | **0.981** [0.915, 0.983] | identical (5 reps) |
+| explicit_mazars | 17.029 [16.683, 19.209] | 18.980 [18.874, 23.118] | 15.114 [14.990, 16.458] | **1.108** [0.988, 1.378] | **0.880** [0.792, 0.981] | identical (5 reps) |
+| explicit_tet10_fd | 7.831 [7.723, 9.089] | 7.574 [7.504, 8.922] | 7.420 [7.351, 8.572] | **0.968** [0.965, 0.982] | **0.946** [0.943, 0.956] | identical (5 reps) |
+| facets_tet4 | 2.025 [1.994, 2.294] | 1.937 [1.905, 2.198] | 2.130 [2.103, 2.455] | **0.955** [0.953, 0.960] | **1.054** [1.049, 1.070] | identical (5 reps) |
+| heat_implicit_hex8_kvar | 1.371 [1.360, 1.615] | 1.273 [1.264, 1.474] | 1.358 [1.341, 1.590] | **0.928** [0.913, 0.929] | **0.989** [0.985, 0.992] | identical (5 reps) |
+| implicit_dynamic | 5.742 [5.628, 5.941] | 4.601 [4.584, 5.205] | 5.671 [5.627, 6.448] | **0.800** [0.798, 0.888] | **0.990** [0.950, 1.100] | identical (5 reps) |
+| msh41_read_tet4 | 0.152 [0.149, 0.170] | 0.133 [0.132, 0.152] | 0.153 [0.151, 0.171] | **0.890** [0.864, 0.896] | **1.009** [0.971, 1.027] | identical (5 reps) |
+| parser_dat | 4.273 [4.231, 4.986] | 4.284 [4.159, 4.879] | 4.328 [4.207, 5.121] | **0.988** [0.973, 1.005] | **1.013** [0.977, 1.027] | identical (5 reps) |
+| phasefield_staggered_tet4 | 2.533 [2.505, 2.999] | 2.294 [2.287, 2.723] | 2.616 [2.479, 2.892] | **0.911** [0.875, 0.947] | **0.990** [0.964, 1.033] | identical (5 reps) |
+| static_linear_eigen | 12.149 [12.094, 13.151] | 11.401 [11.333, 12.715] | 12.050 [12.033, 13.649] | **0.938** [0.925, 0.967] | **0.995** [0.992, 1.038] | identical (5 reps) |
+| structural_beam3_frame_dynamic | 5.253 [5.244, 6.064] | 4.686 [4.542, 4.749] | 5.231 [5.171, 5.365] | **0.882** [0.782, 0.903] | **0.989** [0.885, 0.998] | identical (5 reps) |
+
+PGO speeds up the solvers and the model set-up it shares with the
+training (implicit dynamics 0.80, the structural frame 0.88, the phase
+field 0.91, the linear static solve 0.94, the heat Newton solve 0.93,
+mesh reading 0.89). It slows down code the training never ran (Mazars
+damage 1.11, the ParaView dump 1.06, explicit contact 1.05). `-v3` gains
+in the eigenvalue-heavy Mazars law (0.88) and in tet10 (0.95), and loses
+in the facet set-up (1.05).
 
 ### Build time and binary size
 
@@ -222,9 +257,10 @@ lowering of operations whose IEEE 754 result is not unique. Four checks:
    finite deformation, and the cohesive driver run to 5,000 steps on the
    h = 0.12 mesh (11,736 cohesive elements inserted in 3,547 insertion
    steps; energies, displacement norms and sums, `insertions.csv`): the
-   same for all 17 binaries (`base`, `cgu1`, `thin`, `fat`, `thin+cgu1`,
-   `fat+cgu1`, `v2`, `v3`, `v4`, `znver4`, `abort`, the five PGO builds,
-   `nobc`). Every timing run also hashed the driver's results: identical
+   same for 16 binaries (`base`, `cgu1`, `thin`, `fat`, `thin+cgu1`,
+   `fat+cgu1`, `v2`, `v3`, `v4`, `znver4`, `abort`, `base+pgouse`,
+   `fat+cgu1+pgouse`, `pgo2-base`, `pgo2-fat`, `nobc`); for `pgo2-v3`
+   only the driver's 500-step results of series D were compared (equal). Every timing run also hashed the driver's results: identical
    across the variants of every repetition (`tables.md`). The benchmark
    suites' 71 cases at size `m` give the same digest built as `base`,
    `v3` and PGO (`suite-digests.txt`).
@@ -351,10 +387,11 @@ profiles), and vectorised (reassociated) reductions in place of
 | File | What |
 |---|---|
 | `series-1.jsonl`, `series-A.jsonl` … `series-D.jsonl` | raw `series.sh` output (one JSON line per run; round lines with order, load, CPU, UTC) |
-| `tables.md` | `summarize.py` over each series |
+| `tables.md`, `overview.md` | `summarize.py` over each series; `overview.py` (one row per configuration) |
 | `buildtime.jsonl`, `buildtime.md` | clean build times on the measurement machine (`bjob`, 4 cores, two rounds in rotated order) and binary sizes; `buildtime_summary.py` |
+| `suite-series.jsonl`, `suite-table.md` | the benchmark-suite series (one JSON line per case, phase and run, with `variant` and `series_rep`) and its table |
 | `boat-builds.jsonl` | the sandbox builds of the timed binaries (their build times are not measurements) |
-| `digests.tsv` | `result_digests.sh`: explicit-step digests (30 steps) and the 5,000-step cohesive driver results per variant |
+| `digests.tsv`, `suite-digests.txt` | `result_digests.sh`: explicit-step digests (30 steps) and the 5,000-step cohesive driver results per variant; the 71 suite cases per variant |
 | `ci-matrix.md` | the CI tiers built with each configuration (`ci_matrix.sh`): verdicts, test counts, the summary files |
 | `minmax-probe.txt` | `minmax_probe.rs` / `minmax_compare.py` at every level and at `-O0` / `-O3` |
 | `fma-holders.txt` | the functions holding FMA instructions in the `v3`, `v4`, `znver4` binaries |

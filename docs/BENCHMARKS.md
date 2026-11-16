@@ -993,8 +993,8 @@ Table "Build configurations, paired ratio to the release profile":
   tiers pass when built with `x86-64-v2`, `-v3`, `-v4` and `znver4`, the
   `release` tier with fat or thin LTO and one codegen unit; the
   explicit-step digests, the 5,000-step fragmenting cohesive run and the
-  71 cases of the benchmark suites are identical for every configuration,
-  PGO included. `f64::min`/`max` give the same bits at every level; only
+  71 cases of the benchmark suites are identical for the configurations
+  checked, PGO included (list in the study's README). `f64::min`/`max` give the same bits at every level; only
   the choice between two NaN operands can differ, as it already does
   between debug and release builds. The manual states which levels keep
   the results (`docs/manual/src/getting-started.md`).
