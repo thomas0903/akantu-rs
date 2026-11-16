@@ -112,6 +112,8 @@ def main():
         if "chrono.csv" not in files:
             continue
         rel = os.path.relpath(dp, root).split(os.sep)
+        if any(".incomplete-" in x or ".again-" in x for x in rel):
+            continue  # runs of an interrupted or repeated campaign
         if c1:
             # [<campaign>/]<case>/np<N>/rep<k>[...]
             i = next(i for i, x in enumerate(rel) if re.fullmatch(r"np\d+", x))

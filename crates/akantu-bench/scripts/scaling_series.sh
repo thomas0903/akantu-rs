@@ -43,6 +43,10 @@
 # and every partition export of step 1, e.g. "tjob infra-scal --" on a
 # shared host where each campaign must hold the machine alone; split into
 # words, so no quoting inside it.
+# SKIP_DONE=1 (optional): a campaign whose schedule.log already says
+# "campaign done" is not run again (resuming a series after the host
+# stopped); an incomplete campaign directory is moved aside to
+# <campaign>.incomplete-<time> and run again.
 # Exit status: 0 iff every campaign and the analysis succeeded; 1 otherwise
 # (the series continues after a failed campaign and lists it at the end).
 set -uo pipefail
@@ -107,6 +111,13 @@ for rep in $(seq 1 "${reps}"); do
   for p in "${order[@]}"; do
     h=${p%%:*} np=${p##*:}
     c="${series}-h${h}-np${np}-r${rep}"
+    if [ "${SKIP_DONE:-0}" = 1 ] && [ -d "${out}/${c}" ]; then
+      if grep -q "campaign done" "${out}/${c}/schedule.log" 2> /dev/null; then
+        say "  ${c}: already done, skipped (SKIP_DONE=1)"
+        continue
+      fi
+      mv "${out}/${c}" "${out}/${c}.incomplete-$(date +%s)"
+    fi
     popt=()
     [ "${np}" -gt 1 ] && popt=(--partitions "${out}/${series}-parts/h${h}")
     if ${wrap[@]+"${wrap[@]}"} bash "${camp}" ${opts[@]+"${opts[@]}"} ${popt[@]+"${popt[@]}"} "${c}" "${h}" "${steps}" "${np}" 1 "${rot[*]}" ${extra[@]+"${extra[@]}"} \
