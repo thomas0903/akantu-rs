@@ -141,7 +141,7 @@ pub fn explicit_tet4_ss(ctx: &mut Ctx<'_>) -> Result<Outcome> {
 /// Model and communicator errors.
 pub fn cohesive_extrinsic(ctx: &mut Ctx<'_>) -> Result<Outcome> {
     let cfg = super::cohesive::InsertionRun {
-        n: [4, 16, 32],
+        n: [4, 20, 40],
         ..super::cohesive::INSERTION
     };
     let n = ctx.pick(cfg.n[0], cfg.n[1], cfg.n[2]);

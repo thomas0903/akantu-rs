@@ -432,17 +432,17 @@ pub struct InsertionRun {
 
 /// The serial insertion run's configuration.
 pub const INSERTION: InsertionRun = InsertionRun {
-    n: [3, 16, 32],
+    n: [3, 20, 40],
     preload: [4, 60, 60],
-    preload_strain: 1e-3,
-    steps: [3, 12, 12],
+    preload_strain: 0.85e-3,
+    steps: [3, 16, 16],
 };
 
 /// Run the extrinsic insertion case on a mesh (serial or distributed):
 /// the benchmark's laws with `sigma_c = 70e6 uniform [0, 14e6]` (seeded),
-/// `Δt = 0.1 Δt_crit`, a stretch ramp along x that reaches the lowest
-/// strength (`ε = 1e-3`) at the end of the preload, so that facets break
-/// progressively during the timed steps.
+/// `Δt = 0.1 Δt_crit`, a stretch ramp along x that reaches the strain
+/// `preload_strain` at the end of the preload: the first facets break at
+/// its end (dynamic overshoot), most of them during the timed steps.
 ///
 /// Phases: `init`, `preload` (steps with checks), `step` (check and solve)
 /// split into `check_insertion` (stress interpolation, criterion, the
