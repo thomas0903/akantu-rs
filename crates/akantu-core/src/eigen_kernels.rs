@@ -24,15 +24,20 @@
 //! | `Coeff(Sequential)` | loop over the depth, columns of the result | `t0 + t1 + …` (`redux_seq`) |
 //! | `Gebp { kc }` with depth `k < 8` (no peeled part) | loop over the depth | `0 + (((0 + t0) + t1) + …)`, the `gebp` micro-kernel's chain from `+0` and its write into the zeroed destination |
 //! | `Gemv` over the left operand, depth `k < 128` (no column blocks) | the same loop, one result column | the same: `c = 0; c = c + a(i, l)·x(l)`, then `out(i) = 0 + c` |
-//! | every other route | [`crate::eigen_gebp::eval_routed`] | unchanged |
+//! | every other route | `eigen_gebp::eval_routed` (the general evaluation) | unchanged |
 //!
 //! Each kernel computes the terms `fl(lhs(i, l) · rhs(l, j))` and adds them
-//! in the order of the general evaluation (operands in the same position,
-//! so NaN payloads propagate identically); loops over independent
+//! in the order of the general evaluation; loops over independent
 //! coefficients may run in any order and the compiler may vectorise them
-//! (no FMA: Rust never contracts). The differential tests compare every
-//! route and size class with [`crate::eigen_gebp::product_into`] on special
-//! values and payload NaNs.
+//! (no FMA: Rust never contracts). When two NaNs meet in one operation,
+//! which of them comes out depends on the compiler (it may swap the
+//! operands of a commutative operation, and x86-64 returns the first
+//! operand's NaN), so the kernel and the general route can give NaNs of
+//! different signs there: the case IEEE 754 leaves unspecified, allowed by
+//! D-046 (rule of `crate::bitwise_testing::same`). Every other result,
+//! including a single NaN's payload, has the same bits. The differential
+//! tests compare every route and size class with
+//! [`crate::eigen_gebp::product_into`] on special values and payload NaNs.
 //!
 //! Operand storage, as in `akantu_fe::eigen::product_slices`: the left
 //! operand `lhs (rows × depth)` is stored column-major, or — when the shape
