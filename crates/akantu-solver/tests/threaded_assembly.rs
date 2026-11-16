@@ -18,7 +18,7 @@
 use akantu_comm::Communicator;
 use akantu_core::enums::MatrixType;
 use akantu_core::exec::{Exec, ExecPolicy, Grain};
-use akantu_core::{Array, ElementType, GhostType, Idx, Real};
+use akantu_core::{Array, ElementType, GhostType, GlobalIdx, Idx, Real};
 use akantu_linalg::terms::TermsToAssemble;
 use akantu_mesh::{Mesh, MeshAccessor};
 use akantu_solver::DofManager;
@@ -113,7 +113,7 @@ fn blocks(nb: usize, n: usize, symmetric: bool, seed: u64) -> Array<Real> {
 }
 
 /// Every matrix of the run: coordinates and value bits, value release.
-type Snapshot = Vec<(String, Vec<i64>, Vec<i64>, Vec<u64>, u64)>;
+type Snapshot = Vec<(String, Vec<GlobalIdx>, Vec<GlobalIdx>, Vec<u64>, u64)>;
 
 fn snapshot(dm: &DofManager, ids: &[&str]) -> Snapshot {
     ids.iter()
@@ -122,8 +122,8 @@ fn snapshot(dm: &DofManager, ids: &[&str]) -> Snapshot {
             let (i, j, a) = m.coo();
             (
                 (*id).to_owned(),
-                i.iter().map(|&v| i64::from(v)).collect(),
-                j.iter().map(|&v| i64::from(v)).collect(),
+                i.to_vec(),
+                j.to_vec(),
                 a.iter().map(|v| v.to_bits()).collect(),
                 m.value_release(),
             )
@@ -209,7 +209,7 @@ fn run(exec: &Exec, symmetric: bool) -> (Vec<Snapshot>, Vec<Vec<u64>>, u64) {
         {
             let mut blocked = dm.blocked_dofs_mut("u").unwrap();
             for (k, b) in blocked.as_mut_slice().iter_mut().enumerate() {
-                *b = (k + round as usize) % 11 == 0;
+                *b = (k + round as usize).is_multiple_of(11);
             }
         }
         dm.apply_boundary("J").unwrap();
