@@ -196,55 +196,46 @@ pub(super) fn run_gradient<E: LagrangeElement>(
     g: Gradient<'_, E>,
 ) {
     match (fast, nb_dof, g.minus.is_empty()) {
-        // FAST MODE (D-122): the FMA demonstrator, validated against
-        // this kernel by `akantu-solid/tests/fast_mode_gradient.rs`
-        (Some(t), _, _) => {
-            let Gradient {
-                conn,
-                u,
-                dshapes,
-                nq,
-                ids,
-                minus,
-                out,
-                element,
-            } = g;
-            let h = Gradient {
-                conn,
-                u,
-                dshapes,
-                nq,
-                ids,
-                minus: &[],
-                out: &mut *out,
-                element,
-            };
-            match nb_dof {
-                1 => with_fma(t, FmaGradient::<E, 1>(h)),
-                2 => with_fma(t, FmaGradient::<E, 2>(h)),
-                _ => with_fma(t, FmaGradient::<E, 3>(h)),
-            }
-            for (o, m) in out.iter_mut().zip(minus) {
-                *o -= *m;
-            }
-        }
-        (None, 1, true) => with_simd(simd, LaneGradient::<E, 1, false>(g)),
-        (None, 2, true) => with_simd(simd, LaneGradient::<E, 2, false>(g)),
-        (None, _, true) => with_simd(simd, LaneGradient::<E, 3, false>(g)),
-        (None, 1, false) => with_simd(simd, LaneGradient::<E, 1, true>(g)),
-        (None, 2, false) => with_simd(simd, LaneGradient::<E, 2, true>(g)),
-        (None, _, false) => with_simd(simd, LaneGradient::<E, 3, true>(g)),
+        // FAST MODE (D-122): the FMA demonstrator, validated by
+        // `akantu-solid/tests/fast_mode_gradient.rs`
+        (Some(t), 1, true) => with_fma(t, LaneGradient::<E, 1, false, true>(g)),
+        (Some(t), 2, true) => with_fma(t, LaneGradient::<E, 2, false, true>(g)),
+        (Some(t), _, true) => with_fma(t, LaneGradient::<E, 3, false, true>(g)),
+        (Some(t), 1, false) => with_fma(t, LaneGradient::<E, 1, true, true>(g)),
+        (Some(t), 2, false) => with_fma(t, LaneGradient::<E, 2, true, true>(g)),
+        (Some(t), _, false) => with_fma(t, LaneGradient::<E, 3, true, true>(g)),
+        (None, 1, true) => with_simd(simd, LaneGradient::<E, 1, false, false>(g)),
+        (None, 2, true) => with_simd(simd, LaneGradient::<E, 2, false, false>(g)),
+        (None, _, true) => with_simd(simd, LaneGradient::<E, 3, false, false>(g)),
+        (None, 1, false) => with_simd(simd, LaneGradient::<E, 1, true, false>(g)),
+        (None, 2, false) => with_simd(simd, LaneGradient::<E, 2, true, false>(g)),
+        (None, _, false) => with_simd(simd, LaneGradient::<E, 3, true, false>(g)),
     }
 }
 
-/// The bitwise gradient: lanes over the `NBD` components of `U` (one
-/// lane per row `i` of `∇u`), each lane the scalar sequence
-/// `tree_l(U(i, l)·B(j, l))` of the general path (then `− minus` when
-/// `MINUS`).
-struct LaneGradient<'a, E, const NBD: usize, const MINUS: bool>(Gradient<'a, E>);
+/// The gradient with lanes over the `NBD` components of `U` (one lane per
+/// row `i` of `∇u`): without `FMA` (the bitwise default) each lane the
+/// scalar sequence `tree_l(U(i, l)·B(j, l))` of the general path; with
+/// `FMA` (FAST MODE, D-122, the demonstrator of the fast-mode harness, only
+/// through [`with_fma`]) each entry is a chain of fused multiply-adds in the
+/// order `l = 0, 1, …` (one rounding per step), bounded against the default
+/// by the rule of `fixtures/fast_mode/solid/tolerances.json`. Then
+/// `− minus` when `MINUS`.
+struct LaneGradient<'a, E, const NBD: usize, const MINUS: bool, const FMA: bool>(Gradient<'a, E>);
 
-impl<E: LagrangeElement, const NBD: usize, const MINUS: bool> SimdTask
-    for LaneGradient<'_, E, NBD, MINUS>
+impl<E: LagrangeElement, const NBD: usize, const MINUS: bool, const FMA: bool> FmaTask
+    for LaneGradient<'_, E, NBD, MINUS, FMA>
+{
+    type Output = ();
+
+    #[inline(always)]
+    fn run(self) {
+        SimdTask::run(self);
+    }
+}
+
+impl<E: LagrangeElement, const NBD: usize, const MINUS: bool, const FMA: bool> SimdTask
+    for LaneGradient<'_, E, NBD, MINUS, FMA>
 {
     type Output = ();
 
@@ -287,65 +278,24 @@ impl<E: LagrangeElement, const NBD: usize, const MINUS: bool> SimdTask
             {
                 for (j, gj) in g.as_chunks_mut::<NBD>().0.iter_mut().enumerate() {
                     // lhs(i, l) = U(i, l), rhs(l, j) = B(j, l)
-                    for (l, pl) in p.iter_mut().enumerate().take(nn) {
-                        *pl = ue[l] * Lanes4::splat(b[j + l * nd]);
-                    }
-                    let mut v = tree_sum_of(&p, nn);
+                    let mut v = if FMA {
+                        let mut acc = ue[0] * Lanes4::splat(b[j]);
+                        for (l, ue_l) in ue.iter().enumerate().take(nn).skip(1) {
+                            acc = ue_l.mul_add(Lanes4::splat(b[j + l * nd]), acc);
+                        }
+                        acc
+                    } else {
+                        for (l, pl) in p.iter_mut().enumerate().take(nn) {
+                            *pl = ue[l] * Lanes4::splat(b[j + l * nd]);
+                        }
+                        tree_sum_of(&p, nn)
+                    };
                     if MINUS {
                         // grad_u -= eigen_grad_u on the rounded gradient
                         let (m, _) = me[(t * nd + j) * NBD..].as_chunks::<NBD>();
                         v = v - Lanes4::from_prefix(&m[0]);
                     }
                     gj.copy_from_slice(&v.prefix::<NBD>());
-                }
-            }
-        }
-    }
-}
-
-/// FAST MODE (D-122), the demonstrator of the fast-mode harness (D-123):
-/// `∇u = U·Bᵀ` with each entry `Σ_l U(i, l)·B(j, l)` evaluated as a chain of
-/// fused multiply-adds in the order `l = 0, 1, …` (one rounding per step
-/// instead of a rounded product and the halving tree of
-/// [`LaneGradient`]). Not bitwise the default path; its difference is
-/// bounded by the rule of `fixtures/fast_mode/solid/tolerances.json`.
-struct FmaGradient<'a, E, const NBD: usize>(Gradient<'a, E>);
-
-impl<E: LagrangeElement, const NBD: usize> FmaTask for FmaGradient<'_, E, NBD> {
-    type Output = ();
-
-    #[inline(always)]
-    fn run(self) {
-        let Gradient {
-            conn,
-            u,
-            dshapes,
-            nq,
-            ids,
-            out,
-            ..
-        } = self.0;
-        let nd = E::NATURAL_DIM;
-        let nn = E::NB_SHAPES;
-        let bsz = nd * nn;
-        let tsz = NBD * nd;
-        let (u, _) = u.as_chunks::<NBD>();
-        let mut ue = [[0.0; NBD]; TREE_MAX];
-        for (&e, oe) in ids.iter().zip(out.chunks_exact_mut(nq * tsz)) {
-            let e = id_index(e);
-            for (ue_n, &node) in ue.iter_mut().zip(&conn[e * nn..(e + 1) * nn]) {
-                *ue_n = u[id_index(node)];
-            }
-            let de = &dshapes[e * nq * bsz..(e + 1) * nq * bsz];
-            for (b, g) in de.chunks_exact(bsz).zip(oe.chunks_exact_mut(tsz)) {
-                for j in 0..nd {
-                    for i in 0..NBD {
-                        let mut acc = ue[0][i] * b[j];
-                        for l in 1..nn {
-                            acc = ue[l][i].mul_add(b[j + l * nd], acc);
-                        }
-                        g[i + j * NBD] = acc;
-                    }
                 }
             }
         }
