@@ -37,6 +37,13 @@ case "$mode" in
       taskset -c "$core" "$bin" --case "$c" --size "$size" "${extra[@]}" --out "$dir/$c.jsonl"
     ;;
   report)
+    set +e +o pipefail # head closes the perf pipes early
+    # Rust v0 symbols demangled with rustfilt when installed (cargo install
+    # rustfilt); perf's empty trailing columns removed
+    clean() {
+      if command -v rustfilt >/dev/null; then rustfilt; else cat; fi \
+        | sed -E 's/[[:space:]]+-[[:space:]]+-[[:space:]]*$//; s/[[:space:]]+$//'
+    }
     c="$1"; dir="$2"
     data="$dir/$c.perf.data"
     out="$dir/$c.txt"
@@ -44,30 +51,31 @@ case "$mode" in
       echo "# Profile of suite case $c"
       echo
       cat "$dir/$c.meta"
-      echo "commit: $(head -1 "$dir/$c.jsonl" | python3 -c 'import json,sys;print(json.loads(sys.stdin.read())["commit"])')"
+      echo "commit: $(head -1 "$dir/$c.jsonl" | python3 -c 'import json,sys;print(json.loads(sys.stdin.readline())["commit"])')"
       echo
       echo "## Phases of the profiled run (seconds, calls)"
       echo
-      python3 -c '
-import json,sys
-for l in open(sys.argv[1]):
-    d=json.loads(l)
-    print(f"{d[\"phase\"]:<24} {d[\"seconds\"]:10.4f} s  {d[\"calls\"]:6d} calls")' "$dir/$c.jsonl"
+      python3 - "$dir/$c.jsonl" <<'PY'
+import json, sys
+for line in open(sys.argv[1]):
+    d = json.loads(line)
+    print(f"{d['phase']:<24} {d['seconds']:10.4f} s  {d['calls']:6d} calls")
+PY
       echo
       echo "## Top 25 symbols, self time"
       echo
       perf report -i "$data" --no-children --sort symbol --stdio -g none --percent-limit 0.1 2>/dev/null \
-        | grep -E '^ +[0-9]' | head -25
+        | grep -E '^ +[0-9]' | head -25 | clean
       echo
       echo "## Top 25 symbols, inclusive time (children)"
       echo
       perf report -i "$data" --children --sort symbol --stdio -g none --percent-limit 0.1 2>/dev/null \
-        | grep -E '^ +[0-9]' | head -25
+        | grep -E '^ +[0-9]' | head -25 | clean
       echo
       echo "## Call chains (callers of the hottest self-time symbols, entries above 2 %)"
       echo
       perf report -i "$data" --no-children --sort symbol --stdio -g caller,2,callee,function,percent \
-        --percent-limit 2 2>/dev/null | grep -v '^$' | grep -v '^#' | head -400
+        --percent-limit 2 2>/dev/null | grep -v '^$' | grep -v '^#' | head -400 | clean
     } > "$out"
     [ "${KEEP_PERF_DATA:-0}" = 1 ] || rm -f "$data" "$data.old"
     ;;
