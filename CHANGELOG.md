@@ -20,6 +20,17 @@ change of default results or of a public API raises the minor version.
   writes `chrono_rank<r>.csv` (the phase times of every rank) and, for the
   cohesive model, `insertion_stats_rank<r>.csv` (the split of the
   insertion check) on every rank.
+- `akantu_core::eigen_kernels`: `SliceProduct` (a product of slice operands
+  with its Eigen route, strides and kernel decided once; `eval` gives the
+  bits of `eigen_gebp::product_into`), `product_slices`, and
+  `fast_mode` (order-free dot and GEMM variants for the fast mode of
+  D-122; not called by the library; hidden from the documentation and
+  unstable: it will move behind the precision switch).
+  `akantu_fe::eigen::prepare` (the
+  `SliceProduct` of two `Dims`), `akantu_fe::kernels::{
+  shape_derivatives_product, shape_derivatives_with}`.
+- `akantu_core::eigen_order::{redux_tree_recursive, TREE_LEVELS_MAX}`;
+  `akantu_core::eigen_gebp::route` is a `const fn`.
 - Sparse assembly without per-entry hashing, bitwise equal to the former
   code: `akantu_linalg::sparse::BlockPositionCache` and
   `SparseMatrixAij::add_values_cached` (entry positions per element
@@ -55,12 +66,25 @@ change of default results or of a public API raises the minor version.
   route once per block, the copy plan after an insertion is built in
   linear time, and the linear law's effective norm uses fixed-size loops
   (`docs/BENCHMARKS.md`, "The insertion check").
+- Small dense products and Eigen-order reductions are faster with bitwise
+  identical results: the halving-tree reduction is non-recursive and
+  inlined, fixed-size tensor products select their route at compile time,
+  the FE products of slices run fixed-order kernels (one per route and
+  depth class), and the FE per-element loops decide each product once.
+- `akantu_fe::eigen::product_slices` checks the operands' inner
+  dimension before the slice lengths: a call with both wrong now reports
+  the inner-dimension mismatch (still `Error::DimensionMismatch`, with
+  another context). Errors of `SliceProduct` carry their own context
+  strings (`SliceProduct ...`).
+- `FeEngine::field_matrix_elemental` (consistent mass) integrates each
+  element's point matrices as they are computed instead of materialising
+  all of them first (memory `nq·(nb_dof·nn)²` instead of
+  `ne·nq·(nb_dof·nn)²` reals; 35 k `_tetrahedron_10` needed 4.4 GB).
 - `DofManager::assemble_elemental_matrices_to_matrix` keeps the entry
   positions of each element (4 bytes per assembled entry and per element
   equation, e.g. 360 bytes per `Tetrahedron4` element of a 3-D solid)
   from the second assembly into an unchanged profile on;
   `DofManager::set_assembly_cache(false)` turns this off.
-
 
 ## [0.1.0] - Unreleased
 

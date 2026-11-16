@@ -1,0 +1,83 @@
+# Profile of suite case contact_cohesive_quad4
+
+binary: ~/w/gebp/bin/final-models (ecbe1c351420537f)
+command: taskset -c 3 ~/w/gebp/bin/final-models --case contact_cohesive_quad4 --size m --loop-seconds 4
+perf: perf record -F 499 --call-graph dwarf,16384
+cpu: AMD EPYC 9B45
+date_utc: 2026-11-16T11:21:05Z
+commit: 184dbb6e5
+
+## Phases of the profiled run (seconds, calls)
+
+mesh                         0.0705 s       1 calls
+init                         0.1512 s       1 calls
+solve_step                   5.9042 s     300 calls
+
+## Top 25 symbols, self time
+
+    12.25%  [.] akantu_core::eigen_kernels::coeff_seq_unrolled
+    12.03%  [.] <akantu_cohesive::model::SolidMechanicsModelCohesive>::interpolate_stress
+     8.78%  [.] akantu_core::eigen_kernels::coeff_seq_colmajor
+     6.12%  [.] akantu_fe::engine::fast::integrate::<<akantu_fe::engine::FeEngine>::integrate::{closure#0}>
+     6.09%  [.] akantu_fe::eigen::product_slices
+     5.68%  [.] akantu_fe::engine::fast::btd
+     4.51%  [.] akantu_fe::engine::fast::gradient::<akantu_fe::element_class::types::Cohesive3d8>
+     2.37%  [.] <akantu_solver::dof_manager::DofManager>::assemble_elemental_array_local_view
+     2.11%  [.] <akantu_core::spatial_grid::NeighborhoodItems<i32> as core::iter::traits::iterator::Iterator>::next
+     2.08%  [.] <akantu_solid::materials::elastic::MaterialElastic<2> as akantu_solid::material::Material>::compute_stress
+     1.70%  [.] akantu_core::eigen_gebp::route
+     1.58%  [.] 0x00000000001a18f9
+     1.48%  [.] 0x00000000001a18ff
+     1.45%  [.] <akantu_core::eigen_kernels::SliceProduct>::eval_sized
+     1.39%  [.] akantu_solid::material::grad_u_in_place
+     1.10%  [.] <akantu_contact::detector::ContactDetector>::local_search
+     1.10%  [.] <akantu_fe::engine::FeEngine>::interpolate_elemental_field_shared
+     1.01%  [.] akantu_contact::geometry::barycenter_on
+     0.98%  [.] 0x00000000001a18eb
+     0.92%  [.] <akantu_solid::materials::elastic::MaterialElastic<2>>::compute_thermal
+     0.88%  [.] <akantu_cohesive::laws::linear::Linear>::check_insertion
+     0.85%  [.] <akantu_solver::integration_scheme::NewmarkBeta as akantu_solver::integration_scheme::IntegrationScheme>::corrector
+     0.85%  [.] <akantu_solver::integration_scheme::NewmarkBeta as akantu_solver::integration_scheme::IntegrationScheme>::predictor
+     0.82%  [.] <akantu_solver::dof_manager::DofManager>::assemble_to_residual
+     0.79%  [.] <alloc::vec::Vec<usize> as alloc::vec::spec_from_iter::SpecFromIter<usize, core::iter::adapters::GenericShunt<core::iter::adapters::map::Map<core::slice::iter::Iter<i32>, akantu_fe::engine::resolve_filter::{closure#0}::{closure#0}>, core::result::Result<core::convert::Infallible, akantu_core::error::Error>>>>::from_iter
+
+## Top 25 symbols, inclusive time (children)
+
+    12.25%    12.25%  [.] akantu_core::eigen_kernels::coeff_seq_unrolled
+    12.03%    12.03%  [.] <akantu_cohesive::model::SolidMechanicsModelCohesive>::interpolate_stress
+     8.78%     8.78%  [.] akantu_core::eigen_kernels::coeff_seq_colmajor
+     6.12%     6.12%  [.] akantu_fe::engine::fast::integrate::<<akantu_fe::engine::FeEngine>::integrate::{closure#0}>
+     6.09%     6.09%  [.] akantu_fe::eigen::product_slices
+     5.68%     5.68%  [.] akantu_fe::engine::fast::btd
+     4.51%     4.51%  [.] akantu_fe::engine::fast::gradient::<akantu_fe::element_class::types::Cohesive3d8>
+     2.37%     2.37%  [.] <akantu_solver::dof_manager::DofManager>::assemble_elemental_array_local_view
+     2.11%     2.11%  [.] <akantu_core::spatial_grid::NeighborhoodItems<i32> as core::iter::traits::iterator::Iterator>::next
+     2.08%     2.08%  [.] <akantu_solid::materials::elastic::MaterialElastic<2> as akantu_solid::material::Material>::compute_stress
+     1.70%     1.70%  [.] akantu_core::eigen_gebp::route
+     1.58%     1.58%  [.] 0x00000000001a18f9
+     1.58%     0.00%  [.] 0x00007802defa18f9
+     1.48%     1.48%  [.] 0x00000000001a18ff
+     1.48%     0.00%  [.] 0x00007802defa18ff
+     1.45%     1.45%  [.] <akantu_core::eigen_kernels::SliceProduct>::eval_sized
+     1.39%     1.39%  [.] akantu_solid::material::grad_u_in_place
+     1.10%     1.10%  [.] <akantu_contact::detector::ContactDetector>::local_search
+     1.10%     1.10%  [.] <akantu_fe::engine::FeEngine>::interpolate_elemental_field_shared
+     1.04%     0.32%  [k] do_user_addr_fault
+     1.04%     0.13%  [.] malloc
+     1.04%     0.00%  [.] asm_exc_page_fault
+     1.04%     0.00%  [.] exc_page_fault
+     1.01%     1.01%  [.] akantu_contact::geometry::barycenter_on
+     0.98%     0.98%  [.] 0x00000000001a18eb
+
+## Call chains (callers of the hottest self-time symbols, entries above 2 %)
+
+    12.25%  [.] akantu_core::eigen_kernels::coeff_seq_unrolled
+    12.03%  [.] <akantu_cohesive::model::SolidMechanicsModelCohesive>::interpolate_stress
+     8.78%  [.] akantu_core::eigen_kernels::coeff_seq_colmajor
+     6.12%  [.] akantu_fe::engine::fast::integrate::<<akantu_fe::engine::FeEngine>::integrate::{closure#0}>
+     6.09%  [.] akantu_fe::eigen::product_slices
+     5.68%  [.] akantu_fe::engine::fast::btd
+     4.51%  [.] akantu_fe::engine::fast::gradient::<akantu_fe::element_class::types::Cohesive3d8>
+     2.37%  [.] <akantu_solver::dof_manager::DofManager>::assemble_elemental_array_local_view
+     2.11%  [.] <akantu_core::spatial_grid::NeighborhoodItems<i32> as core::iter::traits::iterator::Iterator>::next
+     2.08%  [.] <akantu_solid::materials::elastic::MaterialElastic<2> as akantu_solid::material::Material>::compute_stress

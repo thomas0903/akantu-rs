@@ -51,6 +51,7 @@
 //! loops do not allocate.
 
 use akantu_core::eigen_gebp::{self, Extent, Order, ProductShape};
+pub use akantu_core::eigen_kernels::SliceProduct;
 use akantu_core::eigen_order as eo;
 use akantu_core::{Error, Real, Result};
 
@@ -219,11 +220,11 @@ pub fn product_slices(
     b: &[Real],
     c: &mut [Real],
 ) -> Result<Route> {
-    let need_a = akantu_core::types::checked_len(lhs.rows, lhs.cols, "eigen::product lhs")?;
-    let need_b = akantu_core::types::checked_len(rhs.rows, rhs.cols, "eigen::product rhs")?;
+    let p = SliceProduct::new(product_shape(lhs, rhs))?;
     for (context, need, got) in [
-        ("eigen::product_slices: lhs", need_a, a.len()),
-        ("eigen::product_slices: rhs", need_b, b.len()),
+        ("eigen::product_slices: lhs", p.lhs_len(), a.len()),
+        ("eigen::product_slices: rhs", p.rhs_len(), b.len()),
+        ("eigen::product: result", p.out_len(), c.len()),
     ] {
         if got < need {
             return Err(Error::DimensionMismatch {
@@ -233,23 +234,19 @@ pub fn product_slices(
             });
         }
     }
-    // (row stride, column stride) of the logical operand in its slice
-    let strides = |d: Dims| {
-        if d.transposed {
-            (d.cols, 1)
-        } else {
-            (1, d.rows)
-        }
-    };
-    let (ai, ak) = strides(lhs);
-    let (bk, bj) = strides(rhs);
-    product(
-        lhs,
-        rhs,
-        |i, k| a[i * ai + k * ak],
-        |k, j| b[k * bk + j * bj],
-        c,
-    )
+    p.eval(a, b, c)?;
+    Ok(p.route())
+}
+
+/// The [`SliceProduct`] of `lhs * rhs` (operand storage as in
+/// [`product_slices`]): route, strides and lengths decided once, for loops
+/// that evaluate the same product per element or quadrature point
+/// ([`SliceProduct::eval`] gives the bits of [`product_slices`]).
+///
+/// # Errors
+/// [`Error::DimensionMismatch`] if `lhs.cols != rhs.rows`.
+pub fn prepare(lhs: Dims, rhs: Dims) -> Result<SliceProduct> {
+    SliceProduct::new(product_shape(lhs, rhs))
 }
 
 /// `squaredNorm()` of `n` values: halving tree for a compile-time size within
