@@ -9,6 +9,7 @@
 #   run_mpi.sh --out DIR --bin HOST_PATH/suite_solid \
 #              --cases a,b --ranks "1 2 4 8" --reps N --size m \
 #              [--image akantu-rs-mpi:dev] [--cpus 0-3] [--wrap "tjob LABEL --"]
+#              [--rep-offset K]
 #
 # Each run: one container with the binary's directory read-only and the
 # cores --cpus (default 0-3: the tjob cores of the measurement machine, up
@@ -17,7 +18,7 @@
 # run_ab.sh, variant = np<P>, so summarize.py reads DIR). The rank counts are
 # rotated per repetition; each run is wrapped by --wrap.
 set -euo pipefail
-out="" bin="" cases="" ranks="1 2 4 8" reps=5 size=m image=akantu-rs-mpi:dev wrap="" cpus=0-3
+out="" bin="" cases="" ranks="1 2 4 8" reps=5 size=m image=akantu-rs-mpi:dev wrap="" cpus=0-3 offset=0
 while [ $# -gt 0 ]; do
   case "$1" in
     --out) out="$2"; shift 2 ;;
@@ -29,6 +30,7 @@ while [ $# -gt 0 ]; do
     --image) image="$2"; shift 2 ;;
     --wrap) wrap="$2"; shift 2 ;;
     --cpus) cpus="$2"; shift 2 ;;
+    --rep-offset) offset="$2"; shift 2 ;;
     *) echo "run_mpi.sh: unknown argument $1" >&2; exit 2 ;;
   esac
 done
@@ -42,8 +44,8 @@ mkdir -p "$out"
 nr=${#rank_list[@]}
 {
   echo "{\"date_utc\":\"$(date -u +%Y-%m-%dT%H:%M:%SZ)\",\"image\":\"$image\",\"image_id\":\"$(docker image inspect -f '{{.Id}}' "$image")\",\"bin\":\"$bin\",\"sha256\":\"$(sha256sum "$bin" | cut -d" " -f1)\",\"cpu\":\"$(lscpu | sed -n 's/^Model name: *//p' | head -1)\",\"ranks\":\"$ranks\",\"size\":\"$size\",\"reps\":$reps,\"cpus\":\"$cpus\"}"
-} > "$out/meta.json"
-for ((r = 0; r < reps; r++)); do
+} > "$out/meta.r$offset.$$.json"
+for ((r = offset; r < offset + reps; r++)); do
   for c in "${case_list[@]}"; do
     for ((k = 0; k < nr; k++)); do
       p=${rank_list[$(( (k + r) % nr ))]}
