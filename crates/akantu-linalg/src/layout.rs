@@ -479,6 +479,33 @@ mod tests {
     use super::*;
     use EquationOwnership::{Owned, PureGhost, Shared};
 
+    /// "First local equation wins" for a global number present twice on
+    /// a rank, in the dense map, across its conversion to the hashed map
+    /// and in the hashed map; and through the public API (a shared copy
+    /// carrying the global number of an owned equation of this rank).
+    #[test]
+    fn first_local_equation_wins_dense_and_hashed() {
+        let mut m = GlobalToLocal::default();
+        m.insert_first(5, 0, 2);
+        m.insert_first(5, 1, 2);
+        assert!(matches!(m, GlobalToLocal::Dense(_)));
+        assert_eq!(m.get(5), Some(0));
+        // beyond 4 · nb_local + 4096: converts to the hashed map
+        m.insert_first(1_000_000, 2, 3);
+        assert!(matches!(m, GlobalToLocal::Hashed(_)));
+        assert_eq!((m.get(5), m.get(1_000_000)), (Some(0), Some(2)));
+        m.insert_first(1_000_000, 3, 4);
+        m.insert_first(5, 4, 5);
+        assert_eq!((m.get(5), m.get(1_000_000)), (Some(0), Some(2)));
+        assert_eq!(m.get(6), None);
+
+        let mut l = EquationLayout::new();
+        l.append_block(&[Owned, Owned, Shared], 0, 2, |i| (i == 2).then_some(0))
+            .unwrap();
+        assert_eq!(l.local(0).unwrap(), 0, "the owned equation, not the copy");
+        assert!(!l.is_identity());
+    }
+
     #[test]
     fn serial_identity() {
         let l = EquationLayout::serial(3).unwrap();
