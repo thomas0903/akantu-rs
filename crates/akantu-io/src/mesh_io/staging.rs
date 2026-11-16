@@ -152,24 +152,21 @@ impl MeshBuild {
         Ok(e)
     }
 
-    /// Nodes of element `e` of `ty`.
-    pub(crate) fn element_nodes(&self, ty: ElementType, e: usize) -> &[Idx] {
-        let n = ty.nb_nodes_per_element();
-        self.conn.get(&ty).map_or(&[], |c| &c[e * n..(e + 1) * n])
-    }
-
     /// Set `name[ty][e] = value`, padding skipped entries with the
     /// dataset's fill value (upstream `getDataPointer` resizes the array to
     /// the current element count before `push_back`; the padding is
     /// uninitialised upstream, UD-064).
     pub(crate) fn set_int(&mut self, name: &str, ty: ElementType, e: usize, value: Int, fill: Int) {
-        let data = self
-            .int_data
-            .entry(name.to_owned())
-            .or_insert_with(|| IntData {
-                per_type: BTreeMap::new(),
-                fill,
-            });
+        let data = match self.int_data.get_mut(name) {
+            Some(d) => d,
+            None => self
+                .int_data
+                .entry(name.to_owned())
+                .or_insert_with(|| IntData {
+                    per_type: BTreeMap::new(),
+                    fill,
+                }),
+        };
         let fill = data.fill;
         let v = data.per_type.entry(ty).or_default();
         if v.len() <= e {
@@ -190,16 +187,22 @@ impl MeshBuild {
 
     /// Upstream `ElementGroup::add(element, add_nodes, false)`.
     pub(crate) fn group_add(&mut self, name: &str, ty: ElementType, e: Idx, add_nodes: bool) {
-        let nodes: Vec<Idx> = if add_nodes {
-            self.element_nodes(ty, usize::try_from(e).unwrap_or(0))
-                .to_vec()
-        } else {
-            Vec::new()
+        let g = match self.element_groups.get_mut(name) {
+            Some(g) => g,
+            None => self.element_groups.entry(name.to_owned()).or_default(),
         };
-        let g = self.element_groups.entry(name.to_owned()).or_default();
-        g.elements.entry(ty).or_default().push(e);
+        match g.elements.get_mut(&ty) {
+            Some(v) => v.push(e),
+            None => g.elements.entry(ty).or_default().push(e),
+        }
         g.add_dimension(ty.spatial_dimension());
-        g.nodes.extend_from_slice(&nodes);
+        if add_nodes {
+            let n = ty.nb_nodes_per_element();
+            let e = usize::try_from(e).unwrap_or(0);
+            if let Some(c) = self.conn.get(&ty) {
+                g.nodes.extend_from_slice(&c[e * n..(e + 1) * n]);
+            }
+        }
     }
 
     /// Upstream `GroupManager::createGroupsFromMeshData<std::string>(name)`:
@@ -210,6 +213,10 @@ impl MeshBuild {
             return Ok(());
         };
         let mut members: BTreeMap<String, Vec<(ElementType, Idx)>> = BTreeMap::new();
+        // Consecutive elements mostly share their value: the member list of
+        // the previous one is found without a lookup.
+        let mut last: Option<&str> = None;
+        let mut last_list: Option<&mut Vec<(ElementType, Idx)>> = None;
         for (&ty, values) in data {
             if values.len() != self.nb_elements(ty) {
                 return Err(Error::Mesh(format!(
@@ -219,10 +226,20 @@ impl MeshBuild {
                 )));
             }
             for (e, v) in values.iter().enumerate() {
-                members
-                    .entry(v.clone())
-                    .or_default()
-                    .push((ty, try_idx(e)?));
+                let item = (ty, try_idx(e)?);
+                if let (Some(l), Some(list)) = (last, last_list.as_deref_mut())
+                    && l == v.as_str()
+                {
+                    list.push(item);
+                    continue;
+                }
+                if !members.contains_key(v.as_str()) {
+                    members.insert(v.clone(), Vec::new());
+                }
+                let list = members.get_mut(v.as_str()).expect("inserted above");
+                list.push(item);
+                last = Some(v.as_str());
+                last_list = Some(list);
             }
         }
         for (group, els) in members {
