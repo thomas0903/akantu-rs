@@ -56,7 +56,7 @@ pub mod model;
 pub mod resolution;
 pub mod selector;
 
-pub use detector::{ContactDetector, SearchOutput};
+pub use detector::{ContactDetector, GridSpacing, SearchOutput};
 pub use element::{ContactElement, ContactState, DetectionType, contact_state_code};
 pub use fields::{ContactFields, ContactUpstreamCompat, DeformableMasterWeighting};
 pub use geometry::{MeshView, NormalOrientation, ProjectionMetric, ProjectionValidity};
