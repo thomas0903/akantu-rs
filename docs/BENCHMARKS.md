@@ -402,6 +402,198 @@ The tables above use the baseline build. Builds with `-C target-cpu`
 `panic = "abort"` and PGO give the same bits (section "Build
 configuration").
 
+### The insertion step and the mesh operations under it (performance campaign, 2026-11-17)
+
+The insertion part of the check (the insertion decision and the mesh
+transaction that doubles facets and nodes), and the mesh set-up operations
+every cohesive run uses, were profiled and reworked with bitwise identical
+results (D-122). Machine: an 8-core AMD EPYC Milan (Zen 3) development
+machine, 15 GiB, alone; one process pinned to one core (MPI: rank `r` on
+core `r`, MUMPS image); before and after interleaved in rotated order, 5
+repetitions; before is `perf/wave2-base` (`0769542f6`), after is
+`74e97f334`, both with the default release profile. Raw data, scripts and
+profiles: `docs/benchmarks/perf-campaign/cohesive-insert/`.
+
+What the profile of the full serial schedule showed at the branch point
+(frame-pointer call graph, shares of samples; `profiles/serial-base-5000-*`):
+the check 54 % of the run, of which the facet stresses 23 % (their copy
+plan rebuilt after every insertion step 5.8 %), the linear law's check
+10.7 % and the insertion commit 20 %: the cross-part consistency check of
+the facet mesh at each commit 11.5 % (a walk over every adjacency row,
+`Vec` per row), the rebuild of the element groups' node lists 3.9 % (a sort
+of the 92,624 node entries of the volume group `Body`, after a copy of every
+group). At 8 ranks (`profiles/np8-p8-c8-*`, after the serial changes) the
+DOF manager's global-number exchange after node doubling took 14.6 % of all
+samples: its accessor scanned every DOF of the rank for each node of the
+node synchronizer's schemes.
+
+Changes:
+
+- **The cross-part check restricted to what a transaction touched**
+  (release builds; `SharedMesh::set_full_consistency_checks`). A
+  transaction that starts from a state that passed the check at the
+  previous commit reads the adjacency references only in the rows it
+  replaced or appended (taken from its journal). Still checked in full:
+  the node arrays of both parts (coordinates bit for bit, flags, global
+  ids, owner ranks), the index domains, the type, row count and
+  components of every adjacency block. Not re-read: the references of
+  untouched rows, which were in range at the previous check and whose
+  blocks only grew. The full check runs in debug builds (with the debug
+  reciprocity check), for the first mutation of a domain, after a set-up
+  operation that failed it, for a removal, a snapshot of a part's mesh
+  data, a facet mesh created by the transaction, or a transaction that
+  replaced more than an eighth of the `element_to_subelement` rows (a
+  whole-mesh insertion). The verdicts of both forms are compared on every
+  kind of journaled edit by `tests/restricted_consistency_check.rs`.
+- **Journals instead of snapshots**: the element groups' node lists
+  (rebuilt through a bit set: the same sorted, unique lists) and the node
+  synchronizer replaced by the distributed hook are journaled; the group
+  manager and the other synchronizers are no longer copied per insertion;
+  `CohesiveSynchronizers::element_to_prank` is shared instead of copied
+  into the staged synchronizers; journal entries keep the usual dataset
+  names without an allocation.
+- **The stress copy plan follows an insertion**: the pair that wrote side
+  1 of each doubled facet moves to side 0 of the new facet (same source,
+  same fused coefficients; new facets follow every existing one), checked
+  against the mesh; any other change rebuilds it; debug builds compare
+  every patched plan with a rebuilt one. The plan is keyed on a copy of
+  the law's filter (compared, not hashed per check).
+- **Distributed decision**: one reduction of the flagged owned and ghost
+  facets; with none on any rank the two facet-synchronizer exchanges, the
+  scan and the order array are skipped (every step before the first
+  insertion, step 710 of the serial full schedule, and every later step
+  without one).
+- **The DOF manager's global-number exchange** (`akantu-solver`, smallest
+  change): the accessor indexes the equations of every node once per
+  exchange (same equations, same order).
+- **The cohesive laws' residual and energies**: the work arrays (normals,
+  openings, `(t + t_c) N`, its integral, the elemental residual) are kept
+  between steps, the filter and the four energy arrays are read through
+  borrows instead of copies.
+- **Set-up**: `plan_facets` counts the elements shared by a facet's nodes
+  through dense element ids (one pass per facet instead of a scan per
+  element and node); `transfer_physical_names` keeps a sorted index per
+  coordinate and scans the narrowest window (the x window alone held a
+  whole face of a box, so the pre-selection was correct but slow); `fill_from_node_group`
+  tests membership through a table instead of a scan of the node list.
+
+The serial benchmark driver (h = 0.12, 23,156 tetrahedra), ms per step:
+
+| series | phase | before | after | after / before (paired) |
+|---|---|---|---|---|
+| 500 steps (no insertion) | `check_cohesive_stress` | 4.744 [4.512, 4.807] | 4.646 [4.477, 4.874] | 0.993 [0.973, 1.014] |
+| 500 steps | `solve_step` | 3.400 [3.339, 3.491] | 3.432 [3.366, 3.561] | 1.009 [0.983, 1.026] |
+| full schedule (5000 steps, 11,736 cohesive elements) | `check_cohesive_stress` | 10.782 [10.710, 10.849] | 6.056 [5.911, 6.149] | 0.558 [0.552, 0.569] |
+| full schedule | of which facet stresses and laws' checks | 6.901 [6.833, 6.936] | 5.105 [4.978, 5.210] | 0.736 [0.727, 0.754] |
+| full schedule | of which insertion | 3.879 [3.861, 3.911] | 0.949 [0.930, 0.952] | 0.243 [0.240, 0.246] |
+| full schedule | `solve_step` | 7.576 [7.566, 7.635] | 7.606 [7.504, 7.634] | 0.996 [0.987, 1.009] |
+| h = 0.06 (177,328 tetrahedra), 200 steps | `check_cohesive_stress` | 54.116 [53.895, 55.468] | 50.870 [49.723, 51.537] | 0.930 [0.919, 0.956] |
+| h = 0.06 | of which insertion | 1.522 [1.512, 1.532] | 0.312 [0.306, 0.313] | 0.204 [0.201, 0.206] |
+
+Peak RSS: 463 → 404 MiB (500 steps), 472 → 445 MiB (full schedule), 851
+→ 820 MiB (h = 0.06). Every run of both series gave the same insertion
+counts; the state digests of the serial runs (energies of every step,
+insertions, nodal state of the last step) are identical before and after
+(`bitwise/`).
+
+At 2, 4 and 8 ranks (the full schedule with the Scotch partition and the
+MUMPS static solve), ms per step of the slowest rank:
+
+| ranks | phase | before | after | after / before (paired) |
+|---|---|---|---|---|
+| 2 | `check_cohesive_stress` | 12.061 [12.029, 12.209] | 4.059 [4.041, 4.155] | 0.335 [0.332, 0.345] |
+| 2 | of which facet stresses | 2.352 [2.299, 2.418] | 1.413 [1.404, 1.477] | 0.597 [0.584, 0.643] |
+| 2 | of which insertion | 8.665 [8.641, 8.740] | 1.606 [1.603, 1.633] | 0.185 [0.184, 0.188] |
+| 2 | `solve_step` | 5.020 [5.003, 5.078] | 4.893 [4.882, 4.959] | 0.975 [0.962, 0.988] |
+| 4 | `check_cohesive_stress` | 6.217 [6.004, 6.316] | 2.378 [2.289, 2.488] | 0.383 [0.375, 0.394] |
+| 4 | of which facet stresses | 1.124 [1.037, 1.200] | 0.642 [0.592, 0.699] | 0.578 [0.548, 0.582] |
+| 4 | of which insertion | 4.605 [4.495, 4.636] | 1.277 [1.236, 1.323] | 0.277 [0.271, 0.285] |
+| 4 | `solve_step` | 3.161 [3.091, 3.242] | 3.075 [3.044, 3.180] | 0.981 [0.963, 0.995] |
+| 8 | `check_cohesive_stress` | 3.535 [3.479, 3.611] | 1.624 [1.602, 1.653] | 0.458 [0.444, 0.471] |
+| 8 | of which facet stresses | 0.556 [0.540, 0.600] | 0.332 [0.326, 0.344] | 0.598 [0.543, 0.619] |
+| 8 | of which insertion | 2.754 [2.708, 2.777] | 1.057 [1.048, 1.078] | 0.387 [0.377, 0.395] |
+| 8 | `solve_step` | 2.047 [2.025, 2.108] | 2.005 [1.994, 2.060] | 0.978 [0.955, 1.006] |
+
+The laws' checks did not change (0.96–0.99). The facet-stress part gains
+from the copy plan no longer rebuilt after each insertion step. With the
+port's own static solve (`rust_sparse_solver = eigen`, which repeats from
+run to run) the `energies.csv` (17 digits) and `insertions.csv` of before
+and after are identical at 2, 4 and 8 ranks (`bitwise/`); the MUMPS runs
+are compared on time only.
+
+The set-up suite (`suite_setup`, size `m`) and the cohesive cases of
+`suite_solid`, seconds per phase (every case's digest identical before and
+after):
+
+| case | phase | before [s] | after [s] | after / before (paired) |
+|---|---|---|---|---|
+| `facets_tet4` | `init_mesh_facets` | 1.753 [1.740, 1.915] | 0.449 [0.447, 0.468] | 0.257 [0.235, 0.264] |
+| `facets_hex8` | `init_mesh_facets` | 0.873 [0.848, 0.874] | 0.542 [0.539, 0.554] | 0.629 [0.620, 0.637] |
+| `groups_tet4` | `element_group_from_node_group` | 0.160 [0.159, 0.162] | 0.029 [0.029, 0.030] | 0.185 [0.179, 0.189] |
+| `cohesive_insert_tet4` | `init_mesh_facets` | 1.715 [1.705, 1.738] | 0.434 [0.430, 0.448] | 0.255 [0.250, 0.258] |
+| `cohesive_insert_tet4` | `insert` (every facet) | 3.963 [3.947, 4.161] | 3.479 [3.437, 3.520] | 0.879 [0.830, 0.884] |
+| `cohesive_extrinsic_check` | `init` | 1.168 [1.163, 1.177] | 0.536 [0.535, 0.554] | 0.459 [0.456, 0.474] |
+| `cohesive_extrinsic_check` | `check_insertion` | 1.372 [1.367, 1.377] | 1.369 [1.344, 1.442] | 0.994 [0.980, 1.053] |
+| `cohesive_extrinsic_insertion` | `init` | 0.634 [0.631, 0.635] | 0.273 [0.272, 0.276] | 0.432 [0.429, 0.436] |
+| `cohesive_extrinsic_insertion` | `check_insertion` | 1.685 [1.634, 1.774] | 1.391 [1.366, 1.401] | 0.832 [0.787, 0.836] |
+
+What did not pay:
+
+- A fused facet-stress computation and linear-law check per block of
+  facets (the stresses read back from the cache): equal to the two passes
+  on the driver, 7–10 % slower on `cohesive_extrinsic_check` for blocks of
+  64 to 4096 facets; removed.
+- A software prefetch of the bulk stress tuple eight pairs ahead in the
+  facet-stress loop: −3 % of the check before insertion; not worth new
+  `unsafe` in a crate that forbids it.
+- Binary searches in `plan_facets`' node rows: slower than the scans
+  (`Element::cmp` is a tuple comparison); replaced by the dense-id count.
+- An inline node synchronizer in the transaction journal enlarged every
+  entry (×1.2 on the whole-mesh insertion); boxed.
+
+What remains (shares of the profiles after the change, not times):
+
+- Serial (`profiles/serial-final-5000-*`, the full schedule): the check is
+  39 % of the run, the explicit step 60 %. The facet stresses (18.8 %) are
+  bound by gathers of each pair's bulk stress tuple and coefficients
+  (random over about 4 MiB) and by writing `facet_stress` (about 26 MB per
+  step at h = 0.12, all of it public model state); the linear law's check
+  (14.2 %) streams `facet_stress`, normals and tangents. The insertion is
+  6.0 % of the run, spread over the subfacet searches (1.6 %), the group
+  node lists (0.9 %), the event dispatch and the transaction's
+  bookkeeping.
+- 8 ranks (`profiles/np8-p8-c9-*`): the insertion is 18.6 % of all
+  samples, most of it in the transaction's agreements (one per stage and
+  one per dispatched event, consumer and level), which also absorb the
+  ranks' imbalance; then the global ids of the doubled nodes (3.2 %), the
+  insertion decision (2.9 %), the DOF manager's numbering (2.1 %), the
+  node-scheme rebuild (1.3 %). Fewer agreements need a change of the
+  transaction protocol (its error paths are gate-tested); the node
+  schemes and the global ids could follow the doubled nodes instead of
+  being rebuilt over all nodes.
+
+### Distribution and the communication layer (performance campaign, 2026-11-17)
+
+Measured on an 8-vCPU AMD EPYC Milan development machine, before
+(`24f73b94e`) and after (`818a43195`), interleaved, 5 repetitions; every
+digest identical at 1, 2, 4 and 8 ranks. Details, raw data and what
+remains: `docs/benchmarks/perf-campaign/distribution/README.md`.
+
+| Case | Before | After | Ratio |
+|---|---|---|---|
+| Partition (Scotch with the dual graph), 1,296,000 Tet4, 2 / 8 ranks | 6.51 / 7.46 s | 1.92 / 2.65 s | 0.30 / 0.37 |
+| Distribution, 1,296,000 Tet4, 2 / 8 ranks | 8.48 / 11.72 s | 2.84 / 3.26 s | 0.34 / 0.28 |
+| Explicit step, 162,000 Tet4, 2 / 8 ranks | 13.2 / 8.2 ms | 10.1 / 5.7 ms | 0.88 / 0.79 |
+| Two energies, 162,000 Tet4, 1 rank | 17.4 ms | 14.7 ms | 0.79 |
+| `all_reduce` of 2 reals, 8 ranks | 10.6 µs | 6.2 µs | 0.52 |
+| Explicit step of a 32-triangle model, serial communicator | 8.1 µs | 5.1 µs | 0.63 |
+
+The part of the distributed explicit step that does not shrink with the
+rank count is memory traffic (four independent one-rank runs at once each
+slow by 1.5 to 1.7 times) and, on that machine, unequal vCPU speed under
+load; the communication and its bookkeeping were about 20 % of rank 0's
+step at 4 ranks before the changes.
+
 ## Static solves and solvers
 
 ### The SparseLU translation against upstream's SparseLU

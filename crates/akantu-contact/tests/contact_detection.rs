@@ -400,3 +400,51 @@ fn deformable_master_force_balance() {
         let _ = shared;
     }
 }
+
+/// The outward directions memoised within a search are recomputed in the
+/// next one: after a first search, the lower body is mirrored about the
+/// contact line (its elements now lie above their contact facets, so the
+/// facets' outward side flips) and the upper body moved down into it. The
+/// second search of the same model must give exactly what a fresh model
+/// gives on the new positions (contact elements, gaps, normals), and the
+/// flip must change normals.
+#[test]
+fn outward_directions_follow_the_positions_between_searches() {
+    let new_model = || {
+        let mesh = read_mesh(&contact_mesh_path("flat_on_flat.msh"), 2);
+        let dat = contact_dat("contact", "contact", 0.0, 1050e7, 0.0, false);
+        contact_model(mesh, &dat)
+    };
+    let move_bodies = |model: &mut akantu_contact::ContactMechanicsModel,
+                       shared: &akantu_mesh::SharedMesh| {
+        let lower = {
+            let m = shared.read().unwrap();
+            let upper = nodes_of_physical(&m, "upper");
+            (0..m.nb_nodes())
+                .filter(|n| !upper.contains(&akantu_core::Idx::try_from(*n).unwrap()))
+                .collect::<Vec<_>>()
+        };
+        let p = model.positions_mut();
+        for n in lower {
+            let t = p.tuple_mut(n);
+            t[1] = -t[1];
+        }
+        translate_group(model, shared, "upper", &[0.0, -0.05]);
+    };
+    let (shared, mut model) = new_model();
+    translate_group(&mut model, &shared, "upper", &[0.0, -DELTA]);
+    model.search().unwrap();
+    let first: Vec<Real> = model.normals().as_slice().to_vec();
+    assert!(!model.contact_elements().is_empty());
+    // undo the first translation, then the new configuration
+    translate_group(&mut model, &shared, "upper", &[0.0, DELTA]);
+    move_bodies(&mut model, &shared);
+    model.search().unwrap();
+    let (shared2, mut fresh) = new_model();
+    move_bodies(&mut fresh, &shared2);
+    fresh.search().unwrap();
+    assert_eq!(model.contact_elements(), fresh.contact_elements());
+    assert_eq!(model.gaps().as_slice(), fresh.gaps().as_slice());
+    assert_eq!(model.normals().as_slice(), fresh.normals().as_slice());
+    assert_ne!(first, model.normals().as_slice());
+}

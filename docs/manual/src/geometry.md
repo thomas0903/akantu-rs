@@ -24,7 +24,9 @@ CGAL's licences (decision D-042):
   (upstream `MeshSegmentIntersector<dim, type>`), which cuts query segments
   by a mesh of `_triangle_3` (2-D) or `_tetrahedron_4` (3-D) elements into
   `_segment_2` elements of a result mesh, over a pluggable search structure
-  (`TriangleIndex`; the LGPL one is `LinearScan`);
+  (`TriangleIndex`; the LGPL ones are `LinearScan`, which tests every
+  primitive, and `GridIndex`, a uniform grid that tests only the
+  primitives near the query, used by the embedded model);
 * the dynamic spatial grid `SpatialGrid` (upstream `aka_grid_dynamic.hh`)
   and `save_grid_as_mesh`.
 

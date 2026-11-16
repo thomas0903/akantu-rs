@@ -10,6 +10,36 @@ change of default results or of a public API raises the minor version.
 
 ### Added
 
+- `akantu_geometry::GridIndex`: a uniform-grid search structure over the
+  triangle primitives of the segment intersector that tests only the
+  primitives near a query, in primitive order with the predicates of
+  `LinearScan`. `EmbeddedInterfaceIntersector` uses it by default; its new
+  field `exhaustive_search = true` selects `LinearScan`. The grid reports
+  the scan's reports, in the scan's order, minus those of primitives
+  farther from the query than its margin (a quarter cell). The scan
+  reports such primitives only through rounding noise, when a query lies,
+  up to rounding, in the plane of a distant face or on the line of a
+  distant edge; the noise can be the query itself attached to the distant
+  element. In the collected set (`remove_near_duplicates = false`) the grid
+  can therefore keep another element for a duplicated piece: the one
+  containing it, where the scan's deduplication keeps the lower, distant
+  one. The grid's choice is upstream's: a probe of upstream's
+  `MeshSegmentIntersector` gives the grid's pieces on such queries, and so
+  does the port's CGAL-compatible AABB tree. With the default tiled
+  assembly no difference was found.
+- `akantu_contact::geometry::OutwardFrame::CurrentCached`,
+  `OutwardCache` and `orthogonal_projection_in`: outward directions of the
+  facets memoised for one set of positions; the contact detector uses them
+  within a search (identical normals).
+- `akantu_contact::geometry::outside_direction_with_nodes`: the reference
+  outward direction with node arrays read once by the caller (the nodal
+  areas of a search use it).
+- `akantu_contact::GridSpacing` and `ContactDetector::grid_spacing`: the
+  cell size of the detection grid. `Upstream` (default) keeps upstream's
+  rule (√2 · the largest in-radius of every facet around a master node);
+  `ContactSurface` takes the contact-surface facets only, for meshes whose
+  side facets are much larger than the surface facets (the closest master
+  node found can then differ); `ContactMechanicsModel::set_grid_spacing`.
 - Execution policy (D-123): `akantu_core::exec` with `ExecPolicy`
   (precision mode `Bitwise`/`Fast`, thread count, SIMD level, split grain),
   `Exec` (a shared thread pool per thread count), `NodeScatter` and the
@@ -41,10 +71,31 @@ change of default results or of a public API raises the minor version.
   with one quadrature point per element, with the operations
   `interpolate_elemental_field` performs (`value`, or `coefficients` then
   `value_from_coefficients`).
+- Python: a `DirichletFunctor` subclass may define
+  `callNodes(nodes, flags, primal, coords)`; `applyBC` then calls it once
+  per group with NumPy copies of the group's rows and writes `flags` and
+  `primal` back after it returns, instead of calling `__call__` per node.
+  Subclasses that define only `__call__` behave as before.
+- `akantu_model::boundary_condition::DirichletFunctor::apply_shared_nodes`
+  (default: `apply_shared` per node, `apply_shared_per_node`): the
+  foreign-functor path of `apply_dirichlet` hands the whole node list to the
+  functor.
+- Benchmark suites: `suite_setup` case `parser_chain` (a chain of
+  parameters that each refer twice to the previous one) and Python case
+  `dirichlet_group_tri3`.
 - The cohesive benchmark driver (`akantu-bench`, `cohesive_extrinsic`)
   writes `chrono_rank<r>.csv` (the phase times of every rank) and, for the
   cohesive model, `insertion_stats_rank<r>.csv` (the split of the
   insertion check) on every rank.
+- `akantu_comm::Synchronizer::post_in` / `wait_in` and
+  `akantu_comm::PostedExchange`: an owner → ghost exchange posted inside a
+  running collective scope and completed later, with one agreement on the
+  unpacking and the caller's work in between.
+- `akantu_comm::phase::agreement_stats`: the number of agreements of the
+  collective error protocol performed by the process and the time spent in
+  them; `suite_setup`'s `explicit_step_dist_tet4` reports them per step.
+- `akantu_core::math::sort_total`: an ascending sort by `f64::total_cmp`
+  (the array of any correct sort; a radix sort for long slices).
 - `akantu_core::eigen_kernels`: `SliceProduct` (a product of slice operands
   with its Eigen route, strides and kernel decided once; `eval` gives the
   bits of `eigen_gebp::product_into`), `product_slices`, and
@@ -117,6 +168,41 @@ change of default results or of a public API raises the minor version.
   route once per block, the copy plan after an insertion is built in
   linear time, and the linear law's effective norm uses fixed-size loops
   (`docs/BENCHMARKS.md`, "The insertion check").
+- The cohesive insertion step and the mesh operations under it are faster
+  with bitwise identical results, serial and distributed
+  (`docs/BENCHMARKS.md`, "The insertion step"): in release builds a mesh
+  transaction that starts from a state that passed the cross-part check
+  checks the adjacency references only in the rows it replaced or appended
+  (debug builds keep the full check; `SharedMesh::set_full_consistency_checks`
+  selects it explicitly); element-group node lists and the node
+  synchronizer are journaled instead of snapshotted; the stress copy plan
+  follows an insertion instead of being rebuilt; the cohesive laws keep
+  their residual and energy work arrays between steps;
+  a distributed check without any flagged facet skips the insertion-order
+  exchanges; the DOF manager's global-number exchange indexes the
+  equations of each node once; `plan_facets`, `transfer_physical_names`
+  and `fill_from_node_group` lost their quadratic searches.
+- `SolidMechanicsModelCohesive::ext` is a `Box<CohesiveExtension>` (field
+  access unchanged through `Deref`; a destructuring pattern needs
+  `&mut *model.ext`): the model is 11.6 kB instead of 38 kB by value, and
+  the benchmark suite's insertion case runs in a debug `mumps` build on a
+  1.5 MiB stack instead of 2 MiB.
+- `CohesiveSynchronizers::element_to_prank` is an
+  `Arc<ElementTypeMapArray<Rank>>` (shared, never changed after
+  construction) instead of an `ElementTypeMapArray<Rank>`.
+- Mesh distribution and the communication layer are faster with
+  bitwise identical results (`docs/BENCHMARKS.md`, "Distribution and the
+  communication layer"): the dual graph of the partitioners counts shared
+  nodes in an array over linearised elements (same graph, same Scotch
+  partition), the distribution's group tables are built once instead of
+  per rank, checked collectives of the MPI back-end carry payloads of at
+  most 64 bytes in their header (agreements and scalar reductions are one
+  MPI collective), byte messages are sent and received without a copy,
+  agreements on a one-rank serial or in-process communicator skip the all-reduce, `Math::reduce` sorts with a
+  radix sort, and the solid model posts its `_smm_stress` exchange before
+  the not-ghost assembly and completes it before the ghost one (as
+  upstream), keeps one assembly buffer set per ghost type and looks up the
+  law blocks of an exchange once per run of elements.
 - The default sparse direct solver (`akantu_linalg::eigen_sparse_lu`, the
   translation of Eigen's SparseLU) is about 3× faster on 3-D problems with
   bitwise identical results: dense kernels in register tiles with run-time
@@ -188,6 +274,32 @@ change of default results or of a public API raises the minor version.
     slots, integration weights and incoming volumes are unchanged, instead
     of recomputing them at every stress computation (`update_rate = 1`).
   - `compute_all_stresses` no longer copies the element filter per step.
+- The input-file parser evaluates each variable once per evaluation (it
+  parsed a variable's expression again at every reference, so a chain of
+  k parameters that each refer twice to the previous one cost 2^k
+  parses: 21 lines 400 ms, now 7 µs, measured on an AWS m7a.2xlarge (AMD
+  EPYC 9R14)); values and error messages are unchanged.
+- Dumps and the MSH writer format numbers into the output buffer instead
+  of one `String` per number, with a faster exact digit generator for up
+  to 17 significant digits; ParaView `.vtu` pieces are validated first and
+  then written to the file through a buffer (no copy of the whole file in
+  memory), base64 arrays encoded in one pass. The written bytes are
+  unchanged. On 162,000 Tet4: a base64 ParaView dump 208 → 99 ms, ASCII
+  913 → 296 ms, a text dump 74 → 17 ms, the MSH writer 54 → 26 ms
+  (this entry's and the next two entries' timings: measured on an AWS
+  m7a.2xlarge (AMD EPYC 9R14); `docs/benchmarks/perf-campaign/io-python/`).
+- The Gmsh reader keeps node and element tags in dense tables, allocates
+  nothing per element, parses integers in one pass and sorts dense group
+  node lists through a bitmap; the meshes read are unchanged (162,000
+  Tet4: 153 → 85 ms in MSH 2.2).
+- Python Dirichlet functors (`__call__` per node) enter Python once per
+  group instead of once per node (40,401 nodes: 31.5 → 23.4 ms per
+  `applyBC`; with `callNodes` 1.0 ms).
+
+### Added (insertion step)
+
+- `SharedMesh::set_full_consistency_checks(bool)` and
+  `MeshTransaction::replace_node_synchronizer`.
 
 ## [0.1.0] - Unreleased
 

@@ -61,7 +61,7 @@ use crate::eigen_ops::{dot, norm};
 use crate::element::ContactElement;
 use crate::fields::{ContactFields, ContactUpstreamCompat, DeformableMasterWeighting};
 use crate::geometry::{
-    MeshView, NormalOrientation, ProjectionMetric, ProjectionValidity, outside_direction,
+    MeshView, NormalOrientation, ProjectionMetric, ProjectionValidity, outside_direction_with_nodes,
 };
 use crate::resolution::{
     MAX_ELEMENT_DOFS, Resolution, ResolutionContext, ResolutionFactory, Scratch,
@@ -692,6 +692,12 @@ impl ContactMechanicsModel {
         self.search_keeping_history()
     }
 
+    /// Cell size rule of the detection grid
+    /// ([`crate::GridSpacing`]; default upstream's).
+    pub fn set_grid_spacing(&mut self, spacing: crate::GridSpacing) {
+        self.detector.grid_spacing = spacing;
+    }
+
     /// [`ContactMechanicsModel::search`] without the leading
     /// [`ContactMechanicsModel::save_previous_state`]: the `previous_*`
     /// history keeps its values. Its arrays are only **extended** to the
@@ -825,9 +831,19 @@ impl ContactMechanicsModel {
             let nn = ty.nb_nodes_per_element();
             let normals = fem.normals_on_integration_points(ty, ghost)?;
             let mut dual = Array::try_zeros(ids.len() * nq, dim)?;
+            // the reference nodes, read once (outside_direction's
+            // barycentres take them per call)
+            let mesh_nodes = view.mesh.nodes();
+            let parent_nodes = view.parent.map(Mesh::nodes);
             for (pos, &el) in ids.iter().enumerate() {
                 let mut dir = [0.0; 3];
-                outside_direction(view, Element::new(ty, el, ghost), &mut dir)?;
+                outside_direction_with_nodes(
+                    view,
+                    mesh_nodes.as_slice(),
+                    parent_nodes.as_ref().map(|n| n.as_slice()),
+                    Element::new(ty, el, ghost),
+                    &mut dir,
+                )?;
                 let e = try_to_usize(el)?;
                 for q in 0..nq {
                     let n = normals.get_tuple(e * nq + q)?;
