@@ -105,6 +105,19 @@ change of default results or of a public API raises the minor version.
   `akantu_fe::eigen::prepare` (the
   `SliceProduct` of two `Dims`), `akantu_fe::kernels::{
   shape_derivatives_product, shape_derivatives_with}`.
+- Bitwise SIMD kernels of the explicit step without `unsafe` outside
+  `akantu-core`: `akantu_core::exec::{Lanes4, SimdTask, with_simd}` (four
+  `f64` lanes with per-lane operations; a portable kernel body compiled
+  for AVX2, without FMA, on `Avx2` and `Avx512` tokens) and
+  `akantu_core::eigen_unrolled::tree_sum_of` (the halving tree of
+  `tree_sum` over any per-lane type). `Lanes4::mul_add` for fast-mode
+  kernels.
+- `FeEngine::compute_btd_integrate` (`compute_btd` then `integrate` with
+  the same checks and values, the point values integrated as they are
+  computed), `FeEngine::{gradient_plan, btd_integrate_plan}` and
+  `akantu_fe::engine::{GradientPlan, BtdIntegratePlan}` (the gradient and
+  the integrated `BᵀD` checked once over a filter and run on element
+  ranges, with the bits of the full calls).
 - `akantu_core::eigen_order::{redux_tree_recursive, TREE_LEVELS_MAX}`;
   `akantu_core::eigen_gebp::route` is a `const fn`.
 - Sparse assembly without per-entry hashing, bitwise equal to the former
@@ -144,6 +157,26 @@ change of default results or of a public API raises the minor version.
 - `MaterialElastic::compute_stress` returns `Error::DimensionMismatch` when
   `grad_u` or the stress block does not have `dim × dim` components per
   point (before, such a block was processed in chunks of the wrong size).
+- The explicit step of `SolidMechanicsModel` is faster with bitwise
+  identical results at every thread count and SIMD level (0.52–0.83 of
+  its time at one thread on an AMD EPYC 7B13, per mesh in
+  `docs/benchmarks/perf-campaign/explicit/README.md`): the FE gradient,
+  `BᵀD`, integration and finite-deformation residual kernels check their
+  element ids and connectivity once per batch and run lane kernels,
+  compiled for AVX2 when the CPU has it (the integrated `BᵀD` and the
+  integrated residual run packed AVX2 arithmetic, the gradient partly, and
+  the gradient with the `eigen_grad_u` subtraction of the block pass
+  scalar AVX instructions); `BᵀD` and the finite-deformation residual are
+  integrated as they are computed (no per-point array); for one elastic
+  law on one element type of a mesh without ghosts, the gradient, the
+  thermal pre-step, the stress and the integration run in one pass per
+  block of elements that fits the L2 cache; the internal-force assembly
+  reads the law filter without a copy; the element scatter indexes each
+  node once.
+- In `Precision::Fast` the integrated `BᵀD`, the integrated
+  finite-deformation residual and the integration also use fused
+  multiply-adds; the fast-mode case of the explicit step is
+  `fast_mode/solid/explicit_fma_kernels` (was `explicit_fma_gradient`).
 - `akantu-core` denies `unsafe` instead of forbidding it: the thread pool
   of `exec::spin` and the SIMD kernels of `exec::simd` (listed in its
   `UNSAFE.md`) are the only sites.

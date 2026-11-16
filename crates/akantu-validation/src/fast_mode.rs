@@ -20,7 +20,7 @@
 //! # let (u_bitwise, u_fast) = (vec![0.0; 6], vec![0.0; 6]);
 //! let bitwise = [ModeQuantity::nodal("u", 3, u_bitwise)];
 //! let fast = [ModeQuantity::nodal("u", 3, u_fast)];
-//! check_fast_mode("fast_mode/solid/explicit_fma_gradient", &bitwise, &fast, true);
+//! check_fast_mode("fast_mode/solid/explicit_fma_kernels", &bitwise, &fast, true);
 //! ```
 
 use crate::array::Field;
