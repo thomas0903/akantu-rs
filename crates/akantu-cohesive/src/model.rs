@@ -327,6 +327,16 @@ fn build_stress_plan(
     let s2e = fm.data().element_map(SUBELEMENT_TO_ELEMENT)?;
     let e2s = fm.data().element_lists(ELEMENT_TO_SUBELEMENT)?;
     let mut plan = StressCopyPlan::default();
+    // per facet block met (not-ghost and ghost facets alternate on a
+    // distributed mesh): its neighbour lists and the first neighbour of each
+    // of its facets, read once in facet order (no per-pair visit of the lists)
+    #[allow(clippy::type_complexity)] // (facet type, ghost, lists, first neighbours)
+    let mut tables: Vec<(
+        ElementType,
+        GhostType,
+        &akantu_core::Array<Vec<Element>>,
+        Vec<Option<Element>>,
+    )> = Vec::new();
     for &ty in types {
         let elems = filter.get(ty, GhostType::NotGhost)?.as_slice();
         if elems.is_empty() {
@@ -343,28 +353,28 @@ fn build_stress_plan(
         // per-chunk vectors concatenated in filter order before
         // `sort_by_destination` give the same plan (rebuilt after every
         // insertion step).
-        // last facet-type block looked up (one type per bulk type normally),
-        // with the first neighbour of each of its facets read once in facet
-        // order (no per-pair visit of the neighbour lists)
-        let mut cached: Option<(ElementType, GhostType, &akantu_core::Array<Vec<Element>>)> = None;
-        let mut first_of: Vec<Option<Element>> = Vec::new();
         for &ge in elems {
             let ge_u = akantu_core::try_to_usize(ge)?;
             let element = Element::new(ty, ge, GhostType::NotGhost);
             let row = f2e.get_tuple(ge_u)?;
             for (f, facet) in row.iter().enumerate() {
-                let lists = match cached {
-                    Some((t, g, a)) if t == facet.ty() && g == facet.ghost_type() => a,
-                    _ => {
+                let k = match tables
+                    .iter()
+                    .position(|(t, g, _, _)| *t == facet.ty() && *g == facet.ghost_type())
+                {
+                    Some(k) => k,
+                    None => {
                         let a = e2s.get(facet.ty(), facet.ghost_type())?;
-                        cached = Some((facet.ty(), facet.ghost_type(), a));
-                        first_of.clear();
-                        if a.nb_component() == 1 {
-                            first_of.extend(a.as_slice().iter().map(|l| l.first().copied()));
-                        }
-                        a
+                        let firsts = if a.nb_component() == 1 {
+                            a.as_slice().iter().map(|l| l.first().copied()).collect()
+                        } else {
+                            Vec::new()
+                        };
+                        tables.push((facet.ty(), facet.ghost_type(), a, firsts));
+                        tables.len() - 1
                     }
                 };
+                let (_, _, lists, first_of) = &tables[k];
                 let fi = facet.try_idx().ok_or_else(|| {
                     Error::invalid("interpolateStress: a bulk element without facet")
                 })?;
