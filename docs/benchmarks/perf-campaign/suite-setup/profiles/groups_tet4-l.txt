@@ -1,0 +1,150 @@
+# perf record -F 499 --call-graph dwarf; groups_tet4-l
+# phases of the profiled run (seconds, calls):
+#   mesh                             2.129 s       2 calls  18.0 %
+#   filtered_node_group              0.003 s       2 calls   0.0 %
+#   element_group_from_node_group     9.389 s       2 calls  79.2 %
+#   groups_from_mesh_data            0.329 s       2 calls   2.8 %
+
+## flat profile (self), top symbols
+    74.29%  suite_setup        [.] <akantu_mesh::group::GroupManager>::fill_from_node_group
+     1.71%  suite_setup        [.] <akantu_io::mesh_io::lexer::Line>::token
+     1.70%  suite_setup        [.] <akantu_core::element::Element as core::cmp::Ord>::cmp
+     1.45%  suite_setup        [.] core::slice::sort::unstable::quicksort::quicksort::<i32, <i32 as core::cmp::PartialOrd>::lt>
+     1.14%  suite_setup        [.] <alloc::collections::btree::map::BTreeMap<akantu_core::element::Element, alloc::collections::btree::set_val::SetValZST>>::insert
+     1.04%  libc.so.6          [.] 0x0000000000198525
+     0.96%  suite_setup        [.] <akantu_io::mesh_io::lexer::Source>::expect_line
+     0.79%  suite_setup        [.] <akantu_io::mesh_io::msh::Reader>::node_index
+     0.78%  libc.so.6          [.] 0x00000000001a14f9
+     0.75%  suite_setup        [.] <akantu_io::mesh_io::msh::Reader>::elements_v2
+     0.73%  libc.so.6          [.] malloc
+     0.72%  suite_setup        [.] <std::hash::random::RandomState as core::hash::BuildHasher>::hash_one::<&u64>
+     0.68%  suite_setup        [.] alloc::fmt::format::format_inner
+     0.55%  suite_setup        [.] suite_setup::suite_setup::mesh_digest
+     0.50%  suite_setup        [.] akantu_mesh::utils::node_to_elements_unchecked
+     0.43%  suite_setup        [.] <akantu_mesh::group::GroupManager>::create_groups_from_mesh_data
+     0.42%  [kernel.kallsyms]  [k] asm_sysvec_apic_timer_interrupt
+     0.39%  suite_setup        [.] core::fmt::write
+     0.34%  suite_setup        [.] core::num::imp::flt2dec::strategy::grisu::format_shortest_opt
+     0.32%  suite_setup        [.] <u64 as core::fmt::Display>::fmt
+     0.32%  suite_setup        [.] <alloc::string::String as core::fmt::Write>::write_str
+     0.31%  suite_setup        [.] akantu_io::mesh_io::lexer::parse_i64
+     0.31%  suite_setup        [.] <core::iter::adapters::map::Map<core::ops::range::Range<usize>, <akantu_io::mesh_io::msh::Reader>::construct_physical_names::{closure#2}> as core::iter::traits::iterator::Iterator>::fold::<(), core::iter::traits::iterator::Iterator::for_each::call<alloc::string::String, <alloc::vec::Vec<alloc::string::String>>::extend_trusted<core::iter::adapters::map::Map<core::ops::range::Range<usize>, <akantu_io::mesh_io::msh::Reader>::construct_physical_names::{closure#2}>>::{closure#0}>::{closure#0}>  -
+     0.29%  suite_setup        [.] <akantu_io::mesh_io::msh::Reader>::element_nodes
+     0.29%  suite_setup        [.] <alloc::vec::Vec<alloc::string::String> as core::clone::Clone>::clone
+
+## inclusive (children), top entries
+    82.15%     0.00%  [.] <core::result::Result<akantu_comm::communicator::Communicator, akantu_core::error::Error>>::and_then::<(), suite_setup::main::{closure#1}> (inlined)
+    82.15%     0.00%  [.] std::panic::catch_unwind::<std::rt::lang_start_internal::{closure#0}, isize> (inlined)
+    82.15%     0.00%  [.] std::panic::catch_unwind::<&dyn core::ops::function::Fn<(), Output = i32> + core::panic::unwind_safe::RefUnwindSafe + core::marker::Sync, i32> (inlined)
+    82.15%     0.00%  [.] std::panicking::catch_unwind::<isize, std::rt::lang_start_internal::{closure#0}> (inlined)
+    82.15%     0.00%  [.] std::panicking::catch_unwind::<i32, &dyn core::ops::function::Fn<(), Output = i32> + core::panic::unwind_safe::RefUnwindSafe + core::marker::Sync> (inlined)
+    82.15%     0.00%  [.] std::sys::backtrace::__rust_begin_short_backtrace::<fn() -> std::process::ExitCode, std::process::ExitCode>
+    82.15%     0.00%  [.] std::panicking::catch_unwind::do_call::<std::rt::lang_start_internal::{closure#0}, isize> (inlined)
+    82.15%     0.00%  [.] std::panicking::catch_unwind::do_call::<&dyn core::ops::function::Fn<(), Output = i32> + core::panic::unwind_safe::RefUnwindSafe + core::marker::Sync, i32> (inlined)
+    82.15%     0.00%  [.] std::rt::lang_start::<std::process::ExitCode>::{closure#0} (inlined)
+    82.15%     0.00%  [.] suite_setup::main::{closure#1} (inlined)
+    82.15%     0.00%  [.] std::rt::lang_start_internal::{closure#0} (inlined)
+    82.15%     0.00%  [.] suite_setup::main
+    82.15%     0.00%  [.] std::rt::lang_start_internal
+    82.15%     0.00%  [.] suite_setup::suite_setup::harness::run_cases
+    82.15%     0.00%  [.] <&dyn core::ops::function::Fn<(), Output = i32> + core::panic::unwind_safe::RefUnwindSafe + core::marker::Sync as core::ops::function::FnOnce<()>>::call_once (inlined)
+    82.15%     0.00%  [.] <fn() -> std::process::ExitCode as core::ops::function::FnOnce<()>>::call_once (inlined)
+    82.15%     0.00%  [.] __libc_start_main
+    82.15%     0.00%  [.] _start
+    82.15%     0.00%  [.] main
+    82.15%     0.00%  [.] 0x00007a582e82a1c9
+    82.14%     0.03%  [.] suite_setup::suite_setup::cases_mesh::groups_tet4
+    78.49%     0.00%  [.] <suite_setup::suite_setup::harness::CaseOut>::phase::<(), suite_setup::suite_setup::cases_mesh::groups_tet4::{closure#3}> (inlined)
+    78.49%     0.00%  [.] suite_setup::suite_setup::cases_mesh::groups_tet4::{closure#3} (inlined)
+    78.49%     0.00%  [.] <akantu_mesh::mesh::Mesh>::create_element_group_from_node_group
+    78.20%    74.29%  [.] <akantu_mesh::group::GroupManager>::fill_from_node_group
+    78.20%     0.00%  [.] <akantu_mesh::group::GroupManager>::create_element_group_from_node_group
+    74.34%     0.00%  [.] <core::slice::iter::Iter<i32> as core::iter::traits::iterator::Iterator>::all::<<akantu_mesh::group::GroupManager>::fill_from_node_group::{closure#0}> (inlined)
+    73.96%     0.00%  [.] <akantu_mesh::group::GroupManager>::fill_from_node_group::{closure#0} (inlined)
+    73.96%     0.00%  [.] <[i32]>::contains (inlined)
+    73.96%     0.00%  [.] <i32 as core::slice::cmp::SliceContains>::slice_contains (inlined)
+    46.59%     0.00%  [.] <core::slice::iter::Iter<i32> as core::iter::traits::iterator::Iterator>::fold::<bool, <i32 as core::slice::cmp::SliceContains>::slice_contains::{closure#0}> (inlined)
+    44.83%     0.00%  [.] <i32 as core::slice::cmp::SliceContains>::slice_contains::{closure#0} (inlined)
+    27.32%     0.00%  [.] <[i32]>::split_at_checked (inlined)
+    27.32%     0.00%  [.] <&mut core::slice::iter::ChunksExact<i32> as core::iter::traits::iterator::Iterator>::next (inlined)
+    27.32%     0.00%  [.] <core::slice::iter::ChunksExact<i32> as core::iter::traits::iterator::Iterator>::next (inlined)
+    13.46%     0.00%  [.] akantu_io::mesh_io::parse
+    12.77%     0.00%  [.] akantu_io::mesh_io::read_mesh_from_str
+    12.70%     0.00%  [.] akantu_io::mesh_io::msh::read
+    10.44%     0.00%  [.] 0xffffffffffffffff
+    10.14%     0.00%  [.] <akantu_io::mesh_io::msh::Reader>::run
+     9.55%     0.75%  [.] <akantu_io::mesh_io::msh::Reader>::elements_v2
+     7.36%     0.00%  [k] 0xffffffffffffffff
+     3.29%     0.00%  [.] <suite_setup::suite_setup::harness::CaseOut>::phase::<akantu_mesh::mesh::Mesh, suite_setup::suite_setup::cases_mesh::groups_tet4::{closure#0}> (inlined)
+     3.29%     0.00%  [.] suite_setup::suite_setup::cases_mesh::groups_tet4::{closure#0} (inlined)
+     3.17%     0.39%  [.] core::fmt::write
+
+## call chains of the top self symbols (callers, >= 1 %)
+    74.29%  [.] <akantu_mesh::group::GroupManager>::fill_from_node_group
+            |
+            |--44.43%--<i32 as core::slice::cmp::SliceContains>::slice_contains::{closure#0} (inlined)
+            |          <core::slice::iter::Iter<i32> as core::iter::traits::iterator::Iterator>::fold::<bool, <i32 as core::slice::cmp::SliceContains>::slice_contains::{closure#0}> (inlined)
+            |          <i32 as core::slice::cmp::SliceContains>::slice_contains (inlined)
+            |          <[i32]>::contains (inlined)
+            |          <akantu_mesh::group::GroupManager>::fill_from_node_group::{closure#0} (inlined)
+            |          <core::slice::iter::Iter<i32> as core::iter::traits::iterator::Iterator>::all::<<akantu_mesh::group::GroupManager>::fill_from_node_group::{closure#0}> (inlined)
+            |          <akantu_mesh::group::GroupManager>::fill_from_node_group
+            |          <akantu_mesh::group::GroupManager>::create_element_group_from_node_group
+            |          <akantu_mesh::mesh::Mesh>::create_element_group_from_node_group
+            |          suite_setup::suite_setup::cases_mesh::groups_tet4::{closure#3} (inlined)
+            |          <suite_setup::suite_setup::harness::CaseOut>::phase::<(), suite_setup::suite_setup::cases_mesh::groups_tet4::{closure#3}> (inlined)
+            |          suite_setup::suite_setup::cases_mesh::groups_tet4
+            |          suite_setup::suite_setup::harness::run_cases
+            |          suite_setup::main::{closure#1} (inlined)
+            |          <core::result::Result<akantu_comm::communicator::Communicator, akantu_core::error::Error>>::and_then::<(), suite_setup::main::{closure#1}> (inlined)
+            |          suite_setup::main
+            |          <fn() -> std::process::ExitCode as core::ops::function::FnOnce<()>>::call_once (inlined)
+            |          std::sys::backtrace::__rust_begin_short_backtrace::<fn() -> std::process::ExitCode, std::process::ExitCode>
+            |          std::rt::lang_start::<std::process::ExitCode>::{closure#0} (inlined)
+            |          <&dyn core::ops::function::Fn<(), Output = i32> + core::panic::unwind_safe::RefUnwindSafe + core::marker::Sync as core::ops::function::FnOnce<()>>::call_once (inlined)
+            |          std::panicking::catch_unwind::do_call::<&dyn core::ops::function::Fn<(), Output = i32> + core::panic::unwind_safe::RefUnwindSafe + core::marker::Sync, i32> (inlined)
+            |          std::panicking::catch_unwind::<i32, &dyn core::ops::function::Fn<(), Output = i32> + core::panic::unwind_safe::RefUnwindSafe + core::marker::Sync> (inlined)
+            |          std::panic::catch_unwind::<&dyn core::ops::function::Fn<(), Output = i32> + core::panic::unwind_safe::RefUnwindSafe + core::marker::Sync, i32> (inlined)
+            |          std::rt::lang_start_internal::{closure#0} (inlined)
+            |          std::panicking::catch_unwind::do_call::<std::rt::lang_start_internal::{closure#0}, isize> (inlined)
+            |          std::panicking::catch_unwind::<isize, std::rt::lang_start_internal::{closure#0}> (inlined)
+            |          std::panic::catch_unwind::<std::rt::lang_start_internal::{closure#0}, isize> (inlined)
+            |          std::rt::lang_start_internal
+            |          main
+            |          0x7a582e82a1c9
+            |          __libc_start_main
+            |          _start
+            |
+             --27.18%--<[i32]>::split_at_checked (inlined)
+                       <core::slice::iter::ChunksExact<i32> as core::iter::traits::iterator::Iterator>::next (inlined)
+                       <&mut core::slice::iter::ChunksExact<i32> as core::iter::traits::iterator::Iterator>::next (inlined)
+                       <i32 as core::slice::cmp::SliceContains>::slice_contains (inlined)
+                       <[i32]>::contains (inlined)
+                       <akantu_mesh::group::GroupManager>::fill_from_node_group::{closure#0} (inlined)
+                       <core::slice::iter::Iter<i32> as core::iter::traits::iterator::Iterator>::all::<<akantu_mesh::group::GroupManager>::fill_from_node_group::{closure#0}> (inlined)
+                       <akantu_mesh::group::GroupManager>::fill_from_node_group
+                       <akantu_mesh::group::GroupManager>::create_element_group_from_node_group
+                       <akantu_mesh::mesh::Mesh>::create_element_group_from_node_group
+                       suite_setup::suite_setup::cases_mesh::groups_tet4::{closure#3} (inlined)
+                       <suite_setup::suite_setup::harness::CaseOut>::phase::<(), suite_setup::suite_setup::cases_mesh::groups_tet4::{closure#3}> (inlined)
+                       suite_setup::suite_setup::cases_mesh::groups_tet4
+                       suite_setup::suite_setup::harness::run_cases
+                       suite_setup::main::{closure#1} (inlined)
+                       <core::result::Result<akantu_comm::communicator::Communicator, akantu_core::error::Error>>::and_then::<(), suite_setup::main::{closure#1}> (inlined)
+                       suite_setup::main
+                       <fn() -> std::process::ExitCode as core::ops::function::FnOnce<()>>::call_once (inlined)
+                       std::sys::backtrace::__rust_begin_short_backtrace::<fn() -> std::process::ExitCode, std::process::ExitCode>
+                       std::rt::lang_start::<std::process::ExitCode>::{closure#0} (inlined)
+                       <&dyn core::ops::function::Fn<(), Output = i32> + core::panic::unwind_safe::RefUnwindSafe + core::marker::Sync as core::ops::function::FnOnce<()>>::call_once (inlined)
+                       std::panicking::catch_unwind::do_call::<&dyn core::ops::function::Fn<(), Output = i32> + core::panic::unwind_safe::RefUnwindSafe + core::marker::Sync, i32> (inlined)
+                       std::panicking::catch_unwind::<i32, &dyn core::ops::function::Fn<(), Output = i32> + core::panic::unwind_safe::RefUnwindSafe + core::marker::Sync> (inlined)
+                       std::panic::catch_unwind::<&dyn core::ops::function::Fn<(), Output = i32> + core::panic::unwind_safe::RefUnwindSafe + core::marker::Sync, i32> (inlined)
+                       std::rt::lang_start_internal::{closure#0} (inlined)
+                       std::panicking::catch_unwind::do_call::<std::rt::lang_start_internal::{closure#0}, isize> (inlined)
+                       std::panicking::catch_unwind::<isize, std::rt::lang_start_internal::{closure#0}> (inlined)
+                       std::panic::catch_unwind::<std::rt::lang_start_internal::{closure#0}, isize> (inlined)
+                       std::rt::lang_start_internal
+                       main
+                       0x7a582e82a1c9
+                       __libc_start_main
+                       _start

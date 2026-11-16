@@ -1,0 +1,121 @@
+# perf record -F 499 --call-graph dwarf; cohesive_insert_tet4-m
+# phases of the profiled run (seconds, calls):
+#   mesh                             0.322 s       2 calls   2.3 %
+#   init_mesh_facets                 3.495 s       2 calls  25.5 %
+#   flag_facets                      0.030 s       2 calls   0.2 %
+#   insert                           9.860 s       2 calls  71.9 %
+#   update_insertion_facets          0.001 s       2 calls   0.0 %
+
+## flat profile (self), top symbols
+    16.68%  suite_setup        [.] akantu_mesh::utils::plan_facets
+     8.67%  suite_setup        [.] <akantu_cohesive::inserter::helper::InserterHelper>::find_elements_around_subfacet
+     4.98%  suite_setup        [.] akantu_mesh::utils::transfer_physical_names
+     4.76%  libc.so.6          [.] cfree
+     2.52%  suite_setup        [.] <akantu_mesh::mutation::MeshTransaction>::set_element_list_row
+     2.48%  suite_setup        [.] <akantu_cohesive::inserter::helper::InserterHelper>::find_subfacet_to_double
+     1.98%  libc.so.6          [.] malloc
+     1.95%  libc.so.6          [.] 0x00000000000a9bce
+     1.61%  libc.so.6          [.] 0x0000000000198525
+     1.44%  libc.so.6          [.] 0x00000000000a9bdb
+     1.42%  libc.so.6          [.] 0x00000000000a9be1
+     1.36%  suite_setup        [.] <akantu_mesh::data::MeshData>::element_map
+     1.30%  [kernel.kallsyms]  [k] clear_page_erms
+     1.18%  suite_setup        [.] <akantu_core::element_type_map_shared::SharedElementTypeMapArray<i32>>::element_ref
+     1.10%  libc.so.6          [.] 0x00000000000a9d41
+     1.07%  suite_setup        [.] akantu_cohesive::inserter::helper::remove_elements_in_vector
+     1.05%  suite_setup        [.] <akantu_cohesive::inserter::helper::InserterHelper>::update_elemental_connectivity
+     1.04%  suite_setup        [.] <akantu_mesh::mutation::MeshTransaction>::set_element_nodes
+     0.98%  suite_setup        [.] akantu_cohesive::inserter::helper::has_element
+     0.88%  libc.so.6          [.] 0x00000000001a1544
+     0.86%  suite_setup        [.] <akantu_core::array_shared::ArrayRef<i32>>::try_map_slice::<akantu_core::error::Error, <akantu_core::array_shared::ArrayRef<i32>>::into_tuple::{closure#0}>
+     0.81%  [kernel.kallsyms]  [k] asm_sysvec_apic_timer_interrupt
+     0.81%  libc.so.6          [.] 0x00000000000ab300
+     0.73%  [kernel.kallsyms]  [k] mas_walk
+     0.72%  libc.so.6          [.] 0x00000000000a9ce6
+
+## inclusive (children), top entries
+    89.12%     0.00%  [k] 0xffffffffffffffff
+    69.52%     0.00%  [.] <akantu_mesh::shared::SharedMesh>::mutate_inner::<suite_setup::suite_setup::cases_mesh::cohesive_insert_tet4::{closure#3}::{closure#0}> (inlined)
+    69.52%     0.00%  [.] <akantu_mesh::shared::SharedMesh>::mutate::<suite_setup::suite_setup::cases_mesh::cohesive_insert_tet4::{closure#3}::{closure#0}>
+    56.00%     0.02%  [.] <akantu_cohesive::inserter::CohesiveElementInserter>::insert_elements_ordered_in
+    56.00%     0.00%  [.] suite_setup::suite_setup::cases_mesh::cohesive_insert_tet4::{closure#3}::{closure#0} (inlined)
+    51.47%     0.26%  [.] <akantu_cohesive::inserter::helper::InserterHelper>::insert_cohesive_elements
+    49.64%     0.00%  [.] <akantu_cohesive::inserter::helper::InserterHelper>::insert_facets_only
+    26.12%     0.00%  [.] akantu_mesh::utils::create_mesh_facets_with
+    26.04%     2.48%  [.] <akantu_cohesive::inserter::helper::InserterHelper>::find_subfacet_to_double
+    20.80%     0.00%  [.] suite_setup::suite_setup::cases_mesh::cohesive_insert_tet4
+    19.52%     0.00%  [.] <suite_setup::suite_setup::harness::CaseOut>::phase::<akantu_mesh::mutation::CommittedMutation, suite_setup::suite_setup::cases_mesh::cohesive_insert_tet4::{closure#3}>
+    19.52%     0.00%  [.] suite_setup::suite_setup::cases_mesh::cohesive_insert_tet4::{closure#3} (inlined)
+    18.88%     0.00%  [.] akantu_mesh::utils::build_all_facets
+    18.03%     4.76%  [.] cfree
+    17.93%    16.68%  [.] akantu_mesh::utils::plan_facets
+    17.19%     8.67%  [.] <akantu_cohesive::inserter::helper::InserterHelper>::find_elements_around_subfacet
+    13.48%     0.71%  [.] <akantu_cohesive::inserter::helper::InserterHelper>::double_facets
+    12.98%     0.00%  [.] <core::iter::adapters::map::Map<core::slice::iter::Iter<akantu_core::element::Element>, <core::iter::adapters::filter::Filter<_, _> as core::iter::traits::iterator::Iterator>::count::to_usize<&akantu_core::element::Element, akantu_mesh::utils::plan_facets::{closure#2}>::{closure#0}> as core::iter::traits::iterator::Iterator>::fold::<usize, <usize as core::iter::traits::accum::Sum>::sum<core::iter::adapters::map::Map<core::slice::iter::Iter<akantu_core::element::Element>, <core::iter::adapters::filter::Filter<_, _> as core::iter::traits::iterator::Iterator>::count::to_usize<&akantu_core::element::Element, akantu_mesh::utils::plan_facets::{closure#2}>::{closure#0}>>::{closure#0}> (inlined)
+    12.98%     0.00%  [.] <core::slice::iter::Iter<akantu_core::element::Element> as core::iter::traits::iterator::Iterator>::fold::<usize, core::iter::adapters::map::map_fold<&akantu_core::element::Element, usize, usize, <core::iter::adapters::filter::Filter<_, _> as core::iter::traits::iterator::Iterator>::count::to_usize<&akantu_core::element::Element, akantu_mesh::utils::plan_facets::{closure#2}>::{closure#0}, <usize as core::iter::traits::accum::Sum>::sum<core::iter::adapters::map::Map<core::slice::iter::Iter<akantu_core::element::Element>, <core::iter::adapters::filter::Filter<_, _> as core::iter::traits::iterator::Iterator>::count::to_usize<&akantu_core::element::Element, akantu_mesh::utils::plan_facets::{closure#2}>::{closure#0}>>::{closure#0}>::{closure#0}> (inlined)
+    12.98%     0.00%  [.] <usize as core::iter::traits::accum::Sum>::sum::<core::iter::adapters::map::Map<core::slice::iter::Iter<akantu_core::element::Element>, <core::iter::adapters::filter::Filter<_, _> as core::iter::traits::iterator::Iterator>::count::to_usize<&akantu_core::element::Element, akantu_mesh::utils::plan_facets::{closure#2}>::{closure#0}>> (inlined)
+    12.98%     0.00%  [.] <core::iter::adapters::map::Map<core::slice::iter::Iter<akantu_core::element::Element>, <core::iter::adapters::filter::Filter<_, _> as core::iter::traits::iterator::Iterator>::count::to_usize<&akantu_core::element::Element, akantu_mesh::utils::plan_facets::{closure#2}>::{closure#0}> as core::iter::traits::iterator::Iterator>::sum::<usize> (inlined)
+    12.98%     0.00%  [.] <core::iter::adapters::filter::Filter<core::slice::iter::Iter<akantu_core::element::Element>, akantu_mesh::utils::plan_facets::{closure#2}> as core::iter::traits::iterator::Iterator>::count (inlined)
+    12.38%     0.00%  [.] akantu_mesh::utils::facets_dimension_in_place (inlined)
+    12.12%     0.16%  [.] core::ptr::drop_glue::<akantu_mesh::mutation::MeshTransaction>
+    12.12%     0.00%  [.] core::mem::drop::<akantu_mesh::mutation::MeshTransaction> (inlined)
+    11.42%     0.00%  [.] core::ptr::drop_glue::<alloc::vec::Vec<akantu_mesh::mutation::Undo>> (inlined)
+    10.76%     0.00%  [.] core::ptr::drop_in_place::<[akantu_mesh::mutation::Undo]> (inlined)
+    10.76%     0.00%  [.] core::ptr::drop_glue::<[akantu_mesh::mutation::Undo]> (inlined)
+    10.76%     0.00%  [.] <*mut [akantu_mesh::mutation::Undo]>::drop_in_place (inlined)
+    10.76%     0.00%  [.] <alloc::vec::Vec<akantu_mesh::mutation::Undo> as core::ops::drop::Drop>::drop (inlined)
+    10.57%     0.00%  [.] core::iter::adapters::map::map_fold::<&akantu_core::element::Element, usize, usize, <core::iter::adapters::filter::Filter<_, _> as core::iter::traits::iterator::Iterator>::count::to_usize<&akantu_core::element::Element, akantu_mesh::utils::plan_facets::{closure#2}>::{closure#0}, <usize as core::iter::traits::accum::Sum>::sum<core::iter::adapters::map::Map<core::slice::iter::Iter<akantu_core::element::Element>, <core::iter::adapters::filter::Filter<_, _> as core::iter::traits::iterator::Iterator>::count::to_usize<&akantu_core::element::Element, akantu_mesh::utils::plan_facets::{closure#2}>::{closure#0}>>::{closure#0}>::{closure#0} (inlined)
+    10.51%     0.00%  [k] 0xffffffffffffffff
+    10.12%     0.33%  [.] <akantu_cohesive::inserter::helper::InserterHelper>::double_subfacet
+     8.43%     0.00%  [.] <akantu_core::element::Element as core::cmp::PartialEq>::eq (inlined)
+     8.40%     0.00%  [.] <core::iter::adapters::filter::Filter<_, _> as core::iter::traits::iterator::Iterator>::count::to_usize::<&akantu_core::element::Element, akantu_mesh::utils::plan_facets::{closure#2}>::{closure#0} (inlined)
+     8.40%     0.00%  [.] akantu_mesh::utils::plan_facets::{closure#2} (inlined)
+     8.40%     0.00%  [.] <&akantu_core::element::Element as core::cmp::PartialEq>::eq (inlined)
+     8.33%     0.00%  [.] 0x0000759fd2caae84
+     7.39%     0.27%  [k] asm_exc_page_fault
+     7.23%     4.98%  [.] akantu_mesh::utils::transfer_physical_names
+     7.12%     0.04%  [k] exc_page_fault
+     7.02%     0.10%  [k] do_user_addr_fault
+     6.53%     0.00%  [.] <alloc::raw_vec::RawVecInner>::finish_grow (inlined)
+     6.49%     0.00%  [.] akantu_mesh::utils::facets_dimension
+     6.35%     1.98%  [.] malloc
+
+## call chains of the top self symbols (callers, >= 1 %)
+    16.68%  [.] akantu_mesh::utils::plan_facets
+            |
+             --8.15%--<akantu_core::element::Element as core::cmp::PartialEq>::eq (inlined)
+                       |
+                        --8.12%--<&akantu_core::element::Element as core::cmp::PartialEq>::eq (inlined)
+                                  akantu_mesh::utils::plan_facets::{closure#2} (inlined)
+                                  <core::iter::adapters::filter::Filter<_, _> as core::iter::traits::iterator::Iterator>::count::to_usize::<&akantu_core::element::Element, akantu_mesh::utils::plan_facets::{closure#2}>::{closure#0} (inlined)
+                                  core::iter::adapters::map::map_fold::<&akantu_core::element::Element, usize, usize, <core::iter::adapters::filter::Filter<_, _> as core::iter::traits::iterator::Iterator>::count::to_usize<&akantu_core::element::Element, akantu_mesh::utils::plan_facets::{closure#2}>::{closure#0}, <usize as core::iter::traits::accum::Sum>::sum<core::iter::adapters::map::Map<core::slice::iter::Iter<akantu_core::element::Element>, <core::iter::adapters::filter::Filter<_, _> as core::iter::traits::iterator::Iterator>::count::to_usize<&akantu_core::element::Element, akantu_mesh::utils::plan_facets::{closure#2}>::{closure#0}>>::{closure#0}>::{closure#0} (inlined)
+                                  <core::slice::iter::Iter<akantu_core::element::Element> as core::iter::traits::iterator::Iterator>::fold::<usize, core::iter::adapters::map::map_fold<&akantu_core::element::Element, usize, usize, <core::iter::adapters::filter::Filter<_, _> as core::iter::traits::iterator::Iterator>::count::to_usize<&akantu_core::element::Element, akantu_mesh::utils::plan_facets::{closure#2}>::{closure#0}, <usize as core::iter::traits::accum::Sum>::sum<core::iter::adapters::map::Map<core::slice::iter::Iter<akantu_core::element::Element>, <core::iter::adapters::filter::Filter<_, _> as core::iter::traits::iterator::Iterator>::count::to_usize<&akantu_core::element::Element, akantu_mesh::utils::plan_facets::{closure#2}>::{closure#0}>>::{closure#0}>::{closure#0}> (inlined)
+                                  <core::iter::adapters::map::Map<core::slice::iter::Iter<akantu_core::element::Element>, <core::iter::adapters::filter::Filter<_, _> as core::iter::traits::iterator::Iterator>::count::to_usize<&akantu_core::element::Element, akantu_mesh::utils::plan_facets::{closure#2}>::{closure#0}> as core::iter::traits::iterator::Iterator>::fold::<usize, <usize as core::iter::traits::accum::Sum>::sum<core::iter::adapters::map::Map<core::slice::iter::Iter<akantu_core::element::Element>, <core::iter::adapters::filter::Filter<_, _> as core::iter::traits::iterator::Iterator>::count::to_usize<&akantu_core::element::Element, akantu_mesh::utils::plan_facets::{closure#2}>::{closure#0}>>::{closure#0}> (inlined)
+                                  <usize as core::iter::traits::accum::Sum>::sum::<core::iter::adapters::map::Map<core::slice::iter::Iter<akantu_core::element::Element>, <core::iter::adapters::filter::Filter<_, _> as core::iter::traits::iterator::Iterator>::count::to_usize<&akantu_core::element::Element, akantu_mesh::utils::plan_facets::{closure#2}>::{closure#0}>> (inlined)
+                                  <core::iter::adapters::map::Map<core::slice::iter::Iter<akantu_core::element::Element>, <core::iter::adapters::filter::Filter<_, _> as core::iter::traits::iterator::Iterator>::count::to_usize<&akantu_core::element::Element, akantu_mesh::utils::plan_facets::{closure#2}>::{closure#0}> as core::iter::traits::iterator::Iterator>::sum::<usize> (inlined)
+                                  <core::iter::adapters::filter::Filter<core::slice::iter::Iter<akantu_core::element::Element>, akantu_mesh::utils::plan_facets::{closure#2}> as core::iter::traits::iterator::Iterator>::count (inlined)
+                                  akantu_mesh::utils::plan_facets
+                                  |
+                                   --5.45%--akantu_mesh::utils::facets_dimension_in_place (inlined)
+                                             akantu_mesh::utils::build_all_facets
+                                             akantu_mesh::utils::create_mesh_facets_with
+                                             0xffffffffffffffff
+     8.67%  [.] <akantu_cohesive::inserter::helper::InserterHelper>::find_elements_around_subfacet
+            |
+             --3.08%--<core::result::Result<akantu_core::array_shared::SliceRef<i32>, akantu_core::error::Error> as core::ops::try_trait::Try>::branch (inlined)
+                       <akantu_cohesive::inserter::helper::InserterHelper>::find_elements_around_subfacet
+                       <akantu_cohesive::inserter::helper::InserterHelper>::find_subfacet_to_double
+                       <akantu_cohesive::inserter::helper::InserterHelper>::insert_facets_only
+                       <akantu_cohesive::inserter::helper::InserterHelper>::insert_cohesive_elements
+                       <akantu_cohesive::inserter::CohesiveElementInserter>::insert_elements_ordered_in
+                       suite_setup::suite_setup::cases_mesh::cohesive_insert_tet4::{closure#3}::{closure#0} (inlined)
+                       <akantu_mesh::shared::SharedMesh>::mutate_inner::<suite_setup::suite_setup::cases_mesh::cohesive_insert_tet4::{closure#3}::{closure#0}> (inlined)
+                       <akantu_mesh::shared::SharedMesh>::mutate::<suite_setup::suite_setup::cases_mesh::cohesive_insert_tet4::{closure#3}::{closure#0}>
+                       0xffffffffffffffff
+     4.98%  [.] akantu_mesh::utils::transfer_physical_names
+     4.76%  [.] cfree
+            |
+             --4.02%--alloc::alloc::dealloc_nonnull (inlined)
+                       <alloc::alloc::Global>::deallocate_impl_runtime (inlined)
+                       <alloc::alloc::Global>::deallocate_impl (inlined)
+                       <alloc::alloc::Global as core::alloc::Allocator>::deallocate (inlined)

@@ -1,0 +1,117 @@
+# perf record -F 499 --call-graph dwarf; dist_facets_tet4-m-p4-r0
+# phases of the profiled run (seconds, calls):
+#   mesh                             0.935 s       6 calls   6.4 %
+#   partition                        3.751 s       6 calls  25.7 %
+#   distribute                       5.815 s       6 calls  39.9 %
+#   init_mesh_facets                 4.071 s       6 calls  27.9 %
+
+## flat profile (self), top symbols
+    16.60%  suite_setup_mpi        [.] akantu_mesh::utils::plan_facets
+    10.32%  suite_setup_mpi        [.] <akantu_core::element::Element as core::cmp::Ord>::cmp
+     7.37%  suite_setup_mpi        [.] <alloc::collections::btree::map::entry::Entry<akantu_core::element::Element, usize>>::or_default
+     6.95%  libc.so.6              [.] pthread_rwlock_timedrdlock
+     6.41%  libc.so.6              [.] pthread_mutex_setprioceiling
+     4.13%  suite_setup_mpi        [.] akantu_mesh::partition::build_dual_graph
+     2.47%  suite_setup_mpi        [.] <akantu_mesh::distribution::Plan>::package
+     1.60%  libc.so.6              [.] pthread_kill
+     1.29%  [kernel.kallsyms]      [k] _raw_spin_lock
+     1.16%  suite_setup_mpi        [.] <alloc::collections::btree::map::IntoIter<akantu_core::element::Element, usize>>::dying_next
+     1.15%  suite_setup_mpi        [.] akantu_mesh::utils::renumber_mesh_nodes
+     1.13%  libc.so.6              [.] 0x0000000000172221
+     1.10%  libc.so.6              [.] pthread_mutex_lock
+     1.09%  suite_setup_mpi        [.] <alloc::collections::btree::node::Handle<alloc::collections::btree::node::NodeRef<alloc::collections::btree::node::marker::Mut, akantu_core::element::Element, usize, alloc::collections::btree::node::marker::Leaf>, alloc::collections::btree::node::marker::Edge>>::insert_recursing::<alloc::alloc::Global, <alloc::collections::btree::map::entry::VacantEntry<akantu_core::element::Element, usize>>::insert_entry::{closure#0}>
+     1.01%  libc.so.6              [.] 0x000000000009ec83
+     0.91%  suite_setup_mpi        [.] akantu_mesh::utils::transfer_physical_names
+     0.89%  libc.so.6              [.] xdr_int16_t
+     0.86%  suite_setup_mpi        [.] akantu_mesh::partition::fill_partition_information_with
+     0.79%  [kernel.kallsyms]      [k] __schedule
+     0.72%  libc.so.6              [.] xdr_uint64_t
+     0.67%  libc.so.6              [.] 0x000000000017221a
+     0.66%  suite_setup_mpi        [.] <std::hash::random::DefaultHasher as core::hash::Hasher>::write
+     0.65%  libc.so.6              [.] xdr_u_quad_t
+     0.64%  libmpi.so.40.40.7      [.] 0x0000000000091304
+     0.63%  libscotch-7.0.7.so     [.] 0x00000000000497b5
+
+## inclusive (children), top entries
+    54.13%     0.00%  [k] 0xffffffffffffffff
+    27.21%     0.00%  [.] suite_setup::suite_setup::cases_dist::distributed_tet4
+    26.21%     0.00%  [.] <suite_setup::suite_setup::harness::CaseOut>::phase::<core::option::Option<core::result::Result<akantu_mesh::partition::MeshPartition, akantu_core::error::Error>>, suite_setup::suite_setup::cases_dist::distributed_tet4::{closure#1}>
+    26.21%     0.00%  [.] suite_setup::suite_setup::cases_dist::distributed_tet4::{closure#1} (inlined)
+    26.21%     0.00%  [.] <akantu_mesh::scotch::ScotchPartitioner>::partition_with_loads
+    26.21%     0.00%  [.] <akantu_mesh::scotch::ScotchPartitioner as akantu_mesh::partition::MeshPartitioner>::partition
+    24.51%     4.13%  [.] akantu_mesh::partition::build_dual_graph
+    21.16%     0.00%  [.] akantu_mesh::facet_synchronizer::create_distributed_mesh_facets_in
+    17.92%     0.00%  [.] akantu_mesh::facet_synchronizer::create_distributed_mesh_facets_in::{closure#0} (inlined)
+    17.92%     0.00%  [.] akantu_mesh::utils::build_all_facets
+    17.35%    16.60%  [.] akantu_mesh::utils::plan_facets
+    12.96%     0.00%  [.] <core::iter::adapters::map::Map<core::slice::iter::Iter<akantu_core::element::Element>, <core::iter::adapters::filter::Filter<_, _> as core::iter::traits::iterator::Iterator>::count::to_usize<&akantu_core::element::Element, akantu_mesh::utils::plan_facets::{closure#2}>::{closure#0}> as core::iter::traits::iterator::Iterator>::fold::<usize, <usize as core::iter::traits::accum::Sum>::sum<core::iter::adapters::map::Map<core::slice::iter::Iter<akantu_core::element::Element>, <core::iter::adapters::filter::Filter<_, _> as core::iter::traits::iterator::Iterator>::count::to_usize<&akantu_core::element::Element, akantu_mesh::utils::plan_facets::{closure#2}>::{closure#0}>>::{closure#0}> (inlined)
+    12.96%     0.00%  [.] <core::slice::iter::Iter<akantu_core::element::Element> as core::iter::traits::iterator::Iterator>::fold::<usize, core::iter::adapters::map::map_fold<&akantu_core::element::Element, usize, usize, <core::iter::adapters::filter::Filter<_, _> as core::iter::traits::iterator::Iterator>::count::to_usize<&akantu_core::element::Element, akantu_mesh::utils::plan_facets::{closure#2}>::{closure#0}, <usize as core::iter::traits::accum::Sum>::sum<core::iter::adapters::map::Map<core::slice::iter::Iter<akantu_core::element::Element>, <core::iter::adapters::filter::Filter<_, _> as core::iter::traits::iterator::Iterator>::count::to_usize<&akantu_core::element::Element, akantu_mesh::utils::plan_facets::{closure#2}>::{closure#0}>>::{closure#0}>::{closure#0}> (inlined)
+    12.96%     0.00%  [.] <usize as core::iter::traits::accum::Sum>::sum::<core::iter::adapters::map::Map<core::slice::iter::Iter<akantu_core::element::Element>, <core::iter::adapters::filter::Filter<_, _> as core::iter::traits::iterator::Iterator>::count::to_usize<&akantu_core::element::Element, akantu_mesh::utils::plan_facets::{closure#2}>::{closure#0}>> (inlined)
+    12.96%     0.00%  [.] <core::iter::adapters::map::Map<core::slice::iter::Iter<akantu_core::element::Element>, <core::iter::adapters::filter::Filter<_, _> as core::iter::traits::iterator::Iterator>::count::to_usize<&akantu_core::element::Element, akantu_mesh::utils::plan_facets::{closure#2}>::{closure#0}> as core::iter::traits::iterator::Iterator>::sum::<usize> (inlined)
+    12.96%     0.00%  [.] <core::iter::adapters::filter::Filter<core::slice::iter::Iter<akantu_core::element::Element>, akantu_mesh::utils::plan_facets::{closure#2}> as core::iter::traits::iterator::Iterator>::count (inlined)
+    12.96%     0.00%  [.] <alloc::collections::btree::map::BTreeMap<akantu_core::element::Element, usize>>::entry (inlined)
+    12.68%     0.00%  [.] <alloc::collections::btree::node::NodeRef<alloc::collections::btree::node::marker::Mut, akantu_core::element::Element, usize, alloc::collections::btree::node::marker::LeafOrInternal>>::search_tree::<akantu_core::element::Element> (inlined)
+    12.49%     0.00%  [.] <alloc::collections::btree::node::NodeRef<alloc::collections::btree::node::marker::Mut, akantu_core::element::Element, usize, alloc::collections::btree::node::marker::LeafOrInternal>>::search_node::<akantu_core::element::Element> (inlined)
+    12.49%     0.00%  [.] <alloc::collections::btree::node::NodeRef<alloc::collections::btree::node::marker::Mut, akantu_core::element::Element, usize, alloc::collections::btree::node::marker::LeafOrInternal>>::find_key_index::<akantu_core::element::Element> (inlined)
+    11.35%     0.00%  [.] akantu_mesh::utils::facets_dimension_in_place (inlined)
+    10.77%     0.00%  [.] core::iter::adapters::map::map_fold::<&akantu_core::element::Element, usize, usize, <core::iter::adapters::filter::Filter<_, _> as core::iter::traits::iterator::Iterator>::count::to_usize<&akantu_core::element::Element, akantu_mesh::utils::plan_facets::{closure#2}>::{closure#0}, <usize as core::iter::traits::accum::Sum>::sum<core::iter::adapters::map::Map<core::slice::iter::Iter<akantu_core::element::Element>, <core::iter::adapters::filter::Filter<_, _> as core::iter::traits::iterator::Iterator>::count::to_usize<&akantu_core::element::Element, akantu_mesh::utils::plan_facets::{closure#2}>::{closure#0}>>::{closure#0}>::{closure#0} (inlined)
+    10.43%    10.32%  [.] <akantu_core::element::Element as core::cmp::Ord>::cmp
+     8.53%     7.37%  [.] <alloc::collections::btree::map::entry::Entry<akantu_core::element::Element, usize>>::or_default
+     8.01%     0.00%  [.] <core::iter::adapters::filter::Filter<_, _> as core::iter::traits::iterator::Iterator>::count::to_usize::<&akantu_core::element::Element, akantu_mesh::utils::plan_facets::{closure#2}>::{closure#0} (inlined)
+     8.01%     0.00%  [.] akantu_mesh::utils::plan_facets::{closure#2} (inlined)
+     8.01%     0.00%  [.] <&akantu_core::element::Element as core::cmp::PartialEq>::eq (inlined)
+     8.01%     0.00%  [.] <akantu_core::element::Element as core::cmp::PartialEq>::eq (inlined)
+     6.97%     6.95%  [.] pthread_rwlock_timedrdlock
+     6.57%     0.00%  [.] akantu_mesh::utils::facets_dimension
+     6.43%     6.41%  [.] pthread_mutex_setprioceiling
+     6.05%     0.00%  [.] akantu_mesh::distribution::distribute_impl::{closure#0} (inlined)
+     5.90%     0.00%  [.] <core::result::Result<core::option::Option<&akantu_mesh::partition::MeshPartition>, akantu_core::error::Error>>::and_then::<core::option::Option<alloc::vec::Vec<alloc::vec::Vec<u8>>>, akantu_mesh::distribution::distribute_impl::{closure#0}::{closure#1}> (inlined)
+     5.90%     0.00%  [.] akantu_mesh::distribution::distribute_impl::{closure#0}::{closure#1} (inlined)
+     5.90%     0.00%  [.] akantu_mesh::distribution::preflight (inlined)
+     5.47%     0.00%  [.] <akantu_core::element::Element>::is_null (inlined)
+     5.10%     0.00%  [.] 0xffffffffffffffff
+     5.03%     0.02%  [k] entry_SYSCALL_64_after_hwframe
+     5.03%     0.13%  [k] do_syscall_64
+     5.03%     0.00%  [.] akantu_mesh::distribution::distribute_impl
+     4.96%     0.00%  [.] <(bool, akantu_core::element_type::GhostType, akantu_core::element_type::ElementType, i32) as core::cmp::Ord>::cmp (inlined)
+     4.95%     0.33%  [.] glob64
+     4.64%     0.00%  [.] <u8 as core::cmp::Ord>::cmp (inlined)
+     4.30%     2.47%  [.] <akantu_mesh::distribution::Plan>::package
+     4.30%     0.00%  [.] core::iter::adapters::try_process::<core::iter::adapters::map::Map<core::ops::range::Range<usize>, akantu_mesh::distribution::preflight::{closure#2}>, alloc::vec::Vec<u8>, core::result::Result<core::convert::Infallible, akantu_core::error::Error>, <core::result::Result<alloc::vec::Vec<alloc::vec::Vec<u8>>, akantu_core::error::Error> as core::iter::traits::collect::FromIterator<core::result::Result<alloc::vec::Vec<u8>, akantu_core::error::Error>>>::from_iter<core::iter::adapters::map::Map<core::ops::range::Range<usize>, akantu_mesh::distribution::preflight::{closure#2}>>::{closure#0}, alloc::vec::Vec<alloc::vec::Vec<u8>>>
+
+## call chains of the top self symbols (callers, >= 1 %)
+    16.60%  [.] akantu_mesh::utils::plan_facets
+            |
+             --7.79%--<akantu_core::element::Element as core::cmp::PartialEq>::eq (inlined)
+                       <&akantu_core::element::Element as core::cmp::PartialEq>::eq (inlined)
+                       akantu_mesh::utils::plan_facets::{closure#2} (inlined)
+                       <core::iter::adapters::filter::Filter<_, _> as core::iter::traits::iterator::Iterator>::count::to_usize::<&akantu_core::element::Element, akantu_mesh::utils::plan_facets::{closure#2}>::{closure#0} (inlined)
+                       core::iter::adapters::map::map_fold::<&akantu_core::element::Element, usize, usize, <core::iter::adapters::filter::Filter<_, _> as core::iter::traits::iterator::Iterator>::count::to_usize<&akantu_core::element::Element, akantu_mesh::utils::plan_facets::{closure#2}>::{closure#0}, <usize as core::iter::traits::accum::Sum>::sum<core::iter::adapters::map::Map<core::slice::iter::Iter<akantu_core::element::Element>, <core::iter::adapters::filter::Filter<_, _> as core::iter::traits::iterator::Iterator>::count::to_usize<&akantu_core::element::Element, akantu_mesh::utils::plan_facets::{closure#2}>::{closure#0}>>::{closure#0}>::{closure#0} (inlined)
+                       <core::slice::iter::Iter<akantu_core::element::Element> as core::iter::traits::iterator::Iterator>::fold::<usize, core::iter::adapters::map::map_fold<&akantu_core::element::Element, usize, usize, <core::iter::adapters::filter::Filter<_, _> as core::iter::traits::iterator::Iterator>::count::to_usize<&akantu_core::element::Element, akantu_mesh::utils::plan_facets::{closure#2}>::{closure#0}, <usize as core::iter::traits::accum::Sum>::sum<core::iter::adapters::map::Map<core::slice::iter::Iter<akantu_core::element::Element>, <core::iter::adapters::filter::Filter<_, _> as core::iter::traits::iterator::Iterator>::count::to_usize<&akantu_core::element::Element, akantu_mesh::utils::plan_facets::{closure#2}>::{closure#0}>>::{closure#0}>::{closure#0}> (inlined)
+                       <core::iter::adapters::map::Map<core::slice::iter::Iter<akantu_core::element::Element>, <core::iter::adapters::filter::Filter<_, _> as core::iter::traits::iterator::Iterator>::count::to_usize<&akantu_core::element::Element, akantu_mesh::utils::plan_facets::{closure#2}>::{closure#0}> as core::iter::traits::iterator::Iterator>::fold::<usize, <usize as core::iter::traits::accum::Sum>::sum<core::iter::adapters::map::Map<core::slice::iter::Iter<akantu_core::element::Element>, <core::iter::adapters::filter::Filter<_, _> as core::iter::traits::iterator::Iterator>::count::to_usize<&akantu_core::element::Element, akantu_mesh::utils::plan_facets::{closure#2}>::{closure#0}>>::{closure#0}> (inlined)
+                       <usize as core::iter::traits::accum::Sum>::sum::<core::iter::adapters::map::Map<core::slice::iter::Iter<akantu_core::element::Element>, <core::iter::adapters::filter::Filter<_, _> as core::iter::traits::iterator::Iterator>::count::to_usize<&akantu_core::element::Element, akantu_mesh::utils::plan_facets::{closure#2}>::{closure#0}>> (inlined)
+                       <core::iter::adapters::map::Map<core::slice::iter::Iter<akantu_core::element::Element>, <core::iter::adapters::filter::Filter<_, _> as core::iter::traits::iterator::Iterator>::count::to_usize<&akantu_core::element::Element, akantu_mesh::utils::plan_facets::{closure#2}>::{closure#0}> as core::iter::traits::iterator::Iterator>::sum::<usize> (inlined)
+                       <core::iter::adapters::filter::Filter<core::slice::iter::Iter<akantu_core::element::Element>, akantu_mesh::utils::plan_facets::{closure#2}> as core::iter::traits::iterator::Iterator>::count (inlined)
+                       akantu_mesh::utils::plan_facets
+                       |
+                        --4.85%--akantu_mesh::utils::facets_dimension_in_place (inlined)
+                                  akantu_mesh::utils::build_all_facets
+                                  akantu_mesh::facet_synchronizer::create_distributed_mesh_facets_in::{closure#0} (inlined)
+                                  akantu_mesh::facet_synchronizer::create_distributed_mesh_facets_in
+                                  0xffffffffffffffff
+    10.32%  [.] <akantu_core::element::Element as core::cmp::Ord>::cmp
+            |
+             --4.62%--<u8 as core::cmp::Ord>::cmp (inlined)
+     7.37%  [.] <alloc::collections::btree::map::entry::Entry<akantu_core::element::Element, usize>>::or_default
+            |
+             --6.85%--<alloc::collections::btree::map::entry::Entry<akantu_core::element::Element, usize>>::or_default
+                       akantu_mesh::partition::build_dual_graph
+                       <akantu_mesh::scotch::ScotchPartitioner>::partition_with_loads
+                       <akantu_mesh::scotch::ScotchPartitioner as akantu_mesh::partition::MeshPartitioner>::partition
+                       suite_setup::suite_setup::cases_dist::distributed_tet4::{closure#1} (inlined)
+                       <suite_setup::suite_setup::harness::CaseOut>::phase::<core::option::Option<core::result::Result<akantu_mesh::partition::MeshPartition, akantu_core::error::Error>>, suite_setup::suite_setup::cases_dist::distributed_tet4::{closure#1}>
+                       suite_setup::suite_setup::cases_dist::distributed_tet4
+                       0xffffffffffffffff
+     6.95%  [.] pthread_rwlock_timedrdlock
+     6.41%  [.] pthread_mutex_setprioceiling
+     4.13%  [.] akantu_mesh::partition::build_dual_graph

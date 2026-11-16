@@ -1,0 +1,205 @@
+# perf record -F 499 --call-graph dwarf; parser_dat-m
+# phases of the profiled run (seconds, calls):
+#   generate                         0.000 s       1 calls   0.0 %
+#   parse                           10.059 s    1240 calls  49.6 %
+#   evaluate                        10.223 s     860 calls  50.4 %
+
+## flat profile (self), top symbols
+    16.69%  suite_setup        [.] <akantu_parser::expr::Eval>::expr
+     7.33%  suite_setup        [.] akantu_parser::grammar::parse_into
+     5.01%  libc.so.6          [.] cfree
+     4.07%  libc.so.6          [.] 0x0000000000198525
+     3.65%  suite_setup        [.] core::ptr::drop_glue::<akantu_parser::section::ParserSection>
+     3.57%  suite_setup        [.] <alloc::vec::Vec<akantu_parser::section::ParserParameter> as core::clone::Clone>::clone
+     3.22%  suite_setup        [.] suite_setup::suite_setup::cases_io::evaluate
+     2.99%  libc.so.6          [.] 0x00000000000a9d41
+     2.72%  suite_setup        [.] <akantu_parser::expr::Eval>::unary
+     2.34%  suite_setup        [.] <std::hash::random::DefaultHasher as core::hash::Hasher>::write
+     2.01%  suite_setup        [.] <akantu_parser::scope::ScopeRef>::lookup
+     1.75%  libc.so.6          [.] 0x00000000000a9bce
+     1.70%  libc.so.6          [.] malloc
+     1.65%  suite_setup        [.] core::slice::sort::shared::smallsort::insertion_sort_shift_left::<&akantu_parser::section::ParserParameter, <[&akantu_parser::section::ParserParameter]>::sort_by<<akantu_parser::section::ParserSection>::parameters_sorted::{closure#0}>::{closure#0}>
+     1.58%  libc.so.6          [.] 0x00000000000a9bdb
+     1.49%  libc.so.6          [.] 0x00000000000a9ce6
+     1.27%  suite_setup        [.] <hashbrown::map::HashMap<*const akantu_parser::section::ParserParameter, (), std::hash::random::RandomState>>::insert
+     1.21%  libc.so.6          [.] 0x0000000000198500
+     1.17%  suite_setup        [.] <alloc::sync::Arc<akantu_parser::scope::ScopeNode>>::drop_slow
+     1.15%  libc.so.6          [.] 0x0000000000198537
+     1.03%  libc.so.6          [.] 0x00000000000ab300
+     1.02%  suite_setup        [.] <std::hash::random::RandomState as core::hash::BuildHasher>::hash_one::<&*const akantu_parser::section::ParserParameter>
+     0.89%  libc.so.6          [.] 0x0000000000198504
+     0.84%  suite_setup        [.] <akantu_parser::section::ParserSection>::relink
+     0.84%  suite_setup        [.] alloc::fmt::format::format_inner
+
+## inclusive (children), top entries
+    99.49%     0.00%  [.] __libc_start_main
+    99.46%     0.00%  [.] <core::result::Result<akantu_comm::communicator::Communicator, akantu_core::error::Error>>::and_then::<(), suite_setup::main::{closure#1}> (inlined)
+    99.46%     0.00%  [.] std::panic::catch_unwind::<std::rt::lang_start_internal::{closure#0}, isize> (inlined)
+    99.46%     0.00%  [.] std::panic::catch_unwind::<&dyn core::ops::function::Fn<(), Output = i32> + core::panic::unwind_safe::RefUnwindSafe + core::marker::Sync, i32> (inlined)
+    99.46%     0.00%  [.] std::panicking::catch_unwind::<isize, std::rt::lang_start_internal::{closure#0}> (inlined)
+    99.46%     0.00%  [.] std::panicking::catch_unwind::<i32, &dyn core::ops::function::Fn<(), Output = i32> + core::panic::unwind_safe::RefUnwindSafe + core::marker::Sync> (inlined)
+    99.46%     0.00%  [.] std::sys::backtrace::__rust_begin_short_backtrace::<fn() -> std::process::ExitCode, std::process::ExitCode>
+    99.46%     0.00%  [.] std::panicking::catch_unwind::do_call::<std::rt::lang_start_internal::{closure#0}, isize> (inlined)
+    99.46%     0.00%  [.] std::panicking::catch_unwind::do_call::<&dyn core::ops::function::Fn<(), Output = i32> + core::panic::unwind_safe::RefUnwindSafe + core::marker::Sync, i32> (inlined)
+    99.46%     0.00%  [.] std::rt::lang_start::<std::process::ExitCode>::{closure#0} (inlined)
+    99.46%     0.00%  [.] suite_setup::main::{closure#1} (inlined)
+    99.46%     0.00%  [.] std::rt::lang_start_internal::{closure#0} (inlined)
+    99.46%     0.00%  [.] std::rt::lang_start_internal
+    99.46%     0.00%  [.] <&dyn core::ops::function::Fn<(), Output = i32> + core::panic::unwind_safe::RefUnwindSafe + core::marker::Sync as core::ops::function::FnOnce<()>>::call_once (inlined)
+    99.46%     0.00%  [.] <fn() -> std::process::ExitCode as core::ops::function::FnOnce<()>>::call_once (inlined)
+    99.46%     0.00%  [.] _start
+    99.46%     0.00%  [.] main
+    99.46%     0.00%  [.] suite_setup::suite_setup::harness::run_cases
+    99.44%     0.00%  [.] 0x0000719b5f62a1c9
+    99.38%     0.00%  [.] suite_setup::main
+    83.34%     0.00%  [.] suite_setup::suite_setup::cases_io::parser_dat
+    49.93%     3.22%  [.] suite_setup::suite_setup::cases_io::evaluate
+    49.93%     0.00%  [.] <suite_setup::suite_setup::harness::CaseOut>::loop_phase::<suite_setup::suite_setup::cases_io::parser_dat::{closure#2}>
+    49.93%     0.00%  [.] suite_setup::suite_setup::cases_io::parser_dat::{closure#2} (inlined)
+    49.47%     0.00%  [.] <suite_setup::suite_setup::harness::CaseOut>::loop_phase::<suite_setup::suite_setup::cases_io::parser_dat::{closure#1}>
+    49.47%     0.00%  [.] suite_setup::suite_setup::cases_io::parser_dat::{closure#1} (inlined)
+    40.61%     0.00%  [.] <akantu_parser::expr::Eval>::expr (inlined)
+    40.57%     0.00%  [.] <akantu_parser::expr::Eval>::run (inlined)
+    26.32%     0.09%  [.] <akantu_parser::section::ParamRef>::to_real
+    26.30%     0.00%  [.] <akantu_parser::section::ParamRef>::get::<f64> (inlined)
+    26.29%     0.00%  [.] <f64 as akantu_parser::section::FromParameter>::from_parameter (inlined)
+    26.22%     0.07%  [.] <akantu_parser::section::ParserSection as core::ops::drop::Drop>::drop
+    26.18%     0.00%  [.] core::ptr::drop_glue::<akantu_parser::section::ParserSection> (inlined)
+    25.71%     0.00%  [.] <akantu_parser::expr::Eval>::call (inlined)
+    25.09%     0.00%  [.] core::ptr::drop_glue::<akantu_parser::section::Parser>
+    23.29%     0.00%  [.] <akantu_parser::section::Parser>::parse_bytes
+    23.29%     0.00%  [.] <akantu_parser::section::Parser>::parse_bytes_into
+    22.58%     5.01%  [.] cfree
+    22.16%     0.00%  [.] <akantu_parser::expr::Eval>::number (inlined)
+    16.69%    16.69%  [.] <akantu_parser::expr::Eval>::expr
+    16.23%     0.04%  [.] akantu_parser::expr::eval_real
+    16.12%     0.00%  [.] suite_setup::suite_setup::cases_io::parser_dat
+    15.96%     0.00%  [.] <akantu_parser::grammar::Grammar>::sections (inlined)
+    14.87%     0.03%  [.] <akantu_parser::section::ParamRef>::to_vector
+    14.86%     0.00%  [.] <akantu_parser::section::ParamRef>::get::<alloc::vec::Vec<f64>> (inlined)
+
+## call chains of the top self symbols (callers, >= 1 %)
+    16.69%  [.] <akantu_parser::expr::Eval>::expr
+            |
+             --9.13%--<akantu_parser::expr::Eval>::run (inlined)
+                       <akantu_parser::expr::Eval>::expr (inlined)
+                       |
+                       |--6.06%--akantu_parser::expr::eval_real
+                       |          <f64 as akantu_parser::section::FromParameter>::from_parameter (inlined)
+                       |          <akantu_parser::section::ParamRef>::get::<f64> (inlined)
+                       |          <akantu_parser::section::ParamRef>::to_real
+                       |          suite_setup::suite_setup::cases_io::evaluate
+                       |          suite_setup::suite_setup::cases_io::evaluate
+                       |          |
+                       |           --3.89%--suite_setup::suite_setup::cases_io::evaluate
+                       |                     suite_setup::suite_setup::cases_io::parser_dat::{closure#2} (inlined)
+                       |                     <suite_setup::suite_setup::harness::CaseOut>::loop_phase::<suite_setup::suite_setup::cases_io::parser_dat::{closure#2}>
+                       |                     suite_setup::suite_setup::cases_io::parser_dat
+                       |                     suite_setup::suite_setup::harness::run_cases
+                       |                     suite_setup::main::{closure#1} (inlined)
+                       |                     <core::result::Result<akantu_comm::communicator::Communicator, akantu_core::error::Error>>::and_then::<(), suite_setup::main::{closure#1}> (inlined)
+                       |                     suite_setup::main
+                       |                     <fn() -> std::process::ExitCode as core::ops::function::FnOnce<()>>::call_once (inlined)
+                       |                     std::sys::backtrace::__rust_begin_short_backtrace::<fn() -> std::process::ExitCode, std::process::ExitCode>
+                       |                     std::rt::lang_start::<std::process::ExitCode>::{closure#0} (inlined)
+                       |                     <&dyn core::ops::function::Fn<(), Output = i32> + core::panic::unwind_safe::RefUnwindSafe + core::marker::Sync as core::ops::function::FnOnce<()>>::call_once (inlined)
+                       |                     std::panicking::catch_unwind::do_call::<&dyn core::ops::function::Fn<(), Output = i32> + core::panic::unwind_safe::RefUnwindSafe + core::marker::Sync, i32> (inlined)
+                       |                     std::panicking::catch_unwind::<i32, &dyn core::ops::function::Fn<(), Output = i32> + core::panic::unwind_safe::RefUnwindSafe + core::marker::Sync> (inlined)
+                       |                     std::panic::catch_unwind::<&dyn core::ops::function::Fn<(), Output = i32> + core::panic::unwind_safe::RefUnwindSafe + core::marker::Sync, i32> (inlined)
+                       |                     std::rt::lang_start_internal::{closure#0} (inlined)
+                       |                     std::panicking::catch_unwind::do_call::<std::rt::lang_start_internal::{closure#0}, isize> (inlined)
+                       |                     std::panicking::catch_unwind::<isize, std::rt::lang_start_internal::{closure#0}> (inlined)
+                       |                     std::panic::catch_unwind::<std::rt::lang_start_internal::{closure#0}, isize> (inlined)
+                       |                     std::rt::lang_start_internal
+                       |                     main
+                       |                     0x719b5f62a1c9
+                       |                     __libc_start_main
+                       |                     _start
+                       |
+                        --3.07%--<akantu_parser::expr::Eval>::vector
+                                  akantu_parser::expr::eval_vector
+                                  <alloc::vec::Vec<f64> as akantu_parser::section::FromParameter>::from_parameter (inlined)
+                                  <akantu_parser::section::ParamRef>::get::<alloc::vec::Vec<f64>> (inlined)
+                                  <akantu_parser::section::ParamRef>::to_vector
+                                  suite_setup::suite_setup::cases_io::evaluate
+                                  suite_setup::suite_setup::cases_io::evaluate
+                                  suite_setup::suite_setup::cases_io::parser_dat::{closure#2} (inlined)
+                                  <suite_setup::suite_setup::harness::CaseOut>::loop_phase::<suite_setup::suite_setup::cases_io::parser_dat::{closure#2}>
+                                  suite_setup::suite_setup::cases_io::parser_dat
+                                  suite_setup::suite_setup::harness::run_cases
+                                  suite_setup::main::{closure#1} (inlined)
+                                  <core::result::Result<akantu_comm::communicator::Communicator, akantu_core::error::Error>>::and_then::<(), suite_setup::main::{closure#1}> (inlined)
+                                  suite_setup::main
+                                  <fn() -> std::process::ExitCode as core::ops::function::FnOnce<()>>::call_once (inlined)
+                                  std::sys::backtrace::__rust_begin_short_backtrace::<fn() -> std::process::ExitCode, std::process::ExitCode>
+                                  std::rt::lang_start::<std::process::ExitCode>::{closure#0} (inlined)
+                                  <&dyn core::ops::function::Fn<(), Output = i32> + core::panic::unwind_safe::RefUnwindSafe + core::marker::Sync as core::ops::function::FnOnce<()>>::call_once (inlined)
+                                  std::panicking::catch_unwind::do_call::<&dyn core::ops::function::Fn<(), Output = i32> + core::panic::unwind_safe::RefUnwindSafe + core::marker::Sync, i32> (inlined)
+                                  std::panicking::catch_unwind::<i32, &dyn core::ops::function::Fn<(), Output = i32> + core::panic::unwind_safe::RefUnwindSafe + core::marker::Sync> (inlined)
+                                  std::panic::catch_unwind::<&dyn core::ops::function::Fn<(), Output = i32> + core::panic::unwind_safe::RefUnwindSafe + core::marker::Sync, i32> (inlined)
+                                  std::rt::lang_start_internal::{closure#0} (inlined)
+                                  std::panicking::catch_unwind::do_call::<std::rt::lang_start_internal::{closure#0}, isize> (inlined)
+                                  std::panicking::catch_unwind::<isize, std::rt::lang_start_internal::{closure#0}> (inlined)
+                                  std::panic::catch_unwind::<std::rt::lang_start_internal::{closure#0}, isize> (inlined)
+                                  std::rt::lang_start_internal
+                                  main
+                                  0x719b5f62a1c9
+                                  __libc_start_main
+                                  _start
+     7.33%  [.] akantu_parser::grammar::parse_into
+     5.01%  [.] cfree
+            |
+            ---alloc::alloc::dealloc_nonnull (inlined)
+               <alloc::alloc::Global>::deallocate_impl_runtime (inlined)
+               <alloc::alloc::Global>::deallocate_impl (inlined)
+               <alloc::alloc::Global as core::alloc::Allocator>::deallocate (inlined)
+               |
+                --4.88%--<alloc::raw_vec::RawVecInner>::deallocate (inlined)
+                          |
+                           --4.73%--<alloc::raw_vec::RawVec<u8> as core::ops::drop::Drop>::drop (inlined)
+                                     core::ptr::drop_glue::<alloc::raw_vec::RawVec<u8>> (inlined)
+                                     core::ptr::drop_glue::<alloc::vec::Vec<u8>> (inlined)
+                                     |
+                                      --3.19%--core::ptr::drop_glue::<akantu_parser::bytes::ByteString> (inlined)
+                                                |
+                                                 --3.08%--core::ptr::drop_glue::<akantu_parser::section::ParserParameter> (inlined)
+                                                           core::ptr::drop_glue::<[akantu_parser::section::ParserParameter]> (inlined)
+                                                           core::ptr::drop_in_place::<[akantu_parser::section::ParserParameter]> (inlined)
+                                                           <*mut [akantu_parser::section::ParserParameter]>::drop_in_place (inlined)
+                                                           <alloc::vec::Vec<akantu_parser::section::ParserParameter> as core::ops::drop::Drop>::drop (inlined)
+                                                           core::ptr::drop_glue::<alloc::vec::Vec<akantu_parser::section::ParserParameter>> (inlined)
+     4.07%  [.] 0x0000000000198525
+     3.65%  [.] core::ptr::drop_glue::<akantu_parser::section::ParserSection>
+     3.57%  [.] <alloc::vec::Vec<akantu_parser::section::ParserParameter> as core::clone::Clone>::clone
+            |
+             --3.35%--<akantu_parser::section::ParserParameter as core::clone::Clone>::clone (inlined)
+                       <akantu_parser::section::ParserParameter as <[_]>::to_vec_in::ConvertVec>::to_vec::<alloc::alloc::Global> (inlined)
+                       <[akantu_parser::section::ParserParameter]>::to_vec_in::<alloc::alloc::Global> (inlined)
+                       <alloc::vec::Vec<akantu_parser::section::ParserParameter> as core::clone::Clone>::clone
+                       <akantu_parser::section::ParserSection>::relink
+                       <akantu_parser::section::Parser>::parse_bytes_into
+                       <akantu_parser::section::Parser>::parse_bytes
+                       suite_setup::suite_setup::cases_io::parser_dat::{closure#1} (inlined)
+                       <suite_setup::suite_setup::harness::CaseOut>::loop_phase::<suite_setup::suite_setup::cases_io::parser_dat::{closure#1}>
+                       suite_setup::suite_setup::cases_io::parser_dat
+                       suite_setup::suite_setup::harness::run_cases
+                       suite_setup::main::{closure#1} (inlined)
+                       <core::result::Result<akantu_comm::communicator::Communicator, akantu_core::error::Error>>::and_then::<(), suite_setup::main::{closure#1}> (inlined)
+                       suite_setup::main
+                       <fn() -> std::process::ExitCode as core::ops::function::FnOnce<()>>::call_once (inlined)
+                       std::sys::backtrace::__rust_begin_short_backtrace::<fn() -> std::process::ExitCode, std::process::ExitCode>
+                       std::rt::lang_start::<std::process::ExitCode>::{closure#0} (inlined)
+                       <&dyn core::ops::function::Fn<(), Output = i32> + core::panic::unwind_safe::RefUnwindSafe + core::marker::Sync as core::ops::function::FnOnce<()>>::call_once (inlined)
+                       std::panicking::catch_unwind::do_call::<&dyn core::ops::function::Fn<(), Output = i32> + core::panic::unwind_safe::RefUnwindSafe + core::marker::Sync, i32> (inlined)
+                       std::panicking::catch_unwind::<i32, &dyn core::ops::function::Fn<(), Output = i32> + core::panic::unwind_safe::RefUnwindSafe + core::marker::Sync> (inlined)
+                       std::panic::catch_unwind::<&dyn core::ops::function::Fn<(), Output = i32> + core::panic::unwind_safe::RefUnwindSafe + core::marker::Sync, i32> (inlined)
+                       std::rt::lang_start_internal::{closure#0} (inlined)
+                       std::panicking::catch_unwind::do_call::<std::rt::lang_start_internal::{closure#0}, isize> (inlined)
+                       std::panicking::catch_unwind::<isize, std::rt::lang_start_internal::{closure#0}> (inlined)
+                       std::panic::catch_unwind::<std::rt::lang_start_internal::{closure#0}, isize> (inlined)
+                       std::rt::lang_start_internal
+                       main
+                       0x719b5f62a1c9
+                       __libc_start_main
+                       _start
+     3.22%  [.] suite_setup::suite_setup::cases_io::evaluate
