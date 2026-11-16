@@ -809,11 +809,11 @@ enum Cont<'x> {
     /// `'(' expr ')'`.
     Parenthesis,
     /// `unary '(' expr ')'`.
-    Unary { f: Unary, name: String },
+    Unary { f: Unary, name: Name<'x> },
     /// `binary '(' expr ',' expr ')'`: after the first argument.
-    Binary1 { f: Binary, name: String },
+    Binary1 { f: Binary, name: Name<'x> },
     /// `binary '(' expr ',' expr ')'`: after the second argument.
-    Binary2 { f: Binary, a: f64, name: String },
+    Binary2 { f: Binary, a: f64, name: Name<'x> },
     /// A variable reference: after the evaluation of its value (in its own
     /// context); `outer` is the context to resume.
     Variable {
@@ -821,6 +821,16 @@ enum Cont<'x> {
         param: &'x ParserParameter,
         outer: Ctx<'x>,
     },
+}
+
+/// A function name as written in the expression (shown in messages only).
+#[derive(Clone, Copy)]
+struct Name<'x>(&'x [u8]);
+
+impl fmt::Display for Name<'_> {
+    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
+        f.write_str(&String::from_utf8_lossy(self.0))
+    }
 }
 
 /// What the machine does next.
@@ -908,12 +918,21 @@ impl<'x> Eval<'x> {
     }
 
     fn expect_char(&mut self, c: u8, what: &str) -> Result<(), ConversionError> {
+        self.expect_char_with(c, || what.to_owned())
+    }
+
+    /// [`Self::expect_char`] with a message built only on failure.
+    fn expect_char_with(
+        &mut self,
+        c: u8,
+        what: impl FnOnce() -> String,
+    ) -> Result<(), ConversionError> {
         self.skip_ws();
         if self.peek() == Some(c) {
             self.ctx.pos += 1;
             Ok(())
         } else {
-            Err(self.expectation(what))
+            Err(self.expectation(&what()))
         }
     }
 
@@ -1066,18 +1085,18 @@ impl<'x> Eval<'x> {
         &mut self,
         table: &[(&str, F)],
         no_case: bool,
-    ) -> Option<(F, String)> {
+    ) -> Option<(F, Name<'x>)> {
         self.skip_ws();
         let (f, len) = longest_match(table, self.ctx.s, self.ctx.pos, no_case)?;
         let p = self.ctx.pos;
-        let name = String::from_utf8_lossy(&self.ctx.s[p..p + len]).into_owned();
+        let name = Name(&self.ctx.s[p..p + len]);
         self.ctx.pos += len;
         Some((f, name))
     }
 
     fn unary(&mut self, no_case: bool, stack: &mut Vec<Cont<'x>>) -> Option<Step> {
         let (f, name) = self.function_name::<Unary>(UNARY, no_case)?;
-        if let Err(e) = self.expect_char(b'(', &format!("'(' after function '{name}'")) {
+        if let Err(e) = self.expect_char_with(b'(', || format!("'(' after function '{name}'")) {
             return Some(Step::Return(Err(e)));
         }
         stack.push(Cont::Unary { f, name });
@@ -1086,7 +1105,7 @@ impl<'x> Eval<'x> {
 
     fn binary(&mut self, no_case: bool, stack: &mut Vec<Cont<'x>>) -> Option<Step> {
         let (f, name) = self.function_name::<Binary>(BINARY, no_case)?;
-        if let Err(e) = self.expect_char(b'(', &format!("'(' after function '{name}'")) {
+        if let Err(e) = self.expect_char_with(b'(', || format!("'(' after function '{name}'")) {
             return Some(Step::Return(Err(e)));
         }
         stack.push(Cont::Binary1 { f, name });
@@ -1275,7 +1294,7 @@ impl<'x> Eval<'x> {
             },
             Cont::Binary1 { f, name } => {
                 if let Err(e) =
-                    self.expect_char(b',', &format!("',' between the arguments of '{name}'"))
+                    self.expect_char_with(b',', || format!("',' between the arguments of '{name}'"))
                 {
                     return Step::Return(Err(e));
                 }
