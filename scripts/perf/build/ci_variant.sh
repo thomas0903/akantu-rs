@@ -2,7 +2,9 @@
 # SPDX-License-Identifier: LGPL-3.0-or-later
 # akantu-rs project tooling (not ported from Akantu): run CI tiers of the
 # current tree with one build configuration of the build-profile study
-# (variants.sh). A scratch worktree of REPO at its HEAD gets an untracked
+# (variants.sh). A scratch clone of REPO at its HEAD (a standalone local
+# clone without remote: a git worktree's .git file names a host path, which
+# the tree guards report, and git inside the container cannot follow it) gets an untracked
 # .cargo/config.toml holding the configuration's rustflags and release
 # profile settings (the project image passes no RUSTFLAGS, so cargo inside
 # the container reads them), then ci/run-all.sh --backend docker runs the
@@ -18,8 +20,11 @@ repo="$1" name="$2" tiers="$3" out="$4" sroot="${5:-$HOME/w/build/ci}"
 variant_env "$name"
 slug="$(printf '%s' "$name" | tr '+' '-')"
 wt="$sroot/$slug"
-git -C "$repo" worktree remove --force "$wt" 2> /dev/null || true
-git -C "$repo" worktree add --detach "$wt" HEAD > /dev/null
+case "$wt" in "$sroot/"?*) rm -rf "$wt" ;; *) exit 2 ;; esac
+mkdir -p "$sroot"
+git clone -q --local "$repo" "$wt"
+git -C "$wt" checkout -q --detach "$(git -C "$repo" rev-parse HEAD)"
+git -C "$wt" remote remove origin
 mkdir -p "$wt/.cargo"
 {
   echo "# SPDX-License-Identifier: LGPL-3.0-or-later"
