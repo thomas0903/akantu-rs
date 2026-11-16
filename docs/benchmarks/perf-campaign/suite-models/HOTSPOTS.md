@@ -22,6 +22,28 @@ No optimisation was made; this list is the input of the next tasks.
   `Quadrangle4` instance (identical code), `<Cohesive3d6>` the
   `Triangle3` one.
 
+## Baseline at a glance
+
+Per call, median of five runs (`baseline/README.md`):
+
+| Case | Dominant phase | Per call | Unit cost |
+|---|---|---|---|
+| `heat_explicit_tet4` | explicit step | 40.2 ms | 144 ns per element |
+| `heat_explicit_quad4` | explicit step | 39.8 ms | 249 ns per element |
+| `heat_implicit_hex8_kvar` | backward-Euler step (5 Newton iterations) | 272 ms | 124 µs per DOF |
+| `heat_static_tri6` | static solve / assembly | 4.52 s / 45 ms | 93 µs per DOF / 1.9 µs per element |
+| `phasefield_staggered_tri3` | solid solve / phase solve | 2.85 s / 0.53 s | 37 / 6.8 µs per DOF |
+| `phasefield_staggered_tet4` | solid solve | 0.56 s | 105 µs per DOF |
+| `contact_search_quad4` / `_tet4` | detection | 90 ms / 170 ms | 643 / 355 ns per element |
+| `contact_explicit_quad4` | coupled explicit step | 24.4 ms | 194 ns per element |
+| `contact_implicit_static_quad4` | static Newton step | 433 ms | 29 µs per DOF |
+| `contact_cohesive_quad4` | explicit step with insertion check | 29.8 ms | 465 ns per element |
+| `structural_beam3_frame_static` | static solve / assembly | 5.87 s / 38 ms | 445 µs per DOF / 6.3 µs per element |
+| `structural_beam3_frame_dynamic` | Newmark step | 87 ms | 6.6 µs per DOF |
+| `structural_dkt18_plate_static` | static solve / assembly | 2.65 s / 155 ms | 119 µs per DOF / 21.5 µs per element |
+| `embedded_rebar_tri3` / `_tet4` | intersection set-up | 1.56 s / 1.40 s | 62 / 65 µs per element |
+| `ntn_friction_quad4` | explicit step | 38.0 ms | 190 ns per element |
+
 ## Ranked list
 
 Rank = share × expected gain × how common the path is. "Bitwise-safe" and
@@ -30,11 +52,11 @@ Rank = share × expected gain × how common the path is. "Bitwise-safe" and
 | # | Hot spot | Where (cases, share) | Reading | Fix and expected gain | Kind |
 |---|---|---|---|---|---|
 | 1 | Sparse assembly through a SipHash `HashMap` per entry: `SparseMatrixAij::resolve_block` (crates/akantu-linalg/src/sparse.rs:597, map at :239) with `DefaultHasher::write`, `hash_one<(i64,i64)>`, `add_values` (:527), `DofManager::element_equations` (crates/akantu-solver/src/dof_manager.rs:1739) | every matrix assembly: `heat_static_tri6` assemble 50 % (resolve 35 + hash 7.6 + add 4.7 + equations 2.7), `structural_beam3_frame_static` 44 %, `structural_dkt18_plate_static` 39 %, `phasefield_*` 30–40 %, `embedded_*` 15–16 %, `contact_implicit_static_quad4` 21 % (with `add_to_profile`) | repeated set-up work per entry: the (row, column) → position map is constant while the profile release does not change, yet every elemental entry pays a hash of two `i64` and a probe | per element block, cache the positions (one `Vec<usize>` per type and matrix profile release) and accumulate `a[k] += v` in the same order; or an `FxHash`-type hasher (new dependency) | bitwise-safe; assembly 2–3× (it is 40–50 % of an assembly), all implicit models |
-| 2 | Supernodal sparse LU (`akantu_linalg::eigen_sparse_lu`): `dense::sparselu_gemm` (dense.rs:539) 11–32 %, `trsm_unit_lower`, `kernels::panel_bmod`, `dfs_kernel`, `copy_to_ucol` | every solve with the default `_auto` solver (Eigen SparseLU port): `heat_implicit_hex8_kvar` 65 %, `phasefield_staggered_tri3` solid solve (dominant phase), `phasefield_staggered_tet4`, `heat_static_tri6`, `structural_beam3_frame_static`, `contact_implicit_static_quad4` 38 % | kernel efficiency: `sparselu_gemm` is a scalar triple loop with bounds checks (`RK = 2` unrolled `k`); 3-D problems pay most (development VM: the frame, 13 k DOFs, 3.4 s per factorisation and solve; the tet4 phase field, 4 k DOFs, 0.47 s per solid solve; at 28 k DOFs a staggered step exceeded 2 minutes) | (a) bitwise: SIMD across independent rows `i` of the update (each lane keeps the `k` order), unchecked indexing, register blocking over `j`: 3–6× on `sparselu_gemm` / `trsm`; (b) fast mode: another ordering (AMD / nested dissection) or a multifrontal / supernodal solver with BLAS-3 and FMA: 5–20× on the factorisation | (a) bitwise-safe, (b) fast mode |
+| 2 | Supernodal sparse LU (`akantu_linalg::eigen_sparse_lu`): `dense::sparselu_gemm` (dense.rs:539) 11–32 %, `trsm_unit_lower`, `kernels::panel_bmod`, `dfs_kernel`, `copy_to_ucol` | every solve with the default `_auto` solver (Eigen SparseLU port): `heat_implicit_hex8_kvar` 65 %, `phasefield_staggered_tri3` solid solve (dominant phase), `phasefield_staggered_tet4`, `heat_static_tri6`, `structural_beam3_frame_static`, `contact_implicit_static_quad4` 38 % | kernel efficiency: `sparselu_gemm` is a scalar triple loop with bounds checks (`RK = 2` unrolled `k`); baseline: the 3-D frame (13.2 k DOFs) 5.87 s for one static solve, the 2-D tri6 heat problem (48.8 k DOFs) 4.52 s, the 2-D phase-field solid solve (51.8 k DOFs) 2.85 s, the 3-D tet4 one (4 k DOFs) 0.56 s; on the development VM a 3-D tet4 phase field with 28 k DOFs did not finish a staggered step in 2 minutes | (a) bitwise: SIMD across independent rows `i` of the update (each lane keeps the `k` order), unchecked indexing, register blocking over `j`: 3–6× on `sparselu_gemm` / `trsm`; (b) fast mode: another ordering (AMD / nested dissection) or a multifrontal / supernodal solver with BLAS-3 and FMA: 5–20× on the factorisation | (a) bitwise-safe, (b) fast mode |
 | 3 | Small fixed-size products through the generic GEBP emulation: `eigen_gebp::route` (crates/akantu-core/src/eigen_gebp.rs:436), `product_into` (:523), `eigen_order::redux_tree`, `fe::eigen::product_slices` (crates/akantu-fe/src/eigen.rs:215) | everywhere: `contact_cohesive_quad4` 37 % (stress interpolation for the insertion check), `structural_dkt18_plate_static` 28 % (B^T D B), `contact_search_*` 18–32 %, `heat_explicit_*` 15–18 % (with the interpolation of item 5), `structural_*` 10–15 %, `embedded_*` 8–9 % | generic kernels where a fixed-size one would do: a shape decision (`route`, 2–8 % alone) and a dynamic-size product per element / quadrature point / facet | fixed-size kernels per element type with the same reduction order (as the solid explicit `fast::` kernels already do for gradient / BtD / integrate) | bitwise-safe; 2–4× on those shares; also helps the solid suite |
 | 4 | Heat law per step: `HeatDiffusion::compute_diffusivity_grad_u_on_quad_points` (crates/akantu-diffusion/src/heat_diffusion.rs:358): `D∇u` with `eigen_order::product_coeff` and a closure per coefficient (:386), copies of `grad_u` and `diffusivity` (`to_vec`, :366–367), a new output array per call | `heat_explicit_tet4` 20 % (redux 16.4 + function 3.5), `heat_explicit_quad4` 20 % | generic kernel + allocation and copies per step | fixed `d × d` product written out in the reduction order of `product_coeff`, in-place output | bitwise-safe; ~20 % of the explicit heat step |
 | 5 | Heat law per step: `compute_diffusivity_on_quad_points` (heat_diffusion.rs:297) recomputes the conductivity at every quadrature point, with an interpolation of `T` (`interpolate_on_integration_points`), whenever the temperature release changes, i.e. every step, also with `conductivity_variation = 0` | `heat_explicit_tet4` 8.5 % (3.3 function + 3.2 interpolate GEBP + 1.9 interpolate_impl), `heat_explicit_quad4` 8.6 % | repeated set-up work per step (upstream behaviour, UD-284 notes the release logic) | skip when `conductivity_variation == 0` (the value `k + 0·(T − T_ref)` equals `k` except for non-finite `T`: keep the recomputation when `T` has a NaN or infinity, or document the difference) | bitwise-safe for finite `T`; 8 % of the explicit heat step |
-| 6 | Embedded intersection set-up: `LinearScan::all_intersections` (crates/akantu-geometry/src/index.rs:68) tests every bar segment against every background element; used by `EmbeddedInterfaceIntersector` (crates/akantu-embedded/src/intersector.rs:270) | `embedded_rebar_tri3` 49 %, `embedded_rebar_tet4` 40 % (+ `ray_triangle_do_intersect` 4.6 %); `init` 0.9–1.1 s at size `m`, 113 s at 9× the elements and segments (calibration) | algorithmic: O(segments × elements); the upstream AABB tree is GPL (CGAL), the LGPL port scans | a uniform grid or bounding-volume tree over the triangles (LGPL), candidates sorted by primitive id so the reporting order stays the scan order | bitwise-safe (same intersections, same order); set-up 50–100× at size `m`, more on larger meshes |
+| 6 | Embedded intersection set-up: `LinearScan::all_intersections` (crates/akantu-geometry/src/index.rs:68) tests every bar segment against every background element; used by `EmbeddedInterfaceIntersector` (crates/akantu-embedded/src/intersector.rs:270) | `embedded_rebar_tri3` 49 %, `embedded_rebar_tet4` 40 % (+ `ray_triangle_do_intersect` 4.6 %); baseline: `init` 1.45–1.52 s and `intersect` 1.40–1.56 s per call at size `m`; 113 s at 9× the elements and segments (calibration on the development VM) | algorithmic: O(segments × elements); the upstream AABB tree is GPL (CGAL), the LGPL port scans | a uniform grid or bounding-volume tree over the triangles (LGPL), candidates sorted by primitive id so the reporting order stays the scan order | bitwise-safe (same intersections, same order); set-up 50–100× at size `m`, more on larger meshes |
 | 7 | Allocation and zeroing of temporaries per step: `ArrayStorage::try_resize` 3–5 %, libc `memset`/`memmove` 8–15 %, `Vec<usize>` collection of element filters (`filter.to_vec()`, crates/akantu-diffusion/src/model/assembly.rs:319) | `heat_explicit_*` (try_resize 3–5 % + libc 10 %), `contact_explicit_quad4` (libc 16 %), `ntn_friction_quad4`, `contact_cohesive_quad4` | allocation and copies (`bt_d_gu` / `int_bt_d_gu` arrays per law and step in `assemble_internal_flow_of`, assembly.rs:309–350) | workspace arrays kept in the law / model | bitwise-safe; 10–15 % of explicit steps |
 | 8 | Contact detection: `SpatialGrid` cells in a `BTreeMap` (crates/akantu-core/src/spatial_grid.rs:281; `NeighborhoodItems::next` 11 %, `insert` 4.6 %), grid rebuilt per search; `compute_maximal_detection_distance` (crates/akantu-contact/src/detector.rs:337) recomputed per search (2.8 %); outward orientation by the adjacent element's barycenter per projection (`geometry::barycenter_on`, geometry.rs:304, 7 %) | `contact_search_quad4`, `contact_search_tet4` (about 25 % together) | data layout (ordered map for a dense grid), repeated set-up work per search | dense cell array over the box (cells in the same order), cache the element sizes and the facet → element barycenters per mesh revision | bitwise-safe; search 1.5–2× |
 | 9 | `SparseMatrixAij::mat_vec_mul` (sparse.rs:866–890) rebuilds a `Vec` of (local row, local column) pairs with two `EquationLayout::local` SipHash lookups (crates/akantu-linalg/src/layout.rs:58, :131) per non-zero on every call | `structural_beam3_frame_dynamic` 15 % (mat_vec 9.8 + hash 5.8) | repeated set-up work per call | cache the local pairs per profile release; a `Vec` index map for the serial layout | bitwise-safe; ~15 % of an implicit dynamic step |
@@ -80,8 +102,8 @@ The phase times are in `baseline/README.md`. What dominates each case:
   warm-up steps (1.6 s per call on average, 38 % of the profile); the
   timed steps reuse the factors: triangular solves (`SparseLu::solve` 23 %
   inclusive) and item 9 (15.5 %).
-- `structural_dkt18_plate_static`: assembly items 1 and 3 (16–25 µs per
-  element and assembly on the development VM); the solve item 2.
+- `structural_dkt18_plate_static`: assembly items 1 and 3 (21.5 µs per
+  element and assembly in the baseline); the solve item 2.
 - `embedded_rebar_tri3`, `_tet4`: item 6 in `init` and `intersect`;
   assembly item 1; the reinforcement's internal forces are cheap.
 - `ntn_friction_quad4`: the solid explicit step (as `contact_explicit`);
@@ -90,9 +112,9 @@ The phase times are in `baseline/README.md`. What dominates each case:
 ## Defects found (not fixed here)
 
 1. `LinearScan` (crates/akantu-geometry/src/index.rs:57–88) makes the
-   embedded intersection set-up O(segments × elements): 1 s at 20 k
-   triangles and 5 k bar segments, 113 s at 180 k triangles and 48 k
-   segments (development VM).
+   embedded intersection set-up O(segments × elements): 1.56 s at 20 k
+   triangles and 5.2 k bar segments (baseline), 113 s at 180 k triangles
+   and 48 k segments (development VM).
 2. `compute_diffusivity_on_quad_points` (crates/akantu-diffusion/src/
    heat_diffusion.rs:297–352) interpolates `T` and rewrites the
    conductivity at every quadrature point every step even when the
