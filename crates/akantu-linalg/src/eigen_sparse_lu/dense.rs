@@ -963,6 +963,7 @@ fn gemm_tile<const MR: usize, const NR: usize, const ZERO: bool, const FMA: bool
 #[cfg(test)]
 mod tests {
     use super::*;
+    use akantu_core::bitwise_testing::{Values, same};
 
     /// The entry-by-entry `sparselu_gemm` the tiled kernel replaced (the
     /// reference of the bitwise property test).
@@ -1009,8 +1010,7 @@ mod tests {
         }
     }
 
-    /// A small deterministic generator (xorshift64*) of doubles that include
-    /// signed zeros, infinities, NaNs, subnormals and wide exponents.
+    /// Shapes and offsets of the random cases (xorshift64*).
     pub(super) struct Gen(pub u64);
     impl Gen {
         pub fn next_u64(&mut self) -> u64 {
@@ -1022,37 +1022,44 @@ mod tests {
         pub fn below(&mut self, n: usize) -> usize {
             (self.next_u64() % n as u64) as usize
         }
-        pub fn value(&mut self, specials: bool) -> f64 {
-            let r = self.next_u64();
-            if specials {
-                match r % 64 {
-                    0 => return 0.0,
-                    1 => return -0.0,
-                    2 => return f64::INFINITY,
-                    3 => return f64::NEG_INFINITY,
-                    4 => return f64::NAN,
-                    5 => return f64::from_bits(0x7ff8_0000_0000_1234 | (r & (1 << 63))),
-                    6 => return f64::from_bits(r & 0x800f_ffff_ffff_ffff), // subnormal
-                    7 => return f64::MIN_POSITIVE,
-                    8 => return f64::MAX,
-                    9 => return f64::from_bits((r >> 1) | 1), // any finite or not
-                    _ => {}
-                }
-            }
-            let m = (r >> 11) as f64 / (1u64 << 53) as f64 - 0.5;
-            m * 2f64.powi(((r >> 3) % 40) as i32 - 20)
-        }
-        pub fn vec(&mut self, n: usize, specials: bool) -> Vec<f64> {
-            (0..n).map(|_| self.value(specials)).collect()
-        }
     }
 
-    /// Bitwise equality, any NaN equal to any NaN: Rust does not specify
-    /// which NaN payload an operation with NaN operands returns (and LLVM
-    /// may commute the operands of `+` and `*`), in the reference kernel as
-    /// in the new one. Non-finite factors are refused by `factorize`.
-    pub(super) fn same_bits(x: f64, y: f64) -> bool {
-        x.to_bits() == y.to_bits() || (x.is_nan() && y.is_nan())
+    /// The values of one case, by the project's rule (D-046 / D-051,
+    /// `akantu_core::bitwise_testing`): in the default mode special values
+    /// with default NaNs only, compared with [`same`]; in the payload mode
+    /// finite values and one NaN with a payload, compared bit for bit.
+    pub(super) struct Draws {
+        v: Values,
+        payload: bool,
+    }
+    impl Draws {
+        pub fn new(seed: u64) -> Self {
+            Self {
+                v: Values::new(seed),
+                payload: false,
+            }
+        }
+        /// Starts a case of `total` draws; even cases use the payload mode.
+        pub fn case(&mut self, g: &mut Gen, case: usize, total: usize) {
+            self.payload = case.is_multiple_of(2) && total > 0;
+            if self.payload {
+                self.v.payload_at(1 + g.below(total) as u64);
+            } else {
+                self.v.default_mode();
+            }
+        }
+        pub fn vec(&mut self, n: usize) -> Vec<f64> {
+            let mut out = vec![0.0; n];
+            self.v.fill(&mut out);
+            out
+        }
+        pub fn eq(&self, x: f64, y: f64) -> bool {
+            if self.payload {
+                x.to_bits() == y.to_bits()
+            } else {
+                same(x, y)
+            }
+        }
     }
 
     /// `gebp_acc` of the reference `trsm_unit_lower`.
@@ -1168,8 +1175,8 @@ mod tests {
     #[test]
     fn trsm_matches_reference_bitwise() {
         let mut g = Gen(0x0123_4567_89AB_CDEF);
-        for case in 0..600 {
-            let specials = case % 4 == 0;
+        let mut dr = Draws::new(0x0123_4567_89AB_CDEF);
+        for case in 0..1200 {
             // sizes around the kc split (96 / 128) and the panel widths
             let size = match case % 5 {
                 0 => g.below(10),
@@ -1180,15 +1187,17 @@ mod tests {
             let ldt = size + g.below(5);
             let ldo = size + g.below(3);
             let (to, oo) = (g.below(4), g.below(4));
-            let t = g.vec(to + ldt * size.max(1) + 1, specials);
-            let o0 = g.vec(oo + ldo * cols.max(1) + size, specials);
+            let (lt, lo) = (to + ldt * size.max(1) + 1, oo + ldo * cols.max(1) + size);
+            dr.case(&mut g, case, lt + lo);
+            let t = dr.vec(lt);
+            let o0 = dr.vec(lo);
             let mut o1 = o0.clone();
             let mut o2 = o0.clone();
             trsm_unit_lower_reference(size, cols, &t, to, ldt, &mut o1, oo, ldo);
             trsm_unit_lower(size, cols, &t, to, ldt, &mut o2, oo, ldo);
             for (x, y) in o1.iter().zip(&o2) {
                 assert!(
-                    same_bits(*x, *y),
+                    dr.eq(*x, *y),
                     "case {case}: size={size} cols={cols}: {x:e} {y:e}"
                 );
             }
@@ -1228,8 +1237,8 @@ mod tests {
     #[test]
     fn gemv_matches_reference_bitwise() {
         let mut g = Gen(0x2545_F491_4F6C_DD1D);
-        for case in 0..3000 {
-            let specials = case % 3 == 0;
+        let mut dr = Draws::new(0x2545_F491_4F6C_DD1D);
+        for case in 0..4000 {
             let rows = g.below(80);
             // around the block rule: < 128 one block, else 16 or 4 columns
             let cols = if case % 7 == 0 {
@@ -1244,11 +1253,13 @@ mod tests {
                     g.below(4)
                 };
             let ao = g.below(4);
-            let a = g.vec(ao + lda * cols.max(1) + rows, specials);
             let alpha = [1.0, -1.0, 0.5][g.below(3)];
+            let la = ao + lda * cols.max(1) + rows;
+            dr.case(&mut g, case, la + cols + 3 + rows + 2 + rows + cols + 5);
+            let a = dr.vec(la);
             // separate buffers
-            let x = g.vec(cols + 3, specials);
-            let r0 = g.vec(rows + 2, specials);
+            let x = dr.vec(cols + 3);
+            let r0 = dr.vec(rows + 2);
             let mut r1 = r0.clone();
             gemv_reference(
                 rows,
@@ -1278,13 +1289,13 @@ mod tests {
                 );
                 for (u, v) in r1.iter().zip(&r2) {
                     assert!(
-                        same_bits(*u, *v),
+                        dr.eq(*u, *v),
                         "case {case} {isa:?}: rows={rows} cols={cols}"
                     );
                 }
             }
             // one buffer, x before and after the result
-            let v0 = g.vec(rows + cols + 5, specials);
+            let v0 = dr.vec(rows + cols + 5);
             for x_first in [true, false] {
                 let (xo, ro) = if x_first {
                     (1, cols + 3)
@@ -1298,7 +1309,7 @@ mod tests {
                 gemv_in_place(rows, cols, &a, ao, lda, &mut v2, xo, ro, alpha);
                 for (u, v) in v1.iter().zip(&v2) {
                     assert!(
-                        same_bits(*u, *v),
+                        dr.eq(*u, *v),
                         "case {case} in place: rows={rows} cols={cols}"
                     );
                 }
@@ -1309,8 +1320,8 @@ mod tests {
     #[test]
     fn gemm_matches_reference_bitwise() {
         let mut g = Gen(0x9E37_79B9_7F4A_7C15);
+        let mut dr = Draws::new(0x9E37_79B9_7F4A_7C15);
         for case in 0..4000 {
-            let specials = case % 3 == 0;
             let m = g.below(70);
             let n = g.below(19);
             let d = g.below(23);
@@ -1318,22 +1329,24 @@ mod tests {
             let ldb = d + g.below(3);
             let ldc = m + g.below(3);
             let (ao, bo, co) = (g.below(5), g.below(5), g.below(5));
-            let a = g.vec(ao + lda * d.max(1) + m, specials);
-            let b = g.vec(bo + ldb * n.max(1) + d, specials);
-            let c0 = g.vec(co + ldc * n.max(1) + m, specials);
+            let (la, lb) = (ao + lda * d.max(1) + m, bo + ldb * n.max(1) + d);
+            // slack after the last column of C as well
+            let lc = co + ldc * n.max(1) + m + g.below(4);
+            dr.case(&mut g, case, la + lb + lc);
+            let a = dr.vec(la);
+            let b = dr.vec(lb);
+            let c0 = dr.vec(lc);
             let mut c1 = c0.clone();
             let mut c2 = c0.clone();
             sparselu_gemm_reference(m, n, d, &a, ao, lda, &b, bo, ldb, &mut c1, co, ldc);
             sparselu_gemm(m, n, d, &a, ao, lda, &b, bo, ldb, &mut c2, co, ldc);
             for (x, y) in c1.iter().zip(&c2) {
-                assert!(
-                    same_bits(*x, *y),
-                    "case {case}: m={m} n={n} d={d}: {x:e} {y:e}"
-                );
+                assert!(dr.eq(*x, *y), "case {case}: m={m} n={n} d={d}: {x:e} {y:e}");
             }
-            // the zero-destination variant equals a zero fill + the reference
+            // the zero-destination variants equal a zero fill of the block
+            // + the reference; the whole array is compared (the rows from
+            // `m` to `ldc` and the slack before and after stay as they were)
             let mut z1 = c0.clone();
-            let mut z2 = c0.clone();
             for j in 0..n {
                 z1[co + j * ldc..co + j * ldc + m].fill(0.0);
             }
@@ -1344,19 +1357,14 @@ mod tests {
                 super::super::simd::gemm_into_zero_with(
                     isa, m, n, d, &a, ao, lda, &b, bo, ldb, &mut z2, co, ldc,
                 );
-                for j in 0..n {
-                    z2[co + j * ldc..co + j * ldc + m]
-                        .iter()
-                        .zip(&z1[co + j * ldc..co + j * ldc + m])
-                        .for_each(|(x, y)| assert!(same_bits(*x, *y), "case {case} {isa:?}"));
+                for (k, (x, y)) in z2.iter().zip(&z1).enumerate() {
+                    assert!(dr.eq(*x, *y), "case {case} {isa:?}: entry {k}");
                 }
             }
+            let mut z2 = c0.clone();
             sparselu_gemm_into_zero(m, n, d, &a, ao, lda, &b, bo, ldb, &mut z2, co, ldc);
-            for j in 0..n {
-                z2[co + j * ldc..co + j * ldc + m]
-                    .iter()
-                    .zip(&z1[co + j * ldc..co + j * ldc + m])
-                    .for_each(|(x, y)| assert!(same_bits(*x, *y), "case {case}"));
+            for (k, (x, y)) in z2.iter().zip(&z1).enumerate() {
+                assert!(dr.eq(*x, *y), "case {case}: entry {k}");
             }
         }
     }
