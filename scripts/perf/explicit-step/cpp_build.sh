@@ -5,13 +5,15 @@
 # oracle image (built as in docs/ORACLE_BUILD.md: volume akantu-oracle-build,
 # image akantu-oracle:dev). Output: $OUT/explicit_step_timing_<config>.
 #   cpp_build.sh OUT [strict|default]...
+# DOCKER_CPUSET (optional, e.g. 4-7): build on these cores only.
 set -euo pipefail
 here="$(cd "$(dirname "$0")" && pwd)"
 out="$1"; shift
 configs=("$@"); [ ${#configs[@]} -gt 0 ] || configs=(strict)
 mkdir -p "$out"
+cpuset=(); [ -z "${DOCKER_CPUSET:-}" ] || cpuset=(--cpuset-cpus "${DOCKER_CPUSET}")
 for c in "${configs[@]}"; do
-  docker run --rm -v akantu-oracle-build:/build -v "$here":/src:ro -v "$out":/out akantu-oracle:dev bash -c "
+  docker run --rm ${cpuset[@]+"${cpuset[@]}"} -v akantu-oracle-build:/build -v "$here":/src:ro -v "$out":/out akantu-oracle:dev bash -c "
     set -euo pipefail
     . /build/install-$c/share/akantu-oracle/env.sh
     rm -rf /tmp/b && cmake -S /src -B /tmp/b -DAKANTU_ORACLE_INSTALL=/build/install-$c > /tmp/configure.log 2>&1 \\

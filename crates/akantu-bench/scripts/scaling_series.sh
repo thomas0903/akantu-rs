@@ -37,7 +37,15 @@
 #   3. scaling_analyze.py OUT SERIES -> OUT/SERIES-summary.{md,json}.
 #
 # Options and environment as c1prep_campaign.sh (--memory, default 14g; --cpus,
-# default 8; OUT, default ~/c1prep-results; CPP_CONFIG strict; FNTE joss).
+# default 8; OUT, default ~/c1prep-results; CPP_CONFIG strict; FNTE joss;
+# PIN_CPUS_FROM).
+# SERIES_REPS (optional, e.g. "2"): run only these repetitions of step 2
+# (and step 3 over whatever is done), so that a series can run as one short
+# exclusive job per repetition on a shared host.
+# SKIP_DONE=1 (optional): a campaign whose schedule.log already says
+# "campaign done" is not run again (resuming a series after the host
+# stopped); an incomplete campaign directory is moved aside to
+# <campaign>.incomplete-<time> and run again.
 # Exit status: 0 iff every campaign and the analysis succeeded; 1 otherwise
 # (the series continues after a failed campaign and lists it at the end).
 set -uo pipefail
@@ -90,6 +98,7 @@ done
 # ---- 2. repetitions ---------------------------------------------------------
 nc=${#case_list[@]}
 for rep in $(seq 1 "${reps}"); do
+  case " ${SERIES_REPS:-${rep}} " in *" ${rep} "*) ;; *) continue ;; esac
   order=("${point_list[@]}")
   if [ $((rep % 2)) -eq 0 ]; then
     order=()
@@ -101,6 +110,13 @@ for rep in $(seq 1 "${reps}"); do
   for p in "${order[@]}"; do
     h=${p%%:*} np=${p##*:}
     c="${series}-h${h}-np${np}-r${rep}"
+    if [ "${SKIP_DONE:-0}" = 1 ] && [ -d "${out}/${c}" ]; then
+      if grep -q "campaign done" "${out}/${c}/schedule.log" 2> /dev/null; then
+        say "  ${c}: already done, skipped (SKIP_DONE=1)"
+        continue
+      fi
+      mv "${out}/${c}" "${out}/${c}.incomplete-$(date +%s)"
+    fi
     popt=()
     [ "${np}" -gt 1 ] && popt=(--partitions "${out}/${series}-parts/h${h}")
     if bash "${camp}" ${opts[@]+"${opts[@]}"} ${popt[@]+"${popt[@]}"} "${c}" "${h}" "${steps}" "${np}" 1 "${rot[*]}" ${extra[@]+"${extra[@]}"} \

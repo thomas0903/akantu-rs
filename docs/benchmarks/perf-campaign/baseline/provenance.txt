@@ -1,0 +1,22 @@
+Machine: an AWS m7a.2xlarge (AMD EPYC 9R14, 8 cores, no SMT, 32 GiB), Ubuntu 24.04, Docker.
+Date: 2026-11-16 (UTC).
+Port: perf/optimisation at 59dd2229c (D-122); the binaries were built from
+  perf/infra-baseline (d742a30c5 / c1aa8a9fd: scripts and documents only on
+  top of 59dd2229c), workspace release profile, no extra flags.
+  explicit_step_timing (akantu-solid example) sha256 4f47a11abe4b2587e437e5f19f13a31c022b7bf17692923ad5c32b8af9d9eea4
+  cohesive_extrinsic host build (no features) sha256 bd3a062b50c9839344a0f0f162ee1f96e17732d3312f04214f65a911ae5f0a35
+  cohesive_extrinsic features mpi,scotch,mumps in akantu-rs-mumps:dev
+    (image sha256:0bf8962ad1a6665fb90f3d516ad763d919b2abcad9f91d256c49c6954b5bddaf)
+    sha256 e61212bd0a63eb89e365d78114fc05ac578ce160b8f4cc808df1cb34bd14492f
+Fast tier: ci/run-all.sh --backend docker (image akantu-rs-mpi:dev
+  sha256:736f765eb5c89a2527ae05ec7fb85838d1c2dfb13ba5594d10131a922bf6169b), commit 59dd2229c;
+  shellcheck 0.9.0 (koalaman/shellcheck-alpine:v0.9.0) and ruff 0.17.3 (python:3.12-slim)
+  in containers on perf/infra-baseline c1aa8a9fd. gate/.
+Oracle image: oracle/docker/Dockerfile built on the machine
+  (akantu-oracle:dev = sha256:8d7d4392939c9fa64e0356b1ae8035d582f66b3019e69c03c0a6b7751edf9a6d);
+  package manifest differs from oracle/docker/packages.amd64.tsv in two
+  packages (libopenexr-3-1-30 3.1.13-2 -> 3.2.12-1~deb13u1, linux-libc-dev
+  6.12.116-1 -> 6.12.117-1; oracle-image-package-drift.diff); the records
+  under oracle/docker/ were not changed (the image was tagged, not promoted).
+Reference: 35a851780d0b9471d258ed53a003ae98aaa95ea0 (git bundle of the local
+  reference checkout with its tags; git describe --tags v5.0.7-post1-554-g35a851780).
