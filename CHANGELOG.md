@@ -44,6 +44,11 @@ change of default results or of a public API raises the minor version.
   exchanges; the DOF manager's global-number exchange indexes the
   equations of each node once; `plan_facets`, `transfer_physical_names`
   and `fill_from_node_group` lost their quadratic searches.
+- `SolidMechanicsModelCohesive::ext` is a `Box<CohesiveExtension>` (field
+  access unchanged through `Deref`; a destructuring pattern needs
+  `&mut *model.ext`): the model is 11.6 kB instead of 38 kB by value, and
+  the benchmark suite's insertion case runs in a debug `mumps` build on a
+  1.5 MiB stack instead of 2 MiB.
 - `CohesiveSynchronizers::element_to_prank` is an
   `Arc<ElementTypeMapArray<Rank>>` (shared, never changed after
   construction) instead of an `ElementTypeMapArray<Rank>`.
