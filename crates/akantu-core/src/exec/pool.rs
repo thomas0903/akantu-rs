@@ -8,13 +8,14 @@
 
 use std::sync::{Arc, LazyLock, Mutex};
 
+use super::spin::SpinPool;
 use super::{ExecPolicy, Grain, Precision, SimdToken};
 use crate::error::{Error, Result};
 use crate::types::Real;
 
 /// Parts per thread of an evenly split batch: a few more parts than
 /// threads, so that a thread delayed by the system does not hold the
-/// region up (the work-stealing pool hands its remaining parts to others).
+/// region up (the threads claim parts until none is left).
 const PARTS_PER_THREAD: usize = 4;
 
 /// A policy with the thread pool of its thread count. Cloning is cheap (the
@@ -32,14 +33,14 @@ pub struct Exec {
 /// so an `Exec` (and the engines and models holding one) stays usable after
 /// a caught panic, as before the pool existed.
 #[derive(Clone)]
-struct Pool(Arc<rayon::ThreadPool>);
+struct Pool(Arc<SpinPool>);
 
 impl std::panic::UnwindSafe for Pool {}
 impl std::panic::RefUnwindSafe for Pool {}
 
 impl std::ops::Deref for Pool {
-    type Target = rayon::ThreadPool;
-    fn deref(&self) -> &rayon::ThreadPool {
+    type Target = SpinPool;
+    fn deref(&self) -> &SpinPool {
         &self.0
     }
 }
@@ -61,17 +62,14 @@ impl Default for Exec {
 
 /// The process's pools, one per thread count (created on first use, kept
 /// until the process ends).
-static POOLS: Mutex<Vec<(usize, Arc<rayon::ThreadPool>)>> = Mutex::new(Vec::new());
+static POOLS: Mutex<Vec<(usize, Arc<SpinPool>)>> = Mutex::new(Vec::new());
 
-fn pool_of(threads: usize) -> Result<Arc<rayon::ThreadPool>> {
+fn pool_of(threads: usize) -> Result<Arc<SpinPool>> {
     let mut pools = POOLS.lock().unwrap_or_else(|e| e.into_inner());
     if let Some((_, p)) = pools.iter().find(|(n, _)| *n == threads) {
         return Ok(p.clone());
     }
-    let pool = rayon::ThreadPoolBuilder::new()
-        .num_threads(threads)
-        .thread_name(move |i| format!("akantu-exec-{threads}-{i}"))
-        .build()
+    let pool = SpinPool::new(threads)
         .map_err(|e| Error::invalid(format!("cannot start {threads} threads: {e}")))?;
     let pool = Arc::new(pool);
     pools.push((threads, pool.clone()));
@@ -294,25 +292,20 @@ fn even_bounds(len: usize, parts: usize) -> Vec<usize> {
 }
 
 /// Split `items` at `bounds` and run `f` on every part in `pool`.
-fn run_parts<S: Split>(
-    pool: &rayon::ThreadPool,
-    bounds: &[usize],
-    items: S,
-    f: &(dyn Fn(usize, S) + Sync),
-) {
+fn run_parts<S: Split>(pool: &SpinPool, bounds: &[usize], items: S, f: &(dyn Fn(usize, S) + Sync)) {
     let mut parts = Vec::with_capacity(bounds.len().saturating_sub(1));
     let mut rest = items;
     for w in bounds.windows(2) {
         let (head, tail) = rest.split_at(w[1] - w[0]);
-        parts.push((w[0], head));
+        parts.push(Mutex::new(Some((w[0], head))));
         rest = tail;
     }
-    pool.install(|| {
-        use rayon::prelude::*;
-        parts
-            .into_par_iter()
-            .with_max_len(1)
-            .for_each(|(first, part)| f(first, part));
+    // each part index is claimed by exactly one thread (`SpinPool::run`)
+    pool.run(parts.len(), &|p| {
+        let part = parts[p].lock().unwrap_or_else(|e| e.into_inner()).take();
+        if let Some((first, part)) = part {
+            f(first, part);
+        }
     });
 }
 

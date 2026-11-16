@@ -81,7 +81,6 @@ those of `Cargo.lock` at the time of writing.
 |---|---|---|---|---|
 | `thiserror` | 2.0.21 / 2.0.21 | MIT OR Apache-2.0 | `akantu-core` (`Error`) | default |
 | `faer` | 0.24.4 / 0.24.4 (`default-features = false`, `std`, `sparse-linalg`) | MIT | `akantu-linalg` (`FaerLuSolver`, the `faer` port extension: COLAMD ordering and the sequential simplicial LU; the triangular solves on its factors are the port's own code) | default |
-| `rayon` | 1.11.0 / 1.12.0 (with `rayon-core` 1.13.0, `crossbeam-deque` 0.8.8, `crossbeam-epoch` 0.9.21, `crossbeam-utils` 0.8.23, `either`) | MIT OR Apache-2.0 | `akantu-core` (`exec`: the thread pool of the execution policy, D-123) | default |
 | `log` | 0.4.29 / 0.4.35 | MIT OR Apache-2.0 | warnings of readers and parser, `akantu_core::debug::LogBridge` (routes `log` records into upstream-formatted debug output); dev-dependency of the facade | default |
 | `serde`, `serde_json` | 1.0.228 / 1.0.229, 1.0.149 / 1.0.154 (`float_roundtrip`) | MIT OR Apache-2.0 | `akantu-validation` (fixtures, manifests); dev-dependency of most crates | default (validation), dev |
 | `sha2` | 0.10.9 | MIT OR Apache-2.0 | `akantu-validation` (checksums); dev-dependency of several crates | default (validation), dev |
@@ -95,11 +94,13 @@ those of `Cargo.lock` at the time of writing.
 
 Notes:
 
-- `rayon` (D-123) was chosen over a pool written on `std::thread` by the
-  measured cost of one parallel region (`scripts/perf/exec/pool-overhead`,
-  `docs/benchmarks/perf-campaign/exec/`): RAYON_CHOICE. One pool per thread
-  count per process; the default thread count is 1, where no pool exists
-  and no region is entered.
+- The thread pool of the execution policy (D-123) is the port's own
+  (`akantu_core::exec`, on `std::thread`). `rayon` (MIT OR Apache-2.0) was
+  allowed and measured, and not taken: one region cost 5–14 µs with it
+  against about 1 µs with the own pool on the 8-core measurement machine
+  (`docs/benchmarks/perf-campaign/exec/`). `rayon` remains a dependency of
+  the standalone microbenchmark `scripts/perf/exec/pool-overhead` only (not
+  a workspace member, not shipped).
 - faer's SIMD kernels use FMA internally. That is acceptable only because
   faer is qualified by the conditioning-aware protocol of
   `docs/NUMERICAL_VALIDATION.md` and never compared bitwise; it is never
@@ -123,11 +124,11 @@ Notes:
 
 Generated with `cargo metadata --format-version 1 --all-features` over the
 committed `Cargo.lock` (all features, all dependency kinds, build tools
-included: 161 crates); `/` in a declared licence is read as `OR`.
+included: 156 crates); `/` in a declared licence is read as `OR`.
 
 | Declared licence | Crates (locked version) |
 |---|---|
-| MIT OR Apache-2.0 | bitflags 2.13.2, block-buffer 0.10.4, borsh 1.8.1, build-probe-mpi 0.1.6, cc 1.11.1, cfg-if 1.0.5, chacha20 0.10.2, conv 0.3.3, cpufeatures 0.2.17, cpufeatures 0.3.0, crossbeam-deque 0.8.8, crossbeam-epoch 0.9.21, crossbeam-utils 0.8.23, crypto-common 0.1.7, custom_derive 0.1.7, digest 0.10.7, either 1.15.0, enum-as-inner 0.6.1, errno 0.3.14, generic-array 0.14.7, getrandom 0.4.2, glob 0.3.3, half 2.7.1, heck 0.5.0, indoc 2.0.7, itertools 0.13.0, itoa 1.0.18, lazy_static 1.5.0, libc 0.2.191, log 0.4.35, mpi 0.8.2, mpi-sys 0.2.4, num-complex 0.4.6, num-integer 0.1.46, num-traits 0.2.19, once_cell 1.21.4, paste 1.0.15, pkg-config 0.3.34, portable-atomic 1.14.0, ppv-lite86 0.2.21, proc-macro2 1.0.107, proptest 1.12.0, pulp 0.22.3, pulp-wasm-simd-flag 0.1.1, pyo3 0.30.1, pyo3-build-config 0.30.1, pyo3-ffi 0.30.1, pyo3-macros 0.30.1, pyo3-macros-backend 0.30.1, quote 1.0.47, rand 0.10.1, rand_chacha 0.10.0, rand_core 0.10.1, rand_xorshift 0.5.0, rayon 1.12.0, rayon-core 1.13.0, regex 1.12.4, regex-automata 0.4.15, regex-syntax 0.8.11, rustc-hash 2.1.2, rustc_version 0.4.1, seq-macro 0.3.6, serde 1.0.229, serde_core 1.0.229, serde_derive 1.0.229, serde_json 1.0.154, sha2 0.10.9, shlex 1.3.0, smallvec 1.16.5, syn 2.0.119, syn 3.0.10, tempfile 3.27.0, thiserror 1.0.69, thiserror 2.0.21, thiserror-impl 1.0.69, thiserror-impl 2.0.21, typenum 1.20.0, version_check 0.9.5 |
+| MIT OR Apache-2.0 | bitflags 2.13.2, block-buffer 0.10.4, borsh 1.8.1, build-probe-mpi 0.1.6, cc 1.11.1, cfg-if 1.0.5, chacha20 0.10.2, conv 0.3.3, cpufeatures 0.2.17, cpufeatures 0.3.0, crypto-common 0.1.7, custom_derive 0.1.7, digest 0.10.7, either 1.15.0, enum-as-inner 0.6.1, errno 0.3.14, generic-array 0.14.7, getrandom 0.4.2, glob 0.3.3, half 2.7.1, heck 0.5.0, indoc 2.0.7, itertools 0.13.0, itoa 1.0.18, lazy_static 1.5.0, libc 0.2.191, log 0.4.35, mpi 0.8.2, mpi-sys 0.2.4, num-complex 0.4.6, num-integer 0.1.46, num-traits 0.2.19, once_cell 1.21.4, paste 1.0.15, pkg-config 0.3.34, portable-atomic 1.14.0, ppv-lite86 0.2.21, proc-macro2 1.0.107, proptest 1.12.0, pulp 0.22.3, pulp-wasm-simd-flag 0.1.1, pyo3 0.30.1, pyo3-build-config 0.30.1, pyo3-ffi 0.30.1, pyo3-macros 0.30.1, pyo3-macros-backend 0.30.1, quote 1.0.47, rand 0.10.1, rand_chacha 0.10.0, rand_core 0.10.1, rand_xorshift 0.5.0, regex 1.12.4, regex-automata 0.4.15, regex-syntax 0.8.11, rustc-hash 2.1.2, rustc_version 0.4.1, seq-macro 0.3.6, serde 1.0.229, serde_core 1.0.229, serde_derive 1.0.229, serde_json 1.0.154, sha2 0.10.9, shlex 1.3.0, smallvec 1.16.5, syn 2.0.119, syn 3.0.10, tempfile 3.27.0, thiserror 1.0.69, thiserror 2.0.21, thiserror-impl 1.0.69, thiserror-impl 2.0.21, typenum 1.20.0, version_check 0.9.5 |
 | MIT | bytes 1.12.1, cfg_aliases 0.2.2, crunchy 0.2.4, dyn-stack 0.13.2, dyn-stack-macros 0.1.3, equator 0.2.2, equator 0.6.0, equator-macro 0.2.1, equator-macro 0.6.0, faer 0.24.4, faer-traits 0.24.0, gemm 0.19.0, gemm-c32 0.19.0, gemm-c64 0.19.0, gemm-common 0.19.0, gemm-f16 0.19.0, gemm-f32 0.19.0, gemm-f64 0.19.0, generativity 1.2.1, libm 0.2.16, memoffset 0.9.1, nano-gemm 0.2.2, nano-gemm-c32 0.2.2, nano-gemm-c64 0.2.2, nano-gemm-codegen 0.2.2, nano-gemm-core 0.2.2, nano-gemm-f32 0.2.2, nano-gemm-f64 0.2.2, ndarray 0.17.2, nom 7.1.3, numpy-macros 0.1.0, qd 0.8.0, raw-cpuid 11.6.0, reborrow 0.5.5, sysctl 0.6.0, unarray 0.1.4, wait-timeout 0.2.1, winnow 1.0.5, zmij 1.0.21 |
 | Apache-2.0 OR MIT | autocfg 1.5.1, bit-set 0.11.1, bit-vec 0.10.1, cexpr 0.6.0, equivalent 1.0.3, fastrand 2.5.0, fnv 1.0.7, hashbrown 0.17.1, indexmap 2.14.2, matrixmultiply 0.3.10, minimal-lexical 0.2.1, num-bigint 0.4.6, quick-error 1.2.3, rawpointer 0.2.1, semver 1.0.28, toml 1.1.2, toml_datetime 1.1.1, toml_parser 1.1.2, toml_writer 1.1.1 |
 | Unlicense OR MIT | aho-corasick 1.1.5, byteorder 1.5.0, memchr 2.8.3, same-file 1.0.6, walkdir 2.5.0, winapi-util 0.1.11 |

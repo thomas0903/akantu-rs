@@ -35,6 +35,7 @@
 mod pool;
 mod scatter;
 pub mod simd;
+mod spin;
 
 use std::num::NonZeroUsize;
 use std::sync::RwLock;

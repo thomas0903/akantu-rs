@@ -2177,16 +2177,28 @@ tests against the default path.
   them in the serial order (`Exec::sum_in_order`), in another order only
   under `Fast`. `AKANTU_EXEC_GRAIN=finest` splits every batch as finely as
   possible, for running test suites with many small parts.
-- **Pool: `rayon`**, one pool per thread count per process, shared by all
-  models (MIT OR Apache-2.0, `docs/DEPENDENCIES.md`). Measured on the
-  measurement machine (AMD EPYC 9R14, 8 cores) with
-  `scripts/perf/exec/pool-overhead`: POOL_RESULT. Each MPI rank has its
-  own pool. The library does not pin threads: a rank's threads inherit
-  the rank's CPU mask, so with `mpirun --bind-to core` all threads of a
-  rank share one core; run `ranks × threads ≤ cores` with a binding that
-  gives each rank `threads` cores (Open MPI `--map-by slot:PE=<threads>`,
-  or `--bind-to none`). The default (1 thread) keeps every MPI run as
-  before.
+- **Pool: a small pool on `std::thread`** (`exec/spin.rs`), one per
+  thread count per process, shared by all models: the caller takes part in
+  the region, parts are claimed with an atomic counter, idle workers spin
+  for 200 µs and then park. Chosen over `rayon` by the measured cost of one
+  region (`scripts/perf/exec/pool-overhead`, AMD EPYC 9R14, 8 cores,
+  `docs/benchmarks/perf-campaign/exec/`): an empty region costs 0.7–0.9 µs
+  with this pool at 2–8 threads against 5.0–6.7 µs with `rayon` (its
+  `install` and `broadcast` alike), and a region of 10–100 µs of work
+  spends 0.7–1.3 µs above the ideal `work / threads` against 4–14 µs
+  with `rayon`; an explicit step has about a dozen regions, so on a
+  20 k-element mesh at 8 threads `rayon` would add tens of percent. The
+  price is `unsafe` code (a borrowed closure handed to the workers for one
+  region; 7 sites in `crates/akantu-core/UNSAFE.md`) and workers that spin
+  briefly after each region. A region started while the pool runs
+  another (another thread, or a nested region) runs serially on its
+  caller, which gives the same results. Each MPI rank has its own pool.
+  The library does not pin threads: a rank's threads inherit the rank's
+  CPU mask, so with `mpirun --bind-to core` all threads of a rank share
+  one core; run `ranks × threads ≤ cores` with a binding that gives each
+  rank `threads` cores (Open MPI `--map-by slot:PE=<threads>`, or
+  `--bind-to none`). The default (1 thread) starts no pool and keeps every
+  MPI run as before.
 - **SIMD.** `SimdLevel` (`Scalar`, `Avx2` = AVX2 + FMA3, `Avx512`,
   `Neon`) is detected once; `SimdToken` proves the CPU supports a level
   and is the only way to call a kernel's `#[target_feature]` version
@@ -2217,8 +2229,8 @@ are on by choice.
 Consequence: results do not depend on `AKANTU_NUM_THREADS` or
 `AKANTU_SIMD` in the default mode (tests: `akantu-solid/tests/exec_threads.rs`,
 the explicit-step digests at 1, 2, 4 and 8 threads); the core crate
-denies `unsafe` instead of forbidding it, with its sites listed in its
-`UNSAFE.md`.
+denies `unsafe` instead of forbidding it, with its sites (the pool and the
+SIMD kernels) listed in its `UNSAFE.md`; no new dependency.
 
 ## Ids without a record
 

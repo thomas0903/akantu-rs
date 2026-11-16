@@ -944,7 +944,7 @@ users go through the Rust crates or the Python module (D-100).
 |---|---|
 | `Precision` | `Bitwise` (default): every result bit as the serial reference path; `Fast`: kernels marked `FAST MODE` may round differently (D-122) |
 | `ExecPolicy` | precision, thread count (default 1), `SimdToken`, `Grain`; a plain value. `ExecPolicy::process_default()` reads `AKANTU_NUM_THREADS`, `AKANTU_PRECISION`, `AKANTU_SIMD`, `AKANTU_EXEC_GRAIN` once, unless `set_process_default` was called first |
-| `Exec` | a policy with its `rayon` pool (one per thread count per process); `for_each` / `try_for_each` / `for_each_bounds` run a closure on contiguous parts of one or several arrays (`Tuples`, `TuplesRef`, tuples of them); `sum_in_order` |
+| `Exec` | a policy with its thread pool (`exec/spin.rs`, one per thread count per process; the caller takes part, idle workers spin 200 µs then park); `for_each` / `try_for_each` / `for_each_bounds` run a closure on contiguous parts of one or several arrays (`Tuples`, `TuplesRef`, tuples of them); `sum_in_order` |
 | `NodeScatter` | per node, the positions `(element, local node)` that contribute to it, in the serial order; `scatter_add` with threads owning disjoint node ranges; `matches` checks it against a connectivity |
 | `SimdLevel`, `SimdToken`, `with_fma` | detected level, proof of support, the dispatch convention (`exec::simd`) |
 
@@ -1037,11 +1037,12 @@ Sites by file:
 | `crates/akantu-mesh/src/{scotch,scotch_reorder}.rs` (feature `scotch`) | 6 | Scotch shim calls |
 | `crates/akantu-parser/src/cmath.rs` | 2 | libm FFI (`erf`, `erfc`, `tgamma`, `lgamma_r`, `asinh`, `acosh`, `atanh`) |
 | `crates/akantu-capi/src/lib.rs` | 2 | the unmangled `akantu_version` symbol |
-| `crates/akantu-core/src/exec/simd.rs` | 11 | `#[target_feature]` versions of the SIMD example kernel and the FMA entry point of fast-mode kernels, called after a `SimdToken` check (D-123) |
+| `crates/akantu-core/src/exec/simd.rs`, `exec/spin.rs` | 18 | `#[target_feature]` versions of the SIMD example kernel and the FMA entry point of fast-mode kernels, called after a `SimdToken` check; the thread pool's job slot and the lifetime of a region's closure (D-123) |
 | tests and examples (`akantu-comm`, `akantu-mesh`, `akantu-solid`, `akantu-linalg`, the facade) | 45 | MPI FFI in MPI tests and the `mpi4py` probe, counting allocators, raw-bit checks |
 
 The counts are those of `--list` at the time of writing. `akantu-core`,
-where the shared storage lives, has no `unsafe` outside `exec::simd`. Changes to `unsafe` code
+where the shared storage lives, has no `unsafe` outside `exec::simd` and
+`exec::spin`. Changes to `unsafe` code
 or to the shared-storage protocol are checked under Miri
 (`cargo +nightly miri test -p akantu-python`, and `-p akantu-core` for the
 storage tests, Stacked and Tree Borrows).

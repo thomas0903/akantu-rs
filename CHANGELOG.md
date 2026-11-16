@@ -12,7 +12,7 @@ change of default results or of a public API raises the minor version.
 
 - Execution policy (D-123): `akantu_core::exec` with `ExecPolicy`
   (precision mode `Bitwise`/`Fast`, thread count, SIMD level, split grain),
-  `Exec` (a shared `rayon` pool per thread count), `NodeScatter` and the
+  `Exec` (a shared thread pool per thread count), `NodeScatter` and the
   SIMD dispatch convention. Environment variables `AKANTU_NUM_THREADS`
   (default 1), `AKANTU_PRECISION` (`bitwise`), `AKANTU_SIMD` (`auto`),
   `AKANTU_EXEC_GRAIN` (`auto`). Rust API:
@@ -33,9 +33,9 @@ change of default results or of a public API raises the minor version.
 
 ### Changed
 
-- `akantu-core` denies `unsafe` instead of forbidding it: the SIMD kernels
-  of `exec::simd` (listed in its `UNSAFE.md`) are the only sites.
-- New dependency `rayon` (MIT OR Apache-2.0) in `akantu-core`.
+- `akantu-core` denies `unsafe` instead of forbidding it: the thread pool
+  of `exec::spin` and the SIMD kernels of `exec::simd` (listed in its
+  `UNSAFE.md`) are the only sites.
 
 ## [0.1.0] - Unreleased
 

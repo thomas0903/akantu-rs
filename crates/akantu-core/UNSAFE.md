@@ -1,7 +1,9 @@
 # `unsafe` in `akantu-core`
 
-`src/lib.rs` has `#![deny(unsafe_code)]`. The only module that allows it is
-`src/exec/simd.rs` (D-123): the example kernel of the SIMD dispatch
+`src/lib.rs` has `#![deny(unsafe_code)]`. Two modules allow it (D-123):
+`src/exec/spin.rs`, the thread pool of the execution policy, which hands a
+borrowed closure to its workers for the duration of one region, and
+`src/exec/simd.rs`: the example kernel of the SIMD dispatch
 convention, whose `#[target_feature]` versions are `unsafe fn`s called from
 one dispatch point, and the FMA entry point of fast-mode kernels
 (`with_fma`). Every site is listed below (`scripts/unsafe_inventory.py
@@ -9,8 +11,9 @@ one dispatch point, and the FMA entry point of fast-mode kernels
 `--update-lines` after an edit that only moves code). Each row is pinned to
 a fingerprint of its site's code in `UNSAFE.fingerprints`.
 
-**Counts**: `unsafe fn` 4, block 7 (on one architecture at a time: x86-64
-compiles the AVX2, AVX-512 and FMA sites, aarch64 the NEON sites).
+**Counts**: `unsafe impl` 2, `unsafe fn` 4, block 12 (the SIMD sites on one
+architecture at a time: x86-64 compiles the AVX2, AVX-512 and FMA sites,
+aarch64 the NEON sites).
 
 ## Site table
 
@@ -33,6 +36,26 @@ when the CPU reports the level's target feature (`SimdLevel::token` and
 | CO-09 | 292 | `fn scaled_add_neon` block 1 | 2-wide loads, multiply, add, store | `i + 2 ≤ len` of both slices | loop bound `body = n − n % 2` | as CO-01 (aarch64) |
 | CO-10 | 182 | `fn with_fma` block 1 | calls the FMA-enabled entry point | CPU has avx2 and fma | `SimdToken` constructors (`Avx2` and `Avx512` require both) | `exec::simd::tests::fma_tasks_are_fused_at_every_level` |
 | CO-11 | 190 | `fn run_with_fma` fn 1 | `#[target_feature(enable = "avx2,fma")]` entry point that runs a task inlined into it | caller guarantees avx2 and fma | CO-10 | as CO-10 |
+
+### src/exec/spin.rs
+
+The region protocol every site relies on: the owner of a region holds
+`SpinPool::busy`, writes `job` before publishing the region (SeqCst bump of
+`generation`), takes parts itself, waits until every worker incremented
+`done` (Release / Acquire), and only then clears `job` and returns; a worker
+reads `job` only after observing the new generation and before
+incrementing `done`. A worker starts from generation 0, so a region
+published before it started is not missed.
+
+| Id | Line | Site | What it does | Invariant (its `SAFETY:` comment) | Established by | Test |
+|---|---|---|---|---|---|---|
+| CO-12 | 66 | `impl Sync for Shared` impl 1 | shares the pool state (with the `UnsafeCell` job slot) between threads | writes and reads of `job` never overlap | the region protocol | `exec::spin::tests::*`, `exec::pool::tests::*` |
+| CO-13 | 68 | `impl Send for Shared` impl 1 | moves the shared state into the workers | as CO-12 | as CO-12 | as CO-12 |
+| CO-14 | 130 | `impl SpinPool › fn run` block 1 | erases the lifetime of the region's closure | the pointer is not used after `run` returns | `run` waits for `done == workers` and clears the slot first | `every_part_runs_once`, `concurrent_callers` |
+| CO-15 | 133 | `impl SpinPool › fn run` block 2 | writes the job slot | no worker reads it now | `busy` held; the previous region ended | as CO-14 |
+| CO-16 | 148 | `impl SpinPool › fn run` block 3 | clears the job slot | every worker reported the end of the region | `done == workers` observed | as CO-14 |
+| CO-17 | 205 | `fn worker` block 1 | reads the job slot | the region is published and not ended | new generation observed; `done` not yet incremented | as CO-14, `regions_after_parking_and_nested_regions` |
+| CO-18 | 208 | `fn worker` block 2 | calls the region's closure | the closure outlives the region | as CO-17 | `a_panic_reaches_the_caller_and_the_pool_survives` |
 
 ## Guarantees the `unsafe` code of other crates relies on
 
