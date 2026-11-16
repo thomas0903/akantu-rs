@@ -52,16 +52,26 @@ import csv, hashlib, json, os, sys
 d, tag, st, t0, t1 = sys.argv[1:6]
 o = {"kind": "coh", "label": tag, "exit": int(st), "wall_s": float(t1) - float(t0)}
 try:
+    # chrono.csv: one header row of phase names, one row of values
     with open(os.path.join(d, "chrono.csv")) as f:
-        for row in csv.reader(f):
-            if len(row) >= 2:
-                try:
-                    o["t_" + row[0].strip()] = float(row[1])
-                except ValueError:
-                    pass
-except OSError:
+        rows = list(csv.reader(f, skipinitialspace=True))
+    for k, v in zip(rows[0], rows[1]):
+        if not k.endswith("nb_rep"):
+            o["t_" + k.strip()] = float(v)
+except (OSError, IndexError, ValueError):
     pass
+# result digest: the physical results of summary.json (shortest round-trip
+# decimal strings, so equal strings mean equal bits) and every .csv except
+# chrono.csv
 h = hashlib.sha256()
+try:
+    s = json.load(open(os.path.join(d, "summary.json")), parse_float=str)
+    for k in ("nb_cohesive_elements", "nb_insertion_steps", "energy_dissipated", "energy_potential",
+              "energy_kinetic", "displacement_l2_norm", "displacement_max_abs", "displacement_sum"):
+        h.update(f"{k}={s.get(k)}".encode())
+    o["peak_rss_kib"] = s.get("rust_memory_kib", {}).get("hwm_end", {}).get("max")
+except (OSError, ValueError):
+    pass
 for name in sorted(os.listdir(d)):
     if name.endswith(".csv") and name != "chrono.csv":
         h.update(name.encode()); h.update(open(os.path.join(d, name), "rb").read())

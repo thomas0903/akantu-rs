@@ -41,6 +41,8 @@ for line in open(path):
             if "t_" + m in o:
                 vals[(case, m + " [s]")][(v, rep)] = o["t_" + m]
         vals[(case, "wall [s]")][(v, rep)] = o["wall_s"]
+        if o.get("peak_rss_kib"):
+            vals[(case, "peak RSS [KiB]")][(v, rep)] = o["peak_rss_kib"]
         digests[case].add((v, o["outputs_sha256"]))
     elif k == "facet":
         tot = 0.0
