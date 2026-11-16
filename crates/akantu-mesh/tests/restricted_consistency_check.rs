@@ -345,3 +345,238 @@ fn replaced_node_synchronizer_rolls_back() {
     .unwrap();
     assert!(d.read().unwrap().synchronizers().node.is_some());
 }
+
+/// A 6 × 6 grid of triangles (120 facet rows: one edited row stays below
+/// the eighth of the rows, so the restricted check is taken), journaled
+/// edits of every adjacency dataset, failing set-up operations, and a
+/// random differential of the restricted against the full check.
+mod grid {
+    use akantu_core::{Element, ElementType as T, Error, GhostType as G, Idx};
+    use akantu_mesh::utils::{
+        ELEMENT_TO_SUBELEMENT, MESH_TO_MESH_FACET, SUBELEMENT_TO_ELEMENT, init_mesh_facets,
+    };
+    use akantu_mesh::{Mesh, MeshAccessor, MeshEvents, MeshPart, MeshTransaction, SharedMesh};
+
+    const NG: G = G::NotGhost;
+
+    fn tri(i: usize) -> Element {
+        Element::new(T::Triangle3, Idx::try_from(i).unwrap(), NG)
+    }
+    fn seg(i: usize) -> Element {
+        Element::new(T::Segment2, Idx::try_from(i).unwrap(), NG)
+    }
+
+    /// n x n squares, two triangles each, with the facet mesh.
+    fn grid(n: usize) -> Mesh {
+        let mut m = Mesh::new(2, "m").unwrap();
+        {
+            let mut a = MeshAccessor::new(&mut m);
+            for j in 0..=n {
+                for i in 0..=n {
+                    a.push_node(&[i as f64, j as f64]).unwrap();
+                }
+            }
+            let id = |i: usize, j: usize| Idx::try_from(j * (n + 1) + i).unwrap();
+            for j in 0..n {
+                for i in 0..n {
+                    a.connectivity_mut(T::Triangle3, NG).push_tuple(&[
+                        id(i, j),
+                        id(i + 1, j),
+                        id(i + 1, j + 1),
+                    ]);
+                    a.connectivity_mut(T::Triangle3, NG).push_tuple(&[
+                        id(i, j),
+                        id(i + 1, j + 1),
+                        id(i, j + 1),
+                    ]);
+                }
+            }
+        }
+        m.compute_bounding_box().unwrap();
+        let _ = init_mesh_facets(&mut m).unwrap();
+        m
+    }
+
+    struct Rng(u64);
+    impl Rng {
+        fn next(&mut self) -> u64 {
+            self.0 ^= self.0 << 13;
+            self.0 ^= self.0 >> 7;
+            self.0 ^= self.0 << 17;
+            self.0
+        }
+        fn below(&mut self, n: usize) -> usize {
+            (self.next() % n as u64) as usize
+        }
+    }
+
+    #[derive(Clone, Debug)]
+    enum Op {
+        /// s2e row of triangle `el`: reversed (valid) or one entry replaced by
+        /// facet `bad` (out of range when large).
+        S2e { el: usize, bad: Option<usize> },
+        /// e2s row of segment `el`: kept (valid) or set to [tri(bad)].
+        E2s { el: usize, bad: Option<usize> },
+        /// m2f row of triangle `el` (main mesh): itself or seg(bad).
+        M2f { el: usize, bad: Option<usize> },
+        /// append a facet copying seg(0) with rows; e2s row [tri(t)].
+        Append { t: usize },
+        /// injected failure (rollback).
+        Fail,
+    }
+
+    fn apply(tx: &mut MeshTransaction<'_>, ops: &[Op]) -> akantu_core::Result<()> {
+        for op in ops {
+            match *op {
+                Op::S2e { el, bad } => {
+                    let mut row: Vec<Element> = tx
+                        .mesh()
+                        .mesh_facets()
+                        .unwrap()
+                        .data()
+                        .element_map(SUBELEMENT_TO_ELEMENT)?
+                        .element(tri(el))?
+                        .to_vec();
+                    match bad {
+                        None => row.reverse(),
+                        Some(b) => row[0] = seg(b),
+                    }
+                    tx.set_element_data_row(
+                        MeshPart::Facets,
+                        SUBELEMENT_TO_ELEMENT,
+                        tri(el),
+                        &row,
+                    )?;
+                }
+                Op::E2s { el, bad } => {
+                    let row = match bad {
+                        None => tx
+                            .mesh()
+                            .mesh_facets()
+                            .unwrap()
+                            .data()
+                            .element_lists(ELEMENT_TO_SUBELEMENT)?
+                            .element(seg(el))?[0]
+                            .clone(),
+                        Some(b) => vec![tri(b)],
+                    };
+                    tx.set_element_list_row(MeshPart::Facets, ELEMENT_TO_SUBELEMENT, seg(el), row)?;
+                }
+                Op::M2f { el, bad } => {
+                    let row = match bad {
+                        None => tx
+                            .mesh()
+                            .data()
+                            .element_map(MESH_TO_MESH_FACET)?
+                            .element(tri(el))?
+                            .to_vec(),
+                        Some(b) => vec![seg(b)],
+                    };
+                    tx.set_element_data_row(MeshPart::Main, MESH_TO_MESH_FACET, tri(el), &row)?;
+                }
+                Op::Append { t } => {
+                    let f = tx.mesh().mesh_facets().unwrap();
+                    let conn = f.element_connectivity(seg(0))?.to_vec();
+                    let subs: Vec<Element> = f
+                        .data()
+                        .element_map(SUBELEMENT_TO_ELEMENT)?
+                        .element(seg(0))?
+                        .iter()
+                        .map(|_| Element::NULL)
+                        .collect();
+                    tx.push_element(MeshPart::Facets, T::Segment2, NG, &conn)?;
+                    tx.push_element_data_rows(
+                        MeshPart::Facets,
+                        SUBELEMENT_TO_ELEMENT,
+                        T::Segment2,
+                        NG,
+                        subs.len(),
+                        &subs,
+                    )?;
+                    tx.push_element_list_row(
+                        MeshPart::Facets,
+                        ELEMENT_TO_SUBELEMENT,
+                        T::Segment2,
+                        NG,
+                        vec![tri(t)],
+                    )?;
+                }
+                Op::Fail => return Err(Error::invalid("injected")),
+            }
+        }
+        Ok(())
+    }
+
+    fn checked(n: usize, full: bool) -> SharedMesh {
+        let d = SharedMesh::new(grid(n));
+        d.set_full_consistency_checks(full).unwrap();
+        // a checked commit
+        d.mutate(
+            &mut [],
+            |tx| apply(tx, &[Op::S2e { el: 0, bad: None }]),
+            None,
+        )
+        .unwrap();
+        d
+    }
+
+    /// A set-up operation that edits an adjacency row and then fails: the edit
+    /// stays (set-up operations are not transactional). The next mutation must
+    /// take the full check (it reports the broken untouched row), as it does
+    /// in full-check mode.
+    #[test]
+    fn a_set_up_operation_failing_after_an_edit_forces_the_full_check() {
+        for full in [true, false] {
+            let d = checked(6, full);
+            let r = d.setup(|m| {
+                m.mesh_facets_mut()
+                    .unwrap()
+                    .data_mut()
+                    .element_map_mut(SUBELEMENT_TO_ELEMENT)
+                    .unwrap()
+                    .element_mut(tri(9))
+                    .unwrap()[0] = seg(77_777);
+                Err::<MeshEvents, _>(Error::invalid("op failed after an edit"))
+            });
+            assert!(r.is_err());
+            let r = d.mutate(
+                &mut [],
+                |tx| apply(tx, &[Op::S2e { el: 0, bad: None }]),
+                None,
+            );
+            assert!(
+                r.is_err(),
+                "full={full}: the broken untouched row of the failed set-up op is not reported"
+            );
+        }
+    }
+
+    /// A set-up operation that returns Ok but leaves a broken adjacency row:
+    /// its check fails, and the next mutation takes the full check (M2).
+    #[test]
+    fn a_set_up_operation_failing_its_check_forces_the_full_check() {
+        for full in [true, false] {
+            let d = checked(6, full);
+            let r = d.setup(|m| {
+                m.mesh_facets_mut()
+                    .unwrap()
+                    .data_mut()
+                    .element_map_mut(SUBELEMENT_TO_ELEMENT)
+                    .unwrap()
+                    .element_mut(tri(9))
+                    .unwrap()[0] = seg(77_777);
+                Ok(MeshEvents::none())
+            });
+            assert!(r.is_err());
+            let r = d.mutate(
+                &mut [],
+                |tx| apply(tx, &[Op::S2e { el: 0, bad: None }]),
+                None,
+            );
+            assert!(
+                r.is_err(),
+                "full={full}: broken row after a failed set-up check not reported"
+            );
+        }
+    }
+}

@@ -2282,16 +2282,20 @@ impl SharedMesh {
                 ));
             }
         }
+        // A set-up operation is not transactional: one that fails part-way
+        // keeps its edits. The mesh counts as checked again only when the
+        // operation and the check below succeed; until then every mutation
+        // takes the full cross-part check.
+        self.state()?.facets_verified = None;
         let mut g = self.try_write()?;
         let before = g.revision;
         let _events = op(&mut g)?;
         // The set-up operation must leave the facet mesh sharing the
-        // parent's node numbering: rejected before the
-        // revision step (the edit itself cannot be undone; every later
-        // mutation reports the same inconsistency at stage 1).
+        // parent's node numbering: rejected before the revision step (the
+        // edit itself cannot be undone; the flag cleared above makes every
+        // later mutation run the full check, which reports the same
+        // inconsistency at stage 1).
         if let Err(e) = crate::utils::check_facet_mesh_consistency(&g) {
-            // the edit stays; the next mutation checks in full
-            self.state()?.facets_verified = None;
             return Err(e);
         }
         // exactly one revision per set-up operation, whether or not `op`
