@@ -4,7 +4,7 @@
 
 //! Every case of `suite_models` at size `s`, twice: it completes, prints
 //! one JSON line per phase, and its digest is the same in both
-//! repetitions and on every phase line (`docs/briefs/perf/SUITE.md`).
+//! repetitions and on every phase line (crate README, "Benchmark suite").
 
 use std::collections::BTreeMap;
 use std::process::Command;
@@ -26,7 +26,6 @@ fn every_case_completes_and_repeats_its_digest() {
 
     let out = Command::new(exe)
         .args(["--case", "all", "--size", "s", "--reps", "2"])
-        .env("SUITE_COMMIT", "test")
         .output()
         .expect("suite_models --case all");
     let stdout = String::from_utf8(out.stdout).unwrap();
@@ -37,12 +36,13 @@ fn every_case_completes_and_repeats_its_digest() {
     );
     // case -> rep -> digests of its phase lines
     let mut seen: BTreeMap<String, BTreeMap<u64, Vec<String>>> = BTreeMap::new();
-    let mut skipped = Vec::new();
+    // `skip: <case>: <reason>` lines go to stderr
+    let skipped: Vec<String> = String::from_utf8_lossy(&out.stderr)
+        .lines()
+        .filter_map(|l| l.strip_prefix("skip: "))
+        .map(|rest| rest.split(':').next().unwrap_or("").to_owned())
+        .collect();
     for line in stdout.lines() {
-        if let Some(rest) = line.strip_prefix("skip: ") {
-            skipped.push(rest.split_whitespace().next().unwrap_or("").to_owned());
-            continue;
-        }
         let v: serde_json::Value =
             serde_json::from_str(line).unwrap_or_else(|e| panic!("{line}: {e}"));
         assert_eq!(v["suite"], "models");

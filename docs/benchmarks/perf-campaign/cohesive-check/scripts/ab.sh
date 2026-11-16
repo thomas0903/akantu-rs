@@ -1,6 +1,6 @@
 #!/bin/bash
 # SPDX-License-Identifier: LGPL-3.0-or-later
-# akantu-rs measurement script of the performance campaign (WP-COHCHECK); not ported from Akantu.
+# akantu-rs measurement script of the performance campaign (the cohesive insertion check); not ported from Akantu.
 # ab.sh <outroot> <input.dat> <mesh> <rep> <label=binary>...: one repetition of an
 # interleaved A/B series: every variant once, order rotated by <rep>, pinned to core 3.
 set -u

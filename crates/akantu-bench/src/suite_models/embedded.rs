@@ -110,9 +110,11 @@ fn rebar(run: &mut Run, cell: Cell, n: usize, nb: usize, k: usize) -> Result<Dig
         "embedded_interface_model",
         parser(DAT)?,
     )?;
-    run.once("init", || {
-        model.init_full(&EmbeddedInterfaceModelOptions::new(AnalysisMethod::Static))
-    })?;
+    let options = EmbeddedInterfaceModelOptions {
+        base: super::common::eigen_options(run, AnalysisMethod::Static),
+        ..EmbeddedInterfaceModelOptions::default()
+    };
+    run.once("init", || model.init_full(&options))?;
     let fixed = |axis| FixedValue { value: 0.0, axis };
     model
         .smm

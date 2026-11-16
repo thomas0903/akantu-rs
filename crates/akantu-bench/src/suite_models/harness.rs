@@ -2,17 +2,17 @@
 // Part of akantu-rs, a Rust port of Akantu (EPFL/LSMS). Benchmark harness of
 // the model suite (no upstream counterpart).
 
-//! Private harness of `suite_models` (the contract of
-//! `docs/briefs/perf/SUITE.md`): command line, phase timers, FNV-1a
-//! digest, one JSON object per (case, repetition, phase). Kept small: the
-//! shared helper of the solid suite replaces it when the suites are merged.
+//! Private harness of `suite_models` (the contract of the crate's README,
+//! section "Benchmark suite"): command line, phase timers, FNV-1a digest,
+//! one JSON object per (case, repetition, phase). Kept small: a later task
+//! moves the cases onto the shared harness (`akantu_bench::suite`).
 
 use std::fmt::Write as _;
 use std::io::Write as _;
 use std::path::PathBuf;
 use std::time::Instant;
 
-use akantu_comm::Communicator;
+use akantu_comm::{Communicator, ReduceOp};
 use akantu_core::{Error, Result};
 
 /// Problem size of a run.
@@ -152,6 +152,9 @@ pub struct Run {
     pub comm: Communicator,
     /// Problem sizes (set by the case).
     pub counts: Counts,
+    /// Sparse direct solver of the case (`none` without a sparse solve;
+    /// set by `common::eigen_options`).
+    pub sparse_solver: &'static str,
     phases: Vec<Phase>,
 }
 
@@ -163,6 +166,7 @@ impl Run {
             opts,
             comm,
             counts: Counts::default(),
+            sparse_solver: "none",
             phases: Vec::new(),
         }
     }
@@ -207,17 +211,60 @@ impl Run {
         ));
         let t0 = Instant::now();
         let mut done = 0;
-        let min = self.opts.loop_seconds.unwrap_or(0.0);
         loop {
             for _ in 0..calls {
                 f(3 + done)?;
                 done += 1;
             }
-            if t0.elapsed().as_secs_f64() >= min || calls == 0 {
+            if calls == 0 || !self.keep_looping(t0)? {
                 break;
             }
         }
         self.push(name, done, t0.elapsed().as_secs_f64());
+        Ok(())
+    }
+
+    /// With `--loop-seconds S`: whether a loop started at `t0` continues
+    /// (fewer than `S` seconds have passed). Rank 0 decides and broadcasts,
+    /// so that every rank makes the same number of collective calls (as
+    /// `akantu_bench::suite`). Without the option: `false`, no
+    /// communication.
+    ///
+    /// # Errors
+    /// Communication errors.
+    pub fn keep_looping(&self, t0: Instant) -> Result<bool> {
+        let Some(target) = self.opts.loop_seconds else {
+            return Ok(false);
+        };
+        let mut more = [u8::from(t0.elapsed().as_secs_f64() < target)];
+        self.comm.broadcast(&mut more, 0)?;
+        Ok(more[0] != 0)
+    }
+
+    /// Replace every phase time by its maximum over the ranks (the slowest
+    /// rank, as `akantu_bench::suite`). Collective; the ranks must have
+    /// recorded the same phase list.
+    ///
+    /// # Errors
+    /// Phase lists that differ between ranks, communication errors.
+    pub fn reduce_over_ranks(&mut self) -> Result<()> {
+        if self.comm.size() == 1 {
+            return Ok(());
+        }
+        let mut n = [self.phases.len() as u64];
+        let mut n_max = n;
+        self.comm.all_reduce(&mut n, ReduceOp::Min)?;
+        self.comm.all_reduce(&mut n_max, ReduceOp::Max)?;
+        if n != n_max {
+            return Err(Error::invalid(
+                "the ranks recorded different phase lists".to_owned(),
+            ));
+        }
+        let mut secs: Vec<f64> = self.phases.iter().map(|p| p.seconds).collect();
+        self.comm.all_reduce(&mut secs, ReduceOp::Max)?;
+        for (p, s) in self.phases.iter_mut().zip(secs) {
+            p.seconds = s;
+        }
         Ok(())
     }
 
@@ -261,7 +308,8 @@ impl Run {
                 "{{\"suite\":\"models\",\"case\":\"{case}\",\"size\":\"{}\",\"rep\":{rep},\
                  \"phase\":\"{}\",\"calls\":{},\"seconds\":{:.6},\"n_elements\":{},\
                  \"n_nodes\":{},\"n_dofs\":{},\"ranks\":{},\"threads\":{},\
-                 \"digest\":\"{}\",\"commit\":\"{}\",\"features\":\"{}\"}}",
+                 \"digest\":\"{}\",\"commit\":\"{}\",\"features\":\"{}\",\
+                 \"sparse_solver\":\"{}\"}}",
                 self.opts.size.name(),
                 p.name,
                 p.calls,
@@ -274,6 +322,7 @@ impl Run {
                 digest.hex(),
                 commit(),
                 features(),
+                self.sparse_solver,
             );
             out.push(s);
         }
@@ -331,24 +380,9 @@ impl Digest {
     }
 }
 
-/// Commit of the binary: `SUITE_COMMIT` at run time, else `git rev-parse`
-/// in the current directory, else `unknown`.
-fn commit() -> String {
-    use std::sync::OnceLock;
-    static C: OnceLock<String> = OnceLock::new();
-    C.get_or_init(|| {
-        if let Ok(c) = std::env::var("SUITE_COMMIT") {
-            return c;
-        }
-        std::process::Command::new("git")
-            .args(["rev-parse", "--short=9", "HEAD"])
-            .output()
-            .ok()
-            .filter(|o| o.status.success())
-            .and_then(|o| String::from_utf8(o.stdout).ok())
-            .map_or_else(|| "unknown".to_owned(), |s| s.trim().to_owned())
-    })
-    .clone()
+/// Commit of the binary (recorded at build time, `akantu_bench::suite::commit`).
+fn commit() -> &'static str {
+    akantu_bench::suite::commit()
 }
 
 /// Cargo features the binary was built with.
@@ -426,7 +460,7 @@ pub fn main(cases: &[Case], comm: impl FnOnce() -> Result<Communicator>) -> std:
     for case in selected {
         for rep in 0..opts.reps {
             let mut run = Run::new(opts.clone(), comm.clone());
-            match (case.run)(&mut run) {
+            match (case.run)(&mut run).and_then(|d| run.reduce_over_ranks().map(|()| d)) {
                 Ok(d) => {
                     if root {
                         for l in run.json_lines(case.name, rep, &d) {
@@ -439,7 +473,7 @@ pub fn main(cases: &[Case], comm: impl FnOnce() -> Result<Communicator>) -> std:
                 }
                 Err(Error::Unsupported(why)) => {
                     if root {
-                        println!("skip: {} ({why})", case.name);
+                        eprintln!("skip: {}: {why}", case.name);
                     }
                     break;
                 }

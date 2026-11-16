@@ -1,6 +1,6 @@
 #!/bin/bash
 # SPDX-License-Identifier: LGPL-3.0-or-later
-# akantu-rs measurement script of the performance campaign (WP-COHCHECK); not ported from Akantu.
+# akantu-rs measurement script of the performance campaign (the cohesive insertion check); not ported from Akantu.
 # parser.sh <np> <rep0> <rep1> <input>: interleaved before (parbase) / after (src) MPI runs, order rotated per repetition
 np=$1; inp=$(readlink -f $4)
 for ((r=$2; r<=$3; r++)); do

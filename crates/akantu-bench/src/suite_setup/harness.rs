@@ -2,10 +2,11 @@
 // Part of akantu-rs, a Rust port of Akantu (EPFL/LSMS). Benchmark harness of
 // the set-up suite (no upstream counterpart).
 
-//! Private harness of `suite_setup` (the contract of
-//! `docs/briefs/perf/SUITE.md`): command line, case registry, phase timers,
+//! Private harness of `suite_setup` (the contract of the crate's README,
+//! section "Benchmark suite"): command line, case registry, phase timers,
 //! FNV-1a digest and one JSON object per line and per (case, repetition,
-//! phase). Kept small: the shared `suite` helper replaces it at merge time.
+//! phase). Kept small: a later task moves the cases onto the shared
+//! harness (`akantu_bench::suite`).
 //!
 //! Distributed runs: every rank runs the case; rank 0 prints. A phase's
 //! `seconds` is the maximum over the ranks (`seconds_min` and
@@ -331,22 +332,10 @@ pub fn parse_cli(args: impl IntoIterator<Item = String>) -> Result<Cli> {
     Ok(cli)
 }
 
-/// The commit recorded in the output: `AKANTU_SUITE_COMMIT`, else
-/// `git rev-parse --short=9 HEAD` in the working directory, else
-/// `unknown`.
+/// The commit recorded in the output (at build time,
+/// `akantu_bench::suite::commit`).
 pub fn commit() -> String {
-    if let Ok(c) = std::env::var("AKANTU_SUITE_COMMIT") {
-        return c;
-    }
-    std::process::Command::new("git")
-        .args(["rev-parse", "--short=9", "HEAD"])
-        .output()
-        .ok()
-        .filter(|o| o.status.success())
-        .and_then(|o| String::from_utf8(o.stdout).ok())
-        .map(|s| s.trim().to_owned())
-        .filter(|s| !s.is_empty())
-        .unwrap_or_else(|| "unknown".into())
+    akantu_bench::suite::commit().to_owned()
 }
 
 /// The Cargo features the binary was built with.
@@ -450,7 +439,7 @@ pub fn run_cases(cli: &Cli, cases: &[Case], comm: &Communicator) -> Result<()> {
         };
         if let Some(reason) = skip {
             if rank0 {
-                eprintln!("{}: skip: {reason}", case.name);
+                eprintln!("skip: {}: {reason}", case.name);
             }
             if all {
                 continue;

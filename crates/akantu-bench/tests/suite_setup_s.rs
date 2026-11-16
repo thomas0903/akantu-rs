@@ -3,7 +3,7 @@
 // benchmark suite (no upstream counterpart).
 
 //! Every case of `suite_setup` at size `s`, twice: each completes and its
-//! digest repeats (`docs/briefs/perf/SUITE.md`, "Sizes"). The parallel
+//! digest repeats (crate README, "Benchmark suite"). The parallel
 //! cases also run on two in-process ranks (`--local-ranks 2`), twice.
 
 use std::collections::BTreeMap;
