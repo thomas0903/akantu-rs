@@ -36,11 +36,11 @@ fn every_case_completes_and_repeats_its_digest() {
     );
     // case -> rep -> digests of its phase lines
     let mut seen: BTreeMap<String, BTreeMap<u64, Vec<String>>> = BTreeMap::new();
-    // `skip: <case> (<reason>)` lines go to stderr
+    // `skip: <case>: <reason>` lines go to stderr
     let skipped: Vec<String> = String::from_utf8_lossy(&out.stderr)
         .lines()
         .filter_map(|l| l.strip_prefix("skip: "))
-        .map(|rest| rest.split_whitespace().next().unwrap_or("").to_owned())
+        .map(|rest| rest.split(':').next().unwrap_or("").to_owned())
         .collect();
     for line in stdout.lines() {
         let v: serde_json::Value =

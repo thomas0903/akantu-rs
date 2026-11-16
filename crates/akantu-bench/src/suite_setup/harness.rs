@@ -439,7 +439,7 @@ pub fn run_cases(cli: &Cli, cases: &[Case], comm: &Communicator) -> Result<()> {
         };
         if let Some(reason) = skip {
             if rank0 {
-                eprintln!("{}: skip: {reason}", case.name);
+                eprintln!("skip: {}: {reason}", case.name);
             }
             if all {
                 continue;

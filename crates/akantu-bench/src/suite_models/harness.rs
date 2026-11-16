@@ -473,7 +473,7 @@ pub fn main(cases: &[Case], comm: impl FnOnce() -> Result<Communicator>) -> std:
                 }
                 Err(Error::Unsupported(why)) => {
                     if root {
-                        eprintln!("skip: {} ({why})", case.name);
+                        eprintln!("skip: {}: {why}", case.name);
                     }
                     break;
                 }
