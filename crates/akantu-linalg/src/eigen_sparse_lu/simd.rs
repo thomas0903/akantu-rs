@@ -128,7 +128,7 @@ pub(crate) fn gemm_into_zero_with(
     dense::sparselu_gemm_into_zero(m, n, d, a, a_off, lda, b, b_off, ldb, c, c_off, ldc);
 }
 
-/// The fast mode of [`gemm_into_zero`] (`SparseLu::set_fused_multiply_add`):
+/// The fast mode of [`gemm_into_zero`] (`SparseLu::set_fast_mode`):
 /// every term as a fused multiply-add (one rounding instead of two), so the
 /// result differs from Eigen's in the last bits. Needs AVX-512F or AVX2
 /// with FMA; on other CPUs it is [`gemm_into_zero`] (bitwise).
@@ -147,24 +147,62 @@ pub(crate) fn gemm_into_zero_fma(
     c_off: usize,
     ldc: usize,
 ) {
+    gemm_into_zero_fma_with(isa(), m, n, d, a, a_off, lda, b, b_off, ldb, c, c_off, ldc);
+}
+
+/// [`gemm_into_zero_fma`] with the FMA instance of a given width:
+/// `Avx512` (AVX-512F + FMA), `Avx` (AVX2 + FMA); an instance the CPU does
+/// not support, or `Portable`, runs [`gemm_into_zero_with`] (bitwise).
+#[allow(clippy::too_many_arguments)] // BLAS-style kernel signature
+pub(crate) fn gemm_into_zero_fma_with(
+    isa: Isa,
+    m: usize,
+    n: usize,
+    d: usize,
+    a: &[f64],
+    a_off: usize,
+    lda: usize,
+    b: &[f64],
+    b_off: usize,
+    ldb: usize,
+    c: &mut [f64],
+    c_off: usize,
+    ldc: usize,
+) {
     #[cfg(target_arch = "x86_64")]
     {
         let fma = std::arch::is_x86_feature_detected!("fma");
-        if fma && std::arch::is_x86_feature_detected!("avx512f") {
+        if isa == Isa::Avx512 && fma && std::arch::is_x86_feature_detected!("avx512f") {
             // SAFETY: the CPU supports AVX-512F and FMA (checked on the
-            // lines above); the callee has no other precondition.
+            // line above); the callee has no other precondition.
             return unsafe {
                 x86::gemm_avx512_fma(m, n, d, a, a_off, lda, b, b_off, ldb, c, c_off, ldc)
             };
         }
-        if fma && std::arch::is_x86_feature_detected!("avx2") {
-            // SAFETY: the CPU supports AVX2 and FMA (checked above).
+        if isa != Isa::Portable && fma && std::arch::is_x86_feature_detected!("avx2") {
+            // SAFETY: the CPU supports AVX2 and FMA (checked on the line
+            // above).
             return unsafe {
                 x86::gemm_avx2_fma(m, n, d, a, a_off, lda, b, b_off, ldb, c, c_off, ldc)
             };
         }
     }
-    gemm_into_zero(m, n, d, a, a_off, lda, b, b_off, ldb, c, c_off, ldc);
+    gemm_into_zero_with(isa, m, n, d, a, a_off, lda, b, b_off, ldb, c, c_off, ldc);
+}
+
+/// Whether [`gemm_into_zero_fma`] runs an FMA instance on this CPU.
+#[cfg(test)]
+pub(crate) fn fma_available() -> bool {
+    #[cfg(target_arch = "x86_64")]
+    {
+        std::arch::is_x86_feature_detected!("fma")
+            && (std::arch::is_x86_feature_detected!("avx512f")
+                || std::arch::is_x86_feature_detected!("avx2"))
+    }
+    #[cfg(not(target_arch = "x86_64"))]
+    {
+        false
+    }
 }
 
 /// [`gemm_into_zero_fma`] when `fma`, else [`gemm_into_zero`].
@@ -357,5 +395,64 @@ mod x86 {
         ldc: usize,
     ) {
         gemm_tiles::<8, true, true>(m, n, d, a, a_off, lda, b, b_off, ldb, c, c_off, ldc);
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    /// Each FMA instance against a scalar reference with the same sequence
+    /// per entry (`c = fma(a, b, c)` for `k` in order, the tail
+    /// `fma(b, a, c)`), bit for bit, on finite inputs: `f64::mul_add` is
+    /// the correctly rounded fused multiply-add on every platform.
+    #[test]
+    fn fma_instances_match_a_scalar_fused_reference() {
+        #[cfg(target_arch = "x86_64")]
+        {
+            use akantu_core::bitwise_testing::Values;
+            let mut v = Values::new(0x51AB_1E5E_ED00_0001);
+            let mut ran = 0;
+            for case in 0..400usize {
+                let (m, n, d) = (1 + case % 37, 1 + case % 11, case % 21);
+                let lda = m + case % 3;
+                let mut a = vec![0.0; lda * d.max(1) + m];
+                let mut b = vec![0.0; d * n + 1];
+                (a.iter_mut().chain(b.iter_mut())).for_each(|x| *x = v.finite());
+                let d_end = d & !1;
+                let mut want = vec![0.0; m * n];
+                for j in 0..n {
+                    for i in 0..m {
+                        let mut c = 0.0f64;
+                        for k in 0..d_end {
+                            c = a[i + k * lda].mul_add(b[k + j * d], c);
+                        }
+                        if d_end < d {
+                            c = b[d_end + j * d].mul_add(a[i + d_end * lda], c);
+                        }
+                        want[i + j * m] = c;
+                    }
+                }
+                let fma = std::arch::is_x86_feature_detected!("fma");
+                let mut kernels = Vec::new();
+                if fma && std::arch::is_x86_feature_detected!("avx512f") {
+                    kernels.push(super::Isa::Avx512);
+                }
+                if fma && std::arch::is_x86_feature_detected!("avx2") {
+                    kernels.push(super::Isa::Avx);
+                }
+                for &isa in &kernels {
+                    let mut got = vec![f64::NAN; m * n];
+                    super::gemm_into_zero_fma_with(
+                        isa, m, n, d, &a, 0, lda, &b, 0, d, &mut got, 0, m,
+                    );
+                    for (x, y) in got.iter().zip(&want) {
+                        assert_eq!(x.to_bits(), y.to_bits(), "{isa:?} FMA case {case}");
+                    }
+                    ran += 1;
+                }
+            }
+            if std::arch::is_x86_feature_detected!("fma") {
+                assert!(ran > 0);
+            }
+        }
     }
 }

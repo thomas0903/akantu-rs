@@ -78,6 +78,7 @@ mod kernels;
 mod simd;
 
 use akantu_core::enums::{MatrixType, SparseSolverType};
+use akantu_core::exec::FastToken;
 use akantu_core::{Error, Real, Result};
 
 use crate::direct::{
@@ -139,7 +140,7 @@ pub struct SparseLu {
     /// allocation and page faults per factorisation; no effect on results).
     work: Option<Box<Work>>,
     spare_glu: Option<Glu>,
-    /// Fast mode ([`SparseLu::set_fused_multiply_add`]).
+    /// Fast mode ([`SparseLu::set_fast_mode`]).
     fma: bool,
 }
 
@@ -187,16 +188,22 @@ impl SparseLu {
         Ok(())
     }
 
-    /// Fast mode, off by default: the panel updates' dense products
-    /// (`sparselu_gemm`, the largest share of a factorisation) use fused
-    /// multiply-adds on CPUs with FMA (AVX-512F or AVX2). Each term `c + a·b`
-    /// is then rounded once instead of twice, so the factors and solutions
+    /// Fast mode (`Some(token)`), off by default (`None`): the panel
+    /// updates' dense products (`sparselu_gemm`, the largest share of a
+    /// factorisation) use fused multiply-adds on CPUs with FMA (AVX-512F
+    /// or AVX2; elsewhere the bitwise kernels run). Each term `c + a·b` is
+    /// then rounded once instead of twice, so the factors and solutions
     /// differ from Eigen's (and the oracle's) in the last bits; the
     /// pivoting may differ when two candidate pivots are within those bits.
-    /// Tolerance against the default: `tests::fma_mode_solution_within_tolerance`.
-    /// A plain option until the campaign's execution-policy switch exists.
-    pub fn set_fused_multiply_add(&mut self, on: bool) {
-        self.fma = on;
+    /// The token comes from [`Exec::fast_token`](akantu_core::exec::Exec::fast_token),
+    /// so only an executor in [`Precision::Fast`](akantu_core::exec::Precision::Fast)
+    /// can enable it. Tolerance against the default:
+    /// `docs/NUMERICAL_VALIDATION.md` ("SparseLU fast mode"). Takes effect at
+    /// the next factorisation. Through [`EigenSparseLuSolver`],
+    /// `destroy_internal_data` (the DOF manager's `release_solvers`,
+    /// `set_solver`) resets it to the bitwise default.
+    pub fn set_fast_mode(&mut self, fast: Option<FastToken>) {
+        self.fma = fast.is_some();
     }
 
     /// `colsPermutation().indices()`.
@@ -500,10 +507,14 @@ pub struct EigenSparseLuSolver {
 }
 
 impl EigenSparseLuSolver {
-    /// [`SparseLu::set_fused_multiply_add`] (fast mode, not bitwise; off
-    /// by default). Takes effect at the next factorisation.
-    pub fn set_fused_multiply_add(&mut self, on: bool) {
-        self.lu.set_fused_multiply_add(on);
+    /// [`SparseLu::set_fast_mode`] (fast mode, not bitwise; off by
+    /// default). Takes effect at the next factorisation.
+    /// [`SparseDirectSolver::destroy_internal_data`] (called by the DOF
+    /// manager's `release_solvers` and `set_solver`) resets the solver to
+    /// its default, the bitwise mode included: set the fast mode again after
+    /// it.
+    pub fn set_fast_mode(&mut self, fast: Option<FastToken>) {
+        self.lu.set_fast_mode(fast);
     }
 
     /// The factorisation object (permutations and factor arrays).
@@ -671,9 +682,16 @@ mod tests {
         }
         let a = CscMatrix::from_triplets(n, &t).unwrap();
         let b: Vec<f64> = (0..n).map(|i| ((i * 13) % 17) as f64 - 8.0).collect();
+        let fast = || {
+            use akantu_core::exec::{Exec, ExecPolicy, Precision};
+            assert!(Exec::serial().fast_token().is_none());
+            Exec::new(ExecPolicy::serial().with_precision(Precision::Fast))
+                .unwrap()
+                .fast_token()
+        };
         let solve = |fma: bool| {
             let mut lu = SparseLu::default();
-            lu.set_fused_multiply_add(fma);
+            lu.set_fast_mode(if fma { fast() } else { None });
             lu.analyze_pattern(&a).unwrap();
             lu.factorize(&a).unwrap();
             let mut x = vec![0.0; n];
@@ -689,12 +707,19 @@ mod tests {
             .sum::<f64>()
             .sqrt();
         assert!(diff <= 1e-12 * norm, "relative difference {}", diff / norm);
+        // the FMA kernels ran where the CPU has them (else the bitwise ones)
+        let bits = |x: &[f64]| x.iter().map(|v| v.to_bits()).collect::<Vec<_>>();
+        if super::simd::fma_available() {
+            assert_ne!(bits(&x0), bits(&x1), "the fast mode did not change any bit");
+        } else {
+            assert_eq!(bits(&x0), bits(&x1));
+        }
         // the default mode is unaffected by an earlier fast factorisation
         let mut lu = SparseLu::default();
-        lu.set_fused_multiply_add(true);
+        lu.set_fast_mode(fast());
         lu.analyze_pattern(&a).unwrap();
         lu.factorize(&a).unwrap();
-        lu.set_fused_multiply_add(false);
+        lu.set_fast_mode(None);
         lu.factorize(&a).unwrap();
         let mut x2 = vec![0.0; n];
         lu.solve(&b, &mut x2).unwrap();

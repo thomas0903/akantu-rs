@@ -81,9 +81,10 @@ change of default results or of a public API raises the minor version.
   between factorisations, less memory (`int` row subscripts as in Eigen;
   factor arrays grow to the length in use).
 - `akantu_linalg::eigen_sparse_lu::SparseLu::solve_with` (the caller's
-  scratch buffer) and the opt-in fast mode `SparseLu::set_fused_multiply_add`
-  / `EigenSparseLuSolver::set_fused_multiply_add` (fused multiply-adds in
-  the panel products; not bitwise, off by default).
+  scratch buffer) and the opt-in fast mode `SparseLu::set_fast_mode` /
+  `EigenSparseLuSolver::set_fast_mode`, enabled with an
+  `akantu_core::exec::FastToken` (fused multiply-adds in the panel
+  products; not bitwise, off by default).
 - Small dense products and Eigen-order reductions are faster with bitwise
   identical results: the halving-tree reduction is non-recursive and
   inlined, fixed-size tensor products select their route at compile time,

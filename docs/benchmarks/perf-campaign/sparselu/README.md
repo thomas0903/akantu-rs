@@ -103,7 +103,7 @@ spread of each variant is below 0.5 %.
 
 ## Fast mode (not bitwise, off by default)
 
-`SparseLu::set_fused_multiply_add(true)` (also on `EigenSparseLuSolver`):
+`SparseLu::set_fast_mode(Some(token))` (also on `EigenSparseLuSolver`; the token is `Exec::fast_token()` of an executor in precision `Fast`):
 the panel products with fused multiply-adds (AVX-512F + FMA or AVX2 + FMA
 instances, else the bitwise kernel). `static_linear_eigen`, factorisation
 of two calls: 1.067 s → 0.982 s (×0.92, three alternated single runs, a

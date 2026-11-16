@@ -534,7 +534,7 @@ pub(crate) struct Work {
     /// The panel's dense accumulator, `m × SPA_W` row-major ([`SPA_W`]).
     pub dense: Vec<f64>,
     pub tempv: Vec<f64>,
-    /// Fast mode of the panel updates (`SparseLu::set_fused_multiply_add`):
+    /// Fast mode of the panel updates (`SparseLu::set_fast_mode`):
     /// fused multiply-adds in their `sparselu_gemm`; not bitwise.
     pub fma: bool,
 }
