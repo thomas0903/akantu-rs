@@ -1,0 +1,13 @@
+# Per-rank waiting in agreements of explicit_step_dist_tet4 --size m (a build of 26d0f8365 with
+# a temporary per-rank print, not committed), microseconds per step; development VM, AMD EPYC
+# Milan; 2026-11-17 (UTC).
+# local / ghost Tet4 per rank at 4 ranks: r0 40110/6050  r1 40580/4850  r2 40637/5248  r3 40673/6051
+4 ranks, rank r on vCPU r:          r0 498.0   r1 415.7   r2 180.8   r3 2685.1
+# 8 ranks: local 20071-20452, ghost 3764-5440 per rank
+8 ranks, rank r on vCPU r:          r0 1302.6  r1 831.1   r2 1283.7  r3 3641.0  r4 465.3  r5 3796.9  r6 3745.0
+# rank -> vCPU mapping changed with taskset (mpirun --bind-to none):
+4 ranks on vCPUs (0 1 2 3):         r0 228.1   r1 631.5   r2 336.8   r3 3033.8
+4 ranks on vCPUs (3 2 1 0):         r0 3270.4  r1 602.9   r2 480.3   r3 145.7
+# the waiting follows vCPU 3, not the rank. One rank alone on each vCPU (solve_step ms, 2 runs):
+cpu0 13.49 13.57  cpu1 13.63 13.53  cpu2 13.70 13.85  cpu3 13.85 13.62
+cpu4 13.61 13.46  cpu5 13.66 13.95  cpu6 13.68 13.44  cpu7 13.66 13.85

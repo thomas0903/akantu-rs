@@ -303,11 +303,25 @@ impl<'a> Line<'a> {
 /// Decimal integer with optional sign (`operator>>` for integers accepts
 /// the same strings, minus overflow).
 pub(crate) fn parse_i64(t: &str) -> Option<i64> {
-    let digits = t.strip_prefix(['+', '-']).unwrap_or(t);
-    if digits.is_empty() || !digits.bytes().all(|b| b.is_ascii_digit()) {
+    let b = t.as_bytes();
+    let (negative, digits) = match b.first() {
+        Some(b'-') => (true, &b[1..]),
+        Some(b'+') => (false, &b[1..]),
+        _ => (false, b),
+    };
+    if digits.is_empty() {
         return None;
     }
-    t.parse::<i64>().ok()
+    // Accumulated as a negative number so that `i64::MIN` fits.
+    let mut v: i64 = 0;
+    for &c in digits {
+        let d = c.wrapping_sub(b'0');
+        if d > 9 {
+            return None;
+        }
+        v = v.checked_mul(10)?.checked_sub(i64::from(d))?;
+    }
+    if negative { Some(v) } else { v.checked_neg() }
 }
 
 /// Decimal floating-point number; rejects `inf`/`nan` spellings and
@@ -383,6 +397,61 @@ mod tests {
         };
         assert!(l.u64("a").is_err());
         assert!(l.i32("b").is_err());
+    }
+
+    #[test]
+    fn parse_i64_matches_validated_str_parse() {
+        let reference = |t: &str| -> Option<i64> {
+            let digits = t.strip_prefix(['+', '-']).unwrap_or(t);
+            if digits.is_empty() || !digits.bytes().all(|b| b.is_ascii_digit()) {
+                return None;
+            }
+            t.parse::<i64>().ok()
+        };
+        let mut cases: Vec<String> = [
+            "",
+            "+",
+            "-",
+            "0",
+            "-0",
+            "+0",
+            "00012",
+            "-00012",
+            "+-1",
+            "-+1",
+            "--1",
+            "1-",
+            "12a",
+            "a12",
+            " 1",
+            "1 ",
+            "9223372036854775807",
+            "9223372036854775808",
+            "-9223372036854775808",
+            "-9223372036854775809",
+            "+9223372036854775807",
+            "99999999999999999999",
+            "0x10",
+            "1e3",
+            "1.0",
+            "١",
+        ]
+        .iter()
+        .map(|s| (*s).to_owned())
+        .collect();
+        let mut x = 0x9E37_79B9_7F4A_7C15_u64;
+        for _ in 0..20_000 {
+            x ^= x << 13;
+            x ^= x >> 7;
+            x ^= x << 17;
+            let v = x as i64 >> (x % 64);
+            cases.push(v.to_string());
+            cases.push(format!("+{}", v.unsigned_abs()));
+            cases.push(format!("{v}{}", (x % 10)));
+        }
+        for t in &cases {
+            assert_eq!(parse_i64(t), reference(t), "{t:?}");
+        }
     }
 
     #[test]

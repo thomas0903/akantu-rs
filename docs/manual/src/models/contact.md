@@ -147,6 +147,15 @@ the solid–cohesive–contact coupler rewrites it in the facet mesh after
 each insertion. The remaining observable differences
 are listed in `akantu::contact::selector`.
 
+The detection grid keeps upstream's cell edge, `√2 ·` the largest
+in-radius of every facet around a master node (side facets included). With
+side facets much longer than the contact-surface facets the cells become
+large and a search slows down towards `O(slaves × masters)` (UD-1297).
+`ContactMechanicsModel::set_grid_spacing(GridSpacing::ContactSurface)` (or
+`ContactDetector::grid_spacing`) takes the contact-surface facets only; the
+neighbourhood of a slave then covers another region, so the closest master
+node found can differ from upstream's when it lies farther than one cell.
+
 Contact mechanics on a distributed mesh is not part of this release and
 is not planned (upstream has no distributed support for it either):
 `init_full` refuses a mesh distributed over several processes with

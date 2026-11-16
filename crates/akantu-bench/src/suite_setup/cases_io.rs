@@ -86,6 +86,31 @@ pub fn parser_dat(ctx: &Ctx) -> Result<CaseOut> {
     Ok(out)
 }
 
+/// A chain of `k` parameters, each referring twice to the previous one
+/// (`a0 = 1`, `a<i> = a<i-1> + a<i-1>`): evaluating the last one parses
+/// 2^k expressions when variable values are not cached.
+pub fn parser_chain(ctx: &Ctx) -> Result<CaseOut> {
+    let mut out = CaseOut::default();
+    let k = ctx.size.pick(12, 21, 24);
+    let mut text = String::from("a0 = 1\n");
+    for i in 1..k {
+        let _ = writeln!(text, "a{i} = a{} + a{}", i - 1, i - 1);
+    }
+    let parser = out.phase("parse", || Parser::parse_str(&text, "chain.dat"))?;
+    let last = format!("a{}", k - 1);
+    let mut v = 0.0;
+    out.loop_phase(ctx, "evaluate_last", ctx.size.pick(2, 5, 2), || {
+        v = parser
+            .root
+            .get_parameter(last.as_bytes(), SearchScope::CurrentAndParent)?
+            .to_real()?;
+        Ok(())
+    })?;
+    out.n_elements = k;
+    out.digest = Digest::new().reals(&[v]).value();
+    Ok(out)
+}
+
 /// An elastic Tet4 model after two explicit steps (non-zero fields).
 fn dumped_model(ctx: &Ctx, out: &mut CaseOut) -> Result<SolidMechanicsModel> {
     let mesh = out.phase("mesh", || meshgen::mesh(Grid::Tet4, tet4_n(ctx), "mesh"))?;

@@ -370,11 +370,27 @@ pub(crate) enum WriteMode {
     Append,
 }
 
+/// A file whose contents are written straight to the disk when the dump
+/// commits (validated beforehand: only I/O can fail while it is written).
+pub(crate) trait StreamContents: std::fmt::Debug {
+    /// Write the whole contents to `w`.
+    fn write_to(&self, w: &mut dyn std::io::Write) -> std::io::Result<()>;
+}
+
+/// Contents of a rendered file.
+#[derive(Debug)]
+pub(crate) enum Contents {
+    /// Rendered in memory.
+    Text(String),
+    /// Written when the files are written ([`StreamContents`]).
+    Stream(Box<dyn StreamContents>),
+}
+
 /// One rendered file.
-#[derive(Clone, Debug)]
+#[derive(Debug)]
 pub(crate) struct OutFile {
     pub(crate) path: String,
-    pub(crate) contents: String,
+    pub(crate) contents: Contents,
     pub(crate) mode: WriteMode,
 }
 
@@ -382,10 +398,44 @@ impl OutFile {
     pub(crate) fn new(path: String, contents: String, mode: WriteMode) -> Self {
         Self {
             path,
-            contents,
+            contents: Contents::Text(contents),
             mode,
         }
     }
+
+    pub(crate) fn stream(path: String, contents: Box<dyn StreamContents>, mode: WriteMode) -> Self {
+        Self {
+            path,
+            contents: Contents::Stream(contents),
+            mode,
+        }
+    }
+}
+
+/// Size of the write buffer of streamed files.
+const STREAM_BUFFER: usize = 1 << 20;
+
+/// Write `contents` to the open file `f`.
+fn write_contents(f: std::fs::File, contents: &Contents) -> std::io::Result<()> {
+    use std::io::Write;
+    match contents {
+        Contents::Text(s) => {
+            let mut f = f;
+            f.write_all(s.as_bytes())
+        }
+        Contents::Stream(c) => {
+            let mut w = std::io::BufWriter::with_capacity(STREAM_BUFFER, f);
+            c.write_to(&mut w)?;
+            w.flush()
+        }
+    }
+}
+
+/// Create or truncate `path` and write `contents` (`std::fs::write`).
+fn write_replace(path: &str, contents: &Contents) -> Result<()> {
+    std::fs::File::create(path)
+        .and_then(|f| write_contents(f, contents))
+        .map_err(io_error(path))
 }
 
 /// Undo record of an appended file: its length before the dump
@@ -404,21 +454,20 @@ fn length_before_append(path: &str) -> Result<Option<u64>> {
     }
 }
 
-fn append(path: &str, bytes: &[u8]) -> Result<()> {
-    use std::io::Write;
-    let mut f = std::fs::OpenOptions::new()
+fn append(path: &str, contents: &Contents) -> Result<()> {
+    let f = std::fs::OpenOptions::new()
         .create(true)
         .append(true)
         .open(path)
         .map_err(io_error(path))?;
-    f.write_all(bytes).map_err(io_error(path))
+    write_contents(f, contents).map_err(io_error(path))
 }
 
-fn write_atomic(path: &str, bytes: &[u8]) -> Result<()> {
+fn write_atomic(path: &str, contents: &Contents) -> Result<()> {
     let tmp = format!("{path}.akantu-tmp");
-    if let Err(e) = std::fs::write(&tmp, bytes) {
+    if let Err(e) = write_replace(&tmp, contents) {
         let _ = std::fs::remove_file(&tmp);
-        return Err(io_error(&tmp)(e));
+        return Err(e);
     }
     std::fs::rename(&tmp, path).map_err(|e| {
         let _ = std::fs::remove_file(&tmp);
@@ -457,7 +506,7 @@ pub(crate) fn write_files(dirs: &[&str], files: &[OutFile]) -> Result<()> {
 fn write_files_with(
     dirs: &[&str],
     files: &[OutFile],
-    append: impl Fn(&str, &[u8]) -> Result<()>,
+    append: impl Fn(&str, &Contents) -> Result<()>,
 ) -> Result<()> {
     for d in dirs {
         make_dir(d)?;
@@ -465,15 +514,13 @@ fn write_files_with(
     let mut done: Vec<Appended<'_>> = Vec::new();
     for f in files {
         let r = match f.mode {
-            WriteMode::Replace => {
-                std::fs::write(&f.path, f.contents.as_bytes()).map_err(io_error(&f.path))
-            }
-            WriteMode::Atomic => write_atomic(&f.path, f.contents.as_bytes()),
+            WriteMode::Replace => write_replace(&f.path, &f.contents),
+            WriteMode::Atomic => write_atomic(&f.path, &f.contents),
             // The undo record is taken *before* writing, so a write that
             // fails part-way is rolled back too.
             WriteMode::Append => length_before_append(&f.path).and_then(|len| {
                 done.push(Appended { path: &f.path, len });
-                append(&f.path, f.contents.as_bytes())
+                append(&f.path, &f.contents)
             }),
         };
         if let Err(e) = r {
@@ -512,10 +559,14 @@ mod tests {
         ];
         // Fail part-way through the second (new) file.
         let failing_at = |target: String| {
-            move |p: &str, bytes: &[u8]| -> Result<()> {
+            move |p: &str, contents: &Contents| -> Result<()> {
                 if p != target {
-                    return append(p, bytes);
+                    return append(p, contents);
                 }
+                let Contents::Text(text) = contents else {
+                    unreachable!("text contents in this test")
+                };
+                let bytes = text.as_bytes();
                 let mut f = std::fs::OpenOptions::new()
                     .create(true)
                     .append(true)

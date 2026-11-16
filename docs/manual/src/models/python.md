@@ -264,6 +264,38 @@ coupler object has upstream's `Parsable` methods (`get`, `set`,
   `Parameter named E already registered.` when the law is built (the
   base law is built only after `__init__` returns).
 
+### Group method of Dirichlet functors
+
+A Python `DirichletFunctor` is called once per node of the group with
+`__call__(node, flags, primal, coord)`, as upstream; `flags` and `primal`
+are views of the node's rows. The port adds an optional method, absent
+upstream: a subclass that defines `callNodes(nodes, flags, primal,
+coords)` is called once per group instead, and `callNodes` is used instead
+of `__call__` when both exist. It receives copies of the group's rows:
+`nodes` (int32, one entry per node), `flags` (bool) and `primal` (float64),
+one row per node and one column per degree of freedom, and `coords`
+(float64, read-only, one row per node). The rows of `flags` and `primal`
+are written back to the model after it returns, in node order (a node
+listed twice keeps its last row); nothing is written if it raises, and the
+exception reaches `applyBC` with its type. It is not called for a group
+without nodes, as `__call__` is not.
+
+```python
+class Ramp(aka.DirichletFunctor):
+    def __init__(self, slope):
+        super().__init__()
+        self.slope = slope
+
+    def callNodes(self, nodes, flags, primal, coords):
+        primal[:, 0] = self.slope * coords[:, 0]
+        flags[:, 0] = True
+
+model.applyBC(Ramp(1e-3), "left")
+```
+
+On 40,401 nodes one `applyBC` with `callNodes` takes about 1 ms against
+about 23 ms with `__call__` (`docs/benchmarks/perf-campaign/io-python/`).
+
 ### The rest of the Python interface
 
 A user-provided DOF manager in a model constructor raises

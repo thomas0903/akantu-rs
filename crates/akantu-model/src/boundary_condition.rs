@@ -84,6 +84,47 @@ pub trait DirichletFunctor {
     ) -> Result<()> {
         apply_rows_by_copy(self, node, row, blocked, primal, coord)
     }
+
+    /// Apply the functor to every node of `nodes` (indices of the live
+    /// nodal arrays, already validated, in this order) when
+    /// [`DirichletFunctor::calls_foreign`] is `true`. The default
+    /// ([`apply_shared_per_node`]) calls [`DirichletFunctor::apply_shared`]
+    /// once per node with the node's coordinates copied from `mesh`. An
+    /// implementation may enter its foreign runtime once for the whole
+    /// group (the Python adapter does) as long as it calls the functor once
+    /// per node, in order, with no element guard alive during the calls,
+    /// and stops at the first error.
+    fn apply_shared_nodes(
+        &self,
+        nodes: &[Idx],
+        mesh: &Mesh,
+        blocked: &mut SharedArray<bool>,
+        primal: &mut SharedArray<Real>,
+    ) -> Result<()> {
+        apply_shared_per_node(self, nodes, mesh, blocked, primal)
+    }
+}
+
+/// The default [`DirichletFunctor::apply_shared_nodes`]: for every node, its
+/// coordinates are copied (no guard is held across `apply_shared`, which
+/// may call back into foreign code: ARCHITECTURE.md, "Shared storage and
+/// its aliasing rules") and [`DirichletFunctor::apply_shared`] is called.
+pub fn apply_shared_per_node<F: DirichletFunctor + ?Sized>(
+    functor: &F,
+    nodes: &[Idx],
+    mesh: &Mesh,
+    blocked: &mut SharedArray<bool>,
+    primal: &mut SharedArray<Real>,
+) -> Result<()> {
+    let dim = mesh.spatial_dimension();
+    let mut coord = vec![0.0; dim];
+    for &n in nodes {
+        let u = akantu_core::try_to_usize(n)?;
+        coord.copy_from_slice(&mesh.nodes().as_slice()[u * dim..(u + 1) * dim]);
+        akantu_core::array_shared::export_all::callback_site("DirichletFunctor::apply_shared");
+        functor.apply_shared(n, u, blocked, primal, &coord)?;
+    }
+    Ok(())
 }
 
 /// The default [`DirichletFunctor::apply_shared`]: copy tuple `row` of
@@ -421,7 +462,6 @@ pub fn apply_dirichlet(
             got: primal.len().min(blocked.len()),
         });
     }
-    let dim = mesh.spatial_dimension();
     // (the test-only export-all mode drives every functor through the
     // foreign protocol below; `ENABLED` is `false` in product builds)
     if !functor.calls_foreign() && !akantu_core::array_shared::export_all::ENABLED {
@@ -441,15 +481,10 @@ pub fn apply_dirichlet(
             });
         }
     }
-    // No element guard is held across `apply_shared`, which may call back
-    // into foreign code (ARCHITECTURE.md, "Shared storage and its aliasing rules"): the coordinates are copied per node.
-    let mut coord = vec![0.0; dim];
-    for &n in &nodes {
-        let u = akantu_core::try_to_usize(n)?;
-        coord.copy_from_slice(&mesh.nodes().as_slice()[u * dim..(u + 1) * dim]);
-        akantu_core::array_shared::export_all::callback_site("DirichletFunctor::apply_shared");
-        functor.apply_shared(n, u, blocked, primal, &coord)?;
-    }
+    // No element guard is held across the calls, which may call back into
+    // foreign code (ARCHITECTURE.md, "Shared storage and its aliasing
+    // rules"); see `DirichletFunctor::apply_shared_nodes`.
+    functor.apply_shared_nodes(&nodes, mesh, blocked, primal)?;
     {
         let mut b = blocked.write()?;
         let (len, nbc) = (b.len(), b.nb_component());

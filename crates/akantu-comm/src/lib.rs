@@ -72,4 +72,4 @@ pub use mpi_backend::{
     release_at_exit, world_size,
 };
 pub use registry::SynchronizerRegistry;
-pub use synchronizer::{Communications, DataAccessor, Synchronizer};
+pub use synchronizer::{Communications, DataAccessor, PostedExchange, Synchronizer};

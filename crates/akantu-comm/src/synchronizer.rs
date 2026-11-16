@@ -247,6 +247,28 @@ struct PendingExchange {
     sends: Vec<SendRequest<u8>>,
 }
 
+/// An owner → ghost exchange posted inside a running scope
+/// ([`Synchronizer::post_in`]) and not yet completed: hand it to
+/// [`Synchronizer::wait_in`] of the same synchronizer and scope. Dropping it
+/// instead completes (or cancels) the requests without unpacking, and the
+/// scope's next agreement no longer matches the peers': always complete it.
+#[must_use = "a posted exchange must be completed with Synchronizer::wait_in"]
+pub struct PostedExchange {
+    tag: SynchronizationTag,
+    recvs: Vec<(Rank, usize, RecvRequest<u8>)>,
+    sends: Vec<SendRequest<u8>>,
+}
+
+impl std::fmt::Debug for PostedExchange {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        f.debug_struct("PostedExchange")
+            .field("tag", &self.tag)
+            .field("recvs", &self.recvs.len())
+            .field("sends", &self.sends.len())
+            .finish()
+    }
+}
+
 /// Root gather/scatter scheme cache (upstream `entities_from_root`,
 /// `master_receive_entities`, `entities_changed`; MPI-013).
 #[derive(Default)]
@@ -493,6 +515,56 @@ impl<E: Clone> Synchronizer<E> {
             Err(e) => Err(e),
         };
         ph.settle(r)
+    }
+
+    /// First half of an owner → ghost update inside a running scope
+    /// (upstream `asynchronousSynchronize` called from a model step): the
+    /// prepack is agreed on every rank (as by [`Synchronizer::synchronize_in`]),
+    /// then every receive and send is posted and the exchange is returned
+    /// for [`Synchronizer::wait_in`]. Between the two halves the caller does
+    /// local work only (no agreement or communication on `phases`) and must
+    /// call `wait_in` whatever that work's outcome; it reports a local
+    /// failure through `wait_in`'s agreement. On error nothing is posted
+    /// (the prepack agreement failed on every rank, or a transport failure).
+    pub fn post_in(
+        &self,
+        phases: &mut Phases,
+        accessor: &dyn DataAccessor<E>,
+        tag: SynchronizationTag,
+    ) -> Result<PostedExchange> {
+        let (recvs, sends) = self.post(phases, Direction::Synchronize, accessor, tag)?;
+        Ok(PostedExchange { tag, recvs, sends })
+    }
+
+    /// Second half of [`Synchronizer::post_in`] (upstream
+    /// `waitEndSynchronize`): complete every receive and send, unpack in
+    /// rank order with the wire contract (only if `local`, the outcome of
+    /// the caller's work since `post_in`, is `Ok`), then one agreement on
+    /// the unpacking and `local` together: every rank learns of a failure on
+    /// any rank before it uses the received values. The values and their
+    /// unpacking order are those of [`Synchronizer::synchronize_in`].
+    pub fn wait_in(
+        &self,
+        phases: &mut Phases,
+        posted: PostedExchange,
+        accessor: &mut dyn DataAccessor<E>,
+        local: Result<()>,
+    ) -> Result<()> {
+        let PostedExchange { tag, recvs, sends } = posted;
+        let name = exchange_name(&self.id, tag);
+        let received =
+            phases.collective(&format!("{name}:complete"), |_comm| complete(recvs, sends))?;
+        let unpacked = local.and_then(|()| {
+            unpack_all(
+                &self.communications.recv,
+                received,
+                accessor,
+                tag,
+                &self.sanity,
+                self.communicator.rank(),
+            )
+        });
+        phases.agreed(&format!("{name}:post"), unpacked, Severity::Recoverable)
     }
 
     /// Ghost → owner reduction (upstream `slaveReductionOnce`): ghosts pack
