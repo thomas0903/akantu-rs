@@ -54,7 +54,7 @@ use akantu_mesh::Mesh;
 
 use super::base::{Common, Entry, OutFile, Parallel, WriteMode, file_name, write_files};
 use super::base64::Base64Writer;
-use super::cfmt::{format_default, format_e};
+use super::cfmt::{format_default, push_e_width, push_i64};
 use super::eval::{self, Block, EvalContext, Evaluated, Scalar, Values};
 use super::vtk::iohelper_type;
 use super::{
@@ -237,9 +237,7 @@ impl Vtu {
 
     fn end_data(&mut self) {
         if self.base64 {
-            let bytes = self.b64.write_header();
-            // base64 output is ASCII by construction
-            self.out.push_str(std::str::from_utf8(bytes).unwrap_or(""));
+            self.b64.write_header_into(&mut self.out);
         }
         self.out.push_str("\n    </DataArray>\n");
     }
@@ -253,7 +251,8 @@ impl Vtu {
             if self.compteur.is_multiple_of(size) {
                 self.out.push_str("     ");
             }
-            let _ = write!(self.out, "{:>22} ", format_e(x, 15));
+            push_e_width(&mut self.out, x, 15, 22);
+            self.out.push(' ');
             self.compteur += 1;
             if self.compteur.is_multiple_of(size) {
                 self.out.push('\n');
@@ -262,7 +261,7 @@ impl Vtu {
     }
 
     /// Generic `pushDatum<T>(n)` for integral types.
-    fn push_int(&mut self, text: impl std::fmt::Display, bytes: &[u8]) {
+    fn push_int(&mut self, text: impl Into<i64>, bytes: &[u8]) {
         if self.base64 {
             self.b64.push(bytes);
         } else {
@@ -270,7 +269,8 @@ impl Vtu {
                 self.out.push_str("      ");
             }
             self.compteur += 1;
-            let _ = write!(self.out, "{text} ");
+            push_i64(&mut self.out, text.into());
+            self.out.push(' ');
         }
     }
 
