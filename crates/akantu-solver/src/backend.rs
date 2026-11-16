@@ -69,6 +69,7 @@ use akantu_linalg::centralize;
 use akantu_linalg::direct::{
     BackendCapabilities, MatrixDistribution, SparseDirectSolver, SparseSolverCompat,
 };
+use akantu_linalg::sparse::BlockPositionCache;
 use akantu_linalg::{EquationLayout, PartialSumReduction, SparseMatrixAij, SymmetryPolicy};
 
 use crate::callback::SolverCallback;
@@ -130,6 +131,27 @@ pub trait LinearSystemBackend: std::fmt::Debug + Send {
         values: &[Real],
         values_type: MatrixType,
     ) -> Result<()>;
+    /// Start a repeated element loop into `id` with the position cache
+    /// `cache` (see [`LinearSystemBackend::add_values_cached`]). Default:
+    /// nothing (the cache stays unused).
+    fn begin_cached_assembly(&self, _id: &str, _cache: &mut BlockPositionCache) {}
+    /// [`LinearSystemBackend::add_values`] for slot `slot` (element) of a
+    /// repeated element loop: the same values, order, errors and releases,
+    /// with the profile lookups cached in `cache` where the backend has a
+    /// cache ([`SparseMatrixAij::add_values_cached`]). Default: `add_values`.
+    #[allow(clippy::too_many_arguments)] // `add_values` + the cache and slot
+    fn add_values_cached(
+        &mut self,
+        id: &str,
+        _cache: &mut BlockPositionCache,
+        _slot: usize,
+        rows: &[GlobalIdx],
+        cols: &[GlobalIdx],
+        values: &[Real],
+        values_type: MatrixType,
+    ) -> Result<()> {
+        self.add_values(id, rows, cols, values, values_type)
+    }
     /// Add individual terms (pre-assembled matrices), creating entries.
     fn add_terms(&mut self, id: &str, terms: &[(GlobalIdx, GlobalIdx, Real)]) -> Result<()>;
     /// Collective end of an assembly phase of `id` (PETSc
@@ -906,6 +928,24 @@ impl LinearSystemBackend for AijBackend {
         self.get_mut(id)?
             .add_values(rows, cols, values, values_type)
     }
+    fn begin_cached_assembly(&self, id: &str, cache: &mut BlockPositionCache) {
+        if let Ok(m) = self.get(id) {
+            cache.begin(m);
+        }
+    }
+    fn add_values_cached(
+        &mut self,
+        id: &str,
+        cache: &mut BlockPositionCache,
+        slot: usize,
+        rows: &[GlobalIdx],
+        cols: &[GlobalIdx],
+        values: &[Real],
+        values_type: MatrixType,
+    ) -> Result<()> {
+        self.get_mut(id)?
+            .add_values_cached(cache, slot, rows, cols, values, values_type)
+    }
     fn add_terms(&mut self, id: &str, terms: &[(GlobalIdx, GlobalIdx, Real)]) -> Result<()> {
         let m = self.get_mut(id)?;
         // Validate every coordinate first: no partial insertion on error.
@@ -1087,8 +1127,15 @@ impl LinearSystemBackend for AijBackend {
             m.copy_profile(&copy);
             return Ok(());
         }
-        let src_m = self.get(src)?.clone();
-        self.get_mut(dst)?.copy_profile(&src_m);
+        // No copy of the source (it would double the matrix memory for the
+        // duration of the call): take the destination out of the map.
+        self.get(src)?;
+        let mut d = self
+            .matrices
+            .remove(dst)
+            .ok_or_else(|| Error::not_found("matrix", dst))?;
+        d.copy_profile(&self.matrices[src]);
+        self.matrices.insert(dst.into(), d);
         Ok(())
     }
     fn add_matrix(&mut self, dst: &str, src: &str, alpha: Real) -> Result<()> {

@@ -24,9 +24,9 @@
 //! store **global** coordinates; the layout translates them back to local
 //! rows for products, Dirichlet handling and solver input.
 
-use std::collections::HashMap;
-
 use akantu_core::{Error, GlobalIdx, INVALID_GLOBAL_IDX, Result};
+
+use crate::int_hash::IntHashMap;
 
 /// Ownership of one local equation (upstream `dofs_flag` + global number).
 #[derive(Clone, Copy, Debug, PartialEq, Eq, Hash)]
@@ -51,16 +51,118 @@ pub enum EquationOwnership {
 ///   every valid global number present on this rank to its **first** local
 ///   equation (periodic slaves alias their master's local equation, so no
 ///   two local equations share a global number).
-#[derive(Clone, Debug, Default, PartialEq)]
+#[derive(Clone, Debug, PartialEq)]
 pub struct EquationLayout {
     local_to_global: Vec<GlobalIdx>,
     ownership: Vec<EquationOwnership>,
-    global_to_local: HashMap<GlobalIdx, usize>,
+    global_to_local: GlobalToLocal,
     system_size: GlobalIdx,
     /// Persistent global offset for the next registration/addition (upstream
     /// `DOFManager::first_global_dof_id`): numbering is per update, not a
     /// single rank-blocked range.
     next_global: GlobalIdx,
+    /// Every local equation is owned, `local_to_global[l] == l` and the
+    /// system has `nb_local` equations (a serial layout without periodic
+    /// aliases): global and local numbers coincide. Derived from the other
+    /// fields, maintained by every mutation.
+    identity: bool,
+}
+
+impl Default for EquationLayout {
+    fn default() -> Self {
+        Self {
+            local_to_global: Vec::new(),
+            ownership: Vec::new(),
+            global_to_local: GlobalToLocal::default(),
+            system_size: 0,
+            next_global: 0,
+            identity: true,
+        }
+    }
+}
+
+/// Sentinel of an absent global number in [`GlobalToLocal::Dense`].
+const ABSENT: u32 = u32::MAX;
+
+/// Global → first local equation map. Dense (a `Vec` indexed by the global
+/// number) while the largest global number present stays below
+/// `4 · nb_local + 4096`, hashed otherwise (a rank of a large distributed
+/// system holds a few scattered global numbers). Both answer the same
+/// queries; only the cost differs.
+#[derive(Clone, Debug)]
+enum GlobalToLocal {
+    Dense(Vec<u32>),
+    Hashed(IntHashMap<GlobalIdx, usize>),
+}
+
+impl Default for GlobalToLocal {
+    fn default() -> Self {
+        Self::Dense(Vec::new())
+    }
+}
+
+impl PartialEq for GlobalToLocal {
+    fn eq(&self, other: &Self) -> bool {
+        self.pairs() == other.pairs()
+    }
+}
+
+impl GlobalToLocal {
+    /// Largest dense length allowed for `nb_local` local equations.
+    fn dense_limit(nb_local: usize) -> usize {
+        nb_local.saturating_mul(4).saturating_add(4096)
+    }
+
+    #[inline]
+    fn get(&self, g: GlobalIdx) -> Option<usize> {
+        match self {
+            Self::Dense(v) => {
+                let l = *v.get(usize::try_from(g).ok()?)?;
+                (l != ABSENT).then_some(l as usize)
+            }
+            Self::Hashed(m) => m.get(&g).copied(),
+        }
+    }
+
+    /// Record `g → l` unless `g` is present (first local equation wins);
+    /// `nb_local` is the number of local equations after the change.
+    fn insert_first(&mut self, g: GlobalIdx, l: usize, nb_local: usize) {
+        if let Self::Dense(v) = self {
+            let fits = usize::try_from(g)
+                .ok()
+                .filter(|&gi| gi < Self::dense_limit(nb_local))
+                .zip(u32::try_from(l).ok().filter(|&l32| l32 != ABSENT));
+            if let Some((gi, l32)) = fits {
+                if gi >= v.len() {
+                    v.resize(gi + 1, ABSENT);
+                }
+                if v[gi] == ABSENT {
+                    v[gi] = l32;
+                }
+                return;
+            }
+            let m: IntHashMap<GlobalIdx, usize> = self.pairs().into_iter().collect();
+            *self = Self::Hashed(m);
+        }
+        if let Self::Hashed(m) = self {
+            m.entry(g).or_insert(l);
+        }
+    }
+
+    /// Every `(global, local)` pair, sorted (comparisons and conversions).
+    fn pairs(&self) -> Vec<(GlobalIdx, usize)> {
+        let mut p: Vec<(GlobalIdx, usize)> = match self {
+            Self::Dense(v) => v
+                .iter()
+                .enumerate()
+                .filter(|(_, l)| **l != ABSENT)
+                .filter_map(|(g, &l)| Some((GlobalIdx::try_from(g).ok()?, l as usize)))
+                .collect(),
+            Self::Hashed(m) => m.iter().map(|(&g, &l)| (g, l)).collect(),
+        };
+        p.sort_unstable();
+        p
+    }
 }
 
 fn global_from_usize(n: usize) -> Result<GlobalIdx> {
@@ -129,9 +231,42 @@ impl EquationLayout {
     /// `globalToLocalEquationNumber`); error if `g` is not present on this
     /// rank.
     pub fn local(&self, g: GlobalIdx) -> Result<usize> {
-        self.global_to_local.get(&g).copied().ok_or_else(|| {
+        self.global_to_local.get(g).ok_or_else(|| {
             Error::InvalidArgument(format!("global equation {g} is not present on this rank"))
         })
+    }
+
+    /// Local equation of global equation `g`, `None` if `g` is not present
+    /// on this rank ([`EquationLayout::local`] without the error value).
+    #[inline]
+    #[must_use]
+    pub fn try_local(&self, g: GlobalIdx) -> Option<usize> {
+        self.global_to_local.get(g)
+    }
+
+    /// `true` if global and local equation numbers coincide: every local
+    /// equation is owned, local equation `l` has global number `l`, and the
+    /// system has [`EquationLayout::nb_local`] equations (a serial layout
+    /// without periodic aliases). Then [`EquationLayout::local`]`(g)` is
+    /// `g` for every `0 <= g < nb_local` and an error otherwise.
+    #[inline]
+    #[must_use]
+    pub fn is_identity(&self) -> bool {
+        self.identity
+    }
+
+    fn refresh_identity(&mut self, first_new_local: usize) {
+        let n = self.local_to_global.len();
+        self.identity = self.identity
+            && GlobalIdx::try_from(n).is_ok_and(|n| n == self.system_size)
+            && self.local_to_global[first_new_local..]
+                .iter()
+                .zip(&self.ownership[first_new_local..])
+                .enumerate()
+                .all(|(i, (&g, &o))| {
+                    o == EquationOwnership::Owned
+                        && GlobalIdx::try_from(first_new_local + i).is_ok_and(|l| l == g)
+                });
     }
 
     /// Ownership of local equation `l`.
@@ -197,16 +332,20 @@ impl EquationLayout {
                 "owned equations exceed the all-reduced count of the block".into(),
             ));
         }
+        let next_global = checked_add(self.next_global, total)?;
         // Commit (no partial state on error above).
+        let nb_local = first_local + ownership.len();
         for (i, (g, o)) in staged.into_iter().zip(ownership).enumerate() {
             if g != INVALID_GLOBAL_IDX {
-                self.global_to_local.entry(g).or_insert(first_local + i);
+                self.global_to_local
+                    .insert_first(g, first_local + i, nb_local);
             }
             self.local_to_global.push(g);
             self.ownership.push(*o);
         }
         self.system_size = new_size;
-        self.next_global = checked_add(self.next_global, total)?;
+        self.next_global = next_global;
+        self.refresh_identity(first_local);
         Ok(first_local)
     }
 
@@ -233,7 +372,9 @@ impl EquationLayout {
             )));
         }
         self.local_to_global[l] = g;
-        self.global_to_local.entry(g).or_insert(l);
+        self.global_to_local.insert_first(g, l, self.nb_local());
+        // a shared equation exists: not an identity layout
+        self.identity = false;
         Ok(())
     }
 
@@ -272,7 +413,8 @@ impl EquationLayout {
                 }
                 self.ownership[l] = EquationOwnership::Shared;
                 self.local_to_global[l] = g;
-                self.global_to_local.entry(g).or_insert(l);
+                self.global_to_local.insert_first(g, l, self.nb_local());
+                self.identity = false;
                 Ok(())
             }
         }

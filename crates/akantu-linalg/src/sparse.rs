@@ -67,13 +67,14 @@
 //! index types convert through [`SparseMatrixAij::coo_one_based_i32`], which
 //! rejects unrepresentable coordinates before allocating anything.
 
-use std::collections::HashMap;
+use std::collections::hash_map::Entry;
 use std::path::{Path, PathBuf};
 use std::sync::atomic::{AtomicU64, Ordering};
 
 use akantu_core::enums::MatrixType;
 use akantu_core::{Error, GlobalIdx, INVALID_GLOBAL_IDX, Rank, Real, Result};
 
+use crate::int_hash::IntHashMap;
 use crate::layout::{EquationLayout, EquationOwnership, PartialSumReduction};
 use crate::matrix_market;
 
@@ -236,7 +237,7 @@ pub struct SparseMatrixAij {
     /// Values.
     a: Vec<Real>,
     /// Lookup key → entry position (upstream `irn_jcn_k`).
-    profile: HashMap<(GlobalIdx, GlobalIdx), usize>,
+    profile: IntHashMap<(GlobalIdx, GlobalIdx), usize>,
     /// Incremented when the profile changes (upstream `profile_release`).
     profile_release: u64,
     /// Incremented when values change (upstream `value_release`).
@@ -262,7 +263,7 @@ impl SparseMatrixAij {
             irn: Vec::new(),
             jcn: Vec::new(),
             a: Vec::new(),
-            profile: HashMap::new(),
+            profile: IntHashMap::default(),
             profile_release: 1,
             value_release: 1,
             profile_stamp: ProfileStamp::fresh(),
@@ -430,15 +431,17 @@ impl SparseMatrixAij {
         Self::check_coordinate(i)?;
         Self::check_coordinate(j)?;
         let key = self.key(i, j);
-        if let Some(&k) = self.profile.get(&key) {
-            return Ok(k);
+        let k = self.a.len();
+        match self.profile.entry(key) {
+            Entry::Occupied(o) => return Ok(*o.get()),
+            Entry::Vacant(v) => {
+                v.insert(k);
+            }
         }
         self.size = self.size.max(i + 1).max(j + 1);
-        let k = self.a.len();
         self.irn.push(i);
         self.jcn.push(j);
         self.a.push(0.0);
-        self.profile.insert(key, k);
         self.bump_profile();
         self.bump_values(1);
         Ok(k)
@@ -594,6 +597,115 @@ impl SparseMatrixAij {
         Ok(())
     }
 
+    /// [`SparseMatrixAij::add_values`] for slot `slot` of a repeated
+    /// assembly (one slot per element of an element loop), with the entry
+    /// positions of the block cached in `cache`.
+    ///
+    /// The values added, their order, the value-release increments, the
+    /// errors and the promotion of [`SymmetryPolicy::PromoteOnUnsymmetric`]
+    /// are exactly those of `add_values(rows, cols, values, values_type)`:
+    /// the cache only replaces the profile lookups of a block whose
+    /// equations, matrix profile ([`SparseMatrixAij::profile_identity`]),
+    /// order and selection mode equal those the positions were resolved
+    /// for. Positions are stored from the second assembly round
+    /// ([`BlockPositionCache::begin`]) with an unchanged profile, so a
+    /// one-shot assembly costs no memory; see [`BlockPositionCache`] for
+    /// the memory a stored slot takes.
+    pub fn add_values_cached(
+        &mut self,
+        cache: &mut BlockPositionCache,
+        slot: usize,
+        rows: &[GlobalIdx],
+        cols: &[GlobalIdx],
+        values: &[Real],
+        values_type: MatrixType,
+    ) -> Result<()> {
+        let (nr, nc) = (rows.len(), cols.len());
+        let symmetric = self.matrix_type == MatrixType::Symmetric;
+        let usable = cache.stamp == self.profile_stamp.0
+            && values.len() == nr * nc
+            && !(symmetric && values_type == MatrixType::Symmetric && nr != nc)
+            && !(symmetric
+                && values_type != MatrixType::Symmetric
+                && self.policy == SymmetryPolicy::PromoteOnUnsymmetric)
+            && u32::try_from(self.a.len()).is_ok_and(|n| n < SKIP)
+            && u32::try_from(self.size).is_ok_and(|n| n < u32::MAX);
+        if !usable {
+            return self.add_values(rows, cols, values, values_type);
+        }
+        let mode = match (self.matrix_type, values_type) {
+            (MatrixType::Symmetric, MatrixType::Symmetric) => Selection::LocalUpper,
+            (MatrixType::Symmetric, _) => Selection::GlobalUpper,
+            _ => Selection::All,
+        };
+        cache.configure(mode, nr, nc, self.size);
+        if !cache.set_key(rows, cols, self.size) {
+            return self.add_values(rows, cols, values, values_type);
+        }
+        if !cache.matches(slot) {
+            if cache.rounds == 0 {
+                return self.add_values(rows, cols, values, values_type);
+            }
+            // Resolve (no mutation of the matrix on error) and store.
+            let mut positions = std::mem::take(&mut cache.scratch);
+            positions.clear();
+            let r = self.resolve_block_positions(rows, cols, mode, &mut positions);
+            if let Err(e) = r {
+                cache.scratch = positions;
+                return Err(e);
+            }
+            cache.store(slot, &positions);
+            cache.scratch = positions;
+        }
+        let stride = cache.stride;
+        let pos = &cache.positions[slot * stride..(slot + 1) * stride];
+        let mut touched: u64 = 0;
+        let mut t = 0;
+        for i in 0..nr {
+            let j0 = if mode == Selection::LocalUpper { i } else { 0 };
+            for j in j0..nc {
+                let k = pos[t];
+                t += 1;
+                if k != SKIP {
+                    self.a[k as usize] += values[i + j * nr];
+                    touched += 1;
+                }
+            }
+        }
+        self.bump_values(touched);
+        Ok(())
+    }
+
+    /// Positions of every `(i, j)` pair `add_values` visits in `mode`
+    /// (rows outer, columns inner, `j >= i` for the local upper triangle),
+    /// [`SKIP`] for the pairs it skips (equation `>= size`, or global
+    /// column `<` global row in [`Selection::GlobalUpper`]).
+    fn resolve_block_positions(
+        &self,
+        rows: &[GlobalIdx],
+        cols: &[GlobalIdx],
+        mode: Selection,
+        out: &mut Vec<u32>,
+    ) -> Result<()> {
+        for (i, &gi) in rows.iter().enumerate() {
+            let j0 = if mode == Selection::LocalUpper { i } else { 0 };
+            for &gj in cols.iter().skip(j0) {
+                if gi >= self.size || gj >= self.size || (mode == Selection::GlobalUpper && gj < gi)
+                {
+                    out.push(SKIP);
+                    continue;
+                }
+                let k = self
+                    .profile
+                    .get(&self.key(gi, gj))
+                    .ok_or_else(|| self.missing(gi, gj))?;
+                // `nnz < SKIP` was checked by the caller.
+                out.push(u32::try_from(*k).unwrap_or(SKIP));
+            }
+        }
+        Ok(())
+    }
+
     fn resolve_block(
         &self,
         rows: &[GlobalIdx],
@@ -704,10 +816,34 @@ impl SparseMatrixAij {
                 "add_matrix: a matrix cannot be added to itself in place",
             ));
         }
+        if self.same_entries_as(b) {
+            self.add_entrywise(b, alpha);
+            return Ok(());
+        }
         for ((&i, &j), &v) in b.irn.iter().zip(&b.jcn).zip(&b.a) {
             self.add(i, j, alpha * v)?;
         }
         Ok(())
+    }
+
+    /// `true` if `self` stores the coordinates of `b` at the same positions
+    /// and every entry of `self` has its own lookup key (no two entries
+    /// share a key, which only `copy_profile` from a matrix with another key
+    /// rule can produce). Then `add(i, j, ·)` of the `k`-th entry of `b`
+    /// finds the existing `k`-th entry of `self`.
+    fn same_entries_as(&self, b: &SparseMatrixAij) -> bool {
+        self.profile.len() == self.a.len() && self.irn == b.irn && self.jcn == b.jcn
+    }
+
+    /// `self[k] += alpha * b[k]` for every entry in storage order: what
+    /// `add(i, j, alpha * b[k])` does entry by entry when
+    /// [`SparseMatrixAij::same_entries_as`] holds (the same binary64
+    /// operations, the same value-release increments, no profile change).
+    fn add_entrywise(&mut self, b: &SparseMatrixAij, alpha: Real) {
+        for (s, &v) in self.a.iter_mut().zip(&b.a) {
+            *s += alpha * v;
+        }
+        self.bump_values(u64::try_from(b.a.len()).unwrap_or(u64::MAX));
     }
 
     /// `self += alpha · B` with the symmetric-storage fix: identical to
@@ -724,6 +860,10 @@ impl SparseMatrixAij {
         }
         let mirror =
             b.matrix_type == MatrixType::Symmetric && self.matrix_type != MatrixType::Symmetric;
+        if !mirror && self.same_entries_as(b) {
+            self.add_entrywise(b, alpha);
+            return Ok(());
+        }
         for ((&i, &j), &v) in b.irn.iter().zip(&b.jcn).zip(&b.a) {
             let s = alpha * v;
             self.add(i, j, s)?;
@@ -747,15 +887,29 @@ impl SparseMatrixAij {
             self.bump_values(1);
             return;
         }
-        self.irn.clone_from(&other.irn);
-        self.jcn.clone_from(&other.jcn);
-        self.profile.clear();
-        for k in 0..self.irn.len() {
-            let key = self.key(self.irn[k], self.jcn[k]);
-            self.profile.insert(key, k);
+        let same_rule = (self.matrix_type == MatrixType::Symmetric)
+            == (other.matrix_type == MatrixType::Symmetric);
+        if self.same_entries_as(other) {
+            // Same coordinates in the same order with one key per entry:
+            // the map rebuilt below would equal the current one.
+            self.a.fill(0.0);
+        } else {
+            self.irn.clone_from(&other.irn);
+            self.jcn.clone_from(&other.jcn);
+            if same_rule && other.profile.len() == other.a.len() {
+                // Same key rule and one key per entry in `other`: its map
+                // is the map the loop below would build.
+                self.profile.clone_from(&other.profile);
+            } else {
+                self.profile.clear();
+                for k in 0..self.irn.len() {
+                    let key = self.key(self.irn[k], self.jcn[k]);
+                    self.profile.insert(key, k);
+                }
+            }
+            self.a.clear();
+            self.a.resize(self.irn.len(), 0.0);
         }
-        self.a.clear();
-        self.a.resize(self.irn.len(), 0.0);
         self.size = other.size;
         self.profile_release = other.profile_release;
         self.profile_stamp = ProfileStamp::fresh();
@@ -818,23 +972,18 @@ impl SparseMatrixAij {
             });
         }
         // Resolve first: no partial update on an inconsistent layout.
-        let mut locals = Vec::with_capacity(self.a.len());
-        for (&gi, &gj) in self.irn.iter().zip(&self.jcn) {
-            locals.push((layout.local(gi)?, layout.local(gj)?));
-        }
-        for ((li, lj), (a, (&gi, &gj))) in locals
-            .into_iter()
-            .zip(self.a.iter_mut().zip(self.irn.iter().zip(&self.jcn)))
-        {
-            if blocked[li] || blocked[lj] {
-                *a = if gi != gj {
-                    0.0
-                } else if layout.is_owned(li) {
-                    block_val
-                } else {
-                    0.0
-                };
-            }
+        self.check_local_coordinates(layout)?;
+        if layout.is_identity() {
+            // Global == local; every coordinate was checked to be in
+            // `0..nb_local` above.
+            self.apply_boundary_with(|g| g as usize, layout, blocked, block_val);
+        } else {
+            self.apply_boundary_with(
+                |g| layout.try_local(g).unwrap_or(usize::MAX),
+                layout,
+                blocked,
+                block_val,
+            );
         }
         self.bump_values(1);
         Ok(())
@@ -879,13 +1028,96 @@ impl SparseMatrixAij {
             });
         }
         // Resolve every coordinate first: no partial product on error.
-        let mut locals = Vec::with_capacity(self.a.len());
-        for (&gi, &gj) in self.irn.iter().zip(&self.jcn) {
-            locals.push((layout.local(gi)?, layout.local(gj)?));
+        self.check_local_coordinates(layout)?;
+        if layout.is_identity() {
+            // Global == local; every coordinate was checked to be in
+            // `0..nb_local` above.
+            self.mat_vec_with(|g| g as usize, layout, reduction, x, y, alpha, beta)
+        } else {
+            self.mat_vec_with(
+                |g| layout.try_local(g).unwrap_or(usize::MAX),
+                layout,
+                reduction,
+                x,
+                y,
+                alpha,
+                beta,
+            )
         }
+    }
+
+    /// The error `layout.local(g)` gives for the first stored coordinate
+    /// (entry order, row before column) that is not a local equation of
+    /// `layout`, or `Ok`.
+    fn check_local_coordinates(&self, layout: &EquationLayout) -> Result<()> {
+        let bad = if layout.is_identity() {
+            let n = layout.nb_local();
+            let out = |g: GlobalIdx| usize::try_from(g).map_or(true, |u| u >= n);
+            if self.irn.iter().chain(&self.jcn).any(|&g| out(g)) {
+                self.irn
+                    .iter()
+                    .zip(&self.jcn)
+                    .flat_map(|(&i, &j)| [i, j])
+                    .find(|&g| out(g))
+            } else {
+                None
+            }
+        } else {
+            self.irn
+                .iter()
+                .zip(&self.jcn)
+                .flat_map(|(&i, &j)| [i, j])
+                .find(|&g| layout.try_local(g).is_none())
+        };
+        match bad {
+            Some(g) => layout.local(g).map(drop),
+            None => Ok(()),
+        }
+    }
+
+    /// Body of [`SparseMatrixAij::apply_boundary`] after the coordinates
+    /// were checked; `local` maps a stored global coordinate to its local
+    /// equation.
+    fn apply_boundary_with(
+        &mut self,
+        local: impl Fn(GlobalIdx) -> usize,
+        layout: &EquationLayout,
+        blocked: &[bool],
+        block_val: Real,
+    ) {
+        for (a, (&gi, &gj)) in self.a.iter_mut().zip(self.irn.iter().zip(&self.jcn)) {
+            let (li, lj) = (local(gi), local(gj));
+            if blocked[li] || blocked[lj] {
+                *a = if gi != gj {
+                    0.0
+                } else if layout.is_owned(li) {
+                    block_val
+                } else {
+                    0.0
+                };
+            }
+        }
+    }
+
+    /// Body of [`SparseMatrixAij::mat_vec_mul`] after the coordinates were
+    /// checked; `local` maps a stored global coordinate to its local
+    /// equation. The operations and their order are the ones documented on
+    /// `mat_vec_mul`.
+    #[allow(clippy::too_many_arguments)] // the arguments of `mat_vec_mul` + the map
+    fn mat_vec_with(
+        &self,
+        local: impl Fn(GlobalIdx) -> usize,
+        layout: &EquationLayout,
+        reduction: &dyn PartialSumReduction,
+        x: &[Real],
+        y: &mut [Real],
+        alpha: Real,
+        beta: Real,
+    ) -> Result<()> {
         let symmetric = self.matrix_type == MatrixType::Symmetric;
         let acc = |target: &mut [Real]| {
-            for (&(i, j), &a) in locals.iter().zip(&self.a) {
+            for ((&gi, &gj), &a) in self.irn.iter().zip(&self.jcn).zip(&self.a) {
+                let (i, j) = (local(gi), local(gj));
                 target[i] += alpha * a * x[j];
                 if symmetric && i != j {
                     target[j] += alpha * a * x[i];
@@ -1203,6 +1435,165 @@ enum Selection {
     GlobalUpper,
     All,
 }
+
+/// Marker of a pair `add_values` skips, in [`BlockPositionCache`].
+const SKIP: u32 = u32::MAX;
+
+/// Entry positions of the elemental blocks of a repeated assembly into one
+/// matrix, per slot (element of the element loop), for
+/// [`SparseMatrixAij::add_values_cached`].
+///
+/// A stored slot holds the block's equations (4 bytes each, rows only when
+/// the rows equal the columns) and one 4-byte position per pair
+/// `add_values` visits: `n (n + 1) / 2` for a symmetric `n × n` block into a
+/// symmetric matrix, `n²` otherwise. For example 360 bytes per `Tetrahedron4`
+/// element of a 3-D solid (12 equations, 78 pairs), 1.3 kB per
+/// `Hexahedron8` (24 equations, 300 pairs), so 360 MB and 1.3 GB per 10⁶
+/// elements. Nothing is stored before the second assembly round with an
+/// unchanged profile, and the storage is released when the profile changes.
+#[derive(Clone, Debug, Default)]
+pub struct BlockPositionCache {
+    /// Profile identity the positions belong to (0: none).
+    stamp: u64,
+    /// Assembly rounds begun with this profile after the first one.
+    rounds: u32,
+    /// Matrix order, selection mode and block shape of the stored slots.
+    size: GlobalIdx,
+    mode: Option<Selection>,
+    shape: (usize, usize),
+    /// Rows only (`true`) or rows then columns per slot.
+    rows_only: bool,
+    /// Positions per slot.
+    stride: usize,
+    filled: Vec<bool>,
+    /// Equations per slot: `g` for `0 <= g < size`, `u32::MAX` for an
+    /// equation `add_values` skips (`>= size`).
+    equations: Vec<u32>,
+    positions: Vec<u32>,
+    key: Vec<u32>,
+    scratch: Vec<u32>,
+}
+
+impl BlockPositionCache {
+    /// Empty cache.
+    #[must_use]
+    pub fn new() -> Self {
+        Self::default()
+    }
+
+    /// Start an assembly round into `matrix` (call before the element loop):
+    /// a changed profile releases the stored positions; positions are
+    /// stored from the second round with the same profile on.
+    pub fn begin(&mut self, matrix: &SparseMatrixAij) {
+        let stamp = matrix.profile_stamp.0;
+        if stamp == self.stamp {
+            self.rounds = self.rounds.saturating_add(1);
+        } else {
+            *self = Self {
+                stamp,
+                ..Self::default()
+            };
+        }
+    }
+
+    /// Bytes held by the stored slots (capacity of the slot arrays).
+    #[must_use]
+    pub fn memory_bytes(&self) -> usize {
+        self.filled.capacity() + 4 * (self.equations.capacity() + self.positions.capacity())
+    }
+
+    /// Set the order, mode and block shape; stored slots of another
+    /// configuration are dropped.
+    fn configure(&mut self, mode: Selection, nr: usize, nc: usize, size: GlobalIdx) {
+        if self.mode == Some(mode) && self.shape == (nr, nc) && self.size == size {
+            return;
+        }
+        let stamp = self.stamp;
+        let rounds = self.rounds;
+        *self = Self {
+            stamp,
+            rounds,
+            size,
+            mode: Some(mode),
+            shape: (nr, nc),
+            rows_only: true,
+            stride: if mode == Selection::LocalUpper {
+                (0..nr).map(|i| nc.saturating_sub(i)).sum()
+            } else {
+                nr * nc
+            },
+            ..Self::default()
+        };
+    }
+
+    /// Encode the equations of a block into `self.key` (`false` if an
+    /// equation is negative: such a block is never cached).
+    fn set_key(&mut self, rows: &[GlobalIdx], cols: &[GlobalIdx], size: GlobalIdx) -> bool {
+        let enc = |g: GlobalIdx| -> Option<u32> {
+            if g < 0 {
+                None
+            } else if g >= size {
+                Some(u32::MAX)
+            } else {
+                u32::try_from(g).ok()
+            }
+        };
+        self.key.clear();
+        for &g in rows {
+            let Some(e) = enc(g) else { return false };
+            self.key.push(e);
+        }
+        if rows != cols {
+            if self.rows_only && !self.filled.is_empty() {
+                // the stored slots hold rows only: start again with both
+                self.filled.clear();
+                self.equations.clear();
+                self.positions.clear();
+            }
+            self.rows_only = false;
+        }
+        if !self.rows_only {
+            for &g in cols {
+                let Some(e) = enc(g) else { return false };
+                self.key.push(e);
+            }
+        }
+        true
+    }
+
+    fn eq_len(&self) -> usize {
+        if self.rows_only {
+            self.shape.0
+        } else {
+            self.shape.0 + self.shape.1
+        }
+    }
+
+    fn matches(&self, slot: usize) -> bool {
+        let w = self.eq_len();
+        self.key.len() == w
+            && self.filled.get(slot) == Some(&true)
+            && self.equations[slot * w..(slot + 1) * w] == *self.key
+    }
+
+    fn store(&mut self, slot: usize, positions: &[u32]) {
+        let w = self.eq_len();
+        debug_assert_eq!(self.key.len(), w);
+        debug_assert_eq!(positions.len(), self.stride);
+        if slot >= self.filled.len() {
+            self.filled.resize(slot + 1, false);
+            self.equations.resize((slot + 1) * w, 0);
+            self.positions.resize((slot + 1) * self.stride, SKIP);
+        }
+        self.equations[slot * w..(slot + 1) * w].copy_from_slice(&self.key);
+        self.positions[slot * self.stride..(slot + 1) * self.stride].copy_from_slice(positions);
+        self.filled[slot] = true;
+    }
+}
+
+#[cfg(test)]
+#[path = "sparse_perf_tests.rs"]
+mod perf_tests;
 
 #[cfg(test)]
 mod tests {

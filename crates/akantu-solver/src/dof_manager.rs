@@ -93,6 +93,7 @@ use akantu_core::{
     MAX_LOCAL_COUNT, NodeFlag, Real, Result,
 };
 use akantu_linalg::direct::SparseSolverCompat;
+use akantu_linalg::sparse::BlockPositionCache;
 use akantu_linalg::{
     EquationLayout, EquationOwnership, NoReduction, PartialSumReduction, SolverVector,
     SparseMatrixAij, TermsToAssemble,
@@ -282,7 +283,7 @@ impl DofData {
         let e = *self
             .local_equation_numbers
             .get(k)
-            .ok_or(Error::OutOfRange {
+            .ok_or_else(|| Error::OutOfRange {
                 what: "dof",
                 index: k,
                 len: self.local_equation_numbers.len(),
@@ -323,6 +324,11 @@ pub struct DofManager {
     lumped_blocks: BTreeMap<Id, LumpedBlockCouplings>,
     backend: Box<dyn LinearSystemBackend>,
     profiled: BTreeSet<(Id, Id, ElementType, GhostType)>,
+    /// Entry positions of the elemental blocks per assembly key (same key
+    /// as `profiled`), for repeated assemblies into an unchanged profile.
+    assembly_caches: BTreeMap<(Id, Id, ElementType, GhostType), BlockPositionCache>,
+    /// Whether `assembly_caches` is used ([`DofManager::set_assembly_cache`]).
+    assembly_cache_enabled: bool,
     /// Declared type of every matrix.
     declared: BTreeMap<Id, MatrixType>,
     /// `source → derived` matrices (promotion propagation).
@@ -737,6 +743,8 @@ impl DofManager {
             lumped_blocks: BTreeMap::new(),
             backend,
             profiled: BTreeSet::new(),
+            assembly_caches: BTreeMap::new(),
+            assembly_cache_enabled: true,
             declared: BTreeMap::new(),
             derived: BTreeMap::new(),
             node_sync: None,
@@ -1656,7 +1664,30 @@ impl DofManager {
             self.backend.reset_profile(&id, size)?;
         }
         self.profiled.clear();
+        self.assembly_caches.clear();
         Ok(())
+    }
+
+    /// Enable (default) or disable the cache of entry positions of
+    /// elemental matrix assembly ([`BlockPositionCache`]: from the second
+    /// assembly with an unchanged profile, 4 bytes per assembled elemental
+    /// entry and per element equation, e.g. 360 bytes per `Tetrahedron4`
+    /// element of a 3-D solid). Results are identical either way; disabling
+    /// releases the stored positions.
+    pub fn set_assembly_cache(&mut self, enabled: bool) {
+        self.assembly_cache_enabled = enabled;
+        if !enabled {
+            self.assembly_caches.clear();
+        }
+    }
+
+    /// Bytes held by the assembly position caches.
+    #[must_use]
+    pub fn assembly_cache_bytes(&self) -> usize {
+        self.assembly_caches
+            .values()
+            .map(BlockPositionCache::memory_bytes)
+            .sum()
     }
 
     /// Create a matrix (upstream `getNewMatrix(id, type)`).
@@ -1849,20 +1880,41 @@ impl DofManager {
             self.backend.add_block_to_profile(matrix_id, &eqs, &eqs)?;
         }
         if !profile_elems.is_empty() || !self.profiled.contains(&key) {
-            self.profiled.insert(key);
+            self.profiled.insert(key.clone());
         }
+        // Positions of the entries per element, cached for repeated
+        // assemblies with an unchanged profile (the same additions in the
+        // same order: `SparseMatrixAij::add_values_cached`).
+        let mut cache = if self.assembly_cache_enabled {
+            self.assembly_caches.remove(&key).unwrap_or_default()
+        } else {
+            BlockPositionCache::default()
+        };
+        self.backend.begin_cached_assembly(matrix_id, &mut cache);
         let f = &self.families[dof_id];
+        let mut result = Ok(());
         for (k, &e) in elements.iter().enumerate() {
-            self.element_equations(f, conn.tuple(e), &mut eqs)?;
-            self.backend.add_values(
-                matrix_id,
-                &eqs,
-                &eqs,
-                elementary.tuple(k),
-                elemental_matrix_type,
-            )?;
+            result = self
+                .element_equations(f, conn.tuple(e), &mut eqs)
+                .and_then(|()| {
+                    self.backend.add_values_cached(
+                        matrix_id,
+                        &mut cache,
+                        k,
+                        &eqs,
+                        &eqs,
+                        elementary.tuple(k),
+                        elemental_matrix_type,
+                    )
+                });
+            if result.is_err() {
+                break;
+            }
         }
-        Ok(())
+        if self.assembly_cache_enabled {
+            self.assembly_caches.insert(key, cache);
+        }
+        result
     }
 
     /// Zero a matrix, keeping its profile (upstream `zeroMatrix`).
