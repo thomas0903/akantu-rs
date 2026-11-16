@@ -53,8 +53,9 @@ pub const CASES: &[Case] = &[
     },
     Case {
         name: "contact_cohesive_quad4",
-        description: "solid + cohesive + contact coupler, explicit steps: extrinsic insertion \
-                      along an internal line, then contact between the crack faces",
+        description: "solid + cohesive + contact coupler, explicit steps: the extrinsic \
+                      insertion check and insertions along an internal line plus the explicit \
+                      step; at most a handful of crack-face contacts at size m",
         run: cohesive_contact_quad4,
     },
 ];
@@ -151,7 +152,12 @@ fn coupler(
     )?;
     c.solid
         .set_material_selector(Box::new(ElementDataSelector::new("physical_names")));
-    run.once("init", || c.init_full(&ModelOptions::new(method)))?;
+    let options = if method == AnalysisMethod::Static {
+        super::common::eigen_options(run, method)
+    } else {
+        ModelOptions::new(method)
+    };
+    run.once("init", || c.init_full(&options))?;
     c.contact.set_surface_selector(Box::new(selector))?;
     let fixed = |axis| FixedValue { value: 0.0, axis };
     let axes: &[SpatialDirection] = if dim == 2 {
