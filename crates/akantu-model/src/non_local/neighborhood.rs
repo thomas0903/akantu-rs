@@ -869,22 +869,41 @@ mod tests {
     fn stored_weights_equal_recomputed_weights() {
         let mut a = grid_neighborhood();
         let mut b = grid_neighborhood();
-        let nslots = 2 * a.points().len() + 2;
+        let np = a.points().len();
+        let nslots = 2 * np + 2;
         let jac: Vec<Real> = (0..nslots).map(|s| 0.5 + 0.01 * s as Real).collect();
+        let mut jac2 = jac.clone();
+        jac2[3] = 0.75; // the integration weight of point 1
         let internals = WeightInternals::new();
-        let mut first_ptr = None;
-        for round in 0..5 {
+        let bits = |v: &[Real]| v.iter().map(|x| x.to_bits()).collect::<Vec<_>>();
+        let mut stored_ptr = None;
+        // rounds: 0 first computation, 1-2 reuse, 3 other incoming volumes
+        // (another neighbourhood's contributions to shared slots), 4 back,
+        // 5 changed Jacobians, 6 reuse, 7 changed radius, 8 reuse, 9 changed
+        // slots, 10 reuse
+        for round in 0..11 {
+            if round == 7 {
+                for n in [&mut a, &mut b] {
+                    n.set_param_from_input("radius", ParamValue::Real(0.3))
+                        .unwrap();
+                }
+            }
+            if round == 9 {
+                for n in [&mut a, &mut b] {
+                    n.slots = (0..np).map(|i| 2 * (np - 1 - i) + 1).collect();
+                }
+            }
+            let jac_r = if round >= 5 { &jac2 } else { &jac };
             let mut va = vec![0.; nslots];
             if round == 3 {
-                va[3] = 0.25; // a contribution of another neighbourhood
+                va[3] = 0.25;
             }
             let mut vb = va.clone();
-            a.compute_weights(PointIdentity::Complete, true, &jac, &mut va, &internals)
+            a.compute_weights(PointIdentity::Complete, true, jac_r, &mut va, &internals)
                 .unwrap();
             let _ = b.weight_function_mut(); // drops b's stored weights
-            b.compute_weights(PointIdentity::Complete, true, &jac, &mut vb, &internals)
+            b.compute_weights(PointIdentity::Complete, true, jac_r, &mut vb, &internals)
                 .unwrap();
-            let bits = |v: &[Real]| v.iter().map(|x| x.to_bits()).collect::<Vec<_>>();
             assert_eq!(bits(&va), bits(&vb), "round {round}");
             for g in [GhostType::NotGhost, GhostType::Ghost] {
                 let (wa, wb) = (a.pair_weights(g), b.pair_weights(g));
@@ -892,17 +911,21 @@ mod tests {
                 for (x, y) in wa.iter().zip(wb) {
                     assert_eq!(
                         [x[0].to_bits(), x[1].to_bits()],
-                        [y[0].to_bits(), y[1].to_bits()]
+                        [y[0].to_bits(), y[1].to_bits()],
+                        "round {round}"
                     );
                 }
             }
-            assert_eq!(a.key_weights, b.key_weights);
-            let ptr = a.pair_weights(GhostType::NotGhost).as_ptr();
-            match round {
-                0 => first_ptr = Some(ptr),
-                1 | 2 => assert_eq!(Some(ptr), first_ptr, "reused in round {round}"),
-                _ => {}
+            assert_eq!(a.key_weights.len(), b.key_weights.len());
+            for (x, y) in a.key_weights.iter().zip(&b.key_weights) {
+                assert_eq!(bits(x), bits(y), "round {round}");
             }
+            // the stored weights are reused exactly when nothing changed
+            let ptr = a.pair_weights(GhostType::NotGhost).as_ptr();
+            if matches!(round, 1 | 2 | 6 | 8 | 10) {
+                assert_eq!(Some(ptr), stored_ptr, "reused in round {round}");
+            }
+            stored_ptr = Some(ptr);
         }
         assert!(!a.pair_weights(GhostType::NotGhost).is_empty());
     }
