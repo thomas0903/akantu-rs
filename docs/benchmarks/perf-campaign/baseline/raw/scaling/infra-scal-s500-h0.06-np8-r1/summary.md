@@ -2,7 +2,7 @@
 
 ```
 campaign=infra-scal-s500-h0.06-np8-r1 h=0.06 steps=500 ranks=8 reps=1 cases=cpp rust extra=
-date=2026-11-16T08:51:40Z revision=0cd1c91eeb91c3aad1db90ab417543f8cf055f79 dirty=0 partitions=/home/ubuntu/w/infra/data/scaling/infra-scal-s500-parts/h0.06
+date=2026-11-16T08:51:40Z revision=0cd1c91eeb91c3aad1db90ab417543f8cf055f79 dirty=0 partitions=~/w/infra/data/scaling/infra-scal-s500-parts/h0.06
 host_cpu=AMD EPYC 9R14 nproc=8 kernel=<kernel>
 mem_total_kib=32135336
 mesh=/perf/meshes/cube-h0.06.msh sha256=20523d2dec9a943249bcb6a97b42020997d559ec76f6d26dad9964afa22fa3be elements=188382
