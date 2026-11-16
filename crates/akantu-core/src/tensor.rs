@@ -136,7 +136,7 @@ fn zero_row_matrix<'a, T, const R: usize, const C: usize>() -> &'a mut [[T; R]] 
     v.leak()
 }
 
-use crate::eigen_gebp::{ProductShape, eval_product};
+use crate::eigen_gebp::{ProductShape, eval_product, eval_routed, route};
 use crate::eigen_order as eo;
 
 /// Operations on [`Vector`] (Eigen fixed-size semantics).
@@ -284,8 +284,11 @@ impl<const R: usize, const C: usize> MatrixExt<R, C> for Matrix<R, C> {
     #[inline]
     fn matmul<const K: usize>(&self, rhs: &Matrix<C, K>) -> Matrix<R, K> {
         let mut out = [[0.0; R]; K];
-        eval_product(
-            &ProductShape::fixed(R, C, K),
+        eval_routed(
+            const { route(&ProductShape::fixed(R, C, K)) },
+            R,
+            C,
+            K,
             &|i, k| self[k][i],
             &|k, j| rhs[j][k],
             out.as_flattened_mut(),
@@ -296,8 +299,11 @@ impl<const R: usize, const C: usize> MatrixExt<R, C> for Matrix<R, C> {
     #[inline]
     fn tr_matmul<const K: usize>(&self, rhs: &Matrix<R, K>) -> Matrix<C, K> {
         let mut out = [[0.0; C]; K];
-        eval_product(
-            &ProductShape::fixed(C, R, K).lhs_transposed(),
+        eval_routed(
+            const { route(&ProductShape::fixed(C, R, K).lhs_transposed()) },
+            C,
+            R,
+            K,
             &|i, k| self[i][k],
             &|k, j| rhs[j][k],
             out.as_flattened_mut(),
@@ -308,8 +314,11 @@ impl<const R: usize, const C: usize> MatrixExt<R, C> for Matrix<R, C> {
     #[inline]
     fn mul_vec(&self, v: &Vector<C>) -> Vector<R> {
         let mut out = [0.0; R];
-        eval_product(
-            &ProductShape::fixed(R, C, 1),
+        eval_routed(
+            const { route(&ProductShape::fixed(R, C, 1)) },
+            R,
+            C,
+            1,
             &|i, k| self[k][i],
             &|k, _| v[k],
             &mut out,

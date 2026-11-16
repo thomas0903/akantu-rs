@@ -730,8 +730,17 @@ pub(crate) fn compute_jacobians<E: LagrangeElement>(
     let sdim = block.sdim;
     let mut xe = vec![0.0; sdim * block.nnpe];
     let mut xm = vec![0.0; sdim * nn];
-    let mut dnds = vec![0.0; nd * nn];
+    // natural derivatives at the rule points (the same for every element)
+    let sz = nd * nn;
+    let mut dnds = vec![0.0; sz * nq];
+    if E::TYPE != ElementType::Cohesive1d2 {
+        for q in 0..nq {
+            E::compute_dnds(rule.point(q, nd), &mut dnds[q * sz..(q + 1) * sz]);
+        }
+    }
     let mut j = vec![0.0; nd * sdim];
+    // `J = dnds · Xᵀ` (kernels::jmat), decided once
+    let p_j = crate::eigen::prepare(Dims::fixed(nd, nn), Dims::dynamic(sdim, nn).t())?;
     for (&e, &slot) in ids.iter().zip(slots) {
         block.coords(e, &mut xe)?;
         let x: &[Real] = if kind == ElementKind::Cohesive {
@@ -751,14 +760,7 @@ pub(crate) fn compute_jacobians<E: LagrangeElement>(
             continue;
         }
         for (q, jq) in jv.iter_mut().enumerate() {
-            E::compute_dnds(rule.point(q, nd), &mut dnds);
-            kernels::jmat(
-                &dnds,
-                Dims::fixed(nd, nn),
-                x,
-                Dims::dynamic(sdim, nn),
-                &mut j,
-            )?;
+            p_j.eval(&dnds[q * sz..(q + 1) * sz], x, &mut j)?;
             *jq = kernels::jacobian(&j, nd, sdim)?;
         }
     }
@@ -832,19 +834,17 @@ pub(crate) fn compute_physical_derivatives<E: LagrangeElement>(
         E::compute_dnds(rule.point(q, nd), &mut dnds[q * sz..(q + 1) * sz]);
     }
     let mut j = vec![0.0; nd * sdim];
+    // `J = dnds · Xᵀ` (kernels::jmat) and `J⁻¹ · dnds`
+    // (kernels::shape_derivatives), decided once
+    let p_j = crate::eigen::prepare(Dims::dynamic(nd, nn), Dims::dynamic(sdim, nn).t())?;
+    let p_d = kernels::shape_derivatives_product(Dims::dynamic(nd, nn))?;
     for &e in ids {
         block.coords(e, &mut x)?;
         for q in 0..nq {
             let d = &dnds[q * sz..(q + 1) * sz];
-            kernels::jmat(
-                d,
-                Dims::dynamic(nd, nn),
-                &x,
-                Dims::dynamic(sdim, nn),
-                &mut j,
-            )?;
+            p_j.eval(d, &x, &mut j)?;
             let o = (e * nq + q) * sz;
-            kernels::shape_derivatives(&j, d, Dims::dynamic(nd, nn), &mut out[o..o + sz])?;
+            kernels::shape_derivatives_with(&p_d, &j, d, &mut out[o..o + sz])?;
         }
     }
     Ok(())

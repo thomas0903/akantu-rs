@@ -327,6 +327,44 @@ fn btd_impl<const R: usize, const S: usize>(
     }
 }
 
+/// Per-element integrals of a **scalar** field (`nb_dof = 1`): the route
+/// of `f_e · J_e` (`f_e` dynamic `1 × nq`, `J_e` a `Dynamic × 1` vector) is
+/// the run-time `1 × 1` inner-product fallback with the sequential order
+/// (`out = 0; out = out + (t0 + t1 + …)`, `t_l = fl(f(l)·J(l))`). `None`
+/// for another route (the caller then runs the general path).
+pub(super) fn integrate_scalar<'j>(
+    f: &[Real],
+    nq: usize,
+    jac: &impl Fn(usize) -> &'j [Real],
+    nb_element: usize,
+    o: &mut [Real],
+) -> Option<()> {
+    let route = product_route(Dims::dynamic(1, nq), Dims::new(nq, 1, false, true));
+    if route != Route::Dot(Reduction::Sequential)
+        || nq == 0
+        || f.len() != nb_element * nq
+        || o.len() != nb_element
+    {
+        return None;
+    }
+    if (0..nb_element).any(|pos| jac(pos).len() < nq) {
+        return None;
+    }
+    for (pos, (fe, oe)) in f.chunks_exact(nq).zip(o.iter_mut()).enumerate() {
+        let j = &jac(pos)[..nq];
+        // r = t0; r = r + t_l (Reduction::Sequential)
+        let mut r = fe[0] * j[0];
+        for (&fl, &jl) in fe[1..].iter().zip(&j[1..]) {
+            r += fl * jl;
+        }
+        // dst(0, 0) = 0; dst(0, 0) += r
+        let mut d = 0.0;
+        d += r;
+        *oe = d;
+    }
+    Some(())
+}
+
 /// Per-element integrals `out_e = f_e · J_e` (`f_e` dynamic `nb_dof × nq`,
 /// `J_e` a `Dynamic × 1` vector; `integrate_with_jacobians`) when the route
 /// is the column-major GEMV kernel without depth blocking (`nq < 128`):
@@ -896,5 +934,58 @@ mod tests {
             products >= 20_000 && nans > 0,
             "{products} products, {nans} NaNs"
         );
+    }
+
+    /// The scalar integration kernel against the general route (the
+    /// closure evaluation of `akantu_core::eigen_gebp::product_into`).
+    #[test]
+    fn integrate_scalar_matches_general_path_bitwise() {
+        use akantu_core::eigen_gebp::{Extent, ProductShape, product_into};
+        let mut v = Values::new(0x0123_4567_89ab_cdef);
+        let (mut products, mut nans) = (0, 0);
+        for nq in INT_NQ {
+            for round in 0..40 {
+                let ne = 100;
+                let payload = round % 4 == 3;
+                if payload {
+                    let k = 1 + v.next_u64() % (2 * ne * nq) as u64;
+                    v.payload_at(k);
+                }
+                let f = v.vec(ne * nq);
+                let jac = v.vec(ne * nq);
+                v.default_mode();
+                let jf = |pos: usize| &jac[pos * nq..(pos + 1) * nq];
+                let mut fast = vec![Real::NAN; ne];
+                assert!(integrate_scalar(&f, nq, &jf, ne, &mut fast).is_some());
+                let mut general = vec![7.0; ne];
+                let shape = ProductShape::new(
+                    Extent::Dynamic(1),
+                    Extent::Dynamic(nq),
+                    Extent::Dynamic(nq),
+                    Extent::Fixed(1),
+                );
+                for pos in 0..ne {
+                    let fe = &f[pos * nq..(pos + 1) * nq];
+                    let je = jf(pos);
+                    product_into(
+                        &shape,
+                        &|_, l| fe[l],
+                        &|l, _| je[l],
+                        &mut general[pos..=pos],
+                    )
+                    .unwrap();
+                }
+                products += ne;
+                nans += assert_bits(&fast, &general, "integrate_scalar");
+            }
+        }
+        assert!(
+            products >= 20_000 && nans > 0,
+            "{products} products, {nans} NaNs"
+        );
+        // other routes are declined
+        let f = [1.0; 4];
+        let mut o = [0.0; 2];
+        assert!(integrate_scalar(&f, 2, &|_| &f[..2], 2, &mut o[..1]).is_none());
     }
 }
