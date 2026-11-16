@@ -154,8 +154,7 @@ impl FeEngine {
         prepare_out(out, ids.len() * nq, nb_dof)?;
         let mut scratch = vec![0.0; nb_dof * block.nnpe];
         let mut ue = vec![0.0; nb_dof * nn];
-        let ud = Dims::dynamic(nb_dof, nn);
-        let nd = Dims::dynamic(nn, nq);
+        let p_un = eigen::prepare(Dims::dynamic(nb_dof, nn), Dims::dynamic(nn, nq))?;
         let s = shapes.as_slice();
         let o = out.as_mut_slice();
         for (pos, &e) in ids.iter().enumerate() {
@@ -169,13 +168,7 @@ impl FeEngine {
                 &mut ue,
             )?;
             let ne = &s[e * nq * nn..(e + 1) * nq * nn];
-            eigen::product_slices(
-                ud,
-                nd,
-                &ue,
-                ne,
-                &mut o[pos * nq * nb_dof..(pos + 1) * nq * nb_dof],
-            )?;
+            p_un.eval(&ue, ne, &mut o[pos * nq * nb_dof..(pos + 1) * nq * nb_dof])?;
         }
         Ok(())
     }
@@ -333,7 +326,7 @@ impl FeEngine {
             nq,
         )?;
         with_element_class!(ty, E => {
-            gradient_kernel::<E>(&block, u.as_slice(), nb_dof, dshapes.as_slice(), nq, &ids, reduction, out)
+            gradient_kernel::<E>(&self.exec, &block, u.as_slice(), nb_dof, dshapes.as_slice(), nq, &ids, reduction, out)
         }, else Err(Error::UnsupportedElementType { ty, context: "gradient_on_integration_points" }))
     }
 
@@ -363,6 +356,7 @@ impl FeEngine {
             nb_dof,
         )?;
         integrate_with_jacobians(
+            &self.exec,
             f.as_slice(),
             nb_dof,
             nq,
@@ -430,6 +424,7 @@ impl FeEngine {
         }, else Err(Error::UnsupportedElementType { ty, context: "integrate_with_order" }))?;
         super::multiply_by_weights(&mut jac, &rule.weights, &ids);
         integrate_with_jacobians(
+            &self.exec,
             f.as_slice(),
             nb_dof,
             nq,
@@ -506,17 +501,16 @@ impl FeEngine {
         prepare_out(out, d.len(), r * nn)?;
         let (bs, ds, os) = (dsh.as_slice(), d.as_slice(), out.as_mut_slice());
         // The common route with fixed-size loops (bitwise the same)
-        if super::fast::btd(r, sdim, nn, &ids, nq, bs, ds, os).is_some() {
+        if super::fast::btd(&self.exec, r, sdim, nn, &ids, nq, bs, ds, os).is_some() {
             return Ok(());
         }
         let bsz = sdim * nn;
+        let p_db = eigen::prepare(Dims::dynamic(r, sdim), Dims::dynamic(sdim, nn))?;
         for (pos, &e) in ids.iter().enumerate() {
             for q in 0..nq {
                 let b = &bs[(e * nq + q) * bsz..(e * nq + q + 1) * bsz];
                 let t = pos * nq + q;
-                eigen::product_slices(
-                    Dims::dynamic(r, sdim),
-                    Dims::dynamic(sdim, nn),
+                p_db.eval(
                     &ds[t * r * sdim..(t + 1) * r * sdim],
                     b,
                     &mut os[t * r * nn..(t + 1) * r * nn],
@@ -581,6 +575,9 @@ impl FeEngine {
                 let mut bfull = MatrixX::zeros(dim, nn);
                 let mut bv = MatrixX::zeros(ts, n);
                 let mut btd = vec![0.0; n * ts];
+                // (Bᵀ · D) into a dynamic temporary, then · B
+                let p_btd = eigen::prepare(Dims::dynamic(ts, n).t(), Dims::dynamic(ts, ts))?;
+                let p_btdb = eigen::prepare(Dims::dynamic(n, ts), Dims::dynamic(ts, n))?;
                 let (ds, os) = (d.as_slice(), out.as_mut_slice());
                 for (pos, &e) in ids.iter().enumerate() {
                     for q in 0..nq {
@@ -591,21 +588,8 @@ impl FeEngine {
                         let t = pos * nq + q;
                         let dq = &ds[t * ts * ts..(t + 1) * ts * ts];
                         let b = bv.as_slice();
-                        // (Bᵀ · D) into a dynamic temporary, then · B
-                        eigen::product_slices(
-                            Dims::dynamic(ts, n).t(),
-                            Dims::dynamic(ts, ts),
-                            b,
-                            dq,
-                            &mut btd,
-                        )?;
-                        eigen::product_slices(
-                            Dims::dynamic(n, ts),
-                            Dims::dynamic(ts, n),
-                            &btd,
-                            b,
-                            &mut os[t * n * n..(t + 1) * n * n],
-                        )?;
+                        p_btd.eval(b, dq, &mut btd)?;
+                        p_btdb.eval(&btd, b, &mut os[t * n * n..(t + 1) * n * n])?;
                     }
                 }
                 Ok(())
@@ -620,26 +604,16 @@ impl FeEngine {
                 )?;
                 prepare_out(out, d.len(), nn * nn)?;
                 let mut btd = vec![0.0; nn * dim];
+                let p_btd = eigen::prepare(Dims::dynamic(dim, nn).t(), Dims::dynamic(dim, dim))?;
+                let p_btdb = eigen::prepare(Dims::dynamic(nn, dim), Dims::dynamic(dim, nn))?;
                 let (ds, os) = (d.as_slice(), out.as_mut_slice());
                 for (pos, &e) in ids.iter().enumerate() {
                     for q in 0..nq {
                         let b = &bs[(e * nq + q) * bsz..(e * nq + q + 1) * bsz];
                         let t = pos * nq + q;
                         let dq = &ds[t * dim * dim..(t + 1) * dim * dim];
-                        eigen::product_slices(
-                            Dims::dynamic(dim, nn).t(),
-                            Dims::dynamic(dim, dim),
-                            b,
-                            dq,
-                            &mut btd,
-                        )?;
-                        eigen::product_slices(
-                            Dims::dynamic(nn, dim),
-                            Dims::dynamic(dim, nn),
-                            &btd,
-                            b,
-                            &mut os[t * nn * nn..(t + 1) * nn * nn],
-                        )?;
+                        p_btd.eval(b, dq, &mut btd)?;
+                        p_btdb.eval(&btd, b, &mut os[t * nn * nn..(t + 1) * nn * nn])?;
                     }
                 }
                 Ok(())
@@ -672,13 +646,12 @@ impl FeEngine {
         check_input("compute_ntb: b", b.len(), nb_dof, ids.len() * nq, nb_dof)?;
         prepare_out(out, b.len(), nb_dof * nn)?;
         let (ss, bs, os) = (shapes.as_slice(), b.as_slice(), out.as_mut_slice());
+        let p_bn = eigen::prepare(Dims::dynamic(nb_dof, 1), Dims::dynamic(1, nn))?;
         for (pos, &e) in ids.iter().enumerate() {
             for q in 0..nq {
                 let t = pos * nq + q;
                 let n = &ss[(e * nq + q) * nn..(e * nq + q + 1) * nn];
-                eigen::product_slices(
-                    Dims::dynamic(nb_dof, 1),
-                    Dims::dynamic(1, nn),
+                p_bn.eval(
                     &bs[t * nb_dof..(t + 1) * nb_dof],
                     n,
                     &mut os[t * nb_dof * nn..(t + 1) * nb_dof * nn],
@@ -717,25 +690,15 @@ impl FeEngine {
         prepare_out(out, b.len(), nn * nn)?;
         let mut ntb = vec![0.0; nn];
         let (ss, bs, os) = (shapes.as_slice(), b.as_slice(), out.as_mut_slice());
+        // N.transpose() (nn × 1, N a 1 × nn map) · b (1 × 1), then · N
+        let p_ntb = eigen::prepare(Dims::dynamic(1, nn).t(), Dims::dynamic(1, 1))?;
+        let p_ntbn = eigen::prepare(Dims::dynamic(nn, 1), Dims::dynamic(1, nn))?;
         for (pos, &e) in ids.iter().enumerate() {
             for q in 0..nq {
                 let t = pos * nq + q;
                 let n = &ss[(e * nq + q) * nn..(e * nq + q + 1) * nn];
-                // N.transpose() (nn × 1, N a 1 × nn map) · b (1 × 1), then · N
-                eigen::product_slices(
-                    Dims::dynamic(1, nn).t(),
-                    Dims::dynamic(1, 1),
-                    n,
-                    &bs[t..t + 1],
-                    &mut ntb,
-                )?;
-                eigen::product_slices(
-                    Dims::dynamic(nn, 1),
-                    Dims::dynamic(1, nn),
-                    &ntb,
-                    n,
-                    &mut os[t * nn * nn..(t + 1) * nn * nn],
-                )?;
+                p_ntb.eval(n, &bs[t..t + 1], &mut ntb)?;
+                p_ntbn.eval(&ntb, n, &mut os[t * nn * nn..(t + 1) * nn * nn])?;
             }
         }
         Ok(())
@@ -758,29 +721,28 @@ impl FeEngine {
 
 /// Per-element integrals `out_e = Σ_q f_{e,q} J_{e,q}` (GEMV, from `+0`).
 pub(crate) fn integrate_with_jacobians<'j>(
+    exec: &akantu_core::exec::Exec,
     f: &[Real],
     nb_dof: usize,
     nq: usize,
-    jac: impl Fn(usize) -> &'j [Real],
+    jac: impl Fn(usize) -> &'j [Real] + Sync,
     nb_element: usize,
     out: &mut Array<Real>,
 ) -> Result<()> {
     prepare_out(out, nb_element, nb_dof)?;
     let o = out.as_mut_slice();
     // The common route with plain loops (bitwise the same)
-    if super::fast::integrate(f, nb_dof, nq, &jac, nb_element, o).is_some() {
+    if super::fast::integrate(exec, f, nb_dof, nq, &jac, nb_element, o).is_some() {
         return Ok(());
     }
+    if nb_dof == 1 && super::fast::integrate_scalar(f, nq, &jac, nb_element, o).is_some() {
+        return Ok(());
+    }
+    let p_fj = eigen::prepare(Dims::dynamic(nb_dof, nq), Dims::new(nq, 1, false, true))?;
     for pos in 0..nb_element {
         let j = jac(pos);
         let fe = &f[pos * nq * nb_dof..(pos + 1) * nq * nb_dof];
-        eigen::product_slices(
-            Dims::dynamic(nb_dof, nq),
-            Dims::new(nq, 1, false, true),
-            fe,
-            j,
-            &mut o[pos * nb_dof..(pos + 1) * nb_dof],
-        )?;
+        p_fj.eval(fe, j, &mut o[pos * nb_dof..(pos + 1) * nb_dof])?;
     }
     Ok(())
 }
@@ -830,6 +792,7 @@ impl GradientOut<'_> {
 /// (`U`: `Map<Matrix<Dynamic, nn>>`, `B`: `Map<Matrix<nd, nn>>`).
 #[allow(clippy::too_many_arguments)]
 fn gradient_kernel<E: LagrangeElement>(
+    exec: &akantu_core::exec::Exec,
     block: &Block<'_>,
     u: &[Real],
     nb_dof: usize,
@@ -848,22 +811,21 @@ fn gradient_kernel<E: LagrangeElement>(
     let o = out.prepare(ids.len() * nq, nb_dof * nd)?;
     // The common route with fixed-size loops (bitwise the same)
     if reduction.is_none()
-        && let Some(r) = super::fast::gradient::<E>(block, u, nb_dof, dshapes, nq, ids, o)
+        && let Some(r) = super::fast::gradient::<E>(exec, block, u, nb_dof, dshapes, nq, ids, o)
     {
         return r;
     }
     let bsz = nd * nn;
     let mut scratch = vec![0.0; nb_dof * block.nnpe];
     let mut ue = vec![0.0; nb_dof * nn];
-    let ud = Dims::new(nb_dof, nn, false, true);
-    let bt = Dims::fixed(nd, nn).t();
+    let p_ub = eigen::prepare(Dims::new(nb_dof, nn, false, true), Dims::fixed(nd, nn).t())?;
     for (pos, &e) in ids.iter().enumerate() {
         FeEngine::gather_element(block, e, u, nb_dof, reduction, &mut scratch, &mut ue)?;
         for q in 0..nq {
             let b = &dshapes[(e * nq + q) * bsz..(e * nq + q + 1) * bsz];
             let t = pos * nq + q;
             let g = &mut o[t * nb_dof * nd..(t + 1) * nb_dof * nd];
-            eigen::product_slices(ud, bt, &ue, b, g)?;
+            p_ub.eval(&ue, b, g)?;
         }
     }
     Ok(())

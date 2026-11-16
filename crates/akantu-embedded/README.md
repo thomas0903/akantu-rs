@@ -17,7 +17,7 @@ model.solve_step(None)?;
   law (`E`, `area`, `pre_stress`, …), the background elements are assigned by
   their own `physical_names`.
 * **Licence:** LGPL-3.0-or-later. Upstream needs CGAL; this crate uses the
-  LGPL segment intersector of `akantu-geometry` (`LinearScan`) and never
+  LGPL segment intersector of `akantu-geometry` (`GridIndex`) and never
   depends on the GPL-3.0-or-later crate `akantu-geometry-cgal` (D-042;
   `tests/license_guard.rs`), so the `embedded` feature of the umbrella crate
   stays in the default build.

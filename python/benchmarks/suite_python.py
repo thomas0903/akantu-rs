@@ -47,8 +47,8 @@ def fnv1a(chunks):
     return h
 
 
-def pick(size, s, m, l):
-    return {"s": s, "m": m, "l": l}[size]
+def pick(size, s, m, large):
+    return {"s": s, "m": m, "l": large}[size]
 
 
 # ---------------------------------------------------------------- meshes
@@ -114,11 +114,11 @@ LOCAL = """material local_elastic [
 
 def pulse(x):
     """The Rust suite's ``cases_dist::pulse`` (same operation order)."""
-    l = 0.25
+    width = 0.25
     a = 1e-4
     x = x - 0.5
-    k = 0.1 * 2.0 * math.pi * 3.0 / l
-    return a * math.sin(k * x) * math.exp(-(k * x) * (k * x) / (l * l))
+    k = 0.1 * 2.0 * math.pi * 3.0 / width
+    return a * math.sin(k * x) * math.exp(-(k * x) * (k * x) / (width * width))
 
 
 class Ctx:
@@ -315,6 +315,49 @@ def case_dirichlet(ctx):
     return out
 
 
+def case_dirichlet_group(ctx):
+    """applyBC with a Python DirichletFunctor that defines the group method
+    `callNodes` (one call per group with arrays; akantu-rs extension)
+    against the per-node `__call__` of the same prescription."""
+    aka = ctx.aka
+    out = Out()
+    _, model = explicit_model(ctx, out, tri3_n(ctx.size), pulse_loop=False)
+
+    class PyFixedValueGroup(aka.DirichletFunctor):
+        def __init__(self, value, axis):
+            super().__init__(axis)
+            self.value = value
+            self.axis = int(axis)
+
+        def callNodes(self, nodes, flags, primal, coords):
+            primal[:, self.axis] = self.value
+            flags[:, self.axis] = True
+
+    class PyFixedValue(aka.DirichletFunctor):
+        def __init__(self, value, axis):
+            super().__init__(axis)
+            self.value = value
+            self.axis = int(axis)
+
+        def __call__(self, node, flags, primal, coord):
+            primal[self.axis] = self.value
+            flags[self.axis] = True
+
+    calls = pick(ctx.size, 2, 20, 5)
+    group = PyFixedValueGroup(1e-3, aka._x)
+    out.loop_phase(
+        ctx, "python_group_functor", calls * 10, lambda: model.applyBC(group, "body")
+    )
+    per_node = PyFixedValue(2e-3, aka._y)
+    out.loop_phase(
+        ctx, "python_functor", calls, lambda: model.applyBC(per_node, "body")
+    )
+    out.digest = fnv1a(
+        [model.getDisplacement(), model.getBlockedDOFs().astype("<f8")]
+    )
+    return out
+
+
 def case_neumann(ctx):
     """applyBC with a Python NeumannFunctor (one call per integration
     point) against the built-in FromTraction, on the four sides."""
@@ -438,6 +481,7 @@ CASES = [
     ("explicit_tri3", "Python loop of solveStep, the twin of suite_setup py_twin_explicit_tri3 (same digest)", case_explicit),
     ("fields_tri3", "NumPy views and copies of fields, Python and vectorised writes, a law's stress", case_fields),
     ("dirichlet_tri3", "applyBC with a Python DirichletFunctor (a call per node) against FixedValue", case_dirichlet),
+    ("dirichlet_group_tri3", "applyBC with a Python DirichletFunctor's group method callNodes (one call per group) against its per-node __call__", case_dirichlet_group),
     ("neumann_tri3", "applyBC with a Python NeumannFunctor (a call per integration point) against FromTraction", case_neumann),
     ("material_tri3", "explicit loop with a Python elastic law (NumPy per type and step) against the built-in law", case_material),
 ]

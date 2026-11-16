@@ -78,6 +78,92 @@ pub(crate) struct MshResult {
 /// scalars, vectors and tensors: 1, 3, 9).
 const MAX_DATA_COMPONENTS: usize = 4096;
 
+/// Map from Gmsh tags (node or element numbers) to values: a dense table
+/// for tags below a bound proportional to the input (Gmsh numbers entities
+/// contiguously from 1), a hash map for the others.
+#[derive(Debug)]
+struct TagMap<V: Copy> {
+    dense: Vec<Option<V>>,
+    sparse: HashMap<u64, V>,
+    limit: u64,
+}
+
+impl<V: Copy> TagMap<V> {
+    fn new() -> Self {
+        Self {
+            dense: Vec::new(),
+            sparse: HashMap::new(),
+            limit: 1 << 16,
+        }
+    }
+
+    /// Lets the dense table hold tags below `2 * n + 1024`; `n` is a count
+    /// already bounded by the input size.
+    fn expect(&mut self, n: usize) {
+        let want = u64::try_from(n)
+            .unwrap_or(u64::MAX)
+            .saturating_mul(2)
+            .saturating_add(1024);
+        if want <= self.limit {
+            return;
+        }
+        self.limit = want;
+        // tags stored in the map that the dense table now covers move there
+        let moved: Vec<(u64, V)> = self
+            .sparse
+            .iter()
+            .filter(|&(&t, _)| t < want)
+            .map(|(&t, &v)| (t, v))
+            .collect();
+        for (t, v) in moved {
+            self.sparse.remove(&t);
+            if let Some(slot) = self.slot(t) {
+                *slot = Some(v);
+            }
+        }
+    }
+
+    fn slot(&mut self, tag: u64) -> Option<&mut Option<V>> {
+        if tag >= self.limit {
+            return None;
+        }
+        let i = usize::try_from(tag).ok()?;
+        if i >= self.dense.len() {
+            self.dense.resize(i + 1, None);
+        }
+        self.dense.get_mut(i)
+    }
+
+    /// Inserts `v`; returns the previous value of `tag`.
+    fn insert(&mut self, tag: u64, v: V) -> Option<V> {
+        match self.slot(tag) {
+            Some(s) => s.replace(v),
+            None => self.sparse.insert(tag, v),
+        }
+    }
+
+    /// `f(previous)` becomes the value of `tag`.
+    fn update(&mut self, tag: u64, f: impl FnOnce(Option<V>) -> V) {
+        match self.slot(tag) {
+            Some(s) => *s = Some(f(*s)),
+            None => {
+                let v = f(self.sparse.get(&tag).copied());
+                self.sparse.insert(tag, v);
+            }
+        }
+    }
+
+    fn get(&self, tag: u64) -> Option<V> {
+        if tag < self.limit {
+            usize::try_from(tag)
+                .ok()
+                .and_then(|i| self.dense.get(i).copied().flatten())
+        } else {
+            self.sparse.get(&tag).copied()
+        }
+    }
+}
+
 /// Parsed header of a data block.
 struct DataHeader {
     /// Dataset name (first string tag).
@@ -97,8 +183,12 @@ struct Reader<'a> {
     dim: usize,
     version: Option<i32>,
     build: MeshBuild,
-    node_tags: HashMap<u64, Idx>,
-    element_tags: HashMap<u64, ElementRef>,
+    node_tags: TagMap<Idx>,
+    element_tags: TagMap<ElementRef>,
+    /// `tag_<j>` dataset names (MSH 1/2 element tags).
+    tag_names: Vec<String>,
+    /// Node numbers of the element being read (reused).
+    element_buf: Vec<Idx>,
     physical_names: BTreeMap<(i32, i32), String>,
     has_physical_names: bool,
     entity_phys: HashMap<(i32, i32), Vec<i32>>,
@@ -126,8 +216,10 @@ pub(crate) fn read(
         dim,
         version: None,
         build: MeshBuild::new(dim),
-        node_tags: HashMap::new(),
-        element_tags: HashMap::new(),
+        node_tags: TagMap::new(),
+        element_tags: TagMap::new(),
+        tag_names: Vec::new(),
+        element_buf: Vec::new(),
         physical_names: BTreeMap::new(),
         has_physical_names: false,
         entity_phys: HashMap::new(),
@@ -344,6 +436,7 @@ impl<'a> Reader<'a> {
         self.build
             .nodes
             .reserve(n.min(self.src.remaining()).saturating_mul(self.dim));
+        self.node_tags.expect(n.min(self.src.remaining()));
         for _ in 0..n {
             let mut line = self.src.expect_line("nodes section")?;
             let tag = line.u64("node number")?;
@@ -366,7 +459,7 @@ impl<'a> Reader<'a> {
     }
 
     fn node_index(&self, line: &Line<'a>, col: usize, tag: u64) -> Result<Idx> {
-        self.node_tags.get(&tag).copied().ok_or_else(|| {
+        self.node_tags.get(tag).ok_or_else(|| {
             line.error_at(
                 col,
                 format!("node number {tag} is not defined in the nodes section"),
@@ -375,24 +468,40 @@ impl<'a> Reader<'a> {
     }
 
     fn record_element_tag(&mut self, tag: u64, r: ElementRef) {
-        self.element_tags
-            .entry(tag)
-            .and_modify(|e| *e = ElementRef::Duplicate)
-            .or_insert(r);
+        self.element_tags.update(tag, |old| match old {
+            Some(_) => ElementRef::Duplicate,
+            None => r,
+        });
     }
 
-    /// Read `n` node numbers of an element and place them in Akantu order.
-    fn element_nodes(&self, line: &mut Line<'a>, ty: ElementType) -> Result<Vec<Idx>> {
+    /// Read `n` node numbers of an element and place them in Akantu order
+    /// in `local` (resized to the element's node count).
+    fn element_nodes(
+        &self,
+        line: &mut Line<'a>,
+        ty: ElementType,
+        local: &mut Vec<Idx>,
+    ) -> Result<()> {
         let nnpe = ty.nb_nodes_per_element();
         let order = self.read_order(ty);
-        let mut local = vec![0; nnpe];
+        local.clear();
+        local.resize(nnpe, 0);
         for j in 0..nnpe {
             let col = line.column();
             let tag = line.u64("node number of the element")?;
             let idx = self.node_index(line, col, tag)?;
             local[order.map_or(j, |o| o[j])] = idx;
         }
-        Ok(local)
+        Ok(())
+    }
+
+    /// Name of the `tag_<j>` dataset.
+    fn tag_name(&mut self, j: usize) -> &str {
+        while self.tag_names.len() <= j {
+            let k = self.tag_names.len();
+            self.tag_names.push(format!("tag_{k}"));
+        }
+        &self.tag_names[j]
     }
 
     fn elements_v2(&mut self) -> Result<()> {
@@ -401,6 +510,8 @@ impl<'a> Reader<'a> {
             .src
             .expect_line("elements section")?
             .count("number of elements")?;
+        self.element_tags.expect(n.min(self.src.remaining()));
+        let mut local = std::mem::take(&mut self.element_buf);
         for _ in 0..n {
             let mut line = self.src.expect_line("elements section")?;
             let tag = line.u64("element number")?;
@@ -443,14 +554,16 @@ impl<'a> Reader<'a> {
                 }
                 t
             };
-            let local = self.element_nodes(&mut line, ty)?;
+            self.element_nodes(&mut line, ty, &mut local)?;
             let e = self.build.push_element(ty, &local)?;
             let eu = usize::try_from(e).unwrap_or(0);
             for (j, &t) in tags.iter().enumerate() {
-                self.build.set_int(&format!("tag_{j}"), ty, eu, t, 0);
+                self.tag_name(j);
+                self.build.set_int(&self.tag_names[j], ty, eu, t, 0);
             }
             self.record_element_tag(tag, ElementRef::Element(ty, e));
         }
+        self.element_buf = local;
         Ok(())
     }
 
@@ -531,6 +644,7 @@ impl<'a> Reader<'a> {
         self.build
             .nodes
             .reserve(num_nodes.min(self.src.remaining()).saturating_mul(self.dim));
+        self.node_tags.expect(num_nodes.min(self.src.remaining()));
         let mut total = 0usize;
         for _ in 0..num_blocks {
             let mut h = self.src.expect_line("$Nodes block header")?;
@@ -589,7 +703,10 @@ impl<'a> Reader<'a> {
         let v41 = self.version >= Some(4001);
         let mut line = self.src.expect_line("$Elements")?;
         let num_blocks = line.count("number of element blocks")?;
-        let _num_elements = line.count("number of elements")?;
+        let num_elements = line.count("number of elements")?;
+        self.element_tags
+            .expect(num_elements.min(self.src.remaining()));
+        let mut local = std::mem::take(&mut self.element_buf);
         for _ in 0..num_blocks {
             let mut h = self.src.expect_line("$Elements block header")?;
             let (entity_dim, entity_tag) = if v41 {
@@ -629,10 +746,14 @@ impl<'a> Reader<'a> {
                 .iter()
                 .map(|&p| (p, self.physical_names.get(&(entity_dim, p)).cloned()))
                 .collect();
+            let pname = names
+                .first()
+                .and_then(|(_, n)| n.clone())
+                .unwrap_or_default();
             for _ in 0..n {
                 let mut l = self.src.expect_line("$Elements block")?;
                 let tag = l.u64("element tag")?;
-                let local = self.element_nodes(&mut l, ty)?;
+                self.element_nodes(&mut l, ty, &mut local)?;
                 let e = self.build.push_element(ty, &local)?;
                 let eu = usize::try_from(e).unwrap_or(0);
                 self.record_element_tag(tag, ElementRef::Element(ty, e));
@@ -641,15 +762,17 @@ impl<'a> Reader<'a> {
                 let first = names.first();
                 self.build
                     .set_int("tag_0", ty, eu, first.map_or(0, |(p, _)| *p), 0);
-                let pname = first.and_then(|(_, n)| n.clone()).unwrap_or_default();
-                let sd = self
-                    .build
-                    .string_data
-                    .entry("physical_names".into())
-                    .or_default();
+                let sd = match self.build.string_data.get_mut("physical_names") {
+                    Some(sd) => sd,
+                    None => self
+                        .build
+                        .string_data
+                        .entry("physical_names".into())
+                        .or_default(),
+                };
                 let v = sd.entry(ty).or_default();
                 v.resize(eu, String::new());
-                v.push(pname);
+                v.push(pname.clone());
                 for (p, name) in &names {
                     match name {
                         Some(name) => self.build.group_add(name, ty, e, true),
@@ -661,6 +784,7 @@ impl<'a> Reader<'a> {
                 }
             }
         }
+        self.element_buf = local;
         for g in self.build.element_groups.values_mut() {
             g.optimize_nodes();
         }
@@ -839,8 +963,8 @@ impl<'a> Reader<'a> {
             let mut l = self.src.expect_line(section)?;
             let col = l.column();
             let tag = l.u64("element tag")?;
-            let (ty, e) = match self.element_tags.get(&tag) {
-                Some(ElementRef::Element(ty, e)) => (*ty, usize::try_from(*e).unwrap_or(0)),
+            let (ty, e) = match self.element_tags.get(tag) {
+                Some(ElementRef::Element(ty, e)) => (ty, usize::try_from(e).unwrap_or(0)),
                 Some(ElementRef::Skipped) => {
                     skipped += 1;
                     continue;
@@ -996,13 +1120,24 @@ impl<'a> Reader<'a> {
                 })?;
             let (tags, fill) = tags;
             let sd = Int::try_from(ty.spatial_dimension()).unwrap_or(0);
+            // Consecutive elements mostly share their tag: the name of the
+            // previous one is reused.
+            let mut last: Option<(Int, String)> = None;
             let names = (0..n)
                 .map(|e| {
                     let t = tags.get(e).copied().unwrap_or(fill);
-                    self.physical_names
-                        .get(&(sd, t))
-                        .cloned()
-                        .unwrap_or_else(|| t.to_string())
+                    match &last {
+                        Some((lt, name)) if *lt == t => name.clone(),
+                        _ => {
+                            let name = self
+                                .physical_names
+                                .get(&(sd, t))
+                                .cloned()
+                                .unwrap_or_else(|| t.to_string());
+                            last = Some((t, name.clone()));
+                            name
+                        }
+                    }
                 })
                 .collect();
             out.insert(ty, names);
@@ -1015,6 +1150,32 @@ impl<'a> Reader<'a> {
 #[cfg(test)]
 mod tests {
     use super::super::lexer::Source;
+    use super::TagMap;
+
+    #[test]
+    fn tag_map_keeps_entries_when_the_dense_range_grows() {
+        let mut m: TagMap<i32> = TagMap::new();
+        m.expect(10);
+        let big = 1u64 << 40;
+        for (t, v) in [(1u64, 1), (5000, 2), (70_000, 3), (big, 4)] {
+            assert_eq!(m.insert(t, v), None);
+        }
+        assert_eq!(m.insert(5000, 9), Some(2));
+        m.update(70_001, |old| old.map_or(5, |o| o + 1));
+        m.update(70_001, |old| old.map_or(5, |o| o + 1));
+        // a second section announces more entries: 70,000 moves into the
+        // dense table
+        m.expect(100_000);
+        assert_eq!(m.get(1), Some(1));
+        assert_eq!(m.get(5000), Some(9));
+        assert_eq!(m.get(70_000), Some(3));
+        assert_eq!(m.get(70_001), Some(6));
+        assert_eq!(m.get(big), Some(4));
+        assert_eq!(m.get(2), None);
+        assert_eq!(m.get(big + 1), None);
+        assert_eq!(m.insert(70_000, 7), Some(3));
+        assert!(m.sparse.len() == 1);
+    }
 
     #[test]
     fn quoted_names() {

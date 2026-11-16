@@ -20,6 +20,7 @@ use akantu_comm::ReduceOp;
 use akantu_core::array_shared::ArrayMut;
 use akantu_core::enums::MatrixType;
 use akantu_core::error::if_present;
+use akantu_core::exec::NodeScatter;
 use akantu_core::{Array, Element, ElementKind, ElementType, Error, GhostType, Idx, Real, Result};
 use akantu_fe::FeEngine;
 use akantu_mesh::Mesh;
@@ -50,6 +51,110 @@ pub(crate) struct AssemblyScratch {
     pub(crate) per_point: Array<Real>,
     /// Integrated element vectors.
     pub(crate) per_element: Array<Real>,
+    /// Node-ordered scatter tables of the threaded assembly (D-123), per
+    /// `(law, type, ghost)`; built on first use with more than one thread.
+    pub(crate) scatters: std::collections::HashMap<(usize, ElementType, GhostType), ScatterEntry>,
+    /// Per-node terms of the threaded external-work increment (behind a
+    /// lock: the increment is computed from `&self`).
+    pub(crate) work_terms: std::sync::Mutex<Vec<Real>>,
+}
+
+/// A cached [`NodeScatter`] with what it was built from: the mesh topology
+/// revision and the law's filter. The table is reused while both are
+/// unchanged and the connectivity is not exported (foreign code could write
+/// it without a revision); otherwise it is checked row by row against the
+/// connectivity ([`NodeScatter::matches`]) and rebuilt when it differs.
+pub(crate) struct ScatterEntry {
+    revision: u64,
+    filter: Vec<Idx>,
+    table: NodeScatter,
+}
+
+/// `f_int −= ∫ Bᵀσ` of one block: the serial scatter, or with more than one
+/// thread the node-ordered scatter (same additions in the same order per
+/// node, D-123) with its table from the cache.
+#[allow(clippy::too_many_arguments)] // the block, its table cache and the output
+fn scatter_block(
+    exec: &akantu_core::exec::Exec,
+    mesh: &Mesh,
+    r_e: &Array<Real>,
+    f_int: &mut ArrayMut<'_, Real>,
+    ty: ElementType,
+    ghost: GhostType,
+    filter: &[Idx],
+    key: (usize, ElementType, GhostType),
+    scatters: &mut std::collections::HashMap<(usize, ElementType, GhostType), ScatterEntry>,
+) -> Result<()> {
+    let serial = |f_int: &mut ArrayMut<'_, Real>| {
+        DofManager::assemble_elemental_array_local_view(
+            mesh,
+            r_e.view(),
+            f_int.view_mut(),
+            ty,
+            ghost,
+            -1.0,
+            Some(filter),
+        )
+    };
+    // the serial routine's early return, before any access to the block
+    if !exec.is_parallel() || (mesh.nb_element(ty, ghost) == 0 && r_e.is_empty()) {
+        return serial(f_int);
+    }
+    let conn = mesh.connectivity(ty, ghost)?;
+    let nnpe = conn.nb_component();
+    let nb_nodes = f_int.len();
+    let nb_dof = r_e.nb_component().checked_div(nnpe).unwrap_or(0);
+    // every size the serial routine checks: on a mismatch it reports it,
+    // with its own error
+    if nnpe == 0
+        || !r_e.nb_component().is_multiple_of(nnpe)
+        || f_int.nb_component() != nb_dof
+        || r_e.len() != filter.len()
+    {
+        drop(conn);
+        return serial(f_int);
+    }
+    let revision = mesh.revision();
+    let exported = mesh.connectivities().shared(ty, ghost)?.is_exported();
+    let (cs, fl) = (conn.as_slice(), Some(filter));
+    let valid = scatters.get_mut(&key).is_some_and(|e| {
+        let same = e.revision == revision && !exported && e.filter.as_slice() == filter;
+        if same || e.table.matches(exec, cs, nnpe, fl, nb_nodes) {
+            e.revision = revision;
+            if !same {
+                e.filter.clear();
+                e.filter.extend_from_slice(filter);
+            }
+            true
+        } else {
+            false
+        }
+    });
+    if !valid {
+        // an element or node out of range: the serial routine reports it
+        let Ok(table) = NodeScatter::new(cs, nnpe, fl, nb_nodes) else {
+            drop(conn);
+            return serial(f_int);
+        };
+        scatters.insert(
+            key,
+            ScatterEntry {
+                revision,
+                filter: filter.to_vec(),
+                table,
+            },
+        );
+    }
+    let entry = scatters
+        .get(&key)
+        .ok_or_else(|| Error::invalid("internal force assembly: scatter table missing"))?;
+    debug_assert!(
+        entry.table.matches(exec, cs, nnpe, fl, nb_nodes),
+        "stale node scatter table of {ty:?} {ghost:?}"
+    );
+    entry
+        .table
+        .scatter_add(exec, r_e.as_slice(), nb_dof, -1.0, f_int.as_mut_slice())
 }
 
 impl std::fmt::Debug for AssemblyScratch {
@@ -325,55 +430,87 @@ impl SolidMechanicsPhysics {
             reducer.finish()?;
         }
         // _smm_stress: owners send the stresses of the elements that are
-        // ghosts elsewhere (upstream asynchronousSynchronize before the
-        // local assembly, waitEndSynchronize before the ghost one; the
-        // values and the assembly order are the same done in one step),
-        // through the running operation's scope (ARCHITECTURE.md, "DOF manager")
-        if let Some(es) = &mesh.synchronizers().element {
-            let fe = self.base.fems.get("")?;
-            let nb_quad = nb_quad_map(fe, &mesh, self.base.spatial_dimension)?;
-            let mut acc = super::parallel::StressAccessor {
-                materials: &mut self.materials,
-                nb_quad: &nb_quad,
-                dim: self.base.spatial_dimension,
-            };
-            es.synchronize_in(
-                &mut *dofs.phases()?,
-                &mut acc,
-                akantu_core::enums::SynchronizationTag::SmmStress,
-            )?;
-        }
+        // ghosts elsewhere, posted before the not-ghost assembly and
+        // completed before the ghost one (upstream asynchronousSynchronize
+        // / waitEndSynchronize; the unpacked ghost stresses are read by the
+        // ghost pass only, so the values and the assembly order are those of
+        // one blocking exchange), through the running operation's scope
+        // (ARCHITECTURE.md, "DOF manager"). Everything fallible besides the
+        // passes is taken before the post, so every path after it goes
+        // through `wait_in`. The post, the wait and every other MPI call
+        // stay on this (the caller's) thread: the passes' executor
+        // (`Exec`, D-123) runs element kernels and the ordered scatter on
+        // its workers, which never communicate.
+        let dim = self.base.spatial_dimension;
+        let es = mesh.synchronizers().element.as_ref();
         let fe = self.base.fems.get("")?;
+        let nb_quad = match es {
+            Some(_) => Some(nb_quad_map(fe, &mesh, dim)?),
+            None => None,
+        };
         let mut f_int = self
             .internal_force
             .as_mut()
             .ok_or_else(|| not_allocated("internal_force"))?
             .write()?;
-        for ghost in GhostType::ALL {
-            for law in self.materials.laws() {
-                // laws with their own residual (cohesive laws)
-                // assemble at their position in the loop (upstream virtual
-                // `Material::assembleInternalForces`)
-                if let Some(r) = law.assemble_internal_forces_custom(
-                    &self.base.fems,
-                    &mesh,
-                    ghost,
-                    f_int.view_mut(),
-                ) {
-                    r?;
-                    continue;
-                }
-                assemble_internal_forces_of(
-                    law.as_ref(),
-                    fe,
-                    &mesh,
-                    self.base.spatial_dimension,
-                    ghost,
-                    &mut f_int,
-                    &mut self.assembly_scratch,
-                )?;
+        let mut scope = match es {
+            Some(_) => Some(dofs.phases()?),
+            None => None,
+        };
+        let mut posted = match (es, &nb_quad, scope.as_deref_mut()) {
+            (Some(es), Some(nb_quad), Some(ph)) => {
+                let acc = super::parallel::StressAccessor {
+                    materials: &mut self.materials,
+                    nb_quad,
+                    dim,
+                };
+                Some(es.post_in(ph, &acc, akantu_core::enums::SynchronizationTag::SmmStress)?)
             }
+            _ => None,
+        };
+        for ghost in GhostType::ALL {
+            let pass = (|| -> Result<()> {
+                for (law_index, law) in self.materials.laws().iter().enumerate() {
+                    // laws with their own residual (cohesive laws)
+                    // assemble at their position in the loop (upstream virtual
+                    // `Material::assembleInternalForces`)
+                    if let Some(r) = law.assemble_internal_forces_custom(
+                        &self.base.fems,
+                        &mesh,
+                        ghost,
+                        f_int.view_mut(),
+                    ) {
+                        r?;
+                        continue;
+                    }
+                    assemble_internal_forces_of(
+                        law_index,
+                        law.as_ref(),
+                        fe,
+                        &mesh,
+                        dim,
+                        ghost,
+                        &mut f_int,
+                        &mut self.assembly_scratch[ghost.index()],
+                    )?;
+                }
+                Ok(())
+            })();
+            if let (Some(p), Some(es), Some(nb_quad), Some(ph)) =
+                (posted.take(), es, &nb_quad, scope.as_deref_mut())
+            {
+                // after the not-ghost pass, whatever its outcome
+                let mut acc = super::parallel::StressAccessor {
+                    materials: &mut self.materials,
+                    nb_quad,
+                    dim,
+                };
+                es.wait_in(ph, p, &mut acc, pass)?;
+                continue;
+            }
+            pass?;
         }
+        drop(scope);
         let (len, nbc) = (f_int.len(), f_int.nb_component());
         // On a distributed periodic mesh through the running
         // operation's scope
@@ -427,6 +564,7 @@ impl SolidMechanicsPhysics {
                 law.take_deferred_error()?;
             }
         }
+        need_to_reassemble |= self.need_to_reassemble_stiffness;
         if !need_to_reassemble {
             return Ok(());
         }
@@ -472,6 +610,7 @@ impl SolidMechanicsPhysics {
                 )?;
             }
         }
+        self.need_to_reassemble_stiffness = false;
         Ok(())
     }
 
@@ -662,7 +801,9 @@ pub(crate) fn nb_quad_map(
 /// (`computeBtD` on `stress`), integrated, assembled with `−1`; finite
 /// deformation: the total-Lagrangian residual. `scratch` holds the
 /// intermediate arrays between calls (fully overwritten by each use).
+#[allow(clippy::too_many_arguments)] // the law and its index, the block, the output, the buffers
 pub(crate) fn assemble_internal_forces_of(
+    law_index: usize,
     law: &dyn Material,
     fe: &FeEngine,
     mesh: &Mesh,
@@ -687,6 +828,8 @@ pub(crate) fn assemble_internal_forces_of(
         let AssemblyScratch {
             per_point,
             per_element: r_e,
+            scatters,
+            ..
         } = &mut *scratch;
         if law.base().finite_deformation {
             finite_deformation::internal_forces(law, fe, dim, ty, ghost, &filter, per_point, r_e)?;
@@ -698,14 +841,16 @@ pub(crate) fn assemble_internal_forces_of(
             fe.compute_btd(stress.view(), sigma_dphi, ty, ghost, Some(&filter))?;
             fe.integrate(sigma_dphi.view(), r_e, dim * nn, ty, ghost, Some(&filter))?;
         }
-        DofManager::assemble_elemental_array_local_view(
+        scatter_block(
+            fe.exec(),
             mesh,
-            r_e.view(),
-            f_int.view_mut(),
+            r_e,
+            f_int,
             ty,
             ghost,
-            -1.0,
-            Some(&filter),
+            &filter,
+            (law_index, ty, ghost),
+            scatters,
         )?;
     }
     Ok(())
@@ -802,4 +947,89 @@ pub(crate) fn elemental_stiffness_of(
         out.push((ty, filter, k_e));
     }
     Ok(out)
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+    use akantu_core::exec::{Exec, ExecPolicy, Grain};
+    use akantu_mesh::MeshAccessor;
+
+    /// Two triangles; nodal array of 4 nodes × 2 components.
+    fn two_triangles() -> Mesh {
+        let mut m = Mesh::new(2, "m").unwrap();
+        {
+            let mut a = MeshAccessor::new(&mut m);
+            for x in [[0.0, 0.0], [1.0, 0.0], [1.0, 1.0], [0.0, 1.0]] {
+                a.push_node(&x).unwrap();
+            }
+            let mut c = a.connectivity_mut(ElementType::Triangle3, GhostType::NotGhost);
+            c.push_tuple(&[0, 1, 2]);
+            c.push_tuple(&[0, 2, 3]);
+        }
+        m
+    }
+
+    fn run(
+        exec: &Exec,
+        mesh: &Mesh,
+        r_e: &Array<Real>,
+        ty: ElementType,
+        filter: &[Idx],
+    ) -> (Result<()>, Vec<Real>) {
+        let mut f = akantu_core::SharedArray::new(Array::zeros(4, 2));
+        let mut guard = f.write().unwrap();
+        let mut scatters = std::collections::HashMap::new();
+        let r = scatter_block(
+            exec,
+            mesh,
+            r_e,
+            &mut guard,
+            ty,
+            GhostType::NotGhost,
+            filter,
+            (0, ty, GhostType::NotGhost),
+            &mut scatters,
+        );
+        (r, guard.as_slice().to_vec())
+    }
+
+    /// The threaded scatter returns what the serial routine returns: `Ok`
+    /// for an empty block of a type the mesh does not have (before any
+    /// access to its connectivity), the same error for a wrong number of
+    /// element vectors or an element out of range, the same values
+    /// otherwise.
+    #[test]
+    fn threaded_scatter_matches_the_serial_routine_on_edge_cases() {
+        let mesh = two_triangles();
+        let serial = Exec::serial();
+        let threaded = Exec::new(
+            ExecPolicy::serial()
+                .with_threads(2)
+                .unwrap()
+                .with_grain(Grain::Finest),
+        )
+        .unwrap();
+        let empty = Array::new(6);
+        let one = Array::from_vec((0..6).map(Real::from).collect(), 6).unwrap();
+        let two = Array::from_vec((0..12).map(Real::from).collect(), 6).unwrap();
+        let cases: [(&Array<Real>, ElementType, &[Idx]); 4] = [
+            (&empty, ElementType::Tetrahedron4, &[]),
+            (&one, ElementType::Triangle3, &[0, 1]),
+            (&one, ElementType::Triangle3, &[5]),
+            (&two, ElementType::Triangle3, &[1, 0]),
+        ];
+        for (r_e, ty, filter) in cases {
+            let (rs, vs) = run(&serial, &mesh, r_e, ty, filter);
+            let (rt, vt) = run(&threaded, &mesh, r_e, ty, filter);
+            assert_eq!(
+                rs.as_ref().map_err(ToString::to_string),
+                rt.as_ref().map_err(ToString::to_string),
+                "{ty:?} {filter:?}"
+            );
+            if rs.is_ok() {
+                assert_eq!(vs, vt);
+            }
+        }
+    }
 }

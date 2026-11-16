@@ -1,0 +1,84 @@
+# Profile of suite case cohesive_extrinsic_check
+
+binary: ~/w/gebp/bin/final-solid (183c6b69e2f07f7d)
+command: taskset -c 3 ~/w/gebp/bin/final-solid --case cohesive_extrinsic_check --size m --loop-seconds 4
+perf: perf record -F 499 --call-graph dwarf,16384
+cpu: AMD EPYC 9B45
+date_utc: 2026-11-16T11:20:01Z
+commit: 184dbb6e5
+
+## Phases of the profiled run (seconds, calls)
+
+mesh                         0.0020 s       1 calls
+init                         0.7735 s       1 calls
+check_insertion              3.3509 s     100 calls
+solve_step                   4.9359 s     500 calls
+
+## Top 25 symbols, self time
+
+    13.58%  [.] akantu_solid::model::assembly::finite_deformation::fast::residuals
+    12.17%  [.] akantu_core::eigen_kernels::gebp_shallow_colmajor
+    10.98%  [.] <akantu_cohesive::model::SolidMechanicsModelCohesive>::interpolate_stress
+     9.54%  [.] akantu_solid::material_tensor::s_to_cauchy::<3>
+     8.97%  [.] <akantu_cohesive::laws::linear::Linear>::check_insertion
+     6.10%  [.] akantu_fe::engine::fast::gradient::<akantu_fe::element_class::types::Tetrahedron4>
+     5.77%  [.] akantu_mesh::utils::plan_facets
+     4.89%  [.] <akantu_solver::dof_manager::DofManager>::assemble_elemental_array_local_view
+     4.04%  [.] <akantu_solid::materials::elastic::MaterialElastic<3> as akantu_solid::material::Material>::compute_stress
+     2.85%  [.] akantu_fe::engine::fast::integrate::<<akantu_fe::engine::FeEngine>::integrate::{closure#0}>
+     1.86%  [.] akantu_fe::eigen::product_slices
+     1.69%  [.] <akantu_solid::material::MaterialBase>::compute_all_cauchy_stresses
+     1.60%  [.] 0x00000000001a18eb
+     1.21%  [.] akantu_solid::material::grad_u_in_place
+     1.10%  [.] 0x00000000001a18ff
+     1.08%  [.] 0x00000000001a18f2
+     0.80%  [.] akantu_core::eigen_kernels::coeff_seq_unrolled
+     0.80%  [.] 0x00000000001a18f9
+     0.67%  [.] <alloc::vec::Vec<usize> as alloc::vec::spec_from_iter::SpecFromIter<usize, core::iter::adapters::GenericShunt<core::iter::adapters::map::Map<core::slice::iter::Iter<i32>, akantu_fe::engine::resolve_filter::{closure#0}::{closure#0}>, core::result::Result<core::convert::Infallible, akantu_core::error::Error>>>>::from_iter
+     0.63%  [.] akantu_core::eigen_gebp::route
+     0.56%  [.] 0x00000000001a1e44
+     0.48%  [.] <akantu_solver::dof_manager::DofManager>::assemble_to_residual
+     0.43%  [.] 0x00000000001a1846
+     0.41%  [.] 0x00000000001a1e40
+     0.41%  [.] 0x00000000001a1e6e
+
+## Top 25 symbols, inclusive time (children)
+
+    13.58%    13.58%  [.] akantu_solid::model::assembly::finite_deformation::fast::residuals
+    12.17%    12.17%  [.] akantu_core::eigen_kernels::gebp_shallow_colmajor
+    10.98%    10.98%  [.] <akantu_cohesive::model::SolidMechanicsModelCohesive>::interpolate_stress
+     9.54%     9.54%  [.] akantu_solid::material_tensor::s_to_cauchy::<3>
+     8.97%     8.97%  [.] <akantu_cohesive::laws::linear::Linear>::check_insertion
+     6.10%     6.10%  [.] akantu_fe::engine::fast::gradient::<akantu_fe::element_class::types::Tetrahedron4>
+     5.69%     5.69%  [.] akantu_mesh::utils::plan_facets
+     4.89%     4.89%  [.] <akantu_solver::dof_manager::DofManager>::assemble_elemental_array_local_view
+     4.04%     4.04%  [.] <akantu_solid::materials::elastic::MaterialElastic<3> as akantu_solid::material::Material>::compute_stress
+     2.85%     2.85%  [.] akantu_fe::engine::fast::integrate::<<akantu_fe::engine::FeEngine>::integrate::{closure#0}>
+     1.86%     1.86%  [.] akantu_fe::eigen::product_slices
+     1.69%     1.69%  [.] <akantu_solid::material::MaterialBase>::compute_all_cauchy_stresses
+     1.60%     1.60%  [.] 0x00000000001a18eb
+     1.60%     0.00%  [.] 0x000078daa03a18eb
+     1.21%     1.21%  [.] akantu_solid::material::grad_u_in_place
+     1.10%     1.10%  [.] 0x00000000001a18ff
+     1.10%     0.00%  [.] 0x000078daa03a18ff
+     1.08%     1.08%  [.] 0x00000000001a18f2
+     1.08%     0.00%  [.] 0x000078daa03a18f2
+     0.80%     0.80%  [.] akantu_core::eigen_kernels::coeff_seq_unrolled
+     0.80%     0.80%  [.] 0x00000000001a18f9
+     0.80%     0.00%  [.] 0x000078daa03a18f9
+     0.67%     0.67%  [.] <alloc::vec::Vec<usize> as alloc::vec::spec_from_iter::SpecFromIter<usize, core::iter::adapters::GenericShunt<core::iter::adapters::map::Map<core::slice::iter::Iter<i32>, akantu_fe::engine::resolve_filter::{closure#0}::{closure#0}>, core::result::Result<core::convert::Infallible, akantu_core::error::Error>>>>::from_iter
+     0.65%     0.19%  [k] do_user_addr_fault
+     0.65%     0.00%  [.] asm_exc_page_fault
+
+## Call chains (callers of the hottest self-time symbols, entries above 2 %)
+
+    13.58%  [.] akantu_solid::model::assembly::finite_deformation::fast::residuals
+    12.17%  [.] akantu_core::eigen_kernels::gebp_shallow_colmajor
+    10.98%  [.] <akantu_cohesive::model::SolidMechanicsModelCohesive>::interpolate_stress
+     9.54%  [.] akantu_solid::material_tensor::s_to_cauchy::<3>
+     8.97%  [.] <akantu_cohesive::laws::linear::Linear>::check_insertion
+     6.10%  [.] akantu_fe::engine::fast::gradient::<akantu_fe::element_class::types::Tetrahedron4>
+     5.77%  [.] akantu_mesh::utils::plan_facets
+     4.89%  [.] <akantu_solver::dof_manager::DofManager>::assemble_elemental_array_local_view
+     4.04%  [.] <akantu_solid::materials::elastic::MaterialElastic<3> as akantu_solid::material::Material>::compute_stress
+     2.85%  [.] akantu_fe::engine::fast::integrate::<<akantu_fe::engine::FeEngine>::integrate::{closure#0}>

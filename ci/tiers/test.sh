@@ -1,7 +1,8 @@
 #!/usr/bin/env bash
 # SPDX-License-Identifier: LGPL-3.0-or-later
 # akantu-rs CI tooling, not ported from Akantu (rows CI-003…CI-006, CI-020: ctest → cargo test).
-# test: cargo test --workspace --locked --no-fail-fast, every test binary accounted for
+# test: cargo test --workspace --locked --no-fail-fast, every test binary accounted for;
+# then exec_threads.rs and the fixture tests of akantu-solid at 3 threads, finest grain (step `threads`)
 #
 # Steps: `cargo fetch --locked` (every package of Cargo.lock in the cargo
 # registry: the licence tests `license_separation` / `license_guard` run
@@ -75,6 +76,18 @@ else
   : > "$(ci_file checks.txt)"
   ci_step analyze --host -- python3 "$tooling/analyze_tests.py" --job-dir "$CI_TIER_DIR" --repo "$CI_REPO" --known-failures "$kf"
   ci_step floor --host -- python3 -I "$here/tools/count_tests.py" "$(ci_file test.log)" --floors "$here/floors.txt" --key "$floor_key"
+fi
+
+# The thread-count invariant of the execution policy (D-123): exec_threads.rs
+# and the fixture tests of akantu-solid run again with 3 threads and every
+# batch split as finely as possible, and must give the one-thread bits
+# (about 35 s of test time on 4 cores). The whole of akantu-solid and
+# akantu-solver at 3 threads (about 4 minutes) runs in the `release` tier.
+solid_thread_tests="exec_threads material_fixtures material_fixtures_mat3 inelastic_material_fixtures model_fixtures model_smm_fixtures model_smm_fd_fixtures neohookean_kernel_fixtures non_local_fixtures upstream_solid_mechanics_model_material_eigenstrain"
+if [ "$tier" = test ] && [ -f "$CI_REPO/crates/akantu-solid/Cargo.toml" ]; then
+  thread_args=()
+  for t in $solid_thread_tests; do thread_args+=(--test "$t"); done
+  ci_step threads -- env AKANTU_NUM_THREADS=3 AKANTU_EXEC_GRAIN=finest cargo test --locked -p akantu-solid "${thread_args[@]}"
 fi
 
 ci_tier_end

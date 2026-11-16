@@ -284,8 +284,77 @@ pub enum OutwardFrame<'a> {
     /// Current positions of the detection mesh's nodes (shared with the
     /// parent mesh for a facet mesh).
     Current(&'a Array<Real>),
+    /// As [`OutwardFrame::Current`], with the directions memoised per
+    /// facet in `cache` (the positions must not change while the cache's
+    /// generation lasts, see [`OutwardCache::next_generation`]).
+    CurrentCached(&'a Array<Real>, &'a std::cell::RefCell<OutwardCache>),
     /// Reference mesh nodes (upstream).
     Reference,
+}
+
+/// Memo of the outward directions ([`outside_direction_current`]) of
+/// facets for one set of positions: a contact search projects every slave
+/// on the facets around its master node, so a facet is oriented many times
+/// on the same positions. The stored direction is the computed one, so a
+/// cached orientation is identical to an uncached one.
+#[derive(Clone, Debug, Default)]
+pub struct OutwardCache {
+    generation: u32,
+    /// Per (type, ghost type): the generation each facet was stored in and
+    /// its direction.
+    tables: Vec<OutwardTable>,
+}
+
+/// One (type, ghost type) of an [`OutwardCache`]: stamps and directions.
+type OutwardTable = (ElementType, GhostType, Vec<u32>, Vec<[Real; 3]>);
+
+impl OutwardCache {
+    /// Forget every stored direction (new positions).
+    pub fn next_generation(&mut self) {
+        self.generation = self.generation.wrapping_add(1);
+        if self.generation == 0 {
+            // wrapped: clear the stamps so that none matches
+            for t in &mut self.tables {
+                t.2.fill(0);
+            }
+            self.generation = 1;
+        }
+    }
+
+    fn get(&self, element: Element) -> Option<[Real; 3]> {
+        let (_, _, stamps, dirs) = self
+            .tables
+            .iter()
+            .find(|t| t.0 == element.ty() && t.1 == element.ghost_type())?;
+        let i = element.idx();
+        (self.generation != 0 && stamps.get(i) == Some(&self.generation)).then(|| dirs[i])
+    }
+
+    fn put(&mut self, element: Element, dir: [Real; 3]) {
+        if self.generation == 0 {
+            self.generation = 1;
+        }
+        let pos = match self
+            .tables
+            .iter()
+            .position(|t| t.0 == element.ty() && t.1 == element.ghost_type())
+        {
+            Some(p) => p,
+            None => {
+                self.tables
+                    .push((element.ty(), element.ghost_type(), Vec::new(), Vec::new()));
+                self.tables.len() - 1
+            }
+        };
+        let (_, _, stamps, dirs) = &mut self.tables[pos];
+        let i = element.idx();
+        if stamps.len() <= i {
+            stamps.resize(i + 1, 0);
+            dirs.resize(i + 1, [0.0; 3]);
+        }
+        stamps[i] = self.generation;
+        dirs[i] = dir;
+    }
 }
 
 impl<'a> OutwardFrame<'a> {
@@ -382,6 +451,70 @@ pub fn outside_direction(view: &MeshView<'_>, element: Element, out: &mut [Real]
     Ok(())
 }
 
+/// Barycentre of `element` of `mesh` on the node coordinates `nodes`
+/// (`dim` values per node): the arithmetic of `Mesh::barycenter_into` (sum
+/// in connectivity order, then division) without its per-call lock.
+fn barycenter_in(mesh: &Mesh, nodes: &[Real], element: Element, out: &mut [Real]) -> Result<()> {
+    let dim = out.len();
+    let conn = mesh.element_connectivity(element)?;
+    out.fill(0.0);
+    for &n in &conn {
+        let i = try_to_usize(n)?;
+        let x = nodes.get(i * dim..(i + 1) * dim).ok_or(Error::OutOfRange {
+            what: "outward direction: node",
+            index: i,
+            len: nodes.len() / dim.max(1),
+        })?;
+        for (xi, &c) in out.iter_mut().zip(x) {
+            *xi += c;
+        }
+    }
+    #[allow(clippy::cast_precision_loss)] // node counts are tiny
+    let inv = conn.len() as Real;
+    for xi in out {
+        *xi /= inv;
+    }
+    Ok(())
+}
+
+/// [`outside_direction`] with the node coordinates of the mesh
+/// (`mesh_nodes`) and of the parent mesh of a facet view (`parent_nodes`)
+/// read once by the caller: the same values, without a lock per
+/// barycentre.
+///
+/// # Errors
+/// As [`outside_direction`]; node arrays shorter than the meshes' nodes.
+pub fn outside_direction_with_nodes(
+    view: &MeshView<'_>,
+    mesh_nodes: &[Real],
+    parent_nodes: Option<&[Real]>,
+    element: Element,
+    out: &mut [Real],
+) -> Result<()> {
+    let dim = view.dim();
+    let row = view.element_to_subelement(element)?;
+    let first = row
+        .first()
+        .copied()
+        .filter(|e| !e.is_null())
+        .ok_or_else(|| Error::Mesh(format!("facet {element} has no neighbour element")))?;
+    let mut inside = [0.0; 3];
+    match (view.parent, parent_nodes) {
+        (Some(p), Some(pn)) => barycenter_in(p, pn, first, &mut inside[..dim])?,
+        (Some(_), None) => {
+            return Err(Error::invalid(
+                "outside_direction_with_nodes: a facet view needs the parent's nodes",
+            ));
+        }
+        (None, _) => barycenter_in(view.mesh, mesh_nodes, first, &mut inside[..dim])?,
+    }
+    barycenter_in(view.mesh, mesh_nodes, element, &mut out[..dim])?;
+    for (o, i) in out[..dim].iter_mut().zip(&inside) {
+        *o -= i;
+    }
+    Ok(())
+}
+
 /// Flip `normal` (and `tangents`) when it points into the neighbour
 /// element (`outsideDirection · n < 0`), the direction evaluated on
 /// `frame` (UD-371).
@@ -396,6 +529,15 @@ fn orient_outward(
     let mut dir = [0.0; 3];
     match frame {
         OutwardFrame::Current(p) => outside_direction_current(view, p, element, &mut dir)?,
+        OutwardFrame::CurrentCached(p, cache) => {
+            let known = cache.borrow().get(element);
+            if let Some(d) = known {
+                dir = d;
+            } else {
+                outside_direction_current(view, p, element, &mut dir)?;
+                cache.borrow_mut().put(element, dir);
+            }
+        }
         OutwardFrame::Reference => outside_direction(view, element, &mut dir)?,
     }
     if dot(&dir[..dim], &normal[..dim]) < 0.0 {
@@ -877,6 +1019,25 @@ pub fn orthogonal_projection(
     surface: &ContactSurface,
     params: &ProjectionParameters,
 ) -> Result<Option<OrthogonalProjection>> {
+    let frame = OutwardFrame::of(params.orientation, positions);
+    orthogonal_projection_in(view, positions, slave, elements, surface, params, frame)
+}
+
+/// [`orthogonal_projection`] with the normals oriented on `frame` (which
+/// must be the frame of `params.orientation` on `positions`, possibly
+/// cached: [`OutwardFrame::CurrentCached`]).
+///
+/// # Errors
+/// As [`orthogonal_projection`].
+pub fn orthogonal_projection_in(
+    view: &MeshView<'_>,
+    positions: &Array<Real>,
+    slave: &[Real],
+    elements: &[Element],
+    surface: &ContactSurface,
+    params: &ProjectionParameters,
+    frame: OutwardFrame<'_>,
+) -> Result<Option<OrthogonalProjection>> {
     let dim = view.dim();
     let sd = dim - 1;
     // upstream's candidate (box rule) and, for the corrected rule, the best
@@ -909,12 +1070,7 @@ pub fn orthogonal_projection(
         )?;
         let mut tangents = [0.0; 6];
         covariant_basis(coords, dim, element.ty(), &np.xi[..sd], &mut tangents)?;
-        let normal = normal_from_tangents(
-            view,
-            element,
-            &mut tangents,
-            Some(OutwardFrame::of(params.orientation, positions)),
-        )?;
+        let normal = normal_from_tangents(view, element, &mut tangents, Some(frame))?;
         let mut master_to_slave = [0.0; 3];
         for i in 0..dim {
             master_to_slave[i] = slave[i] - np.master[i];

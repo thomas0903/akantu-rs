@@ -52,6 +52,7 @@ pub(crate) mod cfmt;
 mod derived;
 mod dumpable;
 mod eval;
+mod exact_digits;
 pub mod group;
 mod lammps;
 mod paraview;

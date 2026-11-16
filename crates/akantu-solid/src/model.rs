@@ -51,6 +51,7 @@ use akantu_core::enums::{
     NonLinearSolverType, TimeStepSolverType,
 };
 use akantu_core::error::if_present;
+use akantu_core::exec::{Exec, ExecPolicy};
 use akantu_core::tensor::MatrixX;
 use akantu_core::{
     Array, Element, ElementType, ElementTypeMapArray, Error, GhostType, Id, Idx, Real, Result,
@@ -273,6 +274,9 @@ pub struct SolidMechanicsPhysics {
     current_position_release: i64,
     need_to_reassemble_lumped_mass: bool,
     need_to_reassemble_mass: bool,
+    /// `K` was released (`release_static_solver`): reassemble it at its
+    /// next assembly whatever the laws answer.
+    pub(crate) need_to_reassemble_stiffness: bool,
     external_work: Real,
     external_work_release: i64,
     /// Upstream `f_m2a` (kept for API parity; unused by upstream code).
@@ -297,8 +301,11 @@ pub struct SolidMechanicsPhysics {
     handlers: Vec<RegisteredHandler>,
     /// Next [`EventHandlerId`] (registration counter).
     next_handler_id: u64,
-    /// Reused buffers of the internal-force assembly.
-    assembly_scratch: assembly::AssemblyScratch,
+    /// Reused buffers of the internal-force assembly, one set per ghost
+    /// type: the not-ghost and the ghost passes of a distributed step have
+    /// different block sizes, and one shared set would be shrunk and grown
+    /// back (zero-filled) twice per step.
+    assembly_scratch: [assembly::AssemblyScratch; 2],
 }
 
 /// Handle of a user event handler, returned by
@@ -534,6 +541,7 @@ impl SolidMechanicsModel {
             current_position_release: 0,
             need_to_reassemble_lumped_mass: true,
             need_to_reassemble_mass: true,
+            need_to_reassemble_stiffness: false,
             external_work: 0.0,
             external_work_release: -1,
             f_m2a: 1.0,
@@ -542,7 +550,7 @@ impl SolidMechanicsModel {
             time_step: 0.0,
             handlers: Vec::new(),
             next_handler_id: 0,
-            assembly_scratch: assembly::AssemblyScratch::default(),
+            assembly_scratch: Default::default(),
         };
         // upstream initDOFManager(dof_manager) (`model_solver.cc:78-95`):
         // the section's dof_manager_type (`default`; `petsc` with the opt-in
@@ -568,6 +576,10 @@ impl SolidMechanicsModel {
             let dim = physics.base.spatial_dimension;
             physics.base.fems.register(FE_ENGINE_NAME, &m, dim)?;
         }
+        // the process default execution policy (D-123)
+        let exec = Exec::new(ExecPolicy::process_default()?)?;
+        physics.base.fems.set_exec(&exec);
+        solver.dof_manager.set_exec(exec);
         let dumpers = SmmDumpers::new(id, physics.base.spatial_dimension)?;
         physics.time_step = solver.time_step(None).unwrap_or(0.0);
         Ok(Self {
@@ -596,7 +608,33 @@ impl SolidMechanicsModel {
     pub fn init_dof_manager(&mut self, dof_manager_type: &str) -> Result<()> {
         let comm = self.physics.base.mesh.read()?.communicator().clone();
         let id = self.physics.base.id.clone();
-        self.solver.init_dof_manager(dof_manager_type, &id, &comm)
+        self.solver.init_dof_manager(dof_manager_type, &id, &comm)?;
+        let exec = self.physics.base.fems.exec().clone();
+        self.solver.dof_manager.set_exec(exec);
+        Ok(())
+    }
+
+    /// The execution policy of the model's kernels (D-123): precision
+    /// mode, threads, SIMD level. A new model takes
+    /// [`ExecPolicy::process_default`].
+    #[must_use]
+    pub fn exec_policy(&self) -> ExecPolicy {
+        self.physics.base.fems.exec().policy()
+    }
+
+    /// Set the execution policy of the model's kernels: its FE engines, its
+    /// DOF manager's integration-scheme loops, its laws' per-point loops and
+    /// its internal-force assembly. May be called at any time between two
+    /// steps. With [`akantu_core::exec::Precision::Bitwise`] every result is
+    /// bitwise the same for every thread count and SIMD level.
+    ///
+    /// # Errors
+    /// The operating system refuses the threads.
+    pub fn set_exec_policy(&mut self, policy: ExecPolicy) -> Result<()> {
+        let exec = Exec::new(policy)?;
+        self.physics.base.fems.set_exec(&exec);
+        self.solver.dof_manager.set_exec(exec);
+        Ok(())
     }
 
     /// Upstream `initFull(options)` (SMM-002, MODEL-002): method; default
@@ -2057,6 +2095,40 @@ impl SolidMechanicsModel {
             .collective("smm:assemble_internal_forces", |dm| {
                 p.assemble_internal_forces(dm)
             })
+    }
+
+    /// Release the memory of the static solver once the caller will not
+    /// solve again with the current operator (port extension, not called by
+    /// the library: upstream keeps the factors and the matrices for the
+    /// model's lifetime). Freed: the analysis and factorisation of `J`'s
+    /// sparse solver (MUMPS: its instance, an agreed collective), all of
+    /// `J` (it is rebuilt from `K`), and `K`'s values and lookup map. Kept:
+    /// `K`'s coordinates in their storage order (16 bytes per entry) and the
+    /// record of its profile. A later solve assembles `K` again (whatever
+    /// the laws report) into the kept profile, so every entry keeps its
+    /// position, rebuilds `J` from it and analyses and factorises again:
+    /// the results are bitwise those of a run without the release, also
+    /// for a profile that grew after the first assembly (contact) or a
+    /// matrix promoted to unsymmetric storage. Typical use: after the static
+    /// preload of an explicit run. Do not call it between the steps of an
+    /// implicit run: each step would pay a new assembly, analysis and
+    /// factorisation.
+    ///
+    /// **Collective** (every rank, same program point, outside any
+    /// collective operation). Errors: [`akantu_core::Error::Unsupported`]
+    /// for a backend that cannot release its factorisation (PETSc), before
+    /// any matrix is released.
+    pub fn release_static_solver(&mut self) -> Result<()> {
+        let dm = &mut self.solver.dof_manager;
+        if dm.has_matrix("J") {
+            dm.release_factorization("J")?;
+            dm.release_matrix("J")?;
+        }
+        if dm.has_matrix("K") {
+            dm.release_matrix_values("K")?;
+            self.physics.need_to_reassemble_stiffness = true;
+        }
+        Ok(())
     }
 
     /// Upstream `assembleStiffnessMatrix(need_to_reassemble)`.

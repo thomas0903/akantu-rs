@@ -164,13 +164,18 @@ pub fn cases() -> Vec<Case> {
         ),
         parallel(
             "explicit_step_dist_tet4",
-            "distributed explicit elastic solve_step (the exchanges inside a real step); also runs serially",
+            "distributed explicit elastic solve_step (the exchanges inside a real step); also runs serially; extra fields: agreements per call and their time on the fastest / slowest rank",
             d::explicit_step_dist_tet4,
         ),
         serial(
             "parser_dat",
             "parse a .dat input of 2000 sections with expressions, then evaluate every parameter",
             io::parser_dat,
+        ),
+        serial(
+            "parser_chain",
+            "evaluate the last of a chain of parameters that each refer twice to the previous one (variable re-evaluation)",
+            io::parser_chain,
         ),
         serial(
             "dump_paraview_tet4",

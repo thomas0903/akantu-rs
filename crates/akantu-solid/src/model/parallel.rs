@@ -108,21 +108,70 @@ impl DataAccessor<Element> for LawIdAccessor<'_> {
 
 /// Elements of `elements` split by law (upstream `splitByConstitutiveLaw`):
 /// for every law in order, `(element, law-local index)` in input order.
+///
+/// The law index and law-local numbering blocks are looked up once per run
+/// of consecutive elements of one `(type, ghost)` (the synchronizer schemes
+/// are sorted that way), not once per element.
 fn split_by_law(
     materials: &ConstitutiveLawsHandler<dyn Material>,
     elements: &[Element],
 ) -> Result<Vec<Vec<(Element, usize)>>> {
-    let mut out: Vec<Vec<(Element, usize)>> = vec![Vec::new(); materials.nb_laws()];
-    for &e in elements {
-        let li = materials.law_index_map().element_ref(e)?[0];
-        let law = akantu_core::decode_idx(li)?
-            .ok_or_else(|| Error::invalid(format!("{e} has no constitutive law")))?;
-        let local = akantu_core::try_to_usize(materials.local_numbering_map().element(e)?[0])?;
-        out.get_mut(law)
-            .ok_or_else(|| Error::invalid(format!("{e}: law {law} out of range")))?
-            .push((e, local));
+    let nb_laws = materials.nb_laws();
+    let mut out: Vec<Vec<(Element, usize)>> = vec![Vec::new(); nb_laws];
+    if let [only] = out.as_mut_slice() {
+        only.reserve_exact(elements.len());
+    }
+    let law_index = materials.law_index_map();
+    let numbering = materials.local_numbering_map();
+    for run in type_runs(elements, |e| *e) {
+        let (ty, ghost) = (run[0].ty(), run[0].ghost_type());
+        let laws = law_index.get(ty, ghost)?;
+        let locals = numbering.get(ty, ghost)?;
+        let (lnc, nnc) = (laws.nb_component(), locals.nb_component());
+        let (laws, locals) = (laws.as_slice(), locals.as_slice());
+        for &e in run {
+            let i = e
+                .try_idx()
+                .ok_or_else(|| Error::invalid("ElementTypeMapArray::element: ElementNull"))?;
+            let li = *laws.get(i * lnc).ok_or(Error::OutOfRange {
+                what: "element",
+                index: i,
+                len: laws.len() / lnc.max(1),
+            })?;
+            let law = akantu_core::decode_idx(li)?
+                .ok_or_else(|| Error::invalid(format!("{e} has no constitutive law")))?;
+            let local = *locals.get(i * nnc).ok_or(Error::OutOfRange {
+                what: "element",
+                index: i,
+                len: locals.len() / nnc.max(1),
+            })?;
+            let local = akantu_core::try_to_usize(local)?;
+            out.get_mut(law)
+                .ok_or_else(|| Error::invalid(format!("{e}: law {law} out of range")))?
+                .push((e, local));
+        }
     }
     Ok(out)
+}
+
+/// The maximal runs of consecutive items whose elements (`key`) share one
+/// `(type, ghost)` block, in order.
+fn type_runs<T>(items: &[T], key: impl Fn(&T) -> Element) -> impl Iterator<Item = &[T]> {
+    let mut rest = items;
+    std::iter::from_fn(move || {
+        let first = key(rest.first()?);
+        let (ty, ghost) = (first.ty(), first.ghost_type());
+        let n = rest
+            .iter()
+            .position(|x| {
+                let e = key(x);
+                e.ty() != ty || e.ghost_type() != ghost
+            })
+            .unwrap_or(rest.len());
+        let (run, tail) = rest.split_at(n);
+        rest = tail;
+        Some(run)
+    })
 }
 
 /// `_smm_stress` / `_smm_gradu` accessor (upstream `Material` pack/unpack,
@@ -202,11 +251,11 @@ impl DataAccessor<Element> for StressAccessor<'_> {
                 return usize::MAX;
             };
             let per_q = Self::fields(l, tag).len() * self.dim * self.dim * R;
-            for &(e, _) in els {
-                let Ok(nq) = self.nq(e.ty()) else {
+            for run in type_runs(els, |x| x.0) {
+                let Ok(nq) = self.nq(run[0].0.ty()) else {
                     return usize::MAX;
                 };
-                size = size.saturating_add(per_q.saturating_mul(nq));
+                size = size.saturating_add(per_q.saturating_mul(nq).saturating_mul(run.len()));
             }
         }
         size
@@ -226,14 +275,19 @@ impl DataAccessor<Element> for StressAccessor<'_> {
             let l = self.materials.law(law)?;
             for name in Self::fields(l, tag) {
                 let f = field(l, name)?;
-                for &(e, local) in els {
-                    let nq = self.nq(e.ty())?;
-                    let a = f.get(e.ty(), e.ghost_type())?;
-                    let start = local * nq * dd;
-                    let vals = a.as_slice().get(start..start + nq * dd).ok_or_else(|| {
-                        Error::invalid(format!("{e}: {name} has no values (law-local {local})"))
-                    })?;
-                    buffer.pack_slice(vals);
+                for run in type_runs(els, |x| x.0) {
+                    let (ty, ghost) = (run[0].0.ty(), run[0].0.ghost_type());
+                    let nq = self.nq(ty)?;
+                    let a = f.get(ty, ghost)?;
+                    let a = a.as_slice();
+                    let w = nq * dd;
+                    for &(e, local) in run {
+                        let start = local * w;
+                        let vals = a.get(start..start + w).ok_or_else(|| {
+                            Error::invalid(format!("{e}: {name} has no values (law-local {local})"))
+                        })?;
+                        buffer.pack_slice(vals);
+                    }
                 }
             }
         }
@@ -253,22 +307,24 @@ impl DataAccessor<Element> for StressAccessor<'_> {
             }
             let names = Self::fields(self.materials.law(law)?, tag);
             for name in names {
-                let mut nqs = Vec::with_capacity(els.len());
-                for &(e, _) in els {
-                    nqs.push(self.nq(e.ty())?);
+                let mut nqs = Vec::new();
+                for run in type_runs(els, |x| x.0) {
+                    nqs.push(self.nq(run[0].0.ty())?);
                 }
                 let l = self.materials.law_mut(law)?;
                 let f = field_mut(l, name)?;
-                for (&(e, local), &nq) in els.iter().zip(&nqs) {
-                    let mut a = f.get_mut(e.ty(), e.ghost_type())?;
-                    let start = local * nq * dd;
-                    let vals = a
-                        .as_mut_slice()
-                        .get_mut(start..start + nq * dd)
-                        .ok_or_else(|| {
+                for (run, &nq) in type_runs(els, |x| x.0).zip(&nqs) {
+                    let (ty, ghost) = (run[0].0.ty(), run[0].0.ghost_type());
+                    let mut a = f.get_mut(ty, ghost)?;
+                    let a = a.as_mut_slice();
+                    let w = nq * dd;
+                    for &(e, local) in run {
+                        let start = local * w;
+                        let vals = a.get_mut(start..start + w).ok_or_else(|| {
                             Error::invalid(format!("{e}: {name} has no values (law-local {local})"))
                         })?;
-                    buffer.unpack_slice(vals)?;
+                        buffer.unpack_slice(vals)?;
+                    }
                 }
             }
         }
