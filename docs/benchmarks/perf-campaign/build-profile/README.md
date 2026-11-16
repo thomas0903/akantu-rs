@@ -17,11 +17,11 @@ CPU". Tooling: `scripts/perf/build/`.
   clean build takes 1.3× (one codegen unit, thin LTO) to 2.4× (fat LTO)
   as long. `Cargo.toml` keeps its profile.
 - **Target CPU: bitwise at every level; `x86-64-v3` / `native` gain
-  2–4 %, `x86-64-v4` loses up to 36 %.** The CI `test` and `release`
+  2–4 %, `x86-64-v4` loses up to 37 %.** The CI `test` and `release`
   tiers pass built with `x86-64-v2`, `-v3`, `-v4` and `znver4`; every
   result digest is identical. `-v3` and `znver4` take 0.96–0.98 of the
-  explicit-step time and 0.98–0.99 of the cohesive driver's wall time,
-  but 1.03–1.05 of the facet set-up's. `-v4` takes 1.19–1.36 times the
+  explicit-step time and 0.98 of the cohesive driver's wall time,
+  but 1.03–1.05 of the facet set-up's. `-v4` takes 1.19–1.37 times the
   hex8 step: LLVM's generic v4 cost model vectorises the strided loads of
   `fast::gradient` with AVX-512 gathers and scatters, which are slow on
   AMD Zen 4. The manual states this (`docs/manual/src/getting-started.md`).
@@ -133,10 +133,10 @@ Every phase, the absolute times and the peak RSS: `tables.md`.
 | `fat` | 1.101 [1.085, 1.112] | 1.072 [1.056, 1.080] | 1.025 [1.021, 1.032] | 1.007 [1.000, 1.024] | 1.036 [1.032, 1.060] | 0.948 [0.941, 0.970] | 0.975 [0.969, 0.989] | 0.970 [0.967, 0.981] | 0.968 [0.966, 0.970] |
 | `thin+cgu1` | 1.081 [1.064, 1.098] | 1.059 [1.048, 1.063] | 1.010 [0.994, 1.012] | 1.008 [0.994, 1.012] | 1.027 [1.020, 1.046] | 0.990 [0.982, 1.018] | 0.986 [0.984, 1.001] | 0.992 [0.987, 1.012] | 0.984 [0.983, 0.986] |
 | `fat+cgu1` | 1.088 [1.077, 1.108] | 1.073 [1.060, 1.083] | 1.012 [0.984, 1.019] | 1.012 [0.992, 1.015] | 1.031 [1.027, 1.056] | 1.043 [1.030, 1.046] | 0.986 [0.978, 1.014] | 1.012 [1.008, 1.028] | 0.973 [0.971, 0.977] |
-| `v2` | 1.001 [0.987, 1.014] | 0.984 [0.981, 0.991] | 1.010 [1.007, 1.031] | 0.959 [0.938, 0.965] | 0.962 [0.956, 0.976] | 1.002 [0.997, 1.016] | 1.021 [1.010, 1.026] | 1.008 [1.001, 1.016] | 1.007 [1.006, 1.031] |
-| `v3` | 0.964 [0.960, 1.022] | 0.977 [0.969, 0.994] | 0.964 [0.960, 0.965] | 0.956 [0.934, 0.968] | 0.963 [0.949, 0.973] | 0.966 [0.958, 0.987] | 0.992 [0.973, 1.001] | 0.982 [0.973, 0.986] | 1.052 [1.051, 1.089] |
-| `v4` | 1.010 [0.983, 1.081] | 1.011 [1.006, 1.022] | 1.364 [1.356, 1.367] | 1.192 [1.177, 1.198] | 0.991 [0.987, 1.012] | 0.936 [0.932, 0.958] | 0.993 [0.990, 1.002] | 0.974 [0.969, 0.983] | 1.053 [1.050, 1.055] |
-| `znver4` | 0.968 [0.930, 0.998] | 0.981 [0.968, 1.014] | 0.962 [0.945, 0.968] | 0.965 [0.939, 0.974] | 0.991 [0.969, 1.029] | 0.940 [0.935, 0.964] | 1.021 [1.014, 1.028] | 0.988 [0.979, 1.000] | 1.029 [1.027, 1.031] |
+| `v2` | 1.001 [0.987, 1.014] | 0.984 [0.981, 0.991] | 1.011 [1.007, 1.031] | 0.964 [0.938, 0.973] | 0.963 [0.956, 0.976] | 1.002 [0.997, 1.016] | 1.024 [1.010, 1.105] | 1.014 [1.001, 1.045] | 1.007 [1.006, 1.031] |
+| `v3` | 0.964 [0.960, 1.022] | 0.977 [0.969, 0.994] | 0.964 [0.959, 0.965] | 0.965 [0.934, 0.968] | 0.972 [0.949, 0.974] | 0.970 [0.958, 0.987] | 0.995 [0.973, 1.017] | 0.984 [0.973, 0.997] | 1.052 [1.051, 1.089] |
+| `v4` | 1.010 [0.983, 1.081] | 1.011 [1.006, 1.022] | 1.367 [1.356, 1.382] | 1.193 [1.177, 1.198] | 0.991 [0.987, 1.012] | 0.935 [0.932, 0.958] | 0.992 [0.985, 1.002] | 0.972 [0.966, 0.983] | 1.052 [1.050, 1.055] |
+| `znver4` | 0.968 [0.930, 0.998] | 0.981 [0.968, 1.014] | 0.962 [0.945, 0.968] | 0.967 [0.939, 0.974] | 1.011 [0.969, 1.029] | 0.940 [0.922, 0.964] | 1.023 [1.014, 1.030] | 0.984 [0.979, 1.000] | 1.029 [1.027, 1.031] |
 | `abort` | 0.996 [0.978, 1.004] | 0.995 [0.986, 1.002] | 0.996 [0.981, 1.000] | 1.003 [1.002, 1.005] | 0.995 [0.994, 1.000] | 0.978 [0.972, 0.992] | 0.997 [0.991, 1.031] | 0.988 [0.984, 1.015] | 0.977 [0.971, 1.029] |
 | `base+pgouse` | 0.942 [0.923, 0.944] | 0.960 [0.935, 0.964] | 0.962 [0.960, 0.977] | 0.975 [0.970, 0.977] | 0.841 [0.837, 0.848] | 1.347 [1.332, 1.389] | 0.936 [0.926, 0.969] | 1.095 [1.089, 1.132] | 0.965 [0.963, 0.968] |
 | `fat+cgu1+pgouse` | 0.931 [0.924, 0.943] | 0.940 [0.906, 0.943] | 0.960 [0.958, 0.982] | 0.969 [0.968, 0.976] | 0.837 [0.819, 0.842] | 1.230 [1.202, 1.253] | 0.948 [0.940, 0.951] | 1.053 [1.039, 1.059] | 0.935 [0.932, 0.937] |
@@ -148,7 +148,7 @@ Every phase, the absolute times and the peak RSS: `tables.md`.
 | `nobc` | 0.899 [0.880, 0.920] | 0.938 [0.934, 0.949] | 0.975 [0.971, 1.026] | 0.992 [0.981, 1.005] | 0.938 [0.919, 0.958] | 0.999 [0.995, 1.006] | 0.997 [0.994, 1.002] | 0.997 [0.986, 0.999] | 1.001 [0.994, 1.005] |
 
 Per phase (`tables.md`): with `-v4` the hex8 `stress` phase (gradient and
-constitutive law) takes 2.03–2.15 times the base time and `fint` 1.23–1.48;
+constitutive law) takes 2.08–2.14 times the base time and `fint` 1.23–1.48;
 with `-v3` `fint` takes 0.94–0.97 on tet4 small strain and hex8. The
 peak RSS of the driver is unchanged by every build configuration
 (±1 %); mimalloc lowers it to 0.890, jemalloc to 0.877.
@@ -303,6 +303,47 @@ Ranked by expected gain: the explicit-step kernels `residuals`, `btd`,
 `gradient` and the scatter (measured 6–10 % for three of them on tet4),
 then the cohesive insertion check. Not done in this task (crate sources
 are outside its files).
+
+## Candidates (not done here)
+
+Bitwise (default path), ranked by expected gain:
+
+1. **Bounds checks of the explicit-step kernels** (`residuals`, `btd`,
+   `gradient`, the scatter; 9–33 % of the step profiles each): measured
+   0.90 (tet4 ss), 0.94 (tet4 fd, driver explicit step) for three of them
+   (section "Bounds checks").
+2. **PGO for the distributed artifacts** (wheels, benchmark binaries):
+   cohesive driver 0.90–0.92, explicit step 0.94–0.98, bitwise. It needs
+   a training set that covers every model. Untrained code can lose (first
+   training set: insertion check 1.35; suites: see the table). The
+   packaging would have to run the training (`pgo.sh` is the recipe).
+3. **`fast::gradient` without AVX-512 gathers**: loads of `dshapes`
+   contiguous in the inner loop (or the shape derivatives stored
+   transposed). At `-v4` the gradient takes 39 % of the hex8 profile
+   against 12.5 % at the baseline. Required before any AVX-512 variant of
+   the step, and likely to help `-v3` too.
+4. **Run-time multi-versioning (`-v3`) of the internal-force kernels**
+   (WP-EXEC's dispatch): `fint` (`btd`, `integrate`, the scatter) takes
+   0.94–0.97 of its time at `-v3`, the small-strain `stress` phase
+   (gradient, law) 0.94–0.95, the finite-deformation `stress` phase
+   1.06–1.07 (not a candidate). A global `-v3` build is not the
+   answer: the facet set-up (`plan_facets`) takes 1.05 at `-v3` and
+   1.03 at `znver4`.
+5. Fat LTO only for set-up-heavy programs: insertion check 0.95, static
+   solve 0.98, facet set-up 0.97, but the explicit step 1.04–1.10. Not
+   worth a profile.
+6. mimalloc for mesh-editing workloads (element removal 0.65, peak RSS
+   0.89) at a 2–10 % cost in the explicit step: a new dependency, not
+   proposed.
+
+Fast mode (not bitwise; after WP-EXEC's switch exists): no build flag
+gives FMA or reassociation in Rust (`-C target-cpu` and
+`-C target-feature=+fma` do not contract). A fast mode has to write the
+fused operations in the kernels. Candidates, gains not measured:
+`f64::mul_add` in the inner products of `gradient`, `btd`, `integrate`
+and `residuals` behind a `-v3` dispatch (about 50–70 % of the step
+profiles), and vectorised (reassociated) reductions in place of
+`tree_sum` / `seq_sum` of the fixed-size kernels.
 
 ## Files
 
