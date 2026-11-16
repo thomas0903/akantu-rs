@@ -552,13 +552,20 @@ impl<const DIM: usize> MaterialViscoelasticMaxwell<DIM> {
     /// tuples are updated in place (each point reads only its own tuples
     /// before writing them).
     fn update_int_variables(&mut self, dt: Real, ghost: GhostType) -> Result<()> {
-        let mut sv = self
-            .sigma_v
-            .take()
-            .ok_or_else(|| Error::invalid("sigma_v not registered"))?;
-        let Some(mut ev) = self.epsilon_v.take() else {
-            self.sigma_v = Some(sv);
-            return Err(Error::invalid("epsilon_v not registered"));
+        if self.sigma_v.is_none() || self.epsilon_v.is_none() {
+            // not initialised (`init_material` registers both): the first
+            // error of the block loop, as before (none for an empty filter)
+            let base = self.elastic.base();
+            for (ty, _) in base.element_filter.as_map().iter(ghost) {
+                base.grad_u.get(ty, ghost)?;
+                base.grad_u.previous(ty, ghost)?;
+                self.sigma_v_field()?.get(ty, ghost)?;
+                self.epsilon_v_field()?.get(ty, ghost)?;
+            }
+            return Ok(());
+        }
+        let (Some(mut sv), Some(mut ev)) = (self.sigma_v.take(), self.epsilon_v.take()) else {
+            return Ok(()); // both present: checked above
         };
         let result = self.update_int_variables_of(&mut sv, &mut ev, dt, ghost);
         self.sigma_v = Some(sv);
