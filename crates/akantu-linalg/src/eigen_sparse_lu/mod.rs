@@ -220,7 +220,7 @@ impl SparseLu {
     }
 
     /// Test hook: the least multiply-add count of a panel update that runs
-    /// on threads (default about 2.6e5; `Some(0)` threads every supernode
+    /// on threads (default 65,536; `Some(0)` threads every supernode
     /// update, so that thread-invariance tests reach the threaded code on
     /// small matrices). Not part of the supported interface.
     #[doc(hidden)]

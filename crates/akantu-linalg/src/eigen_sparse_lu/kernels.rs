@@ -1007,14 +1007,14 @@ pub(crate) fn panel_bmod(
             luptr += ur;
             let ldl = nr;
             let (tu, tl) = wk.tempv.split_at_mut(w * ldu);
-            // scatter U (assignments; the U rows are not L rows)
-            for (u_col, &(dc, segsize)) in ucols.iter().enumerate() {
-                let offz = ur - segsize;
-                for t in offz..ur {
-                    wk.dense[spa(ru(glu.lsub[urows + t]), dc)] = tu[t + u_col * ldu];
-                }
-            }
             if exec.is_parallel() && nr * u_cols * ur >= threaded_min {
+                // scatter U (assignments; the U rows are not L rows)
+                for (u_col, &(dc, segsize)) in ucols.iter().enumerate() {
+                    let offz = ur - segsize;
+                    for t in offz..ur {
+                        wk.dense[spa(ru(glu.lsub[urows + t]), dc)] = tu[t + u_col * ldu];
+                    }
+                }
                 let upd = PanelUpdate {
                     nr,
                     u_cols,
@@ -1034,8 +1034,14 @@ pub(crate) fn panel_bmod(
                 super::simd::gemm_into_zero_mode(
                     wk.fma, nr, u_cols, ur, &glu.lusup, luptr, lda, tu, 0, ldu, tl, 0, ldl,
                 );
-                // scatter L: one subtraction per entry (the entries are
-                // distinct, so row by row is the same arithmetic)
+                // scatter U (assignments) and L (one subtraction per entry; the
+                // entries are distinct, so row by row is the same arithmetic)
+                for (u_col, &(dc, segsize)) in ucols.iter().enumerate() {
+                    let offz = ur - segsize;
+                    for t in offz..ur {
+                        wk.dense[spa(ru(glu.lsub[urows + t]), dc)] = tu[t + u_col * ldu];
+                    }
+                }
                 for (i, &irow) in lrows.iter().enumerate() {
                     let row = &mut wk.dense[spa(ru(irow), 0)..][..SPA_W];
                     for (u_col, &(dc, _)) in ucols.iter().enumerate() {
@@ -1078,8 +1084,10 @@ pub(crate) fn panel_bmod(
 
 /// Multiply-adds (`rows × columns × depth`) of a panel update from which
 /// its product and scatter run on the executor's threads (two regions of
-/// about a microsecond each against tens of microseconds of work).
-pub(crate) const THREADED_UPDATE_MIN: usize = 1 << 18;
+/// about a microsecond each). Measured on `static_linear_eigen` (AMD EPYC
+/// 9B14) at 2, 4 and 8 threads: 2¹⁴ to 2¹⁸ within 1.5 % of each other,
+/// 2¹⁶ the best, 2²⁰ 6–14 % slower.
+pub(crate) const THREADED_UPDATE_MIN: usize = 1 << 16;
 
 /// Rows of a part of a threaded panel product: whole 16-row tiles.
 const PART_ROW_ALIGN: usize = 16;
@@ -1111,6 +1119,8 @@ pub(crate) struct PanelUpdate<'a> {
 }
 
 impl PanelUpdate<'_> {
+    // out of line: the serial path of `panel_bmod` keeps its code
+    #[inline(never)]
     pub(crate) fn run_threaded(&self, exec: &Exec, tl: &mut [f64], dense: &mut [f64]) {
         let (nr, nc) = (self.nr, self.u_cols);
         // 1. the product, strips of whole tiles
