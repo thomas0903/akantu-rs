@@ -784,7 +784,13 @@ fn gradient_view_matches_the_array_gradient_bitwise() {
 /// The consistent mass reuses a point matrix while the density bits repeat:
 /// with densities that alternate between elements (including `+0`/`−0` and
 /// a NaN with a payload), every element's matrix equals the one computed
-/// with that element's density everywhere.
+/// with that element's density everywhere. The comparison by bits itself
+/// is tested in the engine (`assembly::tests`): no output can tell a
+/// comparison by value from it, because the per-element integration
+/// accumulates from `+0` (`0 + (−0)·J = +0`), so a point matrix computed
+/// with `−0` densities and one computed with `+0` give the same element
+/// matrix (checked below with consecutive `(+0, +0)` and `(−0, −0)`
+/// elements), and a NaN never compares equal by value.
 #[test]
 fn mass_point_matrix_reuse_follows_the_density_bits() {
     let values = [
@@ -832,6 +838,49 @@ fn mass_point_matrix_reuse_follows_the_density_bits() {
             for (x, y) in a.iter().zip(b) {
                 assert_eq!(x.to_bits(), y.to_bits(), "{} element {e}", ty.name());
             }
+        }
+    }
+}
+
+/// Consecutive `_triangle_3` elements whose densities differ only in the
+/// sign of zero in every component: the point product takes the
+/// `Coeff(Sequential)` route (`6 + 2 + 6 < 20`), so its entries keep the
+/// sign of zero, but the element matrices are the `+0`-started integrals of
+/// them, the same for both signs; reused or recomputed, every element
+/// matrix equals the uniform computation and holds no `−0`.
+#[test]
+fn mass_point_matrix_reuse_with_signed_zero_densities() {
+    let ty = ElementType::Triangle3;
+    let mesh = common::fe_test_mesh(ty);
+    let fe = FeEngine::with_precomputation(
+        &mesh,
+        None,
+        ElementKind::Regular,
+        ShapeFamily::Lagrange,
+        "fe",
+    )
+    .unwrap();
+    let nb_dof = 2;
+    let z = |e: usize| if e.is_multiple_of(2) { 0.0 } else { -0.0 };
+    let mut mixed = |m: &mut [f64], el: Element| -> akantu_core::Result<()> {
+        m.fill(z(usize::try_from(el.index()).unwrap()));
+        Ok(())
+    };
+    let mm = fe
+        .field_matrix_elemental(&mesh, &mut mixed, nb_dof, ty, G)
+        .unwrap();
+    assert!(mesh.nb_element(ty, G) >= 2);
+    for e in 0..mesh.nb_element(ty, G) {
+        let mut uniform = |m: &mut [f64], _: Element| -> akantu_core::Result<()> {
+            m.fill(z(e));
+            Ok(())
+        };
+        let mu = fe
+            .field_matrix_elemental(&mesh, &mut uniform, nb_dof, ty, G)
+            .unwrap();
+        for (x, y) in mm.tuple(e).iter().zip(mu.tuple(e)) {
+            assert_eq!(x.to_bits(), y.to_bits(), "element {e}");
+            assert_eq!(x.to_bits(), 0, "element {e}: {x:e}");
         }
     }
 }

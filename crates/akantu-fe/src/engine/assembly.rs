@@ -236,7 +236,7 @@ impl FeEngine {
                     let t = e * nq + q;
                     let rho = &fs[t * nb_dof..(t + 1) * nb_dof];
                     let cached = &mut rho_of[q * nb_dof..(q + 1) * nb_dof];
-                    if valid[q] && rho.iter().zip(cached.iter()).all(|(r, c)| r.to_bits() == *c) {
+                    if valid[q] && same_bits(rho, cached) {
                         continue;
                     }
                     let s = &shapes[q * nn..(q + 1) * nn];
@@ -262,5 +262,38 @@ impl FeEngine {
             }
             Ok(out)
         }, else Err(Error::UnsupportedElementType { ty, context: "field_matrix_elemental" }))
+    }
+}
+
+/// Whether every value of `values` has the bits stored in `bits` (the
+/// density a mass point matrix was computed with). By bits, not by value:
+/// `+0` and `−0` differ and a NaN matches its own bits.
+fn same_bits(values: &[Real], bits: &[u64]) -> bool {
+    values.len() == bits.len() && values.iter().zip(bits).all(|(v, b)| v.to_bits() == *b)
+}
+
+#[cfg(test)]
+mod tests {
+    use super::same_bits;
+
+    #[test]
+    fn density_reuse_compares_bits() {
+        let bits = |v: &[f64]| v.iter().map(|x| x.to_bits()).collect::<Vec<_>>();
+        let nan = f64::from_bits(0xfff8_0000_0000_0abc);
+        assert!(same_bits(&[2.5, 0.0], &bits(&[2.5, 0.0])));
+        assert!(same_bits(&[nan, -0.0], &bits(&[nan, -0.0])));
+        // equal by value, different bits
+        assert!(!same_bits(&[0.0, 0.0], &bits(&[-0.0, -0.0])));
+        assert!(!same_bits(&[-0.0, 1.0], &bits(&[0.0, 1.0])));
+        // different NaN payloads or signs
+        assert!(!same_bits(
+            &[nan],
+            &bits(&[f64::from_bits(0xfff8_0000_0000_0abd)])
+        ));
+        assert!(!same_bits(
+            &[nan],
+            &bits(&[f64::from_bits(0x7ff8_0000_0000_0abc)])
+        ));
+        assert!(!same_bits(&[2.5], &bits(&[2.5, 2.5])));
     }
 }
