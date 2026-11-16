@@ -58,9 +58,24 @@ Every case has the same digest for both binaries and all repetitions.
 | contact_implicit_static_quad4 | solve_step (5) | 2.193 s | 1.331 s | 0.607 [0.606, 0.610] |
 | embedded_rebar_tet4 | solve_step | 4.500 s | 1.289 s | 0.286 [0.282, 0.287] |
 
-`analysis` is 4 ms slower: the storage kept for the next factorisation
-(about 150 MB in this case) is no longer returned to the allocator, so the
-analysis's own allocations (the CSC copy) start on fresh pages.
+Two phases outside the solver are slower in `static_linear_eigen`, for
+one reason: `analysis` (+4 ms) and `stiffness_assembly` (1.30 of before;
+measured again after merging the sparse-assembly work: 44.5 → 96 ms over
+3 calls). Neither runs solver code that changed: the assembly costs 96 ms
+with both binaries in `static_linear_faer`, where no SparseLU runs, and
+45 ms in every variant when glibc's thresholds are fixed
+(`MALLOC_MMAP_THRESHOLD_=268435456 MALLOC_TRIM_THRESHOLD_=4294967296`:
+base and branch, after Eigen or faer). The 51 ms are the assembly's own
+arrays, allocated per call, mapped and page-faulted again each time. The
+old SparseLU freed large blocks after each factorisation (its 1.5×
+zero-filled factor arrays and its work arrays), which raises glibc's
+dynamic mmap and trim thresholds, and the assembly that followed then
+reused heap pages. The factorisation now keeps its storage for the next
+one, so the thresholds stay at their defaults, as after a faer solve.
+Dropping the kept storage (a probe build) does not bring it back either:
+fewer, smaller blocks are freed. The fix belongs to the assembly (keep its
+element arrays between calls, as the factorisation does); the phase costs
+45 ms then, whatever solver ran before.
 
 Peak RSS of the whole `static_linear_eigen` process (`/usr/bin/time`,
 single runs during development): 436 MB with the 1.5× zero-filled growth,
