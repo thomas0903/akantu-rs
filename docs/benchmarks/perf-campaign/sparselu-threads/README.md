@@ -108,10 +108,11 @@ run (all thread counts). Raw data `c1-eigen/`, summary
 | h | C++ | base 1 thread | head 1 | head 2 | head 4 | head 8 |
 |---|---|---|---|---|---|---|
 | 0.12 (3 reps) | 2.94 s | 2.12 s (0.721 of C++) | 2.10 s (0.714) | 1.71 s (0.582) | 1.46 s (0.497) | 1.35 s (0.459) |
-| 0.06 (1 rep) | H006CPP | H006BASE | H006T1 | H006T2 | H006T4 | H006T8 |
+| 0.06 (1 rep) | 251 s | 209 s (0.833) | 210 s (0.837) | 133 s (0.530) | 82.1 s (0.327) | 58.1 s (0.231) |
 
-Peak RSS at h = 0.12: C++ 524 MiB, port 396–397 MiB at every thread
-count.
+Peak RSS: h = 0.12 C++ 524 MiB, port 383–397 MiB; h = 0.06 C++ 7.62 GiB,
+port 5.16–5.18 GiB, at every thread count. At h = 0.06 the supernodes
+are large (97,551 unknowns): 8 threads take 0.28 of the base's time.
 
 ## Candidates measured and dropped (one thread)
 
