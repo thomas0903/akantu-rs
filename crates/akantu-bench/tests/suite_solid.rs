@@ -125,3 +125,37 @@ fn step_split_computes_the_same_bits() {
         0.8,
     );
 }
+
+/// `static_linear_mumps` skips on the serial communicator of the test
+/// above; the binary runs it on the MPI world (a singleton here), twice.
+#[cfg(feature = "mumps")]
+#[test]
+fn mumps_case_runs_on_the_mpi_world_and_its_digest_repeats() {
+    let out = std::process::Command::new(env!("CARGO_BIN_EXE_suite_solid"))
+        .args([
+            "--case",
+            "static_linear_mumps",
+            "--size",
+            "s",
+            "--reps",
+            "2",
+        ])
+        .output()
+        .expect("suite_solid runs");
+    let stdout = String::from_utf8_lossy(&out.stdout);
+    let stderr = String::from_utf8_lossy(&out.stderr);
+    assert!(
+        out.status.success(),
+        "suite_solid failed:\n{stdout}\n{stderr}"
+    );
+    let mut digests = [Vec::new(), Vec::new()];
+    for line in stdout.lines() {
+        let v: serde_json::Value =
+            serde_json::from_str(line).unwrap_or_else(|e| panic!("{line}: {e}"));
+        assert_eq!(v["sparse_solver"], "mumps", "{line}");
+        let rep = v["rep"].as_u64().expect("rep") as usize;
+        digests[rep].push(v["digest"].as_str().expect("a digest").to_owned());
+    }
+    assert!(!digests[0].is_empty(), "no output:\n{stderr}");
+    assert_eq!(digests[0], digests[1], "digest differs between repetitions");
+}

@@ -93,6 +93,11 @@ pub fn static_linear(ctx: &mut Ctx<'_>, sparse: SparseSolverType) -> Result<Outc
     if sparse == SparseSolverType::Mumps && !cfg!(feature = "mumps") {
         return Ok(Outcome::Skip("needs the `mumps` feature".into()));
     }
+    // MUMPS works on an MPI communicator only (the binary passes the MPI
+    // world; the in-process test passes a serial one)
+    if sparse == SparseSolverType::Mumps && !ctx.comm().is_mpi() {
+        return Ok(Outcome::Skip("needs the MPI world".into()));
+    }
     let n = ctx.pick(TET_N[0], TET_N[1], TET_N[2]);
     let spec = BoxSpec::unit(ElementType::Tetrahedron4, n);
     // MUMPS needs the MPI world: the cube is built on it (distributed at
