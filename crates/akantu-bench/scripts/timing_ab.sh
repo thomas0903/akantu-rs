@@ -8,7 +8,8 @@
 # Usage (on a Linux host with Docker, e.g. an x86_64 Linux host; never on the
 # shared Mac):
 #   timing_ab.sh --out DIR --meshes DIR [--h "0.12"] [--steps 500] [--reps 5]
-#                [--materials "cohesive elastic"] [--memory 13g] VARIANT...
+#                [--materials "cohesive elastic"] [--memory 13g] [--rep-start K]
+#                VARIANT...
 #   VARIANT = <label>=cpp:<config>            C++ harness /perf/builds/<config>/
 #                                              (benchmarks/cohesive-perf/scripts/
 #                                              build.sh <config>), install-<config>
@@ -19,7 +20,10 @@
 # Method (ADR proposal "interleaved A/B medians"): one run at
 # a time; every repetition runs every (h, material) point with every variant,
 # the variants in a rotated order (repetition k starts with variant
-# (k - 1) mod n), so a drift of the machine speed favours no variant. Both
+# (k - 1) mod n), so a drift of the machine speed favours no variant.
+# --rep-start K (default 1) numbers the repetitions K..K+reps-1 (rotation and
+# rep<k> directories included): a long series split into several calls with
+# the same --out continues where the previous call stopped. Both
 # sides read the same mesh file (<meshes>/cube-h<h>.msh, copied into the
 # harness volume) and an input derived from benchmarks/cohesive-perf/inputs/
 # material-<material>.dat exactly as the harness does (`mesh`, `max_steps`
@@ -35,7 +39,7 @@
 set -euo pipefail
 here="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 repo="$(cd "${here}/../../.." && pwd)"
-out=""; meshes=""; hs="0.12"; steps=500; reps=5; materials="cohesive elastic"; memory=13g
+out=""; meshes=""; hs="0.12"; steps=500; reps=5; materials="cohesive elastic"; memory=13g; rep_start=1
 variants=()
 while [ $# -gt 0 ]; do
   case "$1" in
@@ -46,6 +50,7 @@ while [ $# -gt 0 ]; do
     --reps) reps="$2"; shift 2 ;;
     --materials) materials="$2"; shift 2 ;;
     --memory) memory="$2"; shift 2 ;;
+    --rep-start) rep_start="$2"; shift 2 ;;
     *=cpp:*|*=rust:*) variants+=("$1"); shift ;;
     *) echo "unknown argument $1" >&2; exit 2 ;;
   esac
@@ -53,6 +58,7 @@ done
 [ -n "${out}" ] || { echo "--out is required" >&2; exit 2; }
 [ -d "${meshes}" ] || { echo "--meshes: ${meshes} missing" >&2; exit 2; }
 [ ${#variants[@]} -gt 0 ] || { echo "no variant" >&2; exit 2; }
+[[ "${rep_start}" =~ ^[1-9][0-9]*$ ]] || { echo "--rep-start: positive integer" >&2; exit 2; }
 case "${out}" in /|"${HOME}"|"${repo}") echo "refusing --out ${out}" >&2; exit 2 ;; esac
 img="${PERF_IMAGE:-akantu-oracle:dev}"
 vol="${PERF_VOLUME:-akantu-perf-cohesive}"
@@ -99,7 +105,7 @@ fi
         echo "variant ${v%%=*} rust bin=${bin} sha256=$(sha256sum "${bin}" | cut -d' ' -f1) extra=${spec#rust:${bin}}" ;;
     esac
   done
-} > "${out}/provenance.txt"
+} >> "${out}/provenance.txt"
 
 input_for() { # material mesh extra(comma list) -> stdout
   local material=$1 mesh=$2 extra=$3 src="${repo}/benchmarks/cohesive-perf/inputs/material-$1.dat"
@@ -161,7 +167,7 @@ run_rust() { # label spec material h rep
 }
 
 n=${#variants[@]}
-for rep in $(seq 1 "${reps}"); do
+for rep in $(seq "${rep_start}" $((rep_start + reps - 1))); do
   for h in ${hs}; do
     for material in ${materials}; do
       for k in $(seq 0 $((n - 1))); do
