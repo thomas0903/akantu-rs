@@ -563,6 +563,136 @@ fn update_stress_plan(
     Ok(true)
 }
 
+/// Bring `plan` (built at the mesh revision `before`) to the mesh `m` of the
+/// next revision after an insertion that doubled the facets `doubled`
+/// (`(old, new)`), without rebuilding it (performance: the rebuild reads
+/// every `element_to_subelement` list). The insertion changes the plan's
+/// inputs only there: the second neighbour of a doubled facet `F` now has
+/// the new facet `F'` in its `subelement_to_element` row (same position)
+/// and is `F'`'s first neighbour, every other row and first neighbour is
+/// unchanged. So the pair writing side 1 of `F` moves to side 0 of `F'`
+/// (same source, same fused coefficients); the new facets follow every
+/// existing one in their block, in the order of `doubled`, so the pairs
+/// stay ordered by destination. Each moved pair is checked against the
+/// mesh; returns `false` (the caller rebuilds) when the plan is not at
+/// `before`, a check fails or an offset does not fit.
+fn patch_stress_plan(
+    plan: &mut StressCopyPlan,
+    before: u64,
+    m: &Mesh,
+    doubled: &[(Element, Element)],
+    stress_size: usize,
+) -> bool {
+    if plan.blocks.is_empty() || plan.revision != before || stress_size == 0 {
+        return false;
+    }
+    let Some(fm) = m.mesh_facets() else {
+        return false;
+    };
+    let (Ok(s2e), Ok(e2s)) = (
+        fm.data().element_map(SUBELEMENT_TO_ELEMENT),
+        fm.data().element_lists(ELEMENT_TO_SUBELEMENT),
+    ) else {
+        return false;
+    };
+    let mut fused = plan.fused.take();
+    if let Some(f) = &fused
+        && f.len() != plan.blocks.len()
+    {
+        return false;
+    }
+    let mut moved: Vec<(usize, usize)> = Vec::new();
+    for (b, block) in plan.blocks.iter_mut().enumerate() {
+        let (nq, nip) = (block.nq, block.nip);
+        if nq == 0 || nip == 0 {
+            return false;
+        }
+        moved.clear();
+        let mut last_dst = block.pairs.last().map_or(0, |&(_, d)| d);
+        for &(old, new) in doubled {
+            if old.ty() != block.facet || old.ghost_type() != block.facet_ghost {
+                continue;
+            }
+            let (Some(fo), Some(fnew)) = (old.try_idx(), new.try_idx()) else {
+                return false;
+            };
+            let d_old = (fo * nq * 2 + 1) * stress_size;
+            let Ok(k) = block.pairs.binary_search_by_key(&d_old, |&(_, d)| d) else {
+                // the second neighbour is not an element of this law
+                continue;
+            };
+            let d_new = fnew * nq * 2 * stress_size;
+            if d_new <= last_dst {
+                return false;
+            }
+            // the moved pair's element and local facet
+            let p = block.pairs[k].0 / stress_size;
+            let (ge, f) = (p / nip, (p % nip) / nq);
+            let Ok(ge_idx) = akantu_core::Idx::try_from(ge) else {
+                return false;
+            };
+            let el = Element::new(block.bulk, ge_idx, GhostType::NotGhost);
+            let row_ok = s2e.element(el).is_ok_and(|r| r.get(f) == Some(&new));
+            let first_ok = e2s
+                .element(new)
+                .is_ok_and(|l| l.first().and_then(|v| v.first()) == Some(&el));
+            if !row_ok || !first_ok {
+                return false;
+            }
+            moved.push((k, d_new));
+            last_dst = d_new;
+        }
+        if moved.is_empty() {
+            continue;
+        }
+        let mut fused_block = match &mut fused {
+            Some(f) => match f[b].as_mut() {
+                Some(v) if v.len() == block.pairs.len() => Some(v),
+                Some(_) => return false,
+                None => None,
+            },
+            None => None,
+        };
+        // compaction: the moved pairs leave their places, then follow the
+        // existing pairs with their new destinations
+        let mut is_moved = vec![false; block.pairs.len()];
+        for &(k, _) in &moved {
+            is_moved[k] = true;
+        }
+        let mut new_fused: Vec<FusedPair> = Vec::new();
+        if let Some(v) = fused_block.as_deref() {
+            for &(k, d) in &moved {
+                let Ok(d) = u32::try_from(d) else {
+                    return false;
+                };
+                new_fused.push(FusedPair { dst: d, ..v[k] });
+            }
+        }
+        let new_pairs: Vec<(usize, usize)> =
+            moved.iter().map(|&(k, d)| (block.pairs[k].0, d)).collect();
+        let mut i = 0;
+        block.pairs.retain(|_| {
+            i += 1;
+            !is_moved[i - 1]
+        });
+        block.pairs.extend_from_slice(&new_pairs);
+        if let Some(v) = fused_block.as_deref_mut() {
+            let mut i = 0;
+            v.retain(|_| {
+                i += 1;
+                !is_moved[i - 1]
+            });
+            v.extend_from_slice(&new_fused);
+        }
+        for &(_, d) in &new_pairs {
+            block.dst_end = block.dst_end.max(d + (2 * (nq - 1) + 1) * stress_size);
+        }
+    }
+    plan.fused = fused;
+    plan.revision = m.revision();
+    true
+}
+
 /// Order the copies by destination (sequential writes into `facet_stress`,
 /// gathered reads: the scattered writes in element order were the
 /// memory-bound part of `interpolateStress`). A destination
@@ -1736,6 +1866,46 @@ impl SolidMechanicsModelCohesive {
         Ok(())
     }
 
+    /// After a committed insertion from the mesh revision `before` that
+    /// doubled the facets `doubled`: every stress copy plan brought to the
+    /// new revision ([`patch_stress_plan`]), or dropped for a rebuild at the
+    /// next interpolation. Debug builds compare each patched plan with a
+    /// rebuilt one.
+    fn patch_stress_plans(&mut self, before: u64, m: &Mesh, doubled: &[(Element, Element)]) {
+        let stress_size = self.ext.dim * self.ext.dim;
+        for (&i, plan) in &mut self.ext.stress_plans {
+            if !patch_stress_plan(plan, before, m, doubled, stress_size) {
+                *plan = StressCopyPlan::default();
+                continue;
+            }
+            #[cfg(debug_assertions)]
+            if let (Ok(law), Some(interp), Some(fm)) = (
+                self.smm.physics.materials.law(i),
+                self.ext.stress_interpolation.get(&i),
+                m.mesh_facets(),
+            ) {
+                let filter = &law.base().element_filter;
+                let types = law.base().filter_types(GhostType::NotGhost);
+                if let Ok(fresh) = build_stress_plan(fm, filter, &types, interp, stress_size) {
+                    assert_eq!(
+                        plan.blocks, fresh.blocks,
+                        "patched stress copy plan of law {i} differs from the rebuilt one"
+                    );
+                    if plan.fused.is_some() {
+                        let fused = build_fused(&fresh, filter, interp, stress_size);
+                        assert_eq!(
+                            plan.fused.as_ref(),
+                            Some(&fused),
+                            "patched fused plan of law {i} differs from the rebuilt one"
+                        );
+                    }
+                }
+            }
+            #[cfg(not(debug_assertions))]
+            let _ = i;
+        }
+    }
+
     /// Upstream `interpolateStress()`: every bulk law's stresses at the
     /// facet quadrature points, written into `facet_stress` (side 0 for the
     /// facet's first neighbour, side 1 for the second).
@@ -2522,6 +2692,7 @@ impl SolidMechanicsModelCohesive {
             None
         };
         let mesh_h = self.smm.physics.base.mesh.clone();
+        let revision_before = mesh_h.read()?.revision();
         let (token, smm_parts) = self.smm.split_for_mutation();
         let parts = RefCell::new(smm_parts);
         let CohesiveExtension {
@@ -2605,6 +2776,7 @@ impl SolidMechanicsModelCohesive {
         }
         let r = result.unwrap_or_default();
         let m = mesh_h.read()?;
+        self.patch_stress_plans(revision_before, &m, &r.doubled_facets);
         if !r.doubled_facets.is_empty() {
             self.ext.inserter.update_insertion_facets(&m)?;
         }
@@ -2633,6 +2805,7 @@ impl SolidMechanicsModelCohesive {
         order: Option<&[Element]>,
     ) -> Result<usize> {
         let mesh_h = self.smm.physics.base.mesh.clone();
+        let revision_before = mesh_h.read()?.revision();
         let (token, smm_parts) = self.smm.split_for_mutation();
         let exchange_laws = smm_parts.physics.materials.nb_laws() > 0;
         let parts = RefCell::new(smm_parts);
@@ -2713,6 +2886,7 @@ impl SolidMechanicsModelCohesive {
         };
         let r = result.unwrap_or_default();
         let m = mesh_h.read()?;
+        self.patch_stress_plans(revision_before, &m, &r.doubled_facets);
         if !r.new_elements.is_empty() {
             self.ext.inserter.update_insertion_facets(&m)?;
         }
