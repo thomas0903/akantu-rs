@@ -351,20 +351,24 @@ impl<const R: usize, const C: usize> MatrixExt<R, C> for Matrix<R, C> {
         std::array::from_fn(|j| std::array::from_fn(|i| self[j][i] * other[j][i]))
     }
 
+    #[inline]
     fn sum(&self) -> Real {
         let f = self.as_flattened();
         eo::sum(R * C, eo::READ_COST, true, &|l| f[l])
     }
 
+    #[inline]
     fn squared_norm(&self) -> Real {
         let f = self.as_flattened();
         eo::sum(R * C, eo::UNARY_TERM_COST, true, &|l| f[l] * f[l])
     }
 
+    #[inline]
     fn norm(&self) -> Real {
         self.squared_norm().sqrt()
     }
 
+    #[inline]
     fn double_dot(&self, other: &Self) -> Real {
         let (a, b) = (self.as_flattened(), other.as_flattened());
         eo::sum(R * C, eo::PRODUCT_TERM_COST, true, &|l| a[l] * b[l])
