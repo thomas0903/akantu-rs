@@ -161,6 +161,25 @@ pub(crate) fn voigt_stress_product(
     )
 }
 
+/// [`voigt_stress_product`] for the constant Voigt size `V` on the
+/// column-major `V × V` slice `c`: per row the sequential reduction from
+/// the first term, `r = c(i, 0)·ε_0; r += c(i, k)·ε_k`.
+#[inline(always)]
+pub(crate) fn voigt_stress_seq<const V: usize>(
+    c: &[Real],
+    strain: &[Real; 6],
+    stress: &mut [Real; 6],
+) {
+    let c = &c[..V * V];
+    for (i, out) in stress.iter_mut().enumerate().take(V) {
+        let mut r = c[i] * strain[0];
+        for k in 1..V {
+            r += c[i + k * V] * strain[k];
+        }
+        *out = r;
+    }
+}
+
 /// 3-D cross product as Eigen's `cross` evaluates it.
 fn cross(a: &[Real; 3], b: &[Real; 3]) -> [Real; 3] {
     [
@@ -396,9 +415,20 @@ impl<const DIM: usize> AnisotropicCore<DIM> {
             *s = t.factor(big_i) * eps[j][i];
         }
         // `C` (Matrix<Real>, dynamic) · strain (Vector<Real, voigt>):
-        // coefficient-based route, sequential reduction (dynamic lhs).
+        // coefficient-based route, sequential reduction (dynamic lhs);
+        // `voigt_stress_seq` evaluates that route for the law's Voigt size
         let mut stress = [0.0; 6];
-        voigt_stress_product(v, &|i, k| self.c.at(i, k), &strain[..v], &mut stress[..v])?;
+        let c = self.c.as_slice();
+        if c.len() == v * v {
+            match v {
+                1 => voigt_stress_seq::<1>(c, &strain, &mut stress),
+                3 => voigt_stress_seq::<3>(c, &strain, &mut stress),
+                6 => voigt_stress_seq::<6>(c, &strain, &mut stress),
+                _ => voigt_stress_product(v, &|i, k| c[i + k * v], &strain[..v], &mut stress[..v])?,
+            }
+        } else {
+            voigt_stress_product(v, &|i, k| self.c.at(i, k), &strain[..v], &mut stress[..v])?;
+        }
         for (big_i, &s) in stress.iter().enumerate().take(v) {
             let (i, j) = t.vec(big_i);
             sigma[j][i] = s;
@@ -963,6 +993,43 @@ pub fn register(factory: &mut MaterialFactory) -> Result<()> {
 #[cfg(test)]
 mod tests {
     use super::*;
+
+    /// The constant-size Voigt product against the general product of the
+    /// upstream operand types, bit for bit (D-046 rule; payload NaNs exact).
+    #[test]
+    fn constant_size_voigt_stress_matches_the_general_product_bitwise() {
+        use akantu_core::bitwise_testing::{Values, same};
+        let mut vals = Values::new(0xa915_0c0e);
+        for round in 0..30_000 {
+            let payload = round % 5 == 4;
+            for v in [1usize, 3, 6] {
+                if payload {
+                    let k = 1 + vals.next_u64() % (v * v + v) as u64;
+                    vals.payload_at(k);
+                }
+                let mut c = vec![0.0; v * v];
+                vals.fill(&mut c);
+                let mut strain = [0.0; 6];
+                vals.fill(&mut strain[..v]);
+                vals.default_mode();
+                let (mut a, mut b) = ([0.0; 6], [0.0; 6]);
+                match v {
+                    1 => voigt_stress_seq::<1>(&c, &strain, &mut a),
+                    3 => voigt_stress_seq::<3>(&c, &strain, &mut a),
+                    _ => voigt_stress_seq::<6>(&c, &strain, &mut a),
+                }
+                voigt_stress_product(v, &|i, k| c[i + k * v], &strain[..v], &mut b[..v]).unwrap();
+                for i in 0..v {
+                    let ok = if payload {
+                        a[i].to_bits() == b[i].to_bits()
+                    } else {
+                        same(a[i], b[i])
+                    };
+                    assert!(ok, "v={v} i={i}: {:e} {:e}", a[i], b[i]);
+                }
+            }
+        }
+    }
 
     fn hex(t: &str) -> Real {
         Real::from_bits(u64::from_str_radix(t, 16).expect("hex double"))

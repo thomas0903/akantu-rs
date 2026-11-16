@@ -121,6 +121,7 @@
 //! on whether the matrix type has a compile-time size, the caller passes a
 //! [`Storage`].
 
+pub(crate) mod fixed;
 pub(crate) mod real_schur;
 pub(crate) mod self_adjoint;
 

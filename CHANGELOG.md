@@ -117,11 +117,41 @@ change of default results or of a public API raises the minor version.
   route once per block, the copy plan after an insertion is built in
   linear time, and the linear law's effective norm uses fixed-size loops
   (`docs/BENCHMARKS.md`, "The insertion check").
+- The default sparse direct solver (`akantu_linalg::eigen_sparse_lu`, the
+  translation of Eigen's SparseLU) is about 3× faster on 3-D problems with
+  bitwise identical results: dense kernels in register tiles with run-time
+  AVX / AVX-512F instances in the same operation order, storage reused
+  between factorisations, less memory (`int` row subscripts as in Eigen;
+  factor arrays grow to the length in use).
+- `akantu_linalg::eigen_sparse_lu::SparseLu::solve_with` (the caller's
+  scratch buffer) and the opt-in fast mode `SparseLu::set_fast_mode` /
+  `EigenSparseLuSolver::set_fast_mode`, enabled with an
+  `akantu_core::exec::FastToken` (fused multiply-adds in the panel
+  products; not bitwise, off by default).
 - Small dense products and Eigen-order reductions are faster with bitwise
   identical results: the halving-tree reduction is non-recursive and
   inlined, fixed-size tensor products select their route at compile time,
   the FE products of slices run fixed-order kernels (one per route and
   depth class), and the FE per-element loops decide each product once.
+- Constitutive laws and the heat law are faster with bitwise identical
+  results: the `EigenSolver` eigenvalues of fixed-size matrices up to
+  4 × 4 (`akantu_linalg::dense::eig_fixed`, `eig3_fixed`,
+  `eig_vectors_fixed`; Mazars' principal strains) run the Hessenberg
+  reduction and the Francis iteration on stack arrays; the Maxwell and
+  anisotropic laws use constant-size Voigt products and the Maxwell
+  branch factors are computed once per block; the fixed-size matrix
+  inverse no longer allocates; the heat law computes `∇u` and `D∇u` in
+  place, skips the interpolation of the temperature when the
+  conductivity cannot depend on it (`conductivity_variation = 0`, finite
+  temperatures) and keeps its temporary arrays between steps
+  (`docs/benchmarks/perf-campaign/laws/`). Two error paths of the heat law
+  differ: `∇u` is written into its block, so an error part-way through
+  the gradient leaves the entries of the elements before it written (as
+  upstream's `computeGradU` does); the constant-conductivity path does not
+  run the interpolation of `T` and its filter and length checks, so it
+  sets the diffusivity and updates its release where an invalid filter
+  used to return an error there (the same operation still fails right
+  after, in the gradient or in `compute_btdb`).
 - `akantu_fe::eigen::product_slices` checks the operands' inner
   dimension before the slice lengths: a call with both wrong now reports
   the inner-dimension mismatch (still `Error::DimensionMismatch`, with
