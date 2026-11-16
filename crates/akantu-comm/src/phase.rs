@@ -250,6 +250,14 @@ pub fn agreement_stats() -> (u64, f64) {
     (AGREEMENTS.load(Relaxed), s)
 }
 
+/// A communicator of one rank on the serial or the in-process back-end:
+/// its agreements need no all-reduce. An MPI communicator of one rank
+/// still calls MPI, whose thread-level and transport checks an agreement
+/// must observe (a `Funneled` call from a worker breaks the scope).
+fn one_rank_without_mpi(comm: &Communicator) -> bool {
+    comm.size() == 1 && !comm.is_mpi()
+}
+
 /// Count one agreement and, when it communicated, the time since `start`.
 fn count_agreement(start: Option<std::time::Instant>) {
     use std::sync::atomic::Ordering::Relaxed;
@@ -263,8 +271,8 @@ fn count_agreement(start: Option<std::time::Instant>) {
 fn reduce_status(comm: &Communicator, id: u64, status: Severity, digest: u64) -> Result<Reduced> {
     // max(status), max(id), max(!id) = !min(id), likewise for the digest:
     // one bounded all-reduce of five words.
-    if comm.size() == 1 {
-        // one rank: the all-reduce returns the rank's own words
+    if one_rank_without_mpi(comm) {
+        // one rank without MPI: the all-reduce returns the rank's own words
         count_agreement(None);
         return Ok(Reduced {
             worst: status as u64,
@@ -804,10 +812,10 @@ impl Phases {
             return local;
         }
         let status = reported_severity(&local, severity);
-        if self.core.comm.size() == 1 {
-            // One rank: the agreement is this rank's own outcome (what the
-            // one-rank all-reduce returns), without the all-reduce, the
-            // qualified name or the step guard.
+        if one_rank_without_mpi(&self.core.comm) {
+            // One rank without MPI: the agreement is this rank's own outcome
+            // (what the one-rank all-reduce returns), without the all-reduce,
+            // the qualified name or the step guard.
             self.core.count += 1;
             count_agreement(None);
             if local.is_err() {
