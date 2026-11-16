@@ -432,6 +432,66 @@ pub struct MaterialCohesive {
     /// Runtime internals of a runtime law, on the law's cohesive elements
     /// (empty for the built-in laws).
     pub runtime_internals: akantu_model::internal_field::DynamicInternals,
+    /// Work arrays of the per-step kernels (normals, openings, residual),
+    /// kept between steps (performance; each is emptied before use, so
+    /// the kernels see what a fresh array gives them).
+    scratch: ScratchCell,
+}
+
+/// The work arrays behind a lock (a law is shared between threads by the
+/// runtime-law interface, so `Sync`); a clone starts with empty arrays.
+#[derive(Debug, Default)]
+struct ScratchCell(std::sync::Mutex<CohesiveScratch>);
+
+impl Clone for ScratchCell {
+    fn clone(&self) -> Self {
+        Self::default()
+    }
+}
+
+impl ScratchCell {
+    fn get_mut(&mut self) -> &mut CohesiveScratch {
+        // a poisoned lock holds work arrays only: they are emptied before use
+        self.0
+            .get_mut()
+            .unwrap_or_else(std::sync::PoisonError::into_inner)
+    }
+
+    fn lock(&self) -> std::sync::MutexGuard<'_, CohesiveScratch> {
+        self.0
+            .lock()
+            .unwrap_or_else(std::sync::PoisonError::into_inner)
+    }
+}
+
+/// The work arrays of [`MaterialCohesive`]'s per-step kernels.
+#[derive(Clone, Debug, Default)]
+struct CohesiveScratch {
+    /// Normals or openings at the quadrature points of a cohesive type.
+    points: Array<Real>,
+    /// `(t + t_contact) N` at the quadrature points.
+    traction_shapes: Array<Real>,
+    /// Its integral per element.
+    partial: Array<Real>,
+    /// The elemental residual (both sides).
+    int_t_n: Array<Real>,
+}
+
+/// `a` as `Array::try_zeros(len, nb_component)` would make it, in its
+/// allocation.
+fn reset_scratch(a: &mut Array<Real>, len: usize, nb_component: usize) -> Result<()> {
+    if a.nb_component() != nb_component {
+        *a = Array::new(nb_component);
+    }
+    a.clear();
+    a.try_resize(len, 0.0)
+}
+
+/// The element filter of `(ty, ghost)`, borrowed (empty if absent).
+fn filter_slice(base: &MaterialBase, ty: ElementType, ghost: GhostType) -> &[Idx] {
+    base.element_filter
+        .get(ty, ghost)
+        .map_or(&[][..], |a| a.as_slice())
 }
 
 /// Block `(ty, ghost)` of a field, created empty if missing (a guard of
@@ -510,6 +570,7 @@ impl MaterialCohesive {
             law,
             runtime_params: akantu_model::params::DynamicParameters::new(),
             runtime_internals: akantu_model::internal_field::DynamicInternals::default(),
+            scratch: ScratchCell::default(),
         })
     }
 
@@ -536,6 +597,7 @@ impl MaterialCohesive {
             law: CohesiveLaw::Foreign(crate::laws::foreign::ForeignCohesive::new(methods)),
             runtime_params: akantu_model::params::DynamicParameters::new(),
             runtime_internals: akantu_model::internal_field::DynamicInternals::default(),
+            scratch: ScratchCell::default(),
         })
     }
 
@@ -689,20 +751,25 @@ impl MaterialCohesive {
         ty: ElementType,
         ghost: GhostType,
     ) -> Result<()> {
-        let filter = self.filter_of(ty, ghost);
+        let filter = filter_slice(&self.base, ty, ghost);
         let mut out = block_mut(&mut self.core.normals, ty, ghost)?;
         out.as_mut_slice().fill(0.0);
-        let mut tmp = Array::new(self.core.dim);
+        let scratch = self.scratch.get_mut();
+        let tmp = &mut scratch.points;
+        if tmp.nb_component() != self.core.dim {
+            *tmp = Array::new(self.core.dim);
+        }
+        tmp.clear();
         fe.compute_cohesive_normals(
             mesh,
             position.view(),
-            &mut tmp,
+            tmp,
             ty,
             ghost,
             CohesiveReduction::Mean,
-            Some(&filter),
+            Some(filter),
         )?;
-        out.copy_from(&tmp)
+        out.copy_from(tmp)
     }
 
     /// Upstream `computeOpening(displacement, opening(type, ghost), …)`.
@@ -717,18 +784,23 @@ impl MaterialCohesive {
         ty: ElementType,
         ghost: GhostType,
     ) -> Result<()> {
-        let filter = self.filter_of(ty, ghost);
-        let mut tmp = Array::new(self.core.dim);
+        let filter = filter_slice(&self.base, ty, ghost);
+        let scratch = self.scratch.get_mut();
+        let tmp = &mut scratch.points;
+        if tmp.nb_component() != self.core.dim {
+            *tmp = Array::new(self.core.dim);
+        }
+        tmp.clear();
         fe.interpolate_cohesive(
             mesh,
             displacement.view(),
-            &mut tmp,
+            tmp,
             ty,
             ghost,
             CohesiveReduction::Opening,
-            Some(&filter),
+            Some(filter),
         )?;
-        block_mut(&mut self.core.opening, ty, ghost)?.copy_from(&tmp)
+        block_mut(&mut self.core.opening, ty, ghost)?.copy_from(tmp)
     }
 
     /// Upstream `MaterialCohesive::computeTraction(ghost)`: for every
@@ -763,7 +835,7 @@ impl MaterialCohesive {
         ghost: GhostType,
     ) -> Result<()> {
         for ty in self.cohesive_types(ghost) {
-            if self.filter_of(ty, ghost).is_empty() {
+            if filter_slice(&self.base, ty, ghost).is_empty() {
                 continue;
             }
             self.compute_normal(fe, mesh, position, ty, ghost)?;
@@ -798,7 +870,7 @@ impl MaterialCohesive {
         ghost: GhostType,
     ) -> Result<()> {
         for ty in self.cohesive_types(ghost) {
-            if self.filter_of(ty, ghost).is_empty() {
+            if filter_slice(&self.base, ty, ghost).is_empty() {
                 continue;
             }
             self.compute_normal(fe, mesh, position, ty, ghost)?;
@@ -819,7 +891,7 @@ impl MaterialCohesive {
         ghost: GhostType,
     ) -> Result<()> {
         for ty in self.cohesive_types(ghost) {
-            if self.filter_of(ty, ghost).is_empty() {
+            if filter_slice(&self.base, ty, ghost).is_empty() {
                 continue;
             }
             self.with_foreign(|m, law| m.compute_traction(law, ctx, ty, ghost))?;
@@ -838,8 +910,15 @@ impl MaterialCohesive {
         mut f_int: ArrayViewMut<'_, Real>,
     ) -> Result<()> {
         let dim = self.core.dim;
+        let mut scratch = self.scratch.lock();
+        let CohesiveScratch {
+            traction_shapes: cpy,
+            partial,
+            int_t_n,
+            ..
+        } = &mut *scratch;
         for ty in self.cohesive_types(ghost) {
-            let filter = self.filter_of(ty, ghost);
+            let filter = filter_slice(&self.base, ty, ghost);
             if filter.is_empty() {
                 continue;
             }
@@ -859,11 +938,13 @@ impl MaterialCohesive {
                 });
             }
             let sh = shapes.as_slice();
-            let mut cpy = Array::try_zeros(nb * nq, dim * s)?;
+            // every value of the work arrays below is written before it is
+            // read (as the fresh zeroed arrays they replace)
+            reset_scratch(cpy, nb * nq, dim * s)?;
             {
                 let c = cpy.as_mut_slice();
                 let mut p = 0;
-                for &e in &filter {
+                for &e in filter {
                     let e = akantu_core::try_to_usize(e)?;
                     for q in 0..nq {
                         let n = &sh[(e * nq + q) * s..(e * nq + q + 1) * s];
@@ -879,10 +960,13 @@ impl MaterialCohesive {
                     }
                 }
             }
-            let mut partial = Array::new(dim * s);
-            fe.integrate(cpy.view(), &mut partial, dim * s, ty, ghost, Some(&filter))?;
+            if partial.nb_component() != dim * s {
+                *partial = Array::new(dim * s);
+            }
+            partial.clear();
+            fe.integrate(cpy.view(), partial, dim * s, ty, ghost, Some(filter))?;
             let half = dim * s;
-            let mut int_t_n = Array::try_zeros(nb, 2 * half)?;
+            reset_scratch(int_t_n, nb, 2 * half)?;
             {
                 let o = int_t_n.as_mut_slice();
                 let src = partial.as_slice();
@@ -904,7 +988,7 @@ impl MaterialCohesive {
                 ty,
                 ghost,
                 1.0,
-                Some(&filter),
+                Some(filter),
             )?;
         }
         Ok(())
@@ -1021,10 +1105,13 @@ impl MaterialCohesive {
         }
         let dim = self.core.dim;
         let g = GhostType::NotGhost;
-        let tr = block(&self.core.tractions, ty, g).to_vec();
-        let tr_old = self.core.tractions.previous(ty, g)?.as_slice().to_vec();
-        let op = block(&self.core.opening, ty, g).to_vec();
-        let op_old = self.core.opening.previous(ty, g)?.as_slice().to_vec();
+        // read through guards (no copies of the four arrays; performance)
+        let tr = block(&self.core.tractions, ty, g);
+        let tr_old_guard = self.core.tractions.previous(ty, g)?;
+        let tr_old = tr_old_guard.as_slice();
+        let op = block(&self.core.opening, ty, g);
+        let op_old_guard = self.core.opening.previous(ty, g)?;
+        let op_old = op_old_guard.as_slice();
         let nq = tr.len() / dim.max(1);
         let mut erev = block_mut(&mut self.core.reversible_energy, ty, g)?;
         if erev.len() < nq
@@ -1038,8 +1125,9 @@ impl MaterialCohesive {
                 got: erev.len(),
             });
         }
-        let mut erev_v = vec![0.0; nq];
-        let mut etot_inc = vec![0.0; nq];
+        let mut etot = block_mut(&mut self.core.total_energy, ty, g)?;
+        let erev = &mut erev.as_mut_slice()[..nq];
+        let etot = etot.as_mut_slice();
         let mut b = [0.0; 3];
         let mut h = [0.0; 3];
         for q in 0..nq {
@@ -1048,30 +1136,28 @@ impl MaterialCohesive {
                 h[i] = tr_old[q * dim + i] + tr[q * dim + i];
             }
             // `Vector<Real> b, h` (run-time size): sequential dot
-            etot_inc[q] = 0.5 * crate::vecops::dot_seq(&b, &h, dim);
+            let inc = 0.5 * crate::vecops::dot_seq(&b, &h, dim);
             // `traction_it->dot(*opening_it)`: run-time views
-            erev_v[q] = 0.5
+            erev[q] = 0.5
                 * crate::vecops::dot_seq(
                     &tr[q * dim..(q + 1) * dim],
                     &op[q * dim..(q + 1) * dim],
                     dim,
                 );
-        }
-        erev.as_mut_slice()[..nq].copy_from_slice(&erev_v);
-        let mut etot = block_mut(&mut self.core.total_energy, ty, g)?;
-        for (e, inc) in etot.as_mut_slice().iter_mut().zip(&etot_inc) {
-            *e += inc;
+            if let Some(e) = etot.get_mut(q) {
+                *e += inc;
+            }
         }
         Ok(())
     }
 
     fn integrate_cohesive(&self, fe: &FeEngine, values: &[Real], ty: ElementType) -> Result<Real> {
-        let filter = self.filter_of(ty, GhostType::NotGhost);
+        let filter = filter_slice(&self.base, ty, GhostType::NotGhost);
         fe.integrate_scalar(
             akantu_core::array::ArrayView::new(values, 1)?,
             ty,
             GhostType::NotGhost,
-            Some(&filter),
+            Some(filter),
         )
     }
 

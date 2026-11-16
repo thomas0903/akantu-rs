@@ -340,6 +340,31 @@ impl<'a> ElementRanks<'a> {
 #[allow(clippy::too_many_lines)] // one upstream loop nest, kept together
 fn plan_facets(mesh: &Mesh, boundary_only: bool, dimension: usize) -> Result<FacetPlan> {
     let csr = node_to_elements_unchecked(mesh, dimension)?;
+    // Dense ids of the CSR's elements (block offset + index, one id per
+    // element) for counting the occurrences of every element of the first
+    // node's row in the other facet nodes' rows: one pass over those rows
+    // per facet instead of one scan per (element, node) pair (performance;
+    // the same counts, multiplicities included).
+    let mut block_offsets: Vec<(GhostType, ElementType, usize)> = Vec::new();
+    let mut nb_dense = 0usize;
+    for ghost in GhostType::ALL {
+        for ty in mesh.element_types(TypeFilter::new().dim(dimension).ghost(ghost)) {
+            block_offsets.push((ghost, ty, nb_dense));
+            nb_dense += mesh.nb_element(ty, ghost);
+        }
+    }
+    let dense: Vec<usize> = csr
+        .elements
+        .iter()
+        .map(|e| {
+            block_offsets
+                .iter()
+                .find(|(g, t, _)| *g == e.ghost_type() && *t == e.ty())
+                .map_or(usize::MAX, |&(_, _, o)| o + e.idx())
+        })
+        .collect();
+    let dense_row = |n: usize| &dense[csr.offsets[n]..csr.offsets[n + 1]];
+    let mut occurrences = vec![0usize; nb_dense];
     let mut ranks = ElementRanks::new(mesh);
     let mut init = Vec::new();
     for ghost in GhostType::ALL {
@@ -378,10 +403,23 @@ fn plan_facets(mesh: &Mesh, boundary_only: bool, dimension: usize) -> Result<Fac
                     // facet node (counted with multiplicity, as upstream).
                     let row0 = csr.row(ux(facet[0]));
                     counter.clear();
-                    counter.resize(row0.len(), 0);
-                    for (c, e) in counter.iter_mut().zip(row0) {
-                        for &n in &facet[1..] {
-                            *c += csr.row(ux(n)).iter().filter(|x| *x == e).count();
+                    for &n in &facet[1..] {
+                        for &d in dense_row(ux(n)) {
+                            if let Some(c) = occurrences.get_mut(d) {
+                                *c += 1;
+                            }
+                        }
+                    }
+                    counter.extend(
+                        dense_row(ux(facet[0]))
+                            .iter()
+                            .map(|&d| occurrences.get(d).copied().unwrap_or(0)),
+                    );
+                    for &n in &facet[1..] {
+                        for &d in dense_row(ux(n)) {
+                            if let Some(c) = occurrences.get_mut(d) {
+                                *c = 0;
+                            }
                         }
                     }
                     connected.clear();
@@ -693,46 +731,77 @@ fn distance(a: &[Real], b: &[Real]) -> Real {
 
 /// First facet (lowest index) whose barycenter lies at a distance below
 /// `tol` of `x` (upstream linear `find_if`, `mesh.cc:310-325`). Candidates
-/// are pre-selected on the first coordinate through `sorted` (facet
-/// indices sorted by that coordinate): a facet at computed distance `< tol`
-/// differs by at most `tol · (1 + 4ε)` in its first coordinate, the window
-/// below is twice as wide; non-finite queries fall back to the linear scan.
+/// are pre-selected on one coordinate through that coordinate's sorted
+/// index: a facet at computed distance `< tol` differs by at most
+/// `tol · (1 + 4ε)` in every coordinate (the computed sum of squares is at
+/// least each computed square), the window below is twice as wide; of the
+/// coordinates the one whose window holds the fewest facets is scanned (a
+/// window on one coordinate alone holds a whole face of a box-shaped mesh;
+/// performance: every window holds every match, so the result is the same).
+/// Non-finite queries, and blocks with a non-finite barycentre (a NaN is
+/// not ordered consistently with the windows' comparisons), fall back to
+/// the linear scan.
 fn first_facet_within(bary: &FacetBarycenters, x: &[Real], tol: Real) -> Option<usize> {
-    let x0 = x.first().copied().unwrap_or(0.0);
     let w = 2.0 * tol;
     let n = bary.len();
-    if n < 32 || !x0.is_finite() || !w.is_finite() {
+    if n < 32
+        || !bary.finite
+        || !w.is_finite()
+        || x.iter().any(|v| !v.is_finite())
+        || x.len() != bary.dim
+    {
         return (0..n).find(|&j| distance(x, bary.point(j)) < tol);
     }
-    let (lo, hi) = (x0 - w, x0 + w);
-    let sorted = &bary.sorted;
-    let start = sorted.partition_point(|&j| bary.first(j) < lo);
-    sorted[start..]
+    // the narrowest window
+    let mut best: Option<(usize, usize, usize)> = None;
+    for (c, &xc) in x.iter().enumerate() {
+        let (lo, hi) = (xc - w, xc + w);
+        let sorted = &bary.sorted[c];
+        let start = sorted.partition_point(|&j| bary.coord(j, c) < lo);
+        let end = start + sorted[start..].partition_point(|&j| bary.coord(j, c) <= hi);
+        if best.is_none_or(|(_, s, e)| end - start < e - s) {
+            best = Some((c, start, end));
+        }
+    }
+    let (c, start, end) = best?;
+    bary.sorted[c][start..end]
         .iter()
-        .take_while(|&&j| bary.first(j) <= hi)
         .filter(|&&j| distance(x, bary.point(j)) < tol)
         .min()
         .copied()
 }
 
 /// Barycenters of one facet block (flat, `dim` values each;
-/// one buffer per block, not one vector per facet) and their
-/// indices sorted on the first coordinate.
+/// one buffer per block, not one vector per facet) and, per coordinate,
+/// their indices sorted on it.
 struct FacetBarycenters {
     dim: usize,
     points: Vec<Real>,
-    sorted: Vec<usize>,
+    sorted: Vec<Vec<usize>>,
+    /// Every coordinate is finite (otherwise the windows are not used).
+    finite: bool,
 }
 
 impl FacetBarycenters {
     fn new(dim: usize, points: Vec<Real>) -> Self {
         let n = points.len() / dim.max(1);
-        let mut sorted: Vec<usize> = (0..n).collect();
-        sorted.sort_by(|&i, &j| points[i * dim].total_cmp(&points[j * dim]).then(i.cmp(&j)));
+        let sorted = (0..dim)
+            .map(|c| {
+                let mut s: Vec<usize> = (0..n).collect();
+                s.sort_by(|&i, &j| {
+                    points[i * dim + c]
+                        .total_cmp(&points[j * dim + c])
+                        .then(i.cmp(&j))
+                });
+                s
+            })
+            .collect();
+        let finite = points.iter().all(|v| v.is_finite());
         Self {
             dim,
             points,
             sorted,
+            finite,
         }
     }
 
@@ -744,8 +813,8 @@ impl FacetBarycenters {
         &self.points[j * self.dim..(j + 1) * self.dim]
     }
 
-    fn first(&self, j: usize) -> Real {
-        self.points[j * self.dim]
+    fn coord(&self, j: usize, c: usize) -> Real {
+        self.points[j * self.dim + c]
     }
 }
 
@@ -1131,9 +1200,67 @@ pub fn compute_element_to_subelements_data(mesh: &Mesh) -> Result<Option<Element
 ///   existing element of its domain. Components that add elements to a
 ///   block carrying such data (cohesive insertion) must add the rows too.
 pub fn check_facet_mesh_consistency(mesh: &Mesh) -> Result<()> {
+    check_facet_mesh_consistency_rows(mesh, None)
+}
+
+/// The adjacency datasets checked by [`check_facet_mesh_consistency`].
+#[derive(Clone, Copy, Debug, PartialEq, Eq, Hash)]
+pub(crate) enum AdjacencySet {
+    /// The facet mesh's [`ELEMENT_TO_SUBELEMENT`].
+    ElementToSubelement,
+    /// The facet mesh's [`SUBELEMENT_TO_ELEMENT`].
+    SubelementToElement,
+    /// The parent's [`MESH_TO_MESH_FACET`].
+    MeshToMeshFacet,
+}
+
+/// Rows of the adjacency datasets a mesh transaction replaced or appended
+/// (the restricted form of [`check_facet_mesh_consistency`]).
+#[derive(Debug, Default)]
+pub(crate) struct TouchedRows {
+    /// Replaced rows: dataset and the row's element.
+    pub(crate) rows: Vec<(AdjacencySet, Element)>,
+    /// Appended rows: dataset, block and the first appended row.
+    pub(crate) tails: Vec<(AdjacencySet, ElementType, GhostType, usize)>,
+}
+
+/// [`check_facet_mesh_consistency`] with the references of the adjacency
+/// datasets read from every row (`touched = None`) or only from the rows
+/// in `touched`. Everything else (node arrays, index domains, types, row
+/// counts and components of every block) is checked in full either way.
+///
+/// What the restricted form proves (used by the mesh transactions when
+/// the state they started from passed the check): if every reference was
+/// in range before, no block shrank and the datasets changed only in the
+/// rows of `touched`, then every reference is in range now — an untouched
+/// row holds the references it held, and their blocks only grew.
+pub(crate) fn check_facet_mesh_consistency_rows(
+    mesh: &Mesh,
+    touched: Option<&TouchedRows>,
+) -> Result<()> {
     use crate::data::MeshDataTypeCode as C;
     let Some(f) = mesh.mesh_facets() else {
         return Ok(());
+    };
+    // rows of `set` to read: every row, or only the touched ones
+    let touched_rows = |set: AdjacencySet| {
+        touched.map(|t| {
+            (
+                t.rows
+                    .iter()
+                    .filter(move |(s, _)| *s == set)
+                    .map(|&(_, e)| e),
+                t.tails
+                    .iter()
+                    .filter(move |(s, ..)| *s == set)
+                    .map(|&(_, ty, g, start)| (ty, g, start)),
+            )
+        })
+    };
+    let missing = |name: &str, e: Element| {
+        Error::Mesh(format!(
+            "{name}: the transaction edited the row of {e}, which does not exist"
+        ))
     };
     let broken = |what: &str| {
         Err(Error::Mesh(format!(
@@ -1237,9 +1364,33 @@ pub fn check_facet_mesh_consistency(mesh: &Mesh) -> Result<()> {
                     rows.nb_component()
                 )));
             }
-            for list in rows.as_slice() {
+            if touched.is_none() {
+                for list in rows.as_slice() {
+                    for &e in list {
+                        check_ref(ELEMENT_TO_SUBELEMENT, e)?;
+                    }
+                }
+            }
+        }
+        if let Some((one, tails)) = touched_rows(AdjacencySet::ElementToSubelement) {
+            let lists = f.data().element_lists(ELEMENT_TO_SUBELEMENT)?;
+            for el in one {
+                let list = lists
+                    .get(el.ty(), el.ghost_type())
+                    .ok()
+                    .and_then(|a| a.as_slice().get(el.idx()))
+                    .ok_or_else(|| missing(ELEMENT_TO_SUBELEMENT, el))?;
                 for &e in list {
                     check_ref(ELEMENT_TO_SUBELEMENT, e)?;
+                }
+            }
+            for (ty, g, start) in tails {
+                if let Ok(a) = lists.get(ty, g) {
+                    for list in a.as_slice().get(start..).unwrap_or(&[]) {
+                        for &e in list {
+                            check_ref(ELEMENT_TO_SUBELEMENT, e)?;
+                        }
+                    }
                 }
             }
         }
@@ -1264,8 +1415,30 @@ pub fn check_facet_mesh_consistency(mesh: &Mesh) -> Result<()> {
                     ty.nb_facets_per_element()
                 )));
             }
-            for &e in rows.as_slice() {
-                check_ref(SUBELEMENT_TO_ELEMENT, e)?;
+            if touched.is_none() {
+                for &e in rows.as_slice() {
+                    check_ref(SUBELEMENT_TO_ELEMENT, e)?;
+                }
+            }
+        }
+        if let Some((one, tails)) = touched_rows(AdjacencySet::SubelementToElement) {
+            let map = f.data().element_map(SUBELEMENT_TO_ELEMENT)?;
+            for el in one {
+                let row = map
+                    .element(el)
+                    .map_err(|_| missing(SUBELEMENT_TO_ELEMENT, el))?;
+                for &e in row {
+                    check_ref(SUBELEMENT_TO_ELEMENT, e)?;
+                }
+            }
+            for (ty, g, start) in tails {
+                if let Ok(a) = map.get(ty, g) {
+                    let nc = a.nb_component();
+                    let from = start.saturating_mul(nc);
+                    for &e in a.as_slice().get(from..).unwrap_or(&[]) {
+                        check_ref(SUBELEMENT_TO_ELEMENT, e)?;
+                    }
+                }
             }
         }
         // Debug builds: reciprocity of the two maps for regular elements
@@ -1276,6 +1449,14 @@ pub fn check_facet_mesh_consistency(mesh: &Mesh) -> Result<()> {
             check_adjacency_reciprocity(f)?;
         }
     }
+    let check_m2f = |e: Element| -> Result<()> {
+        if !e.is_null() && e.idx() >= f.nb_element(e.ty(), e.ghost_type()) {
+            return Err(Error::Mesh(format!(
+                "{MESH_TO_MESH_FACET} references facet {e} outside the facet mesh"
+            )));
+        }
+        Ok(())
+    };
     if typed(mesh, MESH_TO_MESH_FACET, C::Element)? {
         for (ty, g, rows) in mesh
             .data()
@@ -1290,11 +1471,28 @@ pub fn check_facet_mesh_consistency(mesh: &Mesh) -> Result<()> {
                 rows.len(),
                 mesh.nb_element(ty, g),
             )?;
-            for &e in rows.as_slice() {
-                if !e.is_null() && e.idx() >= f.nb_element(e.ty(), e.ghost_type()) {
-                    return Err(Error::Mesh(format!(
-                        "{MESH_TO_MESH_FACET} references facet {e} outside the facet mesh"
-                    )));
+            if touched.is_none() {
+                for &e in rows.as_slice() {
+                    check_m2f(e)?;
+                }
+            }
+        }
+        if let Some((one, tails)) = touched_rows(AdjacencySet::MeshToMeshFacet) {
+            let map = mesh.data().element_map(MESH_TO_MESH_FACET)?;
+            for el in one {
+                let row = map
+                    .element(el)
+                    .map_err(|_| missing(MESH_TO_MESH_FACET, el))?;
+                for &e in row {
+                    check_m2f(e)?;
+                }
+            }
+            for (ty, g, start) in tails {
+                if let Ok(a) = map.get(ty, g) {
+                    let from = start.saturating_mul(a.nb_component());
+                    for &e in a.as_slice().get(from..).unwrap_or(&[]) {
+                        check_m2f(e)?;
+                    }
                 }
             }
         }
@@ -1732,6 +1930,86 @@ pub fn flip_facets_local_with(
 #[cfg(test)]
 mod tests {
     use super::*;
+
+    /// The facet search through the narrowest coordinate window finds the
+    /// facet the linear scan finds (the lowest index within the tolerance),
+    /// with points on common planes and lines, duplicates, near misses and
+    /// non-finite queries.
+    /// A block with a NaN (negative or positive) or an infinite barycentre
+    /// coordinate is searched linearly: the result is the linear scan's.
+    #[test]
+    fn first_facet_within_with_non_finite_barycenters_is_the_linear_scan() {
+        for bad in [-Real::NAN, Real::NAN, Real::INFINITY, Real::NEG_INFINITY] {
+            let dim = 2;
+            let mut points = Vec::new();
+            for k in 0..64 {
+                points.extend_from_slice(&[Real::from(k) * 0.125, 0.5]);
+            }
+            // the bad coordinate in a facet before the match, on y
+            points[2 * 3 + 1] = bad;
+            let bary = FacetBarycenters::new(dim, points.clone());
+            assert!(!bary.finite);
+            for k in [0u8, 3, 40, 63] {
+                let x = [Real::from(k) * 0.125, 0.5];
+                let tol = MATH_TOLERANCE;
+                let linear = (0..bary.len()).find(|&j| distance(&x, bary.point(j)) < tol);
+                assert_eq!(first_facet_within(&bary, &x, tol), linear, "{bad} {k}");
+            }
+        }
+    }
+
+    #[test]
+    fn first_facet_within_is_the_linear_scan() {
+        let mut state = 0x2545_f491_4f6c_dd1d_u64;
+        let mut unit = || {
+            state ^= state << 13;
+            state ^= state >> 7;
+            state ^= state << 17;
+            Real::from(u32::try_from(state >> 40).unwrap()) / Real::from(1u32 << 24)
+        };
+        for dim in [2usize, 3] {
+            let n = 400;
+            let mut points = Vec::with_capacity(n * dim);
+            for k in 0..n {
+                for c in 0..dim {
+                    // grid planes (many facets share a coordinate), some
+                    // exact duplicates
+                    let v = if k % 3 == 0 && c == 0 {
+                        1.0
+                    } else if k % 5 == 0 {
+                        (unit() * 8.0).floor() / 8.0
+                    } else {
+                        unit()
+                    };
+                    points.push(v);
+                }
+            }
+            let dup: Vec<Real> = points[..dim].to_vec();
+            points.extend_from_slice(&dup);
+            let bary = FacetBarycenters::new(dim, points.clone());
+            for q in 0..600 {
+                let mut x: Vec<Real> = if q % 2 == 0 {
+                    let j = q % (n + 1);
+                    points[j * dim..(j + 1) * dim].to_vec()
+                } else {
+                    (0..dim).map(|_| unit()).collect()
+                };
+                if q % 3 == 0 {
+                    x[q % dim] += Real::EPSILON * Real::from(u8::try_from(q % 4).unwrap());
+                }
+                if q == 599 {
+                    x[0] = Real::NAN;
+                }
+                let tol = MATH_TOLERANCE * norm(&x).max(1.0);
+                let linear = (0..bary.len()).find(|&j| distance(&x, bary.point(j)) < tol);
+                assert_eq!(
+                    first_facet_within(&bary, &x, tol),
+                    linear,
+                    "dim {dim}, query {q}"
+                );
+            }
+        }
+    }
     use crate::accessor::MeshAccessor;
     use akantu_core::ElementType as Et;
 

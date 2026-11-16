@@ -526,6 +526,16 @@ impl InserterHelper {
         let mut matched = false;
         element_list.push(start);
         let mut queue = VecDeque::from([start]);
+        // the adjacency datasets looked up once per walk (performance)
+        let s2e_map = fm.data().element_map(S2E)?;
+        let e2s_map = fm.data().element_lists(E2S)?;
+        let s2e = |_: &Mesh, el: Element| s2e_map.element(el);
+        let e2s = |_: &Mesh, el: Element| -> Result<&Vec<Element>> {
+            e2s_map
+                .element(el)?
+                .first()
+                .ok_or_else(|| Error::Mesh(format!("empty element_to_subelement row for {el}")))
+        };
         while let Some(&current) = queue.front() {
             let facets_of = s2e(fm, current)?;
             for &cf in facets_of {

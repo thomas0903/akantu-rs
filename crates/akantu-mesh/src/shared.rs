@@ -90,6 +90,14 @@ pub(crate) struct DomainState {
     pub(crate) poisoned: Option<(akantu_core::FatalKind, String)>,
     /// Revision of the last committed mutation.
     pub(crate) committed: u64,
+    /// Revision at which the mesh last passed the cross-part check of the
+    /// facet mesh ([`crate::utils::check_facet_mesh_consistency`]) at a
+    /// commit or set-up operation: a mutation starting from that revision
+    /// may check only the adjacency rows it touches.
+    pub(crate) facets_verified: Option<u64>,
+    /// Every mutation checks the cross-part invariants in full
+    /// ([`SharedMesh::set_full_consistency_checks`]).
+    pub(crate) full_consistency_checks: bool,
 }
 
 impl DomainState {
@@ -177,6 +185,8 @@ impl SharedMesh {
                 phase: Phase::Idle,
                 poisoned: None,
                 committed: 0,
+                facets_verified: None,
+                full_consistency_checks: cfg!(debug_assertions),
             }),
             attachments: Mutex::new(Vec::new()),
         }))
@@ -265,6 +275,34 @@ impl SharedMesh {
             part,
             domain: Arc::downgrade(&self.0),
         })
+    }
+
+    /// Check the cross-part invariants of the facet mesh
+    /// ([`crate::utils::check_facet_mesh_consistency`]) in full at every
+    /// mutation (`true`, the default of debug builds), or — the default of
+    /// release builds — read the adjacency references only in the rows a
+    /// mutation replaced or appended, when the mutation starts from a state
+    /// that passed the check at the previous commit or set-up operation.
+    ///
+    /// The restricted form still checks in full the node arrays
+    /// (coordinates bit for bit, flags, global ids, owner ranks), the index
+    /// domains, and the type, row count and components of every adjacency
+    /// block; it proves the references of the untouched rows from the
+    /// previous check (their blocks only grew, and adjacency data changes
+    /// only through mutations and set-up operations). The full check is
+    /// taken by the first mutation of a domain, after a set-up operation that
+    /// failed the check (a mutation rolled back keeps the checked state), and
+    /// by a mutation that removes elements or nodes, snapshots a part's
+    /// mesh data, creates the facet mesh, or replaces more than an eighth of
+    /// the facet mesh's `element_to_subelement` rows. The debug-only
+    /// reciprocity check of the two adjacency maps runs with the full check
+    /// only. Local to this rank's domain.
+    ///
+    /// # Errors
+    /// A poisoned lock.
+    pub fn set_full_consistency_checks(&self, full: bool) -> Result<()> {
+        self.state()?.full_consistency_checks = full;
+        Ok(())
     }
 
     /// Revision of the last committed mutation.
