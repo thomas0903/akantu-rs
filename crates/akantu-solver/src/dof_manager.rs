@@ -353,6 +353,10 @@ pub struct DofManager {
     exec: akantu_core::exec::Exec,
     /// Inverse equation maps of the threaded scatter, per family.
     eq_inverse: std::sync::Mutex<BTreeMap<Id, assembly::EqInverse>>,
+    /// Bumped wherever a family's local equation numbers change
+    /// (`number_block`, `restore`, `commit_renumbering`): the inverse maps
+    /// of the threaded scatter are valid for one generation.
+    numbering_generation: u64,
     /// Blocked local equations, sorted and unique (upstream
     /// `global_blocked_dofs_indexes`), snapshot of the last
     /// [`DofManager::update_global_blocked_dofs`].
@@ -761,6 +765,7 @@ impl DofManager {
             compat: UpstreamCompat::default(),
             exec: akantu_core::exec::Exec::serial(),
             eq_inverse: std::sync::Mutex::default(),
+            numbering_generation: 0,
         }
     }
 
@@ -1210,6 +1215,9 @@ impl DofManager {
         let flags_len = self.dofs_flag.len();
         let sync = mesh.synchronizers().node.clone();
         let periodic = periodic_numbering_sync(mesh);
+        // the equation numbering changes (inverse maps of the threaded
+        // scatter are rebuilt)
+        self.numbering_generation = self.numbering_generation.wrapping_add(1);
         let r = number_block(
             ph,
             &mut self.layout,
@@ -1304,6 +1312,7 @@ impl DofManager {
         let (mut data, plan) = ph.agreed("preflight", pre, Severity::Recoverable)?;
         let backup = self.layout.clone();
         let flags_len = self.dofs_flag.len();
+        self.numbering_generation = self.numbering_generation.wrapping_add(1);
         if let Err(e) = number_block(
             ph,
             &mut self.layout,
@@ -2368,6 +2377,7 @@ impl DofManager {
         let sync = mesh.synchronizers().node.clone();
         let periodic = periodic_numbering_sync(mesh);
         let mut numbered = Vec::new();
+        self.numbering_generation = self.numbering_generation.wrapping_add(1);
         let r = (|| -> Result<()> {
             for (id, selected, plan) in plans {
                 let data = self
@@ -2491,6 +2501,7 @@ impl DofManager {
     }
 
     fn restore(&mut self, backup: GrowthBackup) {
+        self.numbering_generation = self.numbering_generation.wrapping_add(1);
         self.layout = backup.layout;
         self.dofs_flag.truncate(backup.flags_len);
         for (id, _, eqs) in backup.lens {

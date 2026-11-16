@@ -84,17 +84,27 @@ fn inverse_scatter_part(inv: &[u32], values: &[Real], scale: Real, target: &mut 
 const EQUATIONS_PER_PART: usize = 262_144;
 
 /// The inverse of a family's equation numbers (`inv[eq] = dof`), kept for
-/// the equation-ordered scatter with the numbers it was built from; `inv`
-/// is `None` when two DOFs share an equation.
+/// the equation-ordered scatter with the numbering generation it was built
+/// for (and, as a further check, the length and address of the numbers);
+/// `inv` is `None` when two DOFs share an equation.
 #[derive(Debug, Default)]
 pub(crate) struct EqInverse {
-    eqs: Vec<Idx>,
+    generation: u64,
+    eqs_len: usize,
+    eqs_ptr: usize,
     len: usize,
     inv: Option<Vec<u32>>,
 }
 
 impl EqInverse {
-    fn build(eqs: &[Idx], len: usize) -> Self {
+    fn valid_for(&self, generation: u64, eqs: &[Idx], len: usize) -> bool {
+        self.generation == generation
+            && self.eqs_len == eqs.len()
+            && self.eqs_ptr == eqs.as_ptr() as usize
+            && self.len == len
+    }
+
+    fn build(generation: u64, eqs: &[Idx], len: usize) -> Self {
         let mut inv = vec![u32::MAX; len];
         let mut injective = u32::try_from(eqs.len()).is_ok();
         for (k, &eq) in eqs.iter().enumerate() {
@@ -107,7 +117,9 @@ impl EqInverse {
             }
         }
         Self {
-            eqs: eqs.to_vec(),
+            generation,
+            eqs_len: eqs.len(),
+            eqs_ptr: eqs.as_ptr() as usize,
             len,
             inv: injective.then_some(inv),
         }
@@ -125,6 +137,7 @@ impl DofManager {
     pub(crate) fn scatter_to_global(
         exec: &akantu_core::exec::Exec,
         cache: &std::sync::Mutex<BTreeMap<akantu_core::Id, EqInverse>>,
+        generation: u64,
         dof_id: &str,
         f: &DofData,
         periodic: bool,
@@ -132,7 +145,9 @@ impl DofManager {
         target: &mut [Real],
         scale: Real,
     ) -> Result<()> {
-        let serial = !exec.is_parallel()
+        // threaded only when the equations really split into several parts
+        // (a single part would pay the table lookup for nothing)
+        let serial = exec.nb_parts(target.len(), EQUATIONS_PER_PART) <= 1
             || (f.support == akantu_core::enums::DofSupportType::Nodal && periodic)
             || values.len() != f.local_equation_numbers.len();
         if serial {
@@ -140,8 +155,8 @@ impl DofManager {
         }
         let mut cache = cache.lock().unwrap_or_else(|e| e.into_inner());
         let entry = cache.entry(dof_id.into()).or_default();
-        if entry.len != target.len() || entry.eqs != f.local_equation_numbers {
-            *entry = EqInverse::build(&f.local_equation_numbers, target.len());
+        if !entry.valid_for(generation, &f.local_equation_numbers, target.len()) {
+            *entry = EqInverse::build(generation, &f.local_equation_numbers, target.len());
         }
         let Some(inv) = &entry.inv else {
             return Self::assemble_to_global(f, periodic, values, target, scale);
@@ -239,6 +254,7 @@ impl DofManager {
         Self::scatter_to_global(
             &self.exec,
             &self.eq_inverse,
+            self.numbering_generation,
             dof_id,
             f,
             self.mesh_periodic,
@@ -526,6 +542,7 @@ impl DofManager {
         Self::scatter_to_global(
             &self.exec,
             &self.eq_inverse,
+            self.numbering_generation,
             dof_id,
             self.family(dof_id)?,
             self.mesh_periodic,

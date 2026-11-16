@@ -54,6 +54,9 @@ pub(crate) struct AssemblyScratch {
     /// Node-ordered scatter tables of the threaded assembly (D-123), per
     /// `(law, type, ghost)`; built on first use with more than one thread.
     pub(crate) scatters: std::collections::HashMap<(usize, ElementType, GhostType), ScatterEntry>,
+    /// Per-node terms of the threaded external-work increment (behind a
+    /// lock: the increment is computed from `&self`).
+    pub(crate) work_terms: std::sync::Mutex<Vec<Real>>,
 }
 
 /// A cached [`NodeScatter`] with what it was built from: the mesh topology
@@ -786,6 +789,7 @@ pub(crate) fn assemble_internal_forces_of(
             per_point,
             per_element: r_e,
             scatters,
+            ..
         } = &mut *scratch;
         if law.base().finite_deformation {
             finite_deformation::internal_forces(law, fe, dim, ty, ghost, &filter, per_point, r_e)?;
