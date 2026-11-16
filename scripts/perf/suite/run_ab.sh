@@ -98,13 +98,19 @@ for ((r = offset; r < offset + reps; r++)); do
       cmd+=(--case "$c" --size "$size" --reps 1 --out "$f" ${extra_args[@]+"${extra_args[@]}"})
       group+=("$(printf '%q ' "${cmd[@]}")")
     done
-    script="$(printf 'set -e\n'; printf '%s\n' "${group[@]}")"
+    # the group goes to a script file (a multi-line `bash -c` argument does
+    # not survive a wrapper that passes it on through ssh arguments)
+    file="$(cd "$out" && pwd)/.group.r$r.$c.$$.sh"
+    { printf 'set -e\n'; printf '%s\n' "${group[@]}"; } > "$file"
     echo "[run_ab] rep $r case $c: ${names[*]}" >&2
+    rc=0
     if [ ${#wrapper[@]} -gt 0 ]; then
-      "${wrapper[@]}" bash -c "$script"
+      "${wrapper[@]}" bash "$file" || rc=$?
     else
-      bash -c "$script"
+      bash "$file" || rc=$?
     fi
+    rm -f -- "$file"
+    [ "$rc" -eq 0 ] || exit "$rc"
   done
 done
 echo "[run_ab] done: $out" >&2
