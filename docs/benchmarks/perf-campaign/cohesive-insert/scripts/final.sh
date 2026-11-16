@@ -1,6 +1,6 @@
 #!/bin/bash
 # SPDX-License-Identifier: LGPL-3.0-or-later
-# akantu-rs measurement script of the performance campaign (W2-INSERT); not ported from Akantu.
+# akantu-rs measurement script of the performance campaign (the cohesive insertion step); not ported from Akantu.
 # final.sh: the before / after series of the report, one after the other, nothing else running.
 set -u
 I=~/w/insert; S=$I/series; cd $I

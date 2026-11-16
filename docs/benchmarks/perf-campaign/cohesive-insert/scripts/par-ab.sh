@@ -1,6 +1,6 @@
 #!/bin/bash
 # SPDX-License-Identifier: LGPL-3.0-or-later
-# akantu-rs measurement script of the performance campaign (W2-INSERT); not ported from Akantu.
+# akantu-rs measurement script of the performance campaign (the cohesive insertion step); not ported from Akantu.
 # par-ab.sh <outroot> <input.dat> <np> <reps> <label=target>...: interleaved MPI A/B (MUMPS image,
 # Scotch partition), order rotated per repetition, ranks bound to cores 0..np-1 (par-run.sh).
 set -u

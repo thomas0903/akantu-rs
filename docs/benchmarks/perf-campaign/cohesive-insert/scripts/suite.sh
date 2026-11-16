@@ -1,6 +1,6 @@
 #!/bin/bash
 # SPDX-License-Identifier: LGPL-3.0-or-later
-# akantu-rs measurement script of the performance campaign (W2-INSERT); not ported from Akantu.
+# akantu-rs measurement script of the performance campaign (the cohesive insertion step); not ported from Akantu.
 # suite.sh <outdir> <cases> <size> <reps> <label=binary>...: interleaved, rotated A/B of suite binaries,
 # each run pinned to core 2, one JSON file per (label, rep)
 set -u

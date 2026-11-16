@@ -1,5 +1,5 @@
 # SPDX-License-Identifier: LGPL-3.0-or-later
-# akantu-rs measurement script of the performance campaign (W2-INSERT); not ported from Akantu.
+# akantu-rs measurement script of the performance campaign (the cohesive insertion step); not ported from Akantu.
 # sum.py <dir> <labelA> <labelB>: medians [min,max] per (case, phase), paired ratio, digest check
 import json,glob,collections,statistics,sys
 d,A,B=sys.argv[1:4]

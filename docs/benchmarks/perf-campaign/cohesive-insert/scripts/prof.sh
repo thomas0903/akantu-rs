@@ -1,6 +1,6 @@
 #!/bin/bash
 # SPDX-License-Identifier: LGPL-3.0-or-later
-# akantu-rs measurement script of the performance campaign (W2-INSERT); not ported from Akantu.
+# akantu-rs measurement script of the performance campaign (the cohesive insertion step); not ported from Akantu.
 # prof.sh <bin> <input.dat> <outdir>: fp call-graph profile of one serial driver run (core 3)
 set -u
 bin=$(readlink -f $1); inp=$(readlink -f $2); o=$3

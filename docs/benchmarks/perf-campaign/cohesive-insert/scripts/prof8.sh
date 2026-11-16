@@ -1,6 +1,6 @@
 #!/bin/bash
 # SPDX-License-Identifier: LGPL-3.0-or-later
-# akantu-rs measurement script of the performance campaign (W2-INSERT); not ported from Akantu.
+# akantu-rs measurement script of the performance campaign (the cohesive insertion step); not ported from Akantu.
 # prof8.sh <target-name> <np> <label>: whole-machine call-graph profile (frame-pointer build) of one MPI run
 t=$1; np=$2; o=~/w/insert/prof/$3; rm -rf $o; mkdir -p $o
 sudo perf record -q -a -C 0-$((np-1)) -F 499 -g -o $o/perf.data -- sudo -u ubuntu ~/w/insert/par-run.sh $t $np ~/w/insert/runs/in-5000.dat $o/run > /dev/null 2>&1

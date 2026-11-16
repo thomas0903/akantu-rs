@@ -1,6 +1,6 @@
 #!/bin/bash
 # SPDX-License-Identifier: LGPL-3.0-or-later
-# akantu-rs measurement script of the performance campaign (W2-INSERT); not ported from Akantu.
+# akantu-rs measurement script of the performance campaign (the cohesive insertion step); not ported from Akantu.
 # build-par.sh <tree> [prefix]: release driver with MPI, Scotch and MUMPS in the project image
 # (target in the docker volume akantu-rs-mpi-target under /target/<prefix>-<tree>)
 set -e

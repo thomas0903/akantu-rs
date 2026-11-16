@@ -1,6 +1,6 @@
 #!/bin/bash
 # SPDX-License-Identifier: LGPL-3.0-or-later
-# akantu-rs measurement script of the performance campaign (W2-INSERT); not ported from Akantu.
+# akantu-rs measurement script of the performance campaign (the cohesive insertion step); not ported from Akantu.
 # dig.sh <label> <bin> <input.dat> <core>: one serial driver run with the state digest output
 # (energies of every step, insertions, the nodal state of the last step); prints the digests
 set -u

@@ -1,6 +1,6 @@
 #!/usr/bin/env python3
 # SPDX-License-Identifier: LGPL-3.0-or-later
-# akantu-rs measurement script of the performance campaign (W2-INSERT); not ported from Akantu.
+# akantu-rs measurement script of the performance campaign (the cohesive insertion step); not ported from Akantu.
 # analyze.py ser <root>       : serial before/after series (ab.sh layout <root>/<label>/rep<k>/)
 # analyze.py par <root> <np>  : MPI before/after series (par-ab.sh layout <root>/np<np>/<label>/rep<k>/)
 # Markdown tables: ms per step, median [min, max] over the repetitions, paired after/before ratios.
