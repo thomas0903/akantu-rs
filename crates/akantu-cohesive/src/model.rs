@@ -491,7 +491,7 @@ fn interpolate_fused(
         let rs = facet_stress
             .get_mut(block.facet, block.facet_ghost)?
             .as_mut_slice();
-        // Threading candidate (WP-EXEC primitives, independent outputs):
+        // Threading candidate (the execution policy's primitives, independent outputs):
         // every pair writes only its own destination tuples (the plan holds
         // one pair per destination), so any chunking of `pairs` keeps every
         // bit; chunks by destination range keep the writes sequential.
