@@ -20,6 +20,15 @@ change of default results or of a public API raises the minor version.
   writes `chrono_rank<r>.csv` (the phase times of every rank) and, for the
   cohesive model, `insertion_stats_rank<r>.csv` (the split of the
   insertion check) on every rank.
+- `akantu_comm::Synchronizer::post_in` / `wait_in` and
+  `akantu_comm::PostedExchange`: an owner → ghost exchange posted inside a
+  running collective scope and completed later, with one agreement on the
+  unpacking and the caller's work in between.
+- `akantu_comm::phase::agreement_stats`: the number of agreements of the
+  collective error protocol performed by the process and the time spent in
+  them; `suite_setup`'s `explicit_step_dist_tet4` reports them per step.
+- `akantu_core::math::sort_total`: an ascending sort by `f64::total_cmp`
+  (the array of any correct sort; a radix sort for long slices).
 
 ### Changed
 
@@ -30,6 +39,19 @@ change of default results or of a public API raises the minor version.
   route once per block, the copy plan after an insertion is built in
   linear time, and the linear law's effective norm uses fixed-size loops
   (`docs/BENCHMARKS.md`, "The insertion check").
+- Mesh distribution and the communication layer are faster with
+  bitwise identical results (`docs/BENCHMARKS.md`, "Distribution and the
+  communication layer"): the dual graph of the partitioners counts shared
+  nodes in an array over linearised elements (same graph, same Scotch
+  partition), the distribution's group tables are built once instead of
+  per rank, checked collectives of the MPI back-end carry payloads of at
+  most 64 bytes in their header (agreements and scalar reductions are one
+  MPI collective), byte messages are sent and received without a copy,
+  agreements on one rank skip the all-reduce, `Math::reduce` sorts with a
+  radix sort, and the solid model posts its `_smm_stress` exchange before
+  the not-ghost assembly and completes it before the ghost one (as
+  upstream), keeps one assembly buffer set per ghost type and looks up the
+  law blocks of an exchange once per run of elements.
 
 ## [0.1.0] - Unreleased
 
