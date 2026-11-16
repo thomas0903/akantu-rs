@@ -738,11 +738,18 @@ fn distance(a: &[Real], b: &[Real]) -> Real {
 /// coordinates the one whose window holds the fewest facets is scanned (a
 /// window on one coordinate alone holds a whole face of a box-shaped mesh;
 /// performance: every window holds every match, so the result is the same).
-/// Non-finite queries fall back to the linear scan.
+/// Non-finite queries, and blocks with a non-finite barycentre (a NaN is
+/// not ordered consistently with the windows' comparisons), fall back to
+/// the linear scan.
 fn first_facet_within(bary: &FacetBarycenters, x: &[Real], tol: Real) -> Option<usize> {
     let w = 2.0 * tol;
     let n = bary.len();
-    if n < 32 || !w.is_finite() || x.iter().any(|v| !v.is_finite()) || x.len() != bary.dim {
+    if n < 32
+        || !bary.finite
+        || !w.is_finite()
+        || x.iter().any(|v| !v.is_finite())
+        || x.len() != bary.dim
+    {
         return (0..n).find(|&j| distance(x, bary.point(j)) < tol);
     }
     // the narrowest window
@@ -771,6 +778,8 @@ struct FacetBarycenters {
     dim: usize,
     points: Vec<Real>,
     sorted: Vec<Vec<usize>>,
+    /// Every coordinate is finite (otherwise the windows are not used).
+    finite: bool,
 }
 
 impl FacetBarycenters {
@@ -787,10 +796,12 @@ impl FacetBarycenters {
                 s
             })
             .collect();
+        let finite = points.iter().all(|v| v.is_finite());
         Self {
             dim,
             points,
             sorted,
+            finite,
         }
     }
 
@@ -1924,6 +1935,29 @@ mod tests {
     /// facet the linear scan finds (the lowest index within the tolerance),
     /// with points on common planes and lines, duplicates, near misses and
     /// non-finite queries.
+    /// A block with a NaN (negative or positive) or an infinite barycentre
+    /// coordinate is searched linearly: the result is the linear scan's.
+    #[test]
+    fn first_facet_within_with_non_finite_barycenters_is_the_linear_scan() {
+        for bad in [-Real::NAN, Real::NAN, Real::INFINITY, Real::NEG_INFINITY] {
+            let dim = 2;
+            let mut points = Vec::new();
+            for k in 0..64 {
+                points.extend_from_slice(&[Real::from(k) * 0.125, 0.5]);
+            }
+            // the bad coordinate in a facet before the match, on y
+            points[2 * 3 + 1] = bad;
+            let bary = FacetBarycenters::new(dim, points.clone());
+            assert!(!bary.finite);
+            for k in [0u8, 3, 40, 63] {
+                let x = [Real::from(k) * 0.125, 0.5];
+                let tol = MATH_TOLERANCE;
+                let linear = (0..bary.len()).find(|&j| distance(&x, bary.point(j)) < tol);
+                assert_eq!(first_facet_within(&bary, &x, tol), linear, "{bad} {k}");
+            }
+        }
+    }
+
     #[test]
     fn first_facet_within_is_the_linear_scan() {
         let mut state = 0x2545_f491_4f6c_dd1d_u64;
