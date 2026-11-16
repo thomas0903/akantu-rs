@@ -44,6 +44,8 @@ pub mod anisotropic_damage;
 pub mod maxwell;
 pub mod phasefield;
 pub mod sls_deviatoric;
+// Scratch blocks of the laws (kept between steps).
+pub(crate) mod scratch;
 // Non-local laws and weight functions.
 pub mod non_local;
 

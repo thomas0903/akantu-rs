@@ -630,8 +630,10 @@ Built-in laws describe parameters in static `ParamDescriptor` tables,
 runtime laws (Python subclasses, user Rust laws) own `DynamicParameters`;
 both are `Parsable`, so `.dat` sections fill them byte for byte.
 `InternalField<T>` covers the law's filtered elements with a default value
-and optional history; history copies are in place, so foreign views stay
-attached. The cohesive laws' maximal openings
+and optional history. A history save of a block that is not exported is
+deferred until the block is written (and becomes an exchange of the two
+allocations when the writer rewrites the whole block); an exported block is
+copied in place, so foreign views stay attached. The cohesive laws' maximal openings
 are committed at the end of a converged step, not at step entry (D-052).
 An internal field with a random default (upstream's `RandomInternalField`)
 draws through `akantu_core::random`, which reproduces libstdc++'s engine
@@ -726,7 +728,9 @@ Non-blocking operations own their buffers (dropping an incomplete send
 completes it, dropping an unmatched receive cancels it). On MPI every
 collective first agrees a descriptor (operation, root, reduction, type,
 count, local validity), so contract violations fail on every rank instead
-of hanging. Self-messages never enter MPI, and every remote receive is
+of hanging; contributions of at most 64 bytes (agreements, scalar
+reductions) travel in that header, so such a collective is one MPI
+collective. Self-messages never enter MPI, and every remote receive is
 filled by `MPI_Improbe` and an exact-length `MPI_Imrecv`, which avoids an
 Open MPI 5.0.7 defect (`docs/DEPENDENCIES.md`); a truncated receive
 allocates the whole message (at most 2 GiB), and posted receives progress
@@ -908,7 +912,7 @@ its C shim in `build.rs` only when it is enabled.
 the GPL crate. `crates/akantu-geometry/tests/license_separation.rs` replays
 Cargo's feature resolution and fails if any default feature set of an LGPL
 crate, or any other feature, reaches it. `embedded` never implies `cgal`:
-it uses the LGPL `LinearScan` search structure.
+it uses the LGPL `GridIndex` search structure (or `LinearScan`).
 
 ## Python extension and C interface
 
@@ -1068,6 +1072,38 @@ every supported level against the scalar bits. Fast-mode kernels: marked
 `FAST MODE`, selected by `precision() == Fast` once per batch, validated by
 `akantu_validation::fast_mode::check_fast_mode` against the bitwise run with
 a rule of `fixtures/fast_mode/<area>/tolerances.json`.
+
+Bitwise lane kernels (`exec::with_simd`, `exec::Lanes4`): a kernel body
+written once over `Lanes4` (four `f64` lanes, each operation per lane, no
+FMA) implements `SimdTask`; `with_simd(token, task)` compiles it inside an
+`#[target_feature(enable = "avx2")]` entry point on `Avx2` and `Avx512`
+tokens and for the baseline otherwise, so every level gives the same bits
+and the crates that write such kernels (`akantu-fe`, `akantu-solid`) stay
+free of `unsafe` (the one dispatch site is in `akantu-core`, `UNSAFE.md`
+CO-19, CO-20). Lane layouts of the explicit step: the gradient has one
+lane per row of `∇u`, the integrated `BᵀD` one lane per row of `D`, the
+integrated finite-deformation residual one lane per node of a group of
+four (component `k` fixed per vector; the `B_L0` selections then depend on
+`k` only). Lanes are not a promise of packed instructions: the compiler
+packs the integrated `BᵀD` and residual, about half of the plain gradient
+and none of the gradient with the `eigen_grad_u` subtraction (scalar AVX
+instructions; a packed variant was not faster,
+`docs/benchmarks/perf-campaign/explicit/README.md`). No AVX-512 instance: three-component lanes do not fill 512-bit
+vectors, and the compiler's AVX-512 code for the gradient was slower.
+
+Element-block pass of the internal forces
+(`MaterialElastic::stress_and_element_forces`, called by
+`assemble_internal_forces`): for a model with one elastic law on one
+element type of a mesh without ghosts and without non-local laws, one
+threaded region runs, per block of elements of about 192 KiB of
+per-element data, the gradient minus `eigen_grad_u`
+(`FeEngine::gradient_plan`), the thermal pre-step, the stress (or second
+Piola–Kirchhoff stress) and the integrated `BᵀD` (`btd_integrate_plan`)
+or residual (`assembly::ResidualPlan`); the scatter follows. The plans run
+the batch kernels on element ranges after checking the whole filter once,
+and `grad_u`, the stress fields and the thermal fields receive the values
+of the separate passes. Any other model, or a plan that cannot be made,
+runs the separate passes.
 
 Wait policy: idle workers spin for `ExecPolicy::spin` (`AKANTU_EXEC_SPIN_US`;
 default 5 ms, 0 when the threads outnumber the available cores, with a

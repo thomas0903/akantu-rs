@@ -129,8 +129,8 @@ impl SolidMechanicsPhysics {
         // the per-node terms on the threads, their sum in node order (the
         // serial additions, D-123)
         // the terms in a buffer kept between steps (every entry is written)
-        let mut terms = self
-            .assembly_scratch
+        // (one scratch set per ghost type, assembly.rs: the not-ghost one)
+        let mut terms = self.assembly_scratch[GhostType::NotGhost.index()]
             .work_terms
             .lock()
             .unwrap_or_else(|e| e.into_inner());

@@ -115,6 +115,16 @@ pub trait WeightFunction: Parsable + std::fmt::Debug + Send {
     fn upstream_packs_weight_data(&self) -> bool {
         true
     }
+
+    /// `true` if [`WeightFunction::weight`] depends only on the distance
+    /// and on the radius given by [`WeightFunction::set_radius`] (no
+    /// internal, no other parameter, no state): the neighbourhood then
+    /// keeps the weights of its last computation while their inputs are
+    /// unchanged instead of recomputing the same values. Default `false`
+    /// (always recomputed, as upstream).
+    fn weights_depend_only_on_distance(&self) -> bool {
+        false
+    }
 }
 
 /// Constructor of a weight-function type.
@@ -315,6 +325,10 @@ impl WeightFunction for BaseWeightFunction {
     }
     fn weight(&self, r: Real, _q1: PointRef<'_>, _q2: PointRef<'_>) -> Real {
         base_weight(r, self.base.r, self.base.r2)
+    }
+    /// `base_weight(r, R, R²)` with `R` and `R²` from `set_radius`.
+    fn weights_depend_only_on_distance(&self) -> bool {
+        true
     }
 }
 

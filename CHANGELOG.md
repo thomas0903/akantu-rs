@@ -10,6 +10,36 @@ change of default results or of a public API raises the minor version.
 
 ### Added
 
+- `akantu_geometry::GridIndex`: a uniform-grid search structure over the
+  triangle primitives of the segment intersector that tests only the
+  primitives near a query, in primitive order with the predicates of
+  `LinearScan`. `EmbeddedInterfaceIntersector` uses it by default; its new
+  field `exhaustive_search = true` selects `LinearScan`. The grid reports
+  the scan's reports, in the scan's order, minus those of primitives
+  farther from the query than its margin (a quarter cell). The scan
+  reports such primitives only through rounding noise, when a query lies,
+  up to rounding, in the plane of a distant face or on the line of a
+  distant edge; the noise can be the query itself attached to the distant
+  element. In the collected set (`remove_near_duplicates = false`) the grid
+  can therefore keep another element for a duplicated piece: the one
+  containing it, where the scan's deduplication keeps the lower, distant
+  one. The grid's choice is upstream's: a probe of upstream's
+  `MeshSegmentIntersector` gives the grid's pieces on such queries, and so
+  does the port's CGAL-compatible AABB tree. With the default tiled
+  assembly no difference was found.
+- `akantu_contact::geometry::OutwardFrame::CurrentCached`,
+  `OutwardCache` and `orthogonal_projection_in`: outward directions of the
+  facets memoised for one set of positions; the contact detector uses them
+  within a search (identical normals).
+- `akantu_contact::geometry::outside_direction_with_nodes`: the reference
+  outward direction with node arrays read once by the caller (the nodal
+  areas of a search use it).
+- `akantu_contact::GridSpacing` and `ContactDetector::grid_spacing`: the
+  cell size of the detection grid. `Upstream` (default) keeps upstream's
+  rule (√2 · the largest in-radius of every facet around a master node);
+  `ContactSurface` takes the contact-surface facets only, for meshes whose
+  side facets are much larger than the surface facets (the closest master
+  node found can then differ); `ContactMechanicsModel::set_grid_spacing`.
 - Execution policy (D-123): `akantu_core::exec` with `ExecPolicy`
   (precision mode `Bitwise`/`Fast`, thread count, SIMD level, split grain),
   `Exec` (a shared thread pool per thread count), `NodeScatter` and the
@@ -59,10 +89,31 @@ change of default results or of a public API raises the minor version.
   with one quadrature point per element, with the operations
   `interpolate_elemental_field` performs (`value`, or `coefficients` then
   `value_from_coefficients`).
+- Python: a `DirichletFunctor` subclass may define
+  `callNodes(nodes, flags, primal, coords)`; `applyBC` then calls it once
+  per group with NumPy copies of the group's rows and writes `flags` and
+  `primal` back after it returns, instead of calling `__call__` per node.
+  Subclasses that define only `__call__` behave as before.
+- `akantu_model::boundary_condition::DirichletFunctor::apply_shared_nodes`
+  (default: `apply_shared` per node, `apply_shared_per_node`): the
+  foreign-functor path of `apply_dirichlet` hands the whole node list to the
+  functor.
+- Benchmark suites: `suite_setup` case `parser_chain` (a chain of
+  parameters that each refer twice to the previous one) and Python case
+  `dirichlet_group_tri3`.
 - The cohesive benchmark driver (`akantu-bench`, `cohesive_extrinsic`)
   writes `chrono_rank<r>.csv` (the phase times of every rank) and, for the
   cohesive model, `insertion_stats_rank<r>.csv` (the split of the
   insertion check) on every rank.
+- `akantu_comm::Synchronizer::post_in` / `wait_in` and
+  `akantu_comm::PostedExchange`: an owner → ghost exchange posted inside a
+  running collective scope and completed later, with one agreement on the
+  unpacking and the caller's work in between.
+- `akantu_comm::phase::agreement_stats`: the number of agreements of the
+  collective error protocol performed by the process and the time spent in
+  them; `suite_setup`'s `explicit_step_dist_tet4` reports them per step.
+- `akantu_core::math::sort_total`: an ascending sort by `f64::total_cmp`
+  (the array of any correct sort; a radix sort for long slices).
 - `akantu_core::eigen_kernels`: `SliceProduct` (a product of slice operands
   with its Eigen route, strides and kernel decided once; `eval` gives the
   bits of `eigen_gebp::product_into`), `product_slices`, and
@@ -72,6 +123,19 @@ change of default results or of a public API raises the minor version.
   `akantu_fe::eigen::prepare` (the
   `SliceProduct` of two `Dims`), `akantu_fe::kernels::{
   shape_derivatives_product, shape_derivatives_with}`.
+- Bitwise SIMD kernels of the explicit step without `unsafe` outside
+  `akantu-core`: `akantu_core::exec::{Lanes4, SimdTask, with_simd}` (four
+  `f64` lanes with per-lane operations; a portable kernel body compiled
+  for AVX2, without FMA, on `Avx2` and `Avx512` tokens) and
+  `akantu_core::eigen_unrolled::tree_sum_of` (the halving tree of
+  `tree_sum` over any per-lane type). `Lanes4::mul_add` for fast-mode
+  kernels.
+- `FeEngine::compute_btd_integrate` (`compute_btd` then `integrate` with
+  the same checks and values, the point values integrated as they are
+  computed), `FeEngine::{gradient_plan, btd_integrate_plan}` and
+  `akantu_fe::engine::{GradientPlan, BtdIntegratePlan}` (the gradient and
+  the integrated `BᵀD` checked once over a filter and run on element
+  ranges, with the bits of the full calls).
 - `akantu_core::eigen_order::{redux_tree_recursive, TREE_LEVELS_MAX}`;
   `akantu_core::eigen_gebp::route` is a `const fn`.
 - Sparse assembly without per-entry hashing, bitwise equal to the former
@@ -103,6 +167,20 @@ change of default results or of a public API raises the minor version.
   `rust_release_static_solver = true` (default false) and records
   `rss_after_release`. Manual: "Solver configuration", "Releasing the
   static solver's memory".
+- `akantu_model::InternalField::prepare_overwrite` and
+  `InternalField::commit_overwrite`: a caller that rewrites a whole block
+  of an internal field announces it, or commits a block it computed
+  elsewhere, so that the history save of the block becomes an exchange of
+  allocations instead of a copy (see "Changed").
+- `akantu_core::array_shared::SharedArray::as_unexported` and
+  `SharedArray::try_swap_values` (the array of a block no foreign code can
+  see, and an exchange of values with a plain array when it is not
+  exported).
+- `akantu_solid::Material::prepare_stress_overwrite` (default: nothing):
+  `compute_all_stresses` calls it before `compute_stress`; a law announces
+  there the blocks its `compute_stress` rewrites completely.
+- `akantu_model::non_local::WeightFunction::weights_depend_only_on_distance`
+  (default `false`; `true` for `base_wf`).
 
 ### Changed
 
@@ -119,6 +197,26 @@ change of default results or of a public API raises the minor version.
 - `MaterialElastic::compute_stress` returns `Error::DimensionMismatch` when
   `grad_u` or the stress block does not have `dim × dim` components per
   point (before, such a block was processed in chunks of the wrong size).
+- The explicit step of `SolidMechanicsModel` is faster with bitwise
+  identical results at every thread count and SIMD level (0.52–0.83 of
+  its time at one thread on an AMD EPYC 7B13, per mesh in
+  `docs/benchmarks/perf-campaign/explicit/README.md`): the FE gradient,
+  `BᵀD`, integration and finite-deformation residual kernels check their
+  element ids and connectivity once per batch and run lane kernels,
+  compiled for AVX2 when the CPU has it (the integrated `BᵀD` and the
+  integrated residual run packed AVX2 arithmetic, the gradient partly, and
+  the gradient with the `eigen_grad_u` subtraction of the block pass
+  scalar AVX instructions); `BᵀD` and the finite-deformation residual are
+  integrated as they are computed (no per-point array); for one elastic
+  law on one element type of a mesh without ghosts, the gradient, the
+  thermal pre-step, the stress and the integration run in one pass per
+  block of elements that fits the L2 cache; the internal-force assembly
+  reads the law filter without a copy; the element scatter indexes each
+  node once.
+- In `Precision::Fast` the integrated `BᵀD`, the integrated
+  finite-deformation residual and the integration also use fused
+  multiply-adds; the fast-mode case of the explicit step is
+  `fast_mode/solid/explicit_fma_kernels` (was `explicit_fma_gradient`).
 - `akantu-core` denies `unsafe` instead of forbidding it: the thread pool
   of `exec::spin` and the SIMD kernels of `exec::simd` (listed in its
   `UNSAFE.md`) are the only sites.
@@ -129,6 +227,52 @@ change of default results or of a public API raises the minor version.
   route once per block, the copy plan after an insertion is built in
   linear time, and the linear law's effective norm uses fixed-size loops
   (`docs/BENCHMARKS.md`, "The insertion check").
+- The cohesive insertion step and the mesh operations under it are faster
+  with bitwise identical results, serial and distributed
+  (`docs/BENCHMARKS.md`, "The insertion step"): in release builds a mesh
+  transaction that starts from a state that passed the cross-part check
+  checks the adjacency references only in the rows it replaced or appended
+  (debug builds keep the full check; `SharedMesh::set_full_consistency_checks`
+  selects it explicitly); element-group node lists and the node
+  synchronizer are journaled instead of snapshotted; the stress copy plan
+  follows an insertion instead of being rebuilt; the cohesive laws keep
+  their residual and energy work arrays between steps;
+  a distributed check without any flagged facet skips the insertion-order
+  exchanges; the DOF manager's global-number exchange indexes the
+  equations of each node once; `plan_facets`, `transfer_physical_names`
+  and `fill_from_node_group` lost their quadratic searches.
+- `SolidMechanicsModelCohesive::ext` is a `Box<CohesiveExtension>` (field
+  access unchanged through `Deref`; a destructuring pattern needs
+  `&mut *model.ext`): the model is 11.6 kB instead of 38 kB by value, and
+  the benchmark suite's insertion case runs in a debug `mumps` build on a
+  1.5 MiB stack instead of 2 MiB.
+- `CohesiveSynchronizers::element_to_prank` is an
+  `Arc<ElementTypeMapArray<Rank>>` (shared, never changed after
+  construction) instead of an `ElementTypeMapArray<Rank>`.
+- Mesh distribution and the communication layer are faster with
+  bitwise identical results (`docs/BENCHMARKS.md`, "Distribution and the
+  communication layer"): the dual graph of the partitioners counts shared
+  nodes in an array over linearised elements (same graph, same Scotch
+  partition), the distribution's group tables are built once instead of
+  per rank, checked collectives of the MPI back-end carry payloads of at
+  most 64 bytes in their header (agreements and scalar reductions are one
+  MPI collective), byte messages are sent and received without a copy,
+  agreements on a one-rank serial or in-process communicator skip the all-reduce, `Math::reduce` sorts with a
+  radix sort, and the solid model posts its `_smm_stress` exchange before
+  the not-ghost assembly and completes it before the ghost one (as
+  upstream), keeps one assembly buffer set per ghost type and looks up the
+  law blocks of an exchange once per run of elements.
+- The default sparse direct solver (`akantu_linalg::eigen_sparse_lu`, the
+  translation of Eigen's SparseLU) is about 3× faster on 3-D problems with
+  bitwise identical results: dense kernels in register tiles with run-time
+  AVX / AVX-512F instances in the same operation order, storage reused
+  between factorisations, less memory (`int` row subscripts as in Eigen;
+  factor arrays grow to the length in use).
+- `akantu_linalg::eigen_sparse_lu::SparseLu::solve_with` (the caller's
+  scratch buffer) and the opt-in fast mode `SparseLu::set_fast_mode` /
+  `EigenSparseLuSolver::set_fast_mode`, enabled with an
+  `akantu_core::exec::FastToken` (fused multiply-adds in the panel
+  products; not bitwise, off by default).
 - Small dense products and Eigen-order reductions are faster with bitwise
   identical results: the halving-tree reduction is non-recursive and
   inlined, fixed-size tensor products select their route at compile time,
@@ -167,6 +311,54 @@ change of default results or of a public API raises the minor version.
   equation, e.g. 360 bytes per `Tetrahedron4` element of a 3-D solid)
   from the second assembly into an unchanged profile on;
   `DofManager::set_assembly_cache(false)` turns this off.
+- The explicit step of the solid model repeats less work, with bitwise
+  identical results:
+  - `InternalField::save_current_values` defers the copy of a block whose
+    current values are not exported: the previous values are the current
+    ones until the block is written; the copy is skipped when nothing
+    writes the block before the next save and becomes an exchange of
+    allocations when the writer rewrites the whole block (the gradient and
+    the stresses of most laws). A block with a live NumPy view is copied
+    at once, as before, and never exchanged, so views keep their
+    allocation and see the same values at the same times (D-047).
+    `InternalField::previous` of a deferred block returns the current
+    block, with its id.
+  - The plastic, Marigo, standard linear solid and Maxwell laws compute
+    their blocks into scratch storage kept between steps and commit them
+    by exchange, instead of cloning their inputs and results at every
+    step; the elastic potential energy does the same, and the Neo-Hookean
+    and anisotropic kernels read their inputs in place.
+  - A non-local neighbourhood whose weight function depends on the
+    distance only keeps its weights while the radius, points, pairs,
+    slots, integration weights and incoming volumes are unchanged, instead
+    of recomputing them at every stress computation (`update_rate = 1`).
+  - `compute_all_stresses` no longer copies the element filter per step.
+- The input-file parser evaluates each variable once per evaluation (it
+  parsed a variable's expression again at every reference, so a chain of
+  k parameters that each refer twice to the previous one cost 2^k
+  parses: 21 lines 400 ms, now 7 µs, measured on an AWS m7a.2xlarge (AMD
+  EPYC 9R14)); values and error messages are unchanged.
+- Dumps and the MSH writer format numbers into the output buffer instead
+  of one `String` per number, with a faster exact digit generator for up
+  to 17 significant digits; ParaView `.vtu` pieces are validated first and
+  then written to the file through a buffer (no copy of the whole file in
+  memory), base64 arrays encoded in one pass. The written bytes are
+  unchanged. On 162,000 Tet4: a base64 ParaView dump 208 → 99 ms, ASCII
+  913 → 296 ms, a text dump 74 → 17 ms, the MSH writer 54 → 26 ms
+  (this entry's and the next two entries' timings: measured on an AWS
+  m7a.2xlarge (AMD EPYC 9R14); `docs/benchmarks/perf-campaign/io-python/`).
+- The Gmsh reader keeps node and element tags in dense tables, allocates
+  nothing per element, parses integers in one pass and sorts dense group
+  node lists through a bitmap; the meshes read are unchanged (162,000
+  Tet4: 153 → 85 ms in MSH 2.2).
+- Python Dirichlet functors (`__call__` per node) enter Python once per
+  group instead of once per node (40,401 nodes: 31.5 → 23.4 ms per
+  `applyBC`; with `callNodes` 1.0 ms).
+
+### Added (insertion step)
+
+- `SharedMesh::set_full_consistency_checks(bool)` and
+  `MeshTransaction::replace_node_synchronizer`.
 
 ## [0.1.0] - Unreleased
 

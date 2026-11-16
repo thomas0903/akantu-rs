@@ -18,51 +18,9 @@
 /// Format `x` like C `printf("%.{precision}g")` (`%G` if `upper`).
 #[must_use]
 pub(crate) fn format_g(x: f64, precision: usize, upper: bool) -> String {
-    if x.is_nan() {
-        let s = if x.is_sign_negative() { "-nan" } else { "nan" };
-        return if upper {
-            s.to_uppercase()
-        } else {
-            s.to_owned()
-        };
-    }
-    if x.is_infinite() {
-        let s = if x < 0.0 { "-inf" } else { "inf" };
-        return if upper {
-            s.to_uppercase()
-        } else {
-            s.to_owned()
-        };
-    }
-    let p = precision.max(1);
-    if x == 0.0 {
-        return if x.is_sign_negative() { "-0" } else { "0" }.to_owned();
-    }
-    let e_repr = format!("{:.*e}", p - 1, x);
-    let (mantissa, exp) = e_repr
-        .split_once('e')
-        .expect("Rust LowerExp output always contains 'e'");
-    let exp: i64 = exp.parse().expect("Rust LowerExp exponent is an integer");
-    let p_i = i64::try_from(p).unwrap_or(i64::MAX);
-    if exp < p_i && exp >= -4 {
-        let decimals = usize::try_from(p_i - 1 - exp).unwrap_or(0);
-        strip_zeros(&format!("{x:.decimals$}"))
-    } else {
-        let m = strip_zeros(mantissa);
-        let sign = if exp < 0 { '-' } else { '+' };
-        let e = if upper { 'E' } else { 'e' };
-        format!("{m}{e}{sign}{:02}", exp.unsigned_abs())
-    }
-}
-
-/// Remove trailing zeros of a fractional part, and the point if nothing
-/// is left after it.
-fn strip_zeros(s: &str) -> String {
-    if s.contains('.') {
-        s.trim_end_matches('0').trim_end_matches('.').to_owned()
-    } else {
-        s.to_owned()
-    }
+    let mut s = String::new();
+    crate::dumper::cfmt::push_g(&mut s, x, precision, upper);
+    s
 }
 
 #[cfg(test)]

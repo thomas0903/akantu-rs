@@ -1,0 +1,152 @@
+# Profile of suite case explicit_mazars_non_local
+
+binary: bin/after/suite_solid (65020ab23be60185)
+command: taskset -c 3 bin/after/suite_solid --case explicit_mazars_non_local --size m --loop-seconds 6
+perf: perf record -F 499 --call-graph dwarf,16384
+cpu: AMD EPYC-Milan Processor
+date_utc: 2026-11-16T13:58:14Z
+commit: dbb3ca2c5
+
+## Phases of the profiled run (seconds, calls)
+
+mesh                         0.0028 s       1 calls
+init                         1.2052 s       1 calls
+stable_time_step             0.0182 s       5 calls
+solve_step                   8.8612 s      80 calls
+predictor                    0.0000 s      80 calls
+residual                     8.6873 s      80 calls
+lumped_matrix                0.0001 s      80 calls
+corrector                    0.0001 s      80 calls
+step_hooks                   0.1454 s     160 calls
+step_rest                    0.0280 s      80 calls
+internal_forces              0.8757 s       8 calls
+stresses                     0.3042 s       8 calls
+energies                     0.0176 s       8 calls
+nonlocal_rebuild             2.1951 s       2 calls
+
+## Top 25 symbols, self time
+
+    17.95%  [.] _RNvMNtNtCseRt0sIVPawp_12akantu_model9non_local12neighborhoodNtB2_20NonLocalNeighborhood16update_pair_list
+    13.61%  [.] _RNvMNtNtCseRt0sIVPawp_12akantu_model9non_local12neighborhoodNtB2_20NonLocalNeighborhood16weighted_average
+    11.82%  [.] _RNvNtNtNtCshOMlZePAiG5_13akantu_linalg5dense5eigen10real_schur10real_schur
+     6.32%  [.] 0x0000000000188d91
+     6.25%  [.] _RNvNtNtCshOMlZePAiG5_13akantu_linalg5dense5eigen22apply_householder_left
+     3.33%  [.] _RNvNtNtCshOMlZePAiG5_13akantu_linalg5dense5eigen23apply_householder_right
+     3.20%  [.] _RINvNtNtNtNtCskADBYZwJmSU_4core5slice4sort6stable9quicksort9quicksortjNCINvMNtCsgFX3jaOk65H_5alloc5sliceSj11sort_by_keyTNtNtNtCseRt0sIVPawp_12akantu_model9non_local5point8PointKeyhENCNvMNtB1Y_12neighborhoodNtB2Y_20NonLocalNeighborhood15build_key_lists0E0EB20_
+     2.33%  [.] _RNvMs_NtNtCshOMlZePAiG5_13akantu_linalg5dense5eigenNtB4_3Buf4push
+     1.91%  [.] _RINvNtNtNtNtCskADBYZwJmSU_4core5slice4sort6shared9smallsort19bidirectional_mergejNCINvMNtCsgFX3jaOk65H_5alloc5sliceSj11sort_by_keyTNtNtNtCseRt0sIVPawp_12akantu_model9non_local5point8PointKeyhENCNvMNtB29_12neighborhoodNtB39_20NonLocalNeighborhood15build_key_lists0E0EB2b_.llvm.12203938483484255309
+     1.88%  [.] _RNvMNtNtCseRt0sIVPawp_12akantu_model9non_local12neighborhoodNtB2_20NonLocalNeighborhood15compute_weights
+     1.45%  [.] _RINvNtNtNtNtCskADBYZwJmSU_4core5slice4sort6shared9smallsort11insert_tailjNCINvMNtCsgFX3jaOk65H_5alloc5sliceSj11sort_by_keyTNtNtNtCseRt0sIVPawp_12akantu_model9non_local5point8PointKeyhENCNvMNtB21_12neighborhoodNtB31_20NonLocalNeighborhood15build_key_lists0E0EB23_.llvm.12203938483484255309
+     1.40%  [.] 0x0000000000188e5b
+     1.21%  [.] _RINvNtNtNtNtCskADBYZwJmSU_4core5slice4sort6shared9smallsort12sort4_stablejNCINvMNtCsgFX3jaOk65H_5alloc5sliceSj11sort_by_keyTNtNtNtCseRt0sIVPawp_12akantu_model9non_local5point8PointKeyhENCNvMNtB22_12neighborhoodNtB32_20NonLocalNeighborhood15build_key_lists0E0EB24_.llvm.12203938483484255309
+     1.14%  [.] _RNvNtNtCshOMlZePAiG5_13akantu_linalg5dense5eigen16make_householder
+     1.08%  [.] _RNvMNtNtCseRt0sIVPawp_12akantu_model9non_local12neighborhoodNtB2_20NonLocalNeighborhood15build_key_lists
+     1.06%  [.] _RNvXs7_NtNtCseRt0sIVPawp_12akantu_model9non_local6weightNtB5_18BaseWeightFunctionNtB5_14WeightFunction6weight
+     0.99%  [.] _RNvNtNtCsgFPJ4EkGA4x_11akantu_core6random4libm3pow
+     0.90%  [.] _RNvNtNtCs3IceuY7krF_12akantu_solid9materials6mazars21mazars_damage_on_quad
+     0.85%  [k] asm_sysvec_apic_timer_interrupt
+     0.78%  [.] _RNvNtNtCs3IceuY7krF_12akantu_solid9materials6mazars27principal_strains_and_ehat3
+     0.68%  [k] clear_page_erms
+     0.68%  [.] _RNvNtCshOMlZePAiG5_13akantu_linalg5dense10eig3_fixed
+     0.62%  [.] 0x0000000000188d80
+     0.48%  [.] _RNvXs5_NtNtNtCs3IceuY7krF_12akantu_solid9materials9non_local16mazars_non_localINtB5_22MaterialMazarsNonLocalKj3_INtNtB9_7elastic15MaterialElasticKB1J_EENtB7_16MaterialNonLocal26compute_non_local_stressesBb_
+     0.47%  [.] _RNvNtNtNtNtNtCs3GpnaDyeEpO_17compiler_builtins4math9libm_math4arch3x863fma12fma_with_fma
+
+## Top 25 symbols, inclusive time (children)
+
+    99.76%     0.00%  [k] 0xffffffffffffffff
+    56.69%     0.00%  [.] _RNvNtNtCskKogH9ieu5f_12akantu_bench11suite_solid8explicit3run
+    40.06%     0.00%  [.] _RNvMs1_NtNtCs3IceuY7krF_12akantu_solid5model8assemblyNtB7_21SolidMechanicsPhysics24assemble_internal_forces
+    38.04%     0.00%  [.] _RNvMs3_NtCs3IceuY7krF_12akantu_solid5modelNtB5_19SolidMechanicsModel14init_non_local
+    38.01%     0.00%  [.] _RNvMs3_NtNtCseRt0sIVPawp_12akantu_model9non_local7managerNtB5_15NonLocalManager23initialize_with_sources
+    37.27%     0.68%  [.] _RNvNtCshOMlZePAiG5_13akantu_linalg5dense10eig3_fixed
+    37.23%     0.00%  [.] _RINvNtCshOMlZePAiG5_13akantu_linalg5dense9eig_fixedKj3_EB4_ (inlined)
+    36.40%     0.01%  [.] _RNvMs3_NtNtCseRt0sIVPawp_12akantu_model9non_local7managerNtB5_15NonLocalManager34compute_all_non_local_contribution
+    36.29%    11.82%  [.] _RNvNtNtNtCshOMlZePAiG5_13akantu_linalg5dense5eigen10real_schur10real_schur
+    32.85%    17.95%  [.] _RNvMNtNtCseRt0sIVPawp_12akantu_model9non_local12neighborhoodNtB2_20NonLocalNeighborhood16update_pair_list
+    32.85%     0.00%  [.] _RNvMs3_NtNtCseRt0sIVPawp_12akantu_model9non_local7managerNtB5_15NonLocalManager17update_pair_lists
+    31.50%     0.00%  [.] _RINvMs1_NtCskKogH9ieu5f_12akantu_bench5suiteNtB6_3Ctx11repeat_implNCNvNtNtB8_11suite_solid8explicit3runs5_0EB8_ (inlined)
+    31.50%     0.00%  [.] _RINvMs1_NtCskKogH9ieu5f_12akantu_bench5suiteNtB6_3Ctx6repeatNCNvNtNtB8_11suite_solid8explicit3runs5_0EB8_
+    31.50%     0.00%  [.] _RNCNvNtNtCskKogH9ieu5f_12akantu_bench11suite_solid8explicit3runs5_0B7_ (inlined)
+    31.50%     0.00%  [.] _RNvMs3_NtCs3IceuY7krF_12akantu_solid5modelNtB5_19SolidMechanicsModel22reinitialize_non_local
+    22.29%     0.00%  [.] _RNvYINtNtNtNtCs3IceuY7krF_12akantu_solid9materials9non_local16mazars_non_local22MaterialMazarsNonLocalKj3_INtNtB9_7elastic15MaterialElasticKB1D_EENtNtBb_8material8Material20compute_all_stressesBb_
+    22.04%     0.48%  [.] _RNvXs5_NtNtNtCs3IceuY7krF_12akantu_solid9materials9non_local16mazars_non_localINtB5_22MaterialMazarsNonLocalKj3_INtNtB9_7elastic15MaterialElasticKB1J_EENtB7_16MaterialNonLocal26compute_non_local_stressesBb_
+    22.03%     0.00%  [.] _RNvMs0_NtNtNtCs3IceuY7krF_12akantu_solid9materials9non_local16mazars_non_localINtB5_22MaterialMazarsNonLocalKj3_INtNtB9_7elastic15MaterialElasticKB1J_EE24compute_non_local_stressBb_ (inlined)
+    22.03%     0.00%  [.] _RNvXNtNtCs3IceuY7krF_12akantu_solid5model9non_localNtB2_19SmmNonLocalCallbackNtNtNtCseRt0sIVPawp_12akantu_model9non_local7manager23NonLocalManagerCallback30compute_non_local_contribution
+    21.62%     0.24%  [.] _RNvXs7_NtNtCs3IceuY7krF_12akantu_solid9materials6mazarsINtB5_14MaterialMazarsKj3_INtNtB7_7elastic15MaterialElasticKB1e_EENtNtB9_8material8Material14compute_stressB9_
+    21.62%     0.00%  [.] _RNvXs4_NtNtNtCs3IceuY7krF_12akantu_solid9materials9non_local16mazars_non_localINtB5_22MaterialMazarsNonLocalKj3_INtNtB9_7elastic15MaterialElasticKB1J_EENtNtBb_8material8Material14compute_stressBb_ (inlined)
+    21.07%     0.00%  [.] _RNvMs1_NtNtCs3IceuY7krF_12akantu_solid9materials6mazarsINtB5_14MaterialMazarsKj3_INtNtB7_7elastic15MaterialElasticKB1e_EE12damage_blockB9_ (inlined)
+    21.07%     0.00%  [.] _RNvMs1_NtNtCs3IceuY7krF_12akantu_solid9materials6mazarsINtB5_14MaterialMazarsKj3_INtNtB7_7elastic15MaterialElasticKB1e_EE17damage_block_withB9_ (inlined)
+    20.37%     0.78%  [.] _RNvNtNtCs3IceuY7krF_12akantu_solid9materials6mazars27principal_strains_and_ehat3
+    19.88%     0.00%  [.] _RINvYINtNtNtCskADBYZwJmSU_4core5slice4iter7IterMutINtNtCsgFX3jaOk65H_5alloc5boxed3BoxDNtNtCs3IceuY7krF_12akantu_solid8material8MaterialEL_EENtNtNtNtBa_4iter6traits8iterator8Iterator12try_for_eachNCNvMs1_NtNtB1q_5model8assemblyNtB3h_21SolidMechanicsPhysics24assemble_internal_forcess0_0INtNtBa_6result6ResultuNtNtCsgFPJ4EkGA4x_11akantu_core5error5ErrorEEB1q_ (inlined)
+
+## Call chains (callers of the hottest self-time symbols, entries above 2 %)
+
+    17.95%  [.] _RNvMNtNtCseRt0sIVPawp_12akantu_model9non_local12neighborhoodNtB2_20NonLocalNeighborhood16update_pair_list
+            |
+            |--4.28%--_RNvNtNtCskADBYZwJmSU_4core3f644math4sqrt (inlined)
+            |          _RNvMNtCs8ZKwes1zzDd_3std3f64d4sqrt (inlined)
+            |          _RNvNtNtCseRt0sIVPawp_12akantu_model9non_local12neighborhood8distance (inlined)
+            |          _RNvMNtNtCseRt0sIVPawp_12akantu_model9non_local12neighborhoodNtB2_20NonLocalNeighborhood16update_pair_list
+            |          _RNvMs3_NtNtCseRt0sIVPawp_12akantu_model9non_local7managerNtB5_15NonLocalManager17update_pair_lists
+            |          _RNvMs3_NtNtCseRt0sIVPawp_12akantu_model9non_local7managerNtB5_15NonLocalManager23initialize_with_sources
+            |          _RNvMs3_NtCs3IceuY7krF_12akantu_solid5modelNtB5_19SolidMechanicsModel14init_non_local
+            |          |
+            |           --3.51%--_RNvMs3_NtCs3IceuY7krF_12akantu_solid5modelNtB5_19SolidMechanicsModel22reinitialize_non_local
+            |                     _RNCNvNtNtCskKogH9ieu5f_12akantu_bench11suite_solid8explicit3runs5_0B7_ (inlined)
+            |                     _RINvMs1_NtCskKogH9ieu5f_12akantu_bench5suiteNtB6_3Ctx11repeat_implNCNvNtNtB8_11suite_solid8explicit3runs5_0EB8_ (inlined)
+            |                     _RINvMs1_NtCskKogH9ieu5f_12akantu_bench5suiteNtB6_3Ctx6repeatNCNvNtNtB8_11suite_solid8explicit3runs5_0EB8_
+            |                     _RNvNtNtCskKogH9ieu5f_12akantu_bench11suite_solid8explicit3run
+            |                     0xffffffffffffffff
+            |
+            |--3.99%--_RNvMNtNtCseRt0sIVPawp_12akantu_model9non_local12neighborhoodNtB2_20NonLocalNeighborhood16update_pair_list
+            |          _RNvMs3_NtNtCseRt0sIVPawp_12akantu_model9non_local7managerNtB5_15NonLocalManager17update_pair_lists
+            |          _RNvMs3_NtNtCseRt0sIVPawp_12akantu_model9non_local7managerNtB5_15NonLocalManager23initialize_with_sources
+            |          _RNvMs3_NtCs3IceuY7krF_12akantu_solid5modelNtB5_19SolidMechanicsModel14init_non_local
+            |          |
+            |           --3.25%--_RNvMs3_NtCs3IceuY7krF_12akantu_solid5modelNtB5_19SolidMechanicsModel22reinitialize_non_local
+            |                     _RNCNvNtNtCskKogH9ieu5f_12akantu_bench11suite_solid8explicit3runs5_0B7_ (inlined)
+            |                     _RINvMs1_NtCskKogH9ieu5f_12akantu_bench5suiteNtB6_3Ctx11repeat_implNCNvNtNtB8_11suite_solid8explicit3runs5_0EB8_ (inlined)
+            |                     _RINvMs1_NtCskKogH9ieu5f_12akantu_bench5suiteNtB6_3Ctx6repeatNCNvNtNtB8_11suite_solid8explicit3runs5_0EB8_
+            |                     _RNvNtNtCskKogH9ieu5f_12akantu_bench11suite_solid8explicit3run
+            |                     0xffffffffffffffff
+            |
+             --2.91%--_RNvXs3_NtNtNtCskADBYZwJmSU_4core4iter8adapters3zipINtB5_3ZipINtNtNtBb_5slice4iter4IterdEBW_EINtB5_7ZipImplBW_BW_E4nextCseRt0sIVPawp_12akantu_model (inlined)
+                       _RNvXs_NtNtNtCskADBYZwJmSU_4core4iter8adapters3zipINtB4_3ZipINtNtNtBa_5slice4iter4IterdEBV_ENtNtNtB8_6traits8iterator8Iterator4nextCseRt0sIVPawp_12akantu_model (inlined)
+                       _RNvNtNtCseRt0sIVPawp_12akantu_model9non_local12neighborhood8distance (inlined)
+                       _RNvMNtNtCseRt0sIVPawp_12akantu_model9non_local12neighborhoodNtB2_20NonLocalNeighborhood16update_pair_list
+                       _RNvMs3_NtNtCseRt0sIVPawp_12akantu_model9non_local7managerNtB5_15NonLocalManager17update_pair_lists
+                       _RNvMs3_NtNtCseRt0sIVPawp_12akantu_model9non_local7managerNtB5_15NonLocalManager23initialize_with_sources
+                       _RNvMs3_NtCs3IceuY7krF_12akantu_solid5modelNtB5_19SolidMechanicsModel14init_non_local
+                       |
+                        --2.49%--_RNvMs3_NtCs3IceuY7krF_12akantu_solid5modelNtB5_19SolidMechanicsModel22reinitialize_non_local
+                                  _RNCNvNtNtCskKogH9ieu5f_12akantu_bench11suite_solid8explicit3runs5_0B7_ (inlined)
+                                  _RINvMs1_NtCskKogH9ieu5f_12akantu_bench5suiteNtB6_3Ctx11repeat_implNCNvNtNtB8_11suite_solid8explicit3runs5_0EB8_ (inlined)
+                                  _RINvMs1_NtCskKogH9ieu5f_12akantu_bench5suiteNtB6_3Ctx6repeatNCNvNtNtB8_11suite_solid8explicit3runs5_0EB8_
+                                  _RNvNtNtCskKogH9ieu5f_12akantu_bench11suite_solid8explicit3run
+                                  0xffffffffffffffff
+    13.61%  [.] _RNvMNtNtCseRt0sIVPawp_12akantu_model9non_local12neighborhoodNtB2_20NonLocalNeighborhood16weighted_average
+            |
+            |--8.41%--_RNvMNtNtCseRt0sIVPawp_12akantu_model9non_local12neighborhoodNtB2_20NonLocalNeighborhood16weighted_average
+            |          _RNvMs3_NtNtCseRt0sIVPawp_12akantu_model9non_local7managerNtB5_15NonLocalManager7average
+            |          _RNvMs3_NtNtCseRt0sIVPawp_12akantu_model9non_local7managerNtB5_15NonLocalManager34compute_all_non_local_contribution
+            |          _RNvMs1_NtNtCs3IceuY7krF_12akantu_solid5model8assemblyNtB7_21SolidMechanicsPhysics24assemble_internal_forces
+            |          0xffffffffffffffff
+            |
+             --4.25%--_RNvXs3_NtNtCskADBYZwJmSU_4core4iter5rangeINtNtNtB9_3ops5range5RangejENtB5_17RangeIteratorImpl9spec_nextCseRt0sIVPawp_12akantu_model (inlined)
+                       _RNvXs4_NtNtCskADBYZwJmSU_4core4iter5rangeINtNtNtB9_3ops5range5RangejENtNtNtB7_6traits8iterator8Iterator4nextCseRt0sIVPawp_12akantu_model (inlined)
+                       _RNvMNtNtCseRt0sIVPawp_12akantu_model9non_local12neighborhoodNtB2_20NonLocalNeighborhood16weighted_average
+                       _RNvMs3_NtNtCseRt0sIVPawp_12akantu_model9non_local7managerNtB5_15NonLocalManager7average
+                       _RNvMs3_NtNtCseRt0sIVPawp_12akantu_model9non_local7managerNtB5_15NonLocalManager34compute_all_non_local_contribution
+                       _RNvMs1_NtNtCs3IceuY7krF_12akantu_solid5model8assemblyNtB7_21SolidMechanicsPhysics24assemble_internal_forces
+                       0xffffffffffffffff
+    11.82%  [.] _RNvNtNtNtCshOMlZePAiG5_13akantu_linalg5dense5eigen10real_schur10real_schur
+     6.32%  [.] 0x0000000000188d91
+            |
+             --2.06%--_RINvXs2_NtNtCshOMlZePAiG5_13akantu_linalg5dense5eigenNtB6_3BufINtNtNtNtCskADBYZwJmSU_4core4iter6traits7collect12FromIteratordE9from_iterINtNtNtB15_8adapters3map3MapINtNtNtB17_5slice4iter4IterdENCNvB6_22apply_householder_lefts_0EEBa_ (inlined)
+                       _RINvYINtNtNtNtCskADBYZwJmSU_4core4iter8adapters3map3MapINtNtNtBc_5slice4iter4IterdENCNvNtNtCshOMlZePAiG5_13akantu_linalg5dense5eigen22apply_householder_lefts_0ENtNtNtBa_6traits8iterator8Iterator7collectNtB1n_3BufEB1r_ (inlined)
+                       _RNvNtNtCshOMlZePAiG5_13akantu_linalg5dense5eigen22apply_householder_left
+     6.25%  [.] _RNvNtNtCshOMlZePAiG5_13akantu_linalg5dense5eigen22apply_householder_left
+     3.33%  [.] _RNvNtNtCshOMlZePAiG5_13akantu_linalg5dense5eigen23apply_householder_right
+     3.20%  [.] _RINvNtNtNtNtCskADBYZwJmSU_4core5slice4sort6stable9quicksort9quicksortjNCINvMNtCsgFX3jaOk65H_5alloc5sliceSj11sort_by_keyTNtNtNtCseRt0sIVPawp_12akantu_model9non_local5point8PointKeyhENCNvMNtB1Y_12neighborhoodNtB2Y_20NonLocalNeighborhood15build_key_lists0E0EB20_
+     2.33%  [.] _RNvMs_NtNtCshOMlZePAiG5_13akantu_linalg5dense5eigenNtB4_3Buf4push

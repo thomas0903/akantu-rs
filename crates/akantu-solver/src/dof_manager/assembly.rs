@@ -457,10 +457,15 @@ impl DofManager {
             }
         }
         let (o, ev, cs) = (out.as_mut_slice(), elementary.as_slice(), conn.as_slice());
-        match nb_dof {
-            1 => scatter_add::<1>(o, ev, cs, nnpe, nb_elements, element, scale),
-            2 => scatter_add::<2>(o, ev, cs, nnpe, nb_elements, element, scale),
-            3 => scatter_add::<3>(o, ev, cs, nnpe, nb_elements, element, scale),
+        // the elements in position order, as indices (validated above)
+        let index = |e: &Idx| usize::try_from(*e).unwrap_or(usize::MAX);
+        match (nb_dof, filter) {
+            (1, Some(fl)) => scatter_add::<1>(o, ev, cs, nnpe, fl.iter().map(index), scale),
+            (2, Some(fl)) => scatter_add::<2>(o, ev, cs, nnpe, fl.iter().map(index), scale),
+            (3, Some(fl)) => scatter_add::<3>(o, ev, cs, nnpe, fl.iter().map(index), scale),
+            (1, None) => scatter_add::<1>(o, ev, cs, nnpe, 0..nb_elements, scale),
+            (2, None) => scatter_add::<2>(o, ev, cs, nnpe, 0..nb_elements, scale),
+            (3, None) => scatter_add::<3>(o, ev, cs, nnpe, 0..nb_elements, scale),
             _ => {
                 for k in 0..nb_elements {
                     let el = elementary.tuple(k);
@@ -796,28 +801,27 @@ impl DofManager {
 }
 
 /// `out[n][d] += scale · elementary[k][i·D + d]` for every node `n` = the
-/// `i`-th node of element `element(k)` (validated by the caller), with a
-/// compile-time component count `D` (the loop of
-/// `assemble_elemental_array_local_array`).
+/// `i`-th node of the `k`-th element of `elements` (elements and nodes
+/// validated by the caller), with a compile-time component count `D` (the
+/// loop of `assemble_elemental_array_local_array`, same additions in the
+/// same order; one index check per node, none per value).
 #[inline(always)]
 fn scatter_add<const D: usize>(
     out: &mut [Real],
     elementary: &[Real],
     conn: &[Idx],
     nnpe: usize,
-    nb_elements: usize,
-    element: impl Fn(usize) -> usize,
+    elements: impl Iterator<Item = usize>,
     scale: Real,
 ) {
     let nbc = nnpe * D;
-    for k in 0..nb_elements {
-        let el = &elementary[k * nbc..(k + 1) * nbc];
-        let e = element(k);
-        for (i, &n) in conn[e * nnpe..(e + 1) * nnpe].iter().enumerate() {
-            let base = usize::try_from(n).unwrap_or(0) * D;
-            let dst = &mut out[base..base + D];
+    let (out, _) = out.as_chunks_mut::<D>();
+    for (el, e) in elementary.chunks_exact(nbc).zip(elements) {
+        let (vals, _) = el.as_chunks::<D>();
+        for (&n, v) in conn[e * nnpe..(e + 1) * nnpe].iter().zip(vals) {
+            let dst = &mut out[usize::try_from(n).unwrap_or(usize::MAX)];
             for d in 0..D {
-                dst[d] += scale * el[i * D + d];
+                dst[d] += scale * v[d];
             }
         }
     }

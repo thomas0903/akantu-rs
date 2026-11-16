@@ -155,8 +155,10 @@ use akantu_parser::ParameterRegistry;
 use akantu_parser::param::{ParamDescriptor, ParameterAccess};
 
 use super::elastic::MaterialElastic;
+use super::scratch::ScratchBlocks;
 use crate::material::{DerivedMaterialParams, LawOptions, Material, MaterialBase, MaterialFactory};
 use crate::material_tensor::grad_u_to_epsilon;
+use akantu_core::array_shared::ArrayRef;
 
 /// Dissipated-energy increment of `sls_deviatoric` (UD-029, category B).
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
@@ -367,6 +369,9 @@ pub struct MaterialStandardLinearSolidDeviatoric<const DIM: usize> {
     pub history_integral: InternalField<Real>,
     /// Dissipated energy density (1).
     pub dissipated_energy: InternalField<Real>,
+    /// The new stress, deviatoric stress, history integral and dissipated
+    /// energy of a block (`compute_stress`).
+    scratch: ScratchBlocks<4>,
 }
 
 impl<const DIM: usize> MaterialStandardLinearSolidDeviatoric<DIM> {
@@ -383,6 +388,7 @@ impl<const DIM: usize> MaterialStandardLinearSolidDeviatoric<DIM> {
             stress_dev: InternalField::new("stress_dev", DIM * DIM, 0.0)?,
             history_integral: InternalField::new("history_integral", DIM * DIM, 0.0)?,
             dissipated_energy: InternalField::new("dissipated_energy", 1, 0.0)?,
+            scratch: ScratchBlocks::default(),
         })
     }
 
@@ -746,94 +752,101 @@ impl<const DIM: usize> Material for MaterialStandardLinearSolidDeviatoric<DIM> {
         let c = self.constants(ctx.services.time_step());
         let committed = self.committed();
         let n = DIM * DIM;
-        let grad_u = self.elastic.base().grad_u.get(ty, ghost)?.clone();
-        let nq = grad_u.len();
-        // The state the evaluation starts from: committed history or the
-        // current values (upstream).
-        let (dev_old, h_old, e_old) = if committed {
-            (
-                self.stress_dev.previous(ty, ghost)?.clone(),
-                self.history_integral.previous(ty, ghost)?.clone(),
-                self.dissipated_energy.previous(ty, ghost)?.clone(),
-            )
-        } else {
-            (
-                self.stress_dev.get(ty, ghost)?.clone(),
-                self.history_integral.get(ty, ghost)?.clone(),
-                self.dissipated_energy.get(ty, ghost)?.clone(),
-            )
-        };
-        if dev_old.len() != nq || h_old.len() != nq || e_old.len() != nq {
-            return Err(Error::DimensionMismatch {
-                context: "MaterialStandardLinearSolidDeviatoric::computeStress",
-                expected: nq,
-                got: dev_old.len().min(h_old.len()).min(e_old.len()),
-            });
-        }
-        let mut sigma_out = vec![0.0; nq * n];
-        let mut dev_out = vec![0.0; nq * n];
-        let mut h_out = vec![0.0; nq * n];
-        let mut e_out = vec![0.0; nq];
-        if grad_u.nb_component() != n || dev_old.nb_component() != n || h_old.nb_component() != n {
-            return Err(Error::DimensionMismatch {
-                context: "MaterialStandardLinearSolidDeviatoric::computeStress: components",
-                expected: n,
-                got: dev_old.nb_component(),
-            });
-        }
-        // every point from its own gradient and history: parts on the
-        // model's threads (D-123)
-        let items = (
-            (
-                TuplesRef::new(grad_u.as_slice(), n),
-                TuplesRef::new(dev_old.as_slice(), n),
-                TuplesRef::new(h_old.as_slice(), n),
-                TuplesRef::new(e_old.as_slice(), 1),
-            ),
-            Tuples::new(&mut sigma_out, n),
-            Tuples::new(&mut dev_out, n),
-            Tuples::new(&mut h_out, n),
-            Tuples::new(&mut e_out, 1),
-        );
-        crate::material::points_exec(self, ctx).try_for_each(
-            items,
-            1024,
-            |_, ((g, d0, h0, e0), mut so, mut dout, mut hout, mut eout)| {
-                sls_stress_part::<DIM>(
-                    &c,
-                    [g.as_slice(), d0.as_slice(), h0.as_slice(), e0.as_slice()],
-                    so.as_mut_slice(),
-                    dout.as_mut_slice(),
-                    hout.as_mut_slice(),
-                    eout.as_mut_slice(),
+        let exec = crate::material::points_exec(self, ctx);
+        let Self {
+            elastic,
+            stress_dev,
+            history_integral,
+            dissipated_energy,
+            scratch,
+            ..
+        } = self;
+        let nq = {
+            let grad_u = elastic.base().grad_u.get(ty, ghost)?;
+            let nq = grad_u.len();
+            // The state the evaluation starts from: committed history or the
+            // current values (upstream).
+            let (dev_old, h_old, e_old): (
+                ArrayRef<'_, Real>,
+                ArrayRef<'_, Real>,
+                ArrayRef<'_, Real>,
+            ) = if committed {
+                (
+                    stress_dev.previous(ty, ghost)?.into(),
+                    history_integral.previous(ty, ghost)?.into(),
+                    dissipated_energy.previous(ty, ghost)?.into(),
                 )
-            },
-        )?;
-        let mut sigma = self
-            .elastic
-            .base_mut()
-            .sigma_field_mut()?
-            .get_mut(ty, ghost)?;
-        if sigma.len() != nq {
+            } else {
+                (
+                    stress_dev.get(ty, ghost)?,
+                    history_integral.get(ty, ghost)?,
+                    dissipated_energy.get(ty, ghost)?,
+                )
+            };
+            if dev_old.len() != nq || h_old.len() != nq || e_old.len() != nq {
+                return Err(Error::DimensionMismatch {
+                    context: "MaterialStandardLinearSolidDeviatoric::computeStress",
+                    expected: nq,
+                    got: dev_old.len().min(h_old.len()).min(e_old.len()),
+                });
+            }
+            // every value is written below (whole matrices per point)
+            let [sigma_out, dev_out, h_out, e_out] =
+                scratch.sized([(nq, n), (nq, n), (nq, n), (nq, 1)])?;
+            if grad_u.nb_component() != n
+                || dev_old.nb_component() != n
+                || h_old.nb_component() != n
+            {
+                return Err(Error::DimensionMismatch {
+                    context: "MaterialStandardLinearSolidDeviatoric::computeStress: components",
+                    expected: n,
+                    got: dev_old.nb_component(),
+                });
+            }
+            // every point from its own gradient and history into disjoint
+            // ranges of the scratch blocks: parts on the model's threads
+            // (D-123); the commits below run after every part
+            let items = (
+                (
+                    TuplesRef::new(grad_u.as_slice(), n),
+                    TuplesRef::new(dev_old.as_slice(), n),
+                    TuplesRef::new(h_old.as_slice(), n),
+                    TuplesRef::new(e_old.as_slice(), 1),
+                ),
+                Tuples::new(sigma_out.as_mut_slice(), n),
+                Tuples::new(dev_out.as_mut_slice(), n),
+                Tuples::new(h_out.as_mut_slice(), n),
+                Tuples::new(e_out.as_mut_slice(), 1),
+            );
+            exec.try_for_each(
+                items,
+                1024,
+                |_, ((g, d0, h0, e0), mut so, mut dout, mut hout, mut eout)| {
+                    sls_stress_part::<DIM>(
+                        &c,
+                        [g.as_slice(), d0.as_slice(), h0.as_slice(), e0.as_slice()],
+                        so.as_mut_slice(),
+                        dout.as_mut_slice(),
+                        hout.as_mut_slice(),
+                        eout.as_mut_slice(),
+                    )
+                },
+            )?;
+            nq
+        };
+        let sigma = elastic.base_mut().sigma_field_mut()?;
+        let len = sigma.values().shared(ty, ghost)?.len();
+        if len != nq {
             return Err(Error::DimensionMismatch {
                 context: "MaterialStandardLinearSolidDeviatoric::computeStress: stress",
                 expected: nq,
-                got: sigma.len(),
+                got: len,
             });
         }
-        sigma.as_mut_slice().copy_from_slice(&sigma_out);
-        self.stress_dev
-            .get_mut(ty, ghost)?
-            .as_mut_slice()
-            .copy_from_slice(&dev_out);
-        self.history_integral
-            .get_mut(ty, ghost)?
-            .as_mut_slice()
-            .copy_from_slice(&h_out);
-        self.dissipated_energy
-            .get_mut(ty, ghost)?
-            .as_mut_slice()
-            .copy_from_slice(&e_out);
+        sigma.commit_overwrite(ty, ghost, scratch.get_mut(0))?;
+        stress_dev.commit_overwrite(ty, ghost, scratch.get_mut(1))?;
+        history_integral.commit_overwrite(ty, ghost, scratch.get_mut(2))?;
+        dissipated_energy.commit_overwrite(ty, ghost, scratch.get_mut(3))?;
         Ok(())
     }
 

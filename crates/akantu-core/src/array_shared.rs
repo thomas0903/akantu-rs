@@ -640,6 +640,27 @@ impl<T> SharedArray<T> {
         self.array.data.generation()
     }
 
+    /// The array itself when no foreign code can see it (not exported, and
+    /// not in the test-only export-all mode), else `None`. Such an array
+    /// needs no guard ([`SharedArray::read`] counts nothing for it), so
+    /// the reference may live as long as the borrow of `self`.
+    #[must_use]
+    pub fn as_unexported(&self) -> Option<&Array<T>> {
+        self.array.data.is_plain().then_some(&self.array)
+    }
+
+    /// Exchange the values of this array with those of the plain array
+    /// `other` without copying, when this array is not exported (and not in
+    /// the export-all mode) and both have the same number of tuples and
+    /// components. Returns `false`, with nothing changed, otherwise. Ids
+    /// stay with their arrays. `&mut self` proves that no guard is alive.
+    pub fn try_swap_values(&mut self, other: &mut Array<T>) -> bool {
+        if self.array.len() != other.len() || self.array.nb_component() != other.nb_component() {
+            return false;
+        }
+        self.array.data.try_swap_values(&mut other.data)
+    }
+
     #[inline]
     fn count(&self) -> Result<Option<GuardCount>> {
         match self.array.data.export_runtime() {

@@ -1,0 +1,85 @@
+# Profile of suite case embedded_rebar_tet4
+
+binary: ~/w/contact/bin/models-g4 (bc219e8beca0be34)
+command: taskset -c 5 ~/w/contact/bin/models-g4 --case embedded_rebar_tet4 --size m --loop-seconds 6
+perf: perf record -F 499 --call-graph dwarf,16384
+cpu: AMD EPYC 9R14
+date_utc: 2026-11-16T12:45:29Z
+commit: faf1b35c7
+
+## Phases of the profiled run (seconds, calls)
+
+mesh                         0.0289 s       1 calls
+init                         0.0416 s       1 calls
+intersect                    6.0686 s     245 calls
+solve_step                   4.3072 s       1 calls
+assemble_internal_forces     6.0013 s    3400 calls
+assemble_stiffness           6.6008 s      55 calls
+
+## Top 25 symbols, self time
+
+    12.56%  [.] akantu_linalg::eigen_sparse_lu::dense::sparselu_gemm
+     9.31%  [.] akantu_core::eigen_gebp::product_into::<akantu_fe::eigen::product_slices::{closure#1}, akantu_fe::eigen::product_slices::{closure#2}>
+     8.58%  [.] <akantu_linalg::sparse::SparseMatrixAij>::resolve_block
+     5.71%  [.] <akantu_geometry::index::GridIndex as akantu_geometry::index::TriangleIndex>::build
+     4.57%  [.] akantu_fe::engine::fast::gradient::<akantu_fe::element_class::types::Tetrahedron4>
+     3.90%  [.] <akantu_solver::dof_manager::DofManager>::assemble_elemental_array_local_view
+     3.48%  [.] <std::hash::random::RandomState as core::hash::BuildHasher>::hash_one::<&(i64, i64)>
+     3.34%  [.] akantu_fe::engine::fast::integrate::<<akantu_fe::engine::FeEngine>::integrate::{closure#0}>
+     3.17%  [.] akantu_fe::engine::fast::btd
+     1.93%  [.] akantu_linalg::eigen_sparse_lu::kernels::panel_bmod
+     1.85%  [.] <std::hash::random::DefaultHasher as core::hash::Hasher>::write
+     1.64%  [k] asm_exc_page_fault
+     1.53%  [.] <akantu_linalg::sparse::SparseMatrixAij>::add_values
+     1.46%  [.] <akantu_geometry::index::Grid>::cell_range
+     1.31%  [k] kernel_init_pages
+     1.27%  [.] akantu_core::eigen_order::redux_tree::<<[[f64; 3]; 3] as akantu_core::tensor::SquareMatrixExt<3>>::trace::{closure#0}>
+     1.20%  [.] <core::iter::adapters::map::Map<core::slice::iter::Iter<akantu_geometry::factory::TrianglePrimitive>, <akantu_geometry::index::Grid>::build::{closure#3}> as core::iter::traits::iterator::Iterator>::fold::<(), core::iter::traits::iterator::Iterator::for_each::call<[[usize; 2]; 3], <alloc::vec::Vec<[[usize; 2]; 3]>>::extend_trusted<core::iter::adapters::map::Map<core::slice::iter::Iter<akantu_geometry::factory::TrianglePrimitive>, <akantu_geometry::index::Grid>::build::{closure#3}>>::{closure#0}>::{closure#0}>
+     1.16%  [.] <akantu_embedded::material::MaterialReinforcement<3> as akantu_solid::material::Material>::compute_all_stresses
+     1.12%  [.] <akantu_core::array_storage::ArrayStorage<f64>>::try_resize
+     1.02%  [.] <akantu_embedded::material::MaterialReinforcement<3> as akantu_solid::material::Material>::assemble_internal_forces_custom
+     0.96%  [.] <akantu_geometry::index::GridIndex as akantu_geometry::index::TriangleIndex>::all_intersections
+     0.92%  [.] akantu_core::eigen_gebp::route
+     0.88%  [.] akantu_linalg::eigen_sparse_lu::dense::trsm_unit_lower
+     0.77%  [.] core::slice::sort::unstable::quicksort::quicksort::<u32, <u32 as core::cmp::PartialOrd>::lt>
+     0.76%  [.] akantu_geometry::intersections::triangle_segment_intersection
+
+## Top 25 symbols, inclusive time (children)
+
+    12.56%    12.56%  [.] akantu_linalg::eigen_sparse_lu::dense::sparselu_gemm
+     9.57%     1.64%  [.] asm_exc_page_fault
+     9.30%     9.30%  [.] akantu_core::eigen_gebp::product_into::<akantu_fe::eigen::product_slices::{closure#1}, akantu_fe::eigen::product_slices::{closure#2}>
+     8.58%     8.58%  [.] <akantu_linalg::sparse::SparseMatrixAij>::resolve_block
+     7.95%     0.11%  [.] exc_page_fault
+     7.67%     0.17%  [.] do_user_addr_fault
+     7.29%     0.32%  [.] handle_mm_fault
+     6.85%     0.31%  [.] __handle_mm_fault
+     6.53%     0.10%  [.] handle_pte_fault
+     6.17%     0.34%  [.] do_anonymous_page
+     5.36%     5.36%  [.] <akantu_geometry::index::GridIndex as akantu_geometry::index::TriangleIndex>::build
+     4.57%     4.57%  [.] akantu_fe::engine::fast::gradient::<akantu_fe::element_class::types::Tetrahedron4>
+     4.28%     0.17%  [.] alloc_anon_folio
+     3.90%     3.90%  [.] <akantu_solver::dof_manager::DofManager>::assemble_elemental_array_local_view
+     3.48%     3.48%  [.] <std::hash::random::RandomState as core::hash::BuildHasher>::hash_one::<&(i64, i64)>
+     3.34%     3.34%  [.] akantu_fe::engine::fast::integrate::<<akantu_fe::engine::FeEngine>::integrate::{closure#0}>
+     3.25%     0.15%  [.] vma_alloc_folio_noprof
+     3.17%     3.17%  [.] akantu_fe::engine::fast::btd
+     3.00%     0.30%  [.] alloc_pages_mpol
+     2.62%     0.19%  [.] __alloc_frozen_pages_noprof
+     2.38%     0.07%  [.] get_page_from_freelist
+     2.18%     0.14%  [.] cfree
+     1.93%     1.93%  [.] akantu_linalg::eigen_sparse_lu::kernels::panel_bmod
+     1.85%     1.85%  [.] <std::hash::random::DefaultHasher as core::hash::Hasher>::write
+     1.80%     0.00%  [.] do_syscall_64
+
+## Call chains (callers of the hottest self-time symbols, entries above 2 %)
+
+    12.56%  [.] akantu_linalg::eigen_sparse_lu::dense::sparselu_gemm
+     9.31%  [.] akantu_core::eigen_gebp::product_into::<akantu_fe::eigen::product_slices::{closure#1}, akantu_fe::eigen::product_slices::{closure#2}>
+     8.58%  [.] <akantu_linalg::sparse::SparseMatrixAij>::resolve_block
+     5.71%  [.] <akantu_geometry::index::GridIndex as akantu_geometry::index::TriangleIndex>::build
+     4.57%  [.] akantu_fe::engine::fast::gradient::<akantu_fe::element_class::types::Tetrahedron4>
+     3.90%  [.] <akantu_solver::dof_manager::DofManager>::assemble_elemental_array_local_view
+     3.48%  [.] <std::hash::random::RandomState as core::hash::BuildHasher>::hash_one::<&(i64, i64)>
+     3.34%  [.] akantu_fe::engine::fast::integrate::<<akantu_fe::engine::FeEngine>::integrate::{closure#0}>
+     3.17%  [.] akantu_fe::engine::fast::btd

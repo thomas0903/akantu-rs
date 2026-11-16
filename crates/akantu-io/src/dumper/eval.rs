@@ -82,11 +82,15 @@ pub(crate) enum Values {
 
 impl Values {
     fn empty(s: Scalar) -> Self {
+        Self::with_capacity(s, 0)
+    }
+
+    fn with_capacity(s: Scalar, n: usize) -> Self {
         match s {
-            Scalar::F64 => Values::F64(Vec::new()),
-            Scalar::I32 => Values::I32(Vec::new()),
-            Scalar::U32 => Values::U32(Vec::new()),
-            Scalar::Bool => Values::Bool(Vec::new()),
+            Scalar::F64 => Values::F64(Vec::with_capacity(n)),
+            Scalar::I32 => Values::I32(Vec::with_capacity(n)),
+            Scalar::U32 => Values::U32(Vec::with_capacity(n)),
+            Scalar::Bool => Values::Bool(Vec::with_capacity(n)),
         }
     }
 
@@ -751,7 +755,7 @@ fn evaluate_elemental(
         } else {
             nc // no elements of this type
         };
-        let mut values = Values::empty(full.scalar());
+        let mut values = Values::with_capacity(full.scalar(), set.nb.saturating_mul(per_elem));
         for i in 0..set.nb {
             let e = set.element(i);
             values.extend_from(&full, e * per_elem..(e + 1) * per_elem);
@@ -788,27 +792,26 @@ fn evaluate_elemental(
                 });
             }
             let nq = if dim == 0 { 0 } else { per_elem / (dim * dim) };
-            let per: Vec<Vec<Real>> = input
-                .chunks(per_elem.max(1))
-                .take(set.nb)
-                .map(|t| -> Result<Vec<Real>> {
-                    Ok(match q {
-                        DerivedQuantity::SmallStrain => {
-                            derived::compute_strain(t, dim, StrainMeasure::Small)
-                        }
-                        DerivedQuantity::GreenStrain => {
-                            derived::compute_strain(t, dim, StrainMeasure::Green)
-                        }
-                        DerivedQuantity::PrincipalSmallStrain => {
-                            derived::compute_principal_strain(t, dim, StrainMeasure::Small)?
-                        }
-                        DerivedQuantity::PrincipalGreenStrain => {
-                            derived::compute_principal_strain(t, dim, StrainMeasure::Green)?
-                        }
-                        DerivedQuantity::VonMisesStress => derived::compute_von_mises(t, dim),
-                    })
-                })
-                .collect::<Result<_>>()?;
+            // The quantities are computed point by point (`dim × dim`
+            // blocks); the block holds `set.nb` whole elements of
+            // `per_elem` values, a multiple of `dim²`: one call over all
+            // of them gives the per-element results in element order.
+            let t = &input[..set.nb.saturating_mul(per_elem).min(input.len())];
+            data = match q {
+                DerivedQuantity::SmallStrain => {
+                    derived::compute_strain(t, dim, StrainMeasure::Small)
+                }
+                DerivedQuantity::GreenStrain => {
+                    derived::compute_strain(t, dim, StrainMeasure::Green)
+                }
+                DerivedQuantity::PrincipalSmallStrain => {
+                    derived::compute_principal_strain(t, dim, StrainMeasure::Small)?
+                }
+                DerivedQuantity::PrincipalGreenStrain => {
+                    derived::compute_principal_strain(t, dim, StrainMeasure::Green)?
+                }
+                DerivedQuantity::VonMisesStress => derived::compute_von_mises(t, dim),
+            };
             (pc, rows, len) = match q {
                 DerivedQuantity::SmallStrain | DerivedQuantity::GreenStrain => {
                     (dim * dim, dim, dim * dim * nq)
@@ -818,7 +821,6 @@ fn evaluate_elemental(
                 }
                 DerivedQuantity::VonMisesStress => (1, 0, nq),
             };
-            data = per.concat();
         } else {
             data = input.clone();
         }

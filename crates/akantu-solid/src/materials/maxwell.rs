@@ -112,6 +112,7 @@ use akantu_parser::ParameterRegistry;
 use akantu_parser::param::{ParamDescriptor, ParamKind, ParamValue, ParameterAccess, fit_vector};
 
 use super::elastic::MaterialElastic;
+use super::scratch::ScratchBlocks;
 use super::sls_deviatoric::integrate_element_density;
 use crate::material::{
     DerivedMaterialParams, LawOptions, Material, MaterialBase, MaterialFactory, check_tangent,
@@ -278,6 +279,9 @@ pub struct MaterialViscoelasticMaxwell<const DIM: usize> {
     /// Mechanical work density.
     pub mechanical_work: InternalField<Real>,
     update_variable_flag: bool,
+    /// The new stress or potential energy density of a block, committed
+    /// with `InternalField::commit_overwrite`.
+    scratch: ScratchBlocks<1>,
 }
 
 impl<const DIM: usize> MaterialViscoelasticMaxwell<DIM> {
@@ -304,6 +308,7 @@ impl<const DIM: usize> MaterialViscoelasticMaxwell<DIM> {
             dissipated_energy: InternalField::new("dissipated_energy", 1, 0.0)?,
             mechanical_work: InternalField::new("mechanical_work", 1, 0.0)?,
             update_variable_flag: true,
+            scratch: ScratchBlocks::default(),
         })
     }
 
@@ -597,28 +602,52 @@ impl<const DIM: usize> MaterialViscoelasticMaxwell<DIM> {
         }
     }
 
-    /// Upstream `updateIntVariables` for the blocks of `ghost`. Every point
-    /// updates its own branch state from its own gradients: parts on
-    /// `exec`'s threads.
+    /// Upstream `updateIntVariables` for the blocks of `ghost`: the branch
+    /// tuples are updated in place (each point reads only its own tuples
+    /// before writing them), the points of a block split over `exec`'s
+    /// threads.
     fn update_int_variables(&mut self, exec: &Exec, dt: Real, ghost: GhostType) -> Result<()> {
+        if self.sigma_v.is_none() || self.epsilon_v.is_none() {
+            // not initialised (`init_material` registers both): the first
+            // error of the block loop, as before (none for an empty filter)
+            let base = self.elastic.base();
+            for (ty, _) in base.element_filter.as_map().iter(ghost) {
+                base.grad_u.get(ty, ghost)?;
+                base.grad_u.previous(ty, ghost)?;
+                self.sigma_v_field()?.get(ty, ghost)?;
+                self.epsilon_v_field()?.get(ty, ghost)?;
+            }
+            return Ok(());
+        }
+        let (Some(mut sv), Some(mut ev)) = (self.sigma_v.take(), self.epsilon_v.take()) else {
+            return Ok(()); // both present: checked above
+        };
+        let result = self.update_int_variables_of(exec, &mut sv, &mut ev, dt, ghost);
+        self.sigma_v = Some(sv);
+        self.epsilon_v = Some(ev);
+        result
+    }
+
+    /// [`Self::update_int_variables`] on the branch fields taken out of the
+    /// law.
+    fn update_int_variables_of(
+        &self,
+        exec: &Exec,
+        sv_field: &mut InternalField<Real>,
+        ev_field: &mut InternalField<Real>,
+        dt: Real,
+        ghost: GhostType,
+    ) -> Result<()> {
         let mode = self.elastic.options.maxwell_update;
         let n = DIM * DIM;
         let nb = self.nb_branches();
         let factors = self.all_branch_factors(dt);
-        for ty in self
-            .elastic
-            .base()
-            .element_filter
-            .as_map()
-            .iter(ghost)
-            .map(|(t, _)| t)
-            .collect::<Vec<_>>()
-        {
-            let base = self.elastic.base();
-            let grad_u = base.grad_u.get(ty, ghost)?.clone();
-            let prev = base.grad_u.previous(ty, ghost)?.clone();
-            let mut sv = self.sigma_v_field()?.get(ty, ghost)?.clone();
-            let mut ev = self.epsilon_v_field()?.get(ty, ghost)?.clone();
+        let base = self.elastic.base();
+        for (ty, _) in base.element_filter.as_map().iter(ghost) {
+            let grad_u = base.grad_u.get(ty, ghost)?;
+            let prev = base.grad_u.previous(ty, ghost)?;
+            let mut sv = sv_field.get_mut(ty, ghost)?;
+            let mut ev = ev_field.get_mut(ty, ghost)?;
             let nq = grad_u.len();
             if prev.len() != nq || sv.len() != nq || ev.len() != nq {
                 return Err(Error::DimensionMismatch {
@@ -638,13 +667,14 @@ impl<const DIM: usize> MaterialViscoelasticMaxwell<DIM> {
                     got: sv.nb_component(),
                 });
             }
+            // in place through the guards taken above: every part writes
+            // the tuples of its own points
             let items = (
                 TuplesRef::new(grad_u.as_slice(), n),
                 TuplesRef::new(prev.as_slice(), n),
                 Tuples::new(sv.as_mut_slice(), n * nb),
                 Tuples::new(ev.as_mut_slice(), n * nb),
             );
-            let this = &*self;
             exec.try_for_each(items, 512, |_, (g, pg, mut sv, mut ev)| {
                 let parts = g
                     .as_slice()
@@ -653,7 +683,7 @@ impl<const DIM: usize> MaterialViscoelasticMaxwell<DIM> {
                     .zip(sv.as_mut_slice().chunks_exact_mut(n * nb))
                     .zip(ev.as_mut_slice().chunks_exact_mut(n * nb));
                 for (((g, pg), svs), evs) in parts {
-                    this.update_int_var_on_quad(
+                    self.update_int_var_on_quad(
                         mode,
                         &factors,
                         as_matrix(g)?,
@@ -664,16 +694,6 @@ impl<const DIM: usize> MaterialViscoelasticMaxwell<DIM> {
                 }
                 Ok(())
             })?;
-            self.sigma_v
-                .as_mut()
-                .ok_or_else(|| Error::invalid("sigma_v not registered"))?
-                .get_mut(ty, ghost)?
-                .copy_from(&sv)?;
-            self.epsilon_v
-                .as_mut()
-                .ok_or_else(|| Error::invalid("epsilon_v not registered"))?
-                .get_mut(ty, ghost)?
-                .copy_from(&ev)?;
         }
         Ok(())
     }
@@ -687,11 +707,11 @@ impl<const DIM: usize> MaterialViscoelasticMaxwell<DIM> {
         let n = DIM * DIM;
         let dt = ctx.services.time_step();
         let base = self.elastic.base();
-        let grad_u = base.grad_u.get(ty, g)?.clone();
-        let prev_g = base.grad_u.previous(ty, g)?.clone();
-        let sigma = base.stress.get(ty, g)?.clone();
-        let prev_s = base.stress.previous(ty, g)?.clone();
-        let epot = base.potential_energy.get(ty, g)?.clone();
+        let grad_u = base.grad_u.get(ty, g)?;
+        let prev_g = base.grad_u.previous(ty, g)?;
+        let sigma = base.stress.get(ty, g)?;
+        let prev_s = base.stress.previous(ty, g)?;
+        let epot = base.potential_energy.get(ty, g)?;
         let nq = grad_u.len();
         let mut work = self.mechanical_work.get_mut(ty, g)?;
         if prev_g.len() != nq
@@ -706,11 +726,10 @@ impl<const DIM: usize> MaterialViscoelasticMaxwell<DIM> {
                 got: work.len(),
             });
         }
-        let mut works = work.as_slice().to_vec();
-        let mut diss = vec![0.0; nq];
-        if [&grad_u, &prev_g, &sigma, &prev_s]
-            .iter()
-            .any(|a| a.nb_component() != n)
+        if grad_u.nb_component() != n
+            || prev_g.nb_component() != n
+            || sigma.nb_component() != n
+            || prev_s.nb_component() != n
         {
             return Err(Error::DimensionMismatch {
                 context: "MaterialViscoelasticMaxwell::updateDissipatedEnergy: components",
@@ -718,7 +737,8 @@ impl<const DIM: usize> MaterialViscoelasticMaxwell<DIM> {
                 got: sigma.nb_component(),
             });
         }
-        // every point from its own values: parts on the model's threads
+        // the work of every point in place, from its own values: parts on
+        // the model's threads
         let items = (
             (
                 TuplesRef::new(grad_u.as_slice(), n),
@@ -726,41 +746,52 @@ impl<const DIM: usize> MaterialViscoelasticMaxwell<DIM> {
                 TuplesRef::new(sigma.as_slice(), n),
                 TuplesRef::new(prev_s.as_slice(), n),
             ),
+            Tuples::new(&mut work.as_mut_slice()[..nq], 1),
+        );
+        exec.for_each(items, 1024, |_, ((gu, pgu, s, ps), mut works)| {
+            let parts = gu
+                .as_slice()
+                .chunks_exact(n)
+                .zip(pgu.as_slice().chunks_exact(n))
+                .zip(s.as_slice().chunks_exact(n))
+                .zip(ps.as_slice().chunks_exact(n))
+                .zip(works.as_mut_slice());
+            for ((((gu, pgu), s), ps), w) in parts {
+                // `av_stress.doubleDot(strain_rate)` on unevaluated
+                // expressions: coefficient cost 2·(2 reads + add + division
+                // (8)) + product = 23, so Eigen unrolls the 4 terms of 2-D
+                // (tree) but not the 9 of 3-D (sequential), see
+                // `akantu_core::eigen_order::sum`.
+                let dd = eo::sum(n, AV_STRESS_RATE_COST, true, &|l| {
+                    ((s[l] + ps[l]) / 2.) * ((gu[l] - pgu[l]) / dt)
+                });
+                *w += dd * dt;
+            }
+        });
+        let mut diss = self.dissipated_energy.get_mut(ty, g)?;
+        if diss.as_slice().len() != nq {
+            return Err(Error::DimensionMismatch {
+                context: "MaterialViscoelasticMaxwell::updateDissipatedEnergy: dissipated_energy",
+                expected: nq,
+                got: diss.as_slice().len(),
+            });
+        }
+        // the work just updated minus the potential energy, per point
+        let items = (
+            Tuples::new(diss.as_mut_slice(), 1),
+            TuplesRef::new(&work.as_slice()[..nq], 1),
             TuplesRef::new(epot.as_slice(), 1),
-            Tuples::new(&mut works, 1),
-            Tuples::new(&mut diss, 1),
         );
-        exec.for_each(
-            items,
-            1024,
-            |_, ((gu, pgu, s, ps), epot, mut works, mut diss)| {
-                let parts = gu
-                    .as_slice()
-                    .chunks_exact(n)
-                    .zip(pgu.as_slice().chunks_exact(n))
-                    .zip(s.as_slice().chunks_exact(n))
-                    .zip(ps.as_slice().chunks_exact(n))
-                    .zip(epot.as_slice())
-                    .zip(works.as_mut_slice().iter_mut().zip(diss.as_mut_slice()));
-                for (((((gu, pgu), s), ps), &epot), (work, diss)) in parts {
-                    // `av_stress.doubleDot(strain_rate)` on unevaluated
-                    // expressions: coefficient cost 2·(2 reads + add +
-                    // division (8)) + product = 23, so Eigen unrolls the 4
-                    // terms of 2-D (tree) but not the 9 of 3-D (sequential),
-                    // see `akantu_core::eigen_order::sum`.
-                    let dd = eo::sum(n, AV_STRESS_RATE_COST, true, &|l| {
-                        ((s[l] + ps[l]) / 2.) * ((gu[l] - pgu[l]) / dt)
-                    });
-                    *work += dd * dt;
-                    *diss = *work - epot;
-                }
-            },
-        );
-        work.as_mut_slice().copy_from_slice(&works);
-        self.dissipated_energy
-            .get_mut(ty, g)?
-            .as_mut_slice()
-            .copy_from_slice(&diss);
+        exec.for_each(items, 4096, |_, (mut d, w, e)| {
+            for ((d, w), e) in d
+                .as_mut_slice()
+                .iter_mut()
+                .zip(w.as_slice())
+                .zip(e.as_slice())
+            {
+                *d = *w - *e;
+            }
+        });
         Ok(())
     }
 
@@ -986,6 +1017,7 @@ impl<const DIM: usize> Material for MaterialViscoelasticMaxwell<DIM> {
         self.current_dt = dt;
         let n = DIM * DIM;
         let nb = self.nb_branches();
+        let mut scratch = std::mem::take(&mut self.scratch);
         let base = self.elastic.base();
         let grad_u = base.grad_u.get(ty, ghost)?;
         let prev = base.grad_u.previous(ty, ghost)?;
@@ -1000,7 +1032,6 @@ impl<const DIM: usize> Material for MaterialViscoelasticMaxwell<DIM> {
             });
         }
         let factors = self.all_branch_factors(dt);
-        let mut out = vec![0.0; nq * n];
         if prev.nb_component() != n || sv.nb_component() != n * nb || grad_u.nb_component() != n {
             return Err(Error::DimensionMismatch {
                 context: "MaterialViscoelasticMaxwell::computeStress: components",
@@ -1008,6 +1039,8 @@ impl<const DIM: usize> Material for MaterialViscoelasticMaxwell<DIM> {
                 got: grad_u.nb_component(),
             });
         }
+        // every value of the scratch block is written below
+        let [out] = scratch.sized([(nq, n)])?;
         // every point from its own gradients and branch stresses: parts on
         // the model's threads (D-123)
         let items = (
@@ -1015,7 +1048,7 @@ impl<const DIM: usize> Material for MaterialViscoelasticMaxwell<DIM> {
             TuplesRef::new(prev.as_slice(), n),
             TuplesRef::new(sv.as_slice(), n * nb),
             TuplesRef::new(th.as_slice(), 1),
-            Tuples::new(&mut out, n),
+            Tuples::new(out.as_mut_slice(), n),
         );
         let this = &*self;
         crate::material::points_exec(this, ctx).try_for_each(
@@ -1039,16 +1072,24 @@ impl<const DIM: usize> Material for MaterialViscoelasticMaxwell<DIM> {
         // end the read guards before the stress guard (explicit guard
         // `Drop`)
         drop((grad_u, sv, th));
-        let mut sigma = self.elastic.base_mut().stress.get_mut(ty, ghost)?;
-        if sigma.as_slice().len() != out.len() {
-            return Err(Error::DimensionMismatch {
-                context: "MaterialViscoelasticMaxwell::computeStress: stress",
-                expected: out.len(),
-                got: sigma.as_slice().len(),
-            });
+        let result = commit_block(
+            &mut self.elastic.base_mut().stress,
+            ty,
+            ghost,
+            scratch.get_mut(0),
+            "MaterialViscoelasticMaxwell::computeStress: stress",
+        );
+        self.scratch = scratch;
+        result
+    }
+
+    /// `compute_stress` runs the elastic law's `compute_stress` first (when
+    /// the thermal domain check passes), which rewrites the thermal and
+    /// stress blocks.
+    fn prepare_stress_overwrite(&mut self, ty: ElementType, ghost: GhostType) {
+        if self.check_thermal_domain().is_ok() {
+            Material::prepare_stress_overwrite(&mut self.elastic, ty, ghost);
         }
-        sigma.as_mut_slice().copy_from_slice(&out);
-        Ok(())
     }
 
     /// The stress, the branch update (`update_int_variables`) and the
@@ -1100,9 +1141,10 @@ impl<const DIM: usize> Material for MaterialViscoelasticMaxwell<DIM> {
         let g = GhostType::NotGhost;
         let n = DIM * DIM;
         let nb = self.nb_branches();
-        let grad_u = self.elastic.base().grad_u.get(ty, g)?.clone();
-        let sv = self.sigma_v_field()?.get(ty, g)?.clone();
-        let ev = self.epsilon_v_field()?.get(ty, g)?.clone();
+        let mut scratch = std::mem::take(&mut self.scratch);
+        let grad_u = self.elastic.base().grad_u.get(ty, g)?;
+        let sv = self.sigma_v_field()?.get(ty, g)?;
+        let ev = self.epsilon_v_field()?.get(ty, g)?;
         let nq = grad_u.len();
         if sv.len() != nq || ev.len() != nq {
             return Err(Error::DimensionMismatch {
@@ -1113,19 +1155,22 @@ impl<const DIM: usize> Material for MaterialViscoelasticMaxwell<DIM> {
         }
         if grad_u.nb_component() != n || sv.nb_component() != n * nb || ev.nb_component() != n * nb
         {
+            drop((grad_u, sv, ev));
+            self.scratch = scratch;
             return Err(Error::DimensionMismatch {
                 context: "MaterialViscoelasticMaxwell::computePotentialEnergy: components",
                 expected: n * nb,
-                got: sv.nb_component(),
+                got: n,
             });
         }
-        // every point from its own values: parts on the model's threads
-        let mut density = vec![0.0; nq];
+        // every point from its own values into the scratch block: parts on
+        // the model's threads; one commit after every part
+        let [density] = scratch.sized([(nq, 1)])?;
         let items = (
             TuplesRef::new(grad_u.as_slice(), n),
             TuplesRef::new(sv.as_slice(), n * nb),
             TuplesRef::new(ev.as_slice(), n * nb),
-            Tuples::new(&mut density, 1),
+            Tuples::new(density.as_mut_slice(), 1),
         );
         let this = &*self;
         crate::material::points_exec(this, ctx).try_for_each(
@@ -1144,16 +1189,16 @@ impl<const DIM: usize> Material for MaterialViscoelasticMaxwell<DIM> {
                 Ok(())
             },
         )?;
-        let mut epot = self.elastic.base_mut().potential_energy.get_mut(ty, g)?;
-        if epot.len() != nq {
-            return Err(Error::DimensionMismatch {
-                context: "MaterialViscoelasticMaxwell::computePotentialEnergy: potential_energy",
-                expected: nq,
-                got: epot.len(),
-            });
-        }
-        epot.as_mut_slice().copy_from_slice(&density);
-        Ok(())
+        drop((grad_u, sv, ev));
+        let result = commit_block(
+            &mut self.elastic.base_mut().potential_energy,
+            ty,
+            g,
+            scratch.get_mut(0),
+            "MaterialViscoelasticMaxwell::computePotentialEnergy: potential_energy",
+        );
+        self.scratch = scratch;
+        result
     }
 
     /// Upstream `afterSolveStep(converged)`: `Material::afterSolveStep`
@@ -1287,6 +1332,36 @@ pub fn register(factory: &mut MaterialFactory) -> Result<()> {
             })
         }),
     )
+}
+
+/// `field(ty, ghost) <- new` for a block whose values (all of them) the
+/// caller computed into `new`: [`InternalField::commit_overwrite`] when the
+/// shapes agree, a copy of the flat values when only their count agrees,
+/// else [`Error::DimensionMismatch`] with `context` (nothing changed).
+fn commit_block(
+    field: &mut InternalField<Real>,
+    ty: ElementType,
+    ghost: GhostType,
+    new: &mut Array<Real>,
+    context: &'static str,
+) -> Result<()> {
+    let (len, nbc) = {
+        let a = field.values().shared(ty, ghost)?;
+        (a.len(), a.nb_component())
+    };
+    if (len, nbc) == (new.len(), new.nb_component()) {
+        return field.commit_overwrite(ty, ghost, new);
+    }
+    let mut cur = field.get_mut(ty, ghost)?;
+    if cur.as_slice().len() != new.as_slice().len() {
+        return Err(Error::DimensionMismatch {
+            context,
+            expected: new.as_slice().len(),
+            got: cur.as_slice().len(),
+        });
+    }
+    cur.as_mut_slice().copy_from_slice(new.as_slice());
+    Ok(())
 }
 
 #[cfg(test)]

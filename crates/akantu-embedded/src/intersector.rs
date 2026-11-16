@@ -43,8 +43,34 @@
 //! upstream's collected set (exact deduplication only).
 //!
 //! **Licensing (D-042).** The search structure is the LGPL
-//! [`LinearScan`] of `akantu-geometry`: this crate never depends on the
-//! GPL-3.0-or-later crate `akantu-geometry-cgal`. With the default
+//! [`GridIndex`] of `akantu-geometry` (or its [`LinearScan`],
+//! [`EmbeddedInterfaceIntersector::exhaustive_search`]): this crate never
+//! depends on the GPL-3.0-or-later crate `akantu-geometry-cgal`.
+//!
+//! **Search structure.** [`GridIndex`] tests only the background
+//! primitives near each reinforcement segment, in primitive order with the
+//! predicates of [`LinearScan`], which tests all of them (cost
+//! `O(segments × elements)`). At the level of the search structure the grid
+//! reports the scan's reports, in the scan's order, minus those of
+//! primitives farther from the query than its margin (a quarter of its cell
+//! edge `h = max((V / n_p)^(1/d), ē / 2)`, `V` the volume of the primitives'
+//! bounding box in its `d` non-flat directions, `n_p` the primitive count,
+//! `ē` the mean primitive extent). The scan reports such primitives only
+//! through rounding noise, when a query lies, up to rounding, in the plane
+//! of a distant face or on the line of a distant edge; the noise can be a
+//! point or piece outside the query, or the query itself attached to the
+//! distant element. In the collected set (`remove_near_duplicates =
+//! false`) the grid can therefore also keep another element for a
+//! duplicated piece: the element containing it, where the scan's
+//! deduplication keeps the lower index, the distant one. The grid's choice
+//! is upstream's: a probe of upstream's `MeshSegmentIntersector<2,
+//! _triangle_3>` gives the grid's pieces on such queries, and the port's
+//! CGAL-compatible AABB tree agrees (`akantu-geometry-cgal`,
+//! `diagonal_bar_keeps_its_element`). With the default tiled assembly no
+//! difference was found (the noise pieces do not lie in their element and
+//! are dropped). `exhaustive_search = true` selects the scan; the tests
+//! `grid_index`, `grid_index_intersector` and `grid_margin` of
+//! `akantu-geometry` compare both structures. With the default
 //! [`SegmentIntersectorOptions`] (`SegmentOrder::Lexicographic`, UD-408) the
 //! interface elements of one query come in exact lexicographic order with
 //! duplicates removed independently of the search structure; upstream's
@@ -58,7 +84,7 @@ use std::collections::BTreeMap;
 use akantu_core::{Element, ElementKind, ElementType, Error, GhostType, Result, TypeFilter};
 use akantu_geometry::kernel::{Point3, Segment3};
 use akantu_geometry::{
-    LinearScan, MeshSegmentIntersector, PieceAssembly, SegmentIntersectorOptions,
+    GridIndex, LinearScan, MeshSegmentIntersector, PieceAssembly, SegmentIntersectorOptions,
 };
 use akantu_mesh::{Mesh, MeshAccessor};
 
@@ -101,6 +127,11 @@ pub struct EmbeddedInterfaceIntersector {
     /// keeps the segment intersector's collected set (upstream).
     /// `true` needs `options.tetrahedra = Faces` for tetrahedral meshes.
     pub remove_near_duplicates: bool,
+    /// Search structure: `false` (default) the uniform grid [`GridIndex`],
+    /// `true` the exhaustive [`LinearScan`] (see the module documentation
+    /// for the differences, all caused by the scan's rounding noise on
+    /// distant primitives).
+    pub exhaustive_search: bool,
 }
 
 impl Default for EmbeddedInterfaceIntersector {
@@ -108,6 +139,7 @@ impl Default for EmbeddedInterfaceIntersector {
         Self {
             options: SegmentIntersectorOptions::default(),
             remove_near_duplicates: true,
+            exhaustive_search: false,
         }
     }
 }
@@ -152,6 +184,7 @@ impl EmbeddedInterfaceIntersector {
         Self {
             options,
             remove_near_duplicates: true,
+            exhaustive_search: false,
         }
     }
 
@@ -267,12 +300,29 @@ impl EmbeddedInterfaceIntersector {
                 },
                 ..self.options
             };
-            let mut intersector = MeshSegmentIntersector::<LinearScan>::new(mesh, ty, options)?;
-            for (name, segments) in &name_to_primitives {
-                intersector.set_physical_name(name.clone());
-                intersector.build_result_from_query_list(mesh, segments, &mut interface)?;
+            if self.exhaustive_search {
+                let intersector = MeshSegmentIntersector::<LinearScan>::new(mesh, ty, options)?;
+                Self::intersect_all(intersector, mesh, &name_to_primitives, &mut interface)?;
+            } else {
+                let intersector = MeshSegmentIntersector::<GridIndex>::new(mesh, ty, options)?;
+                Self::intersect_all(intersector, mesh, &name_to_primitives, &mut interface)?;
             }
         }
         Ok(interface)
+    }
+
+    /// Every named segment list through `intersector` (upstream: the loop
+    /// over `name_to_primitives` of `constructData`).
+    fn intersect_all<I: akantu_geometry::TriangleIndex>(
+        mut intersector: MeshSegmentIntersector<I>,
+        mesh: &Mesh,
+        name_to_primitives: &BTreeMap<String, Vec<Segment3>>,
+        interface: &mut Mesh,
+    ) -> Result<()> {
+        for (name, segments) in name_to_primitives {
+            intersector.set_physical_name(name.clone());
+            intersector.build_result_from_query_list(mesh, segments, interface)?;
+        }
+        Ok(())
     }
 }
