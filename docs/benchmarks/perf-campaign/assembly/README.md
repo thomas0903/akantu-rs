@@ -125,6 +125,42 @@ What remains at 4 ranks (1.06×) was not profiled: the distributed MUMPS
 input is handed over as before (`coo_one_based_i32` per analysis) and the
 collective agreement phases of the DOF manager run around it.
 
+## Releasing the static solver after the preload (report finding 1.1)
+
+`SolidMechanicsModel::release_static_solver` (Python
+`releaseStaticSolver`; manual "Solver configuration") destroys the
+analysis and factorisation of `J`'s solver (MUMPS: `destroy()`, agreed
+collective `JOB = -2`; SparseLU and faer: their factors) and the storage of
+`J` and `K`, and makes the next `K` assembly happen. Not called by the
+library. The PETSc back-end returns `Unsupported`. Tests: a later static
+solve gives the bits of a run that kept everything
+(`crates/akantu-solver/tests/release_factorization.rs`, SparseLU and faer;
+`mumps_mpi_solver.rs` scenario `release_factorization_mumps`, PASS at 1, 2
+and 4 ranks; `python/tests/test_solver_layer.py::
+test_release_static_solver_then_resolve`; the manual example).
+
+Driver: `rust_release_static_solver = true` (default false) calls it after
+the static solve and after the solver statistics are read, and records
+`rss_after_release`. `c1prep_campaign.sh`, port with MUMPS, one run per
+configuration, raw data `release-static/` (per-run `summary.json`,
+`insertions.csv`, `energies.md5`).
+
+| mesh, ranks, steps | energies.csv, insertions.csv | after the static solve | after the release | loop peak (VmHWM after the reset) | end of the run |
+|---|---|---|---|---|---|
+| h = 0.12, 1 rank, 5,000 (3,545 insertion steps, 11,739 cohesive elements) | byte-identical | 234 MiB | 177 MiB | 361 → 279 MiB | 316 → 209 MiB |
+| h = 0.12, 2 ranks, 5,000 (sum over ranks) | byte-identical | 312 MiB | 227 MiB | 435 → 329 MiB | 398 → 263 MiB |
+| h = 0.06, 1 rank, 10 | byte-identical | 1,903 MiB | 750 MiB | 2,901 → 1,903 MiB | 2,268 → 1,037 MiB |
+| h = 0.06, 4 ranks, 10 (sum over ranks) | see below | 2,625 MiB | 1,061 MiB | 3,550 → 2,622 MiB | 2,929 → 1,253 MiB |
+
+At 4 ranks the static solution with distributed MUMPS is not
+reproducible from run to run in either code: the five C++ runs, the five
+runs of the base and the five of this branch of the earlier series all
+have different `energies.csv` from the first line on (`energies.md5`), so
+the 4-rank pair cannot be compared byte for byte; at 1 and 2 ranks it
+can, and is identical. The loop peak with the release equals the static
+peak because the driver resets the peak before the release; the loop's own
+growth stays below it.
+
 ## Threaded assembly: design
 
 The value of an entry is the sum of its elemental contributions in
