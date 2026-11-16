@@ -1409,6 +1409,168 @@ mod tests {
         assert!(got.adjncy.len() > 100);
     }
 
+    /// Deterministic pseudo-random sequence of the cohesive dual-graph tests.
+    fn lcg(r: &mut u64) -> usize {
+        *r = r.wrapping_mul(6_364_136_223_846_793_005).wrapping_add(1);
+        (*r >> 33) as usize
+    }
+
+    /// Element-dependent edge and vertex loads (so that a vertex or a
+    /// neighbour taken from the wrong element shows in the loads).
+    fn graph_with_loads(m: &Mesh) -> (DualGraph, DualGraph) {
+        let key = |e: Element| Int::try_from(e.idx() * 31 + e.ty().index()).unwrap();
+        let edge = |a: Element, b: Element| 1 + (key(a) * 7 + key(b)) % 11;
+        let vertex = |a: Element| 1 + key(a) % 5;
+        (
+            build_dual_graph(m, &edge, &vertex).unwrap(),
+            reference_dual_graph(m, &edge, &vertex),
+        )
+    }
+
+    /// The counting-array dual graph equals the ordered-map construction
+    /// on a 2-D mesh with triangles, quadrangles, `_cohesive_2d_4` elements
+    /// (unopened ones with repeated nodes, several sharing nodes, two on
+    /// the same edge) and lower-dimensional `_segment_2` elements: the rule
+    /// that two cohesive elements are never adjacent and the linear-index →
+    /// type lookup are exercised.
+    #[test]
+    fn dual_graph_with_cohesive_elements_matches_the_reference_2d() {
+        let mut m = Mesh::new(2, "cohesive-2d").unwrap();
+        let (nx, ny) = (7usize, 6usize);
+        let id = |i: usize, j: usize| Idx::try_from(j * (nx + 1) + i).unwrap();
+        {
+            let mut a = MeshAccessor::new(&mut m);
+            for j in 0..=ny {
+                for i in 0..=nx {
+                    #[allow(clippy::cast_precision_loss)] // small
+                    a.push_node(&[i as f64, j as f64]).unwrap();
+                }
+            }
+            let mut r = 7u64;
+            for j in 0..ny {
+                for i in 0..nx {
+                    let (a0, a1, a2, a3) = (id(i, j), id(i + 1, j), id(i + 1, j + 1), id(i, j + 1));
+                    if lcg(&mut r).is_multiple_of(3) {
+                        a.connectivity_mut(ElementType::Quadrangle4, NG)
+                            .push_tuple(&[a0, a1, a2, a3]);
+                    } else {
+                        let mut c = a.connectivity_mut(ElementType::Triangle3, NG);
+                        c.push_tuple(&[a0, a1, a2]);
+                        c.push_tuple(&[a2, a3, a0]);
+                    }
+                }
+            }
+            {
+                let mut coh = a.connectivity_mut(ElementType::Cohesive2d4, NG);
+                // unopened cohesive elements on interior vertical edges (repeated
+                // nodes); neighbours along a column share a node
+                for j in 0..ny {
+                    for i in [2usize, 5] {
+                        let (p, q) = (id(i, j), id(i, j + 1));
+                        coh.push_tuple(&[p, q, p, q]);
+                    }
+                }
+                // two cohesive elements on the same edge, and opened ones
+                // joining two different edges
+                coh.push_tuple(&[id(3, 3), id(4, 3), id(3, 3), id(4, 3)]);
+                coh.push_tuple(&[id(3, 3), id(4, 3), id(3, 3), id(4, 3)]);
+                coh.push_tuple(&[id(1, 1), id(2, 1), id(1, 2), id(2, 2)]);
+                coh.push_tuple(&[id(5, 4), id(6, 4), id(5, 5), id(6, 5)]);
+            }
+            let mut seg = a.connectivity_mut(ElementType::Segment2, NG);
+            for i in 0..nx {
+                seg.push_tuple(&[id(i, 0), id(i + 1, 0)]);
+            }
+        }
+        let (got, want) = graph_with_loads(&m);
+        assert_eq!(got, want);
+        // the cohesive elements have neighbours (bulk ones only)
+        let n_bulk =
+            m.nb_element(ElementType::Triangle3, NG) + m.nb_element(ElementType::Quadrangle4, NG);
+        let n = got.xadj.len() - 1;
+        let first_coh = n - m.nb_element(ElementType::Cohesive2d4, NG);
+        assert!(
+            first_coh >= n_bulk,
+            "cohesive elements are listed after the bulk types"
+        );
+        for v in first_coh..n {
+            let (a, b) = (got.xadj[v] as usize, got.xadj[v + 1] as usize);
+            assert!(b > a, "cohesive vertex {v} without neighbour");
+            assert!(got.adjncy[a..b].iter().all(|&w| (w as usize) < first_coh));
+        }
+    }
+
+    /// The 3-D variant: tetrahedra (Kuhn split cells), hexahedra and
+    /// `_cohesive_3d_6` elements (unopened, sharing nodes, two on the same
+    /// face, opened ones).
+    #[test]
+    fn dual_graph_with_cohesive_elements_matches_the_reference_3d() {
+        let mut m = Mesh::new(3, "cohesive-3d").unwrap();
+        let n = 4usize;
+        let id =
+            |i: usize, j: usize, k: usize| Idx::try_from((k * (n + 1) + j) * (n + 1) + i).unwrap();
+        {
+            let mut a = MeshAccessor::new(&mut m);
+            for k in 0..=n {
+                for j in 0..=n {
+                    for i in 0..=n {
+                        #[allow(clippy::cast_precision_loss)] // small
+                        a.push_node(&[i as f64, j as f64, k as f64]).unwrap();
+                    }
+                }
+            }
+            let mut r = 11u64;
+            for k in 0..n {
+                for j in 0..n {
+                    for i in 0..n {
+                        // corner c = x + 2y + 4z of the cell
+                        let v: Vec<Idx> = (0..8)
+                            .map(|c| id(i + (c & 1), j + ((c >> 1) & 1), k + ((c >> 2) & 1)))
+                            .collect();
+                        if lcg(&mut r).is_multiple_of(3) {
+                            a.connectivity_mut(ElementType::Hexahedron8, NG)
+                                .push_tuple(&[v[0], v[1], v[3], v[2], v[4], v[5], v[7], v[6]]);
+                        } else {
+                            let mut c = a.connectivity_mut(ElementType::Tetrahedron4, NG);
+                            for t in [
+                                [0, 1, 3, 7],
+                                [0, 1, 5, 7],
+                                [0, 2, 3, 7],
+                                [0, 2, 6, 7],
+                                [0, 4, 5, 7],
+                                [0, 4, 6, 7],
+                            ] {
+                                c.push_tuple(&[v[t[0]], v[t[1]], v[t[2]], v[t[3]]]);
+                            }
+                        }
+                    }
+                }
+            }
+            let mut coh = a.connectivity_mut(ElementType::Cohesive3d6, NG);
+            for j in 0..n {
+                for k in 0..n {
+                    // unopened, on the plane x = 2, neighbours share an edge
+                    let (p, q, s) = (id(2, j, k), id(2, j + 1, k), id(2, j + 1, k + 1));
+                    coh.push_tuple(&[p, q, s, p, q, s]);
+                }
+            }
+            let (p, q, s) = (id(1, 1, 1), id(2, 1, 1), id(2, 2, 1));
+            coh.push_tuple(&[p, q, s, p, q, s]);
+            coh.push_tuple(&[p, q, s, p, q, s]);
+            coh.push_tuple(&[
+                id(1, 1, 2),
+                id(2, 1, 2),
+                id(2, 2, 2),
+                id(1, 1, 3),
+                id(2, 1, 3),
+                id(2, 2, 3),
+            ]);
+        }
+        let (got, want) = graph_with_loads(&m);
+        assert_eq!(got, want);
+        assert!(got.adjncy.len() > 500);
+    }
+
     /// UD-234: an isolated element (sharing no node) is a vertex without
     /// edges; upstream sizes `xadj` by the elements that have neighbours
     /// and writes out of bounds.
