@@ -97,7 +97,8 @@ Notes:
 - The thread pool of the execution policy (D-123) is the port's own
   (`akantu_core::exec`, on `std::thread`). `rayon` (MIT OR Apache-2.0) was
   allowed and measured, and not taken: one region cost 5–14 µs with it
-  against about 1 µs with the own pool on the 8-core measurement machine
+  against 0.2–1.5 µs (3.7 µs at most) with the own pool on the 8-core
+  measurement machine
   (`docs/benchmarks/perf-campaign/exec/`). `rayon` remains a dependency of
   the standalone microbenchmark `scripts/perf/exec/pool-overhead` only (not
   a workspace member, not shipped).

@@ -2179,15 +2179,23 @@ tests against the default path.
   possible, for running test suites with many small parts.
 - **Pool: a small pool on `std::thread`** (`exec/spin.rs`), one per
   thread count per process, shared by all models: the caller takes part in
-  the region, parts are claimed with an atomic counter, idle workers spin
-  for 5 ms and then park. Chosen over `rayon` by the measured cost of one
+  the region; participant `i` takes the parts of the `i`-th contiguous
+  block first and then the leftovers of the others, so a thread keeps its
+  elements from one region to the next; a worker joins a region only while
+  it is open, and the caller, once no part is left, closes it and waits
+  only for the workers inside (a worker that wakes late skips it); idle
+  workers spin for 5 ms and then park (a region that has to wake parked
+  workers cost its caller 18–31 µs of futex wake-up on the screening
+  machine; the serial stretches of an explicit step last about a
+  millisecond). Chosen over `rayon` by the measured cost of one
   region (`scripts/perf/exec/pool-overhead`, AMD EPYC 9R14, 8 cores,
-  `docs/benchmarks/perf-campaign/exec/`): an empty region costs 0.7–0.9 µs
-  with this pool at 2–8 threads against 5.0–6.7 µs with `rayon` (its
+  `docs/benchmarks/perf-campaign/exec/`): an empty region costs 0.2–0.9 µs
+  with this pool at 2–8 threads against 5.0–7.0 µs with `rayon` (its
   `install` and `broadcast` alike), and a region of 10–100 µs of work
-  spends 0.7–1.3 µs above the ideal `work / threads` against 4–14 µs
-  with `rayon`; an explicit step has about a dozen regions, so on a
-  20 k-element mesh at 8 threads `rayon` would add tens of percent. The
+  spends 0.7–1.5 µs above the ideal `work / threads` at 4 and 8 threads
+  (up to 3.7 µs at 2) against 4.9–13.8 µs with `rayon`; an explicit step
+  has about a dozen regions, so on a 20 k-element mesh `rayon` would add
+  tens of percent. The
   price is `unsafe` code (a borrowed closure handed to the workers for one
   region; 7 sites in `crates/akantu-core/UNSAFE.md`) and workers that spin
   briefly after each region. A region started while the pool runs

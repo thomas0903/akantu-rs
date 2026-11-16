@@ -5,15 +5,18 @@
 //! A fixed pool of worker threads for short parallel regions.
 //!
 //! One region at a time: the caller publishes a job (`Fn(part)`) and the
-//! number of parts, wakes the workers, and takes parts itself; parts are
-//! claimed with an atomic counter. A worker joins a region only by entering
-//! it while it is open; when the caller has no part left it closes the
-//! region and waits only for the workers that entered, so a worker that
-//! wakes late (parked during a serial stretch) skips the region instead of
-//! making the caller wait for its wake-up. Between regions a worker spins
-//! for a short time (regions of an explicit step follow each other within
-//! microseconds), then parks on a condition variable. Measured cost of one region on 8 cores of an AMD EPYC 9R14:
-//! below 1 µs at 2 and 4 threads, against 5–14 µs for a `rayon` pool
+//! number of parts, wakes the workers, and takes parts itself. Participant
+//! `i` first takes the parts of the `i`-th contiguous block, then the
+//! leftovers of the others, so a thread keeps its elements from one region
+//! to the next. A worker joins a region only by entering it while it is
+//! open; when the caller has no part left it closes the region and waits
+//! only for the workers that entered, so a worker that wakes late (parked
+//! during a serial stretch) skips the region instead of making the caller
+//! wait for its wake-up. Between regions a worker spins for 5 ms (the
+//! serial stretches of an explicit step last about a millisecond), then
+//! parks on a condition variable. Measured cost of one region on 8 cores of
+//! an AMD EPYC 9R14: 0.2–1.5 µs at 2–8 threads (3.7 µs at most), against
+//! 5–14 µs for a `rayon` pool
 //! (`docs/benchmarks/perf-campaign/exec/README.md`).
 //!
 //! A region submitted while the pool runs another one (from another thread,
