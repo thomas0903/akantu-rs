@@ -257,13 +257,146 @@ Ranked by share of the profile; none was worked on.
 6. The history copies (`save_previous_state`, about 13 % of hex8 ss) are
    upstream's behaviour; avoiding them needs double buffering, which would
    change the buffer identity that zero-copy Python views hold (D-047).
-7. The insertion check's stress interpolation still uses the general product
-   per point. At full size the check is the largest phase (below).
+7. The insertion check's stress interpolation used the general product per
+   point; reworked in the performance campaign (next section).
 
-A `-C target-cpu` build is not used: its bit identity is not established by
-any test (the explicit-step digests matched for `target-cpu=native`, but
-`f64::min`/`max` on signed zeros and the sign of default NaNs can change
-elsewhere).
+### The insertion check (performance campaign, 2026-11-16)
+
+`check_cohesive_stress` (facet stresses, the laws' insertion decision, the
+insertion) was profiled and reworked with bitwise identical results
+(D-122). Machine, unless a table says otherwise: an AWS `m7a.2xlarge` (AMD EPYC
+9R14, 8 cores, 32 GiB), one process pinned to one core of the four timing
+cores (other jobs on the other four), before and after interleaved in
+rotated order, 5 repetitions; "before" is the branch point `59dd2229`, both
+binaries built with the default release profile on the same toolchain.
+Raw data, commands and profiles: `docs/benchmarks/perf-campaign/cohesive-check/`.
+
+What the profile showed (branch point, h = 0.12 driver, full schedule;
+shares of all samples of a flat profile on the AWS machine, attributed to
+callers with frame-pointer call graphs on a boat.dev development VM;
+`profiles/aws-base-flat.txt`, `profiles/base-5000.txt`): the elemental interpolation's two small products
+per element through the general product path, 31 % (the second product of
+the linear tetrahedron at its facets' 3 × 4 points takes Eigen's `gebp`
+route); the copy of the interpolated values into `facet_stress`, 14 %, and
+its plan rebuilt with a sort after every insertion step, 3.6 %; the linear
+law's check, 9 %; the mesh transaction's consistency check at each
+insertion commit, 8 %.
+
+Changes:
+
+- the facet stresses are computed directly from each bulk element's stress
+  tuple for every (facet, side) destination of the copy plan, in the
+  plan's order (`akantu_fe::engine::PointInterpolation`): the by-element
+  buffer (20 MB on this mesh) is no longer written and read per step (the
+  first check still allocates it, and it stays allocated, so the peak
+  memory is unchanged); the element's coefficients once per pair;
+- the elemental interpolation selects both products' routes once per block
+  and evaluates them with direct indexing (coefficient-based route, and the
+  depth-1 `gebp` route as `+0 + (+0 + t)`), property-tested bitwise
+  against the general product;
+- the copy plan after an insertion is ordered with a last-writer table
+  instead of a sort, and reads each facet's first neighbour once;
+- the linear law's effective norm uses fixed-size loops for 2-D and 3-D;
+- the mesh consistency check keeps the last block size it looked up.
+
+Before insertion (h = 0.12 frozen mesh, 23,156 tetrahedra, 500 steps after
+the static preload), ms per step:
+
+| phase | before | after | after / before (paired) |
+|---|---|---|---|
+| `check_cohesive_stress` | 13.74 [13.65, 13.87] | 4.62 [4.62, 4.64] | 0.336 [0.333, 0.339] |
+| `solve_step` | 3.63 [3.62, 3.65] | 3.50 [3.49, 3.51] | 0.965 [0.955, 0.968] |
+| loop | 17.41 [17.32, 17.50] | 8.13 [8.12, 8.15] | 0.467 [0.464, 0.469] |
+
+The check went from 593 to 200 ns per element and step. The explicit step
+was not changed; its 3.5 % gain is consistent with the check no longer
+writing and reading the by-element buffer every step (not proven).
+
+In the insertion regime (the same mesh, the full schedule: 5000 steps,
+insertions from step 710, 11,736 cohesive elements at the end), ms per step:
+
+| phase | before | after | after / before (paired) |
+|---|---|---|---|
+| `check_cohesive_stress` | 21.29 [21.19, 21.40] | 11.32 [11.31, 11.83] | 0.533 [0.530, 0.553] |
+| `solve_step` | 7.82 [7.80, 7.91] | 7.76 [7.74, 7.79] | 0.992 [0.978, 0.994] |
+| loop | 29.13 [29.02, 29.27] | 19.08 [19.06, 19.63] | 0.655 [0.654, 0.671] |
+
+The check went from 919 to 489 ns per element and step; every run of both
+series gave the same energies, displacement norms and insertion counts.
+
+A larger mesh (the x86_64 `cube-h0.06.msh`, 177,328 tetrahedra, without
+the static preload, `rust_static_solve = false`, 200 steps; insertions start
+at step 133, 16 cohesive elements at step 200), measured on the screening
+machine (8-core AMD EPYC Milan, quiet, same method), ms per step:
+
+| phase | before | after | after / before (paired) |
+|---|---|---|---|
+| `check_cohesive_stress` | 111.34 [110.51, 113.34] | 52.65 [52.44, 53.76] | 0.472 [0.465, 0.486] |
+| `solve_step` | 28.31 [27.98, 28.76] | 28.46 [28.03, 28.67] | 1.002 [0.992, 1.015] |
+
+628 → 297 ns per element and step.
+
+The check's split after the change (the after binary's
+`insertion_stats_rank0.csv`), ms per step: before insertion 2.51 stress
+interpolation and 2.12 law checks; over the full schedule 4.80 stress
+interpolation (with the copy plan rebuilt after every insertion step),
+2.42 law checks and 4.08 insertion.
+
+Remaining shares in the full schedule after the change (shares of a
+frame-pointer call-graph profile on a boat.dev development VM, not times;
+`profiles/src2-5000.txt`): stress interpolation 26.5 % of the run
+(the fused loop streams `facet_stress`, 20 MB on this mesh, about the
+memory traffic of writing it), the law check 12 %, the insertion 19 %, of
+which the mesh consistency check 11.6 % and the inserter's topology work
+the rest; the explicit step 41 %.
+
+#### At 2, 4 and 8 ranks
+
+The full schedule on h = 0.12 with the Scotch partition and the MUMPS static
+solve (project image `akantu-rs-mumps:dev`), every rank on its own core.
+Every rank now writes its phase times (`chrono_rank<r>.csv`) and the split
+of its check (`insertion_stats_rank<r>.csv`). Screening on an 8-core EPYC
+Milan machine (5 interleaved repetitions; the slowest rank), ms per step:
+
+| ranks | check before | check after | after / before (paired) | of which insertion (before → after) |
+|---|---|---|---|---|
+| 2 | 17.01 | 11.81 | 0.695 [0.685, 0.716] | 8.85 → 8.71 |
+| 4 | 8.28 | 5.89 | 0.713 [0.692, 0.717] | 4.53 → 4.46 |
+| 8 | 4.56 | 3.37 | 0.737 [0.722, 0.771] | 2.62 → 2.62 |
+
+- Per rank: the check's total and its interpolation and insertion parts
+  are the same on every rank to within 1 %; only the law checks differ
+  between ranks (0.25–0.28 ms at 8 ranks, 0.21–0.23 after). The ranks
+  therefore wait in the synchronisations that close each part (the
+  facet-stress exchange at the end of the interpolation, the insertion
+  decision), and that wait is counted in those parts; with the cheaper
+  local work the interpolation part went from 1.63 to 0.51 ms at 8 ranks.
+- The insertion part is now the larger half of the check at every rank
+  count, and it does not shrink with the change: the insertion decision
+  runs on every step (two facet-synchronizer exchanges, a scan and a
+  reduction, an order map of all facets, an agreement), and every
+  insertion step runs the distributed transaction. At 2 ranks the insertion
+  part (8.85 ms) is about twice the serial insertion phase (4.08 ms). An
+  8-rank call-graph profile of the insertion part on the 8-core EPYC Milan
+  development machine (shares, not times): MPI and kernel time
+  31 %, the mesh consistency check 27 %, the DOF manager's global-number
+  exchange 11 %.
+- A first version of the change was slower at 8 ranks (×1.05): the copy
+  plan's first-neighbour table was kept for one facet block only, and the
+  not-ghost and ghost facet blocks alternate on a distributed mesh. Fixed
+  before these measurements (one table per block).
+- The MPI runs with the MUMPS static solve are not repeatable run to run
+  (the final cohesive count varied by 11 between two runs of one binary at
+  8 ranks), so they are compared on time only. With the port's own static
+  solve (`rust_sparse_solver = eigen`) the runs are repeatable (two runs of
+  each binary at 2 ranks) and the before and after `energies.csv` (17
+  digits) and `insertions.csv` are identical at 2, 4 and 8 ranks
+  (`parallel-bitwise/`).
+
+The tables above use the baseline build. Builds with `-C target-cpu`
+(`x86-64-v2`, `-v3`, `-v4`, `znver4`), LTO, one codegen unit,
+`panic = "abort"` and PGO give the same bits (section "Build
+configuration").
 
 ## Static solves and solvers
 
@@ -937,13 +1070,80 @@ measurement isolates the exchanges' share of a simulation.
   (port) and 2.3 s (upstream) at 64 ranks; about 25 s for both at h = 0.04
   on one rank.
 
+## Build configuration
+
+The build configurations of the release profile and the code-generation
+flags, timed against the workspace release profile (`opt-level = 3`, no
+LTO, 16 codegen units, x86-64 baseline) and checked for bit identity.
+Machine: an AWS `m7a.2xlarge` (AMD EPYC 9R14, Zen 4, 8 cores, 32 GiB),
+2026-11-16, every run pinned to one core inside the machine's timing
+slot (builds of other jobs ran on the other four cores), 5 interleaved
+repetitions in rotated order; paired ratio variant / base, median
+[min, max]. Data, method and the full tables:
+`docs/benchmarks/perf-campaign/build-profile/`.
+
+Table "Build configurations, paired ratio to the release profile":
+
+| configuration | tet4 ss step | tet4 fd step | hex8 ss step | hex8 fd step | driver explicit step | driver insertion check | driver static solve | driver wall | facet set-up |
+|---|---|---|---|---|---|---|---|---|---|
+| `cgu1` | 1.098 [1.074, 1.103] | 1.061 [1.057, 1.073] | 1.019 [1.013, 1.031] | 0.999 [0.996, 1.009] | 1.034 [1.016, 1.037] | 0.971 [0.960, 0.988] | 0.980 [0.974, 0.993] | 0.981 [0.978, 0.993] | 0.984 [0.983, 0.984] |
+| `thin` | 0.991 [0.986, 1.013] | 0.997 [0.987, 1.003] | 0.999 [0.982, 1.006] | 0.996 [0.991, 1.002] | 1.003 [0.997, 1.010] | 0.999 [0.991, 1.012] | 0.996 [0.988, 1.016] | 0.998 [0.994, 1.013] | 0.987 [0.987, 0.989] |
+| `fat` | 1.101 [1.085, 1.112] | 1.072 [1.056, 1.080] | 1.025 [1.021, 1.032] | 1.007 [1.000, 1.024] | 1.036 [1.032, 1.060] | 0.948 [0.941, 0.970] | 0.975 [0.969, 0.989] | 0.970 [0.967, 0.981] | 0.968 [0.966, 0.970] |
+| `fat+cgu1` | 1.088 [1.077, 1.108] | 1.073 [1.060, 1.083] | 1.012 [0.984, 1.019] | 1.012 [0.992, 1.015] | 1.031 [1.027, 1.056] | 1.043 [1.030, 1.046] | 0.986 [0.978, 1.014] | 1.012 [1.008, 1.028] | 0.973 [0.971, 0.977] |
+| `v3` | 0.964 [0.960, 1.022] | 0.977 [0.969, 0.994] | 0.964 [0.959, 0.965] | 0.965 [0.934, 0.968] | 0.972 [0.949, 0.974] | 0.970 [0.958, 0.987] | 0.995 [0.973, 1.017] | 0.984 [0.973, 0.997] | 1.052 [1.051, 1.089] |
+| `v4` | 1.010 [0.983, 1.081] | 1.011 [1.006, 1.022] | 1.367 [1.356, 1.382] | 1.193 [1.177, 1.198] | 0.991 [0.987, 1.012] | 0.935 [0.932, 0.958] | 0.992 [0.985, 1.002] | 0.972 [0.966, 0.983] | 1.052 [1.050, 1.055] |
+| `znver4` | 0.968 [0.930, 0.998] | 0.981 [0.968, 1.014] | 0.962 [0.945, 0.968] | 0.967 [0.939, 0.974] | 1.011 [0.969, 1.029] | 0.940 [0.922, 0.964] | 1.023 [1.014, 1.030] | 0.984 [0.979, 1.000] | 1.029 [1.027, 1.031] |
+| `abort` | 0.996 [0.978, 1.004] | 0.995 [0.986, 1.002] | 0.996 [0.981, 1.000] | 1.003 [1.002, 1.005] | 0.995 [0.994, 1.000] | 0.978 [0.972, 0.992] | 0.997 [0.991, 1.031] | 0.988 [0.984, 1.015] | 0.977 [0.971, 1.029] |
+| `pgo2-base` | 0.950 [0.938, 0.963] | 0.962 [0.956, 0.974] | 0.981 [0.975, 1.011] | 0.975 [0.973, 0.980] | 0.854 [0.845, 0.866] | 0.887 [0.852, 0.906] | 0.957 [0.934, 0.992] | 0.917 [0.914, 0.922] | 0.958 [0.955, 0.966] |
+| `pgo2-fat` | 0.936 [0.921, 0.952] | 0.952 [0.943, 0.955] | 0.981 [0.974, 1.019] | 0.966 [0.960, 0.981] | 0.843 [0.834, 0.862] | 0.847 [0.811, 0.867] | 0.968 [0.953, 0.983] | 0.904 [0.882, 0.923] | 1.033 [1.031, 1.041] |
+| `base@mimalloc` | 1.040 [1.020, 1.070] | 1.019 [1.010, 1.030] | 1.052 [1.027, 1.062] | 1.100 [1.089, 1.106] | 1.008 [0.952, 1.035] | 1.003 [0.990, 1.045] | 1.015 [0.995, 1.026] | 1.006 [0.996, 1.033] | 0.958 [0.949, 0.963] |
+| `nobc` | 0.899 [0.880, 0.920] | 0.938 [0.934, 0.949] | 0.975 [0.971, 1.026] | 0.992 [0.981, 1.005] | 0.938 [0.919, 0.958] | 0.999 [0.995, 1.006] | 0.997 [0.994, 1.002] | 0.997 [0.986, 0.999] | 1.001 [0.994, 1.005] |
+
+- No release-profile setting gains: one codegen unit and fat LTO make the
+  explicit step 6–10 % slower on tet4, thin LTO changes nothing, and fat
+  LTO gains 2–5 % only in the insertion check, the static solve and the
+  mesh set-up. The clean build of the three timing binaries takes 1.3×
+  (thin LTO or one codegen unit) to 2.5× (fat LTO) as long. The workspace
+  profile stays as it is.
+- `x86-64-v3` and `znver4` take 0.96–0.98 of the explicit-step time and
+  0.98 of the cohesive driver's wall time, but 1.03–1.05 of the facet
+  set-up's.
+  `x86-64-v4` is 1.19–1.37 times slower on hex8: LLVM's generic v4 cost
+  model vectorises the strided loads of `fast::gradient` with AVX-512
+  gathers and scatters, which are slow on AMD Zen 4/5 (the hex8 `stress`
+  phase takes twice the time). `znver4` (the Zen 4 cost model) does not
+  slow down.
+- PGO, trained on cases disjoint from the measured ones, gains most: the
+  cohesive driver 0.92 (0.90 with fat LTO), its insertion check 0.85–0.89,
+  its explicit step 0.84–0.85, the explicit-step harness 0.95–0.98, the
+  untrained mesh set-up 0.96. A training set without the cohesive
+  material made the insertion check 1.35 times slower: PGO helps only
+  where the training covers the code.
+- `panic = "abort"` changes nothing measurable (0.98–1.00). mimalloc and
+  jemalloc (preloaded) slow the explicit step by 2–10 %; mimalloc lowers
+  the driver's peak RSS by 11 % and speeds up element removal (0.65).
+- Every configuration gives the same bits: the CI `test` and `release`
+  tiers pass when built with `x86-64-v2`, `-v3`, `-v4` and `znver4`, the
+  `release` tier with fat or thin LTO and one codegen unit; the
+  explicit-step digests, the 5,000-step fragmenting cohesive run and the
+  71 cases of the benchmark suites are identical for the configurations
+  checked, PGO included (list in the study's README). `f64::min`/`max` give the same bits at every level; only
+  the choice between two NaN operands can differ, as it already does
+  between debug and release builds. The manual states which levels keep
+  the results (`docs/manual/src/getting-started.md`).
+- Bounds checks: removing those of `fast::gradient`, `fast::btd` and the
+  internal-force scatter by hand made the tet4 explicit step 0.90 (small
+  strain) and 0.94 (finite deformation) and the driver's explicit step
+  0.94, with the same results. The kernels with the most checks are
+  listed with their restructuring in the study's README.
+
 ## Known slow paths
 
-Each is measured; none was worked on.
+Each is measured; none was worked on unless the row says so.
 
 | Slow path | Measurement | Where |
 |---|---|---|
-| The insertion check after insertions start | the largest phase at full size in both codes: 53 % of the port's wall at 64 ranks, 75 % at 8; about twice its pre-insertion cost per element and step; not profiled | full-size run |
+| The insertion check after insertions start | the largest phase at full size in both codes: 53 % of the port's wall at 64 ranks, 75 % at 8; about twice its pre-insertion cost per element and step; profiled and reworked in the performance campaign (explicit dynamics, "The insertion check"); the full-size run was not repeated | full-size run |
 | The port's lead shrinks once the mesh fragments | per element and step from about 2.1× to about 1.4× on h = 0.06 (full schedule ×1.91 / ×1.65 for the port at 1 / 8 ranks against ×1.29 / ×1.09 for upstream); not profiled | mid-size rehearsal |
 | The explicit step's parallel overhead | 0.45 → 0.82 → 1.58 core-µs per element and step at 8 → 32 → 64 ranks, 1.14 before insertion at 64; the port's step goes from 0.44× upstream's at 1 rank to 0.76× at 8 and 0.82× at 64 | scaling series, full-size run |
 | The mesh distribution from rank 0 | grows by about 2.1 s per added rank at full size; 1.86× upstream's at 64 ranks | full-size run |

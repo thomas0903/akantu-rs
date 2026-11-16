@@ -1,0 +1,119 @@
+diff --git a/crates/akantu-fe/src/engine/fast.rs b/crates/akantu-fe/src/engine/fast.rs
+index c1fcbf9de..198c97003 100644
+--- a/crates/akantu-fe/src/engine/fast.rs
++++ b/crates/akantu-fe/src/engine/fast.rs
+@@ -93,16 +93,18 @@ fn gradient_impl<E: LagrangeElement, const NBD: usize>(
+             ue_n.copy_from_slice(src);
+         }
+         for q in 0..nq {
+-            let b = &dshapes[(e * nq + q) * bsz..(e * nq + q + 1) * bsz];
+-            let t = pos * nq + q;
+-            let g = &mut out[t * tsz..(t + 1) * tsz];
+-            for j in 0..nd {
+-                for i in 0..NBD {
+-                    // lhs(i, l) = U(i, l), rhs(l, j) = B(j, l)
+-                    for l in 0..nn {
+-                        p[l] = ue[l][i] * b[j + l * nd];
++            // EXPERIMENT (bounds checks removed by hand; never merged)
++            unsafe {
++                let b = dshapes.get_unchecked((e * nq + q) * bsz..(e * nq + q + 1) * bsz);
++                let t = pos * nq + q;
++                let g = out.get_unchecked_mut(t * tsz..(t + 1) * tsz);
++                for j in 0..nd {
++                    for i in 0..NBD {
++                        for l in 0..nn {
++                            *p.get_unchecked_mut(l) = ue.get_unchecked(l).get_unchecked(i) * b.get_unchecked(j + l * nd);
++                        }
++                        *g.get_unchecked_mut(i + j * NBD) = tree_sum(&p, nn);
+                     }
+-                    g[i + j * NBD] = tree_sum(&p, nn);
+                 }
+             }
+         }
+@@ -164,18 +166,20 @@ fn btd_impl<const R: usize, const S: usize>(
+     let mut p = [0.0; S];
+     for (pos, &e) in ids.iter().enumerate() {
+         for q in 0..nq {
+-            let b = &bs[(e * nq + q) * bsz..(e * nq + q + 1) * bsz];
+-            let t = pos * nq + q;
+-            let d = &ds[t * R * S..(t + 1) * R * S];
+-            let o = &mut os[t * R * nn..(t + 1) * R * nn];
+-            for j in 0..nn {
+-                let bj = &b[j * S..(j + 1) * S];
+-                for i in 0..R {
+-                    // lhs(i, l) = D(i, l), rhs(l, j) = B(l, j)
+-                    for l in 0..S {
+-                        p[l] = d[i + l * R] * bj[l];
++            // EXPERIMENT (bounds checks removed by hand; never merged)
++            unsafe {
++                let b = bs.get_unchecked((e * nq + q) * bsz..(e * nq + q + 1) * bsz);
++                let t = pos * nq + q;
++                let d = ds.get_unchecked(t * R * S..(t + 1) * R * S);
++                let o = os.get_unchecked_mut(t * R * nn..(t + 1) * R * nn);
++                for j in 0..nn {
++                    let bj = b.get_unchecked(j * S..(j + 1) * S);
++                    for i in 0..R {
++                        for l in 0..S {
++                            *p.get_unchecked_mut(l) = d.get_unchecked(i + l * R) * bj.get_unchecked(l);
++                        }
++                        *o.get_unchecked_mut(i + j * R) = seq_sum(&p, S);
+                     }
+-                    o[i + j * R] = seq_sum(&p, S);
+                 }
+             }
+         }
+diff --git a/crates/akantu-fe/src/lib.rs b/crates/akantu-fe/src/lib.rs
+index 17162f042..ee29f9cdb 100644
+--- a/crates/akantu-fe/src/lib.rs
++++ b/crates/akantu-fe/src/lib.rs
+@@ -30,7 +30,7 @@
+ //!
+ //! The FE engine never stores a mesh reference: every method takes `&Mesh`.
+ 
+-#![forbid(unsafe_code)]
++#![allow(unsafe_code)] // EXPERIMENT
+ #![warn(missing_docs)]
+ 
+ pub mod eigen;
+diff --git a/crates/akantu-solver/src/dof_manager/assembly.rs b/crates/akantu-solver/src/dof_manager/assembly.rs
+index 20a251de4..db09749e2 100644
+--- a/crates/akantu-solver/src/dof_manager/assembly.rs
++++ b/crates/akantu-solver/src/dof_manager/assembly.rs
+@@ -666,14 +666,17 @@ fn scatter_add<const D: usize>(
+     scale: Real,
+ ) {
+     let nbc = nnpe * D;
++    // EXPERIMENT (bounds checks removed by hand; never merged)
+     for k in 0..nb_elements {
+-        let el = &elementary[k * nbc..(k + 1) * nbc];
+-        let e = element(k);
+-        for (i, &n) in conn[e * nnpe..(e + 1) * nnpe].iter().enumerate() {
+-            let base = usize::try_from(n).unwrap_or(0) * D;
+-            let dst = &mut out[base..base + D];
+-            for d in 0..D {
+-                dst[d] += scale * el[i * D + d];
++        unsafe {
++            let el = elementary.get_unchecked(k * nbc..(k + 1) * nbc);
++            let e = element(k);
++            for (i, &n) in conn.get_unchecked(e * nnpe..(e + 1) * nnpe).iter().enumerate() {
++                let base = n as usize * D;
++                let dst = out.get_unchecked_mut(base..base + D);
++                for d in 0..D {
++                    *dst.get_unchecked_mut(d) += scale * el.get_unchecked(i * D + d);
++                }
+             }
+         }
+     }
+diff --git a/crates/akantu-solver/src/lib.rs b/crates/akantu-solver/src/lib.rs
+index 68a63ecdc..61cc63eaf 100644
+--- a/crates/akantu-solver/src/lib.rs
++++ b/crates/akantu-solver/src/lib.rs
+@@ -35,7 +35,7 @@
+ //!   (AIJ default; `petsc_backend::PetscBackend` with the `petsc` feature)
+ //!   behind the DOF manager.
+ 
+-#![forbid(unsafe_code)]
++#![allow(unsafe_code)] // EXPERIMENT
+ #![warn(missing_docs)]
+ 
+ pub mod backend;

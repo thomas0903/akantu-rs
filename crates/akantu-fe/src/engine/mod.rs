@@ -33,7 +33,7 @@ mod ops;
 mod queries;
 
 pub use assembly::{FieldFunctor, LumpingScheme, diagonal_scaling_factors};
-pub use elemental::ElementalFieldInterpolation;
+pub use elemental::{ElementalFieldInterpolation, PointInterpolation};
 pub use queries::{compute_shapes_at_natural, element_inradius_of};
 
 use akantu_core::array_shared::ArrayRef;

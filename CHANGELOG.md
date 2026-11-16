@@ -6,10 +6,20 @@ All notable changes to akantu-rs are recorded in this file. The format follows
 [semantic versioning](https://semver.org/spec/v2.0.0.html); before 1.0, a
 change of default results or of a public API raises the minor version.
 
-## [Unreleased]
+## Unreleased
 
 ### Added
 
+- `akantu_fe::engine::PointInterpolation`
+  (`ElementalFieldInterpolation::point_interpolation`): the value of one
+  interpolation point of one element of an elemental-field interpolation
+  with one quadrature point per element, with the operations
+  `interpolate_elemental_field` performs (`value`, or `coefficients` then
+  `value_from_coefficients`).
+- The cohesive benchmark driver (`akantu-bench`, `cohesive_extrinsic`)
+  writes `chrono_rank<r>.csv` (the phase times of every rank) and, for the
+  cohesive model, `insertion_stats_rank<r>.csv` (the split of the
+  insertion check) on every rank.
 - `akantu_core::eigen_kernels`: `SliceProduct` (a product of slice operands
   with its Eigen route, strides and kernel decided once; `eval` gives the
   bits of `eigen_gebp::product_into`), `product_slices`, and
@@ -24,6 +34,13 @@ change of default results or of a public API raises the minor version.
 
 ### Changed
 
+- The cohesive insertion check is faster with bitwise identical results:
+  the facet stresses are computed directly from the bulk stresses (the
+  by-element buffer is no longer written per step; it is still allocated
+  by the first check), the elemental interpolation selects its products'
+  route once per block, the copy plan after an insertion is built in
+  linear time, and the linear law's effective norm uses fixed-size loops
+  (`docs/BENCHMARKS.md`, "The insertion check").
 - Small dense products and Eigen-order reductions are faster with bitwise
   identical results: the halving-tree reduction is non-recursive and
   inlined, fixed-size tensor products select their route at compile time,

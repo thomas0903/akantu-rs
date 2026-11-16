@@ -1,15 +1,18 @@
 # akantu-bench
 
-Benchmark drivers of akantu-rs.
+Benchmark drivers of akantu-rs (`docs/BENCHMARKS.md`).
 
 - `cohesive_extrinsic`: the port of the Akantu JOSS cohesive scalability
-  test (`benchmarks/cohesive-perf/README.md`, `docs/BENCHMARKS.md`).
-- `suite_solid` (and the other `suite_*` binaries): the whole-library
-  benchmark suite described below.
+  test (`benchmarks/cohesive-perf/README.md`).
+- `suite_solid`, `suite_models`, `suite_setup` and
+  `python/benchmarks/suite_python.py`: the whole-library benchmark suite
+  of the performance campaign (`docs/DECISIONS.md`, D-122), described
+  below.
 
 ## Benchmark suite
 
-One binary per area, the same command line for all:
+One binary per area (and one Python script), the same command line for
+all; this section is the contract every suite follows:
 
 ```text
 suite_<area> --list
@@ -26,8 +29,9 @@ suite_<area> --case <name>[,<name>...]|all --size s|m|l [--reps N] [--out FILE]
   (for `perf record`); the digest then describes that longer run.
 - `--threads N`: recorded only (the library has no threads yet).
 - MPI cases take their rank count from `mpirun -n`; the binary must be built
-  with the `mpi` feature. A case that needs a feature the binary lacks
-  prints `skip: <case>: <reason>` on standard error.
+  with the `mpi` feature. A case that cannot run in the build or at the
+  rank count (a missing feature, a serial-only case at P > 1) prints
+  `skip: <case>: <reason>` on standard error and writes no JSON line.
 
 Output: one JSON object per line and per (case, repetition, phase), on
 standard output or appended to `--out`:
@@ -39,13 +43,21 @@ standard output or appended to `--out`:
  "profile":"release"}
 ```
 
-Set-up phases (`mesh`, `init`, ...) are timed once (`calls` = 1); loop
-phases are totals over `calls`, after three untimed warm-up calls. The
-`digest` is the 64-bit FNV-1a hash of the bits of the case's result arrays
-after its last phase; it must be equal before and after an optimisation of
-the default path. Some cases add fields (`newton_iterations`, `inserted`,
-`n_cohesive`, `nnz`, `sparse_solver`, `partitioner`). At P > 1 ranks each
-phase reports the largest time over the ranks, and counts are global.
+Fields: `suite`, `case`, `size`, `rep`, `phase`, `calls`, `seconds`,
+`n_elements`, `n_nodes`, `n_dofs`, `ranks`, `threads`, `digest`, `commit`
+(the commit at build time, from `build.rs`), `features`; `suite_solid`
+adds `profile`. Set-up phases (`mesh`, `init`, ...) are timed once
+(`calls` = 1); loop phases are totals over `calls`, after three untimed
+warm-up calls. The `digest` is the 64-bit FNV-1a hash of the bits of the
+case's result arrays after its last phase; it must be equal before and
+after an optimisation of the default path. Some cases add fields
+(`newton_iterations`, `inserted`, `n_cohesive`, `nnz`, `sparse_solver`,
+`partitioner`, `seconds_min`, ...); every case with a sparse solve names
+its solver in `sparse_solver` and pins it, so that the digest does not
+depend on the build's features. At P > 1 ranks every rank runs the case
+and rank 0 writes the lines: `seconds` is the slowest rank's time (the
+maximum over the ranks), counts are global, and the `--loop-seconds`
+decision is rank 0's, broadcast to the others.
 
 Meshes are generated in code (`suite_solid::mesh`: structured boxes of
 triangle_3/6, quadrangle_4, tetrahedron_4/10 and hexahedron_8, Kuhn
@@ -53,20 +65,28 @@ tetrahedra, nodes numbered in order of first use). Material inputs are
 embedded `.dat` text.
 
 The shared harness is `src/suite.rs` (command line, phase timers, digest,
-JSON lines). Scripts in `scripts/perf/suite/`:
+JSON lines); `suite_models` and `suite_setup` still have private harnesses
+with the same contract. Scripts in `scripts/perf/suite/`:
 
 - `run_ab.sh`: interleaved A/B series of two or more suite binaries over a
   case list, one process per run, each pinned with `taskset` (or started by
   an MPI launcher), the binaries of a case back to back with their order
   rotated per repetition; `--wrap "tjob LABEL --"` runs each such group as
-  one job on the measurement machine.
+  one job on the measurement machine; `--rep-offset K` numbers the
+  repetitions of a series split over several calls.
 - `summarize.py`: medians with [min, max], per-call and per-element times,
   paired ratios against a reference binary, and whether the digests agree,
   as a Markdown table.
 - `profile.sh`: `perf record --call-graph dwarf` of one case with
   `--loop-seconds`, and the text report (top symbols, call chains).
+- `run_mpi.sh`: the MPI cases at several rank counts in the project's MPI
+  image (one container per run, ranks bound to distinct cores, the same
+  output layout as `run_ab.sh`).
 
-### Benchmark suite: solid mechanics (`suite_solid`)
+Results, profiles and the ranked hot-spot list of the solid area:
+`docs/benchmarks/perf-campaign/suite-solid/`.
+
+### Solid mechanics (`suite_solid`)
 
 The cases cover the explicit step per element type and per constitutive
 law, the implicit solvers, the model set-up, cohesive elements and two
@@ -118,11 +138,11 @@ Notes:
   owned nodes' `u` and `v` in global-id order: they repeat at a fixed rank
   count and differ between rank counts (sums at shared nodes, numbering of
   doubled nodes).
-Benchmark drivers of akantu-rs (`docs/BENCHMARKS.md`): the cohesive
-scalability test (`cohesive_extrinsic`) and the timing suites of the
-performance campaign (`docs/DECISIONS.md`, D-122).
+- `static_linear_mumps` runs on the MPI world only (it skips in the
+  in-process test; a `mumps` test runs the binary as a singleton). Its
+  digest repeats at 1 and 2 ranks, not above.
 
-## Model suite (`suite_models`)
+### Models (`suite_models`)
 
 Timing cases for the models other than plain solid mechanics and cohesive
 elements. Every case generates its mesh in code (structured grids written as
@@ -150,7 +170,7 @@ SUITE_VERBOSE=1 suite_models ...   # counts that show what a case did (stderr)
 | `contact_search_quad4` / `_tet4` | contact detection alone, 2-D / 3-D, many surface elements |
 | `contact_explicit_quad4` | solid–contact coupler, explicit penalty steps |
 | `contact_implicit_static_quad4` | solid–contact coupler, static Newton steps with the contact stiffness |
-| `contact_cohesive_quad4` | solid–cohesive–contact coupler: extrinsic insertion, then crack-face contact |
+| `contact_cohesive_quad4` | solid–cohesive–contact coupler: insertion check, insertions and the explicit step (at most a handful of crack-face contacts at size `m`) |
 | `structural_beam3_frame_static` | 3-D Bernoulli frame: stiffness assembly, one solve |
 | `structural_beam3_frame_dynamic` | 3-D Bernoulli frame: implicit Newmark steps |
 | `structural_dkt18_plate_static` | DKT18 plate: stiffness assembly, one solve |
@@ -159,15 +179,19 @@ SUITE_VERBOSE=1 suite_models ...   # counts that show what a case did (stderr)
 
 Sizes: `s` (about a second, run twice by `tests/suite_models.rs`, which checks
 that every digest repeats), `m` (the timing size), `l` (about 8× `m`). Cases
-of serial-only models print `skip: <reason>` under `mpirun -n P` with
-`P > 1`. Parallel runs need the `mpi` feature and the project's MPI image
-(`docs/TESTING.md`). IGFEM has no case here: its enrichment set-up needs the
+of serial-only models print a `skip:` line under `mpirun -n P` with
+`P > 1`. The cases with a sparse solve pin the port's translation of Eigen's
+SparseLU (`sparse_solver: "eigen"`; the others print `"none"`), which is
+what `_auto` resolves to in the default build: with the `mumps` feature
+`_auto` would resolve to MUMPS. Parallel runs need the `mpi` feature and
+the project's MPI image (`docs/TESTING.md`). IGFEM has no case here: its enrichment set-up needs the
 GPL-3.0-or-later sphere intersector, and a GPL switch in this crate is a
 licensing decision (D-042).
 
 Baseline, profiles and the ranked hot spots:
 `docs/benchmarks/perf-campaign/suite-models/`.
-## Set-up suite (`suite_setup`, `python/benchmarks/suite_python.py`)
+
+### Set-up (`suite_setup`, `python/benchmarks/suite_python.py`)
 
 Timing cases of everything a run does besides the models' own loops:
 mesh reading and writing, the derived connectivities, groups, removal,
@@ -175,17 +199,15 @@ periodicity, cohesive insertion, partitioning and the centralised
 distribution, the MPI layer's exchanges and reductions, the `.dat` parser,
 the dumpers, and the cost of driving a model from Python.
 
-```
+```text
 suite_setup --list
 suite_setup --case <name>[,<name>...]|all --size s|m|l [--reps N] [--out FILE]
             [--loop-seconds S] [--threads N] [--local-ranks N]
 ```
 
-Output: one JSON object per line and per (case, repetition, phase), as the
-other suites (`suite`, `case`, `size`, `rep`, `phase`, `calls`, `seconds`,
-`n_elements`, `n_nodes`, `n_dofs`, `ranks`, `threads`, `digest`, `commit`,
-`features`), plus `seconds_min` and `seconds_rank0` (at P ranks `seconds` is
-the slowest rank) and case-specific counts (`n_facets`, `n_cohesive`, …).
+Output: the JSON lines of the contract above, plus `seconds_min` and
+`seconds_rank0` (at P ranks `seconds` is the slowest rank) and
+case-specific counts (`n_facets`, `n_cohesive`, …).
 
 - Meshes are generated in code: the unit cube in Kuhn tetrahedra (6 n³
   Tet4) or hexahedra with boundary triangles / quadrangles, the unit square
@@ -215,7 +237,7 @@ the slowest rank) and case-specific counts (`n_facets`, `n_cohesive`, …).
   P` (the in-process ranks of `akantu-comm`, for tests). Rank 0 generates
   the mesh and partitions it (Scotch with the feature `scotch`, otherwise
   RCB); at one rank the mesh stays serial (no peer to exchange with).
-  Serial cases print `skip:` at P > 1. Run Scotch builds with
+  Serial cases print a `skip:` line at P > 1. Run Scotch builds with
   `SCOTCH_PTHREAD_NUMBER=1`: Scotch 7 otherwise partitions with one thread
   per core and its partition changes from run to run (3 different
   partitions in 5 runs of `partition_scotch_tet4`, seed 0; see
@@ -223,8 +245,9 @@ the slowest rank) and case-specific counts (`n_facets`, `n_cohesive`, …).
   digest; its threads would also run on the other ranks' cores.
 - `py_twin_explicit_tri3` is the Rust twin of the Python case
   `explicit_tri3`: same mesh, material, initial displacement, warm-up and
-  step count; both print the same digest when the two drivers compute the
-  same bits.
+  step count, then the same `solve_step_tiny` loop on a 4 × 4 mesh; both
+  hash the two models' displacement and velocity and print the same digest
+  when the two drivers compute the same bits.
 - `cargo test -p akantu-bench --test suite_setup_s` runs every case at size
   `s` twice (and the parallel ones on two in-process ranks) and checks that
   each completes and repeats its digest.
@@ -236,7 +259,7 @@ build --release -p akantu-bench --bin suite_setup --features mpi,scotch`.
 The Python cases need the extension built as `docs/TESTING.md` says
 (`maturin develop --release` in a virtual environment) and run headless:
 
-```
+```text
 MPLBACKEND=Agg python python/benchmarks/suite_python.py --case all --size m --reps 5
 ```
 
