@@ -303,6 +303,10 @@ pub struct SolidMechanicsPhysics {
     next_handler_id: u64,
     /// Reused buffers of the internal-force assembly.
     assembly_scratch: assembly::AssemblyScratch,
+    /// Reused buffers of the stiffness assembly (the elemental matrices of
+    /// the last assembly are kept: a fresh array of that size costs a page
+    /// fault per 4 KiB at every assembly).
+    stiffness_scratch: assembly::StiffnessScratch,
 }
 
 /// Handle of a user event handler, returned by
@@ -548,6 +552,7 @@ impl SolidMechanicsModel {
             handlers: Vec::new(),
             next_handler_id: 0,
             assembly_scratch: assembly::AssemblyScratch::default(),
+            stiffness_scratch: assembly::StiffnessScratch::default(),
         };
         // upstream initDOFManager(dof_manager) (`model_solver.cc:78-95`):
         // the section's dof_manager_type (`default`; `petsc` with the opt-in
@@ -2125,6 +2130,7 @@ impl SolidMechanicsModel {
             dm.release_matrix_values("K")?;
             self.physics.need_to_reassemble_stiffness = true;
         }
+        self.physics.stiffness_scratch = assembly::StiffnessScratch::default();
         Ok(())
     }
 

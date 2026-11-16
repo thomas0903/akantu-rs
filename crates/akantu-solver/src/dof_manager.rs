@@ -319,10 +319,13 @@ impl<'a> ElementEquations<'a> {
             }
             for c in 0..self.nbc {
                 let k = t * self.nbc + c;
+                // lazy: an eager `Error` is built and dropped (a call of its
+                // drop glue) for every DOF of every element
+                #[allow(clippy::unnecessary_lazy_evaluations)]
                 let e = *self
                     .local_equation_numbers
                     .get(k)
-                    .ok_or(Error::OutOfRange {
+                    .ok_or_else(|| Error::OutOfRange {
                         what: "dof",
                         index: k,
                         len: self.local_equation_numbers.len(),

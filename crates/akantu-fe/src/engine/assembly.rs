@@ -26,7 +26,7 @@ use super::{
     Block, FeEngine, check_input, compute_jacobians, element_ids, multiply_by_weights,
     resolve_filter,
 };
-use crate::eigen::{self, Dims, SliceProduct};
+use crate::eigen::{self, Dims, SliceProduct, product_route};
 use crate::element_class::{ElementClass, LagrangeElement};
 use crate::quadrature::gauss_rule;
 use crate::with_element_class;
@@ -221,6 +221,7 @@ impl FeEngine {
             let mut out = Array::new(l2);
             super::prepare_out(&mut out, ne, l2)?;
             let fs = field.as_slice();
+            let gemv = integrates_by_gemv(l2, nq);
             let mass = MassKernel {
                 block: &block,
                 rule: &rule,
@@ -232,6 +233,7 @@ impl FeEngine {
                 nq,
                 point: &point,
                 integral: &integral,
+                gemv,
             };
             // Elements are independent outputs (D-123): parts of about 64k
             // multiply-adds, each with its own point-matrix reuse.
@@ -257,6 +259,44 @@ struct MassKernel<'a, 'm> {
     nq: usize,
     point: &'a SliceProduct,
     integral: &'a SliceProduct,
+    /// `integral` is a column-major GEMV ([`integrates_by_gemv`]).
+    gemv: bool,
+}
+
+/// `true` when the integral `f · J` of `nq` point values of `nb_dof`
+/// components (operands of `integrate_with_jacobians`) takes the
+/// column-major GEMV route without blocking, the route whose additions
+/// [`gemv_integral`] performs.
+fn integrates_by_gemv(nb_dof: usize, nq: usize) -> bool {
+    use akantu_core::eigen_gebp::{GEMV_BLOCKING_MIN_DEPTH, GemvMatrix, Order, Route};
+    let gemv = Route::Gemv {
+        matrix: GemvMatrix::Lhs,
+        kernel: Order::ColMajor,
+    };
+    nb_dof > 0
+        && nq > 0
+        && nq < GEMV_BLOCKING_MIN_DEPTH
+        && product_route(Dims::dynamic(nb_dof, nq), Dims::new(nq, 1, false, true)) == gemv
+}
+
+/// `o = f · J` for one element (`f`: `nq` columns of `o.len()` values,
+/// column-major), with the additions of the GEMV route of the general
+/// product, in its order: every `o(i)` starts at `+0`, adds `f(i, l)·J(l)`
+/// for `l = 0, 1, …`, and the result is added to a zeroed destination
+/// (the loop of the engine's integration kernel; valid when
+/// [`integrates_by_gemv`] holds).
+#[inline(never)] // no-alias parameters (docs/benchmarks/perf-campaign/exec)
+fn gemv_integral(f: &[Real], j: &[Real], o: &mut [Real]) {
+    let n = o.len();
+    o.fill(0.0);
+    for (col, &jl) in f.chunks_exact(n).zip(j) {
+        for (oi, &fl) in o.iter_mut().zip(col) {
+            *oi += fl * jl;
+        }
+    }
+    for oi in o.iter_mut() {
+        *oi += 0.0;
+    }
 }
 
 impl MassKernel<'_, '_> {
@@ -310,11 +350,12 @@ impl MassKernel<'_, '_> {
                 }
                 valid[q] = true;
             }
-            self.integral.eval(
-                &local,
-                &jac[p * nq..(p + 1) * nq],
-                &mut o[p * l2..(p + 1) * l2],
-            )?;
+            let (je, oe) = (&jac[p * nq..(p + 1) * nq], &mut o[p * l2..(p + 1) * l2]);
+            if self.gemv {
+                gemv_integral(&local, je, oe);
+            } else {
+                self.integral.eval(&local, je, oe)?;
+            }
         }
         Ok(())
     }
@@ -531,7 +572,63 @@ fn same_bits(values: &[Real], bits: &[u64]) -> bool {
 
 #[cfg(test)]
 mod tests {
-    use super::same_bits;
+    use super::{Dims, Real, eigen, gemv_integral, integrates_by_gemv, same_bits};
+
+    /// The fixed loop of the mass integration gives the bits of the
+    /// general product it replaces, on values with signed zeros,
+    /// infinities and subnormals, for the shapes of the element types.
+    #[test]
+    fn gemv_integral_is_the_general_product() {
+        let mut state = 0x2545_f491_4f6c_dd1du64;
+        let mut value = || {
+            state ^= state >> 12;
+            state ^= state << 25;
+            state ^= state >> 27;
+            let r = state.wrapping_mul(0x9e37_79b9_7f4a_7c15);
+            match r % 13 {
+                0 => 0.0,
+                1 => -0.0,
+                2 => Real::INFINITY,
+                3 => 5e-324,
+                4 => -2.2e-308,
+                _ => (r >> 11) as Real / (1u64 << 53) as Real * 8.0 - 4.0,
+            }
+        };
+        let mut checked = 0;
+        for (n, nq) in [
+            (1, 1),
+            (4, 1),
+            (9, 3),
+            (36, 4),
+            (144, 4),
+            (576, 8),
+            (900, 15),
+            (3600, 27),
+        ] {
+            if !integrates_by_gemv(n, nq) {
+                continue;
+            }
+            let p = eigen::prepare(Dims::dynamic(n, nq), Dims::new(nq, 1, false, true)).unwrap();
+            for _ in 0..20 {
+                let f: Vec<Real> = (0..n * nq).map(|_| value()).collect();
+                let j: Vec<Real> = (0..nq).map(|_| value()).collect();
+                let (mut a, mut b) = (vec![1.0; n], vec![2.0; n]);
+                p.eval(&f, &j, &mut a).unwrap();
+                gemv_integral(&f, &j, &mut b);
+                let bits = |v: &[Real]| v.iter().map(|x| x.to_bits()).collect::<Vec<_>>();
+                // two NaNs may meet only through inf·0 terms: compare NaN as NaN
+                for (x, y) in a.iter().zip(&b) {
+                    assert!(
+                        x.to_bits() == y.to_bits() || (x.is_nan() && y.is_nan()),
+                        "{n}×{nq}"
+                    );
+                }
+                assert_eq!(bits(&a).len(), bits(&b).len());
+            }
+            checked += 1;
+        }
+        assert!(checked >= 4, "the GEMV route covers the element shapes");
+    }
 
     #[test]
     fn density_reuse_compares_bits() {
