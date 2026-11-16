@@ -27,10 +27,11 @@ for v in variants:
                 continue
             if j.get("rank", 0) not in (0, None):
                 continue
-            key = (case, np_, j["phase"])
+            c = j.get("case", case)  # several cases per file with --case all
+            key = (c, np_, j["phase"])
             data[key + (v,)][int(rep)] = j["seconds"] / max(j["calls"], 1)
             cnt[key] = j["calls"]
-            dig[(case, np_, v)].add(j.get("digest"))
+            dig[(c, np_, v)].add(j.get("digest"))
 keys = sorted({k[:3] for k in data})
 fmt = lambda x: f"{x * 1e3:.4g}"
 print(

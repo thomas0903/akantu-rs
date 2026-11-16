@@ -1,5 +1,5 @@
 <!-- SPDX-License-Identifier: LGPL-3.0-or-later -->
-# Distribution, communication layer and the parallel explicit step (W2-DIST)
+# Distribution, communication layer and the parallel explicit step
 
 Machine: an 8-vCPU development virtual machine, AMD EPYC Milan (Zen 3),
 15 GiB, Ubuntu 24.04, Docker image `akantu-rs-scotch:dev`; one MPI rank per
@@ -172,8 +172,7 @@ Each change keeps every value's floating-point operations and their order
    infinities, NaNs of both signs and several payloads, subnormals.
    A micro-benchmark on this machine: 162,000 values 1.5 ms against 4.2 ms
    (11-bit digits; 8- and 16-bit digits 2.6 and 2.7 ms).
-8. **The solid model's parallel step** (outside the task's files, each in
-   its own commit): one internal-force scratch set per ghost type
+8. **The solid model's parallel step** (each in its own commit): one internal-force scratch set per ghost type
    (`crates/akantu-solid/src/model.rs`; the shared set was shrunk to the
    ghost block and grown back with a zero fill twice per step: 8 % of
    rank 0 at 4 ranks); `split_by_law` and the stress accessor look up the
@@ -238,12 +237,12 @@ the waiting moves to the next sync point. Not recommended.
   "fully overwritten" contract inside the solid kernels removes it, which
   also changes the buffer identity Python views hold (D-047). Expected
   15 % of the step at one rank and more at P ranks (bandwidth-bound).
-  Bitwise-safe; solid-model and exec work.
+  Bitwise-safe; work in the solid model and its executor.
 - **Cohesive tractions exchange** (finding 2.2, second site,
   `akantu-cohesive/src/model.rs`): it would have to stay open across the
   solid residual (which runs its own agreed exchange) and be completed in
   the solid's ghost pass: a new hook in the solid residual and a change in
-  the insertion task's file. The bulk overlap gave no measurable change on
+  the cohesive model's file. The bulk overlap gave no measurable change on
   this machine. Not done.
 - **Large reductions**: the rank-order all-reduce of 4,096 reals stays an
   all-gather and a local fold (28, 115, 600 µs at 2, 4, 8 ranks). A gather
@@ -261,7 +260,8 @@ the waiting moves to the next sync point. Not recommended.
   60–400 µs here.
 - **Energies**: what remains is the potential energy's per-point
   `double_dot` in Eigen order (`eigen_order::redux_tree`, 37 % of the
-  energies) and the GEBP integration product (28 %): files of W2-GEBP.
+  energies) and the GEBP integration product (28 %), the small dense
+  kernels (`akantu-core` `eigen_order`, `eigen_gebp`).
   Fast mode: unsorted (pairwise) energy sums instead of the sort (the sort
   is now 11 %).
 
