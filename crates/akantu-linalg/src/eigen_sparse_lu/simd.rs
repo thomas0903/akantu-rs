@@ -127,9 +127,92 @@ pub(crate) fn gemm_into_zero_with(
     dense::sparselu_gemm_into_zero(m, n, d, a, a_off, lda, b, b_off, ldb, c, c_off, ldc);
 }
 
+/// [`dense::gemv_tiles`] (`res += α·A·x`, Eigen's GEMV sequence per row)
+/// with the instance [`isa`].
+#[allow(clippy::too_many_arguments)] // BLAS-style kernel signature
+#[inline]
+pub(crate) fn gemv(
+    rows: usize,
+    cols: usize,
+    a: &[f64],
+    a_off: usize,
+    lda: usize,
+    x: &[f64],
+    res: &mut [f64],
+    alpha: f64,
+) {
+    gemv_with(isa(), rows, cols, a, a_off, lda, x, res, alpha);
+}
+
+/// [`gemv`] with a given instance; an instance the CPU does not support runs
+/// the portable one.
+#[allow(clippy::too_many_arguments)] // BLAS-style kernel signature
+pub(crate) fn gemv_with(
+    isa: Isa,
+    rows: usize,
+    cols: usize,
+    a: &[f64],
+    a_off: usize,
+    lda: usize,
+    x: &[f64],
+    res: &mut [f64],
+    alpha: f64,
+) {
+    #[cfg(target_arch = "x86_64")]
+    match isa {
+        Isa::Avx512 if std::arch::is_x86_feature_detected!("avx512f") => {
+            // SAFETY: the CPU supports AVX-512F (checked in the match guard);
+            // `x86::gemv_avx512` has no precondition beyond its target feature
+            // (safe code, bounds-checked slices).
+            return unsafe { x86::gemv_avx512(rows, cols, a, a_off, lda, x, res, alpha) };
+        }
+        Isa::Avx if std::arch::is_x86_feature_detected!("avx") => {
+            // SAFETY: the CPU supports AVX (checked in the match guard);
+            // `x86::gemv_avx` has no precondition beyond its target feature.
+            return unsafe { x86::gemv_avx(rows, cols, a, a_off, lda, x, res, alpha) };
+        }
+        _ => {}
+    }
+    #[cfg(not(target_arch = "x86_64"))]
+    let _ = isa;
+    dense::gemv_tiles::<8>(rows, cols, a, a_off, lda, x, res, alpha);
+}
+
 #[cfg(target_arch = "x86_64")]
 mod x86 {
-    use super::dense::gemm_tiles;
+    use super::dense::{gemm_tiles, gemv_tiles};
+
+    /// `gemv_tiles` compiled with AVX-512F: tiles of 32 rows (four vectors).
+    #[target_feature(enable = "avx512f")]
+    #[allow(clippy::too_many_arguments)] // BLAS-style kernel signature
+    pub(super) fn gemv_avx512(
+        rows: usize,
+        cols: usize,
+        a: &[f64],
+        a_off: usize,
+        lda: usize,
+        x: &[f64],
+        res: &mut [f64],
+        alpha: f64,
+    ) {
+        gemv_tiles::<32>(rows, cols, a, a_off, lda, x, res, alpha);
+    }
+
+    /// `gemv_tiles` compiled with AVX: tiles of 16 rows (four vectors).
+    #[target_feature(enable = "avx")]
+    #[allow(clippy::too_many_arguments)] // BLAS-style kernel signature
+    pub(super) fn gemv_avx(
+        rows: usize,
+        cols: usize,
+        a: &[f64],
+        a_off: usize,
+        lda: usize,
+        x: &[f64],
+        res: &mut [f64],
+        alpha: f64,
+    ) {
+        gemv_tiles::<16>(rows, cols, a, a_off, lda, x, res, alpha);
+    }
 
     /// `gemm_tiles` compiled with AVX-512F: tiles of 16 rows (two vectors).
     #[target_feature(enable = "avx512f")]

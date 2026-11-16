@@ -169,19 +169,34 @@ pub(crate) fn gemv_in_place(
     r_off: usize,
     alpha: f64,
 ) {
-    let block = gemv_block_cols(cols, lda);
-    let mut j2 = 0;
-    while j2 < cols {
-        let jend = (j2 + block).min(cols);
-        for i in 0..rows {
-            let mut c = 0.0;
-            for j in j2..jend {
-                c += a[a_off + i + j * lda] * v[x_off + j];
-            }
-            let r = &mut v[r_off + i];
-            *r = c * alpha + *r;
-        }
-        j2 = jend;
+    if rows == 0 {
+        return;
+    }
+    debug_assert!(x_off + cols <= r_off || r_off + rows <= x_off);
+    if x_off + cols <= r_off {
+        let (lo, hi) = v.split_at_mut(r_off);
+        super::simd::gemv(
+            rows,
+            cols,
+            a,
+            a_off,
+            lda,
+            &lo[x_off..x_off + cols],
+            &mut hi[..rows],
+            alpha,
+        );
+    } else {
+        let (lo, hi) = v.split_at_mut(x_off);
+        super::simd::gemv(
+            rows,
+            cols,
+            a,
+            a_off,
+            lda,
+            &hi[..cols],
+            &mut lo[r_off..r_off + rows],
+            alpha,
+        );
     }
 }
 
@@ -199,17 +214,100 @@ pub(crate) fn gemv(
     r_off: usize,
     alpha: f64,
 ) {
+    if rows == 0 {
+        return;
+    }
+    super::simd::gemv(
+        rows,
+        cols,
+        a,
+        a_off,
+        lda,
+        &x[x_off..x_off + cols],
+        &mut res[r_off..r_off + rows],
+        alpha,
+    );
+}
+
+/// The column-major GEMV `res += α·A·x` (`A(i, j) = a[a_off + i + j·lda]`,
+/// `x` and `res` exact length) with Eigen's per-entry sequence: per block
+/// of [`gemv_block_cols`] columns, `c = 0; c = c + A(i, j)·x(j)` for the
+/// block's `j` in order, then `res(i) = c·α + res(i)`. Eigen walks the rows
+/// one by one; the rows are independent, so this runs them in tiles of `MR`
+/// (then 16, 8, 4, 2, 1) rows, each lane with that sequence, reading `A` column
+/// by column (`tests::gemv_matches_reference_bitwise`).
+#[allow(clippy::too_many_arguments)] // BLAS-style kernel signature
+#[inline(always)]
+pub(super) fn gemv_tiles<const MR: usize>(
+    rows: usize,
+    cols: usize,
+    a: &[f64],
+    a_off: usize,
+    lda: usize,
+    x: &[f64],
+    res: &mut [f64],
+    alpha: f64,
+) {
     let block = gemv_block_cols(cols, lda);
+    let x = &x[..cols];
+    let res = &mut res[..rows];
+    let mut i = 0;
+    while i + MR <= rows {
+        gemv_tile::<MR>(i, cols, block, a, a_off, lda, x, res, alpha);
+        i += MR;
+    }
+    if MR > 16 && i + 16 <= rows {
+        gemv_tile::<16>(i, cols, block, a, a_off, lda, x, res, alpha);
+        i += 16;
+    }
+    if MR > 8 && i + 8 <= rows {
+        gemv_tile::<8>(i, cols, block, a, a_off, lda, x, res, alpha);
+        i += 8;
+    }
+    if MR > 4 && i + 4 <= rows {
+        gemv_tile::<4>(i, cols, block, a, a_off, lda, x, res, alpha);
+        i += 4;
+    }
+    if i + 2 <= rows {
+        gemv_tile::<2>(i, cols, block, a, a_off, lda, x, res, alpha);
+        i += 2;
+    }
+    if i < rows {
+        gemv_tile::<1>(i, cols, block, a, a_off, lda, x, res, alpha);
+    }
+}
+
+/// Rows `i..i + MR` of [`gemv_tiles`].
+#[allow(clippy::too_many_arguments)] // BLAS-style kernel signature
+#[inline(always)]
+fn gemv_tile<const MR: usize>(
+    i: usize,
+    cols: usize,
+    block: usize,
+    a: &[f64],
+    a_off: usize,
+    lda: usize,
+    x: &[f64],
+    res: &mut [f64],
+    alpha: f64,
+) {
+    let out: &mut [f64; MR] = (&mut res[i..i + MR])
+        .try_into()
+        .unwrap_or_else(|_| unreachable!());
     let mut j2 = 0;
     while j2 < cols {
         let jend = (j2 + block).min(cols);
-        for i in 0..rows {
-            let mut c = 0.0;
-            for j in j2..jend {
-                c += a[a_off + i + j * lda] * x[x_off + j];
+        let mut c = [0.0f64; MR];
+        for (j, &xj) in x.iter().enumerate().take(jend).skip(j2) {
+            let col: &[f64; MR] = a[a_off + i + j * lda..][..MR]
+                .try_into()
+                .unwrap_or_else(|_| unreachable!());
+            for r in 0..MR {
+                c[r] = c[r] + col[r] * xj;
             }
-            let r = &mut res[r_off + i];
-            *r = c * alpha + *r;
+        }
+        for r in 0..MR {
+            out[r] = c[r] * alpha + out[r];
         }
         j2 = jend;
     }
@@ -756,6 +854,24 @@ fn gemm_rows<const MR: usize, const ZERO: bool>(
     ldc: usize,
 ) {
     let mut j = 0;
+    if MR == 16 {
+        // 16 × 8 tiles: sixteen accumulator vectors of the 32 AVX-512 registers
+        while j + 8 <= n {
+            gemm_tile::<MR, 8, ZERO>(
+                d,
+                a,
+                a_off,
+                lda,
+                b,
+                b_off + j * ldb,
+                ldb,
+                c,
+                c_off + j * ldc,
+                ldc,
+            );
+            j += 8;
+        }
+    }
     while j + GEMM_NR <= n {
         gemm_tile::<MR, GEMM_NR, ZERO>(
             d,
@@ -1064,6 +1180,117 @@ mod tests {
                     same_bits(*x, *y),
                     "case {case}: size={size} cols={cols}: {x:e} {y:e}"
                 );
+            }
+        }
+    }
+
+    /// The row-by-row GEMV the tiled one replaced (separate buffers).
+    #[allow(clippy::too_many_arguments)]
+    fn gemv_reference(
+        rows: usize,
+        cols: usize,
+        a: &[f64],
+        a_off: usize,
+        lda: usize,
+        x: &[f64],
+        x_off: usize,
+        res: &mut [f64],
+        r_off: usize,
+        alpha: f64,
+    ) {
+        let block = gemv_block_cols(cols, lda);
+        let mut j2 = 0;
+        while j2 < cols {
+            let jend = (j2 + block).min(cols);
+            for i in 0..rows {
+                let mut c = 0.0;
+                for j in j2..jend {
+                    c += a[a_off + i + j * lda] * x[x_off + j];
+                }
+                let r = &mut res[r_off + i];
+                *r = c * alpha + *r;
+            }
+            j2 = jend;
+        }
+    }
+
+    #[test]
+    fn gemv_matches_reference_bitwise() {
+        let mut g = Gen(0x2545_F491_4F6C_DD1D);
+        for case in 0..3000 {
+            let specials = case % 3 == 0;
+            let rows = g.below(80);
+            // around the block rule: < 128 one block, else 16 or 4 columns
+            let cols = if case % 7 == 0 {
+                120 + g.below(40)
+            } else {
+                g.below(30)
+            };
+            let lda = rows
+                + if case % 11 == 0 {
+                    4000 + g.below(200)
+                } else {
+                    g.below(4)
+                };
+            let ao = g.below(4);
+            let a = g.vec(ao + lda * cols.max(1) + rows, specials);
+            let alpha = [1.0, -1.0, 0.5][g.below(3)];
+            // separate buffers
+            let x = g.vec(cols + 3, specials);
+            let r0 = g.vec(rows + 2, specials);
+            let mut r1 = r0.clone();
+            gemv_reference(
+                rows,
+                cols,
+                &a,
+                ao,
+                lda,
+                &x,
+                1,
+                &mut r1,
+                2.min(r0.len() - rows),
+                alpha,
+            );
+            for isa in super::super::simd::available() {
+                let mut r2 = r0.clone();
+                let ro = 2.min(r0.len() - rows);
+                super::super::simd::gemv_with(
+                    isa,
+                    rows,
+                    cols,
+                    &a,
+                    ao,
+                    lda,
+                    &x[1..1 + cols],
+                    &mut r2[ro..ro + rows],
+                    alpha,
+                );
+                for (u, v) in r1.iter().zip(&r2) {
+                    assert!(
+                        same_bits(*u, *v),
+                        "case {case} {isa:?}: rows={rows} cols={cols}"
+                    );
+                }
+            }
+            // one buffer, x before and after the result
+            let v0 = g.vec(rows + cols + 5, specials);
+            for x_first in [true, false] {
+                let (xo, ro) = if x_first {
+                    (1, cols + 3)
+                } else {
+                    (rows + 4, 0)
+                };
+                let mut v1 = v0.clone();
+                let xs = v0[xo..xo + cols].to_vec();
+                gemv_reference(rows, cols, &a, ao, lda, &xs, 0, &mut v1, ro, alpha);
+                let mut v2 = v0.clone();
+                gemv_in_place(rows, cols, &a, ao, lda, &mut v2, xo, ro, alpha);
+                for (u, v) in v1.iter().zip(&v2) {
+                    assert!(
+                        same_bits(*u, *v),
+                        "case {case} in place: rows={rows} cols={cols}"
+                    );
+                }
             }
         }
     }
