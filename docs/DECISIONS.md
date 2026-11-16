@@ -2140,6 +2140,86 @@ Consequence: the rule "no fast-math of any kind" of `AGENTS.md` holds for
 the default path. Code of the fast mode is marked as such and has its own
 tests against the default path.
 
+## D-123: Execution policy: precision mode, threads, SIMD level
+
+2026-11-16. Extends D-017 and implements the switch of D-122.
+
+- **One policy per model.** `akantu_core::exec::ExecPolicy` holds the
+  precision mode (`Bitwise`, the default, or `Fast`), the thread count
+  (default 1) and the SIMD level (detected once per process). A model
+  copies `ExecPolicy::process_default()` when it is created and can change
+  it between steps (`SolidMechanicsModel::set_exec_policy`); it hands an
+  `Exec` (the policy with its thread pool) to its FE engines, its DOF
+  manager and, through `ModelServices::exec`, to its laws. The process
+  default comes from `AKANTU_NUM_THREADS`, `AKANTU_PRECISION`,
+  `AKANTU_SIMD` (and `AKANTU_EXEC_GRAIN`), read on first use, or from
+  `ExecPolicy::set_process_default` (Python: `akantu.setNumThreads`,
+  `setPrecision`, `setSimdLevel`) before the models are created. An
+  invalid variable makes model creation fail. Tests set the policy on
+  their own model, never the process default, so tests running in
+  parallel threads of one process do not race.
+- **A kernel reads the policy once per batch**: the engine's or the
+  model's `Exec` is passed to the batch, which picks its variant (fast
+  mode, SIMD level) and splits its work once; nothing is read per
+  element.
+- **The invariant, tested.** In `Bitwise` every result is identical for
+  every thread count and every SIMD level. Threads are therefore part of
+  the default path wherever every sum keeps its serial order:
+  independent outputs (per element, per quadrature point, per equation)
+  are split into contiguous parts (`Exec::for_each`, any split gives the
+  same bits); an element-to-node assembly uses a node-ordered table
+  (`NodeScatter`: per node, its contributions `(element, local node)` in
+  the serial order; threads own disjoint node ranges), cached per block
+  and checked against the connectivity before every use (topology
+  revision and filter unchanged, else row-by-row comparison, else
+  rebuilt), so that cohesive insertion and every other topology change
+  rebuild it; a global reduction computes its terms in parallel and sums
+  them in the serial order (`Exec::sum_in_order`), in another order only
+  under `Fast`. `AKANTU_EXEC_GRAIN=finest` splits every batch as finely as
+  possible, for running test suites with many small parts.
+- **Pool: `rayon`**, one pool per thread count per process, shared by all
+  models (MIT OR Apache-2.0, `docs/DEPENDENCIES.md`). Measured on the
+  measurement machine (AMD EPYC 9R14, 8 cores) with
+  `scripts/perf/exec/pool-overhead`: POOL_RESULT. Each MPI rank has its
+  own pool. The library does not pin threads: a rank's threads inherit
+  the rank's CPU mask, so with `mpirun --bind-to core` all threads of a
+  rank share one core; run `ranks × threads ≤ cores` with a binding that
+  gives each rank `threads` cores (Open MPI `--map-by slot:PE=<threads>`,
+  or `--bind-to none`). The default (1 thread) keeps every MPI run as
+  before.
+- **SIMD.** `SimdLevel` (`Scalar`, `Avx2` = AVX2 + FMA3, `Avx512`,
+  `Neon`) is detected once; `SimdToken` proves the CPU supports a level
+  and is the only way to call a kernel's `#[target_feature]` version
+  (one dispatch point per batch, every `unsafe` call listed in the
+  crate's `UNSAFE.md`). In `Bitwise` a vector kernel performs per lane
+  the scalar sequence (no FMA, no reassociation); its property test runs
+  every supported level against the scalar bits. `exec::simd::scaled_add`
+  is the example. `AKANTU_SIMD=scalar` selects the portable code.
+- **Fast mode.** Code of the fast mode is marked `FAST MODE` and runs only
+  when `precision() == Fast`. Its test runs the case in both modes and
+  calls `akantu_validation::fast_mode::check_fast_mode`, which compares
+  with the bitwise run under the rule of
+  `fixtures/fast_mode/<area>/tolerances.json` (listed in
+  `docs/TOLERANCE_LEDGER.md`). Demonstrator: the gradient kernel with a
+  chain of fused multiply-adds (`exec::with_fma` runs a fast-mode task with
+  the FMA instructions of the token's level).
+- **Laws** opt in to threads by `Material::independent_points()` (default
+  `false`): the law's per-point loop then uses the model's executor
+  (`material::points_exec`). The elastic law declares it. Laws with state
+  shared between points, non-local terms or reductions keep the default;
+  `docs/ARCHITECTURE.md`, "Execution policy", lists them.
+
+Reason: several tasks will add threaded loops, SIMD kernels and fast-mode
+kernels in many crates; one mechanism, read once per batch and tested by
+one invariant, keeps the default path bitwise (D-122) while the threads
+are on by choice.
+
+Consequence: results do not depend on `AKANTU_NUM_THREADS` or
+`AKANTU_SIMD` in the default mode (tests: `akantu-solid/tests/exec_threads.rs`,
+the explicit-step digests at 1, 2, 4 and 8 threads); the core crate
+denies `unsafe` instead of forbidding it, with its sites listed in its
+`UNSAFE.md`.
+
 ## Ids without a record
 
 D-044, D-045, D-072, D-075, D-084, D-098, D-102, D-103, D-110, D-112 and

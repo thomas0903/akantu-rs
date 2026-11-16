@@ -936,6 +936,87 @@ provided (D-101).
 handles and borrowed views that D-024 planned is not built; C and C++
 users go through the Rust crates or the Python module (D-100).
 
+## Execution policy (D-123)
+
+`akantu_core::exec` says how the kernels of a model run. Its parts:
+
+| Item | What |
+|---|---|
+| `Precision` | `Bitwise` (default): every result bit as the serial reference path; `Fast`: kernels marked `FAST MODE` may round differently (D-122) |
+| `ExecPolicy` | precision, thread count (default 1), `SimdToken`, `Grain`; a plain value. `ExecPolicy::process_default()` reads `AKANTU_NUM_THREADS`, `AKANTU_PRECISION`, `AKANTU_SIMD`, `AKANTU_EXEC_GRAIN` once, unless `set_process_default` was called first |
+| `Exec` | a policy with its `rayon` pool (one per thread count per process); `for_each` / `try_for_each` / `for_each_bounds` run a closure on contiguous parts of one or several arrays (`Tuples`, `TuplesRef`, tuples of them); `sum_in_order` |
+| `NodeScatter` | per node, the positions `(element, local node)` that contribute to it, in the serial order; `scatter_add` with threads owning disjoint node ranges; `matches` checks it against a connectivity |
+| `SimdLevel`, `SimdToken`, `with_fma` | detected level, proof of support, the dispatch convention (`exec::simd`) |
+
+Ownership: a model holds one `Exec`. `SolidMechanicsModel` stores it in its
+FE-engine registry (`FeEngineRegistry::exec`, given to every engine,
+including those registered later) and its DOF manager
+(`DofManager::exec`); its services return it to the laws
+(`ModelServices::exec`, default serial for services without a model).
+`SolidMechanicsModel::{exec_policy, set_exec_policy}` read and change it
+between steps.
+
+Rules for a threaded kernel:
+
+- Only independent outputs are split: an output tuple is computed from
+  inputs that no other part writes, by the same code whatever the split.
+  The borrow checker enforces the disjoint writes (`Tuples` parts are
+  `&mut` sub-slices).
+- A sum into shared data keeps its serial order: element-to-node
+  assemblies through `NodeScatter` (the solid model caches one per
+  `(law, type, ghost)` in `AssemblyScratch::scatters`, reuses it while the
+  mesh revision and the law's filter are unchanged and the connectivity is
+  not exported, compares it row by row otherwise, and rebuilds it when it
+  differs); reductions through `sum_in_order` or an equivalent serial fold
+  of per-item values.
+- The split is resolved once per batch from the engine's `Exec`
+  (`nb_parts`: a minimum part size of tens of microseconds of work, at most
+  four parts per thread); without a pool the batch runs as one part on the
+  calling thread, i.e. the serial code.
+- Errors: `try_for_each` returns the error of the first failing part in
+  item order. Outputs after the failing item may already be written
+  (unlike the serial loop); every caller treats the outputs of a failed
+  kernel as undefined.
+
+Threaded today (all bitwise, `akantu-solid/tests/exec_threads.rs`): the FE
+gradient, `BᵀD` and integration batch kernels (`akantu-fe`
+`engine/fast.rs`), the finite-deformation residual (`akantu-solid`
+`model/assembly/finite_deformation/fast.rs`), the internal-force scatter,
+the elastic law's stress and thermal loops, the Newmark-β predictor and
+corrector (`akantu-solver` `integration_scheme.rs`).
+
+A law opts in with `Material::independent_points() -> true` and uses
+`material::points_exec(self, ctx)` in its per-point loop. Declared: the
+elastic law (`elastic`, small strain and finite deformation). Must stay
+serial: the non-local laws (the `*_non_local` laws of the
+`damage_non_local` package and of `akantu-extra-materials`: the averaging
+couples points), the iterative laws with a rank reduction after the stress
+phase (`damage_iterative`, `iterative_stiffness_reduction`,
+`orthotropic_damage_iterative`), the FE² law (`material_FE2`: one sub-model
+per point), laws written in Python (the update calls into the interpreter)
+and the cohesive laws (insertion state; `akantu-cohesive`). Update each
+point from its own data and can opt in after a review of their loops (one
+declaration and the loop through `points_exec` each): `elastic_orthotropic`,
+`elastic_anisotropic`, `neohookean`, `plastic_linear_isotropic_hardening`,
+`plastic_drucker_prager`, `plastic_mazars`, `marigo`, `mazars`,
+`anisotropic_damage`, `viscoelastic_maxwell`, `sls_deviatoric`,
+`phasefield`, `damage_linear`, `brittle`, `vreepeerlings`, `visco_plastic`,
+`ve_stiffness_prop` and `reinforcement` (embedded).
+
+SIMD convention (`exec::simd` module documentation): one portable body
+performing per lane the scalar sequence, one `#[target_feature]` version per
+level, one dispatch per batch on `SimdToken::level()`, a property test of
+every supported level against the scalar bits. Fast-mode kernels: marked
+`FAST MODE`, selected by `precision() == Fast` once per batch, validated by
+`akantu_validation::fast_mode::check_fast_mode` against the bitwise run with
+a rule of `fixtures/fast_mode/<area>/tolerances.json`.
+
+Threads and MPI: each rank has its own pool. The library does not bind
+threads to cores; they inherit the rank's CPU mask. Run
+`ranks × threads ≤ cores` with a binding that gives each rank its
+`threads` cores (Open MPI `--map-by slot:PE=<threads>` or `--bind-to none`);
+with `--bind-to core` all threads of a rank share one core.
+
 ## Where `unsafe` lives
 
 Crates that need no `unsafe` declare `#![forbid(unsafe_code)]`. The others
@@ -956,10 +1037,11 @@ Sites by file:
 | `crates/akantu-mesh/src/{scotch,scotch_reorder}.rs` (feature `scotch`) | 6 | Scotch shim calls |
 | `crates/akantu-parser/src/cmath.rs` | 2 | libm FFI (`erf`, `erfc`, `tgamma`, `lgamma_r`, `asinh`, `acosh`, `atanh`) |
 | `crates/akantu-capi/src/lib.rs` | 2 | the unmangled `akantu_version` symbol |
+| `crates/akantu-core/src/exec/simd.rs` | 11 | `#[target_feature]` versions of the SIMD example kernel and the FMA entry point of fast-mode kernels, called after a `SimdToken` check (D-123) |
 | tests and examples (`akantu-comm`, `akantu-mesh`, `akantu-solid`, `akantu-linalg`, the facade) | 45 | MPI FFI in MPI tests and the `mpi4py` probe, counting allocators, raw-bit checks |
 
 The counts are those of `--list` at the time of writing. `akantu-core`,
-where the shared storage lives, has no `unsafe`. Changes to `unsafe` code
+where the shared storage lives, has no `unsafe` outside `exec::simd`. Changes to `unsafe` code
 or to the shared-storage protocol are checked under Miri
 (`cargo +nightly miri test -p akantu-python`, and `-p akantu-core` for the
 storage tests, Stacked and Tree Borrows).
@@ -976,7 +1058,9 @@ D-031) wherever the tolerance ledger says "exact". These rules keep it so:
   parser maps in `std::map` order.
 - No fused multiply-add unless the reference has one: never a crate
   kernel that fuses, and `mul_add` only where it reproduces a fused
-  instruction of the oracle's build. Rust does not contract `a*b + c` by
+  instruction of the oracle's build. The exception is code of the fast
+  mode (D-122, D-123): marked `FAST MODE`, run only when the policy's
+  precision is `Fast`, validated against the bitwise path. Rust does not contract `a*b + c` by
   itself. Three files hold every `mul_add` of the library code, each
   documented in place: `crates/akantu-core/src/glibc_libm/sincos.rs` and
   `crates/akantu-core/src/random/libm.rs` reproduce the fused instructions
@@ -1005,8 +1089,11 @@ D-031) wherever the tolerance ledger says "exact". These rules keep it so:
   "Platform effects"). On glibc these give the oracle's values; on macOS
   they can differ in the last bit.
 - Reductions across ranks fold in rank order (D-039). Never use an
-  unordered parallel reduction; `rayon` is allowed only where the threaded
-  result is bitwise equal to the serial one, with a test (D-017).
+  unordered parallel reduction in the default mode. Threads go through
+  `akantu_core::exec` (D-123): only independent outputs are split, sums
+  into shared data keep their serial order (`NodeScatter`,
+  `Exec::sum_in_order`), and every threaded kernel has a test comparing it
+  bitwise with the serial run (D-017).
 - Never loosen a tolerance to make a test pass. A new tolerance needs a
   written justification in `docs/NUMERICAL_VALIDATION.md` and an entry in
   the tolerance ledger. Under an exact rule `+0.0` and `-0.0` differ, and

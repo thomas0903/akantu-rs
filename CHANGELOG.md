@@ -6,6 +6,37 @@ All notable changes to akantu-rs are recorded in this file. The format follows
 [semantic versioning](https://semver.org/spec/v2.0.0.html); before 1.0, a
 change of default results or of a public API raises the minor version.
 
+## [Unreleased]
+
+### Added
+
+- Execution policy (D-123): `akantu_core::exec` with `ExecPolicy`
+  (precision mode `Bitwise`/`Fast`, thread count, SIMD level, split grain),
+  `Exec` (a shared `rayon` pool per thread count), `NodeScatter` and the
+  SIMD dispatch convention. Environment variables `AKANTU_NUM_THREADS`
+  (default 1), `AKANTU_PRECISION` (`bitwise`), `AKANTU_SIMD` (`auto`),
+  `AKANTU_EXEC_GRAIN` (`auto`). Rust API:
+  `SolidMechanicsModel::{exec_policy, set_exec_policy}`,
+  `FeEngine::{exec, set_exec}`, `FeEngineRegistry::{exec, set_exec}`,
+  `DofManager::{exec, set_exec}`, `ModelServices::exec` (default serial),
+  `Material::independent_points` (default `false`) and
+  `material::points_exec`. Python: `akantu.setNumThreads`,
+  `getNumThreads`, `setPrecision`, `getPrecision`, `setSimdLevel`,
+  `getSimdLevel` (the default of models created afterwards).
+- Threads in the explicit step of `SolidMechanicsModel`, bitwise equal to
+  one thread for every thread count: FE gradient, `BᵀD` and integration
+  kernels, elastic stresses, finite-deformation residual, internal-force
+  scatter, Newmark-β predictor and corrector.
+- Fast-mode harness `akantu_validation::fast_mode` with the rules of
+  `fixtures/fast_mode/`, and its demonstrator (the gradient kernel with
+  fused multiply-adds under `Precision::Fast`).
+
+### Changed
+
+- `akantu-core` denies `unsafe` instead of forbidding it: the SIMD kernels
+  of `exec::simd` (listed in its `UNSAFE.md`) are the only sites.
+- New dependency `rayon` (MIT OR Apache-2.0) in `akantu-core`.
+
 ## [0.1.0] - Unreleased
 
 The initial public state.
