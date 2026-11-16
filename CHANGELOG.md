@@ -14,7 +14,9 @@ change of default results or of a public API raises the minor version.
   with its Eigen route, strides and kernel decided once; `eval` gives the
   bits of `eigen_gebp::product_into`), `product_slices`, and
   `fast_mode` (order-free dot and GEMM variants for the fast mode of
-  D-122; not called by the library). `akantu_fe::eigen::prepare` (the
+  D-122; not called by the library; hidden from the documentation and
+  unstable: it will move behind the precision switch).
+  `akantu_fe::eigen::prepare` (the
   `SliceProduct` of two `Dims`), `akantu_fe::kernels::{
   shape_derivatives_product, shape_derivatives_with}`.
 - `akantu_core::eigen_order::{redux_tree_recursive, TREE_LEVELS_MAX}`;

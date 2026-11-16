@@ -117,9 +117,9 @@ fn main() {
         });
         let fast = time(reps, iters, || {
             if tn {
-                fast_mode::gemm_tn(m, k, n, black_box(&a), black_box(&b), &mut out);
+                fast_mode::gemm_tn(m, k, n, black_box(&a), black_box(&b), &mut out).unwrap();
             } else {
-                fast_mode::gemm_colmajor(m, k, n, black_box(&a), black_box(&b), &mut out);
+                fast_mode::gemm_colmajor(m, k, n, black_box(&a), black_box(&b), &mut out).unwrap();
             }
             black_box(&out);
         });

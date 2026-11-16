@@ -740,6 +740,23 @@ mod tests {
         assert_eq!(out, [3.0; 4]);
     }
 
+    /// The fast-mode variants refuse bad sizes with errors and write nothing.
+    #[test]
+    fn fast_mode_size_errors() {
+        let a = [1.0; 130];
+        let b = [1.0; 130];
+        let mut out = [7.0; 4];
+        assert!(fast_mode::gemm_colmajor(1, 65, 1, &a, &b, &mut out).is_err());
+        assert!(fast_mode::gemm_colmajor(2, 3, 2, &a[..5], &b, &mut out).is_err());
+        assert!(fast_mode::gemm_colmajor(2, 3, 2, &a, &b[..5], &mut out).is_err());
+        assert!(fast_mode::gemm_colmajor(2, 3, 2, &a, &b, &mut out[..3]).is_err());
+        assert!(fast_mode::gemm_tn(2, 3, 2, &a[..5], &b, &mut out).is_err());
+        assert!(fast_mode::gemm_tn(2, 3, 2, &a, &b, &mut out[..3]).is_err());
+        assert_eq!(out, [7.0; 4]);
+        fast_mode::gemm_tn(2, 3, 2, &a, &b, &mut out).unwrap();
+        assert_eq!(out, [3.0; 4]);
+    }
+
     /// The fast-mode variants stay within the summation error bound
     /// `γ_k Σ |a_il b_lj|` of the exact-order kernels (both satisfy it, so
     /// they differ by at most `2 γ_k Σ |a_il b_lj|`).
@@ -774,9 +791,9 @@ mod tests {
                 let gamma = (k as Real) * u / (1.0 - (k as Real) * u);
                 let p = SliceProduct::new(ProductShape::dynamic(m, k, n)).unwrap();
                 p.eval(&a, &b, &mut exact).unwrap();
-                fast_mode::gemm_colmajor(m, k, n, &a, &b, &mut fast);
+                fast_mode::gemm_colmajor(m, k, n, &a, &b, &mut fast).unwrap();
                 let mut fast_tn = vec![0.0; m * n];
-                fast_mode::gemm_tn(m, k, n, &at, &b, &mut fast_tn);
+                fast_mode::gemm_tn(m, k, n, &at, &b, &mut fast_tn).unwrap();
                 for j in 0..n {
                     for i in 0..m {
                         let abs: Real = (0..k).map(|l| (a[i + l * m] * b[l + j * k]).abs()).sum();
@@ -796,7 +813,9 @@ mod tests {
 }
 
 /// Order-free variants of the hottest product classes, for the fast mode
-/// (D-122: **not** bitwise; off by default). Nothing in the library calls
+/// (D-122: **not** bitwise; off by default). Unstable and hidden from the
+/// documentation: they will move behind the precision switch of the
+/// execution policy. Nothing in the library calls
 /// them yet: the global switch (D-123, `akantu-core::exec`) lands with
 /// another work package, which can route the callers listed in
 /// `docs/benchmarks/perf-campaign/small-products/README.md` here.
@@ -810,10 +829,16 @@ mod tests {
 /// order): `|ŝ − s| ≤ γ_k Σ_l |a_il b_lj|`, `γ_k = k·u/(1 − k·u)`, the
 /// same bound as the exact-order kernels; the results differ from them in
 /// the last bits.
+#[doc(hidden)]
 pub mod fast_mode {
+    use crate::error::{Error, Result};
     use crate::types::Real;
 
-    /// Dot product `Σ a_l·b_l` with four partial sums (order-free).
+    /// Largest depth of [`gemm_colmajor`] (its row buffer).
+    pub const MAX_DEPTH: usize = 64;
+
+    /// Dot product `Σ a_l·b_l` over the common length of `a` and `b`, with
+    /// four partial sums (order-free).
     #[inline]
     #[must_use]
     pub fn dot(a: &[Real], b: &[Real]) -> Real {
@@ -834,15 +859,56 @@ pub mod fast_mode {
         ((acc[0] + acc[1]) + (acc[2] + acc[3])) + tail
     }
 
+    /// `Error::DimensionMismatch` unless the operand and result slices
+    /// hold `m·k`, `k·n` and `m·n` values.
+    fn check(
+        context: &'static str,
+        m: usize,
+        k: usize,
+        n: usize,
+        a: &[Real],
+        b: &[Real],
+        out: &[Real],
+    ) -> Result<()> {
+        let need_a = crate::types::checked_len(m, k, context)?;
+        let need_b = crate::types::checked_len(k, n, context)?;
+        let need_o = crate::types::checked_len(m, n, context)?;
+        for (need, got) in [(need_a, a.len()), (need_b, b.len()), (need_o, out.len())] {
+            if got < need {
+                return Err(Error::DimensionMismatch {
+                    context,
+                    expected: need,
+                    got,
+                });
+            }
+        }
+        Ok(())
+    }
+
     /// `out = lhs · rhs` for column-major `m × k` and `k × n` operands
     /// (`out` column-major `m × n`), each coefficient a [`dot`] of a row of
     /// `lhs` (gathered) and a column of `rhs`. Order-free.
     ///
-    /// # Panics
-    /// If a slice is shorter than its matrix or `k > 64`.
-    pub fn gemm_colmajor(m: usize, k: usize, n: usize, a: &[Real], b: &[Real], out: &mut [Real]) {
-        assert!(k <= 64, "fast_mode::gemm_colmajor: depth {k} > 64");
-        let mut row = [0.0; 64];
+    /// # Errors
+    /// `Error::DimensionMismatch` if a slice is shorter than its matrix or
+    /// `k >` [`MAX_DEPTH`] (nothing is written then).
+    pub fn gemm_colmajor(
+        m: usize,
+        k: usize,
+        n: usize,
+        a: &[Real],
+        b: &[Real],
+        out: &mut [Real],
+    ) -> Result<()> {
+        if k > MAX_DEPTH {
+            return Err(Error::DimensionMismatch {
+                context: "fast_mode::gemm_colmajor: depth",
+                expected: MAX_DEPTH,
+                got: k,
+            });
+        }
+        check("fast_mode::gemm_colmajor", m, k, n, a, b, out)?;
+        let mut row = [0.0; MAX_DEPTH];
         for i in 0..m {
             for (l, x) in row.iter_mut().enumerate().take(k) {
                 *x = a[i + l * m];
@@ -851,20 +917,31 @@ pub mod fast_mode {
                 out[i + j * m] = dot(&row[..k], &b[j * k..(j + 1) * k]);
             }
         }
+        Ok(())
     }
 
     /// `out = lhsᵀ · rhs` with `lhs` stored column-major `k × m` (the
     /// upstream `B.transpose() * D` operand): each coefficient is a [`dot`]
     /// of two contiguous columns. Order-free.
     ///
-    /// # Panics
-    /// If a slice is shorter than its matrix.
-    pub fn gemm_tn(m: usize, k: usize, n: usize, at: &[Real], b: &[Real], out: &mut [Real]) {
+    /// # Errors
+    /// `Error::DimensionMismatch` if a slice is shorter than its matrix
+    /// (nothing is written then).
+    pub fn gemm_tn(
+        m: usize,
+        k: usize,
+        n: usize,
+        at: &[Real],
+        b: &[Real],
+        out: &mut [Real],
+    ) -> Result<()> {
+        check("fast_mode::gemm_tn", m, k, n, at, b, out)?;
         for j in 0..n {
             let bj = &b[j * k..(j + 1) * k];
             for i in 0..m {
                 out[i + j * m] = dot(&at[i * k..(i + 1) * k], bj);
             }
         }
+        Ok(())
     }
 }
