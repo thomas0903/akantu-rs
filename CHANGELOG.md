@@ -167,8 +167,8 @@ change of default results or of a public API raises the minor version.
 - The input-file parser evaluates each variable once per evaluation (it
   parsed a variable's expression again at every reference, so a chain of
   k parameters that each refer twice to the previous one cost 2^k
-  parses: 21 lines 400 ms, now 7 µs); values and error messages are
-  unchanged.
+  parses: 21 lines 400 ms, now 7 µs, measured on an AWS m7a.2xlarge (AMD
+  EPYC 9R14)); values and error messages are unchanged.
 - Dumps and the MSH writer format numbers into the output buffer instead
   of one `String` per number, with a faster exact digit generator for up
   to 17 significant digits; ParaView `.vtu` pieces are validated first and
@@ -176,7 +176,8 @@ change of default results or of a public API raises the minor version.
   memory), base64 arrays encoded in one pass. The written bytes are
   unchanged. On 162,000 Tet4: a base64 ParaView dump 208 → 99 ms, ASCII
   913 → 296 ms, a text dump 74 → 17 ms, the MSH writer 54 → 26 ms
-  (`docs/benchmarks/perf-campaign/io-python/`).
+  (this entry's and the next two entries' timings: measured on an AWS
+  m7a.2xlarge (AMD EPYC 9R14); `docs/benchmarks/perf-campaign/io-python/`).
 - The Gmsh reader keeps node and element tags in dense tables, allocates
   nothing per element, parses integers in one pass and sorts dense group
   node lists through a bitmap; the meshes read are unchanged (162,000
