@@ -24,8 +24,9 @@ change of default results or of a public API raises the minor version.
 ### Changed
 
 - The cohesive insertion check is faster with bitwise identical results:
-  the facet stresses are computed directly from the bulk stresses (no
-  by-element buffer), the elemental interpolation selects its products'
+  the facet stresses are computed directly from the bulk stresses (the
+  by-element buffer is no longer written per step; it is still allocated
+  by the first check), the elemental interpolation selects its products'
   route once per block, the copy plan after an insertion is built in
   linear time, and the linear law's effective norm uses fixed-size loops
   (`docs/BENCHMARKS.md`, "The insertion check").

@@ -284,8 +284,10 @@ Changes:
 
 - the facet stresses are computed directly from each bulk element's stress
   tuple for every (facet, side) destination of the copy plan, in the
-  plan's order (`akantu_fe::engine::PointInterpolation`): no by-element
-  buffer (20 MB on this mesh), the element's coefficients once per pair;
+  plan's order (`akantu_fe::engine::PointInterpolation`): the by-element
+  buffer (20 MB on this mesh) is no longer written and read per step (the
+  first check still allocates it, and it stays allocated, so the peak
+  memory is unchanged); the element's coefficients once per pair;
 - the elemental interpolation selects both products' routes once per block
   and evaluates them with direct indexing (coefficient-based route, and the
   depth-1 `gebp` route as `+0 + (+0 + t)`), property-tested bitwise
@@ -306,7 +308,7 @@ the static preload), ms per step:
 
 The check went from 593 to 200 ns per element and step. The explicit step
 was not changed; its 3.5 % gain is consistent with the check no longer
-streaming the by-element buffer through the cache (not proven).
+writing and reading the by-element buffer every step (not proven).
 
 In the insertion regime (the same mesh, the full schedule: 5000 steps,
 insertions from step 710, 11,736 cohesive elements at the end), ms per step:
