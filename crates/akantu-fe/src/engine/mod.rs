@@ -30,10 +30,12 @@ mod elemental;
 mod fast;
 mod normals;
 mod ops;
+mod plans;
 mod queries;
 
 pub use assembly::{FieldFunctor, LumpingScheme, diagonal_scaling_factors};
 pub use elemental::{ElementalFieldInterpolation, PointInterpolation};
+pub use plans::{BtdIntegratePlan, GradientPlan};
 pub use queries::{compute_shapes_at_natural, element_inradius_of};
 
 use akantu_core::array_shared::ArrayRef;

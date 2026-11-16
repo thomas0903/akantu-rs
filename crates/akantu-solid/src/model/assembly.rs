@@ -348,6 +348,9 @@ impl SolidMechanicsPhysics {
             d,
         )?;
         f_int.write()?.zero();
+        if self.fused_internal_forces(dofs, &mesh)? {
+            return self.finish_internal_forces(dofs, &mesh);
+        }
         let stresses = {
             let (laws, services) = self.split(&mesh, dofs);
             let ctx = LawContext {
@@ -448,13 +451,22 @@ impl SolidMechanicsPhysics {
                 akantu_core::enums::SynchronizationTag::SmmStress,
             )?;
         }
+        self.assemble_laws_internal_forces(&mesh, &GhostType::ALL)?;
+        self.periodic_internal_forces(dofs, &mesh)
+    }
+
+    /// The laws' `−∫ Bᵀσ` (or own residuals) of the `ghosts` element types
+    /// into `f_int`, law by law in law order (upstream
+    /// `Material::assembleInternalForces(ghost)` in the loop of
+    /// `assembleInternalForces`).
+    fn assemble_laws_internal_forces(&mut self, mesh: &Mesh, ghosts: &[GhostType]) -> Result<()> {
         let fe = self.base.fems.get("")?;
         let mut f_int = self
             .internal_force
             .as_mut()
             .ok_or_else(|| not_allocated("internal_force"))?
             .write()?;
-        for ghost in GhostType::ALL {
+        for &ghost in ghosts {
             for (law_index, law) in self.materials.laws().iter().enumerate() {
                 // laws with their own residual (cohesive laws)
                 // assemble at their position in the loop (upstream virtual
@@ -472,7 +484,7 @@ impl SolidMechanicsPhysics {
                     law_index,
                     law.as_ref(),
                     fe,
-                    &mesh,
+                    mesh,
                     self.base.spatial_dimension,
                     ghost,
                     &mut f_int,
@@ -480,16 +492,123 @@ impl SolidMechanicsPhysics {
                 )?;
             }
         }
+        Ok(())
+    }
+
+    /// The end of `assembleInternalForces` after the fused pass: the ghost
+    /// types' assembly (empty on a mesh without ghosts, kept for its
+    /// checks) and the periodic consistency.
+    fn finish_internal_forces(&mut self, dofs: &mut DofManager, mesh: &Mesh) -> Result<()> {
+        self.assemble_laws_internal_forces(mesh, &[GhostType::Ghost])?;
+        self.periodic_internal_forces(dofs, mesh)
+    }
+
+    /// Stresses and `−∫ Bᵀσ` of the not-ghost elements in one pass per
+    /// cache-sized element block
+    /// ([`crate::materials::elastic::MaterialElastic::stress_and_element_forces`])
+    /// when the model has exactly one law, an elastic law of the model's
+    /// dimension with small strains on a single element type, on a mesh
+    /// without ghosts or periodic exchange across ranks and without
+    /// non-local laws; the scatter then runs as in the separate passes. The
+    /// values written (`grad_u`, `stress`, the thermal arrays, `f_int`) are
+    /// those of the separate passes (upstream statement order: every
+    /// law's stresses, then the assembly), which this case does not
+    /// distinguish: one law, whose stresses read only the displacement.
+    /// `Ok(false)` with nothing written otherwise.
+    fn fused_internal_forces(&mut self, dofs: &mut DofManager, mesh: &Mesh) -> Result<bool> {
+        let dim = self.base.spatial_dimension;
+        if mesh.communicator().size() != 1
+            || mesh.synchronizers().element.is_some()
+            || self.non_local.is_some()
+            || self.materials.laws().len() != 1
+        {
+            return Ok(false);
+        }
+        let ghost = GhostType::NotGhost;
+        let types = self.materials.laws()[0].base().filter_types(ghost);
+        let [ty] = types.as_slice() else {
+            return Ok(false);
+        };
+        let ty = *ty;
+        if ty.spatial_dimension() != dim {
+            return Ok(false);
+        }
+        let fe = self.base.fems.get("")?;
+        let u = dofs
+            .dofs(super::DOF_ID)
+            .map_err(|_| not_allocated("displacement"))?;
+        let law = &mut self.materials.laws_mut()[0];
+        let r_e = &mut self.assembly_scratch.per_element;
+        let any = law.as_any_mut();
+        let done = match dim {
+            1 => match any
+                .and_then(|a| a.downcast_mut::<crate::materials::elastic::MaterialElastic<1>>())
+            {
+                Some(el) => el.stress_and_element_forces(fe, mesh, u.view(), ty, r_e)?,
+                None => false,
+            },
+            2 => match any
+                .and_then(|a| a.downcast_mut::<crate::materials::elastic::MaterialElastic<2>>())
+            {
+                Some(el) => el.stress_and_element_forces(fe, mesh, u.view(), ty, r_e)?,
+                None => false,
+            },
+            3 => match any
+                .and_then(|a| a.downcast_mut::<crate::materials::elastic::MaterialElastic<3>>())
+            {
+                Some(el) => el.stress_and_element_forces(fe, mesh, u.view(), ty, r_e)?,
+                None => false,
+            },
+            _ => false,
+        };
+        if !done {
+            return Ok(false);
+        }
+        drop(u);
+        let law = self.materials.laws()[0].as_ref();
+        let filter = law.base().element_filter.get(ty, ghost)?;
+        let mut f_int = self
+            .internal_force
+            .as_mut()
+            .ok_or_else(|| not_allocated("internal_force"))?
+            .write()?;
+        let AssemblyScratch {
+            per_element: r_e,
+            scatters,
+            ..
+        } = &mut self.assembly_scratch;
+        scatter_block(
+            fe.exec(),
+            mesh,
+            r_e,
+            &mut f_int,
+            ty,
+            ghost,
+            filter.as_slice(),
+            (0, ty, ghost),
+            scatters,
+        )?;
+        Ok(true)
+    }
+
+    /// The periodic consistency of `f_int` (sum), the last statement of
+    /// `assembleInternalForces`.
+    fn periodic_internal_forces(&mut self, dofs: &mut DofManager, mesh: &Mesh) -> Result<()> {
+        let mut f_int = self
+            .internal_force
+            .as_mut()
+            .ok_or_else(|| not_allocated("internal_force"))?
+            .write()?;
         let (len, nbc) = (f_int.len(), f_int.nb_component());
         // On a distributed periodic mesh through the running
         // operation's scope
-        let mut scope = if periodicity_is_distributed(&mesh) {
+        let mut scope = if periodicity_is_distributed(mesh) {
             Some(dofs.phases()?)
         } else {
             None
         };
         make_consistent_for_periodicity_values_in(
-            &mesh,
+            mesh,
             scope.as_deref_mut(),
             f_int.as_mut_slice(),
             len,

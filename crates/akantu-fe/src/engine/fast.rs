@@ -49,6 +49,41 @@ fn nodes_valid(conn: &[Idx], nnpe: usize, ids: &[Idx], nb_nodes: usize) -> bool 
     })
 }
 
+/// The checks of [`gradient`] without its connectivity check: route,
+/// sizes, `nb_dof ∈ 1…3`.
+fn gradient_shape_ok<E: LagrangeElement>(
+    block: &Block<'_>,
+    u: &[Real],
+    nb_dof: usize,
+    dshapes: &[Real],
+    nq: usize,
+) -> bool {
+    let nd = E::NATURAL_DIM;
+    let nn = E::NB_SHAPES;
+    if nd == 0 || nq == 0 || nn > TREE_MAX || block.nnpe != nn {
+        return false;
+    }
+    let route = product_route(Dims::new(nb_dof, nn, false, true), Dims::fixed(nd, nn).t());
+    route == Route::Coeff(Reduction::Tree)
+        && dshapes.len() == block.nb_element * nq * nd * nn
+        && (1..=3).contains(&nb_dof)
+        && u.len() == block.nb_nodes * nb_dof
+}
+
+/// `true` when [`gradient`] takes its kernel for every element of `ids`
+/// (route, sizes and the connectivity of `ids`).
+pub(super) fn gradient_supported<E: LagrangeElement>(
+    block: &Block<'_>,
+    u: &[Real],
+    nb_dof: usize,
+    dshapes: &[Real],
+    nq: usize,
+    ids: &[Idx],
+) -> bool {
+    gradient_shape_ok::<E>(block, u, nb_dof, dshapes, nq)
+        && nodes_valid(block.conn(), block.nnpe, ids, block.nb_nodes)
+}
+
 /// `∇u = U·Bᵀ` for every quadrature point of the elements `ids` (regular
 /// kind, no cohesive reduction): the operands of `gradient_kernel`
 /// (`U`: `Matrix<Dynamic, nn>` map, `B`: fixed `nd × nn` map, transposed),
@@ -73,15 +108,8 @@ pub(super) fn gradient<E: LagrangeElement>(
 ) -> Option<Result<()>> {
     let nd = E::NATURAL_DIM;
     let nn = E::NB_SHAPES;
-    if nd == 0 || nq == 0 || nn > TREE_MAX || block.nnpe != nn {
-        return None;
-    }
-    let route = product_route(Dims::new(nb_dof, nn, false, true), Dims::fixed(nd, nn).t());
-    if route != Route::Coeff(Reduction::Tree)
-        || dshapes.len() != block.nb_element * nq * nd * nn
+    if !gradient_shape_ok::<E>(block, u, nb_dof, dshapes, nq)
         || out.len() != ids.len() * nq * nb_dof * nd
-        || !(1..=3).contains(&nb_dof)
-        || u.len() != block.nb_nodes * nb_dof
     {
         return None;
     }
@@ -107,42 +135,93 @@ pub(super) fn gradient<E: LagrangeElement>(
             dshapes,
             nq,
             ids,
+            minus: &[],
             out: o,
             element: std::marker::PhantomData::<E>,
         };
-        match (fast, nb_dof) {
-            // FAST MODE (D-122): the FMA demonstrator, validated against
-            // this kernel by `akantu-solid/tests/fast_mode_gradient.rs`
-            (Some(t), 1) => with_fma(t, FmaGradient::<E, 1>(g)),
-            (Some(t), 2) => with_fma(t, FmaGradient::<E, 2>(g)),
-            (Some(t), _) => with_fma(t, FmaGradient::<E, 3>(g)),
-            (None, 1) => with_simd(simd, LaneGradient::<E, 1>(g)),
-            (None, 2) => with_simd(simd, LaneGradient::<E, 2>(g)),
-            (None, _) => with_simd(simd, LaneGradient::<E, 3>(g)),
-        }
+        run_gradient(fast, simd, nb_dof, g);
     });
     valid
         .load(std::sync::atomic::Ordering::Relaxed)
         .then_some(Ok(()))
 }
 
-/// The operands of one part of [`gradient`] (nodes checked).
-struct Gradient<'a, E> {
-    conn: &'a [Idx],
-    u: &'a [Real],
-    dshapes: &'a [Real],
-    nq: usize,
-    ids: &'a [Idx],
-    out: &'a mut [Real],
-    element: std::marker::PhantomData<E>,
+/// The operands of one part of [`gradient`] (nodes checked): with a
+/// non-empty `minus` (one value per output value), every stored value is
+/// `fl(∇u − minus)`, the subtraction `grad_u -= eigen_grad_u` of the solid
+/// laws applied to the rounded gradient as it is written.
+pub(super) struct Gradient<'a, E> {
+    pub(super) conn: &'a [Idx],
+    pub(super) u: &'a [Real],
+    pub(super) dshapes: &'a [Real],
+    pub(super) nq: usize,
+    pub(super) ids: &'a [Idx],
+    pub(super) minus: &'a [Real],
+    pub(super) out: &'a mut [Real],
+    pub(super) element: std::marker::PhantomData<E>,
+}
+
+/// Run one part of the gradient: the FMA variant in fast mode (then the
+/// subtraction of `minus` as a separate pass), the bitwise lane kernel
+/// otherwise, for `nb_dof ∈ 1…3`.
+#[inline(always)]
+pub(super) fn run_gradient<E: LagrangeElement>(
+    fast: Option<akantu_core::exec::FastToken>,
+    simd: SimdToken,
+    nb_dof: usize,
+    g: Gradient<'_, E>,
+) {
+    match (fast, nb_dof, g.minus.is_empty()) {
+        // FAST MODE (D-122): the FMA demonstrator, validated against
+        // this kernel by `akantu-solid/tests/fast_mode_gradient.rs`
+        (Some(t), _, _) => {
+            let Gradient {
+                conn,
+                u,
+                dshapes,
+                nq,
+                ids,
+                minus,
+                out,
+                element,
+            } = g;
+            let h = Gradient {
+                conn,
+                u,
+                dshapes,
+                nq,
+                ids,
+                minus: &[],
+                out: &mut *out,
+                element,
+            };
+            match nb_dof {
+                1 => with_fma(t, FmaGradient::<E, 1>(h)),
+                2 => with_fma(t, FmaGradient::<E, 2>(h)),
+                _ => with_fma(t, FmaGradient::<E, 3>(h)),
+            }
+            for (o, m) in out.iter_mut().zip(minus) {
+                *o -= *m;
+            }
+        }
+        (None, 1, true) => with_simd(simd, LaneGradient::<E, 1, false>(g)),
+        (None, 2, true) => with_simd(simd, LaneGradient::<E, 2, false>(g)),
+        (None, _, true) => with_simd(simd, LaneGradient::<E, 3, false>(g)),
+        (None, 1, false) => with_simd(simd, LaneGradient::<E, 1, true>(g)),
+        (None, 2, false) => with_simd(simd, LaneGradient::<E, 2, true>(g)),
+        (None, _, false) => with_simd(simd, LaneGradient::<E, 3, true>(g)),
+    }
 }
 
 /// The bitwise gradient: lanes over the `NBD` components of `U` (one
 /// lane per row `i` of `∇u`), each lane the scalar sequence
-/// `tree_l(U(i, l)·B(j, l))` of the general path.
-struct LaneGradient<'a, E, const NBD: usize>(Gradient<'a, E>);
+/// `tree_l(U(i, l)·B(j, l))` of the general path (then `− minus` when
+/// `MINUS`).
+struct LaneGradient<'a, E, const NBD: usize, const MINUS: bool>(Gradient<'a, E>);
 
-impl<E: LagrangeElement, const NBD: usize> SimdTask for LaneGradient<'_, E, NBD> {
+impl<E: LagrangeElement, const NBD: usize, const MINUS: bool> SimdTask
+    for LaneGradient<'_, E, NBD, MINUS>
+{
     type Output = ();
 
     #[inline(always)]
@@ -153,6 +232,7 @@ impl<E: LagrangeElement, const NBD: usize> SimdTask for LaneGradient<'_, E, NBD>
             dshapes,
             nq,
             ids,
+            minus,
             out,
             ..
         } = self.0;
@@ -163,7 +243,7 @@ impl<E: LagrangeElement, const NBD: usize> SimdTask for LaneGradient<'_, E, NBD>
         let (u, _) = u.as_chunks::<NBD>();
         let mut ue = [Lanes4::default(); TREE_MAX];
         let mut p = [Lanes4::default(); TREE_MAX];
-        for (&e, oe) in ids.iter().zip(out.chunks_exact_mut(nq * tsz)) {
+        for (k, (&e, oe)) in ids.iter().zip(out.chunks_exact_mut(nq * tsz)).enumerate() {
             let e = id_index(e);
             // extractNodalToElementField (nodes checked by the caller)
             for (ue_n, &node) in ue.iter_mut().zip(&conn[e * nn..(e + 1) * nn]) {
@@ -177,6 +257,13 @@ impl<E: LagrangeElement, const NBD: usize> SimdTask for LaneGradient<'_, E, NBD>
                         *pl = ue[l] * Lanes4::splat(b[j + l * nd]);
                     }
                     gj.copy_from_slice(&tree_sum_of(&p, nn).prefix::<NBD>());
+                }
+            }
+            if MINUS {
+                // grad_u -= eigen_grad_u on the element's values just written
+                let me = &minus[k * nq * tsz..(k + 1) * nq * tsz];
+                for (o, m) in oe.iter_mut().zip(me) {
+                    *o -= *m;
                 }
             }
         }
@@ -418,37 +505,14 @@ pub(super) fn btd_integrate(
     jac: &[Real],
     os: &mut [Real],
 ) -> Option<()> {
-    let btd_route = product_route(Dims::dynamic(r, sdim), Dims::dynamic(sdim, nn));
     let nb_dof = r * nn;
-    let int_route = product_route(Dims::dynamic(nb_dof, nq), Dims::new(nq, 1, false, true));
-    let gemv = Route::Gemv {
-        matrix: GemvMatrix::Lhs,
-        kernel: Order::ColMajor,
-    };
-    if btd_route != Route::Coeff(Reduction::Sequential)
-        || int_route != gemv
-        || nq == 0
-        || nq >= GEMV_BLOCKING_MIN_DEPTH
-        || r == 0
-        || nn == 0
-        || nn > TREE_MAX
+    if !btd_integrate_supported(r, sdim, nn, ids, nq, bs, jac)
+        || ds.len() != ids.len() * nq * r * sdim
+        || os.len() != ids.len() * nb_dof
     {
         return None;
     }
-    if ds.len() != ids.len() * nq * r * sdim || os.len() != ids.len() * nb_dof {
-        return None;
-    }
-    if !derivatives_cover(ids, nq, sdim * nn, bs) || !derivatives_cover(ids, nq, 1, jac) {
-        return None;
-    }
-    let run: BtdIntegratePart = match (r, sdim) {
-        (1, 1) => btd_integrate_part::<1, 1>,
-        (1, 2) => btd_integrate_part::<1, 2>,
-        (1, 3) => btd_integrate_part::<1, 3>,
-        (2, 2) => btd_integrate_part::<2, 2>,
-        (3, 3) => btd_integrate_part::<3, 3>,
-        _ => return None,
-    };
+    let run = btd_integrate_kernel(r, sdim)?;
     let min = (2048 / nq.max(1)).max(1);
     let items = (
         Tuples::new(os, nb_dof),
@@ -469,6 +533,68 @@ pub(super) fn btd_integrate(
         );
     });
     Some(())
+}
+
+/// `true` when [`btd_integrate`] takes its kernel for the elements `ids`
+/// (both routes, sizes, the shape derivatives and Jacobians of `ids`).
+pub(super) fn btd_integrate_supported(
+    r: usize,
+    sdim: usize,
+    nn: usize,
+    ids: &[Idx],
+    nq: usize,
+    bs: &[Real],
+    jac: &[Real],
+) -> bool {
+    let btd_route = product_route(Dims::dynamic(r, sdim), Dims::dynamic(sdim, nn));
+    let int_route = product_route(Dims::dynamic(r * nn, nq), Dims::new(nq, 1, false, true));
+    let gemv = Route::Gemv {
+        matrix: GemvMatrix::Lhs,
+        kernel: Order::ColMajor,
+    };
+    btd_route == Route::Coeff(Reduction::Sequential)
+        && int_route == gemv
+        && nq > 0
+        && nq < GEMV_BLOCKING_MIN_DEPTH
+        && r > 0
+        && nn > 0
+        && nn <= TREE_MAX
+        && btd_integrate_kernel(r, sdim).is_some()
+        && derivatives_cover(ids, nq, sdim * nn, bs)
+        && derivatives_cover(ids, nq, 1, jac)
+}
+
+/// The fused kernel of `(r, sdim)`.
+fn btd_integrate_kernel(r: usize, sdim: usize) -> Option<BtdIntegratePart> {
+    Some(match (r, sdim) {
+        (1, 1) => btd_integrate_part::<1, 1>,
+        (1, 2) => btd_integrate_part::<1, 2>,
+        (1, 3) => btd_integrate_part::<1, 3>,
+        (2, 2) => btd_integrate_part::<2, 2>,
+        (3, 3) => btd_integrate_part::<3, 3>,
+        _ => return None,
+    })
+}
+
+/// [`btd_integrate`] of the elements `ids` on the calling thread, for a
+/// caller that checked [`btd_integrate_supported`] (a plan); does nothing
+/// for an unsupported `(r, sdim)`.
+#[allow(clippy::too_many_arguments)]
+pub(super) fn btd_integrate_serial(
+    simd: SimdToken,
+    r: usize,
+    sdim: usize,
+    nn: usize,
+    ids: &[Idx],
+    nq: usize,
+    bs: &[Real],
+    ds: &[Real],
+    jac: &[Real],
+    os: &mut [Real],
+) {
+    if let Some(run) = btd_integrate_kernel(r, sdim) {
+        run(simd, nn, ids, nq, bs, ds, jac, os);
+    }
 }
 
 /// One part of [`btd_integrate`].
