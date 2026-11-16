@@ -187,7 +187,7 @@ def explicit_model(ctx, out, n, material=STEEL, pulse_loop=True):
 
     mesh = out.phase("mesh", build)
     out.n_nodes = mesh.getNbNodes()
-    out.n_elements = mesh.getNbElement(aka._triangle_3)
+    out.n_elements = mesh.getNbElement(element_type=aka._triangle_3)
     out.n_dofs = 2 * out.n_nodes
 
     def init():
