@@ -29,6 +29,8 @@ fn run(args: &[&str]) -> BTreeMap<(String, String), String> {
         assert_eq!(field("size"), "s");
         assert!(v["seconds"].as_f64().expect("seconds") >= 0.0);
         assert!(v["calls"].as_u64().expect("calls") >= 1);
+        // the FNV-1a offset basis: nothing was hashed
+        assert_ne!(field("digest"), "cbf29ce484222325", "{line}");
         m.insert((field("case"), field("phase")), field("digest"));
     }
     assert!(!m.is_empty(), "no output for {args:?}");

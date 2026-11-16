@@ -193,27 +193,48 @@ pub fn dump_text_tet4(ctx: &Ctx) -> Result<CaseOut> {
     out.loop_phase(ctx, "dump", ctx.size.pick(1, 30, 8), || {
         model.dump_named("text", None, None)
     })?;
-    let mut files: Vec<std::path::PathBuf> = std::fs::read_dir(&dir.0)
-        .map_err(|source| akantu_core::Error::Io {
-            path: dir.0.display().to_string(),
+    // the files append every dump: the digest comes from one dump of a
+    // second text dumper into its own directory
+    let ddir = Scratch::new("text-digest")?;
+    model
+        .dumpers
+        .dumpable
+        .register_text("text_digest", Some("suite"), false);
+    model.dumpers.dumpable.add_dump_mesh_to_dumper(
+        "text_digest",
+        MeshSelection::new(Some(3), GhostType::NotGhost, ElementKind::Regular),
+    )?;
+    model.set_directory_to_dumper("text_digest", &ddir.0)?;
+    for f in ["displacement", "velocity", "acceleration"] {
+        model.add_dump_field_to_dumper("text_digest", f)?;
+    }
+    model.dump_named("text_digest", None, None)?;
+    let mut files: Vec<std::path::PathBuf> = Vec::new();
+    let mut stack = vec![ddir.0.clone()];
+    while let Some(p) = stack.pop() {
+        let rd = std::fs::read_dir(&p).map_err(|source| akantu_core::Error::Io {
+            path: p.display().to_string(),
             source,
-        })?
-        .flatten()
-        .map(|e| e.path())
-        .filter(|p| p.is_file())
-        .collect();
+        })?;
+        for e in rd.flatten() {
+            let path = e.path();
+            if path.is_dir() {
+                stack.push(path);
+            } else {
+                files.push(path);
+            }
+        }
+    }
     files.sort();
     let mut d = Digest::new();
-    // the files of the first dump (their names carry the dump counter)
-    for f in files.iter().filter(|p| {
-        p.file_name()
-            .and_then(|n| n.to_str())
-            .is_some_and(|n| n.contains("0000"))
-    }) {
+    for f in &files {
         let bytes = std::fs::read(f).map_err(|source| akantu_core::Error::Io {
             path: f.display().to_string(),
             source,
         })?;
+        if let Some(name) = f.strip_prefix(&ddir.0).ok().and_then(|n| n.to_str()) {
+            d.bytes(name.as_bytes());
+        }
         d.bytes(&bytes);
     }
     out.digest = d.value();
