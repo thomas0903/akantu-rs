@@ -217,7 +217,7 @@ fn search_quad4(run: &mut Run) -> Result<Digest> {
         Cell::Quad4,
         s.pick(40, 40_000, 120_000),
         s.pick(30, 30_000, 90_000),
-        s.pick(2, 10, 10),
+        s.pick(2, 60, 60),
     )
 }
 
