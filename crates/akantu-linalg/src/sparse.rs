@@ -1808,19 +1808,29 @@ impl BlockPositionCache {
     }
 
     fn store(&mut self, slot: usize, positions: &[u32]) {
+        let key = std::mem::take(&mut self.key);
+        self.store_with_key(slot, &key, positions);
+        self.key = key;
+    }
+
+    /// [`BlockPositionCache::store`] with the encoded equations `key`.
+    fn store_with_key(&mut self, slot: usize, key: &[u32], positions: &[u32]) {
         let w = self.eq_len();
-        debug_assert_eq!(self.key.len(), w);
+        debug_assert_eq!(key.len(), w);
         debug_assert_eq!(positions.len(), self.stride);
         if slot >= self.filled.len() {
             self.filled.resize(slot + 1, false);
             self.equations.resize((slot + 1) * w, 0);
             self.positions.resize((slot + 1) * self.stride, SKIP);
         }
-        self.equations[slot * w..(slot + 1) * w].copy_from_slice(&self.key);
+        self.equations[slot * w..(slot + 1) * w].copy_from_slice(key);
         self.positions[slot * self.stride..(slot + 1) * self.stride].copy_from_slice(positions);
         self.filled[slot] = true;
     }
 }
+
+#[path = "sparse_threaded.rs"]
+mod threaded;
 
 #[cfg(test)]
 #[path = "sparse_perf_tests.rs"]

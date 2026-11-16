@@ -617,3 +617,252 @@ fn csc_from_aij_matches_the_triplet_path() {
     let e = CscMatrix::from_aij(&m).unwrap_err().to_string();
     assert!(e.contains("coordinate 3 outside the matrix order 3"), "{e}");
 }
+
+/// Executors of 1, 2, 3, 4 and 8 threads with the finest split (every
+/// batch of more than one item is cut into the largest number of parts).
+fn execs() -> Vec<akantu_core::exec::Exec> {
+    use akantu_core::exec::{Exec, ExecPolicy, Grain};
+    [1, 2, 3, 4, 8]
+        .into_iter()
+        .map(|n| {
+            Exec::new(
+                ExecPolicy::serial()
+                    .with_threads(n)
+                    .unwrap()
+                    .with_grain(Grain::Finest),
+            )
+            .unwrap()
+        })
+        .collect()
+}
+
+/// `add_values_cached_batch` (or, when it declines, the serial loop the
+/// caller then runs) against `add_values` block by block over several
+/// assembly rounds at 1, 2, 3, 4 and 8 threads: values, errors, releases
+/// and the cache's resolve counter, for every (matrix type, block type,
+/// policy) combination, all slots or a subset (one material of several),
+/// a repeated slot, changed slot equations, appended entries, moved
+/// positions, missing entries and resizes between rounds.
+#[test]
+fn threaded_batch_assembly_is_add_values() {
+    let combos = [
+        (
+            MatrixType::Symmetric,
+            MatrixType::Symmetric,
+            SymmetryPolicy::PromoteOnUnsymmetric,
+        ),
+        (
+            MatrixType::Symmetric,
+            MatrixType::Unsymmetric,
+            SymmetryPolicy::UpstreamUpperSelection,
+        ),
+        (
+            MatrixType::Symmetric,
+            MatrixType::Unsymmetric,
+            SymmetryPolicy::PromoteOnUnsymmetric,
+        ),
+        (
+            MatrixType::Unsymmetric,
+            MatrixType::Symmetric,
+            SymmetryPolicy::PromoteOnUnsymmetric,
+        ),
+        (
+            MatrixType::Unsymmetric,
+            MatrixType::Unsymmetric,
+            SymmetryPolicy::PromoteOnUnsymmetric,
+        ),
+    ];
+    let execs = execs();
+    let mut batched = 0usize;
+    for (seed, &(mt, vt, policy)) in combos.iter().enumerate() {
+        for trial in 0..12u64 {
+            let special = if trial % 4 < 2 { 0 } else { 30 };
+            let mut rng = Rng(
+                (0x51ed_270b ^ ((seed as u64) << 32) ^ trial.wrapping_mul(104_729)) | 1,
+                special,
+            );
+            let n: GlobalIdx = 20 + GlobalIdx::try_from(rng.below(60)).unwrap();
+            let nb = 1 + (trial as usize / 2) % 5;
+            let nb_elem = 40 + rng.below(40);
+            let elems: Vec<Vec<GlobalIdx>> =
+                (0..nb_elem).map(|_| element_of(&mut rng, n, nb)).collect();
+            let profiled = if rng.below(4) == 0 {
+                nb_elem - 1
+            } else {
+                nb_elem
+            };
+            // the slots of the batch: all, every other one (a material),
+            // or with a repeated slot
+            let slots: Vec<usize> = match trial % 3 {
+                0 => (0..nb_elem).collect(),
+                1 => (0..nb_elem).filter(|s| s % 2 == 1).collect(),
+                _ => (0..nb_elem).chain([3]).collect(),
+            };
+            let mut base = SparseMatrixAij::new("K", n, mt);
+            base.set_symmetry_policy(policy);
+            for e in &elems[..profiled] {
+                base.add_block_to_profile(e, e).unwrap();
+            }
+            for exec in &execs {
+                let mut plain = base.clone();
+                plain.profile_release = base.profile_release;
+                let mut threaded = plain.clone();
+                threaded.profile_release = plain.profile_release;
+                let mut elems = elems.clone();
+                let mut cache = BlockPositionCache::new();
+                let mut rng = Rng(rng.0 ^ 0x1234_5678, special);
+                for round in 0..7 {
+                    match round {
+                        4 => {
+                            let k = rng.below(profiled);
+                            elems[k] = elems[(k + 1) % profiled].clone();
+                        }
+                        5 if trial % 2 == 0 => {
+                            let (i, j) = (rng.below(3) as GlobalIdx, rng.below(3) as GlobalIdx);
+                            plain.add(i, j, 0.25).unwrap();
+                            threaded.add(i, j, 0.25).unwrap();
+                        }
+                        5 => {
+                            for m in [&mut plain, &mut threaded] {
+                                m.clear_profile();
+                                for e in elems[..profiled].iter().rev() {
+                                    m.add_block_to_profile(e, e).unwrap();
+                                }
+                            }
+                        }
+                        6 if trial % 4 == 1 => {
+                            plain.set_size(n - 1);
+                            threaded.set_size(n - 1);
+                        }
+                        _ => {}
+                    }
+                    let values: Vec<Real> =
+                        (0..slots.len() * nb * nb).map(|_| rng.value()).collect();
+                    let what = format!(
+                        "{mt:?}/{vt:?}/{policy:?} trial {trial} round {round} threads {}",
+                        exec.threads()
+                    );
+                    let mut r1 = Ok(());
+                    for (k, &s) in slots.iter().enumerate() {
+                        r1 = plain.add_values(
+                            &elems[s],
+                            &elems[s],
+                            &values[k * nb * nb..(k + 1) * nb * nb],
+                            vt,
+                        );
+                        if r1.is_err() {
+                            break;
+                        }
+                    }
+                    cache.begin(&threaded);
+                    let resolves = cache.resolves();
+                    let eqs = |k: usize, out: &mut Vec<GlobalIdx>| -> Result<()> {
+                        out.clear();
+                        out.extend_from_slice(&elems[slots[k]]);
+                        Ok(())
+                    };
+                    let mut r2 = Ok(());
+                    if threaded
+                        .add_values_cached_batch(exec, &mut cache, &slots, nb, &eqs, &values, vt)
+                    {
+                        batched += 1;
+                        assert!(exec.is_parallel(), "{what}: batch on one thread");
+                    } else {
+                        // the caller's serial loop
+                        let mut serial_cache = cache.clone();
+                        assert_eq!(serial_cache.resolves(), resolves, "{what}");
+                        for (k, &s) in slots.iter().enumerate() {
+                            r2 = threaded.add_values_cached(
+                                &mut serial_cache,
+                                s,
+                                &elems[s],
+                                &elems[s],
+                                &values[k * nb * nb..(k + 1) * nb * nb],
+                                vt,
+                            );
+                            if r2.is_err() {
+                                break;
+                            }
+                        }
+                        cache = serial_cache;
+                    }
+                    same_result(&r1, &r2, &what);
+                    same_state(&plain, &threaded, &what);
+                }
+            }
+        }
+    }
+    assert!(batched > 100, "the threaded batch ran {batched} times");
+}
+
+/// The resolve counter and the stored slots after a threaded batch are
+/// those of the serial loop (the batch resolves what the loop resolves).
+#[test]
+fn threaded_batch_resolves_like_the_serial_loop() {
+    let mut rng = Rng(7, 0);
+    let n = 50;
+    let elems: Vec<Vec<GlobalIdx>> = (0..64).map(|_| element_of(&mut rng, n - 3, 4)).collect();
+    let mut m = SparseMatrixAij::new("K", n, MatrixType::Symmetric);
+    for e in &elems {
+        m.add_block_to_profile(e, e).unwrap();
+    }
+    let slots: Vec<usize> = (0..elems.len()).collect();
+    let values: Vec<Real> = (0..elems.len() * 16).map(|_| rng.value()).collect();
+    let eqs = |k: usize, out: &mut Vec<GlobalIdx>| -> Result<()> {
+        out.clear();
+        out.extend_from_slice(&elems[k]);
+        Ok(())
+    };
+    let exec = &execs()[3];
+    let mut serial = m.clone();
+    let mut threaded = m.clone();
+    let (mut cs, mut ct) = (BlockPositionCache::new(), BlockPositionCache::new());
+    for round in 0..3 {
+        cs.begin(&serial);
+        for (k, e) in elems.iter().enumerate() {
+            serial
+                .add_values_cached(
+                    &mut cs,
+                    k,
+                    e,
+                    e,
+                    &values[k * 16..(k + 1) * 16],
+                    MatrixType::Symmetric,
+                )
+                .unwrap();
+        }
+        ct.begin(&threaded);
+        let done = threaded.add_values_cached_batch(
+            exec,
+            &mut ct,
+            &slots,
+            4,
+            &eqs,
+            &values,
+            MatrixType::Symmetric,
+        );
+        if !done {
+            for (k, e) in elems.iter().enumerate() {
+                threaded
+                    .add_values_cached(
+                        &mut ct,
+                        k,
+                        e,
+                        e,
+                        &values[k * 16..(k + 1) * 16],
+                        MatrixType::Symmetric,
+                    )
+                    .unwrap();
+            }
+        }
+        assert_eq!(done, round > 0, "round {round}");
+        assert_eq!(cs.resolves(), ct.resolves(), "round {round}");
+        assert_eq!(cs.positions, ct.positions, "round {round}");
+        assert_eq!(cs.equations, ct.equations, "round {round}");
+        assert_eq!(bits(&serial.a), bits(&threaded.a), "round {round}");
+        assert_eq!(
+            serial.value_release, threaded.value_release,
+            "round {round}"
+        );
+    }
+}
