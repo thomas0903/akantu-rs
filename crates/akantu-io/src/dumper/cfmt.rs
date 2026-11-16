@@ -35,6 +35,30 @@ fn non_finite(x: f64) -> Option<&'static str> {
 /// Appends Rust's `{:.precision$e}` text of the finite `x` to `out` and
 /// returns the position of its `e` and the decimal exponent.
 fn push_rust_exp(out: &mut String, x: f64, precision: usize) -> (usize, i32) {
+    // Up to 17 significant digits: the digits of `super::exact_digits`
+    // (the same as `core::fmt`'s, which decides the cases it returns `None`
+    // for).
+    if precision < 17
+        && let Some((d, e)) = super::exact_digits::digits(x, precision + 1)
+    {
+        let n = precision + 1;
+        let mut buf = [0u8; 17];
+        let mut v = d;
+        for slot in buf[..n].iter_mut().rev() {
+            // `v % 10 < 10`: the cast cannot truncate.
+            *slot = b'0' + (v % 10) as u8;
+            v /= 10;
+        }
+        if x.is_sign_negative() {
+            out.push('-');
+        }
+        out.push(char::from(buf[0]));
+        if n > 1 {
+            out.push('.');
+            out.push_str(std::str::from_utf8(&buf[1..n]).unwrap_or(""));
+        }
+        return (out.len(), e);
+    }
     let start = out.len();
     let _ = write!(out, "{x:.precision$e}");
     let b = &out.as_bytes()[start..];
