@@ -571,6 +571,12 @@ mod tests {
             (50, 7, 50),
             (49, 8, 2),
         ]);
+        // the GEMV kernel's depth-block boundary (unblocked below 128)
+        for m in [1, 3, 40] {
+            for k in [127, 128, 129] {
+                sizes.push((m, k, 1));
+            }
+        }
         let mut a = vec![0.0; 32768];
         let mut b = vec![0.0; 4096];
         let mut got = vec![0.0; 4096];
@@ -578,6 +584,7 @@ mod tests {
         let mut checked = 0usize;
         let mut routes = std::collections::BTreeSet::new();
         let mut kernels = std::collections::BTreeSet::new();
+        let mut gemv_depths = std::collections::BTreeSet::new();
         for &(m, k, n) in &sizes {
             for flags in 0..64u32 {
                 let ext = |sz: usize, bit: u32| -> Extent {
@@ -596,6 +603,9 @@ mod tests {
                 }
                 let p = SliceProduct::new(shape).unwrap();
                 routes.insert(format!("{:?}", p.route()));
+                if matches!(p.route(), Route::Gemv { .. }) {
+                    gemv_depths.insert(k);
+                }
                 kernels.insert(format!("{:?}", p.kernel));
                 let payload = checked % 4 == 3;
                 if payload {
@@ -640,6 +650,9 @@ mod tests {
             assert!(routes.contains(r), "{r} not covered: {routes:?}");
         }
         assert!(routes.iter().any(|r| r.starts_with("Gemv")));
+        assert!(
+            gemv_depths.contains(&127) && gemv_depths.contains(&128) && gemv_depths.contains(&129)
+        );
         for k in [
             "Tree",
             "SeqColumns",
