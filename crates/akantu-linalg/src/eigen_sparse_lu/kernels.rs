@@ -534,6 +534,9 @@ pub(crate) struct Work {
     /// The panel's dense accumulator, `m × SPA_W` row-major ([`SPA_W`]).
     pub dense: Vec<f64>,
     pub tempv: Vec<f64>,
+    /// Fast mode of the panel updates (`SparseLu::set_fused_multiply_add`):
+    /// fused multiply-adds in their `sparselu_gemm`; not bitwise.
+    pub fma: bool,
 }
 
 /// `v = [value; len]`, reusing `v`'s allocation.
@@ -993,8 +996,8 @@ pub(crate) fn panel_bmod(m: usize, w: usize, jcol: usize, nseg: i64, wk: &mut Wo
             let ldl = nr;
             let (tu, tl) = wk.tempv.split_at_mut(w * ldu);
             // `L = 0; L += B·U` (Eigen zero-fills `L`, then `sparselu_gemm`)
-            super::simd::gemm_into_zero(
-                nr, u_cols, ur, &glu.lusup, luptr, lda, tu, 0, ldu, tl, 0, ldl,
+            super::simd::gemm_into_zero_mode(
+                wk.fma, nr, u_cols, ur, &glu.lusup, luptr, lda, tu, 0, ldu, tl, 0, ldl,
             );
             // scatter U (assignments) and L (one subtraction per entry; the
             // entries are distinct, so row by row is the same arithmetic)

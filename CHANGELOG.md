@@ -45,3 +45,15 @@ The initial public state.
   reproduces upstream's behaviour where that is practical.
 - An opt-in GPL-3.0-or-later crate (`akantu-geometry-cgal`, feature `cgal`)
   with the parts ported from CGAL; the default build is LGPL-3.0-or-later.
+
+### Performance (Eigen SparseLU translation, `akantu_linalg::eigen_sparse_lu`)
+
+- The default sparse direct solver is about 3× faster on 3-D problems
+  (dense kernels in register tiles with run-time AVX / AVX-512F instances,
+  same operation order: the results keep every bit), reuses its storage
+  between factorisations and needs less memory (`int` row subscripts as in
+  Eigen; factor arrays grow to the length in use).
+- `SparseLu::solve_with` (the caller's scratch buffer) and the opt-in fast
+  mode `SparseLu::set_fused_multiply_add` /
+  `EigenSparseLuSolver::set_fused_multiply_add` (fused multiply-adds in the
+  panel products; not bitwise, off by default).

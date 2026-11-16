@@ -139,6 +139,8 @@ pub struct SparseLu {
     /// allocation and page faults per factorisation; no effect on results).
     work: Option<Box<Work>>,
     spare_glu: Option<Glu>,
+    /// Fast mode ([`SparseLu::set_fused_multiply_add`]).
+    fma: bool,
 }
 
 impl SparseLu {
@@ -183,6 +185,18 @@ impl SparseLu {
         self.etree = iwork;
         self.pattern = Some((a.col_ptr().to_vec(), a.row_idx().to_vec()));
         Ok(())
+    }
+
+    /// Fast mode, off by default: the panel updates' dense products
+    /// (`sparselu_gemm`, the largest share of a factorisation) use fused
+    /// multiply-adds on CPUs with FMA (AVX-512F or AVX2). Each term `c + a·b`
+    /// is then rounded once instead of twice, so the factors and solutions
+    /// differ from Eigen's (and the oracle's) in the last bits; the
+    /// pivoting may differ when two candidate pivots are within those bits.
+    /// Tolerance against the default: `tests::fma_mode_solution_within_tolerance`.
+    /// A plain option until the campaign's execution-policy switch exists.
+    pub fn set_fused_multiply_add(&mut self, on: bool) {
+        self.fma = on;
     }
 
     /// `colsPermutation().indices()`.
@@ -233,6 +247,7 @@ impl SparseLu {
         glu.reset(n);
         let mut wk = self.work.take().unwrap_or_default();
         wk.reset(m, n, PANEL_SIZE, MAXSUPER as usize);
+        wk.fma = self.fma;
         let mut relax_end = vec![EMPTY; n];
         kernels::relax_snode(n, &self.etree, RELAX, &mut relax_end);
         let mut perm_r = vec![EMPTY; m];
@@ -485,6 +500,12 @@ pub struct EigenSparseLuSolver {
 }
 
 impl EigenSparseLuSolver {
+    /// [`SparseLu::set_fused_multiply_add`] (fast mode, not bitwise; off
+    /// by default). Takes effect at the next factorisation.
+    pub fn set_fused_multiply_add(&mut self, on: bool) {
+        self.lu.set_fused_multiply_add(on);
+    }
+
     /// The factorisation object (permutations and factor arrays).
     #[must_use]
     pub fn lu(&self) -> &SparseLu {
@@ -614,6 +635,72 @@ mod tests {
         assert_eq!(
             x1.iter().map(|x| x.to_bits()).collect::<Vec<_>>(),
             x2.iter().map(|x| x.to_bits()).collect::<Vec<_>>()
+        );
+    }
+
+    #[test]
+    fn fma_mode_solution_within_tolerance() {
+        // A 3-D 7-point stencil (large supernodes, so the panel products
+        // run), diagonally dominant: condition number below 10, so a
+        // relative change of the solution above 1e-12 would mean an error,
+        // not rounding (each FMA saves one rounding of at most 2^-53).
+        let k = 14;
+        let n = k * k * k;
+        let mut t = Vec::new();
+        let id = |i: usize, j: usize, l: usize| (i * k + j) * k + l;
+        for i in 0..k {
+            for j in 0..k {
+                for l in 0..k {
+                    let p = id(i, j, l);
+                    t.push((p, p, 8.0 + ((p * 7) % 5) as f64 * 0.1));
+                    let nb = [
+                        (i.wrapping_sub(1), j, l),
+                        (i + 1, j, l),
+                        (i, j.wrapping_sub(1), l),
+                        (i, j + 1, l),
+                        (i, j, l.wrapping_sub(1)),
+                        (i, j, l + 1),
+                    ];
+                    for (q, &(a, b, c)) in nb.iter().enumerate() {
+                        if a < k && b < k && c < k {
+                            t.push((p, id(a, b, c), -1.0 + 0.05 * q as f64));
+                        }
+                    }
+                }
+            }
+        }
+        let a = CscMatrix::from_triplets(n, &t).unwrap();
+        let b: Vec<f64> = (0..n).map(|i| ((i * 13) % 17) as f64 - 8.0).collect();
+        let solve = |fma: bool| {
+            let mut lu = SparseLu::default();
+            lu.set_fused_multiply_add(fma);
+            lu.analyze_pattern(&a).unwrap();
+            lu.factorize(&a).unwrap();
+            let mut x = vec![0.0; n];
+            lu.solve(&b, &mut x).unwrap();
+            x
+        };
+        let (x0, x1) = (solve(false), solve(true));
+        let norm = x0.iter().map(|v| v * v).sum::<f64>().sqrt();
+        let diff = x0
+            .iter()
+            .zip(&x1)
+            .map(|(u, v)| (u - v) * (u - v))
+            .sum::<f64>()
+            .sqrt();
+        assert!(diff <= 1e-12 * norm, "relative difference {}", diff / norm);
+        // the default mode is unaffected by an earlier fast factorisation
+        let mut lu = SparseLu::default();
+        lu.set_fused_multiply_add(true);
+        lu.analyze_pattern(&a).unwrap();
+        lu.factorize(&a).unwrap();
+        lu.set_fused_multiply_add(false);
+        lu.factorize(&a).unwrap();
+        let mut x2 = vec![0.0; n];
+        lu.solve(&b, &mut x2).unwrap();
+        assert_eq!(
+            x2.iter().map(|v| v.to_bits()).collect::<Vec<_>>(),
+            x0.iter().map(|v| v.to_bits()).collect::<Vec<_>>()
         );
     }
 

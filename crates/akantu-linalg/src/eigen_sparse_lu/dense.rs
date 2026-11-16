@@ -762,7 +762,7 @@ pub(crate) fn sparselu_gemm(
     c_off: usize,
     ldc: usize,
 ) {
-    gemm_tiles::<4, false>(m, n, d, a, a_off, lda, b, b_off, ldb, c, c_off, ldc);
+    gemm_tiles::<4, false, false>(m, n, d, a, a_off, lda, b, b_off, ldb, c, c_off, ldc);
 }
 
 /// [`sparselu_gemm`] on a destination that the caller would have set to
@@ -786,7 +786,7 @@ pub(crate) fn sparselu_gemm_into_zero(
     c_off: usize,
     ldc: usize,
 ) {
-    gemm_tiles::<4, true>(m, n, d, a, a_off, lda, b, b_off, ldb, c, c_off, ldc);
+    gemm_tiles::<4, true, false>(m, n, d, a, a_off, lda, b, b_off, ldb, c, c_off, ldc);
 }
 
 /// Columns of a register tile of [`sparselu_gemm`].
@@ -794,10 +794,12 @@ const GEMM_NR: usize = 4;
 
 /// The tiled `C (+)= A·B` with register tiles of `MR` rows (`MR` = 4, 8 or
 /// 16: eight independent accumulator vectors of two, four or eight lanes)
-/// × [`GEMM_NR`] columns.
+/// × [`GEMM_NR`] columns. `FMA` (fast mode, `simd::gemm_into_zero_fma`):
+/// each term `c + a·b` as one fused multiply-add, which changes the bits;
+/// only instantiated in functions compiled with the `fma` feature.
 #[allow(clippy::too_many_arguments)] // BLAS-style kernel signature
 #[inline(always)]
-pub(super) fn gemm_tiles<const MR: usize, const ZERO: bool>(
+pub(super) fn gemm_tiles<const MR: usize, const ZERO: bool, const FMA: bool>(
     m: usize,
     n: usize,
     d: usize,
@@ -816,23 +818,23 @@ pub(super) fn gemm_tiles<const MR: usize, const ZERO: bool>(
     }
     let mut i = 0;
     while i + MR <= m {
-        gemm_rows::<MR, ZERO>(n, d, a, a_off + i, lda, b, b_off, ldb, c, c_off + i, ldc);
+        gemm_rows::<MR, ZERO, FMA>(n, d, a, a_off + i, lda, b, b_off, ldb, c, c_off + i, ldc);
         i += MR;
     }
     if MR > 8 && i + 8 <= m {
-        gemm_rows::<8, ZERO>(n, d, a, a_off + i, lda, b, b_off, ldb, c, c_off + i, ldc);
+        gemm_rows::<8, ZERO, FMA>(n, d, a, a_off + i, lda, b, b_off, ldb, c, c_off + i, ldc);
         i += 8;
     }
     if MR > 4 && i + 4 <= m {
-        gemm_rows::<4, ZERO>(n, d, a, a_off + i, lda, b, b_off, ldb, c, c_off + i, ldc);
+        gemm_rows::<4, ZERO, FMA>(n, d, a, a_off + i, lda, b, b_off, ldb, c, c_off + i, ldc);
         i += 4;
     }
     if i + 2 <= m {
-        gemm_rows::<2, ZERO>(n, d, a, a_off + i, lda, b, b_off, ldb, c, c_off + i, ldc);
+        gemm_rows::<2, ZERO, FMA>(n, d, a, a_off + i, lda, b, b_off, ldb, c, c_off + i, ldc);
         i += 2;
     }
     if i < m {
-        gemm_rows::<1, ZERO>(n, d, a, a_off + i, lda, b, b_off, ldb, c, c_off + i, ldc);
+        gemm_rows::<1, ZERO, FMA>(n, d, a, a_off + i, lda, b, b_off, ldb, c, c_off + i, ldc);
     }
 }
 
@@ -840,7 +842,7 @@ pub(super) fn gemm_tiles<const MR: usize, const ZERO: bool>(
 /// `MR × d` strip of `A` stays in the L1 cache across the column tiles).
 #[allow(clippy::too_many_arguments)] // BLAS-style kernel signature
 #[inline(always)]
-fn gemm_rows<const MR: usize, const ZERO: bool>(
+fn gemm_rows<const MR: usize, const ZERO: bool, const FMA: bool>(
     n: usize,
     d: usize,
     a: &[f64],
@@ -857,7 +859,7 @@ fn gemm_rows<const MR: usize, const ZERO: bool>(
     if MR == 16 {
         // 16 × 8 tiles: sixteen accumulator vectors of the 32 AVX-512 registers
         while j + 8 <= n {
-            gemm_tile::<MR, 8, ZERO>(
+            gemm_tile::<MR, 8, ZERO, FMA>(
                 d,
                 a,
                 a_off,
@@ -873,7 +875,7 @@ fn gemm_rows<const MR: usize, const ZERO: bool>(
         }
     }
     while j + GEMM_NR <= n {
-        gemm_tile::<MR, GEMM_NR, ZERO>(
+        gemm_tile::<MR, GEMM_NR, ZERO, FMA>(
             d,
             a,
             a_off,
@@ -889,9 +891,9 @@ fn gemm_rows<const MR: usize, const ZERO: bool>(
     }
     let (bj, cj) = (b_off + j * ldb, c_off + j * ldc);
     match n - j {
-        3 => gemm_tile::<MR, 3, ZERO>(d, a, a_off, lda, b, bj, ldb, c, cj, ldc),
-        2 => gemm_tile::<MR, 2, ZERO>(d, a, a_off, lda, b, bj, ldb, c, cj, ldc),
-        1 => gemm_tile::<MR, 1, ZERO>(d, a, a_off, lda, b, bj, ldb, c, cj, ldc),
+        3 => gemm_tile::<MR, 3, ZERO, FMA>(d, a, a_off, lda, b, bj, ldb, c, cj, ldc),
+        2 => gemm_tile::<MR, 2, ZERO, FMA>(d, a, a_off, lda, b, bj, ldb, c, cj, ldc),
+        1 => gemm_tile::<MR, 1, ZERO, FMA>(d, a, a_off, lda, b, bj, ldb, c, cj, ldc),
         _ => {}
     }
 }
@@ -900,7 +902,7 @@ fn gemm_rows<const MR: usize, const ZERO: bool>(
 /// a[a_off + r + k·lda]`, `b(k, jn) = b[b_off + k + jn·ldb]`.
 #[allow(clippy::too_many_arguments)] // BLAS-style kernel signature
 #[inline(always)]
-fn gemm_tile<const MR: usize, const NR: usize, const ZERO: bool>(
+fn gemm_tile<const MR: usize, const NR: usize, const ZERO: bool, const FMA: bool>(
     d: usize,
     a: &[f64],
     a_off: usize,
@@ -928,7 +930,12 @@ fn gemm_tile<const MR: usize, const NR: usize, const ZERO: bool>(
         for (accj, bc) in acc.iter_mut().zip(&bcols) {
             let bk = bc[k];
             for r in 0..MR {
-                accj[r] = accj[r] + ak[r] * bk;
+                if FMA {
+                    // fast mode only (not Eigen's sequence): one rounding
+                    accj[r] = ak[r].mul_add(bk, accj[r]);
+                } else {
+                    accj[r] = accj[r] + ak[r] * bk;
+                }
             }
         }
     }
@@ -940,7 +947,11 @@ fn gemm_tile<const MR: usize, const NR: usize, const ZERO: bool>(
         for (accj, bc) in acc.iter_mut().zip(&bcols) {
             let bk = bc[d_end];
             for r in 0..MR {
-                accj[r] = accj[r] + bk * ak[r];
+                if FMA {
+                    accj[r] = bk.mul_add(ak[r], accj[r]);
+                } else {
+                    accj[r] = accj[r] + bk * ak[r];
+                }
             }
         }
     }

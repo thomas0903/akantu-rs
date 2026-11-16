@@ -12,7 +12,8 @@
 //! sequences that do not depend on the vector width (independent entries in
 //! the lanes, a separate multiply and add per term, no FMA: Rust never
 //! contracts `a * b + c`, and the `fma` target feature is never enabled
-//! here). This module compiles them a second and third time with AVX and
+//! here, except in the explicit fast mode `gemm_into_zero_fma`). This
+//! module compiles them a second and third time with AVX and
 //! AVX-512F enabled and calls the widest instance the CPU supports, so the
 //! results are bitwise those of the portable instance on every CPU
 //! (`dense::tests` compare every instance the test machine supports with
@@ -127,6 +128,70 @@ pub(crate) fn gemm_into_zero_with(
     dense::sparselu_gemm_into_zero(m, n, d, a, a_off, lda, b, b_off, ldb, c, c_off, ldc);
 }
 
+/// The fast mode of [`gemm_into_zero`] (`SparseLu::set_fused_multiply_add`):
+/// every term as a fused multiply-add (one rounding instead of two), so the
+/// result differs from Eigen's in the last bits. Needs AVX-512F or AVX2
+/// with FMA; on other CPUs it is [`gemm_into_zero`] (bitwise).
+#[allow(clippy::too_many_arguments)] // BLAS-style kernel signature
+pub(crate) fn gemm_into_zero_fma(
+    m: usize,
+    n: usize,
+    d: usize,
+    a: &[f64],
+    a_off: usize,
+    lda: usize,
+    b: &[f64],
+    b_off: usize,
+    ldb: usize,
+    c: &mut [f64],
+    c_off: usize,
+    ldc: usize,
+) {
+    #[cfg(target_arch = "x86_64")]
+    {
+        let fma = std::arch::is_x86_feature_detected!("fma");
+        if fma && std::arch::is_x86_feature_detected!("avx512f") {
+            // SAFETY: the CPU supports AVX-512F and FMA (checked on the
+            // lines above); the callee has no other precondition.
+            return unsafe {
+                x86::gemm_avx512_fma(m, n, d, a, a_off, lda, b, b_off, ldb, c, c_off, ldc)
+            };
+        }
+        if fma && std::arch::is_x86_feature_detected!("avx2") {
+            // SAFETY: the CPU supports AVX2 and FMA (checked above).
+            return unsafe {
+                x86::gemm_avx2_fma(m, n, d, a, a_off, lda, b, b_off, ldb, c, c_off, ldc)
+            };
+        }
+    }
+    gemm_into_zero(m, n, d, a, a_off, lda, b, b_off, ldb, c, c_off, ldc);
+}
+
+/// [`gemm_into_zero_fma`] when `fma`, else [`gemm_into_zero`].
+#[allow(clippy::too_many_arguments)] // BLAS-style kernel signature
+#[inline]
+pub(crate) fn gemm_into_zero_mode(
+    fma: bool,
+    m: usize,
+    n: usize,
+    d: usize,
+    a: &[f64],
+    a_off: usize,
+    lda: usize,
+    b: &[f64],
+    b_off: usize,
+    ldb: usize,
+    c: &mut [f64],
+    c_off: usize,
+    ldc: usize,
+) {
+    if fma {
+        gemm_into_zero_fma(m, n, d, a, a_off, lda, b, b_off, ldb, c, c_off, ldc);
+    } else {
+        gemm_into_zero(m, n, d, a, a_off, lda, b, b_off, ldb, c, c_off, ldc);
+    }
+}
+
 /// [`dense::gemv_tiles`] (`res += α·A·x`, Eigen's GEMV sequence per row)
 /// with the instance [`isa`].
 #[allow(clippy::too_many_arguments)] // BLAS-style kernel signature
@@ -231,7 +296,7 @@ mod x86 {
         c_off: usize,
         ldc: usize,
     ) {
-        gemm_tiles::<16, true>(m, n, d, a, a_off, lda, b, b_off, ldb, c, c_off, ldc);
+        gemm_tiles::<16, true, false>(m, n, d, a, a_off, lda, b, b_off, ldb, c, c_off, ldc);
     }
 
     /// `gemm_tiles` compiled with AVX: tiles of 8 rows (two vectors).
@@ -251,6 +316,46 @@ mod x86 {
         c_off: usize,
         ldc: usize,
     ) {
-        gemm_tiles::<8, true>(m, n, d, a, a_off, lda, b, b_off, ldb, c, c_off, ldc);
+        gemm_tiles::<8, true, false>(m, n, d, a, a_off, lda, b, b_off, ldb, c, c_off, ldc);
+    }
+
+    /// Fast mode: `gemm_tiles` with fused multiply-adds, AVX-512F.
+    #[target_feature(enable = "avx512f,fma")]
+    #[allow(clippy::too_many_arguments)] // BLAS-style kernel signature
+    pub(super) fn gemm_avx512_fma(
+        m: usize,
+        n: usize,
+        d: usize,
+        a: &[f64],
+        a_off: usize,
+        lda: usize,
+        b: &[f64],
+        b_off: usize,
+        ldb: usize,
+        c: &mut [f64],
+        c_off: usize,
+        ldc: usize,
+    ) {
+        gemm_tiles::<16, true, true>(m, n, d, a, a_off, lda, b, b_off, ldb, c, c_off, ldc);
+    }
+
+    /// Fast mode: `gemm_tiles` with fused multiply-adds, AVX2.
+    #[target_feature(enable = "avx2,fma")]
+    #[allow(clippy::too_many_arguments)] // BLAS-style kernel signature
+    pub(super) fn gemm_avx2_fma(
+        m: usize,
+        n: usize,
+        d: usize,
+        a: &[f64],
+        a_off: usize,
+        lda: usize,
+        b: &[f64],
+        b_off: usize,
+        ldb: usize,
+        c: &mut [f64],
+        c_off: usize,
+        ldc: usize,
+    ) {
+        gemm_tiles::<8, true, true>(m, n, d, a, a_off, lda, b, b_off, ldb, c, c_off, ldc);
     }
 }
