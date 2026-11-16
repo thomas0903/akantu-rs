@@ -449,6 +449,14 @@ fn agreement_extras(
 }
 
 /// Distributed explicit step and the per-step energies.
+///
+/// Since commit 26d0f8365 the lines carry extra fields (outside the timed
+/// phases; the digest is unchanged): `agreements_per_step` and
+/// `agreements_per_energies` (agreements of the collective error protocol
+/// per call, rank 0) and `agree_us_per_*_min` / `_max` (microseconds per
+/// call spent in them on the fastest and the slowest rank, from
+/// `akantu_comm::phase::agreement_stats`, gathered with two raw
+/// `all_reduce`s).
 pub fn explicit_step_dist_tet4(ctx: &Ctx) -> Result<CaseOut> {
     let mut out = CaseOut::default();
     let n = ctx.size.pick(6, 30, 60);
