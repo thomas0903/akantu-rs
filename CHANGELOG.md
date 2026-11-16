@@ -32,6 +32,23 @@ change of default results or of a public API raises the minor version.
   corrector, lumped solve, residual scatter and solution gather (the
   per-node and per-equation loops only for parts of at least 131,072
   nodes / 262,144 equations).
+- Threads in the per-point loops of more constitutive laws, bitwise equal
+  to one thread for every thread count, also on the error path (the same
+  error and the same law state as the serial loop):
+  `elastic_orthotropic`, `elastic_anisotropic`, `neohookean` (stress and
+  plane-stress `C33`), `plastic_linear_isotropic_hardening`,
+  `plastic_drucker_prager`, `mazars`, `plastic_mazars`, `marigo`, the
+  local loop of `mazars_non_local` / `marigo_non_local`,
+  `anisotropic_damage` (experimental and corrected models),
+  `viscoelastic_maxwell`, `sls_deviatoric`, `phasefield` (stress and
+  tangent), with their per-step hooks (plastic work, dissipated energy,
+  Maxwell branch update, thermal refresh). `docs/ARCHITECTURE.md`,
+  "Execution policy", lists the laws and why the others stay serial.
+- Threads in the explicit step of the heat transfer model
+  (`HeatTransferModel::{exec_policy, set_exec_policy}`): FE kernels, the
+  heat law's diffusivity and `D∇u` loops, the internal-flow scatter in the
+  serial order per node. `PhaseFieldModel::{exec_policy,
+  set_exec_policy}` puts the phase-field model's FE kernels on threads.
 - Fast-mode harness `akantu_validation::fast_mode` with the rules of
   `fixtures/fast_mode/`, and its demonstrator (the gradient kernel with
   fused multiply-adds under `Precision::Fast`).
@@ -88,6 +105,14 @@ change of default results or of a public API raises the minor version.
 
 ### Changed
 
+- `akantu_solid::materials::damage::DamageParent::{stress_kernel,
+  stress_kernel_from, parent_update_energies}`, `DamageFields::update_energies`
+  and `PlasticFields::update_energies` take the executor of the calling law
+  (`material::points_exec`) as their first argument.
+- The laws listed above return `Error::DimensionMismatch` when a block of
+  their per-point loops (gradient, stress, history) does not have the
+  expected number of components per point (before, such a block was
+  processed in chunks of the wrong size).
 - `DofManager::split_solution_per_dofs` returns `Error::OutOfRange` for a
   local equation outside the solution vector, where it used to panic.
 - `MaterialElastic::compute_stress` returns `Error::DimensionMismatch` when
