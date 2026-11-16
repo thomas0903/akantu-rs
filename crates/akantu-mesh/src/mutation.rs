@@ -139,6 +139,21 @@ enum Undo {
     },
     /// The facet mesh was created by this transaction.
     FacetsCreated,
+    /// The node synchronizer of a part before
+    /// [`MeshTransaction::replace_node_synchronizer`] (instead of a snapshot
+    /// of every synchronizer of the part; performance).
+    /// (Boxed: the entries of every journal stay small.)
+    NodeSynchronizer {
+        part: MeshPart,
+        old: Option<Box<crate::synchronizers::NodeSynchronizer>>,
+    },
+    /// The node lists of the element groups of a part before
+    /// [`MeshTransaction::rebuild_element_group_nodes`] (instead of a
+    /// snapshot of the whole group manager; performance).
+    GroupNodes {
+        part: MeshPart,
+        lists: Vec<(crate::group::NodeGroupId, Vec<Idx>)>,
+    },
     /// Copy-on-write snapshot of a part's mesh data, taken on the first
     /// [`MeshTransaction::data_mut`] access. Kept **in the journal**
     /// so that rollback restores it at its position: data-row
@@ -153,7 +168,7 @@ enum Undo {
     /// (journaled adjacency edit, [`MeshTransaction::set_element_data_row`]).
     DataElementRow {
         part: MeshPart,
-        name: String,
+        name: std::borrow::Cow<'static, str>,
         element: Element,
         old: Vec<Element>,
     },
@@ -161,7 +176,7 @@ enum Undo {
     /// ([`MeshTransaction::set_element_list_row`]).
     DataListRow {
         part: MeshPart,
-        name: String,
+        name: std::borrow::Cow<'static, str>,
         element: Element,
         old: Vec<Element>,
     },
@@ -169,7 +184,7 @@ enum Undo {
     /// dataset (truncate to `len`; remove the block / dataset if created).
     DataRows {
         part: MeshPart,
-        name: String,
+        name: std::borrow::Cow<'static, str>,
         ty: ElementType,
         ghost: GhostType,
         len: usize,
@@ -231,6 +246,19 @@ struct Saved {
     bbox: [Option<(BBox, BBox)>; 2],
 }
 
+/// The name of an adjacency dataset for the journal: the usual names
+/// borrowed, others copied (one allocation less per journaled row edit;
+/// performance).
+fn dataset_name(name: &str) -> std::borrow::Cow<'static, str> {
+    use crate::utils::{ELEMENT_TO_SUBELEMENT, MESH_TO_MESH_FACET, SUBELEMENT_TO_ELEMENT};
+    match name {
+        ELEMENT_TO_SUBELEMENT => std::borrow::Cow::Borrowed(ELEMENT_TO_SUBELEMENT),
+        SUBELEMENT_TO_ELEMENT => std::borrow::Cow::Borrowed(SUBELEMENT_TO_ELEMENT),
+        MESH_TO_MESH_FACET => std::borrow::Cow::Borrowed(MESH_TO_MESH_FACET),
+        other => std::borrow::Cow::Owned(other.to_owned()),
+    }
+}
+
 fn slot(part: MeshPart) -> usize {
     match part {
         MeshPart::Main => 0,
@@ -262,6 +290,12 @@ pub struct MeshTransaction<'m> {
     /// `MeshPart::Facets` consumers are registered: the facet mesh must not
     /// be created by this transaction (they could not follow it).
     facet_consumers: bool,
+    /// The state the transaction started from passed the cross-part check
+    /// ([`crate::utils::check_facet_mesh_consistency`]) and the domain
+    /// allows the restricted form: the adjacency references are read only
+    /// from the rows this transaction replaced or appended
+    /// ([`MeshTransaction::touched_rows`]).
+    restricted_check: bool,
 }
 
 impl std::fmt::Debug for MeshTransaction<'_> {
@@ -305,7 +339,7 @@ fn check_node(m: &Mesh, n: usize) -> Result<()> {
 }
 
 impl<'m> MeshTransaction<'m> {
-    fn new(mesh: &'m mut Mesh, facet_consumers: bool) -> Self {
+    fn new(mesh: &'m mut Mesh, facet_consumers: bool, restricted_check: bool) -> Self {
         let announced_nodes = mesh.nodes.len();
         Self {
             mesh,
@@ -316,7 +350,109 @@ impl<'m> MeshTransaction<'m> {
             recording_internal: false,
             announced_nodes,
             facet_consumers,
+            restricted_check,
         }
+    }
+
+    /// The adjacency rows this transaction replaced or appended
+    /// ([`crate::utils::TouchedRows`]), or `None` when the journal holds an
+    /// edit after which the restricted cross-part check proves nothing: a
+    /// removal (blocks shrink, every row is renumbered), a snapshot of a
+    /// part's mesh data (any row may have changed), or a facet mesh
+    /// created by the transaction; also `None` when more replaced rows than
+    /// an eighth of the facet mesh's `element_to_subelement` rows were
+    /// journaled (the full check is then the cheaper one).
+    fn touched_rows(&self) -> Option<crate::utils::TouchedRows> {
+        use crate::utils::{
+            AdjacencySet as A, ELEMENT_TO_SUBELEMENT, MESH_TO_MESH_FACET, SUBELEMENT_TO_ELEMENT,
+        };
+        let set = |part: MeshPart, name: &str| match (part, name) {
+            (MeshPart::Facets, ELEMENT_TO_SUBELEMENT) => Some(A::ElementToSubelement),
+            (MeshPart::Facets, SUBELEMENT_TO_ELEMENT) => Some(A::SubelementToElement),
+            (MeshPart::Main, MESH_TO_MESH_FACET) => Some(A::MeshToMeshFacet),
+            _ => None,
+        };
+        let mut t = crate::utils::TouchedRows::default();
+        for u in &self.journal {
+            match u {
+                Undo::Core { .. } | Undo::Data { .. } | Undo::FacetsCreated => return None,
+                Undo::DataElementRow {
+                    part,
+                    name,
+                    element,
+                    ..
+                }
+                | Undo::DataListRow {
+                    part,
+                    name,
+                    element,
+                    ..
+                } => {
+                    if let Some(a) = set(*part, name) {
+                        t.rows.push((a, *element));
+                    }
+                }
+                Undo::DataRows {
+                    part,
+                    name,
+                    ty,
+                    ghost,
+                    len,
+                    ..
+                } => {
+                    if let Some(a) = set(*part, name) {
+                        // one range per block, from its lowest appended row
+                        // (rows are appended one by one: a range per append
+                        // would read the block's tail once per append)
+                        match t
+                            .tails
+                            .iter_mut()
+                            .find(|(b, bt, bg, _)| *b == a && bt == ty && bg == ghost)
+                        {
+                            Some(e) => e.3 = e.3.min(*len),
+                            None => t.tails.push((a, *ty, *ghost, *len)),
+                        }
+                    }
+                }
+                Undo::Nodes { .. }
+                | Undo::Elements { .. }
+                | Undo::Reconnect { .. }
+                | Undo::Flag { .. }
+                | Undo::GlobalId { .. }
+                | Undo::GlobalIdsCreated { .. }
+                | Undo::NbGlobalNodes { .. }
+                | Undo::Prank { .. }
+                | Undo::GroupNodes { .. }
+                | Undo::NodeSynchronizer { .. } => {}
+            }
+        }
+        // a transaction that touched a large share of the rows (a
+        // whole-mesh insertion) is checked in full: cheaper than the
+        // touched rows, and it proves more
+        let facet_rows = self.mesh.mesh_facets().map_or(0, |f| {
+            f.data()
+                .element_lists(crate::utils::ELEMENT_TO_SUBELEMENT)
+                .map_or(0, |m| m.as_map().iter_all().map(|(_, _, a)| a.len()).sum())
+        });
+        if t.rows.len() > facet_rows / 8 {
+            return None;
+        }
+        // a row edited several times is read once
+        let mut seen = std::collections::HashSet::with_capacity(t.rows.len());
+        t.rows.retain(|r| seen.insert(*r));
+        Some(t)
+    }
+
+    /// The cross-part check of the mesh as it is now: restricted to the
+    /// touched rows when the transaction started from a checked state and
+    /// its journal allows it, in full otherwise.
+    fn check_facet_consistency(&self) -> Result<()> {
+        let touched = if self.restricted_check {
+            self.touched_rows()
+        } else {
+            None
+        };
+        crate::utils::check_facet_mesh_consistency_rows(self.mesh, touched.as_ref())
     }
 
     /// Read access to the mesh being modified.
@@ -589,7 +725,17 @@ impl<'m> MeshTransaction<'m> {
         let m = part_mut(self.mesh, part)?;
         let s = &mut self.saved.groups[slot(part)];
         if s.is_none() {
-            *s = Some(m.groups.clone());
+            // the snapshot is the state before the transaction: node lists
+            // rebuilt earlier in it are put back in the copy
+            let mut g = m.groups.clone();
+            for u in self.journal.iter().rev() {
+                if let Undo::GroupNodes { part: p, lists } = u
+                    && *p == part
+                {
+                    g.restore_node_lists(lists);
+                }
+            }
+            *s = Some(g);
         }
         Ok(&mut m.groups)
     }
@@ -614,9 +760,44 @@ impl<'m> MeshTransaction<'m> {
         let m = part_mut(self.mesh, part)?;
         let s = &mut self.saved.synchronizers[slot(part)];
         if s.is_none() {
-            *s = Some(m.synchronizers.clone());
+            // the snapshot is the state before the transaction: a node
+            // synchronizer replaced earlier in it is put back in the copy
+            let mut copy = m.synchronizers.clone();
+            for u in &self.journal {
+                if let Undo::NodeSynchronizer { part: p, old } = u
+                    && *p == part
+                {
+                    // the first replacement holds the original
+                    copy.node = old.as_deref().cloned();
+                    break;
+                }
+            }
+            *s = Some(copy);
         }
         Ok(&mut m.synchronizers)
+    }
+
+    /// Replace the node synchronizer of `part` (the distributed cohesive
+    /// hook's rebuilt node schemes); journaled: the replaced synchronizer
+    /// is kept for the rollback, the other synchronizers of the part are
+    /// not copied.
+    ///
+    /// # Errors
+    /// An absent part.
+    pub fn replace_node_synchronizer(
+        &mut self,
+        part: MeshPart,
+        node: Option<crate::synchronizers::NodeSynchronizer>,
+    ) -> Result<()> {
+        let m = part_mut(self.mesh, part)?;
+        let old = std::mem::replace(&mut m.synchronizers.node, node);
+        if self.saved.synchronizers[slot(part)].is_none() {
+            self.journal.push(Undo::NodeSynchronizer {
+                part,
+                old: old.map(Box::new),
+            });
+        }
+        Ok(())
     }
 
     /// Ghost counters of `part` (snapshot on first access).
@@ -737,7 +918,7 @@ impl<'m> MeshTransaction<'m> {
         slot.copy_from_slice(row);
         self.journal.push(Undo::DataElementRow {
             part,
-            name: name.to_owned(),
+            name: dataset_name(name),
             element,
             old,
         });
@@ -762,7 +943,7 @@ impl<'m> MeshTransaction<'m> {
         let old = std::mem::replace(&mut slot[0], row);
         self.journal.push(Undo::DataListRow {
             part,
-            name: name.to_owned(),
+            name: dataset_name(name),
             element,
             old,
         });
@@ -814,7 +995,7 @@ impl<'m> MeshTransaction<'m> {
         }
         self.journal.push(Undo::DataRows {
             part,
-            name: name.to_owned(),
+            name: dataset_name(name),
             ty,
             ghost,
             len,
@@ -849,7 +1030,7 @@ impl<'m> MeshTransaction<'m> {
         block.try_push_tuple(&[row])?;
         self.journal.push(Undo::DataRows {
             part,
-            name: name.to_owned(),
+            name: dataset_name(name),
             ty,
             ghost,
             len,
@@ -1180,7 +1361,7 @@ impl<'m> MeshTransaction<'m> {
                 self.announced_nodes
             )));
         }
-        crate::utils::check_facet_mesh_consistency(self.mesh)
+        self.check_facet_consistency()
     }
 
     /// Stage 1 local dependents (upstream `ElementGroup::onNodesAdded` for
@@ -1228,8 +1409,13 @@ impl<'m> MeshTransaction<'m> {
     /// # Errors
     /// An absent part.
     pub fn rebuild_element_group_nodes(&mut self, part: MeshPart) -> Result<()> {
-        self.groups_mut(part)?;
         let m = part_mut(self.mesh, part)?;
+        if self.saved.groups[slot(part)].is_none() {
+            // only the node lists change: they are journaled instead of a
+            // snapshot of every group
+            let lists = m.groups.element_group_node_lists();
+            self.journal.push(Undo::GroupNodes { part, lists });
+        }
         m.groups.rebuild_element_group_nodes(&m.connectivities);
         Ok(())
     }
@@ -1332,6 +1518,16 @@ impl<'m> MeshTransaction<'m> {
                 }
                 Undo::FacetsCreated => {
                     mesh.mesh_facets = None;
+                }
+                Undo::NodeSynchronizer { part, old } => {
+                    if let Ok(m) = part_mut(mesh, part) {
+                        m.synchronizers.node = old.map(|b| *b);
+                    }
+                }
+                Undo::GroupNodes { part, lists } => {
+                    if let Ok(m) = part_mut(mesh, part) {
+                        m.groups.restore_node_lists(&lists);
+                    }
                 }
                 Undo::Data { part, data } => {
                     if let Ok(m) = part_mut(mesh, part) {
@@ -1783,7 +1979,11 @@ impl SharedMesh {
             }
         };
         let facet_consumers = order.iter().any(|(_, _, _, p)| *p == MeshPart::Facets);
-        let mut tx = MeshTransaction::new(&mut guard, facet_consumers);
+        let restricted = {
+            let s = self.state()?;
+            !s.full_consistency_checks && s.facets_verified == Some(s.committed)
+        };
+        let mut tx = MeshTransaction::new(&mut guard, facet_consumers, restricted);
 
         // ---- stage 1: topology + local dependents + schedule, agreed -------
         let hook_present = distributed.is_some();
@@ -1933,6 +2133,9 @@ impl SharedMesh {
             let mut s = self.state()?;
             s.committed += 1;
             s.phase = Phase::Dispatching;
+            // the committed state passed the cross-part check (stage 1 and,
+            // with a hook, after it)
+            s.facets_verified = Some(s.committed);
             s.committed
         };
         if let Some(h) = distributed {
@@ -2079,13 +2282,19 @@ impl SharedMesh {
                 ));
             }
         }
+        // A set-up operation is not transactional: one that fails part-way
+        // keeps its edits. The mesh counts as checked again only when the
+        // operation and the check below succeed; until then every mutation
+        // takes the full cross-part check.
+        self.state()?.facets_verified = None;
         let mut g = self.try_write()?;
         let before = g.revision;
         let _events = op(&mut g)?;
         // The set-up operation must leave the facet mesh sharing the
-        // parent's node numbering: rejected before the
-        // revision step (the edit itself cannot be undone; every later
-        // mutation reports the same inconsistency at stage 1).
+        // parent's node numbering: rejected before the revision step (the
+        // edit itself cannot be undone; the flag cleared above makes every
+        // later mutation run the full check, which reports the same
+        // inconsistency at stage 1).
         crate::utils::check_facet_mesh_consistency(&g)?;
         // exactly one revision per set-up operation, whether or not `op`
         // advanced it itself
@@ -2093,6 +2302,7 @@ impl SharedMesh {
         drop(g);
         let mut s = self.state()?;
         s.committed += 1;
+        s.facets_verified = Some(s.committed);
         Ok(s.committed)
     }
 }
@@ -2103,6 +2313,11 @@ fn own_error(r: Result<()>) -> Error {
     r.err()
         .unwrap_or_else(|| Error::Mesh("unreachable: failed agreement returned Ok".into()))
 }
+
+/// The journal entries stay small (a whole-mesh insertion journals
+/// millions of them; a large inline variant made it slower).
+#[cfg(test)]
+const _: () = assert!(std::mem::size_of::<Undo>() <= 64);
 
 #[cfg(test)]
 mod tests {

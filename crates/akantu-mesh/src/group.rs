@@ -137,6 +137,43 @@ fn sort_unique(v: &mut [Idx]) -> usize {
     n
 }
 
+/// [`sort_unique`] (the same values in the same order: ascending, without
+/// duplicates) through a bit set over the node range when the values are
+/// non-negative and the range is not much larger than the list (linear
+/// time instead of a sort; performance); `marks` is a reusable buffer.
+fn sort_unique_dense(v: &mut [Idx], marks: &mut Vec<u64>) -> usize {
+    let mut max = 0usize;
+    for &x in v.iter() {
+        match usize::try_from(x) {
+            Ok(u) => max = max.max(u),
+            Err(_) => return sort_unique(v),
+        }
+    }
+    let words = max / 64 + 1;
+    if words > v.len() + 1024 {
+        return sort_unique(v);
+    }
+    marks.clear();
+    marks.resize(words, 0);
+    for &x in v.iter() {
+        // non-negative: checked above
+        let u = x.unsigned_abs() as usize;
+        marks[u / 64] |= 1 << (u % 64);
+    }
+    let mut n = 0;
+    for (w, &bits) in marks.iter().enumerate() {
+        let mut b = bits;
+        while b != 0 {
+            let t = b.trailing_zeros() as usize;
+            // below `max + 1`, which came from an `Idx`
+            v[n] = Idx::try_from(w * 64 + t).unwrap_or(Idx::MAX);
+            n += 1;
+            b &= b - 1;
+        }
+    }
+    n
+}
+
 fn node_array(nodes: Vec<Idx>) -> SharedArray<Idx> {
     // one component: `from_vec` cannot fail
     SharedArray::new(Array::from_vec(nodes, 1).unwrap_or_else(|_| Array::new(1)))
@@ -805,11 +842,15 @@ impl GroupManager {
             element_groups,
             ..
         } = self;
+        // buffers shared by the groups (performance: one allocation per
+        // rebuild, not per group)
+        let mut nodes: Vec<Idx> = Vec::new();
+        let mut marks: Vec<u64> = Vec::new();
         for g in element_groups.values() {
             let Some(Some(ng)) = node_store.get_mut(g.node_group.0) else {
                 continue;
             };
-            ng.clear();
+            nodes.clear();
             for (ty, ghost, els) in g.elements.as_map().iter_all() {
                 // an absent block is skipped; a protocol violation panics
                 // instead of being taken for absence
@@ -819,12 +860,40 @@ impl GroupManager {
                         if let Ok(e) = try_to_usize(e)
                             && e < conn.len()
                         {
-                            ng.extend_nodes(conn.tuple(e));
+                            nodes.extend_from_slice(conn.tuple(e));
                         }
                     }
                 }
             }
-            ng.optimize();
+            let n = sort_unique_dense(&mut nodes, &mut marks);
+            nodes.truncate(n);
+            ng.clear();
+            ng.extend_nodes(&nodes);
+        }
+    }
+
+    /// Copies of the node lists of the element groups' node groups (the
+    /// journal of [`GroupManager::rebuild_element_group_nodes`] in a mesh
+    /// transaction).
+    pub(crate) fn element_group_node_lists(&self) -> Vec<(NodeGroupId, Vec<Idx>)> {
+        self.element_groups
+            .values()
+            .filter_map(|g| {
+                let ng = self.node_store.get(g.node_group.0)?.as_ref()?;
+                Some((g.node_group, ng.node_list()))
+            })
+            .collect()
+    }
+
+    /// Put back node lists taken by
+    /// [`GroupManager::element_group_node_lists`] (in place: the lists keep
+    /// their allocations; a destroyed group is skipped).
+    pub(crate) fn restore_node_lists(&mut self, lists: &[(NodeGroupId, Vec<Idx>)]) {
+        for (id, nodes) in lists {
+            if let Some(Some(ng)) = self.node_store.get_mut(id.0) {
+                ng.clear();
+                ng.extend_nodes(nodes);
+            }
         }
     }
 
@@ -1257,6 +1326,18 @@ impl GroupManager {
         let mut g = self.element_group_mut(name)?;
         let dim = g.dimension;
         let nodes = g.node_group.node_list();
+        // membership of the node group (performance: a table instead of a
+        // scan of the list per node; the same answers)
+        let mut member: Vec<bool> = Vec::new();
+        for &n in &nodes {
+            if let Ok(u) = try_to_usize(n) {
+                if u >= member.len() {
+                    member.resize(u + 1, false);
+                }
+                member[u] = true;
+            }
+        }
+        let in_group = |c: &Idx| try_to_usize(*c).is_ok_and(|u| member.get(u) == Some(&true));
         let mut seen = std::collections::BTreeSet::new();
         let mut add = Vec::new();
         for &n in &nodes {
@@ -1275,7 +1356,7 @@ impl GroupManager {
                     continue;
                 }
                 let conn = connectivities.element_ref(el)?;
-                if conn.iter().all(|c| nodes.contains(c)) {
+                if conn.iter().all(in_group) {
                     add.push(el);
                 }
             }
@@ -1411,6 +1492,44 @@ impl GroupManager {
 #[cfg(test)]
 mod tests {
     use super::*;
+
+    /// The bit-set form of the sorted unique list gives the values and the
+    /// order of the sort, also with negative values (sort fallback), wide
+    /// ranges (sort fallback), duplicates and empty lists.
+    #[test]
+    fn sort_unique_dense_is_the_sort() {
+        let mut state = 0x9e37_79b9_7f4a_7c15_u64;
+        let mut next = || {
+            state ^= state << 13;
+            state ^= state >> 7;
+            state ^= state << 17;
+            state
+        };
+        let mut marks = Vec::new();
+        for case in 0..400 {
+            let len = usize::try_from(next() % 300).unwrap();
+            let range = match case % 4 {
+                0 => 50,
+                1 => 5_000,
+                2 => 1 << 30,
+                _ => 3,
+            };
+            let mut v: Vec<Idx> = (0..len)
+                .map(|_| {
+                    let x = Idx::try_from(next() % range).unwrap();
+                    if case % 7 == 0 && next() % 5 == 0 {
+                        -x - 1
+                    } else {
+                        x
+                    }
+                })
+                .collect();
+            let mut w = v.clone();
+            let n = sort_unique(&mut v);
+            let m = sort_unique_dense(&mut w, &mut marks);
+            assert_eq!(&v[..n], &w[..m], "case {case}");
+        }
+    }
 
     #[test]
     fn groups() {

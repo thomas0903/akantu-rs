@@ -154,6 +154,28 @@ change of default results or of a public API raises the minor version.
   route once per block, the copy plan after an insertion is built in
   linear time, and the linear law's effective norm uses fixed-size loops
   (`docs/BENCHMARKS.md`, "The insertion check").
+- The cohesive insertion step and the mesh operations under it are faster
+  with bitwise identical results, serial and distributed
+  (`docs/BENCHMARKS.md`, "The insertion step"): in release builds a mesh
+  transaction that starts from a state that passed the cross-part check
+  checks the adjacency references only in the rows it replaced or appended
+  (debug builds keep the full check; `SharedMesh::set_full_consistency_checks`
+  selects it explicitly); element-group node lists and the node
+  synchronizer are journaled instead of snapshotted; the stress copy plan
+  follows an insertion instead of being rebuilt; the cohesive laws keep
+  their residual and energy work arrays between steps;
+  a distributed check without any flagged facet skips the insertion-order
+  exchanges; the DOF manager's global-number exchange indexes the
+  equations of each node once; `plan_facets`, `transfer_physical_names`
+  and `fill_from_node_group` lost their quadratic searches.
+- `SolidMechanicsModelCohesive::ext` is a `Box<CohesiveExtension>` (field
+  access unchanged through `Deref`; a destructuring pattern needs
+  `&mut *model.ext`): the model is 11.6 kB instead of 38 kB by value, and
+  the benchmark suite's insertion case runs in a debug `mumps` build on a
+  1.5 MiB stack instead of 2 MiB.
+- `CohesiveSynchronizers::element_to_prank` is an
+  `Arc<ElementTypeMapArray<Rank>>` (shared, never changed after
+  construction) instead of an `ElementTypeMapArray<Rank>`.
 - Mesh distribution and the communication layer are faster with
   bitwise identical results (`docs/BENCHMARKS.md`, "Distribution and the
   communication layer"): the dual graph of the partitioners counts shared
@@ -237,6 +259,11 @@ change of default results or of a public API raises the minor version.
 - Python Dirichlet functors (`__call__` per node) enter Python once per
   group instead of once per node (40,401 nodes: 31.5 → 23.4 ms per
   `applyBC`; with `callNodes` 1.0 ms).
+
+### Added (insertion step)
+
+- `SharedMesh::set_full_consistency_checks(bool)` and
+  `MeshTransaction::replace_node_synchronizer`.
 
 ## [0.1.0] - Unreleased
 
