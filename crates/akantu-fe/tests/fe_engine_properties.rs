@@ -780,3 +780,58 @@ fn gradient_view_matches_the_array_gradient_bitwise() {
         }
     }
 }
+
+/// The consistent mass reuses a point matrix while the density bits repeat:
+/// with densities that alternate between elements (including `+0`/`−0` and
+/// a NaN with a payload), every element's matrix equals the one computed
+/// with that element's density everywhere.
+#[test]
+fn mass_point_matrix_reuse_follows_the_density_bits() {
+    let values = [
+        2.5,
+        2.5,
+        3.0,
+        -0.0,
+        0.0,
+        2.5,
+        f64::from_bits(0xfff8_0000_0000_0abc),
+        3.0,
+    ];
+    for ty in common::test_element_types() {
+        let mesh = common::fe_test_mesh(ty);
+        let fe = FeEngine::with_precomputation(
+            &mesh,
+            None,
+            ElementKind::Regular,
+            ShapeFamily::Lagrange,
+            "fe",
+        )
+        .unwrap();
+        let nb_dof = 2;
+        let pick = |e: usize, d: usize| values[(e + d) % values.len()];
+        let mut mixed = |m: &mut [f64], el: Element| -> akantu_core::Result<()> {
+            for (i, x) in m.iter_mut().enumerate() {
+                *x = pick(usize::try_from(el.index()).unwrap(), i % nb_dof);
+            }
+            Ok(())
+        };
+        let mm = fe
+            .field_matrix_elemental(&mesh, &mut mixed, nb_dof, ty, G)
+            .unwrap();
+        for e in 0..mesh.nb_element(ty, G) {
+            let mut uniform = |m: &mut [f64], _: Element| -> akantu_core::Result<()> {
+                for (i, x) in m.iter_mut().enumerate() {
+                    *x = pick(e, i % nb_dof);
+                }
+                Ok(())
+            };
+            let mu = fe
+                .field_matrix_elemental(&mesh, &mut uniform, nb_dof, ty, G)
+                .unwrap();
+            let (a, b) = (mm.tuple(e), mu.tuple(e));
+            for (x, y) in a.iter().zip(b) {
+                assert_eq!(x.to_bits(), y.to_bits(), "{} element {e}", ty.name());
+            }
+        }
+    }
+}

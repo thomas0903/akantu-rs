@@ -222,10 +222,23 @@ impl FeEngine {
             let mut local = vec![0.0; nq * l2];
             let mut nv = vec![0.0; nb_dof * lmat];
             let mut nt = vec![0.0; lmat * nb_dof];
+            // The point matrix at `q` depends only on the shapes at `q`
+            // (the same for every element) and on `rho(e, q)`: it is
+            // recomputed only when the bits of `rho` differ from those it
+            // was last computed with (a uniform density computes each point
+            // matrix once; the same operands give the same bits).
+            let mut rho_of = vec![0u64; nq * nb_dof];
+            let mut valid = vec![false; nq];
             let fs = field.as_slice();
             let o = out.as_mut_slice();
             for e in 0..ne {
                 for q in 0..nq {
+                    let t = e * nq + q;
+                    let rho = &fs[t * nb_dof..(t + 1) * nb_dof];
+                    let cached = &mut rho_of[q * nb_dof..(q + 1) * nb_dof];
+                    if valid[q] && rho.iter().zip(cached.iter()).all(|(r, c)| r.to_bits() == *c) {
+                        continue;
+                    }
                     let s = &shapes[q * nn..(q + 1) * nn];
                     nv.fill(0.0);
                     for d in 0..nb_dof {
@@ -233,8 +246,6 @@ impl FeEngine {
                             nv[d + (k * nb_dof + d) * nb_dof] = sk;
                         }
                     }
-                    let t = e * nq + q;
-                    let rho = &fs[t * nb_dof..(t + 1) * nb_dof];
                     // Nt = N^T; Nt(d) *= rho(d)
                     for i in 0..lmat {
                         for d in 0..nb_dof {
@@ -242,6 +253,10 @@ impl FeEngine {
                         }
                     }
                     point.eval(&nt, &nv, &mut local[q * l2..(q + 1) * l2])?;
+                    for (c, r) in cached.iter_mut().zip(rho) {
+                        *c = r.to_bits();
+                    }
+                    valid[q] = true;
                 }
                 integral.eval(&local, &jac[e * nq..(e + 1) * nq], &mut o[e * l2..(e + 1) * l2])?;
             }

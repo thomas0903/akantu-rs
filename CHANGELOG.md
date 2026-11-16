@@ -6,6 +6,32 @@ All notable changes to akantu-rs are recorded in this file. The format follows
 [semantic versioning](https://semver.org/spec/v2.0.0.html); before 1.0, a
 change of default results or of a public API raises the minor version.
 
+## [Unreleased]
+
+### Added
+
+- `akantu_core::eigen_kernels`: `SliceProduct` (a product of slice operands
+  with its Eigen route, strides and kernel decided once; `eval` gives the
+  bits of `eigen_gebp::product_into`), `product_slices`, and
+  `fast_mode` (order-free dot and GEMM variants for the fast mode of
+  D-122; not called by the library). `akantu_fe::eigen::prepare` (the
+  `SliceProduct` of two `Dims`), `akantu_fe::kernels::{
+  shape_derivatives_product, shape_derivatives_with}`.
+- `akantu_core::eigen_order::{redux_tree_recursive, TREE_LEVELS_MAX}`;
+  `akantu_core::eigen_gebp::route` is a `const fn`.
+
+### Changed
+
+- Small dense products and Eigen-order reductions are faster with bitwise
+  identical results: the halving-tree reduction is non-recursive and
+  inlined, fixed-size tensor products select their route at compile time,
+  the FE products of slices run fixed-order kernels (one per route and
+  depth class), and the FE per-element loops decide each product once.
+- `FeEngine::field_matrix_elemental` (consistent mass) integrates each
+  element's point matrices as they are computed instead of materialising
+  all of them first (memory `nq·(nb_dof·nn)²` instead of
+  `ne·nq·(nb_dof·nn)²` reals; 35 k `_tetrahedron_10` needed 4.4 GB).
+
 ## [0.1.0] - Unreleased
 
 The initial public state.
