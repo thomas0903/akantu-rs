@@ -160,7 +160,7 @@ enum Undo {
     /// (journaled adjacency edit, [`MeshTransaction::set_element_data_row`]).
     DataElementRow {
         part: MeshPart,
-        name: String,
+        name: std::borrow::Cow<'static, str>,
         element: Element,
         old: Vec<Element>,
     },
@@ -168,7 +168,7 @@ enum Undo {
     /// ([`MeshTransaction::set_element_list_row`]).
     DataListRow {
         part: MeshPart,
-        name: String,
+        name: std::borrow::Cow<'static, str>,
         element: Element,
         old: Vec<Element>,
     },
@@ -176,7 +176,7 @@ enum Undo {
     /// dataset (truncate to `len`; remove the block / dataset if created).
     DataRows {
         part: MeshPart,
-        name: String,
+        name: std::borrow::Cow<'static, str>,
         ty: ElementType,
         ghost: GhostType,
         len: usize,
@@ -236,6 +236,19 @@ struct Saved {
     synchronizers: [Option<MeshSynchronizers>; 2],
     ghosts_counters: [Option<ElementTypeMapArray<Idx>>; 2],
     bbox: [Option<(BBox, BBox)>; 2],
+}
+
+/// The name of an adjacency dataset for the journal: the usual names
+/// borrowed, others copied (one allocation less per journaled row edit;
+/// performance).
+fn dataset_name(name: &str) -> std::borrow::Cow<'static, str> {
+    use crate::utils::{ELEMENT_TO_SUBELEMENT, MESH_TO_MESH_FACET, SUBELEMENT_TO_ELEMENT};
+    match name {
+        ELEMENT_TO_SUBELEMENT => std::borrow::Cow::Borrowed(ELEMENT_TO_SUBELEMENT),
+        SUBELEMENT_TO_ELEMENT => std::borrow::Cow::Borrowed(SUBELEMENT_TO_ELEMENT),
+        MESH_TO_MESH_FACET => std::borrow::Cow::Borrowed(MESH_TO_MESH_FACET),
+        other => std::borrow::Cow::Owned(other.to_owned()),
+    }
 }
 
 fn slot(part: MeshPart) -> usize {
@@ -338,7 +351,9 @@ impl<'m> MeshTransaction<'m> {
     /// edit after which the restricted cross-part check proves nothing: a
     /// removal (blocks shrink, every row is renumbered), a snapshot of a
     /// part's mesh data (any row may have changed), or a facet mesh
-    /// created by the transaction.
+    /// created by the transaction; also `None` when more replaced rows than
+    /// an eighth of the facet mesh's `element_to_subelement` rows were
+    /// journaled (the full check is then the cheaper one).
     fn touched_rows(&self) -> Option<crate::utils::TouchedRows> {
         use crate::utils::{
             AdjacencySet as A, ELEMENT_TO_SUBELEMENT, MESH_TO_MESH_FACET, SUBELEMENT_TO_ELEMENT,
@@ -401,6 +416,17 @@ impl<'m> MeshTransaction<'m> {
                 | Undo::Prank { .. }
                 | Undo::GroupNodes { .. } => {}
             }
+        }
+        // a transaction that touched a large share of the rows (a
+        // whole-mesh insertion) is checked in full: cheaper than the
+        // touched rows, and it proves more
+        let facet_rows = self.mesh.mesh_facets().map_or(0, |f| {
+            f.data()
+                .element_lists(crate::utils::ELEMENT_TO_SUBELEMENT)
+                .map_or(0, |m| m.as_map().iter_all().map(|(_, _, a)| a.len()).sum())
+        });
+        if t.rows.len() > facet_rows / 8 {
+            return None;
         }
         // a row edited several times is read once
         let mut seen = std::collections::HashSet::with_capacity(t.rows.len());
@@ -848,7 +874,7 @@ impl<'m> MeshTransaction<'m> {
         slot.copy_from_slice(row);
         self.journal.push(Undo::DataElementRow {
             part,
-            name: name.to_owned(),
+            name: dataset_name(name),
             element,
             old,
         });
@@ -873,7 +899,7 @@ impl<'m> MeshTransaction<'m> {
         let old = std::mem::replace(&mut slot[0], row);
         self.journal.push(Undo::DataListRow {
             part,
-            name: name.to_owned(),
+            name: dataset_name(name),
             element,
             old,
         });
@@ -925,7 +951,7 @@ impl<'m> MeshTransaction<'m> {
         }
         self.journal.push(Undo::DataRows {
             part,
-            name: name.to_owned(),
+            name: dataset_name(name),
             ty,
             ghost,
             len,
@@ -960,7 +986,7 @@ impl<'m> MeshTransaction<'m> {
         block.try_push_tuple(&[row])?;
         self.journal.push(Undo::DataRows {
             part,
-            name: name.to_owned(),
+            name: dataset_name(name),
             ty,
             ghost,
             len,
