@@ -51,6 +51,7 @@ use akantu_core::enums::{
     NonLinearSolverType, TimeStepSolverType,
 };
 use akantu_core::error::if_present;
+use akantu_core::exec::{Exec, ExecPolicy};
 use akantu_core::tensor::MatrixX;
 use akantu_core::{
     Array, Element, ElementType, ElementTypeMapArray, Error, GhostType, Id, Idx, Real, Result,
@@ -568,6 +569,10 @@ impl SolidMechanicsModel {
             let dim = physics.base.spatial_dimension;
             physics.base.fems.register(FE_ENGINE_NAME, &m, dim)?;
         }
+        // the process default execution policy (D-123)
+        let exec = Exec::new(ExecPolicy::process_default()?)?;
+        physics.base.fems.set_exec(&exec);
+        solver.dof_manager.set_exec(exec);
         let dumpers = SmmDumpers::new(id, physics.base.spatial_dimension)?;
         physics.time_step = solver.time_step(None).unwrap_or(0.0);
         Ok(Self {
@@ -596,7 +601,33 @@ impl SolidMechanicsModel {
     pub fn init_dof_manager(&mut self, dof_manager_type: &str) -> Result<()> {
         let comm = self.physics.base.mesh.read()?.communicator().clone();
         let id = self.physics.base.id.clone();
-        self.solver.init_dof_manager(dof_manager_type, &id, &comm)
+        self.solver.init_dof_manager(dof_manager_type, &id, &comm)?;
+        let exec = self.physics.base.fems.exec().clone();
+        self.solver.dof_manager.set_exec(exec);
+        Ok(())
+    }
+
+    /// The execution policy of the model's kernels (D-123): precision
+    /// mode, threads, SIMD level. A new model takes
+    /// [`ExecPolicy::process_default`].
+    #[must_use]
+    pub fn exec_policy(&self) -> ExecPolicy {
+        self.physics.base.fems.exec().policy()
+    }
+
+    /// Set the execution policy of the model's kernels: its FE engines, its
+    /// DOF manager's integration-scheme loops, its laws' per-point loops and
+    /// its internal-force assembly. May be called at any time between two
+    /// steps. With [`akantu_core::exec::Precision::Bitwise`] every result is
+    /// bitwise the same for every thread count and SIMD level.
+    ///
+    /// # Errors
+    /// The operating system refuses the threads.
+    pub fn set_exec_policy(&mut self, policy: ExecPolicy) -> Result<()> {
+        let exec = Exec::new(policy)?;
+        self.physics.base.fems.set_exec(&exec);
+        self.solver.dof_manager.set_exec(exec);
+        Ok(())
     }
 
     /// Upstream `initFull(options)` (SMM-002, MODEL-002): method; default

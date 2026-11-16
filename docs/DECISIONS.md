@@ -2140,6 +2140,136 @@ Consequence: the rule "no fast-math of any kind" of `AGENTS.md` holds for
 the default path. Code of the fast mode is marked as such and has its own
 tests against the default path.
 
+## D-123: Execution policy: precision mode, threads, SIMD level
+
+2026-11-16. Extends D-017 and implements the switch of D-122.
+
+- **One policy per model.** `akantu_core::exec::ExecPolicy` holds the
+  precision mode (`Bitwise`, the default, or `Fast`), the thread count
+  (default 1) and the SIMD level (detected once per process). A model
+  copies `ExecPolicy::process_default()` when it is created and can change
+  it between steps (`SolidMechanicsModel::set_exec_policy`); it hands an
+  `Exec` (the policy with its thread pool) to its FE engines, its DOF
+  manager and, through `ModelServices::exec`, to its laws. The process
+  default comes from `AKANTU_NUM_THREADS`, `AKANTU_PRECISION`,
+  `AKANTU_SIMD` (and `AKANTU_EXEC_GRAIN`), read on first use, or from
+  `ExecPolicy::set_process_default` (Python: `akantu.setNumThreads`,
+  `setPrecision`, `setSimdLevel`) before the models are created. An
+  invalid variable makes model creation fail. Tests set the policy on
+  their own model, never the process default, so tests running in
+  parallel threads of one process do not race.
+- **A kernel reads the policy once per batch**: the engine's or the
+  model's `Exec` is passed to the batch, which picks its variant (fast
+  mode, SIMD level) and splits its work once; nothing is read per
+  element.
+- **The invariant, tested.** In `Bitwise` every result is identical for
+  every thread count and every SIMD level. Threads are therefore part of
+  the default path wherever every sum keeps its serial order:
+  independent outputs (per element, per quadrature point, per equation)
+  are split into contiguous parts (`Exec::for_each`, any split gives the
+  same bits); an element-to-node assembly uses a node-ordered table
+  (`NodeScatter`: per node, its contributions `(element, local node)` in
+  the serial order; threads own disjoint node ranges), cached per block
+  and checked against the connectivity before every use (topology
+  revision and filter unchanged, else row-by-row comparison, else
+  rebuilt), so that cohesive insertion and every other topology change
+  rebuild it; a global reduction computes its terms in parallel and sums
+  them in the serial order (`Exec::sum_in_order`), in another order only
+  under `Fast`. `AKANTU_EXEC_GRAIN=finest` splits every batch as finely as
+  possible, for running test suites with many small parts.
+- **Pool: a small pool on `std::thread`** (`exec/spin.rs`), one per
+  thread count per process, shared by all models: the caller takes part in
+  the region; participant `i` takes the parts of the `i`-th contiguous
+  block first and then the leftovers of the others, so a thread keeps its
+  elements from one region to the next; a worker joins a region only while
+  it is open, and the caller, once no part is left, closes it and waits
+  only for the workers inside (a worker that wakes late skips it); idle
+  workers spin for 5 ms and then park (a region that has to wake parked
+  workers cost its caller 18–31 µs of futex wake-up on the screening
+  machine; the serial stretches of an explicit step last about a
+  millisecond). Chosen over `rayon` by the measured cost of one
+  region (`scripts/perf/exec/pool-overhead`; empty regions and regions of
+  10–100 µs of work, overhead above the ideal `work / threads`, 2/4/8
+  threads): on an AWS `m7a.2xlarge` (AMD EPYC 9R14, 8 cores) 0.18–3.7 µs
+  at 2 and 4 threads (commit `3b6d0257`) against 4.9–13.8 µs for
+  `rayon::ThreadPool::broadcast`; on an 8-vCPU EPYC Milan VM, all three
+  thread counts at commit `427eb987`, 0.18–11.3 µs against 7.7–15.2 µs.
+  An explicit step has about a dozen regions, so on a 20 k-element mesh
+  `rayon` would add tens of percent. The
+  price is `unsafe` code (a borrowed closure handed to the workers for one
+  region; 7 sites in `crates/akantu-core/UNSAFE.md`) and workers that spin
+  briefly after each region. A region started while the pool runs
+  another (another thread, or a nested region) runs serially on its
+  caller, which gives the same results: two models with the same thread
+  count stepped from two OS threads share one pool, and whichever starts
+  a region second runs it serially. Pools are never shut down: the
+  process keeps one parked pool per thread count it ever used (a failed
+  pool creation joins the workers it started). After `fork` the child
+  starts new pools for the executors it creates (the table is keyed by
+  process id); an executor created before the fork runs its regions
+  serially in the child (no worker exists there), and a fork while
+  another thread holds the pool table's lock or a worker holds the
+  parking lock deadlocks the child at its next pool creation or region:
+  Python `multiprocessing` should use `spawn` or `forkserver` with more
+  than one thread. Each MPI rank has its own pool.
+- **Wait policy.** Idle workers spin for the policy's spin time
+  (`AKANTU_EXEC_SPIN_US`, `ExecPolicy::with_spin_us`; default 5 ms, or 0
+  when the threads outnumber `std::thread::available_parallelism`, with
+  a one-time warning in the debug output) and then park; 0 parks them as
+  soon as a region ends. The caller's wait for the workers inside a
+  region yields the core after 2048 polls. Spinning costs cores: with
+  more than one thread, each MPI rank keeps up to `threads − 1` cores busy
+  for the spin time after every region, also while it waits in MPI or
+  writes output, and on SMT the spinning workers share their cores'
+  pipelines with the siblings. Recommendation: `ranks × threads ≤ cores`
+  (physical cores), otherwise `AKANTU_EXEC_SPIN_US=0`. Measured on an
+  8-core cloud VM (`docs/benchmarks/perf-campaign/exec/README.md`,
+  "Wait policy"; 4,000 back-to-back regions of about 5 µs of work): at 4
+  threads on 4 cores the median region took 3.7 µs before these changes
+  and 3.9 µs after (p99 4.5 and 4.4 µs); with 16 threads on 8 cores the
+  old pool (5 ms of spinning) had a median of 8.6 µs and stalls of 6.0 ms
+  (a worker descheduled inside a region), the default now (spin 0) a
+  median of 20.1 µs, a p99 of 81 µs and a maximum of 0.2 ms; with 5 ms of
+  spinning forced the stalls of 6 ms come back.
+  The library does not pin threads: a rank's threads inherit the rank's
+  CPU mask, so with `mpirun --bind-to core` all threads of a rank share
+  one core; run `ranks × threads ≤ cores` with a binding that gives each
+  rank `threads` cores (Open MPI `--map-by slot:PE=<threads>`, or
+  `--bind-to none`). The default (1 thread) starts no pool and keeps every
+  MPI run as before.
+- **SIMD.** `SimdLevel` (`Scalar`, `Avx2` = AVX2 + FMA3, `Avx512`,
+  `Neon`) is detected once; `SimdToken` proves the CPU supports a level
+  and is the only way to call a kernel's `#[target_feature]` version
+  (one dispatch point per batch, every `unsafe` call listed in the
+  crate's `UNSAFE.md`). In `Bitwise` a vector kernel performs per lane
+  the scalar sequence (no FMA, no reassociation); its property test runs
+  every supported level against the scalar bits. `exec::simd::scaled_add`
+  is the example. `AKANTU_SIMD=scalar` selects the portable code.
+- **Fast mode.** Code of the fast mode is marked `FAST MODE` and runs only
+  when `precision() == Fast`. Its test runs the case in both modes and
+  calls `akantu_validation::fast_mode::check_fast_mode`, which compares
+  with the bitwise run under the rule of
+  `fixtures/fast_mode/<area>/tolerances.json` (listed in
+  `docs/TOLERANCE_LEDGER.md`). Demonstrator: the gradient kernel with a
+  chain of fused multiply-adds (`exec::with_fma` runs a fast-mode task with
+  the FMA instructions of the token's level).
+- **Laws** opt in to threads by `Material::independent_points()` (default
+  `false`): the law's per-point loop then uses the model's executor
+  (`material::points_exec`). The elastic law declares it. Laws with state
+  shared between points, non-local terms or reductions keep the default;
+  `docs/ARCHITECTURE.md`, "Execution policy", lists them.
+
+Reason: several tasks will add threaded loops, SIMD kernels and fast-mode
+kernels in many crates; one mechanism, read once per batch and tested by
+one invariant, keeps the default path bitwise (D-122) while the threads
+are on by choice.
+
+Consequence: results do not depend on `AKANTU_NUM_THREADS` or
+`AKANTU_SIMD` in the default mode (tests: `akantu-solid/tests/exec_threads.rs`,
+the explicit-step digests at 1, 2, 4 and 8 threads); the core crate
+denies `unsafe` instead of forbidding it, with its sites (the pool and the
+SIMD kernels) listed in its `UNSAFE.md`; no new dependency.
+
 ## Ids without a record
 
 D-044, D-045, D-072, D-075, D-084, D-098, D-102, D-103, D-110, D-112 and

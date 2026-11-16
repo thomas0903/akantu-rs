@@ -35,6 +35,7 @@
 //! `e = αΔt` is zero (forward Euler, UD-195; upstream reads it anyway).
 
 use akantu_core::enums::IntegrationSchemeType;
+use akantu_core::exec::{Tuples, TuplesRef};
 use akantu_core::{Array, Error, Id, Real, Result};
 use akantu_parser::ParserType;
 use akantu_parser::param::{
@@ -428,6 +429,58 @@ fn second_order_residual(dofs: &mut DofManager, dof_id: &str, is_lumped: bool) -
     }
 }
 
+/// The Newmark-β predictor of the equations of one part (`[k, h, α, β, Δt]`;
+/// no-alias parameters, not inlined into the part closure).
+#[inline(never)]
+fn newmark_predictor_part(
+    [k, h, alpha, beta, delta_t]: [Real; 5],
+    u: &mut [Real],
+    v: &mut [Real],
+    a: &mut [Real],
+    blocked: &[bool],
+) {
+    for (((u, u_dot), u_dot_dot), &bld) in u.iter_mut().zip(v).zip(a).zip(blocked) {
+        if !bld {
+            let dt_a_n = delta_t * *u_dot_dot;
+            *u +=
+                (1.0 - k * alpha) * delta_t * *u_dot + (0.5 - h * alpha * beta) * delta_t * dt_a_n;
+            *u_dot = (1.0 - k) * *u_dot + (1.0 - h * beta) * dt_a_n;
+            // upstream `(1 - h) * a`; IEEE multiplication commutes exactly
+            *u_dot_dot *= 1.0 - h;
+        }
+    }
+}
+
+/// The Newmark-β corrector of the equations of one part (`[c, d, e]`;
+/// no-alias parameters).
+#[inline(never)]
+fn newmark_corrector_part(
+    [c, d, e]: [Real; 3],
+    u: &mut [Real],
+    v: &mut [Real],
+    a: &mut [Real],
+    solution: &[Real],
+    blocked: &[bool],
+) {
+    for ((((u, u_dot), u_dot_dot), &delta), &bld) in
+        u.iter_mut().zip(v).zip(a).zip(solution).zip(blocked)
+    {
+        if !bld {
+            *u += e * delta;
+            *u_dot += d * delta;
+            *u_dot_dot += c * delta;
+        }
+    }
+}
+
+/// Equations per part of a threaded integration-scheme update (D-123). The
+/// update streams a few arrays that the step just touched: short parts cost
+/// more than they save (screening on 8 cores: with parts of 16,384
+/// equations the steps of meshes with 0.1–0.6 million equations ran slower
+/// with threads), so a family is split only into parts of at least this
+/// many equations.
+const EQUATIONS_PER_PART: usize = 262_144;
+
 // ------------------------------------------------- generalized trapezoidal
 
 /// Generalized trapezoidal rule (upstream `GeneralizedTrapezoidal`, first
@@ -792,6 +845,7 @@ impl IntegrationScheme for NewmarkBeta {
     fn predictor(&mut self, dofs: &mut DofManager, delta_t: Real) -> Result<()> {
         check_family(dofs, &self.dof_id, &[1, 2])?;
         let blocked = blocked_of(dofs, &self.dof_id)?;
+        let exec = dofs.exec().clone();
         let (k, h, alpha, beta) = (self.k, self.h, self.alpha, self.beta);
         let f = dofs.family_mut(&self.dof_id)?;
         let crate::dof_manager::DofData {
@@ -805,22 +859,28 @@ impl IntegrationScheme for NewmarkBeta {
             _ => return Err(Error::not_found("dof derivatives", "orders 1 and 2")),
         };
         let mut u = u.write()?;
-        for (((u, u_dot), u_dot_dot), &bld) in u
-            .as_mut_slice()
-            .iter_mut()
-            .zip(v.as_mut_slice())
-            .zip(a.as_mut_slice())
-            .zip(&blocked)
-        {
-            if !bld {
-                let dt_a_n = delta_t * *u_dot_dot;
-                *u += (1.0 - k * alpha) * delta_t * *u_dot
-                    + (0.5 - h * alpha * beta) * delta_t * dt_a_n;
-                *u_dot = (1.0 - k) * *u_dot + (1.0 - h * beta) * dt_a_n;
-                // upstream `(1 - h) * a`; IEEE multiplication commutes exactly
-                *u_dot_dot *= 1.0 - h;
-            }
-        }
+        // the equations the zipped loop visits (the shortest array)
+        let n = (u.as_slice().len())
+            .min(v.as_slice().len())
+            .min(a.as_slice().len())
+            .min(blocked.len());
+        // every equation from its own values: contiguous parts on the DOF
+        // manager's threads (D-123)
+        let items = (
+            Tuples::new(&mut u.as_mut_slice()[..n], 1),
+            Tuples::new(&mut v.as_mut_slice()[..n], 1),
+            Tuples::new(&mut a.as_mut_slice()[..n], 1),
+            TuplesRef::new(&blocked[..n], 1),
+        );
+        exec.for_each(items, EQUATIONS_PER_PART, |_, (mut u, mut v, mut a, b)| {
+            newmark_predictor_part(
+                [k, h, alpha, beta, delta_t],
+                u.as_mut_slice(),
+                v.as_mut_slice(),
+                a.as_mut_slice(),
+                b.as_slice(),
+            );
+        });
         Ok(())
     }
     fn corrector(&mut self, dofs: &mut DofManager, ty: SolutionType, delta_t: Real) -> Result<()> {
@@ -829,6 +889,7 @@ impl IntegrationScheme for NewmarkBeta {
         let e = self.displacement_coefficient(ty, delta_t)?;
         check_family(dofs, &self.dof_id, &[1, 2])?;
         let blocked = blocked_of(dofs, &self.dof_id)?;
+        let exec = dofs.exec().clone();
         let f = dofs.family_mut(&self.dof_id)?;
         let crate::dof_manager::DofData {
             dofs: u,
@@ -842,20 +903,34 @@ impl IntegrationScheme for NewmarkBeta {
             _ => return Err(Error::not_found("dof derivatives", "orders 1 and 2")),
         };
         let mut u = u.write()?;
-        for ((((u, u_dot), u_dot_dot), &delta), &bld) in u
-            .as_mut_slice()
-            .iter_mut()
-            .zip(v.as_mut_slice())
-            .zip(a.as_mut_slice())
-            .zip(solution.as_slice())
-            .zip(&blocked)
-        {
-            if !bld {
-                *u += e * delta;
-                *u_dot += d * delta;
-                *u_dot_dot += c * delta;
-            }
-        }
+        let sol = solution.as_slice();
+        // the equations the zipped loop visits (the shortest array)
+        let n = (u.as_slice().len())
+            .min(v.as_slice().len())
+            .min(a.as_slice().len())
+            .min(sol.len())
+            .min(blocked.len());
+        let items = (
+            Tuples::new(&mut u.as_mut_slice()[..n], 1),
+            Tuples::new(&mut v.as_mut_slice()[..n], 1),
+            Tuples::new(&mut a.as_mut_slice()[..n], 1),
+            TuplesRef::new(&sol[..n], 1),
+            TuplesRef::new(&blocked[..n], 1),
+        );
+        exec.for_each(
+            items,
+            EQUATIONS_PER_PART,
+            |_, (mut u, mut v, mut a, sol, b)| {
+                newmark_corrector_part(
+                    [c, d, e],
+                    u.as_mut_slice(),
+                    v.as_mut_slice(),
+                    a.as_mut_slice(),
+                    sol.as_slice(),
+                    b.as_slice(),
+                );
+            },
+        );
         Ok(())
     }
     fn assemble_jacobian(
