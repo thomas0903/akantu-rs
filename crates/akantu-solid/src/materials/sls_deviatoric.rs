@@ -154,8 +154,10 @@ use akantu_parser::ParameterRegistry;
 use akantu_parser::param::{ParamDescriptor, ParameterAccess};
 
 use super::elastic::MaterialElastic;
+use super::scratch::ScratchBlocks;
 use crate::material::{DerivedMaterialParams, LawOptions, Material, MaterialBase, MaterialFactory};
 use crate::material_tensor::grad_u_to_epsilon;
+use akantu_core::array_shared::ArrayRef;
 
 /// Dissipated-energy increment of `sls_deviatoric` (UD-029, category B).
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
@@ -331,6 +333,9 @@ pub struct MaterialStandardLinearSolidDeviatoric<const DIM: usize> {
     pub history_integral: InternalField<Real>,
     /// Dissipated energy density (1).
     pub dissipated_energy: InternalField<Real>,
+    /// The new stress, deviatoric stress, history integral and dissipated
+    /// energy of a block (`compute_stress`).
+    scratch: ScratchBlocks<4>,
 }
 
 impl<const DIM: usize> MaterialStandardLinearSolidDeviatoric<DIM> {
@@ -347,6 +352,7 @@ impl<const DIM: usize> MaterialStandardLinearSolidDeviatoric<DIM> {
             stress_dev: InternalField::new("stress_dev", DIM * DIM, 0.0)?,
             history_integral: InternalField::new("history_integral", DIM * DIM, 0.0)?,
             dissipated_energy: InternalField::new("dissipated_energy", 1, 0.0)?,
+            scratch: ScratchBlocks::default(),
         })
     }
 
@@ -710,70 +716,72 @@ impl<const DIM: usize> Material for MaterialStandardLinearSolidDeviatoric<DIM> {
         let c = self.constants(ctx.services.time_step());
         let committed = self.committed();
         let n = DIM * DIM;
-        let grad_u = self.elastic.base().grad_u.get(ty, ghost)?.clone();
-        let nq = grad_u.len();
-        // The state the evaluation starts from: committed history or the
-        // current values (upstream).
-        let (dev_old, h_old, e_old) = if committed {
-            (
-                self.stress_dev.previous(ty, ghost)?.clone(),
-                self.history_integral.previous(ty, ghost)?.clone(),
-                self.dissipated_energy.previous(ty, ghost)?.clone(),
-            )
-        } else {
-            (
-                self.stress_dev.get(ty, ghost)?.clone(),
-                self.history_integral.get(ty, ghost)?.clone(),
-                self.dissipated_energy.get(ty, ghost)?.clone(),
-            )
+        let Self {
+            elastic,
+            stress_dev,
+            history_integral,
+            dissipated_energy,
+            scratch,
+            ..
+        } = self;
+        let nq = {
+            let grad_u = elastic.base().grad_u.get(ty, ghost)?;
+            let nq = grad_u.len();
+            // The state the evaluation starts from: committed history or the
+            // current values (upstream).
+            let (dev_old, h_old, e_old): (
+                ArrayRef<'_, Real>,
+                ArrayRef<'_, Real>,
+                ArrayRef<'_, Real>,
+            ) = if committed {
+                (
+                    stress_dev.previous(ty, ghost)?.into(),
+                    history_integral.previous(ty, ghost)?.into(),
+                    dissipated_energy.previous(ty, ghost)?.into(),
+                )
+            } else {
+                (
+                    stress_dev.get(ty, ghost)?,
+                    history_integral.get(ty, ghost)?,
+                    dissipated_energy.get(ty, ghost)?,
+                )
+            };
+            if dev_old.len() != nq || h_old.len() != nq || e_old.len() != nq {
+                return Err(Error::DimensionMismatch {
+                    context: "MaterialStandardLinearSolidDeviatoric::computeStress",
+                    expected: nq,
+                    got: dev_old.len().min(h_old.len()).min(e_old.len()),
+                });
+            }
+            // every value is written below (whole matrices per point)
+            let [sigma_out, dev_out, h_out, e_out] =
+                scratch.sized([(nq, n), (nq, n), (nq, n), (nq, 1)])?;
+            for (q, e_q) in e_out.as_mut_slice().iter_mut().enumerate() {
+                let r = q * n..(q + 1) * n;
+                let g: &Matrix<DIM, DIM> = as_matrix(&grad_u.as_slice()[r.clone()])?;
+                let d0: &Matrix<DIM, DIM> = as_matrix(&dev_old.as_slice()[r.clone()])?;
+                let h0: &Matrix<DIM, DIM> = as_matrix(&h_old.as_slice()[r.clone()])?;
+                let (sigma, s, h, e) = c.on_quad(g, d0, h0, e_old.as_slice()[q]);
+                *as_matrix_mut::<DIM, DIM>(&mut sigma_out.as_mut_slice()[r.clone()])? = sigma;
+                *as_matrix_mut::<DIM, DIM>(&mut dev_out.as_mut_slice()[r.clone()])? = s;
+                *as_matrix_mut::<DIM, DIM>(&mut h_out.as_mut_slice()[r])? = h;
+                *e_q = e;
+            }
+            nq
         };
-        if dev_old.len() != nq || h_old.len() != nq || e_old.len() != nq {
-            return Err(Error::DimensionMismatch {
-                context: "MaterialStandardLinearSolidDeviatoric::computeStress",
-                expected: nq,
-                got: dev_old.len().min(h_old.len()).min(e_old.len()),
-            });
-        }
-        let mut sigma_out = vec![0.0; nq * n];
-        let mut dev_out = vec![0.0; nq * n];
-        let mut h_out = vec![0.0; nq * n];
-        let mut e_out = vec![0.0; nq];
-        for (q, e_q) in e_out.iter_mut().enumerate() {
-            let r = q * n..(q + 1) * n;
-            let g: &Matrix<DIM, DIM> = as_matrix(&grad_u.as_slice()[r.clone()])?;
-            let d0: &Matrix<DIM, DIM> = as_matrix(&dev_old.as_slice()[r.clone()])?;
-            let h0: &Matrix<DIM, DIM> = as_matrix(&h_old.as_slice()[r.clone()])?;
-            let (sigma, s, h, e) = c.on_quad(g, d0, h0, e_old.as_slice()[q]);
-            *as_matrix_mut::<DIM, DIM>(&mut sigma_out[r.clone()])? = sigma;
-            *as_matrix_mut::<DIM, DIM>(&mut dev_out[r.clone()])? = s;
-            *as_matrix_mut::<DIM, DIM>(&mut h_out[r])? = h;
-            *e_q = e;
-        }
-        let mut sigma = self
-            .elastic
-            .base_mut()
-            .sigma_field_mut()?
-            .get_mut(ty, ghost)?;
-        if sigma.len() != nq {
+        let sigma = elastic.base_mut().sigma_field_mut()?;
+        let len = sigma.values().shared(ty, ghost)?.len();
+        if len != nq {
             return Err(Error::DimensionMismatch {
                 context: "MaterialStandardLinearSolidDeviatoric::computeStress: stress",
                 expected: nq,
-                got: sigma.len(),
+                got: len,
             });
         }
-        sigma.as_mut_slice().copy_from_slice(&sigma_out);
-        self.stress_dev
-            .get_mut(ty, ghost)?
-            .as_mut_slice()
-            .copy_from_slice(&dev_out);
-        self.history_integral
-            .get_mut(ty, ghost)?
-            .as_mut_slice()
-            .copy_from_slice(&h_out);
-        self.dissipated_energy
-            .get_mut(ty, ghost)?
-            .as_mut_slice()
-            .copy_from_slice(&e_out);
+        sigma.commit_overwrite(ty, ghost, scratch.get_mut(0))?;
+        stress_dev.commit_overwrite(ty, ghost, scratch.get_mut(1))?;
+        history_integral.commit_overwrite(ty, ghost, scratch.get_mut(2))?;
+        dissipated_energy.commit_overwrite(ty, ghost, scratch.get_mut(3))?;
         Ok(())
     }
 

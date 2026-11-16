@@ -1,0 +1,354 @@
+# Profile of suite case explicit_maxwell
+
+binary: bin/after/suite_solid (65020ab23be60185)
+command: taskset -c 3 bin/after/suite_solid --case explicit_maxwell --size m --loop-seconds 6
+perf: perf record -F 499 --call-graph dwarf,16384
+cpu: AMD EPYC-Milan Processor
+date_utc: 2026-11-16T13:56:28Z
+commit: dbb3ca2c5
+
+## Phases of the profiled run (seconds, calls)
+
+mesh                         0.0059 s       1 calls
+init                         0.0987 s       1 calls
+stable_time_step             0.0394 s       5 calls
+solve_step                   8.5537 s      80 calls
+predictor                    0.0000 s      80 calls
+residual                     3.0312 s      80 calls
+lumped_matrix                0.0001 s      80 calls
+corrector                    0.0000 s      80 calls
+step_hooks                   5.4643 s     160 calls
+step_rest                    0.0572 s      80 calls
+internal_forces              0.2947 s       8 calls
+stresses                     0.2542 s       8 calls
+energies                     0.0306 s       8 calls
+
+## Top 25 symbols, self time
+
+    64.91%  [.] _RNvNtNtCs3IceuY7krF_12akantu_solid9materials7maxwell13scaled_matvec
+     5.87%  [.] _RNvMNtNtCs3IceuY7krF_12akantu_solid9materials7maxwellINtB2_27MaterialViscoelasticMaxwellKj3_E14stress_on_quadB6_
+     5.08%  [.] _RNvMNtNtCs3IceuY7krF_12akantu_solid9materials7maxwellINtB2_27MaterialViscoelasticMaxwellKj3_E20update_int_variablesB6_
+     3.61%  [.] _RNvNtNtCsgFPJ4EkGA4x_11akantu_core6random4libm3exp
+     2.05%  [.] _RINvNtNtCslb6OkB7TxQL_9akantu_fe6engine4fast8gradientNtNtNtB6_13element_class5types12Tetrahedron4EB6_
+     1.56%  [.] _RNvXs2_NtNtCs3IceuY7krF_12akantu_solid9materials7maxwellINtB5_27MaterialViscoelasticMaxwellKj3_ENtNtB9_8material8Material24compute_potential_energyB9_
+     1.46%  [.] _RNvMs_NtNtCsg8px9YFo7KT_13akantu_solver11dof_manager8assemblyNtB6_10DofManager35assemble_elemental_array_local_view
+     1.40%  [.] _RNvNtNtCslb6OkB7TxQL_9akantu_fe6engine4fast3btd
+     1.26%  [.] _RINvNtNtCslb6OkB7TxQL_9akantu_fe6engine4fast9integrateNCNvMNtB4_3opsNtB4_8FeEngine9integrate0EB6_
+     1.16%  [.] _RNvXs2_NtNtCs3IceuY7krF_12akantu_solid9materials7maxwellINtB5_27MaterialViscoelasticMaxwellKj3_ENtNtB9_8material8Material14compute_stressB9_
+     1.12%  [.] _RNvNtNtNtNtNtCs3GpnaDyeEpO_17compiler_builtins4math9libm_math4arch3x863fma12fma_with_fma
+     1.03%  [.] round
+     0.95%  [.] _RNvXs2_NtNtCs3IceuY7krF_12akantu_solid9materials7maxwellINtB5_27MaterialViscoelasticMaxwellKj3_ENtNtB9_8material8Material16after_solve_stepB9_
+     0.73%  [k] asm_sysvec_apic_timer_interrupt
+     0.69%  [.] _RNvNtNtCs3IceuY7krF_12akantu_solid9materials7maxwell12branch_voigt
+     0.65%  [.] fma
+     0.63%  [.] _RNvXs4_NtNtCs3IceuY7krF_12akantu_solid9materials7elasticINtB5_15MaterialElasticKj3_ENtNtB9_8material8Material14compute_stressB9_
+     0.61%  [.] _RNvNtCs3IceuY7krF_12akantu_solid8material15grad_u_of_block
+     0.45%  [.] _RNvNtCslb6OkB7TxQL_9akantu_fe8geometry20tetrahedron_inradius
+     0.41%  [.] _RNvXNtNtCsgFX3jaOk65H_5alloc3vec14spec_from_iterINtB4_3VecjEINtB2_12SpecFromIterjINtNtNtCskADBYZwJmSU_4core4iter8adapters12GenericShuntINtNtB1k_3map3MapINtNtNtB1o_5slice4iter4IterlENCNCNvNtCslb6OkB7TxQL_9akantu_fe6engine14resolve_filter00EINtNtB1o_6result6ResultNtNtB1o_7convert10InfallibleNtNtCsgFPJ4EkGA4x_11akantu_core5error5ErrorEEE9from_iterB31_
+     0.36%  [.] _RINvNtNtNtNtCskADBYZwJmSU_4core5slice4sort8unstable9quicksort9quicksortdNCINvMB8_Sd16sort_unstable_byNvMNtBa_3f64d9total_cmpE0ECsgFPJ4EkGA4x_11akantu_core
+     0.26%  [.] _RNvMsc_NtCsgFPJ4EkGA4x_11akantu_core13array_storageINtB5_12ArrayStoragedE10try_resizeCs3IceuY7krF_12akantu_solid
+     0.23%  [k] clear_page_erms
+     0.18%  [k] native_read_msr
+     0.14%  [.] 0x0000000000189087
+
+## Top 25 symbols, inclusive time (children)
+
+    99.94%     0.00%  [.] 0xffffffffffffffff
+    98.92%     0.00%  [.] _RNvNtNtCskKogH9ieu5f_12akantu_bench11suite_solid8explicit3run
+    89.91%     0.00%  [.] _RINvMs1_NtCskKogH9ieu5f_12akantu_bench5suiteNtB6_3Ctx14repeat_primaryNCINvNtNtB8_11suite_solid6common11timed_stepsNCNvNtB1c_8explicit3runs1_0E0EB8_ (inlined)
+    89.91%     0.00%  [.] _RINvMs4_NtCsg8px9YFo7KT_13akantu_solver11dof_managerNtB6_10DofManager10collectiveuNCNvXs1_NtB8_17non_linear_lumpedNtB1q_21NonLinearSolverLumpedNtNtB8_10non_linear15NonLinearSolver5solve0EB8_
+    89.91%     0.00%  [.] _RNCINvNtNtCskKogH9ieu5f_12akantu_bench11suite_solid6common11timed_stepsNCNvNtB6_8explicit3runs1_0E0B8_ (inlined)
+    89.91%     0.00%  [.] _RNvMNtCsg8px9YFo7KT_13akantu_solver9time_stepNtB2_14TimeStepSolver10solve_step (inlined)
+    89.91%     0.00%  [.] _RNvMs1_NtCsg8px9YFo7KT_13akantu_solver12model_solverNtB5_11ModelSolver10solve_step
+    89.91%     0.00%  [.] _RNvMs1_NtCsg8px9YFo7KT_13akantu_solver12model_solverNtB5_11ModelSolver22solve_step_intercepted
+    89.91%     0.00%  [.] _RNvMs3_NtCs3IceuY7krF_12akantu_solid5modelNtB5_19SolidMechanicsModel22solve_step_intercepted
+    89.91%     0.00%  [.] _RNvXs1_NtCsg8px9YFo7KT_13akantu_solver17non_linear_lumpedNtB5_21NonLinearSolverLumpedNtNtB7_10non_linear15NonLinearSolver5solve
+    89.89%     0.00%  [.] _RNCNvXs1_NtCsg8px9YFo7KT_13akantu_solver17non_linear_lumpedNtB7_21NonLinearSolverLumpedNtNtB9_10non_linear15NonLinearSolver5solve0B9_ (inlined)
+    71.95%     0.00%  [.] _RINvMs1_NtCskKogH9ieu5f_12akantu_bench5suiteNtB6_3Ctx11repeat_implNCINvNtNtB8_11suite_solid6common11timed_stepsNCNvNtB19_8explicit3runs1_0E0EB8_
+    71.95%     0.00%  [.] _RINvNtNtCskKogH9ieu5f_12akantu_bench11suite_solid6common11timed_stepsNCNvNtB4_8explicit3runs1_0EB6_
+    65.72%    64.91%  [.] _RNvNtNtCs3IceuY7krF_12akantu_solid9materials7maxwell13scaled_matvec
+    57.14%     0.00%  [.] _RINvMs4_NtCsg8px9YFo7KT_13akantu_solver11dof_managerNtB6_10DofManager4stepuNCNCNvXs1_NtB8_17non_linear_lumpedNtB1l_21NonLinearSolverLumpedNtNtB8_10non_linear15NonLinearSolver5solve0s3_0EB8_
+    57.14%     0.00%  [.] _RINvMs4_NtCsg8px9YFo7KT_13akantu_solver11dof_managerNtB6_10DofManager4stepuNCNvMNtB8_25non_linear_newton_raphsonNtB1g_28NonLinearSolverNewtonRaphson8solve_nrs3_0EB8_ (inlined)
+    57.14%     0.00%  [.] _RINvNtCsg8px9YFo7KT_13akantu_solver9time_step10model_stepuNCNvXs0_B2_NtB2_7AdapterNtNtB4_8callback14SolverCallback16after_solve_step0EB4_ (inlined)
+    57.14%     0.00%  [.] _RNCNCNvXs1_NtCsg8px9YFo7KT_13akantu_solver17non_linear_lumpedNtB9_21NonLinearSolverLumpedNtNtBb_10non_linear15NonLinearSolver5solve0s3_0Bb_ (inlined)
+    57.14%     0.00%  [.] _RNvXs0_NtCsg8px9YFo7KT_13akantu_solver9time_stepNtB5_7AdapterNtNtB7_8callback14SolverCallback16after_solve_step
+    57.12%     0.95%  [.] _RNvXs2_NtNtCs3IceuY7krF_12akantu_solid9materials7maxwellINtB5_27MaterialViscoelasticMaxwellKj3_ENtNtB9_8material8Material16after_solve_stepB9_
+    57.12%     0.00%  [.] _RINvMNtNtCskKogH9ieu5f_12akantu_bench11suite_solid6commonNtB3_9StepSplit4timeNCNvXs_B3_BT_NtNtCsg8px9YFo7KT_13akantu_solver8callback17InterceptCallback16after_solve_step0EB7_ (inlined)
+    57.12%     0.00%  [.] _RNCNvMNtCsg8px9YFo7KT_13akantu_solver25non_linear_newton_raphsonNtB4_28NonLinearSolverNewtonRaphson8solve_nrs3_0B6_ (inlined)
+    57.12%     0.00%  [.] _RNCNvXs_NtNtCskKogH9ieu5f_12akantu_bench11suite_solid6commonNtB6_9StepSplitNtNtCsg8px9YFo7KT_13akantu_solver8callback17InterceptCallback16after_solve_step0Ba_ (inlined)
+    57.12%     0.00%  [.] _RNvXs2_NtCsg8px9YFo7KT_13akantu_solver8callbackNtB5_9InterceptNtB5_14SolverCallback16after_solve_step
+    57.12%     0.00%  [.] _RNvXs6_NtCs3IceuY7krF_12akantu_solid5modelNtB5_21SolidMechanicsPhysicsNtNtCsg8px9YFo7KT_13akantu_solver8callback14SolverCallback16after_solve_step
+
+## Call chains (callers of the hottest self-time symbols, entries above 2 %)
+
+    64.91%  [.] _RNvNtNtCs3IceuY7krF_12akantu_solid9materials7maxwell13scaled_matvec
+            |
+            |--40.37%--_RNvXs_NtNtNtCskADBYZwJmSU_4core4iter8adapters4takeINtB4_4TakeINtNtB6_9enumerate9EnumerateINtNtNtBa_5slice4iter7IterMutdEEENtNtNtB8_6traits8iterator8Iterator4nextCs3IceuY7krF_12akantu_solid (inlined)
+            |          _RNvNtNtCs3IceuY7krF_12akantu_solid9materials7maxwell13scaled_matvec
+            |          |
+            |          |--19.11%--_RNvMNtNtCs3IceuY7krF_12akantu_solid9materials7maxwellINtB2_27MaterialViscoelasticMaxwellKj3_E22update_int_var_on_quadB6_ (inlined)
+            |          |          _RNvMNtNtCs3IceuY7krF_12akantu_solid9materials7maxwellINtB2_27MaterialViscoelasticMaxwellKj3_E23update_int_variables_ofB6_ (inlined)
+            |          |          _RNvMNtNtCs3IceuY7krF_12akantu_solid9materials7maxwellINtB2_27MaterialViscoelasticMaxwellKj3_E20update_int_variablesB6_
+            |          |          _RNvXs2_NtNtCs3IceuY7krF_12akantu_solid9materials7maxwellINtB5_27MaterialViscoelasticMaxwellKj3_ENtNtB9_8material8Material16after_solve_stepB9_
+            |          |          _RNvXs6_NtCs3IceuY7krF_12akantu_solid5modelNtB5_21SolidMechanicsPhysicsNtNtCsg8px9YFo7KT_13akantu_solver8callback14SolverCallback16after_solve_step
+            |          |          _RNCNvXs_NtNtCskKogH9ieu5f_12akantu_bench11suite_solid6commonNtB6_9StepSplitNtNtCsg8px9YFo7KT_13akantu_solver8callback17InterceptCallback16after_solve_step0Ba_ (inlined)
+            |          |          _RINvMNtNtCskKogH9ieu5f_12akantu_bench11suite_solid6commonNtB3_9StepSplit4timeNCNvXs_B3_BT_NtNtCsg8px9YFo7KT_13akantu_solver8callback17InterceptCallback16after_solve_step0EB7_ (inlined)
+            |          |          _RNvXs_NtNtCskKogH9ieu5f_12akantu_bench11suite_solid6commonNtB4_9StepSplitNtNtCsg8px9YFo7KT_13akantu_solver8callback17InterceptCallback16after_solve_step
+            |          |          _RNvXs2_NtCsg8px9YFo7KT_13akantu_solver8callbackNtB5_9InterceptNtB5_14SolverCallback16after_solve_step
+            |          |          _RNCNvMNtCsg8px9YFo7KT_13akantu_solver25non_linear_newton_raphsonNtB4_28NonLinearSolverNewtonRaphson8solve_nrs3_0B6_ (inlined)
+            |          |          _RINvMs4_NtCsg8px9YFo7KT_13akantu_solver11dof_managerNtB6_10DofManager4stepuNCNvMNtB8_25non_linear_newton_raphsonNtB1g_28NonLinearSolverNewtonRaphson8solve_nrs3_0EB8_ (inlined)
+            |          |          _RINvNtCsg8px9YFo7KT_13akantu_solver9time_step10model_stepuNCNvXs0_B2_NtB2_7AdapterNtNtB4_8callback14SolverCallback16after_solve_step0EB4_ (inlined)
+            |          |          _RNvXs0_NtCsg8px9YFo7KT_13akantu_solver9time_stepNtB5_7AdapterNtNtB7_8callback14SolverCallback16after_solve_step
+            |          |          _RNCNCNvXs1_NtCsg8px9YFo7KT_13akantu_solver17non_linear_lumpedNtB9_21NonLinearSolverLumpedNtNtBb_10non_linear15NonLinearSolver5solve0s3_0Bb_ (inlined)
+            |          |          _RINvMs4_NtCsg8px9YFo7KT_13akantu_solver11dof_managerNtB6_10DofManager4stepuNCNCNvXs1_NtB8_17non_linear_lumpedNtB1l_21NonLinearSolverLumpedNtNtB8_10non_linear15NonLinearSolver5solve0s3_0EB8_
+            |          |          _RNCNvXs1_NtCsg8px9YFo7KT_13akantu_solver17non_linear_lumpedNtB7_21NonLinearSolverLumpedNtNtB9_10non_linear15NonLinearSolver5solve0B9_ (inlined)
+            |          |          _RINvMs4_NtCsg8px9YFo7KT_13akantu_solver11dof_managerNtB6_10DofManager10collectiveuNCNvXs1_NtB8_17non_linear_lumpedNtB1q_21NonLinearSolverLumpedNtNtB8_10non_linear15NonLinearSolver5solve0EB8_
+            |          |          _RNvXs1_NtCsg8px9YFo7KT_13akantu_solver17non_linear_lumpedNtB5_21NonLinearSolverLumpedNtNtB7_10non_linear15NonLinearSolver5solve
+            |          |          _RNvMNtCsg8px9YFo7KT_13akantu_solver9time_stepNtB2_14TimeStepSolver10solve_step (inlined)
+            |          |          _RNvMs1_NtCsg8px9YFo7KT_13akantu_solver12model_solverNtB5_11ModelSolver10solve_step
+            |          |          _RNvMs1_NtCsg8px9YFo7KT_13akantu_solver12model_solverNtB5_11ModelSolver22solve_step_intercepted
+            |          |          _RNvMs3_NtCs3IceuY7krF_12akantu_solid5modelNtB5_19SolidMechanicsModel22solve_step_intercepted
+            |          |          _RNCINvNtNtCskKogH9ieu5f_12akantu_bench11suite_solid6common11timed_stepsNCNvNtB6_8explicit3runs1_0E0B8_ (inlined)
+            |          |          _RINvMs1_NtCskKogH9ieu5f_12akantu_bench5suiteNtB6_3Ctx11repeat_implNCINvNtNtB8_11suite_solid6common11timed_stepsNCNvNtB19_8explicit3runs1_0E0EB8_
+            |          |          _RINvMs1_NtCskKogH9ieu5f_12akantu_bench5suiteNtB6_3Ctx14repeat_primaryNCINvNtNtB8_11suite_solid6common11timed_stepsNCNvNtB1c_8explicit3runs1_0E0EB8_ (inlined)
+            |          |          _RINvNtNtCskKogH9ieu5f_12akantu_bench11suite_solid6common11timed_stepsNCNvNtB4_8explicit3runs1_0EB6_
+            |          |          _RNvNtNtCskKogH9ieu5f_12akantu_bench11suite_solid8explicit3run
+            |          |          0xffffffffffffffff
+            |          |
+            |          |--11.69%--_RNvMNtNtCs3IceuY7krF_12akantu_solid9materials7maxwellINtB2_27MaterialViscoelasticMaxwellKj3_E14stress_on_quadB6_
+            |          |          _RNvXs2_NtNtCs3IceuY7krF_12akantu_solid9materials7maxwellINtB5_27MaterialViscoelasticMaxwellKj3_ENtNtB9_8material8Material14compute_stressB9_
+            |          |          _RNvYINtNtNtCs3IceuY7krF_12akantu_solid9materials7maxwell27MaterialViscoelasticMaxwellKj3_ENtNtB9_8material8Material20compute_all_stressesB9_
+            |          |          |
+            |          |           --10.35%--_RNCNvMs1_NtNtCs3IceuY7krF_12akantu_solid5model8assemblyNtB9_21SolidMechanicsPhysics24assemble_internal_forcess0_0Bb_ (inlined)
+            |          |                     _RNCINvNvNtNtNtNtCskADBYZwJmSU_4core4iter6traits8iterator8Iterator12try_for_each4callQINtNtCsgFX3jaOk65H_5alloc5boxed3BoxDNtNtCs3IceuY7krF_12akantu_solid8material8MaterialEL_EINtNtBe_6result6ResultuNtNtCsgFPJ4EkGA4x_11akantu_core5error5ErrorENCNvMs1_NtNtB1Z_5model8assemblyNtB41_21SolidMechanicsPhysics24assemble_internal_forcess0_0E0B1Z_ (inlined)
+            |          |                     _RINvYINtNtNtCskADBYZwJmSU_4core5slice4iter7IterMutINtNtCsgFX3jaOk65H_5alloc5boxed3BoxDNtNtCs3IceuY7krF_12akantu_solid8material8MaterialEL_EENtNtNtNtBa_4iter6traits8iterator8Iterator8try_folduNCINvNvB2e_12try_for_each4callQBM_INtNtBa_6result6ResultuNtNtCsgFPJ4EkGA4x_11akantu_core5error5ErrorENCNvMs1_NtNtB1q_5model8assemblyNtB4Q_21SolidMechanicsPhysics24assemble_internal_forcess0_0E0B3B_EB1q_ (inlined)
+            |          |                     _RINvYINtNtNtCskADBYZwJmSU_4core5slice4iter7IterMutINtNtCsgFX3jaOk65H_5alloc5boxed3BoxDNtNtCs3IceuY7krF_12akantu_solid8material8MaterialEL_EENtNtNtNtBa_4iter6traits8iterator8Iterator12try_for_eachNCNvMs1_NtNtB1q_5model8assemblyNtB3h_21SolidMechanicsPhysics24assemble_internal_forcess0_0INtNtBa_6result6ResultuNtNtCsgFPJ4EkGA4x_11akantu_core5error5ErrorEEB1q_ (inlined)
+            |          |                     _RNvMs1_NtNtCs3IceuY7krF_12akantu_solid5model8assemblyNtB7_21SolidMechanicsPhysics24assemble_internal_forces
+            |          |                     |
+            |          |                      --9.03%--_RNvMs1_NtNtCs3IceuY7krF_12akantu_solid5model8assemblyNtB7_21SolidMechanicsPhysics17assemble_residual
+            |          |                                _RNvXs6_NtCs3IceuY7krF_12akantu_solid5modelNtB5_21SolidMechanicsPhysicsNtNtCsg8px9YFo7KT_13akantu_solver8callback14SolverCallback17assemble_residual
+            |          |                                _RNCNvXs_NtNtCskKogH9ieu5f_12akantu_bench11suite_solid6commonNtB6_9StepSplitNtNtCsg8px9YFo7KT_13akantu_solver8callback17InterceptCallback17assemble_residual0Ba_ (inlined)
+            |          |                                _RINvMNtNtCskKogH9ieu5f_12akantu_bench11suite_solid6commonNtB3_9StepSplit4timeNCNvXs_B3_BT_NtNtCsg8px9YFo7KT_13akantu_solver8callback17InterceptCallback17assemble_residual0EB7_ (inlined)
+            |          |                                _RNvXs_NtNtCskKogH9ieu5f_12akantu_bench11suite_solid6commonNtB4_9StepSplitNtNtCsg8px9YFo7KT_13akantu_solver8callback17InterceptCallback17assemble_residual
+            |          |                                _RNvXs2_NtCsg8px9YFo7KT_13akantu_solver8callbackNtB5_9InterceptNtB5_14SolverCallback17assemble_residual
+            |          |                                _RNCNvMNtCsg8px9YFo7KT_13akantu_solver25non_linear_newton_raphsonNtB4_28NonLinearSolverNewtonRaphson17assemble_residuals0_0B6_ (inlined)
+            |          |                                _RINvMs4_NtCsg8px9YFo7KT_13akantu_solver11dof_managerNtB6_10DofManager4stepuNCNvMNtB8_25non_linear_newton_raphsonNtB1g_28NonLinearSolverNewtonRaphson17assemble_residuals0_0EB8_
+            |          |                                _RINvNtCsg8px9YFo7KT_13akantu_solver9time_step10model_stepuNCNvXs0_B2_NtB2_7AdapterNtNtB4_8callback14SolverCallback17assemble_residual0EB4_ (inlined)
+            |          |                                _RNvXs0_NtCsg8px9YFo7KT_13akantu_solver9time_stepNtB5_7AdapterNtNtB7_8callback14SolverCallback17assemble_residual
+            |          |                                _RNCNCNvXs1_NtCsg8px9YFo7KT_13akantu_solver17non_linear_lumpedNtB9_21NonLinearSolverLumpedNtNtBb_10non_linear15NonLinearSolver5solve0s0_0Bb_ (inlined)
+            |          |                                _RINvMs4_NtCsg8px9YFo7KT_13akantu_solver11dof_managerNtB6_10DofManager4stepuNCNCNvXs1_NtB8_17non_linear_lumpedNtB1l_21NonLinearSolverLumpedNtNtB8_10non_linear15NonLinearSolver5solve0s0_0EB8_ (inlined)
+            |          |                                _RNCNvXs1_NtCsg8px9YFo7KT_13akantu_solver17non_linear_lumpedNtB7_21NonLinearSolverLumpedNtNtB9_10non_linear15NonLinearSolver5solve0B9_ (inlined)
+            |          |                                _RINvMs4_NtCsg8px9YFo7KT_13akantu_solver11dof_managerNtB6_10DofManager10collectiveuNCNvXs1_NtB8_17non_linear_lumpedNtB1q_21NonLinearSolverLumpedNtNtB8_10non_linear15NonLinearSolver5solve0EB8_
+            |          |                                _RNvXs1_NtCsg8px9YFo7KT_13akantu_solver17non_linear_lumpedNtB5_21NonLinearSolverLumpedNtNtB7_10non_linear15NonLinearSolver5solve
+            |          |                                _RNvMNtCsg8px9YFo7KT_13akantu_solver9time_stepNtB2_14TimeStepSolver10solve_step (inlined)
+            |          |                                _RNvMs1_NtCsg8px9YFo7KT_13akantu_solver12model_solverNtB5_11ModelSolver10solve_step
+            |          |                                _RNvMs1_NtCsg8px9YFo7KT_13akantu_solver12model_solverNtB5_11ModelSolver22solve_step_intercepted
+            |          |                                _RNvMs3_NtCs3IceuY7krF_12akantu_solid5modelNtB5_19SolidMechanicsModel22solve_step_intercepted
+            |          |                                _RNCINvNtNtCskKogH9ieu5f_12akantu_bench11suite_solid6common11timed_stepsNCNvNtB6_8explicit3runs1_0E0B8_ (inlined)
+            |          |                                _RINvMs1_NtCskKogH9ieu5f_12akantu_bench5suiteNtB6_3Ctx11repeat_implNCINvNtNtB8_11suite_solid6common11timed_stepsNCNvNtB19_8explicit3runs1_0E0EB8_
+            |          |                                _RINvMs1_NtCskKogH9ieu5f_12akantu_bench5suiteNtB6_3Ctx14repeat_primaryNCINvNtNtB8_11suite_solid6common11timed_stepsNCNvNtB1c_8explicit3runs1_0E0EB8_ (inlined)
+            |          |                                _RINvNtNtCskKogH9ieu5f_12akantu_bench11suite_solid6common11timed_stepsNCNvNtB4_8explicit3runs1_0EB6_
+            |          |                                _RNvNtNtCskKogH9ieu5f_12akantu_bench11suite_solid8explicit3run
+            |          |                                0xffffffffffffffff
+            |          |
+            |           --9.58%--_RNvMNtNtCs3IceuY7krF_12akantu_solid9materials7maxwellINtB2_27MaterialViscoelasticMaxwellKj3_E14energy_on_quadB6_ (inlined)
+            |                     _RNvXs2_NtNtCs3IceuY7krF_12akantu_solid9materials7maxwellINtB5_27MaterialViscoelasticMaxwellKj3_ENtNtB9_8material8Material24compute_potential_energyB9_
+            |                     _RNvMNtNtCs3IceuY7krF_12akantu_solid9materials7maxwellINtB2_27MaterialViscoelasticMaxwellKj3_E24update_dissipated_energyB6_ (inlined)
+            |                     _RNvXs2_NtNtCs3IceuY7krF_12akantu_solid9materials7maxwellINtB5_27MaterialViscoelasticMaxwellKj3_ENtNtB9_8material8Material16after_solve_stepB9_
+            |                     _RNvXs6_NtCs3IceuY7krF_12akantu_solid5modelNtB5_21SolidMechanicsPhysicsNtNtCsg8px9YFo7KT_13akantu_solver8callback14SolverCallback16after_solve_step
+            |                     _RNCNvXs_NtNtCskKogH9ieu5f_12akantu_bench11suite_solid6commonNtB6_9StepSplitNtNtCsg8px9YFo7KT_13akantu_solver8callback17InterceptCallback16after_solve_step0Ba_ (inlined)
+            |                     _RINvMNtNtCskKogH9ieu5f_12akantu_bench11suite_solid6commonNtB3_9StepSplit4timeNCNvXs_B3_BT_NtNtCsg8px9YFo7KT_13akantu_solver8callback17InterceptCallback16after_solve_step0EB7_ (inlined)
+            |                     _RNvXs_NtNtCskKogH9ieu5f_12akantu_bench11suite_solid6commonNtB4_9StepSplitNtNtCsg8px9YFo7KT_13akantu_solver8callback17InterceptCallback16after_solve_step
+            |                     _RNvXs2_NtCsg8px9YFo7KT_13akantu_solver8callbackNtB5_9InterceptNtB5_14SolverCallback16after_solve_step
+            |                     _RNCNvMNtCsg8px9YFo7KT_13akantu_solver25non_linear_newton_raphsonNtB4_28NonLinearSolverNewtonRaphson8solve_nrs3_0B6_ (inlined)
+            |                     _RINvMs4_NtCsg8px9YFo7KT_13akantu_solver11dof_managerNtB6_10DofManager4stepuNCNvMNtB8_25non_linear_newton_raphsonNtB1g_28NonLinearSolverNewtonRaphson8solve_nrs3_0EB8_ (inlined)
+            |                     _RINvNtCsg8px9YFo7KT_13akantu_solver9time_step10model_stepuNCNvXs0_B2_NtB2_7AdapterNtNtB4_8callback14SolverCallback16after_solve_step0EB4_ (inlined)
+            |                     _RNvXs0_NtCsg8px9YFo7KT_13akantu_solver9time_stepNtB5_7AdapterNtNtB7_8callback14SolverCallback16after_solve_step
+            |                     _RNCNCNvXs1_NtCsg8px9YFo7KT_13akantu_solver17non_linear_lumpedNtB9_21NonLinearSolverLumpedNtNtBb_10non_linear15NonLinearSolver5solve0s3_0Bb_ (inlined)
+            |                     _RINvMs4_NtCsg8px9YFo7KT_13akantu_solver11dof_managerNtB6_10DofManager4stepuNCNCNvXs1_NtB8_17non_linear_lumpedNtB1l_21NonLinearSolverLumpedNtNtB8_10non_linear15NonLinearSolver5solve0s3_0EB8_
+            |                     _RNCNvXs1_NtCsg8px9YFo7KT_13akantu_solver17non_linear_lumpedNtB7_21NonLinearSolverLumpedNtNtB9_10non_linear15NonLinearSolver5solve0B9_ (inlined)
+            |                     _RINvMs4_NtCsg8px9YFo7KT_13akantu_solver11dof_managerNtB6_10DofManager10collectiveuNCNvXs1_NtB8_17non_linear_lumpedNtB1q_21NonLinearSolverLumpedNtNtB8_10non_linear15NonLinearSolver5solve0EB8_
+            |                     _RNvXs1_NtCsg8px9YFo7KT_13akantu_solver17non_linear_lumpedNtB5_21NonLinearSolverLumpedNtNtB7_10non_linear15NonLinearSolver5solve
+            |                     _RNvMNtCsg8px9YFo7KT_13akantu_solver9time_stepNtB2_14TimeStepSolver10solve_step (inlined)
+            |                     _RNvMs1_NtCsg8px9YFo7KT_13akantu_solver12model_solverNtB5_11ModelSolver10solve_step
+            |                     _RNvMs1_NtCsg8px9YFo7KT_13akantu_solver12model_solverNtB5_11ModelSolver22solve_step_intercepted
+            |                     _RNvMs3_NtCs3IceuY7krF_12akantu_solid5modelNtB5_19SolidMechanicsModel22solve_step_intercepted
+            |                     _RNCINvNtNtCskKogH9ieu5f_12akantu_bench11suite_solid6common11timed_stepsNCNvNtB6_8explicit3runs1_0E0B8_ (inlined)
+            |                     _RINvMs1_NtCskKogH9ieu5f_12akantu_bench5suiteNtB6_3Ctx11repeat_implNCINvNtNtB8_11suite_solid6common11timed_stepsNCNvNtB19_8explicit3runs1_0E0EB8_
+            |                     _RINvMs1_NtCskKogH9ieu5f_12akantu_bench5suiteNtB6_3Ctx14repeat_primaryNCINvNtNtB8_11suite_solid6common11timed_stepsNCNvNtB1c_8explicit3runs1_0E0EB8_ (inlined)
+            |                     _RINvNtNtCskKogH9ieu5f_12akantu_bench11suite_solid6common11timed_stepsNCNvNtB4_8explicit3runs1_0EB6_
+            |                     _RNvNtNtCskKogH9ieu5f_12akantu_bench11suite_solid8explicit3run
+            |                     0xffffffffffffffff
+            |
+            |--9.56%--_RNCNvNtNtCs3IceuY7krF_12akantu_solid9materials7maxwell13scaled_matvec0B7_ (inlined)
+            |          |
+            |          |--6.97%--_RINvNtCsgFPJ4EkGA4x_11akantu_core11eigen_order7tree_l3NCNvNtNtCs3IceuY7krF_12akantu_solid9materials7maxwell13scaled_matvec0EBY_ (inlined)
+            |          |          _RINvNtCsgFPJ4EkGA4x_11akantu_core11eigen_order7tree_l4NCNvNtNtCs3IceuY7krF_12akantu_solid9materials7maxwell13scaled_matvec0EBY_ (inlined)
+            |          |          _RINvNtCsgFPJ4EkGA4x_11akantu_core11eigen_order7tree_l5NCNvNtNtCs3IceuY7krF_12akantu_solid9materials7maxwell13scaled_matvec0EBY_ (inlined)
+            |          |          _RINvNtCsgFPJ4EkGA4x_11akantu_core11eigen_order7tree_l6NCNvNtNtCs3IceuY7krF_12akantu_solid9materials7maxwell13scaled_matvec0EBY_ (inlined)
+            |          |          _RINvNtCsgFPJ4EkGA4x_11akantu_core11eigen_order10redux_treeNCNvNtNtCs3IceuY7krF_12akantu_solid9materials7maxwell13scaled_matvec0EB12_ (inlined)
+            |          |          _RINvMNtCsgFPJ4EkGA4x_11akantu_core11eigen_orderNtB3_9Reduction6reduceNCNvNtNtCs3IceuY7krF_12akantu_solid9materials7maxwell13scaled_matvec0EB1d_ (inlined)
+            |          |          _RINvMNtCsgFPJ4EkGA4x_11akantu_core11eigen_orderNtB3_9Reduction3sumNCNvNtNtCs3IceuY7krF_12akantu_solid9materials7maxwell13scaled_matvec0EB1a_ (inlined)
+            |          |          _RINvNtCsgFPJ4EkGA4x_11akantu_core11eigen_order13product_coeffNCNvNtNtCs3IceuY7krF_12akantu_solid9materials7maxwell13scaled_matvec0EB15_ (inlined)
+            |          |          _RNvNtNtCs3IceuY7krF_12akantu_solid9materials7maxwell13scaled_matvec
+            |          |          |
+            |          |          |--3.30%--_RNvMNtNtCs3IceuY7krF_12akantu_solid9materials7maxwellINtB2_27MaterialViscoelasticMaxwellKj3_E22update_int_var_on_quadB6_ (inlined)
+            |          |          |          _RNvMNtNtCs3IceuY7krF_12akantu_solid9materials7maxwellINtB2_27MaterialViscoelasticMaxwellKj3_E23update_int_variables_ofB6_ (inlined)
+            |          |          |          _RNvMNtNtCs3IceuY7krF_12akantu_solid9materials7maxwellINtB2_27MaterialViscoelasticMaxwellKj3_E20update_int_variablesB6_
+            |          |          |          _RNvXs2_NtNtCs3IceuY7krF_12akantu_solid9materials7maxwellINtB5_27MaterialViscoelasticMaxwellKj3_ENtNtB9_8material8Material16after_solve_stepB9_
+            |          |          |          _RNvXs6_NtCs3IceuY7krF_12akantu_solid5modelNtB5_21SolidMechanicsPhysicsNtNtCsg8px9YFo7KT_13akantu_solver8callback14SolverCallback16after_solve_step
+            |          |          |          _RNCNvXs_NtNtCskKogH9ieu5f_12akantu_bench11suite_solid6commonNtB6_9StepSplitNtNtCsg8px9YFo7KT_13akantu_solver8callback17InterceptCallback16after_solve_step0Ba_ (inlined)
+            |          |          |          _RINvMNtNtCskKogH9ieu5f_12akantu_bench11suite_solid6commonNtB3_9StepSplit4timeNCNvXs_B3_BT_NtNtCsg8px9YFo7KT_13akantu_solver8callback17InterceptCallback16after_solve_step0EB7_ (inlined)
+            |          |          |          _RNvXs_NtNtCskKogH9ieu5f_12akantu_bench11suite_solid6commonNtB4_9StepSplitNtNtCsg8px9YFo7KT_13akantu_solver8callback17InterceptCallback16after_solve_step
+            |          |          |          _RNvXs2_NtCsg8px9YFo7KT_13akantu_solver8callbackNtB5_9InterceptNtB5_14SolverCallback16after_solve_step
+            |          |          |          _RNCNvMNtCsg8px9YFo7KT_13akantu_solver25non_linear_newton_raphsonNtB4_28NonLinearSolverNewtonRaphson8solve_nrs3_0B6_ (inlined)
+            |          |          |          _RINvMs4_NtCsg8px9YFo7KT_13akantu_solver11dof_managerNtB6_10DofManager4stepuNCNvMNtB8_25non_linear_newton_raphsonNtB1g_28NonLinearSolverNewtonRaphson8solve_nrs3_0EB8_ (inlined)
+            |          |          |          _RINvNtCsg8px9YFo7KT_13akantu_solver9time_step10model_stepuNCNvXs0_B2_NtB2_7AdapterNtNtB4_8callback14SolverCallback16after_solve_step0EB4_ (inlined)
+            |          |          |          _RNvXs0_NtCsg8px9YFo7KT_13akantu_solver9time_stepNtB5_7AdapterNtNtB7_8callback14SolverCallback16after_solve_step
+            |          |          |          _RNCNCNvXs1_NtCsg8px9YFo7KT_13akantu_solver17non_linear_lumpedNtB9_21NonLinearSolverLumpedNtNtBb_10non_linear15NonLinearSolver5solve0s3_0Bb_ (inlined)
+            |          |          |          _RINvMs4_NtCsg8px9YFo7KT_13akantu_solver11dof_managerNtB6_10DofManager4stepuNCNCNvXs1_NtB8_17non_linear_lumpedNtB1l_21NonLinearSolverLumpedNtNtB8_10non_linear15NonLinearSolver5solve0s3_0EB8_
+            |          |          |          _RNCNvXs1_NtCsg8px9YFo7KT_13akantu_solver17non_linear_lumpedNtB7_21NonLinearSolverLumpedNtNtB9_10non_linear15NonLinearSolver5solve0B9_ (inlined)
+            |          |          |          _RINvMs4_NtCsg8px9YFo7KT_13akantu_solver11dof_managerNtB6_10DofManager10collectiveuNCNvXs1_NtB8_17non_linear_lumpedNtB1q_21NonLinearSolverLumpedNtNtB8_10non_linear15NonLinearSolver5solve0EB8_
+            |          |          |          _RNvXs1_NtCsg8px9YFo7KT_13akantu_solver17non_linear_lumpedNtB5_21NonLinearSolverLumpedNtNtB7_10non_linear15NonLinearSolver5solve
+            |          |          |          _RNvMNtCsg8px9YFo7KT_13akantu_solver9time_stepNtB2_14TimeStepSolver10solve_step (inlined)
+            |          |          |          _RNvMs1_NtCsg8px9YFo7KT_13akantu_solver12model_solverNtB5_11ModelSolver10solve_step
+            |          |          |          _RNvMs1_NtCsg8px9YFo7KT_13akantu_solver12model_solverNtB5_11ModelSolver22solve_step_intercepted
+            |          |          |          _RNvMs3_NtCs3IceuY7krF_12akantu_solid5modelNtB5_19SolidMechanicsModel22solve_step_intercepted
+            |          |          |          _RNCINvNtNtCskKogH9ieu5f_12akantu_bench11suite_solid6common11timed_stepsNCNvNtB6_8explicit3runs1_0E0B8_ (inlined)
+            |          |          |          _RINvMs1_NtCskKogH9ieu5f_12akantu_bench5suiteNtB6_3Ctx11repeat_implNCINvNtNtB8_11suite_solid6common11timed_stepsNCNvNtB19_8explicit3runs1_0E0EB8_
+            |          |          |          _RINvMs1_NtCskKogH9ieu5f_12akantu_bench5suiteNtB6_3Ctx14repeat_primaryNCINvNtNtB8_11suite_solid6common11timed_stepsNCNvNtB1c_8explicit3runs1_0E0EB8_ (inlined)
+            |          |          |          _RINvNtNtCskKogH9ieu5f_12akantu_bench11suite_solid6common11timed_stepsNCNvNtB4_8explicit3runs1_0EB6_
+            |          |          |          _RNvNtNtCskKogH9ieu5f_12akantu_bench11suite_solid8explicit3run
+            |          |          |          0xffffffffffffffff
+            |          |          |
+            |          |           --2.05%--_RNvMNtNtCs3IceuY7krF_12akantu_solid9materials7maxwellINtB2_27MaterialViscoelasticMaxwellKj3_E14stress_on_quadB6_
+            |          |                     _RNvXs2_NtNtCs3IceuY7krF_12akantu_solid9materials7maxwellINtB5_27MaterialViscoelasticMaxwellKj3_ENtNtB9_8material8Material14compute_stressB9_
+            |          |                     _RNvYINtNtNtCs3IceuY7krF_12akantu_solid9materials7maxwell27MaterialViscoelasticMaxwellKj3_ENtNtB9_8material8Material20compute_all_stressesB9_
+            |          |
+            |           --2.59%--_RINvNtCsgFPJ4EkGA4x_11akantu_core11eigen_order7tree_l4NCNvNtNtCs3IceuY7krF_12akantu_solid9materials7maxwell13scaled_matvec0EBY_ (inlined)
+            |                     _RINvNtCsgFPJ4EkGA4x_11akantu_core11eigen_order7tree_l5NCNvNtNtCs3IceuY7krF_12akantu_solid9materials7maxwell13scaled_matvec0EBY_ (inlined)
+            |                     _RINvNtCsgFPJ4EkGA4x_11akantu_core11eigen_order7tree_l6NCNvNtNtCs3IceuY7krF_12akantu_solid9materials7maxwell13scaled_matvec0EBY_ (inlined)
+            |                     _RINvNtCsgFPJ4EkGA4x_11akantu_core11eigen_order10redux_treeNCNvNtNtCs3IceuY7krF_12akantu_solid9materials7maxwell13scaled_matvec0EB12_ (inlined)
+            |                     _RINvMNtCsgFPJ4EkGA4x_11akantu_core11eigen_orderNtB3_9Reduction6reduceNCNvNtNtCs3IceuY7krF_12akantu_solid9materials7maxwell13scaled_matvec0EB1d_ (inlined)
+            |                     _RINvMNtCsgFPJ4EkGA4x_11akantu_core11eigen_orderNtB3_9Reduction3sumNCNvNtNtCs3IceuY7krF_12akantu_solid9materials7maxwell13scaled_matvec0EB1a_ (inlined)
+            |                     _RINvNtCsgFPJ4EkGA4x_11akantu_core11eigen_order13product_coeffNCNvNtNtCs3IceuY7krF_12akantu_solid9materials7maxwell13scaled_matvec0EB15_ (inlined)
+            |                     _RNvNtNtCs3IceuY7krF_12akantu_solid9materials7maxwell13scaled_matvec
+            |
+            |--6.91%--_RNvNtNtCs3IceuY7krF_12akantu_solid9materials7maxwell13scaled_matvec
+            |          |
+            |          |--3.19%--_RNvMNtNtCs3IceuY7krF_12akantu_solid9materials7maxwellINtB2_27MaterialViscoelasticMaxwellKj3_E22update_int_var_on_quadB6_ (inlined)
+            |          |          _RNvMNtNtCs3IceuY7krF_12akantu_solid9materials7maxwellINtB2_27MaterialViscoelasticMaxwellKj3_E23update_int_variables_ofB6_ (inlined)
+            |          |          _RNvMNtNtCs3IceuY7krF_12akantu_solid9materials7maxwellINtB2_27MaterialViscoelasticMaxwellKj3_E20update_int_variablesB6_
+            |          |          _RNvXs2_NtNtCs3IceuY7krF_12akantu_solid9materials7maxwellINtB5_27MaterialViscoelasticMaxwellKj3_ENtNtB9_8material8Material16after_solve_stepB9_
+            |          |          _RNvXs6_NtCs3IceuY7krF_12akantu_solid5modelNtB5_21SolidMechanicsPhysicsNtNtCsg8px9YFo7KT_13akantu_solver8callback14SolverCallback16after_solve_step
+            |          |          _RNCNvXs_NtNtCskKogH9ieu5f_12akantu_bench11suite_solid6commonNtB6_9StepSplitNtNtCsg8px9YFo7KT_13akantu_solver8callback17InterceptCallback16after_solve_step0Ba_ (inlined)
+            |          |          _RINvMNtNtCskKogH9ieu5f_12akantu_bench11suite_solid6commonNtB3_9StepSplit4timeNCNvXs_B3_BT_NtNtCsg8px9YFo7KT_13akantu_solver8callback17InterceptCallback16after_solve_step0EB7_ (inlined)
+            |          |          _RNvXs_NtNtCskKogH9ieu5f_12akantu_bench11suite_solid6commonNtB4_9StepSplitNtNtCsg8px9YFo7KT_13akantu_solver8callback17InterceptCallback16after_solve_step
+            |          |          _RNvXs2_NtCsg8px9YFo7KT_13akantu_solver8callbackNtB5_9InterceptNtB5_14SolverCallback16after_solve_step
+            |          |          _RNCNvMNtCsg8px9YFo7KT_13akantu_solver25non_linear_newton_raphsonNtB4_28NonLinearSolverNewtonRaphson8solve_nrs3_0B6_ (inlined)
+            |          |          _RINvMs4_NtCsg8px9YFo7KT_13akantu_solver11dof_managerNtB6_10DofManager4stepuNCNvMNtB8_25non_linear_newton_raphsonNtB1g_28NonLinearSolverNewtonRaphson8solve_nrs3_0EB8_ (inlined)
+            |          |          _RINvNtCsg8px9YFo7KT_13akantu_solver9time_step10model_stepuNCNvXs0_B2_NtB2_7AdapterNtNtB4_8callback14SolverCallback16after_solve_step0EB4_ (inlined)
+            |          |          _RNvXs0_NtCsg8px9YFo7KT_13akantu_solver9time_stepNtB5_7AdapterNtNtB7_8callback14SolverCallback16after_solve_step
+            |          |          _RNCNCNvXs1_NtCsg8px9YFo7KT_13akantu_solver17non_linear_lumpedNtB9_21NonLinearSolverLumpedNtNtBb_10non_linear15NonLinearSolver5solve0s3_0Bb_ (inlined)
+            |          |          _RINvMs4_NtCsg8px9YFo7KT_13akantu_solver11dof_managerNtB6_10DofManager4stepuNCNCNvXs1_NtB8_17non_linear_lumpedNtB1l_21NonLinearSolverLumpedNtNtB8_10non_linear15NonLinearSolver5solve0s3_0EB8_
+            |          |          _RNCNvXs1_NtCsg8px9YFo7KT_13akantu_solver17non_linear_lumpedNtB7_21NonLinearSolverLumpedNtNtB9_10non_linear15NonLinearSolver5solve0B9_ (inlined)
+            |          |          _RINvMs4_NtCsg8px9YFo7KT_13akantu_solver11dof_managerNtB6_10DofManager10collectiveuNCNvXs1_NtB8_17non_linear_lumpedNtB1q_21NonLinearSolverLumpedNtNtB8_10non_linear15NonLinearSolver5solve0EB8_
+            |          |          _RNvXs1_NtCsg8px9YFo7KT_13akantu_solver17non_linear_lumpedNtB5_21NonLinearSolverLumpedNtNtB7_10non_linear15NonLinearSolver5solve
+            |          |          _RNvMNtCsg8px9YFo7KT_13akantu_solver9time_stepNtB2_14TimeStepSolver10solve_step (inlined)
+            |          |          _RNvMs1_NtCsg8px9YFo7KT_13akantu_solver12model_solverNtB5_11ModelSolver10solve_step
+            |          |          _RNvMs1_NtCsg8px9YFo7KT_13akantu_solver12model_solverNtB5_11ModelSolver22solve_step_intercepted
+            |          |          _RNvMs3_NtCs3IceuY7krF_12akantu_solid5modelNtB5_19SolidMechanicsModel22solve_step_intercepted
+            |          |          _RNCINvNtNtCskKogH9ieu5f_12akantu_bench11suite_solid6common11timed_stepsNCNvNtB6_8explicit3runs1_0E0B8_ (inlined)
+            |          |          _RINvMs1_NtCskKogH9ieu5f_12akantu_bench5suiteNtB6_3Ctx11repeat_implNCINvNtNtB8_11suite_solid6common11timed_stepsNCNvNtB19_8explicit3runs1_0E0EB8_
+            |          |          _RINvMs1_NtCskKogH9ieu5f_12akantu_bench5suiteNtB6_3Ctx14repeat_primaryNCINvNtNtB8_11suite_solid6common11timed_stepsNCNvNtB1c_8explicit3runs1_0E0EB8_ (inlined)
+            |          |          _RINvNtNtCskKogH9ieu5f_12akantu_bench11suite_solid6common11timed_stepsNCNvNtB4_8explicit3runs1_0EB6_
+            |          |          _RNvNtNtCskKogH9ieu5f_12akantu_bench11suite_solid8explicit3run
+            |          |          0xffffffffffffffff
+            |          |
+            |           --2.25%--_RNvMNtNtCs3IceuY7krF_12akantu_solid9materials7maxwellINtB2_27MaterialViscoelasticMaxwellKj3_E14stress_on_quadB6_
+            |                     _RNvXs2_NtNtCs3IceuY7krF_12akantu_solid9materials7maxwellINtB5_27MaterialViscoelasticMaxwellKj3_ENtNtB9_8material8Material14compute_stressB9_
+            |                     _RNvYINtNtNtCs3IceuY7krF_12akantu_solid9materials7maxwell27MaterialViscoelasticMaxwellKj3_ENtNtB9_8material8Material20compute_all_stressesB9_
+            |                     |
+            |                      --2.05%--_RNCNvMs1_NtNtCs3IceuY7krF_12akantu_solid5model8assemblyNtB9_21SolidMechanicsPhysics24assemble_internal_forcess0_0Bb_ (inlined)
+            |                                _RNCINvNvNtNtNtNtCskADBYZwJmSU_4core4iter6traits8iterator8Iterator12try_for_each4callQINtNtCsgFX3jaOk65H_5alloc5boxed3BoxDNtNtCs3IceuY7krF_12akantu_solid8material8MaterialEL_EINtNtBe_6result6ResultuNtNtCsgFPJ4EkGA4x_11akantu_core5error5ErrorENCNvMs1_NtNtB1Z_5model8assemblyNtB41_21SolidMechanicsPhysics24assemble_internal_forcess0_0E0B1Z_ (inlined)
+            |                                _RINvYINtNtNtCskADBYZwJmSU_4core5slice4iter7IterMutINtNtCsgFX3jaOk65H_5alloc5boxed3BoxDNtNtCs3IceuY7krF_12akantu_solid8material8MaterialEL_EENtNtNtNtBa_4iter6traits8iterator8Iterator8try_folduNCINvNvB2e_12try_for_each4callQBM_INtNtBa_6result6ResultuNtNtCsgFPJ4EkGA4x_11akantu_core5error5ErrorENCNvMs1_NtNtB1q_5model8assemblyNtB4Q_21SolidMechanicsPhysics24assemble_internal_forcess0_0E0B3B_EB1q_ (inlined)
+            |                                _RINvYINtNtNtCskADBYZwJmSU_4core5slice4iter7IterMutINtNtCsgFX3jaOk65H_5alloc5boxed3BoxDNtNtCs3IceuY7krF_12akantu_solid8material8MaterialEL_EENtNtNtNtBa_4iter6traits8iterator8Iterator12try_for_eachNCNvMs1_NtNtB1q_5model8assemblyNtB3h_21SolidMechanicsPhysics24assemble_internal_forcess0_0INtNtBa_6result6ResultuNtNtCsgFPJ4EkGA4x_11akantu_core5error5ErrorEEB1q_ (inlined)
+            |                                _RNvMs1_NtNtCs3IceuY7krF_12akantu_solid5model8assemblyNtB7_21SolidMechanicsPhysics24assemble_internal_forces
+            |
+             --5.51%--_RNvNtCsgFPJ4EkGA4x_11akantu_core11eigen_order3add (inlined)
+                       |
+                        --3.60%--_RINvNtCsgFPJ4EkGA4x_11akantu_core11eigen_order7tree_l6NCNvNtNtCs3IceuY7krF_12akantu_solid9materials7maxwell13scaled_matvec0EBY_ (inlined)
+                                  _RINvNtCsgFPJ4EkGA4x_11akantu_core11eigen_order10redux_treeNCNvNtNtCs3IceuY7krF_12akantu_solid9materials7maxwell13scaled_matvec0EB12_ (inlined)
+                                  _RINvMNtCsgFPJ4EkGA4x_11akantu_core11eigen_orderNtB3_9Reduction6reduceNCNvNtNtCs3IceuY7krF_12akantu_solid9materials7maxwell13scaled_matvec0EB1d_ (inlined)
+                                  _RINvMNtCsgFPJ4EkGA4x_11akantu_core11eigen_orderNtB3_9Reduction3sumNCNvNtNtCs3IceuY7krF_12akantu_solid9materials7maxwell13scaled_matvec0EB1a_ (inlined)
+                                  _RINvNtCsgFPJ4EkGA4x_11akantu_core11eigen_order13product_coeffNCNvNtNtCs3IceuY7krF_12akantu_solid9materials7maxwell13scaled_matvec0EB15_ (inlined)
+                                  _RNvNtNtCs3IceuY7krF_12akantu_solid9materials7maxwell13scaled_matvec
+     5.87%  [.] _RNvMNtNtCs3IceuY7krF_12akantu_solid9materials7maxwellINtB2_27MaterialViscoelasticMaxwellKj3_E14stress_on_quadB6_
+            |
+             --3.63%--_RNvMNtNtCs3IceuY7krF_12akantu_solid9materials7maxwellINtB2_27MaterialViscoelasticMaxwellKj3_E14stress_on_quadB6_
+                       _RNvXs2_NtNtCs3IceuY7krF_12akantu_solid9materials7maxwellINtB5_27MaterialViscoelasticMaxwellKj3_ENtNtB9_8material8Material14compute_stressB9_
+                       _RNvYINtNtNtCs3IceuY7krF_12akantu_solid9materials7maxwell27MaterialViscoelasticMaxwellKj3_ENtNtB9_8material8Material20compute_all_stressesB9_
+                       |
+                        --3.17%--_RNCNvMs1_NtNtCs3IceuY7krF_12akantu_solid5model8assemblyNtB9_21SolidMechanicsPhysics24assemble_internal_forcess0_0Bb_ (inlined)
+                                  _RNCINvNvNtNtNtNtCskADBYZwJmSU_4core4iter6traits8iterator8Iterator12try_for_each4callQINtNtCsgFX3jaOk65H_5alloc5boxed3BoxDNtNtCs3IceuY7krF_12akantu_solid8material8MaterialEL_EINtNtBe_6result6ResultuNtNtCsgFPJ4EkGA4x_11akantu_core5error5ErrorENCNvMs1_NtNtB1Z_5model8assemblyNtB41_21SolidMechanicsPhysics24assemble_internal_forcess0_0E0B1Z_ (inlined)
+                                  _RINvYINtNtNtCskADBYZwJmSU_4core5slice4iter7IterMutINtNtCsgFX3jaOk65H_5alloc5boxed3BoxDNtNtCs3IceuY7krF_12akantu_solid8material8MaterialEL_EENtNtNtNtBa_4iter6traits8iterator8Iterator8try_folduNCINvNvB2e_12try_for_each4callQBM_INtNtBa_6result6ResultuNtNtCsgFPJ4EkGA4x_11akantu_core5error5ErrorENCNvMs1_NtNtB1q_5model8assemblyNtB4Q_21SolidMechanicsPhysics24assemble_internal_forcess0_0E0B3B_EB1q_ (inlined)
+                                  _RINvYINtNtNtCskADBYZwJmSU_4core5slice4iter7IterMutINtNtCsgFX3jaOk65H_5alloc5boxed3BoxDNtNtCs3IceuY7krF_12akantu_solid8material8MaterialEL_EENtNtNtNtBa_4iter6traits8iterator8Iterator12try_for_eachNCNvMs1_NtNtB1q_5model8assemblyNtB3h_21SolidMechanicsPhysics24assemble_internal_forcess0_0INtNtBa_6result6ResultuNtNtCsgFPJ4EkGA4x_11akantu_core5error5ErrorEEB1q_ (inlined)
+                                  _RNvMs1_NtNtCs3IceuY7krF_12akantu_solid5model8assemblyNtB7_21SolidMechanicsPhysics24assemble_internal_forces
+                                  |
+                                   --2.80%--_RNvMs1_NtNtCs3IceuY7krF_12akantu_solid5model8assemblyNtB7_21SolidMechanicsPhysics17assemble_residual
+                                             _RNvXs6_NtCs3IceuY7krF_12akantu_solid5modelNtB5_21SolidMechanicsPhysicsNtNtCsg8px9YFo7KT_13akantu_solver8callback14SolverCallback17assemble_residual
+                                             _RNCNvXs_NtNtCskKogH9ieu5f_12akantu_bench11suite_solid6commonNtB6_9StepSplitNtNtCsg8px9YFo7KT_13akantu_solver8callback17InterceptCallback17assemble_residual0Ba_ (inlined)
+                                             _RINvMNtNtCskKogH9ieu5f_12akantu_bench11suite_solid6commonNtB3_9StepSplit4timeNCNvXs_B3_BT_NtNtCsg8px9YFo7KT_13akantu_solver8callback17InterceptCallback17assemble_residual0EB7_ (inlined)
+                                             _RNvXs_NtNtCskKogH9ieu5f_12akantu_bench11suite_solid6commonNtB4_9StepSplitNtNtCsg8px9YFo7KT_13akantu_solver8callback17InterceptCallback17assemble_residual
+                                             _RNvXs2_NtCsg8px9YFo7KT_13akantu_solver8callbackNtB5_9InterceptNtB5_14SolverCallback17assemble_residual
+                                             _RNCNvMNtCsg8px9YFo7KT_13akantu_solver25non_linear_newton_raphsonNtB4_28NonLinearSolverNewtonRaphson17assemble_residuals0_0B6_ (inlined)
+                                             _RINvMs4_NtCsg8px9YFo7KT_13akantu_solver11dof_managerNtB6_10DofManager4stepuNCNvMNtB8_25non_linear_newton_raphsonNtB1g_28NonLinearSolverNewtonRaphson17assemble_residuals0_0EB8_
+                                             _RINvNtCsg8px9YFo7KT_13akantu_solver9time_step10model_stepuNCNvXs0_B2_NtB2_7AdapterNtNtB4_8callback14SolverCallback17assemble_residual0EB4_ (inlined)
+                                             _RNvXs0_NtCsg8px9YFo7KT_13akantu_solver9time_stepNtB5_7AdapterNtNtB7_8callback14SolverCallback17assemble_residual
+                                             _RNCNCNvXs1_NtCsg8px9YFo7KT_13akantu_solver17non_linear_lumpedNtB9_21NonLinearSolverLumpedNtNtBb_10non_linear15NonLinearSolver5solve0s0_0Bb_ (inlined)
+                                             _RINvMs4_NtCsg8px9YFo7KT_13akantu_solver11dof_managerNtB6_10DofManager4stepuNCNCNvXs1_NtB8_17non_linear_lumpedNtB1l_21NonLinearSolverLumpedNtNtB8_10non_linear15NonLinearSolver5solve0s0_0EB8_ (inlined)
+                                             _RNCNvXs1_NtCsg8px9YFo7KT_13akantu_solver17non_linear_lumpedNtB7_21NonLinearSolverLumpedNtNtB9_10non_linear15NonLinearSolver5solve0B9_ (inlined)
+                                             _RINvMs4_NtCsg8px9YFo7KT_13akantu_solver11dof_managerNtB6_10DofManager10collectiveuNCNvXs1_NtB8_17non_linear_lumpedNtB1q_21NonLinearSolverLumpedNtNtB8_10non_linear15NonLinearSolver5solve0EB8_
+                                             _RNvXs1_NtCsg8px9YFo7KT_13akantu_solver17non_linear_lumpedNtB5_21NonLinearSolverLumpedNtNtB7_10non_linear15NonLinearSolver5solve
+                                             _RNvMNtCsg8px9YFo7KT_13akantu_solver9time_stepNtB2_14TimeStepSolver10solve_step (inlined)
+                                             _RNvMs1_NtCsg8px9YFo7KT_13akantu_solver12model_solverNtB5_11ModelSolver10solve_step
+                                             _RNvMs1_NtCsg8px9YFo7KT_13akantu_solver12model_solverNtB5_11ModelSolver22solve_step_intercepted
+                                             _RNvMs3_NtCs3IceuY7krF_12akantu_solid5modelNtB5_19SolidMechanicsModel22solve_step_intercepted
+                                             _RNCINvNtNtCskKogH9ieu5f_12akantu_bench11suite_solid6common11timed_stepsNCNvNtB6_8explicit3runs1_0E0B8_ (inlined)
+                                             _RINvMs1_NtCskKogH9ieu5f_12akantu_bench5suiteNtB6_3Ctx11repeat_implNCINvNtNtB8_11suite_solid6common11timed_stepsNCNvNtB19_8explicit3runs1_0E0EB8_
+                                             _RINvMs1_NtCskKogH9ieu5f_12akantu_bench5suiteNtB6_3Ctx14repeat_primaryNCINvNtNtB8_11suite_solid6common11timed_stepsNCNvNtB1c_8explicit3runs1_0E0EB8_ (inlined)
+                                             _RINvNtNtCskKogH9ieu5f_12akantu_bench11suite_solid6common11timed_stepsNCNvNtB4_8explicit3runs1_0EB6_
+                                             _RNvNtNtCskKogH9ieu5f_12akantu_bench11suite_solid8explicit3run
+                                             0xffffffffffffffff
+     5.08%  [.] _RNvMNtNtCs3IceuY7krF_12akantu_solid9materials7maxwellINtB2_27MaterialViscoelasticMaxwellKj3_E20update_int_variablesB6_
+            |
+             --3.63%--_RNvMNtNtCs3IceuY7krF_12akantu_solid9materials7maxwellINtB2_27MaterialViscoelasticMaxwellKj3_E22update_int_var_on_quadB6_ (inlined)
+                       _RNvMNtNtCs3IceuY7krF_12akantu_solid9materials7maxwellINtB2_27MaterialViscoelasticMaxwellKj3_E23update_int_variables_ofB6_ (inlined)
+                       _RNvMNtNtCs3IceuY7krF_12akantu_solid9materials7maxwellINtB2_27MaterialViscoelasticMaxwellKj3_E20update_int_variablesB6_
+                       _RNvXs2_NtNtCs3IceuY7krF_12akantu_solid9materials7maxwellINtB5_27MaterialViscoelasticMaxwellKj3_ENtNtB9_8material8Material16after_solve_stepB9_
+                       _RNvXs6_NtCs3IceuY7krF_12akantu_solid5modelNtB5_21SolidMechanicsPhysicsNtNtCsg8px9YFo7KT_13akantu_solver8callback14SolverCallback16after_solve_step
+                       _RNCNvXs_NtNtCskKogH9ieu5f_12akantu_bench11suite_solid6commonNtB6_9StepSplitNtNtCsg8px9YFo7KT_13akantu_solver8callback17InterceptCallback16after_solve_step0Ba_ (inlined)
+                       _RINvMNtNtCskKogH9ieu5f_12akantu_bench11suite_solid6commonNtB3_9StepSplit4timeNCNvXs_B3_BT_NtNtCsg8px9YFo7KT_13akantu_solver8callback17InterceptCallback16after_solve_step0EB7_ (inlined)
+                       _RNvXs_NtNtCskKogH9ieu5f_12akantu_bench11suite_solid6commonNtB4_9StepSplitNtNtCsg8px9YFo7KT_13akantu_solver8callback17InterceptCallback16after_solve_step
+                       _RNvXs2_NtCsg8px9YFo7KT_13akantu_solver8callbackNtB5_9InterceptNtB5_14SolverCallback16after_solve_step
+                       _RNCNvMNtCsg8px9YFo7KT_13akantu_solver25non_linear_newton_raphsonNtB4_28NonLinearSolverNewtonRaphson8solve_nrs3_0B6_ (inlined)
+                       _RINvMs4_NtCsg8px9YFo7KT_13akantu_solver11dof_managerNtB6_10DofManager4stepuNCNvMNtB8_25non_linear_newton_raphsonNtB1g_28NonLinearSolverNewtonRaphson8solve_nrs3_0EB8_ (inlined)
+                       _RINvNtCsg8px9YFo7KT_13akantu_solver9time_step10model_stepuNCNvXs0_B2_NtB2_7AdapterNtNtB4_8callback14SolverCallback16after_solve_step0EB4_ (inlined)
+                       _RNvXs0_NtCsg8px9YFo7KT_13akantu_solver9time_stepNtB5_7AdapterNtNtB7_8callback14SolverCallback16after_solve_step
+                       _RNCNCNvXs1_NtCsg8px9YFo7KT_13akantu_solver17non_linear_lumpedNtB9_21NonLinearSolverLumpedNtNtBb_10non_linear15NonLinearSolver5solve0s3_0Bb_ (inlined)
+                       _RINvMs4_NtCsg8px9YFo7KT_13akantu_solver11dof_managerNtB6_10DofManager4stepuNCNCNvXs1_NtB8_17non_linear_lumpedNtB1l_21NonLinearSolverLumpedNtNtB8_10non_linear15NonLinearSolver5solve0s3_0EB8_
+                       _RNCNvXs1_NtCsg8px9YFo7KT_13akantu_solver17non_linear_lumpedNtB7_21NonLinearSolverLumpedNtNtB9_10non_linear15NonLinearSolver5solve0B9_ (inlined)
+                       _RINvMs4_NtCsg8px9YFo7KT_13akantu_solver11dof_managerNtB6_10DofManager10collectiveuNCNvXs1_NtB8_17non_linear_lumpedNtB1q_21NonLinearSolverLumpedNtNtB8_10non_linear15NonLinearSolver5solve0EB8_
+                       _RNvXs1_NtCsg8px9YFo7KT_13akantu_solver17non_linear_lumpedNtB5_21NonLinearSolverLumpedNtNtB7_10non_linear15NonLinearSolver5solve
+                       _RNvMNtCsg8px9YFo7KT_13akantu_solver9time_stepNtB2_14TimeStepSolver10solve_step (inlined)
+                       _RNvMs1_NtCsg8px9YFo7KT_13akantu_solver12model_solverNtB5_11ModelSolver10solve_step
+                       _RNvMs1_NtCsg8px9YFo7KT_13akantu_solver12model_solverNtB5_11ModelSolver22solve_step_intercepted
+                       _RNvMs3_NtCs3IceuY7krF_12akantu_solid5modelNtB5_19SolidMechanicsModel22solve_step_intercepted
+                       _RNCINvNtNtCskKogH9ieu5f_12akantu_bench11suite_solid6common11timed_stepsNCNvNtB6_8explicit3runs1_0E0B8_ (inlined)
+                       _RINvMs1_NtCskKogH9ieu5f_12akantu_bench5suiteNtB6_3Ctx11repeat_implNCINvNtNtB8_11suite_solid6common11timed_stepsNCNvNtB19_8explicit3runs1_0E0EB8_
+                       _RINvMs1_NtCskKogH9ieu5f_12akantu_bench5suiteNtB6_3Ctx14repeat_primaryNCINvNtNtB8_11suite_solid6common11timed_stepsNCNvNtB1c_8explicit3runs1_0E0EB8_ (inlined)
+                       _RINvNtNtCskKogH9ieu5f_12akantu_bench11suite_solid6common11timed_stepsNCNvNtB4_8explicit3runs1_0EB6_
+                       _RNvNtNtCskKogH9ieu5f_12akantu_bench11suite_solid8explicit3run
+                       0xffffffffffffffff
+     3.61%  [.] _RNvNtNtCsgFPJ4EkGA4x_11akantu_core6random4libm3exp
+     2.05%  [.] _RINvNtNtCslb6OkB7TxQL_9akantu_fe6engine4fast8gradientNtNtNtB6_13element_class5types12Tetrahedron4EB6_
