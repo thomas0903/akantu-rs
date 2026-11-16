@@ -424,11 +424,14 @@ pub(crate) struct Glu {
     pub xsup: Vec<i64>,
     pub supno: Vec<i64>,
     pub lusup: Vec<f64>,
-    pub lsub: Vec<i64>,
+    /// Row subscripts (Eigen's `int` storage index: `n < 2³¹` is checked
+    /// by `analyze_pattern`).
+    pub lsub: Vec<i32>,
     pub xlusup: Vec<i64>,
     pub xlsub: Vec<i64>,
     pub ucol: Vec<f64>,
-    pub usub: Vec<i64>,
+    /// Row subscripts of U (`int`, as `lsub`).
+    pub usub: Vec<i32>,
     pub xusub: Vec<i64>,
 }
 
@@ -444,6 +447,12 @@ fn grow<T: Clone + Default>(v: &mut Vec<T>, len: usize) {
 }
 
 fn u(i: i64) -> usize {
+    debug_assert!(i >= 0, "negative index {i}");
+    i as usize
+}
+
+/// [`u`] for an `int` subscript of `lsub` / `usub`.
+fn ru(i: i32) -> usize {
     debug_assert!(i >= 0, "negative index {i}");
     i as usize
 }
@@ -602,7 +611,7 @@ fn dfs_kernel(
             }
             DfsTarget::Column { jcol, jsuper } => {
                 grow(&mut glu.lsub, u(*nextl_col) + 1);
-                glu.lsub[u(*nextl_col)] = row;
+                glu.lsub[u(*nextl_col)] = row as i32;
                 *nextl_col += 1;
                 if chmark != *jcol - 1 {
                     **jsuper = EMPTY;
@@ -632,7 +641,7 @@ fn dfs_kernel(
     let mut maxdfs = xprune[u(krep)];
     loop {
         while xdfs < maxdfs {
-            let kchild = glu.lsub[u(xdfs)];
+            let kchild = i64::from(glu.lsub[u(xdfs)]);
             xdfs += 1;
             let chmark = marker[marker_off + u(kchild)];
             if chmark != jj {
@@ -861,17 +870,17 @@ fn kernel_bmod(
     mut luptr: usize,
     lda: usize,
     nrow: usize,
-    lsub: &[i64],
+    lsub: &[i32],
     lptr: usize,
     no_zeros: usize,
 ) {
     if fixed == 1 {
-        let f = dense[spa(u(lsub[lptr + no_zeros]), dc)];
+        let f = dense[spa(ru(lsub[lptr + no_zeros]), dc)];
         luptr += lda * no_zeros + no_zeros + 1;
         let irow = &lsub[lptr + no_zeros + 1..];
         let mut i = 0;
         while i + 1 < nrow {
-            let (i0, i1) = (spa(u(irow[i]), dc), spa(u(irow[i + 1]), dc));
+            let (i0, i1) = (spa(ru(irow[i]), dc), spa(ru(irow[i + 1]), dc));
             let (a0, a1) = (lusup[luptr + i], lusup[luptr + i + 1]);
             let mut d0 = dense[i0];
             let mut d1 = dense[i1];
@@ -882,13 +891,13 @@ fn kernel_bmod(
             i += 2;
         }
         if i < nrow {
-            dense[spa(u(irow[i]), dc)] -= f * lusup[luptr + i];
+            dense[spa(ru(irow[i]), dc)] -= f * lusup[luptr + i];
         }
         return;
     }
     let mut isub = lptr + no_zeros;
     for t in tempv.iter_mut().take(segsize) {
-        *t = dense[spa(u(lsub[isub]), dc)];
+        *t = dense[spa(ru(lsub[isub]), dc)];
         isub += 1;
     }
     luptr += lda * no_zeros + no_zeros;
@@ -905,11 +914,11 @@ fn kernel_bmod(
     );
     let mut isub = lptr + no_zeros;
     for &t in useg.iter() {
-        dense[spa(u(lsub[isub]), dc)] = t;
+        dense[spa(ru(lsub[isub]), dc)] = t;
         isub += 1;
     }
     for &li in l.iter().take(nrow) {
-        dense[spa(u(lsub[isub]), dc)] -= li;
+        dense[spa(ru(lsub[isub]), dc)] -= li;
         isub += 1;
     }
 }
@@ -966,7 +975,7 @@ pub(crate) fn panel_bmod(m: usize, w: usize, jcol: usize, nseg: i64, wk: &mut Wo
                 let col = &mut wk.tempv[u_col * ldu..(u_col + 1) * ldu];
                 col[..offz].fill(0.0);
                 for (t, x) in col.iter_mut().enumerate().skip(offz) {
-                    *x = wk.dense[spa(u(glu.lsub[urows + t]), dc)];
+                    *x = wk.dense[spa(ru(glu.lsub[urows + t]), dc)];
                 }
             }
             // solve U = A^-1 U
@@ -988,11 +997,11 @@ pub(crate) fn panel_bmod(m: usize, w: usize, jcol: usize, nseg: i64, wk: &mut Wo
             for (u_col, &(dc, segsize)) in ucols.iter().enumerate() {
                 let offz = ur - segsize;
                 for t in offz..ur {
-                    wk.dense[spa(u(glu.lsub[urows + t]), dc)] = tu[t + u_col * ldu];
+                    wk.dense[spa(ru(glu.lsub[urows + t]), dc)] = tu[t + u_col * ldu];
                 }
             }
             for (i, &irow) in lrows.iter().enumerate() {
-                let row = &mut wk.dense[spa(u(irow), 0)..][..SPA_W];
+                let row = &mut wk.dense[spa(ru(irow), 0)..][..SPA_W];
                 for (u_col, &(dc, _)) in ucols.iter().enumerate() {
                     row[dc] -= tl[i + u_col * ldl];
                 }
@@ -1088,7 +1097,7 @@ pub(crate) fn column_bmod(
     let new_next = nextlu + glu.xlsub[u(fsupc + 1)] - glu.xlsub[u(fsupc)];
     grow(&mut glu.lusup, u(new_next));
     for isub in glu.xlsub[u(fsupc)]..glu.xlsub[u(fsupc + 1)] {
-        let irow = u(glu.lsub[u(isub)]);
+        let irow = ru(glu.lsub[u(isub)]);
         glu.lusup[u(nextlu)] = wk.dense[spa(irow, dc)];
         wk.dense[spa(irow, dc)] = 0.0;
         nextlu += 1;
@@ -1151,8 +1160,8 @@ pub(crate) fn copy_to_ucol(
                 grow(&mut glu.ucol, u(new_next));
                 grow(&mut glu.usub, u(new_next));
                 for _ in 0..segsize {
-                    let irow = u(glu.lsub[u(isub)]);
-                    glu.usub[u(nextu)] = perm_r[irow];
+                    let irow = ru(glu.lsub[u(isub)]);
+                    glu.usub[u(nextu)] = perm_r[irow] as i32;
                     glu.ucol[u(nextu)] = wk.dense[spa(irow, dc)];
                     wk.dense[spa(irow, dc)] = 0.0;
                     nextu += 1;
@@ -1190,7 +1199,7 @@ pub(crate) fn pivot_l(
             pivmax = rtemp;
             pivptr = isub;
         }
-        if glu.lsub[lptr + isub] == diagind {
+        if i64::from(glu.lsub[lptr + isub]) == diagind {
             diag = isub as i64;
         }
     }
@@ -1198,7 +1207,7 @@ pub(crate) fn pivot_l(
         let pivrow = if pivmax < 0.0 {
             diagind
         } else {
-            glu.lsub[lptr + pivptr]
+            i64::from(glu.lsub[lptr + pivptr])
         };
         perm_r[u(pivrow)] = jcol as i64;
         return Err(jcol as i64 + 1);
@@ -1210,7 +1219,7 @@ pub(crate) fn pivot_l(
             pivptr = u(diag);
         }
     }
-    let pivrow = glu.lsub[lptr + pivptr];
+    let pivrow = i64::from(glu.lsub[lptr + pivptr]);
     perm_r[u(pivrow)] = jcol as i64;
     if pivptr != nsupc {
         glu.lsub.swap(lptr + pivptr, lptr + nsupc);
@@ -1255,7 +1264,7 @@ pub(crate) fn prune_l(
                 kmin = glu.xlsub[u(irep)];
                 kmax = glu.xlsub[u(irep1)] - 1;
                 for krow in kmin..=kmax {
-                    if glu.lsub[u(krow)] == pivrow {
+                    if i64::from(glu.lsub[u(krow)]) == pivrow {
                         do_prune = true;
                         break;
                     }
@@ -1264,9 +1273,9 @@ pub(crate) fn prune_l(
             if do_prune {
                 let movnum = irep == glu.xsup[u(glu.supno[u(irep)])];
                 while kmin <= kmax {
-                    if perm_r[u(glu.lsub[u(kmax)])] == EMPTY {
+                    if perm_r[ru(glu.lsub[u(kmax)])] == EMPTY {
                         kmax -= 1;
-                    } else if perm_r[u(glu.lsub[u(kmin)])] != EMPTY {
+                    } else if perm_r[ru(glu.lsub[u(kmin)])] != EMPTY {
                         kmin += 1;
                     } else {
                         glu.lsub.swap(u(kmin), u(kmax));
@@ -1317,7 +1326,7 @@ pub(crate) fn fixup_l(n: usize, perm_r: &[i64], glu: &mut Glu) {
         let jstart = glu.xlsub[u(fsupc)];
         glu.xlsub[u(fsupc)] = nextl;
         for j in jstart..glu.xlsub[u(fsupc + 1)] {
-            glu.lsub[u(nextl)] = perm_r[u(glu.lsub[u(j)])];
+            glu.lsub[u(nextl)] = perm_r[ru(glu.lsub[u(j)])] as i32;
             nextl += 1;
         }
         for k in fsupc + 1..glu.xsup[i + 1] {

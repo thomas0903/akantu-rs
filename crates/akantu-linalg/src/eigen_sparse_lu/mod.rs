@@ -324,16 +324,22 @@ impl SparseLu {
         let (nnz_l, nnz_u) = kernels::countnz(n, g);
         let nsuper = if n > 0 { g.supno[n] } else { -1 };
         let take = |v: &[i64], len: i64| v[..usize::try_from(len).unwrap_or(0)].to_vec();
+        let widen = |v: &[i32], len: i64| {
+            v[..usize::try_from(len).unwrap_or(0)]
+                .iter()
+                .map(|&i| i64::from(i))
+                .collect()
+        };
         Some(SparseLuFactors {
             perm_r: perm_r.clone(),
             xsup: take(&g.xsup, nsuper + 2),
             supno: g.supno.clone(),
             xlsub: g.xlsub.clone(),
-            lsub: take(&g.lsub, g.xlsub[n]),
+            lsub: widen(&g.lsub, g.xlsub[n]),
             xlusup: g.xlusup.clone(),
             lusup: g.lusup[..g.xlusup[n] as usize].to_vec(),
             xusub: g.xusub.clone(),
-            usub: take(&g.usub, g.xusub[n]),
+            usub: widen(&g.usub, g.xusub[n]),
             ucol: g.ucol[..g.xusub[n] as usize].to_vec(),
             nnz_l,
             nnz_u,
