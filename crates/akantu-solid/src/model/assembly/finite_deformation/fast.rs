@@ -463,7 +463,7 @@ impl<const D: usize, const TS: usize, const FMA: bool> SimdTask
                 }
             }
             // res = 0 + c (zeroed destination)
-            for (a, oa) in oe.chunks_exact_mut(D).enumerate() {
+            for (a, oa) in oe.as_chunks_mut::<D>().0.iter_mut().enumerate() {
                 for (k, o) in oa.iter_mut().enumerate() {
                     *o = 0.0 + c[a / 4][k].0[a % 4];
                 }

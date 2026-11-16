@@ -26,15 +26,15 @@ when the CPU reports the level's target feature (`SimdLevel::token` and
 
 | Id | Line | Site | What it does | Invariant (its `SAFETY:` comment) | Established by | Test |
 |---|---|---|---|---|---|---|
-| CO-01 | 321 | `fn scaled_add` block 1 | calls the AVX-512F version | CPU has avx512f; equal lengths | `SimdToken` constructors; `assert_eq!` of the lengths | `exec::simd::tests::every_level_gives_the_scalar_bits` |
-| CO-02 | 327 | `fn scaled_add` block 2 | calls the AVX2 version | CPU has avx2; equal lengths | as CO-01 | as CO-01 |
-| CO-03 | 333 | `fn scaled_add` block 3 | calls the NEON version | CPU has neon; equal lengths | as CO-01 | as CO-01 (aarch64) |
-| CO-04 | 349 | `fn scaled_add_avx2` fn 1 | `#[target_feature(enable = "avx2")]` version | caller guarantees avx2 | CO-02 | as CO-01 |
-| CO-05 | 360 | `fn scaled_add_avx2` block 1 | unaligned 4-wide loads, multiply, add, store | `i + 4 ≤ len` of both slices | loop bound `body = n − n % 4`, `n = min(len)` | as CO-01 |
-| CO-06 | 372 | `fn scaled_add_avx512` fn 1 | `#[target_feature(enable = "avx512f")]` version | caller guarantees avx512f | CO-01 | as CO-01 |
-| CO-07 | 383 | `fn scaled_add_avx512` block 1 | unaligned 8-wide loads, multiply, add, store | `i + 8 ≤ len` of both slices | loop bound `body = n − n % 8` | as CO-01 |
-| CO-08 | 395 | `fn scaled_add_neon` fn 1 | `#[target_feature(enable = "neon")]` version | caller guarantees neon | CO-03 | as CO-01 (aarch64) |
-| CO-09 | 405 | `fn scaled_add_neon` block 1 | 2-wide loads, multiply, add, store | `i + 2 ≤ len` of both slices | loop bound `body = n − n % 2` | as CO-01 (aarch64) |
+| CO-01 | 331 | `fn scaled_add` block 1 | calls the AVX-512F version | CPU has avx512f; equal lengths | `SimdToken` constructors; `assert_eq!` of the lengths | `exec::simd::tests::every_level_gives_the_scalar_bits` |
+| CO-02 | 337 | `fn scaled_add` block 2 | calls the AVX2 version | CPU has avx2; equal lengths | as CO-01 | as CO-01 |
+| CO-03 | 343 | `fn scaled_add` block 3 | calls the NEON version | CPU has neon; equal lengths | as CO-01 | as CO-01 (aarch64) |
+| CO-04 | 359 | `fn scaled_add_avx2` fn 1 | `#[target_feature(enable = "avx2")]` version | caller guarantees avx2 | CO-02 | as CO-01 |
+| CO-05 | 370 | `fn scaled_add_avx2` block 1 | unaligned 4-wide loads, multiply, add, store | `i + 4 ≤ len` of both slices | loop bound `body = n − n % 4`, `n = min(len)` | as CO-01 |
+| CO-06 | 382 | `fn scaled_add_avx512` fn 1 | `#[target_feature(enable = "avx512f")]` version | caller guarantees avx512f | CO-01 | as CO-01 |
+| CO-07 | 393 | `fn scaled_add_avx512` block 1 | unaligned 8-wide loads, multiply, add, store | `i + 8 ≤ len` of both slices | loop bound `body = n − n % 8` | as CO-01 |
+| CO-08 | 405 | `fn scaled_add_neon` fn 1 | `#[target_feature(enable = "neon")]` version | caller guarantees neon | CO-03 | as CO-01 (aarch64) |
+| CO-09 | 415 | `fn scaled_add_neon` block 1 | 2-wide loads, multiply, add, store | `i + 2 ≤ len` of both slices | loop bound `body = n − n % 2` | as CO-01 (aarch64) |
 | CO-10 | 202 | `fn with_fma` block 1 | calls the FMA-enabled entry point | CPU has avx2 and fma | `SimdToken` constructors (`Avx2` and `Avx512` require both) | `exec::simd::tests::fma_tasks_are_fused_at_every_level` |
 | CO-11 | 210 | `fn run_with_fma` fn 1 | `#[target_feature(enable = "avx2,fma")]` entry point that runs a task inlined into it | caller guarantees avx2 and fma | CO-10 | as CO-10 |
 | CO-19 | 243 | `fn with_simd` block 1 | calls the AVX2 entry point of a bitwise lane kernel | CPU has avx2 | `SimdToken` constructors (`Avx2` and `Avx512` require avx2) | `exec::simd::tests::simd_tasks_give_the_scalar_bits_at_every_level`; the FE and finite-deformation kernel property tests at every level |

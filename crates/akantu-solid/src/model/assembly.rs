@@ -474,7 +474,7 @@ impl SolidMechanicsPhysics {
                 // `Material::assembleInternalForces`)
                 if let Some(r) = law.assemble_internal_forces_custom(
                     &self.base.fems,
-                    &mesh,
+                    mesh,
                     ghost,
                     f_int.view_mut(),
                 ) {

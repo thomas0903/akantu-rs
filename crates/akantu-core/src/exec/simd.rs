@@ -522,9 +522,15 @@ mod tests {
             #[inline(always)]
             fn run(self) -> Vec<Real> {
                 let mut out = Vec::new();
-                for (a, b) in self.0.chunks_exact(4).zip(self.1.chunks_exact(4)) {
-                    let x = Lanes4([a[0], a[1], a[2], a[3]]);
-                    let y = Lanes4([b[0], b[1], b[2], b[3]]);
+                for (a, b) in self
+                    .0
+                    .as_chunks::<4>()
+                    .0
+                    .iter()
+                    .zip(self.1.as_chunks::<4>().0)
+                {
+                    let x = Lanes4(*a);
+                    let y = Lanes4(*b);
                     let r = (x * y - Lanes4::splat(1.0)) + x / y;
                     out.extend_from_slice(&r.0);
                 }

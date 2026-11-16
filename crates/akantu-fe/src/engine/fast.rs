@@ -285,7 +285,7 @@ impl<E: LagrangeElement, const NBD: usize, const MINUS: bool> SimdTask
                 .zip(oe.chunks_exact_mut(tsz))
                 .enumerate()
             {
-                for (j, gj) in g.chunks_exact_mut(NBD).enumerate() {
+                for (j, gj) in g.as_chunks_mut::<NBD>().0.iter_mut().enumerate() {
                     // lhs(i, l) = U(i, l), rhs(l, j) = B(j, l)
                     for (l, pl) in p.iter_mut().enumerate().take(nn) {
                         *pl = ue[l] * Lanes4::splat(b[j + l * nd]);
@@ -518,7 +518,7 @@ impl<const R: usize, const S: usize> SimdTask for LaneBtd<'_, R, S> {
             {
                 // lhs(i, l) = D(i, l), rhs(l, j) = B(l, j)
                 let dcol = d_columns::<R, S>(d);
-                for (bj, oj) in b.chunks_exact(S).zip(o.chunks_exact_mut(R)) {
+                for (bj, oj) in b.as_chunks::<S>().0.iter().zip(o.as_chunks_mut::<R>().0) {
                     oj.copy_from_slice(&db_column(&dcol, bj).prefix::<R>());
                 }
             }
@@ -740,7 +740,7 @@ impl<const R: usize, const S: usize, const FMA: bool> SimdTask for LaneBtdIntegr
             for ((b, d), &jq) in be.chunks_exact(bsz).zip(de.chunks_exact(R * S)).zip(je) {
                 let dcol = d_columns::<R, S>(d);
                 let jq = Lanes4::splat(jq);
-                for (cj, bj) in c.iter_mut().zip(b.chunks_exact(S)) {
+                for (cj, bj) in c.iter_mut().zip(b.as_chunks::<S>().0) {
                     *cj = if FMA {
                         db_column_fma(&dcol, bj).mul_add(jq, *cj)
                     } else {
@@ -749,7 +749,7 @@ impl<const R: usize, const S: usize, const FMA: bool> SimdTask for LaneBtdIntegr
                 }
             }
             // res = 0 + c (zeroed destination)
-            for (oj, &cj) in oe.chunks_exact_mut(R).zip(&c) {
+            for (oj, &cj) in oe.as_chunks_mut::<R>().0.iter_mut().zip(&c) {
                 oj.copy_from_slice(&(Lanes4::splat(0.0) + cj).prefix::<R>());
             }
         }
@@ -1251,7 +1251,7 @@ mod tests {
     #[test]
     fn gradient_minus_matches_gradient_then_subtraction() {
         type E = crate::element_class::types::Hexahedron8;
-        let mut v = Values::new(0x5eed_0f_9a1d_e7);
+        let mut v = Values::new(0x5eed_0f9a_1de7);
         let (nn, nd, nq, nb_nodes, ne) = (8, 3, 8, 30, 50);
         for round in 0..40 {
             let conn: Vec<Idx> = (0..ne * nn)

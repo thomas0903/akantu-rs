@@ -512,7 +512,7 @@ impl FeEngine {
         ty: ElementType,
         ghost: GhostType,
         filter: Option<&'f [Idx]>,
-    ) -> Result<(std::borrow::Cow<'f, [Idx]>, usize, usize, usize, usize)> {
+    ) -> Result<BtdOperands<'f>> {
         let dsh = self.shapes_derivatives(ty, ghost)?;
         let nq = self.nb_integration_points(ty, ghost)?;
         let ne = dsh.len().checked_div(nq).unwrap_or(0);
@@ -819,6 +819,9 @@ pub(crate) fn integrate_with_jacobians<'j>(
     }
     Ok(())
 }
+
+/// `(ids, nq, nn, sdim, r)` of a `compute_btd` call.
+type BtdOperands<'f> = (std::borrow::Cow<'f, [Idx]>, usize, usize, usize, usize);
 
 /// Destination of a gradient: an array resized by the callee (the
 /// historical contract of the FE engine) or a fixed-shape view whose shape
