@@ -13,6 +13,9 @@
 # $MESH_DIR/<MESH>.msh. Defaults as in run_ab.sh: ~/perf/bin, ~/perf/cpp-bin,
 # ~/perf/meshes. PIN_CPU (optional, e.g. 2) pins every run to that core
 # (taskset for the port, docker --cpuset-cpus for C++ through cpp_run.sh).
+# ROUND_START (optional, default 1) numbers the rounds ROUND_START..
+# ROUND_START+ROUNDS-1 (rotation and tags included): a series split into
+# several calls appending to the same OUT.jsonl continues the rotation.
 set -u
 X="$(cd "$(dirname "$0")" && pwd)"
 bindir="${BIN_DIR:-$HOME/perf/bin}"; meshdir="${MESH_DIR:-$HOME/perf/meshes}"
@@ -20,7 +23,8 @@ cppdir="${CPP_BIN_DIR:-$HOME/perf/cpp-bin}"
 out=$1 rounds=$2; read -r -a labels <<< "$3"; read -r -a cases <<< "$4"
 n=${#labels[@]}
 pin=(); [ -z "${PIN_CPU:-}" ] || pin=(taskset -c "${PIN_CPU}")
-for r in $(seq 1 "$rounds"); do
+r0="${ROUND_START:-1}"
+for r in $(seq "$r0" $((r0 + rounds - 1))); do
   order=(); for ((i = 0; i < n; i++)); do order+=("${labels[$(( (i + r - 1) % n ))]}"); done
   echo "{\"kind\":\"round\",\"round\":$r,\"pin_cpu\":\"${PIN_CPU:-}\",\"order\":\"${order[*]}\",\"load\":\"$(cut -d' ' -f1-3 /proc/loadavg)\",\"cpu\":\"$(grep -m1 'model name' /proc/cpuinfo | cut -d: -f2 | xargs)\",\"utc\":\"$(date -u +%FT%TZ)\"}" >> "$out"
   for c in "${cases[@]}"; do
