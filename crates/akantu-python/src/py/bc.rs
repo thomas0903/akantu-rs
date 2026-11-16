@@ -73,7 +73,33 @@ pub(crate) enum BuiltinDirichlet {
     Increment(Increment),
 }
 
-/// `DirichletFunctor()` / `DirichletFunctor(axis)`.
+/// `DirichletFunctor()` / `DirichletFunctor(axis)`: base class of
+/// Dirichlet boundary conditions applied with `model.applyBC(functor,
+/// group)`.
+///
+/// A subclass defines `__call__(node, flags, primal, coord)`, called once
+/// per node of the group with views of the node's rows (`flags` and
+/// `primal` writable, `coord` read-only).
+///
+/// Optional (akantu-rs, absent upstream): `callNodes(nodes, flags, primal,
+/// coords)`, called once per group instead, and used instead of `__call__`
+/// when both exist. It receives copies of the group's rows (`nodes` int32
+/// `(n,)`, `flags` bool and `primal` float64 `(n, nb_dof)`, `coords`
+/// read-only float64 `(n, dim)`); `flags` and `primal` are written back to
+/// the model after it returns, in node order (a node listed twice keeps its
+/// last row); nothing is written if it raises. It is not called for a group
+/// without nodes.
+///
+/// Example:
+///
+/// ```python
+/// class Ramp(aka.DirichletFunctor):
+///     def callNodes(self, nodes, flags, primal, coords):
+///         primal[:, 0] = 1e-3 * coords[:, 0]
+///         flags[:, 0] = True
+///
+/// model.applyBC(Ramp(), "left")
+/// ```
 #[pyclass(extends = PyBcFunctor, subclass, frozen, name = "DirichletFunctor", module = "akantu.py11_akantu")]
 #[derive(Debug)]
 pub(crate) struct PyDirichletFunctor {

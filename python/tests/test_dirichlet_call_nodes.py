@@ -175,3 +175,8 @@ def test_empty_group_calls_neither_method():
         assert f.calls == 0
     u, b = state(model)
     assert np.array_equal(u, u0) and np.array_equal(b, b0)
+
+
+def test_docstring_describes_both_protocols():
+    doc = aka.DirichletFunctor.__doc__
+    assert "__call__" in doc and "callNodes" in doc
