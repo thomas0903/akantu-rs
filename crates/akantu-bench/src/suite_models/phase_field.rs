@@ -129,14 +129,13 @@ fn staggered(run: &mut Run, cell: Cell, n: usize, load_steps: usize) -> Result<D
     for _ in 0..3 {
         step(&mut c, &mut scratch)?;
     }
-    let min = run.opts.loop_seconds.unwrap_or(0.0);
     let t_start = Instant::now();
     loop {
         for _ in 0..load_steps {
             step(&mut c, &mut t)?;
             calls += nb_staggered;
         }
-        if t_start.elapsed().as_secs_f64() >= min {
+        if !run.keep_looping(t_start)? {
             break;
         }
     }
