@@ -1,5 +1,5 @@
 <!-- SPDX-License-Identifier: LGPL-3.0-or-later -->
-# Sparse assembly, profile, matrix-vector product and solver hand-over (W2-ASSEMBLY)
+# Sparse assembly, profile, matrix-vector product and solver hand-over
 
 Branch `perf/sparse-assembly` from `perf/wave2-base` (59e05aa3f). Every
 change keeps the default results bit for bit: the same binary64 additions
@@ -7,27 +7,29 @@ into each matrix entry in the same order, the same profile order and the
 same release counters (D-122).
 
 Machine of every table: Intel Xeon Platinum 8581C (Emerald Rapids), 8
-cores, one thread per core, 30 GiB, Ubuntu 24.04 (a development machine of
-the campaign, not the AWS measurement machine). One process per run,
-pinned (`taskset`; MPI ranks on cores 0..N-1).
+cores, one thread per core, 30 GiB, Ubuntu 24.04 (a development machine).
+One process per run, pinned (`taskset`; MPI ranks on cores 0..N-1).
 
 ## What changed
 
 | Where | Before | After |
 |---|---|---|
 | profile map `(row, column) → entry` (`SparseMatrixAij`) | `HashMap` with SipHash-1-3 | the same map with `int_hash::IntHasher` (folded 64 × 64-bit multiply); never iterated, so no result depends on the hash |
-| repeated element assembly (`DofManager::assemble_elemental_matrices_to_matrix`) | one hash lookup per elemental entry and assembly | entry positions per element cached (`BlockPositionCache`, `add_values_cached`) from the second assembly with unchanged positions; appended entries (contact) keep them |
+| repeated element assembly (`DofManager::assemble_elemental_matrices_to_matrix`) | one hash lookup per elemental entry and assembly | entry positions per element cached (`BlockPositionCache`, `add_values_cached`, one slot per element of the connectivity, shared by every filter of the type) from the second assembly with unchanged positions; appended entries (contact) keep them |
 | first assembly of every element of a type | profile all elements (one lookup per pair), then add the values (a second lookup per pair) | profile and values element by element, one lookup per pair (`add_block_to_profile_and_values`); not used when a block would promote the matrix (the order would differ) |
 | `mat_vec_mul`, `apply_boundary` | a `Vec` of local index pairs rebuilt per call with two SipHash lookups per entry | coordinates checked once (O(1) on a serial layout: largest coordinate tracked), local equations from the identity layout or a dense global → local map; no allocation |
 | `EquationLayout` global → local | `HashMap` (SipHash) | dense `Vec<u32>` while the largest global number present is below `4 · nb_local + 4096`, hashed (`IntHasher`) beyond |
 | `J = copy_profile(K); J += K` (every Newton step, `integration_scheme.rs`) | `AijBackend::copy_profile` cloned `K`; `copy_profile` rebuilt `J`'s map; `add_matrix` one lookup per entry | no clone; the map is kept (same entries) or cloned (same key rule); `add_matrix` adds entry-wise when both matrices store the same coordinates with one key per entry |
-| `CscMatrix::from_aij` (SparseLU / faer input) | triplet vector, then `setFromTriplets` | the same steps fed from the COO arrays, temporaries released early |
 
 Property tests (`crates/akantu-linalg/src/sparse_perf_tests.rs`) compare
 each path with the loop it replaces on random input with signed zeros,
 infinities, NaN and subnormals: values bit for bit, errors, release
-counters, the profile map. A mutant that forgets to invalidate the cached
-positions on `clear_profile` fails them.
+counters, the profile map. Mutants checked to fail them: no invalidation
+of the cached positions in `clear_profile` or in `copy_profile`, an
+overwrite of an existing global number in the dense or the hashed
+global → local map, `<=` instead of `<` in the O(1) identity check, and
+(test `two_filters_on_one_type_hit_the_position_cache`) the slot taken
+from the filter instead of the connectivity.
 
 ## Memory of the position cache
 
@@ -72,7 +74,7 @@ repetition. Raw data: `suite-ab/ab3/`, full table
 | `static_linear_eigen` | `solve_step` | 2.214 s | 0.948 [0.938, 0.965] |
 | `implicit_dynamic` | `solve_step` (60 steps) | 1.184 s | 0.618 [0.608, 0.637] |
 | `cohesive_intrinsic_implicit` | `solve_step` (30 steps) | 6.100 s | 0.727 [0.721, 0.764] |
-| `static_newton_plastic` | `solve_step` (12 steps) | 2.607 s | 1.024 [1.023, 1.044] (see "Code-generation side effect") |
+| `static_newton_plastic` | `solve_step` (12 steps) | 2.607 s | 1.024 [1.023, 1.044]; an independent series measured 1.060 [1.052, 1.062] (see "Code-generation side effect") |
 | `heat_static_tri6` | `assemble_conductivity` (5 calls) | 73.9 ms | 0.496 [0.484, 0.526] |
 | `heat_static_tri6` | `solve_step` | 4.001 s | 0.950 [0.946, 0.962] |
 | `heat_implicit_hex8_kvar` | `solve_step` | 1.022 s | 0.909 [0.889, 0.927] |
@@ -86,10 +88,52 @@ repetition. Raw data: `suite-ab/ab3/`, full table
 | `embedded_rebar_tri3` | `assemble_stiffness` | 80.3 ms | 0.619 [0.583, 0.638] |
 | `embedded_rebar_tet4` | `assemble_stiffness` | 248 ms | 0.565 [0.532, 0.584] |
 
-The solve phases are led by the SparseLU factorisation, which this task
-does not change; their gain is the assembly, `J = K` and the product
+The solve phases are led by the SparseLU factorisation, which these
+changes do not touch; their gain is the assembly, `J = K` and the product
 inside them. `mass_consistent` is led by the elemental mass products
-(`eigen_gebp`, W2-GEBP).
+(`eigen_gebp`; the small-products work).
+
+After the merge of the small-products work (`perf/wave2-base` 78a330615:
+the consistent mass is integrated element by element, then assembled with
+one `assemble_elemental_matrices_to_matrix` call per element type, the
+same call pattern as before), the set-up cases against that base,
+5 interleaved repetitions, every digest equal (raw data `suite-ab/ab4/`,
+`suite-ab/ab4-summary.md`):
+
+| case | phase | after | after / base 78a330615 |
+|---|---|---|---|
+| `setup_tet4` | `mass_consistent` (3 calls) | 622 ms | 0.308 [0.305, 0.312] |
+| `setup_tet4` | `stiffness_assembly` (3 calls) | 1.087 s | 0.440 [0.436, 0.443] |
+| `setup_tet10` | `mass_consistent` | 260 ms | 0.248 [0.245, 0.256] |
+| `setup_tet10` | `stiffness_assembly` | 923 ms | 0.533 [0.528, 0.536] |
+| `setup_hex8` | `mass_consistent` | 326 ms | 0.370 [0.363, 0.383] |
+| `setup_hex8` | `stiffness_assembly` | 1.486 s | 0.707 [0.699, 0.708] |
+
+With the elemental products faster, the assembly is most of what remains
+of `mass_consistent`, hence the larger ratio than in the table above. The
+digests of every case of the three suites at size `s` are equal between
+that base and this branch (`digests-s/`, `fb_*` base, `fa_*` this
+branch).
+
+## Several element filters on one type
+
+Each material of an element type assembles its own filter into the cache
+of `(matrix, family, type, ghost)`. The slot of an element is its index in
+the connectivity, so the filters never overwrite each other's slots (an
+earlier version of this branch used the index inside the filter: two
+materials then resolved and copied every block again in every round).
+`crates/akantu-solver/examples/assembly_filters.rs`: the structured
+`Tetrahedron4` cube of 162,000 elements, 3 DOFs per node, symmetric
+12 × 12 blocks, one assembly round (median of 7, after two rounds that
+fill the cache), three alternated runs per binary; the bits of the four
+variants are checked equal. Raw output: `filters/assembly_filters.txt`.
+
+| variant | slot = filter index (before the fix) | slot = element index (after) |
+|---|---|---|
+| no cache (one lookup per entry), one filter | 0.225–0.231 s | 0.221–0.227 s |
+| no cache, two filters (even and odd elements) | 0.275–0.280 s | 0.267–0.278 s |
+| cache, one filter | 0.048–0.049 s | 0.048–0.049 s |
+| cache, two filters | 0.275–0.278 s | 0.049–0.050 s |
 
 ## Static solve against C++, MUMPS on both sides
 
@@ -128,22 +172,39 @@ collective agreement phases of the DOF manager run around it.
 ## Releasing the static solver after the preload (report finding 1.1)
 
 `SolidMechanicsModel::release_static_solver` (Python
-`releaseStaticSolver`; manual "Solver configuration") destroys the
-analysis and factorisation of `J`'s solver (MUMPS: `destroy()`, agreed
-collective `JOB = -2`; SparseLU and faer: their factors) and the storage of
-`J` and `K`, and makes the next `K` assembly happen. Not called by the
-library. The PETSc back-end returns `Unsupported`. Tests: a later static
-solve gives the bits of a run that kept everything
-(`crates/akantu-solver/tests/release_factorization.rs`, SparseLU and faer;
-`mumps_mpi_solver.rs` scenario `release_factorization_mumps`, PASS at 1, 2
-and 4 ranks; `python/tests/test_solver_layer.py::
-test_release_static_solver_then_resolve`; the manual example).
+`releaseStaticSolver`; manual "Solver configuration"). Freed: the analysis
+and factorisation of `J`'s solver (MUMPS: `destroy()`, agreed collective
+`JOB = -2`; SparseLU and faer: their factors), all of `J`, and `K`'s values
+and lookup map. Kept: `K`'s coordinates in storage order (16 bytes per
+entry) and the DOF manager's record of its profile. The next assembly of
+`K` (forced) revives it with the lookup map rebuilt from the kept
+coordinates, so every entry keeps its position, and `J` is rebuilt from
+it: a later solve is bitwise that of a run without the release, also for
+a profile that grew after the first assembly and for a `K` promoted to
+unsymmetric storage. Not called by the library. The PETSc back-end returns
+`Unsupported`. Tests, each compared bit for bit with a run that kept
+everything (`K`'s and `J`'s coordinates and values, the solution):
+`crates/akantu-solver/tests/release_factorization.rs` (SparseLU and faer:
+a plain re-solve, and a chain whose profile grows, with one coupling
+later zero, with and without a promotion; the former release of all of
+`K` fails it on the entry order), `mumps_mpi_solver.rs` scenarios
+`release_factorization_mumps` and `release_grown_promoted_mumps` (PASS at
+1, 2 and 4 ranks), `python/tests/test_solver_layer.py::
+test_release_static_solver_then_resolve`, the manual example.
 
 Driver: `rust_release_static_solver = true` (default false) calls it after
 the static solve and after the solver statistics are read, and records
 `rss_after_release`. `c1prep_campaign.sh`, port with MUMPS, one run per
-configuration, raw data `release-static/` (per-run `summary.json`,
-`insertions.csv`, `energies.md5`).
+configuration. Current version (`K`'s coordinates kept), raw data
+`release-static-kept/`:
+
+| mesh, ranks, steps | energies.csv, insertions.csv | after the static solve | after the release | loop peak (VmHWM after the reset), without → with | end of the run, without → with |
+|---|---|---|---|---|---|
+| h = 0.12, 1 rank, 5,000 (3,545 insertion steps, 11,739 cohesive elements) | byte-identical | 234 MiB | 177 MiB | 317 → 234 MiB | 317 → 219 MiB |
+
+The earlier version released all of `K` (raw data `release-static/`); it
+ended the same run at 209 MiB, the 10 MiB difference being `K`'s kept
+coordinates. Its other measurements, for the scale of the effect:
 
 | mesh, ranks, steps | energies.csv, insertions.csv | after the static solve | after the release | loop peak (VmHWM after the reset) | end of the run |
 |---|---|---|---|---|---|
@@ -200,7 +261,7 @@ whole `stiffness_assembly` of `setup_tet4` (elemental `BᵀDB` included)
 takes 448 ms per call against 29 ms for the cached scatter, so the
 threaded assembly pays when the elemental kernels (per element,
 independent: any order) run on the same threads, each thread computing
-the elements it visits. A later task on `akantu-core::exec`: compute the
+the elements it visits. A later change on `akantu-core::exec`: compute the
 elemental matrices in parallel into the `elementary` array, then the
 entry-range scatter; the one-shot first assembly (profile construction)
 stays serial, because the profile order is the element order.
@@ -210,9 +271,9 @@ stays serial, because the profile order is the element order.
 After the changes, the profiles of the cases with an assembly phase
 (`profiles/prof1/`, recorded before the fused first assembly) are led by
 the SparseLU kernels (`sparselu_gemm`, `SparseLu::solve`, `panel_bmod`:
-W2-SPARSELU) and the generic small products of the elemental matrices
-(`eigen_gebp::product_into`, 12–35 %: W2-GEBP). What is left of this
-task's code:
+the sparse-solver work) and the generic small products of the elemental
+matrices (`eigen_gebp::product_into`, 12–35 %: the small-products work).
+What is left of the code changed here:
 
 - **Repeated assembly** (`add_values_cached`, 2.6 % of `heat_static_tri6`):
   per entry one 4-byte position, one value and one read-modify-write of
@@ -240,7 +301,7 @@ task's code:
   and factorisation (1.6–2.4 % of `contact_implicit_static_quad4`).
   Caching the triplet-to-CSC map per profile in the SparseLU solver would
   turn a refactorisation's conversion into a scatter of the values; it
-  touches `eigen_sparse_lu/mod.rs` (W2-SPARSELU). A rewrite without the
+  touches `eigen_sparse_lu/mod.rs` (the sparse-solver work). A rewrite without the
   intermediate triplet vector was measured slower and reverted (`analysis`
   1.090 [0.993, 1.211] of the base against 0.996 without it).
 - **Profile rebuild on node addition** (cohesive insertion, inserted
@@ -249,7 +310,7 @@ task's code:
   SparseLU input (entry order). Appended contact couplings no longer
   discard the cached positions (position epoch).
 
-### Code-generation side effect in SparseLU (not this task's code)
+### Code-generation side effect in SparseLU (not code changed here)
 
 In the binaries of this branch the compiler inlines
 `eigen_sparse_lu::dense::gemv_product` and `trsv_upper` into
@@ -257,12 +318,14 @@ In the binaries of this branch the compiler inlines
 (`profiles/prof-np/before.txt` against `a2.txt`, `static_newton_plastic`).
 The triangular solves then take about 5 % longer: `static_newton_plastic`
 `step_rest` 1.047 [1.036, 1.057], `back_substitution` of
-`static_linear_eigen` 1.06 [1.05, 1.11] (`suite-ab/ab2-summary.md`). The
+`static_linear_eigen` 1.06 [1.05, 1.11] (`suite-ab/ab2-summary.md`);
+`solve_step` of `static_newton_plastic` 1.024 [1.023, 1.044] in this
+document's series, 1.060 [1.052, 1.062] in an independent one. The
 SparseLU code is unchanged; the edits to other files of `akantu-linalg`
 change how the crate is split into codegen units (release profile:
-16 units, no LTO). An `#[inline(never)]` / `#[inline]` decision in those
-kernels (W2-SPARSELU) or `codegen-units = 1` for the release profile
-would make the result independent of unrelated edits.
+16 units, no LTO). The rewrite of the sparse-solver kernels removes it:
+with that work merged on top of this branch, `static_newton_plastic`
+takes 0.965 of that work alone. No code is changed here for it.
 
 ### Fast-mode candidates (not written; the switch of D-123 is not merged)
 
@@ -271,5 +334,3 @@ would make the result independent of unrelated edits.
 | per-thread partial matrices, or colouring, summed in thread order | element assembly | up to the core count on the scatter; the entry-range scheme gets most of it bitwise |
 | `mat_vec_mul` on a CSR copy with vectorised (reassociated) row sums and FMA | implicit dynamics | 1.5–2× of the product |
 | another profile order (row-sorted, CSR from the start) | profile construction, solver input | 2× on profile construction; changes the MUMPS / SparseLU input order |
-
-

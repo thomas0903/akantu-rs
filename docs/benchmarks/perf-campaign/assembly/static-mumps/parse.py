@@ -1,8 +1,8 @@
 #!/usr/bin/env python3
 # SPDX-License-Identifier: LGPL-3.0-or-later
 # akantu-rs project tooling (not ported from Akantu): static-solve and
-# memory table of the interleaved c1prep campaigns of W2-ASSEMBLY
-# (campaign names s-<aft|bef>-h<H>-np<N>-r<R>; README.md of this directory).
+# memory table of the interleaved c1prep campaigns of the sparse-assembly
+# changes (campaign names s-<aft|bef>-h<H>-np<N>-r<R>; README.md of this directory).
 import glob, json, os, re, statistics as st, sys
 base = os.path.expanduser(sys.argv[1] if len(sys.argv) > 1 else os.path.dirname(os.path.abspath(__file__)))
 rows = {}
