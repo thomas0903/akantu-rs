@@ -331,22 +331,10 @@ pub fn parse_cli(args: impl IntoIterator<Item = String>) -> Result<Cli> {
     Ok(cli)
 }
 
-/// The commit recorded in the output: `AKANTU_SUITE_COMMIT`, else
-/// `git rev-parse --short=9 HEAD` in the working directory, else
-/// `unknown`.
+/// The commit recorded in the output (at build time,
+/// `akantu_bench::suite::commit`).
 pub fn commit() -> String {
-    if let Ok(c) = std::env::var("AKANTU_SUITE_COMMIT") {
-        return c;
-    }
-    std::process::Command::new("git")
-        .args(["rev-parse", "--short=9", "HEAD"])
-        .output()
-        .ok()
-        .filter(|o| o.status.success())
-        .and_then(|o| String::from_utf8(o.stdout).ok())
-        .map(|s| s.trim().to_owned())
-        .filter(|s| !s.is_empty())
-        .unwrap_or_else(|| "unknown".into())
+    akantu_bench::suite::commit().to_owned()
 }
 
 /// The Cargo features the binary was built with.
