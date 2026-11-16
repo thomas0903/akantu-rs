@@ -163,3 +163,82 @@ fn a_failed_gradient_leaves_grad_u_as_saves_by_copy_do() {
         assert_eq!(cur, prev);
     }
 }
+
+const PLASTIC: &str = "material plastic_linear_isotropic_hardening [\n name = a\n rho = 1\n E = 1\n nu = 0.3\n h = 0.1\n sigma_y = 1e-4\n]";
+const MAXWELL: &str = "material viscoelastic_maxwell [\n name = a\n rho = 1\n Einf = 1\n nu = 0.3\n Eta = [1, 10]\n Ev = [2, 1]\n]";
+
+/// Run `f` on the law's internal `name`.
+fn with_internal(
+    m: &mut SolidMechanicsModel,
+    name: &str,
+    f: &mut dyn FnMut(&mut InternalField<Real>),
+) {
+    use akantu_model::constitutive_law::{ConstitutiveLaw, InternalFieldMut};
+    let law = m.material_mut(0).unwrap();
+    ConstitutiveLaw::for_each_internal_mut(law, &mut |n, field| {
+        if let (true, InternalFieldMut::Real(field)) = (n == name, field) {
+            f(field);
+        }
+        Ok(())
+    })
+    .unwrap();
+}
+
+/// A law announces a complete rewrite of `name` only after checking the
+/// shapes its stress computation checks: with a block of the wrong length
+/// the step fails and the block and its history keep the values of the
+/// last save. The block is written after it was resized and before the
+/// step, so its stale history differs from its values: an announcement
+/// without the check would exchange them and leave the stale values.
+fn wrong_shape_keeps_block_and_history(law: &str, name: &str) {
+    let mut m = model(law);
+    m.solve_step(None).unwrap();
+    m.solve_step(None).unwrap();
+    let mut written = Vec::new();
+    with_internal(&mut m, name, &mut |f| {
+        let n = f.get(TRI, NG).unwrap().len();
+        f.resize(TRI, NG, n - 1).unwrap();
+        let mut b = f.get_mut(TRI, NG).unwrap();
+        for (k, v) in b.as_mut_slice().iter_mut().enumerate() {
+            *v = 0.125 + k as Real;
+        }
+        written = bits(b.as_slice());
+    });
+    let err = m.solve_step(None).unwrap_err();
+    assert!(
+        matches!(err, akantu_core::Error::DimensionMismatch { .. }),
+        "{law}: {err}"
+    );
+    with_internal(&mut m, name, &mut |f| {
+        assert_eq!(
+            bits(f.get(TRI, NG).unwrap().as_slice()),
+            written,
+            "{name} current"
+        );
+        assert_eq!(
+            bits(f.previous(TRI, NG).unwrap().as_slice()),
+            written,
+            "{name} previous"
+        );
+    });
+}
+
+#[test]
+fn elastic_announces_the_stress_rewrite_only_for_the_right_shape() {
+    wrong_shape_keeps_block_and_history(ELASTIC, "stress");
+}
+
+#[test]
+fn elastic_announces_the_thermal_rewrite_only_for_the_right_shape() {
+    wrong_shape_keeps_block_and_history(ELASTIC, "sigma_th");
+}
+
+#[test]
+fn plastic_announces_the_thermal_rewrite_only_for_the_right_shape() {
+    wrong_shape_keeps_block_and_history(PLASTIC, "sigma_th");
+}
+
+#[test]
+fn maxwell_announces_the_stress_rewrite_only_for_the_right_shape() {
+    wrong_shape_keeps_block_and_history(MAXWELL, "stress");
+}
