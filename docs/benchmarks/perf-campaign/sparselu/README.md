@@ -94,6 +94,10 @@ the port and of C++ are bitwise identical in every pair ("bitwise 1").
 | 0.12 (5 reps) | 14,472 | 2.92 s | 8.00 s | 2.36 s | 0.295 [0.294, 0.296] | 0.808 [0.804, 0.817] | 524 / 580 / 477 MiB |
 | 0.06 (2 reps) | 97,551 | 248.5 s | 822 s | 209 s | 0.254 [0.253, 0.255] | 0.841 [0.839, 0.843] | 7.62 / 6.92 / 5.70 GiB |
 
+At the branch head after merging the sparse-assembly work (6a8a69da, one
+run, `c1-eigen-head/`): C++ 2.9 s, port 2.1 s (0.72), energies bitwise,
+peak RSS 526 / 396 MiB.
+
 h = 0.06 has two repetitions (a "before" run takes 14 minutes); the
 spread of each variant is below 0.5 %.
 
