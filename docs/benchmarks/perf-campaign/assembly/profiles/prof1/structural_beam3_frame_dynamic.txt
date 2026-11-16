@@ -1,0 +1,77 @@
+# Profile of suite case structural_beam3_frame_dynamic
+
+binary: ~/w/assembly/bin/a1_models (10e695a6b6a8223a)
+command: taskset -c 2 ~/w/assembly/bin/a1_models --case structural_beam3_frame_dynamic --size m --loop-seconds 6
+perf: perf record -F 499 --call-graph dwarf,16384
+cpu: INTEL(R) XEON(R) PLATINUM 8581C CPU @ 2.30GHz
+date_utc: 2026-11-16T10:17:54Z
+commit: d208746c0
+
+## Phases of the profiled run (seconds, calls)
+
+mesh                         0.0003 s       1 calls
+init                         0.0242 s       1 calls
+solve_step                   8.7839 s     120 calls
+
+## Top 25 symbols, self time
+
+    39.88%  [.] <akantu_linalg::eigen_sparse_lu::SparseLu>::solve
+    33.78%  [.] akantu_linalg::eigen_sparse_lu::dense::sparselu_gemm
+    12.25%  [.] akantu_core::eigen_gebp::product_into::<akantu_fe::eigen::product_slices::{closure#1}, akantu_fe::eigen::product_slices::{closure#2}>
+     2.65%  [.] akantu_linalg::eigen_sparse_lu::kernels::panel_bmod
+     1.66%  [.] akantu_linalg::eigen_sparse_lu::dense::trsm_unit_lower
+     0.92%  [.] <akantu_linalg::sparse::SparseMatrixAij>::mat_vec_with::<<akantu_linalg::sparse::SparseMatrixAij>::mat_vec_mul::{closure#0}>::{closure#0}
+     0.87%  [.] akantu_core::eigen_gebp::route
+     0.71%  [.] <akantu_linalg::sparse::SparseMatrixAij>::check_local_coordinates
+     0.62%  [.] akantu_fe::eigen::product_slices
+     0.58%  [.] 0x00000000001a1efa
+     0.50%  [.] akantu_linalg::eigen_sparse_lu::dense::gemv_in_place
+     0.48%  [k] do_user_addr_fault
+     0.43%  [.] <akantu_fe::structural::engine::StructuralFeEngine>::compute_stresses
+     0.28%  [k] _raw_spin_lock
+     0.27%  [.] <akantu_solver::dof_manager::DofManager>::assemble_elemental_array_local_view
+     0.27%  [.] akantu_linalg::eigen_sparse_lu::dense::trsv_unit_lower
+     0.26%  [.] akantu_linalg::eigen_sparse_lu::kernels::dfs_kernel
+     0.22%  [.] <akantu_core::array_storage::ArrayStorage<f64>>::try_resize
+     0.21%  [.] akantu_linalg::eigen_sparse_lu::kernels::copy_to_ucol
+     0.18%  [.] <akantu_linalg::sparse::SparseMatrixAij>::add_to_profile
+     0.18%  [.] 0x00000000001a19d2
+     0.17%  [.] <akantu_fe::structural::engine::StructuralFeEngine>::check_up_to_date
+     0.14%  [k] _raw_spin_unlock_irqrestore
+     0.13%  [.] 0x00000000001a1653
+     0.12%  [.] <akantu_linalg::sparse::SparseMatrixAij>::resolve_block
+
+## Top 25 symbols, inclusive time (children)
+
+    39.88%    39.88%  [.] <akantu_linalg::eigen_sparse_lu::SparseLu>::solve
+    33.78%    33.78%  [.] akantu_linalg::eigen_sparse_lu::dense::sparselu_gemm
+    12.32%    12.25%  [.] akantu_core::eigen_gebp::product_into::<akantu_fe::eigen::product_slices::{closure#1}, akantu_fe::eigen::product_slices::{closure#2}>
+     2.65%     2.65%  [.] akantu_linalg::eigen_sparse_lu::kernels::panel_bmod
+     1.66%     1.66%  [.] akantu_linalg::eigen_sparse_lu::dense::trsm_unit_lower
+     1.18%     0.48%  [k] do_user_addr_fault
+     1.18%     0.00%  [.] asm_exc_page_fault
+     1.16%     0.00%  [.] exc_page_fault
+     1.04%     0.00%  [.] 0x00007dfd177a1efa
+     0.92%     0.92%  [.] <akantu_linalg::sparse::SparseMatrixAij>::mat_vec_with::<<akantu_linalg::sparse::SparseMatrixAij>::mat_vec_mul::{closure#0}>::{closure#0}
+     0.87%     0.87%  [.] akantu_core::eigen_gebp::route
+     0.71%     0.71%  [.] <akantu_linalg::sparse::SparseMatrixAij>::check_local_coordinates
+     0.69%     0.62%  [.] akantu_fe::eigen::product_slices
+     0.69%     0.00%  [.] __handle_mm_fault
+     0.69%     0.00%  [.] handle_mm_fault
+     0.69%     0.00%  [.] handle_pte_fault
+     0.67%     0.00%  [.] 0x00007dfd177a19d2
+     0.63%     0.01%  [.] realloc
+     0.60%     0.00%  [.] 0x00007dfd176ad147
+     0.58%     0.58%  [.] 0x00000000001a1efa
+     0.58%     0.06%  [.] do_anonymous_page
+     0.50%     0.50%  [.] akantu_linalg::eigen_sparse_lu::dense::gemv_in_place
+     0.43%     0.43%  [.] <akantu_fe::structural::engine::StructuralFeEngine>::compute_stresses
+     0.38%     0.00%  [.] akantu_core::eigen_gebp::eval_product::<akantu_fe::eigen::product_slices::{closure#1}, akantu_fe::eigen::product_slices::{closure#2}> (inlined)
+     0.31%     0.00%  [.] akantu_core::eigen_gebp::gebp_into::<akantu_fe::eigen::product_slices::{closure#1}, akantu_fe::eigen::product_slices::{closure#2}> (inlined)
+
+## Call chains (callers of the hottest self-time symbols, entries above 2 %)
+
+    39.88%  [.] <akantu_linalg::eigen_sparse_lu::SparseLu>::solve
+    33.78%  [.] akantu_linalg::eigen_sparse_lu::dense::sparselu_gemm
+    12.25%  [.] akantu_core::eigen_gebp::product_into::<akantu_fe::eigen::product_slices::{closure#1}, akantu_fe::eigen::product_slices::{closure#2}>
+     2.65%  [.] akantu_linalg::eigen_sparse_lu::kernels::panel_bmod
