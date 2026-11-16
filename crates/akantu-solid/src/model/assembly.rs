@@ -902,17 +902,10 @@ pub(crate) fn elemental_stiffness_of(
         let mut tangent = Array::try_zeros(filter.len() * nq, voigt * voigt)?;
         law.compute_tangent_moduli(ctx, ty, ghost, &mut tangent)?;
         let size = dim * nn;
-        let mut bt_d_b = Array::new(size * size);
-        fe.compute_btdb(tangent.view(), &mut bt_d_b, 4, ty, ghost, Some(&filter))?;
+        // `computeBtDB` then `integrate`, fused per element (the same
+        // products, on the engine's threads)
         let mut k_e = Array::new(size * size);
-        fe.integrate(
-            bt_d_b.view(),
-            &mut k_e,
-            size * size,
-            ty,
-            ghost,
-            Some(&filter),
-        )?;
+        fe.compute_btdb_integrated(tangent.view(), &mut k_e, 4, ty, ghost, Some(&filter))?;
         out.push((ty, filter, k_e));
     }
     Ok(out)
