@@ -734,6 +734,7 @@ impl SolidMechanicsPhysics {
         let dim = self.base.spatial_dimension;
         let fe = self.base.fems.get("")?;
         let materials = &self.materials;
+        let scratch = &mut self.stiffness_scratch;
         let types: Vec<ElementType> = mesh
             .element_types(akantu_core::TypeFilter {
                 spatial_dimension: Some(dim),
@@ -749,18 +750,32 @@ impl SolidMechanicsPhysics {
             let mut functor = |m: &mut [Real], e: Element| -> Result<()> {
                 rho_of(materials, law_index, m, e, dim, &mut rho)
             };
-            let m_e =
-                fe.field_matrix_elemental(&mesh, &mut functor, dim, ty, GhostType::NotGhost)?;
-            dofs.assemble_elemental_matrices_to_matrix(
-                &mesh,
-                "M",
-                DOF_ID,
-                m_e.view(),
-                ty,
-                GhostType::NotGhost,
-                MatrixType::Symmetric,
-                None,
-            )?;
+            let l = dim * ty.nb_nodes_per_element();
+            let mut m_e = scratch.take(l * l);
+            let r = fe
+                .field_matrix_elemental_into(
+                    &mesh,
+                    &mut functor,
+                    dim,
+                    ty,
+                    GhostType::NotGhost,
+                    &mut m_e,
+                    &mut scratch.density,
+                )
+                .and_then(|()| {
+                    dofs.assemble_elemental_matrices_to_matrix(
+                        &mesh,
+                        "M",
+                        DOF_ID,
+                        m_e.view(),
+                        ty,
+                        GhostType::NotGhost,
+                        MatrixType::Symmetric,
+                        None,
+                    )
+                });
+            scratch.give_back(m_e);
+            r?;
         }
         self.need_to_reassemble_mass = false;
         Ok(())
@@ -849,8 +864,10 @@ pub(crate) fn assemble_internal_forces_of(
     Ok(())
 }
 
-/// Reused arrays of the stiffness assembly: the gradient and tangent of
-/// the current block and a pool of elemental-matrix arrays. Reusing them
+/// Reused arrays of the stiffness and consistent-mass assemblies: the
+/// gradient and tangent of the current block, the density values of the
+/// mass and a pool of elemental-matrix arrays (shared by the stiffness and
+/// the mass: their elemental matrices have the same size). Reusing them
 /// keeps their pages mapped from one assembly to the next; the values are
 /// the same as with fresh arrays (every value is written before it is
 /// read, the tangent is zeroed before the law fills it).
@@ -858,6 +875,7 @@ pub(crate) fn assemble_internal_forces_of(
 pub(crate) struct StiffnessScratch {
     grad_u: Array<Real>,
     tangent: Array<Real>,
+    density: Array<Real>,
     pool: Vec<Array<Real>>,
 }
 

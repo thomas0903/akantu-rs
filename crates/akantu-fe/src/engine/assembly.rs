@@ -104,14 +104,29 @@ fn fill_field(
     ty: ElementType,
     ghost: GhostType,
 ) -> Result<Array<Real>> {
-    let mut field = Array::try_zeros(nb_element * nq, nb_dof)?;
+    let mut field = Array::new(nb_dof);
+    fill_field_into(field_funct, nb_dof, nb_element, nq, ty, ghost, &mut field)?;
+    Ok(field)
+}
+
+/// [`fill_field`] into `field` (resized; every value is written).
+fn fill_field_into(
+    field_funct: &mut FieldFunctor<'_>,
+    nb_dof: usize,
+    nb_element: usize,
+    nq: usize,
+    ty: ElementType,
+    ghost: GhostType,
+    field: &mut Array<Real>,
+) -> Result<()> {
+    super::prepare_out(field, nb_element * nq, nb_dof)?;
     let mut mat = vec![0.0; nb_dof * nq];
     for e in 0..nb_element {
         mat.fill(0.0);
         field_funct(&mut mat, Element::try_new(ty, e, ghost)?)?;
         field.as_mut_slice()[e * nb_dof * nq..(e + 1) * nb_dof * nq].copy_from_slice(&mat);
     }
-    Ok(field)
+    Ok(())
 }
 
 impl FeEngine {
@@ -187,6 +202,36 @@ impl FeEngine {
         ty: ElementType,
         ghost: GhostType,
     ) -> Result<Array<Real>> {
+        let mut out = Array::new(1);
+        let mut field = Array::new(nb_dof);
+        self.field_matrix_elemental_into(
+            mesh,
+            field_funct,
+            nb_dof,
+            ty,
+            ghost,
+            &mut out,
+            &mut field,
+        )?;
+        Ok(out)
+    }
+
+    /// [`FeEngine::field_matrix_elemental`] into `out` (resized to
+    /// `nb_element` tuples of `(nb_dof·nn)²`), with `field` as the buffer
+    /// of the field functor's values: arrays kept by the caller between
+    /// assemblies keep their pages mapped. The same checks, errors and
+    /// values.
+    #[allow(clippy::too_many_arguments)] // `field_matrix_elemental` + the two buffers
+    pub fn field_matrix_elemental_into(
+        &self,
+        mesh: &Mesh,
+        field_funct: &mut FieldFunctor<'_>,
+        nb_dof: usize,
+        ty: ElementType,
+        ghost: GhostType,
+        out: &mut Array<Real>,
+        field: &mut Array<Real>,
+    ) -> Result<()> {
         self.check_type(ty, "field_matrix_elemental")?;
         if self.kind == ElementKind::Cohesive {
             return Err(Error::NotImplemented(
@@ -199,7 +244,7 @@ impl FeEngine {
         let block = Block::new(mesh, ty, ghost)?;
         let ne = block.nb_element;
         let kind = self.kind;
-        let field = fill_field(field_funct, nb_dof, ne, nq, ty, ghost)?;
+        fill_field_into(field_funct, nb_dof, ne, nq, ty, ghost, field)?;
         with_element_class!(ty, E => {
             let nn = E::NB_SHAPES;
             let nd = E::NATURAL_DIM;
@@ -218,8 +263,7 @@ impl FeEngine {
             // matrices are held at a time per part
             let point = eigen::prepare(Dims::dynamic(lmat, nb_dof), Dims::dynamic(nb_dof, lmat))?;
             let integral = eigen::prepare(Dims::dynamic(l2, nq), Dims::new(nq, 1, false, true))?;
-            let mut out = Array::new(l2);
-            super::prepare_out(&mut out, ne, l2)?;
+            super::prepare_out(out, ne, l2)?;
             let fs = field.as_slice();
             let gemv = integrates_by_gemv(l2, nq);
             let mass = MassKernel {
@@ -241,7 +285,7 @@ impl FeEngine {
             self.exec.try_for_each(Tuples::new(out.as_mut_slice(), l2), min, |first, mut o| {
                 mass.part::<E>(first, o.as_mut_slice())
             })?;
-            Ok(out)
+            Ok(())
         }, else Err(Error::UnsupportedElementType { ty, context: "field_matrix_elemental" }))
     }
 }
