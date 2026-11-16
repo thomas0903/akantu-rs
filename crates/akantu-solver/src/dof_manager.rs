@@ -644,16 +644,12 @@ fn number_block(
     // `_giu_global_conn`, `dof_manager.cc:860-866`; local periodic slaves
     // alias these equations).
     if let Some(periodic) = periodic {
-        let mut acc = GlobalNumbers {
-            data: &*data,
-            layout: &mut *layout,
-            nbc,
-        };
+        let mut acc = GlobalNumbers::new(data, &mut *layout, nbc);
         periodic.synchronize_in(ph, &mut acc, SynchronizationTag::GiuGlobalConn)?;
     }
     // Shared DOFs: owners send global numbers (upstream `_ask_nodes`).
     if let Some(sync) = sync {
-        let mut acc = GlobalNumbers { data, layout, nbc };
+        let mut acc = GlobalNumbers::new(data, layout, nbc);
         sync.synchronize_in(ph, &mut acc, SynchronizationTag::AskNodes)?;
     }
     Ok(())
@@ -2590,19 +2586,35 @@ fn periodic_numbering_sync(mesh: &Mesh) -> Option<Synchronizer<Idx>> {
 /// numbers of a node's DOFs, slaves unpack them (upstream
 /// `GlobalDOFInfoDataAccessor`).
 struct GlobalNumbers<'a> {
-    data: &'a DofData,
     layout: &'a mut EquationLayout,
     nbc: usize,
+    /// The local equations of every node, in the order of the DOF data
+    /// (built once per exchange instead of a scan of every DOF per node;
+    /// performance).
+    by_node: HashMap<Idx, Vec<usize>>,
 }
 
-impl GlobalNumbers<'_> {
-    fn equations_of(&self, node: Idx) -> impl Iterator<Item = usize> + '_ {
-        self.data
+impl<'a> GlobalNumbers<'a> {
+    fn new(data: &DofData, layout: &'a mut EquationLayout, nbc: usize) -> Self {
+        let mut by_node: HashMap<Idx, Vec<usize>> = HashMap::new();
+        for (&n, &e) in data
             .associated_nodes
             .iter()
-            .zip(&self.data.local_equation_numbers)
-            .filter(move |(n, _)| **n == node)
-            .filter_map(|(_, &e)| usize::try_from(e).ok())
+            .zip(&data.local_equation_numbers)
+        {
+            if let Ok(e) = usize::try_from(e) {
+                by_node.entry(n).or_default().push(e);
+            }
+        }
+        Self {
+            layout,
+            nbc,
+            by_node,
+        }
+    }
+
+    fn equations_of(&self, node: Idx) -> &[usize] {
+        self.by_node.get(&node).map_or(&[], Vec::as_slice)
     }
 }
 
@@ -2617,7 +2629,7 @@ impl DataAccessor<Idx> for GlobalNumbers<'_> {
         _: SynchronizationTag,
     ) -> Result<()> {
         for &n in nodes {
-            for e in self.equations_of(n) {
+            for &e in self.equations_of(n) {
                 buf.pack(
                     &self
                         .layout
@@ -2635,8 +2647,8 @@ impl DataAccessor<Idx> for GlobalNumbers<'_> {
         tag: SynchronizationTag,
     ) -> Result<()> {
         for &n in nodes {
-            let eqs: Vec<usize> = self.equations_of(n).collect();
-            for e in eqs {
+            let eqs = self.by_node.get(&n).map_or(&[][..], Vec::as_slice);
+            for &e in eqs {
                 let g: GlobalIdx = buf.unpack()?;
                 if tag == SynchronizationTag::GiuGlobalConn {
                     self.layout.set_periodic_master_global(e, g)?;

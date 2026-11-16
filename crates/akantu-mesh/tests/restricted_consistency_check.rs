@@ -299,3 +299,49 @@ fn rebuilt_group_node_lists_roll_back() {
     .unwrap();
     assert_eq!(group_nodes(&d), vec![0, 1, 2]);
 }
+
+/// The node synchronizer replaced by `replace_node_synchronizer` is
+/// journaled and rolls back, also when the synchronizers are snapshotted
+/// after the replacement in the same transaction; a commit keeps the new
+/// one.
+#[test]
+fn replaced_node_synchronizer_rolls_back() {
+    for snapshot_after in [false, true] {
+        let d = SharedMesh::new(two_triangles());
+        assert!(d.read().unwrap().synchronizers().node.is_none());
+        let r = d.mutate(
+            &mut [],
+            |tx| {
+                let comm = tx.mesh().communicator().clone();
+                tx.replace_node_synchronizer(
+                    MeshPart::Main,
+                    Some(akantu_comm::Synchronizer::new("nodes".to_owned(), comm)),
+                )?;
+                if snapshot_after {
+                    tx.synchronizers_mut(MeshPart::Main)?;
+                }
+                Err(injected())
+            },
+            None,
+        );
+        assert!(r.is_err());
+        assert!(
+            d.read().unwrap().synchronizers().node.is_none(),
+            "snapshot after: {snapshot_after}"
+        );
+    }
+    let d = SharedMesh::new(two_triangles());
+    d.mutate(
+        &mut [],
+        |tx| {
+            let comm = tx.mesh().communicator().clone();
+            tx.replace_node_synchronizer(
+                MeshPart::Main,
+                Some(akantu_comm::Synchronizer::new("nodes".to_owned(), comm)),
+            )
+        },
+        None,
+    )
+    .unwrap();
+    assert!(d.read().unwrap().synchronizers().node.is_some());
+}

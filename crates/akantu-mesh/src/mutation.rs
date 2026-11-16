@@ -139,6 +139,13 @@ enum Undo {
     },
     /// The facet mesh was created by this transaction.
     FacetsCreated,
+    /// The node synchronizer of a part before
+    /// [`MeshTransaction::replace_node_synchronizer`] (instead of a snapshot
+    /// of every synchronizer of the part; performance).
+    NodeSynchronizer {
+        part: MeshPart,
+        old: Option<crate::synchronizers::NodeSynchronizer>,
+    },
     /// The node lists of the element groups of a part before
     /// [`MeshTransaction::rebuild_element_group_nodes`] (instead of a
     /// snapshot of the whole group manager; performance).
@@ -414,7 +421,8 @@ impl<'m> MeshTransaction<'m> {
                 | Undo::GlobalIdsCreated { .. }
                 | Undo::NbGlobalNodes { .. }
                 | Undo::Prank { .. }
-                | Undo::GroupNodes { .. } => {}
+                | Undo::GroupNodes { .. }
+                | Undo::NodeSynchronizer { .. } => {}
             }
         }
         // a transaction that touched a large share of the rows (a
@@ -751,9 +759,41 @@ impl<'m> MeshTransaction<'m> {
         let m = part_mut(self.mesh, part)?;
         let s = &mut self.saved.synchronizers[slot(part)];
         if s.is_none() {
-            *s = Some(m.synchronizers.clone());
+            // the snapshot is the state before the transaction: a node
+            // synchronizer replaced earlier in it is put back in the copy
+            let mut copy = m.synchronizers.clone();
+            for u in &self.journal {
+                if let Undo::NodeSynchronizer { part: p, old } = u
+                    && *p == part
+                {
+                    // the first replacement holds the original
+                    copy.node = old.clone();
+                    break;
+                }
+            }
+            *s = Some(copy);
         }
         Ok(&mut m.synchronizers)
+    }
+
+    /// Replace the node synchronizer of `part` (the distributed cohesive
+    /// hook's rebuilt node schemes); journaled: the replaced synchronizer
+    /// is kept for the rollback, the other synchronizers of the part are
+    /// not copied.
+    ///
+    /// # Errors
+    /// An absent part.
+    pub fn replace_node_synchronizer(
+        &mut self,
+        part: MeshPart,
+        node: Option<crate::synchronizers::NodeSynchronizer>,
+    ) -> Result<()> {
+        let m = part_mut(self.mesh, part)?;
+        let old = std::mem::replace(&mut m.synchronizers.node, node);
+        if self.saved.synchronizers[slot(part)].is_none() {
+            self.journal.push(Undo::NodeSynchronizer { part, old });
+        }
+        Ok(())
     }
 
     /// Ghost counters of `part` (snapshot on first access).
@@ -1474,6 +1514,11 @@ impl<'m> MeshTransaction<'m> {
                 }
                 Undo::FacetsCreated => {
                     mesh.mesh_facets = None;
+                }
+                Undo::NodeSynchronizer { part, old } => {
+                    if let Ok(m) = part_mut(mesh, part) {
+                        m.synchronizers.node = old;
+                    }
                 }
                 Undo::GroupNodes { part, lists } => {
                     if let Ok(m) = part_mut(mesh, part) {
