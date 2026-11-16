@@ -10,6 +10,15 @@ change of default results or of a public API raises the minor version.
 
 ### Added
 
+- `akantu_geometry::GridIndex`: a uniform-grid search structure over the
+  triangle primitives of the segment intersector that tests only the
+  primitives near a query, in primitive order with the predicates of
+  `LinearScan`. `EmbeddedInterfaceIntersector` uses it by default; its new
+  field `exhaustive_search = true` selects `LinearScan`. The two differ only
+  by the scan's reports of primitives farther than the grid's margin from
+  the query (rounding artefacts of queries lying in the plane of a distant
+  face or on the line of a distant edge); with the default tiled assembly
+  the interface mesh is the same.
 - `akantu_fe::engine::PointInterpolation`
   (`ElementalFieldInterpolation::point_interpolation`): the value of one
   interpolation point of one element of an elemental-field interpolation
