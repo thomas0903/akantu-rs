@@ -196,9 +196,9 @@ struct StressCopyBlock {
 /// computed directly into `facet_stress` from the element's stress tuple
 /// ([`akantu_fe::engine::PointInterpolation::value`], the operations the
 /// interpolation performs for that element and point). The element's tuple
-/// and slot are those the interpolation would have left in the buffer: the
-/// **last** position of the element in the law's filter (later positions
-/// overwrite earlier ones) and the interpolation slot of that position.
+/// and slot are those of its position in the law's filter and that
+/// position's interpolation slot (a filter that lists an element twice has
+/// no fused form, [`fuse_block`]).
 #[derive(Clone, Copy, Debug, PartialEq)]
 struct FusedPair {
     /// Offset of the element's stress tuple in the law's stress block.
@@ -214,9 +214,9 @@ struct FusedPair {
 /// The fused form of every block of `plan` for the law filter `filter`
 /// and its stress interpolation `interp`: `None` for a block whose bulk
 /// type has no [`akantu_fe::engine::PointInterpolation`] (more than one quadrature
-/// point, other routes), whose filter does not match the interpolation, or
-/// whose offsets do not fit `u32`; such a block makes the law take the
-/// general path.
+/// point, other routes), whose filter does not match the interpolation or
+/// lists an element twice, or whose offsets do not fit `u32`; such a block
+/// makes the law take the general path.
 fn build_fused(
     plan: &StressCopyPlan,
     filter: &ElementTypeMapArray<Idx>,
@@ -252,6 +252,11 @@ fn fuse_block(
     let slots = view.slots(&ids).ok()?;
     let mut last = vec![usize::MAX; ids.iter().max().map_or(0, |&m| m + 1)];
     for (pos, &e) in ids.iter().enumerate() {
+        if last[e] != usize::MAX {
+            // an element listed twice: the general path (whose later
+            // positions overwrite earlier ones) decides its values
+            return None;
+        }
         last[e] = pos;
     }
     let u = |x: usize| u32::try_from(x).ok();
@@ -3592,6 +3597,36 @@ mod perf_tests {
         fresh.interpolate_stress().unwrap();
         let want = facet_stress_after(&mut fresh, true);
         assert_eq!(got, want);
+    }
+
+    /// A filter that lists an element twice has no fused form (the law takes
+    /// the general path); the same filter without the duplicate has one.
+    #[test]
+    fn a_filter_with_a_duplicated_element_has_no_fused_form() {
+        const T4: ElementType = ElementType::Tetrahedron4;
+        const NG: GhostType = GhostType::NotGhost;
+        let (mut model, _mesh) = fixture_model("_cohesive_3d_6_tetrahedron_4.msh", 3);
+        model.interpolate_stress().unwrap();
+        let i = bulk_law(&model);
+        let plan = model.ext.stress_plans[&i].clone();
+        let interp = &model.ext.stress_interpolation[&i];
+        let filter = model
+            .smm
+            .physics
+            .materials
+            .law(i)
+            .unwrap()
+            .base()
+            .element_filter
+            .clone();
+        let block = plan.blocks.iter().find(|b| b.bulk == T4).unwrap();
+        assert!(fuse_block(block, &filter, interp, 9).is_some());
+        let mut twice = filter.clone();
+        let ids = twice.get_mut(T4, NG).unwrap();
+        assert!(ids.len() >= 2);
+        let first = ids.as_slice()[0];
+        ids.as_mut_slice()[1] = first;
+        assert!(fuse_block(block, &twice, interp, 9).is_none());
     }
 
     /// The copy plan follows a change of the law's filter without a mesh
