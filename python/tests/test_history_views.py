@@ -1,19 +1,22 @@
 # SPDX-License-Identifier: LGPL-3.0-or-later
 # akantu-rs regression tests (decision record D-047, deferred history saves
 # of internal fields): NumPy views of internal fields held across explicit
-# steps see exactly the values of a run that holds no view.
+# steps see exactly the values of a run that exports nothing.
 """Views of internal fields across steps.
 
 The port does not copy a law's current values into its history at every
-step while no NumPy view of them exists: the copy is deferred and, when the
-law rewrites the whole block, replaced by an exchange of the two
-allocations. A block with a live view is copied as upstream does and never
-exchanged. These tests run the same explicit problem twice, once holding
-views of the current values (and of copies of the previous values) for the
-whole run and once taking every value as a copy of a view released at once,
-and require the same bits at every step, the views staying attached to the
-live arrays, and the previous values of a step being the current values of
-the step before."""
+step while the block is not exported to NumPy: the copy is deferred and,
+when the law rewrites the whole block, replaced by an exchange of the two
+allocations. A block Python has fetched stays exported (the binding keeps
+its lease) and is copied at every save as upstream does, never exchanged.
+
+These tests run the same explicit problem twice: once holding views of the
+current values for the whole run (every save is a copy), and once reading
+only copies of the previous values and the energies, so that nothing is
+exported until the end (every save is deferred). They require the same bits
+at every step, the held views staying attached to the live arrays and
+seeing every new value, and the previous values of a step being the current
+values of the step before."""
 
 import pathlib
 
@@ -23,7 +26,7 @@ import pytest
 import akantu as aka
 from _paths import MESHES
 
-TRI = aka._triangle_3
+QUAD = aka._quadrangle_8  # the element type of the DCB mesh
 STEPS = 12
 ELASTIC_FIELDS = ("stress", "grad_u", "sigma_th", "epsilon_th")
 PLASTIC_FIELDS = ELASTIC_FIELDS + ("iso_hardening", "inelastic_strain")
@@ -45,6 +48,12 @@ PLASTIC = """material plastic_linear_isotropic_hardening [
   sigma_y = 2e7
 ]
 """
+
+CASES = pytest.mark.parametrize(
+    "dat, fields",
+    [(ELASTIC, ELASTIC_FIELDS), (PLASTIC, PLASTIC_FIELDS)],
+    ids=["elastic", "plastic"],
+)
 
 
 @pytest.fixture(autouse=True)
@@ -73,92 +82,86 @@ def explicit_model(dat):
     model = aka.SolidMechanicsModel(mesh)
     model.initFull(_analysis_method=aka._explicit_lumped_mass)
     model.setTimeStep(0.5 * model.getStableTimeStep())
-    # a stretch large enough to yield the plastic law in the first steps
+    # a stretch and a shear (strains of 2e-3 and 5e-3) that yield the
+    # plastic law in the first steps
     x = mesh.getNodes()
     u = model.getDisplacement()
-    u[:, 0] = 2e-3 * x[:, 0] * x[:, 1]
-    u[:, 1] = -1e-3 * x[:, 0]
+    u[:, 0] = 2e-3 * x[:, 0]
+    u[:, 1] = 5e-3 * x[:, 0]
     del u
     return model
 
 
 def run(dat, fields, hold_views):
-    """Current and previous values of every field after every step."""
+    """Per step: the previous values of every field (copies), the current
+    values seen through the held views (when held) and the potential
+    energy; at the end the current values."""
     model = explicit_model(dat)
     mat = model.getMaterial(0)
     internals = {f: mat.getInternalReal(f) for f in fields}
-    held = {}
-    if hold_views:
-        held = {f: internals[f](TRI) for f in fields}
-        addresses = {f: address(v) for f, v in held.items()}
-    current = {f: [] for f in fields}
+    held = {f: internals[f](QUAD) for f in fields} if hold_views else {}
+    addresses = {f: address(v) for f, v in held.items()}
     previous = {f: [] for f in fields}
+    current = {f: [] for f in fields}
+    energy = []
     for _ in range(STEPS):
         model.solveStep()
         for f in fields:
+            # `previous(type)` is a copy: it exports nothing
+            previous[f].append(np.array(internals[f].previous(QUAD)))
             if hold_views:
-                view = held[f]
-                # the held view still aliases the live array
-                fresh = internals[f](TRI)
-                assert address(fresh) == addresses[f]
-                assert np.array_equal(bits(view), bits(fresh))
+                fresh = internals[f](QUAD)
+                assert address(held[f]) == address(fresh) == addresses[f], f
+                assert np.array_equal(bits(held[f]), bits(fresh)), f
                 del fresh
-                current[f].append(np.array(view))
-            else:
-                view = internals[f](TRI)
-                current[f].append(np.array(view))
-                del view
-            previous[f].append(np.array(internals[f].previous(TRI)))
-    return current, previous
+                current[f].append(np.array(held[f]))
+        energy.append(model.getEnergy("potential"))
+    final = {f: np.array(internals[f](QUAD)) for f in fields}
+    return previous, current, energy, final
 
 
-@pytest.mark.parametrize(
-    "dat, fields",
-    [(ELASTIC, ELASTIC_FIELDS), (PLASTIC, PLASTIC_FIELDS)],
-    ids=["elastic", "plastic"],
-)
-def test_held_views_see_the_values_of_a_run_without_views(dat, fields):
-    cur_free, prev_free = run(dat, fields, hold_views=False)
-    cur_held, prev_held = run(dat, fields, hold_views=True)
+@CASES
+def test_held_views_see_the_values_of_a_run_that_exports_nothing(dat, fields):
+    prev_free, _, energy_free, final_free = run(dat, fields, hold_views=False)
+    prev_held, cur_held, energy_held, final_held = run(dat, fields, hold_views=True)
+    assert np.array_equal(
+        np.array(energy_free).view(np.uint64), np.array(energy_held).view(np.uint64)
+    )
     for f in fields:
         for k in range(STEPS):
-            assert np.array_equal(bits(cur_free[f][k]), bits(cur_held[f][k])), (f, k)
             assert np.array_equal(bits(prev_free[f][k]), bits(prev_held[f][k])), (f, k)
+        assert np.array_equal(bits(final_free[f]), bits(final_held[f])), f
+        assert np.array_equal(bits(final_held[f]), bits(cur_held[f][-1])), f
         # the previous values of a step are the current values of the step
         # before (the history is saved at the start of every step)
         for k in range(1, STEPS):
-            assert np.array_equal(bits(prev_free[f][k]), bits(cur_free[f][k - 1])), (f, k)
-    # the problem moves (and yields): the comparison is not between
+            assert np.array_equal(bits(prev_held[f][k]), bits(cur_held[f][k - 1])), (f, k)
+    # the problem moves (and yields): the comparisons are not between
     # constant arrays
-    assert not np.array_equal(cur_free["stress"][1], cur_free["stress"][-1])
+    assert not np.array_equal(cur_held["stress"][1], cur_held["stress"][-1])
     if "inelastic_strain" in fields:
-        assert np.any(cur_free["inelastic_strain"][-1] != 0)
+        assert np.any(final_free["inelastic_strain"] != 0)
 
 
-@pytest.mark.parametrize("dat", [ELASTIC, PLASTIC], ids=["elastic", "plastic"])
-def test_a_view_taken_between_steps_keeps_aliasing_the_live_values(dat):
+@CASES
+def test_a_view_taken_between_steps_keeps_aliasing_the_live_values(dat, fields):
     model = explicit_model(dat)
     mat = model.getMaterial(0)
+    for _ in range(3):
+        model.solveStep()  # nothing exported: deferred saves
+    stress = mat.getStress(QUAD)
+    grad_u = mat.getGradU(QUAD)
+    before = {"stress": np.array(stress), "grad_u": np.array(grad_u)}
+    prev_copy = np.array(mat.getInternalReal("stress").previous(QUAD))
     model.solveStep()
-    stress = mat.getStress(TRI)  # exported after a step without views
-    grad_u = mat.getGradU(TRI)
-    before = np.array(stress)
-    prev_copy = np.array(mat.getInternalReal("stress").previous(TRI))
-    model.solveStep()
-    # the view follows the live array: the new values, at the same address
-    assert address(stress) == address(mat.getStress(TRI))
-    assert address(grad_u) == address(mat.getGradU(TRI))
-    assert np.array_equal(bits(stress), bits(mat.getStress(TRI)))
-    assert np.array_equal(
-        bits(mat.getInternalReal("stress").previous(TRI)), bits(before)
-    )
+    # the views follow the live arrays: the new values, at the same address
+    assert address(stress) == address(mat.getStress(QUAD))
+    assert address(grad_u) == address(mat.getGradU(QUAD))
+    assert np.array_equal(bits(stress), bits(mat.getStress(QUAD)))
+    assert not np.array_equal(bits(stress), bits(before["stress"]))
+    for f in ("stress", "grad_u"):
+        assert np.array_equal(
+            bits(mat.getInternalReal(f).previous(QUAD)), bits(before[f])
+        ), f
     # a copy of previous values taken earlier keeps the values of its time
-    assert not np.array_equal(prev_copy, mat.getInternalReal("stress").previous(TRI))
-    # dropping the views lets the next saves be deferred again, with the
-    # same values
-    del stress, grad_u
-    mid = np.array(mat.getStress(TRI))
-    model.solveStep()
-    assert np.array_equal(
-        bits(mat.getInternalReal("stress").previous(TRI)), bits(mid)
-    )
+    assert not np.array_equal(prev_copy, mat.getInternalReal("stress").previous(QUAD))
