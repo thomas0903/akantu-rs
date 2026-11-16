@@ -378,7 +378,17 @@ impl<'m> MeshTransaction<'m> {
                     ..
                 } => {
                     if let Some(a) = set(*part, name) {
-                        t.tails.push((a, *ty, *ghost, *len));
+                        // one range per block, from its lowest appended row
+                        // (rows are appended one by one: a range per append
+                        // would read the block's tail once per append)
+                        match t
+                            .tails
+                            .iter_mut()
+                            .find(|(b, bt, bg, _)| *b == a && bt == ty && bg == ghost)
+                        {
+                            Some(e) => e.3 = e.3.min(*len),
+                            None => t.tails.push((a, *ty, *ghost, *len)),
+                        }
                     }
                 }
                 Undo::Nodes { .. }
@@ -392,6 +402,9 @@ impl<'m> MeshTransaction<'m> {
                 | Undo::GroupNodes { .. } => {}
             }
         }
+        // a row edited several times is read once
+        t.rows.sort_unstable_by_key(|&(a, e)| (a as u8, e));
+        t.rows.dedup();
         Some(t)
     }
 
