@@ -1017,18 +1017,10 @@ structural `tests/exec_threads.rs`):
   are split into contiguous ranges and every part visits, in element
   order, the elements whose smallest-to-largest stored position meets its
   range, adding only the contributions inside it. Every entry receives
-  its contributions in element order. Any batch the matrix declines (a
-  promotion, an equation the cache does not hold, a missing entry, a
-  repeated slot) runs the serial loop.
-- The first assembly of every element of a type in order (profile and
-  values, `SparseMatrixAij::add_first_blocks_batch`): every part of the
-  elements lists, in its order, the pairs whose key is neither in the
-  matrix nor earlier in the part (threads); the parts are merged in their
-  order (serial, one insertion per listed pair), which gives every key the
-  position and coordinates of its first occurrence, i.e. the serial
-  profile entry for entry; then positions per element (a temporary) and
-  the entry-range scatter. A first assembly of a subset of a type's
-  elements (one material of several) profiles serially, as before.
+  its contributions in element order. The first assembly of a matrix
+  (its profile, in first-insertion order) and any batch the matrix
+  declines (a promotion, an equation the cache does not hold, a missing
+  entry, a repeated slot) run the serial loop.
 - Whole-matrix operations of the AIJ backend on the DOF manager's
   executor (`LinearSystemBackend::set_exec`): zeroing, entry-wise sums of
   matrices with the same entries (`J += c·K`), the profile copy of `J`,

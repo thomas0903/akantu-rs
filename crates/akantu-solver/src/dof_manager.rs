@@ -2058,47 +2058,6 @@ impl DofManager {
             }
             begun = Some(cache);
         }
-        // Threads (D-123): the first assembly of every element of the
-        // connectivity/group in order (profile and values) by
-        // `SparseMatrixAij::add_first_blocks_batch` (the profile of the
-        // serial loop, entry for entry, and the same values); when it
-        // declines (nothing changed) the serial code below runs.
-        if self.exec.is_parallel()
-            && begun.is_none()
-            && elements.len() > 1
-            && !self.profiled.contains(&key)
-            && self
-                .backend
-                .can_fuse_profile_and_values(matrix_id, elemental_matrix_type)
-            && Self::element_list(mesh, f, None, ty, ghost, conn.len())? == elements
-        {
-            let view = ElementEquations::new(f, &self.layout);
-            let elements = &elements;
-            let eqs_of = |k: usize, out: &mut Vec<GlobalIdx>| -> Result<()> {
-                let e = *elements
-                    .get(k)
-                    .ok_or_else(|| Error::invalid("element index"))?;
-                view.of(conn.tuple(e), out)
-            };
-            if self.backend.add_first_blocks_batch(
-                matrix_id,
-                &self.exec,
-                size_mat,
-                elements.len(),
-                &eqs_of,
-                elementary.as_slice(),
-                elemental_matrix_type,
-            ) {
-                self.profiled.insert(key.clone());
-                if self.assembly_cache_enabled {
-                    let mut cache = self.assembly_caches.remove(&key).unwrap_or_default();
-                    self.backend.begin_cached_assembly(matrix_id, &mut cache);
-                    self.assembly_caches.insert(key, cache);
-                }
-                self.threaded_assemblies += 1;
-                return Ok(());
-            }
-        }
         // Validate every element's equations before touching the backend.
         let mut eqs = Vec::with_capacity(size_mat);
         let profile_elems: Vec<usize> = if self.profiled.contains(&key) {
