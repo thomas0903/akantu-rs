@@ -107,11 +107,14 @@ of the timed cases at size `m`, are equal before and after.
   298 passed, 13 skipped, 2 failed: the two
   `structural_mechanics_dynamics*` example comparisons, which need
   matplotlib (`ci/tiers/wheel.sh`); with matplotlib installed both pass.
-- Digests: `digests/size-s.tsv` (suite, case, digest of the base
-  `72337cb4e`, digest of the branch at `d74b9f36d`, status) for every case
-  of `suite_solid`, `suite_models` and `suite_setup` at size `s`: 73 equal
-  (the same held for each earlier base and branch pair) (two cases print no digest without
-  the `mumps` / `scotch` features); the timed cases at size `m` in
+- Digests: `digests/size-s-threads1.tsv` and `size-s-threads4.tsv`
+  (suite, case, `AKANTU_NUM_THREADS`, digest of the base `11d783342`,
+  digest of the branch at `12633c666`, status) for every case of
+  `suite_solid`, `suite_models` and `suite_setup` at size `s`: 74 equal at
+  1 and at 4 threads, and the same digests at both thread counts (the two
+  cases `static_linear_mumps` and `partition_scotch_tet4` print no digest
+  without the `mumps` / `scotch` features; the same held for each earlier
+  base and branch pair at one thread); the timed cases at size `m` in
   `ab/` (every run of a case, both binaries, the same digest).
 - CI on the machine below at `84310238f` (the branch with its base
   `b3f6c78aa` merged): `ci/run-all.sh --backend docker` (fast preset:
@@ -194,7 +197,7 @@ Readings:
 
 The base `72337cb4e` brought fixed-size kernels for several laws (Maxwell,
 anisotropic). Branch `d74b9f36d` (that base merged) against it, same
-method, four cases; `digests/size-s.tsv` is this pair (73 equal):
+method, four cases (the digests of that pair at size `s`: 73 equal):
 
 | case | base [ms/step] | after [ms/step] | after/base | `step_hooks` base → after [ms/step] |
 |---|---|---|---|---|
