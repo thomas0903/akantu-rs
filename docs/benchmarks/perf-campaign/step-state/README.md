@@ -124,10 +124,14 @@ of the timed cases at size `m`, are equal before and after.
 
 ## Measurements
 
-- Machine: an OVHcloud development machine, AMD EPYC Milan (Zen 3),
-  4 cores, Ubuntu 24.04; one process per run pinned to core 1, nothing
-  else running. (A different CPU from the campaign's AWS machine: the
-  numbers decide what was kept; the campaign re-measures on AWS.)
+- Machine: a 4-core AMD EPYC Milan (Zen 3) development VM, Ubuntu 24.04;
+  one process per run pinned to core 1, nothing else running. (A
+  different CPU from the campaign's measurement machine, an AWS
+  `m7a.2xlarge`: the numbers decided what was kept; the campaign
+  re-measures there.)
+- Threads: one. `AKANTU_NUM_THREADS` was not set (default 1) and the
+  suites' `--threads` option was not used; the JSON lines record
+  `"threads":1`.
 - Binaries: `suite_solid` of the base `b3f6c78aa` ("base") and of this
   branch at `84310238f` ("after", the base merged in), release profile,
   default flags.
