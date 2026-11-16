@@ -152,14 +152,17 @@ fn main() {
             _ => panic!("unknown argument {k}"),
         }
     }
-    // calibrate: items per microsecond of serial work
+    // calibrate: items per microsecond of serial work (outputs kept alive
+    // with black_box so the repeated calls are not removed)
     let mut buf = vec![0.0; 1 << 16];
     work(0, &mut buf); // first touch
     let t = Instant::now();
-    for _ in 0..200 {
-        work(0, &mut buf);
+    for r in 0..200 {
+        work(std::hint::black_box(r), std::hint::black_box(&mut buf));
+        std::hint::black_box(&buf);
     }
     let per_us = (200.0 * buf.len() as f64 / (t.elapsed().as_secs_f64() * 1e6)).max(1.0);
+    eprintln!("calibration: {per_us:.1} items per microsecond");
     for &n in &threads {
         let exec = Exec::new(ExecPolicy::serial().with_threads(n).unwrap()).unwrap();
         let rayon_pool = rayon::ThreadPoolBuilder::new().num_threads(n).build().unwrap();
@@ -175,7 +178,7 @@ fn main() {
                     for _ in 0..reps {
                         let t = Instant::now();
                         match v {
-                            "serial" => work(0, &mut out),
+                            "serial" => work(std::hint::black_box(0), &mut out),
                             "exec" => exec.for_each(Tuples::new(&mut out, 1), 1, |first, mut o| work(first, o.as_mut_slice())),
                             "rayon-b" => {
                                 let ptr = SyncPtr(out.as_mut_ptr());

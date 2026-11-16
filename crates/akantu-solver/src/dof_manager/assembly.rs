@@ -19,6 +19,8 @@ use std::cell::RefCell;
 use akantu_comm::phase::Severity;
 use akantu_core::array::{ArrayView, ArrayViewMut};
 use akantu_core::array_shared::ArrayRef;
+use std::collections::BTreeMap;
+
 use akantu_core::exec::{Tuples, TuplesRef};
 use akantu_core::{Array, ElementType, Error, GhostType, Idx, Real, Result};
 use akantu_mesh::Mesh;
@@ -52,7 +54,80 @@ impl DofData {
 /// Equations per part of a threaded per-equation loop (D-123).
 const EQUATIONS_PER_PART: usize = 16_384;
 
+/// The inverse of a family's equation numbers (`inv[eq] = dof`), kept for
+/// the equation-ordered scatter with the numbers it was built from; `inv`
+/// is `None` when two DOFs share an equation.
+#[derive(Debug, Default)]
+pub(crate) struct EqInverse {
+    eqs: Vec<Idx>,
+    len: usize,
+    inv: Option<Vec<u32>>,
+}
+
+impl EqInverse {
+    fn build(eqs: &[Idx], len: usize) -> Self {
+        let mut inv = vec![u32::MAX; len];
+        let mut injective = u32::try_from(eqs.len()).is_ok();
+        for (k, &eq) in eqs.iter().enumerate() {
+            match usize::try_from(eq).ok().and_then(|e| inv.get_mut(e)) {
+                Some(slot) if *slot == u32::MAX => *slot = k as u32,
+                _ => {
+                    injective = false;
+                    break;
+                }
+            }
+        }
+        Self {
+            eqs: eqs.to_vec(),
+            len,
+            inv: injective.then_some(inv),
+        }
+    }
+}
+
 impl DofManager {
+    /// [`DofManager::assemble_to_global`] with more than one thread when
+    /// every DOF of the family has its own equation (non-periodic): each
+    /// equation then receives at most one addition, `target[e] += scale ·
+    /// v[inv[e]]`, the serial operation, so the equations split over the
+    /// threads (D-123). Otherwise, and on any invalid input (the serial
+    /// routine reports it), the serial routine.
+    #[allow(clippy::too_many_arguments)] // the executor, its cache and the routine's arguments
+    pub(crate) fn scatter_to_global(
+        exec: &akantu_core::exec::Exec,
+        cache: &std::sync::Mutex<BTreeMap<akantu_core::Id, EqInverse>>,
+        dof_id: &str,
+        f: &DofData,
+        periodic: bool,
+        values: &[Real],
+        target: &mut [Real],
+        scale: Real,
+    ) -> Result<()> {
+        let serial = !exec.is_parallel()
+            || (f.support == akantu_core::enums::DofSupportType::Nodal && periodic)
+            || values.len() != f.local_equation_numbers.len();
+        if serial {
+            return Self::assemble_to_global(f, periodic, values, target, scale);
+        }
+        let mut cache = cache.lock().unwrap_or_else(|e| e.into_inner());
+        let entry = cache.entry(dof_id.into()).or_default();
+        if entry.len != target.len() || entry.eqs != f.local_equation_numbers {
+            *entry = EqInverse::build(&f.local_equation_numbers, target.len());
+        }
+        let Some(inv) = &entry.inv else {
+            return Self::assemble_to_global(f, periodic, values, target, scale);
+        };
+        exec.for_each(Tuples::new(target, 1), EQUATIONS_PER_PART, |e0, mut t| {
+            for (j, t) in t.as_mut_slice().iter_mut().enumerate() {
+                let k = inv[e0 + j];
+                if k != u32::MAX {
+                    *t += scale * values[k as usize];
+                }
+            }
+        });
+        Ok(())
+    }
+
     /// Upstream `DOFManagerDefault::assembleToGlobalArray`: `target[eq] +=
     /// scale · v` per DOF in DOF order; for a nodal family of a periodic
     /// mesh `target[eq] += scale · v · (not periodic slave)` (slaves alias
@@ -137,7 +212,10 @@ impl DofManager {
             .families
             .get(dof_id)
             .ok_or_else(|| Error::not_found("dof family", dof_id))?;
-        Self::assemble_to_global(
+        Self::scatter_to_global(
+            &self.exec,
+            &self.eq_inverse,
+            dof_id,
             f,
             self.mesh_periodic,
             values.as_slice(),
@@ -421,7 +499,10 @@ impl DofManager {
     /// local-equation vector with `x` assembled at scale 1.
     fn mat_mul_cache(&self, dof_id: &str, x: &[Real], scale: Real) -> Result<Vec<Real>> {
         let mut cache = vec![0.0; self.layout.nb_local()];
-        Self::assemble_to_global(
+        Self::scatter_to_global(
+            &self.exec,
+            &self.eq_inverse,
+            dof_id,
             self.family(dof_id)?,
             self.mesh_periodic,
             x,

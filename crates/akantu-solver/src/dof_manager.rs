@@ -351,6 +351,8 @@ pub struct DofManager {
     /// How the per-equation loops of the integration schemes run (D-123):
     /// serial until the owning model sets its executor.
     exec: akantu_core::exec::Exec,
+    /// Inverse equation maps of the threaded scatter, per family.
+    eq_inverse: std::sync::Mutex<BTreeMap<Id, assembly::EqInverse>>,
     /// Blocked local equations, sorted and unique (upstream
     /// `global_blocked_dofs_indexes`), snapshot of the last
     /// [`DofManager::update_global_blocked_dofs`].
@@ -758,6 +760,7 @@ impl DofManager {
             numbered_distributed: None,
             compat: UpstreamCompat::default(),
             exec: akantu_core::exec::Exec::serial(),
+            eq_inverse: std::sync::Mutex::default(),
         }
     }
 
