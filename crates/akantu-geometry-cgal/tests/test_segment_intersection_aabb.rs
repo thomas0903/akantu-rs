@@ -222,3 +222,63 @@ fn upstream_mode_reproduces_ud407() {
         2
     );
 }
+
+/// A bar strictly inside element 77 of 7 × 7 cells with alternating
+/// diagonals, on the line `x − y = −2/7` of the diagonal edge of the
+/// distant element 29. The exhaustive scan reports it on both elements and
+/// its collected set keeps (bar, 29); the CGAL-compatible tree tests only
+/// the elements whose boxes meet the bar and keeps (bar, 77), as the LGPL
+/// grid search structure (`akantu-geometry`, `tests/grid_index_intersector.rs`,
+/// `diagonal_bar_regression`) does.
+#[test]
+fn diagonal_bar_keeps_its_element() {
+    use akantu_mesh::MeshAccessor;
+    let n = 7;
+    let mut mesh = Mesh::new(2, "mesh").unwrap();
+    let id = |i: usize, j: usize| i32::try_from(j * (n + 1) + i).unwrap();
+    {
+        let mut acc = MeshAccessor::new(&mut mesh);
+        for j in 0..=n {
+            for i in 0..=n {
+                #[allow(clippy::cast_precision_loss)] // small grid
+                acc.push_node(&[i as Real / n as Real, j as Real / n as Real])
+                    .unwrap();
+            }
+        }
+        let mut c = acc.connectivity_mut(ElementType::Triangle3, GhostType::NotGhost);
+        for j in 0..n {
+            for i in 0..n {
+                if (i + j).is_multiple_of(2) {
+                    c.try_push_tuple(&[id(i, j), id(i + 1, j), id(i + 1, j + 1)])
+                        .unwrap();
+                    c.try_push_tuple(&[id(i, j), id(i + 1, j + 1), id(i, j + 1)])
+                        .unwrap();
+                } else {
+                    c.try_push_tuple(&[id(i, j), id(i + 1, j), id(i, j + 1)])
+                        .unwrap();
+                    c.try_push_tuple(&[id(i + 1, j), id(i + 1, j + 1), id(i, j + 1)])
+                        .unwrap();
+                }
+            }
+        }
+    }
+    let c = -2.0 / 7.0;
+    let (x0, len) = (0.43, 0.0143);
+    let q = Segment3::new(p(x0, x0 - c, 0.0), p(x0 + len, x0 + len - c, 0.0));
+    let options = SegmentIntersectorOptions {
+        assembly: akantu_geometry::PieceAssembly::Collected,
+        ..SegmentIntersectorOptions::default()
+    };
+    let ty = ElementType::Triangle3;
+    let tree = MeshSegmentIntersector::<AabbTree>::new(&mesh, ty, options).unwrap();
+    let scan = MeshSegmentIntersector::<LinearScan>::new(&mesh, ty, options).unwrap();
+    assert_eq!(tree.compute_segments(&mesh, &q).unwrap(), vec![(q, 77)]);
+    assert_eq!(scan.compute_segments(&mesh, &q).unwrap(), vec![(q, 29)]);
+    // upstream's set order gives the same piece
+    let upstream = SegmentIntersectorOptions {
+        order: akantu_geometry::SegmentOrder::Upstream,
+        ..options
+    };
+    let tree = MeshSegmentIntersector::<AabbTree>::new(&mesh, ty, upstream).unwrap();
+    assert_eq!(tree.compute_segments(&mesh, &q).unwrap(), vec![(q, 77)]);
+}

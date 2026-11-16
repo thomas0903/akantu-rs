@@ -130,25 +130,34 @@ fn cube_root(v: Real) -> Real {
 /// so a query box grown by `δ` reaches every cell of every primitive whose
 /// box it overlaps.
 ///
-/// **Queries.** A segment is cut into pieces about one cell long; each
-/// piece's bounding box, grown by `δ_q = δ + 8 ε max|query coordinate|`
-/// (the rounding of the cut points), selects cells. A ray is first clipped
-/// to the parameter range in which its points project onto `B` (grown),
-/// then walked as a segment. The candidates are sorted by primitive order,
-/// duplicates removed, and tested with the scan's predicates
-/// ([`triangle_segment_intersection`], [`ray_triangle_do_intersect`]) in
-/// that order, so the output is the scan's output restricted to the
-/// candidates, in the scan's order.
+/// **Queries.** A segment or ray is clipped to the parameter range of the
+/// projections of the corners of `B` (every primitive point projects inside
+/// it), then cut into pieces about one cell long; each piece's bounding box,
+/// grown by `δ_q = δ + 8 ε max|piece coordinate| + e` (the rounding of the
+/// cut points, and `e` that of the clipped end points), selects cells. The
+/// candidates are sorted by primitive order, duplicates removed, and tested
+/// with the scan's predicates ([`triangle_segment_intersection`],
+/// [`ray_triangle_do_intersect`]) in that order, so the output is the scan's
+/// output restricted to the candidates, in the scan's order.
 ///
-/// **Why the restriction removes nothing.** Every primitive whose bounding
-/// box comes within `δ = h / 4` (a quarter of a cell, in each coordinate)
-/// of the query is a candidate. A primitive farther away is reported by the scan
-/// only if the predicates' floating-point orientations are wrong by a
-/// distance of a quarter cell, which takes a configuration that is
-/// degenerate up to rounding (the query on the supporting plane of a
-/// distant face or on the supporting line of a distant edge); such a report
-/// is a point or piece outside the query, which upstream's AABB tree (its
-/// box test) does not produce either. Non-finite coordinates in the
+/// **What the restriction removes.** Every primitive whose bounding box
+/// comes within `δ = h / 4` (a quarter of the cell edge
+/// `h = max((V / n_p)^(1/d), ē / 2)`, `V` the volume of `B` in its `d`
+/// non-flat directions, `n_p` the primitive count, `ē` the mean primitive
+/// extent) of the query is a candidate. So the grid reports the scan's
+/// reports, in the scan's order, minus those of primitives farther away.
+/// The scan reports such a primitive only through rounding noise in a
+/// configuration that is degenerate up to rounding (the query on the
+/// supporting plane of a distant face or on the supporting line of a
+/// distant edge); the report can be a point or piece outside the query, or
+/// the query itself attached to the distant primitive. A caller that
+/// deduplicates pieces by element index (the segment intersector's
+/// collected set) can therefore end up with another element for a piece:
+/// the one containing it, where the scan's lower-index rule keeps the
+/// distant one. Upstream's AABB tree (its box test) does not report the
+/// distant primitive either, and keeps the grid's element (the
+/// CGAL-compatible tree of `akantu-geometry-cgal` gives the same pieces on
+/// such queries). Non-finite coordinates in the
 /// primitives (at build) or in a query make that query a full scan; so does
 /// a grid whose cell items would exceed `u32` or 64 per primitive and cell
 /// on average (the index then scans every query).

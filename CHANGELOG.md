@@ -14,11 +14,19 @@ change of default results or of a public API raises the minor version.
   triangle primitives of the segment intersector that tests only the
   primitives near a query, in primitive order with the predicates of
   `LinearScan`. `EmbeddedInterfaceIntersector` uses it by default; its new
-  field `exhaustive_search = true` selects `LinearScan`. The two differ only
-  by the scan's reports of primitives farther than the grid's margin from
-  the query (rounding artefacts of queries lying in the plane of a distant
-  face or on the line of a distant edge); with the default tiled assembly
-  the interface mesh is the same.
+  field `exhaustive_search = true` selects `LinearScan`. The grid reports
+  the scan's reports, in the scan's order, minus those of primitives
+  farther from the query than its margin (a quarter cell). The scan
+  reports such primitives only through rounding noise, when a query lies,
+  up to rounding, in the plane of a distant face or on the line of a
+  distant edge; the noise can be the query itself attached to the distant
+  element. In the collected set (`remove_near_duplicates = false`) the grid
+  can therefore keep another element for a duplicated piece: the one
+  containing it, where the scan's deduplication keeps the lower, distant
+  one. The grid's choice is upstream's: a probe of upstream's
+  `MeshSegmentIntersector` gives the grid's pieces on such queries, and so
+  does the port's CGAL-compatible AABB tree. With the default tiled
+  assembly no difference was found.
 - `akantu_contact::geometry::OutwardFrame::CurrentCached`,
   `OutwardCache` and `orthogonal_projection_in`: outward directions of the
   facets memoised for one set of positions; the contact detector uses them

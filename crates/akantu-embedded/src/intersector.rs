@@ -50,15 +50,26 @@
 //! **Search structure.** [`GridIndex`] tests only the background
 //! primitives near each reinforcement segment, in primitive order with the
 //! predicates of [`LinearScan`], which tests all of them (cost
-//! `O(segments × elements)`). The two report the same intersections in the
-//! same order, except that the scan also reports primitives farther from
-//! the query than the grid's margin (the largest primitive extent) when a
-//! query lies, up to rounding, in the plane of a distant face or on the line
-//! of a distant edge; such reports are rounding artefacts (a point or piece
-//! outside the query, attached to a distant element) that upstream's AABB
-//! tree does not produce either. With the default tiled assembly they are
-//! dropped (their element does not contain the query) and the interface
-//! mesh is the same; the tests `grid_index` and `grid_index_intersector` of
+//! `O(segments × elements)`). At the level of the search structure the grid
+//! reports the scan's reports, in the scan's order, minus those of
+//! primitives farther from the query than its margin (a quarter of its cell
+//! edge `h = max((V / n_p)^(1/d), ē / 2)`, `V` the volume of the primitives'
+//! bounding box in its `d` non-flat directions, `n_p` the primitive count,
+//! `ē` the mean primitive extent). The scan reports such primitives only
+//! through rounding noise, when a query lies, up to rounding, in the plane
+//! of a distant face or on the line of a distant edge; the noise can be a
+//! point or piece outside the query, or the query itself attached to the
+//! distant element. In the collected set (`remove_near_duplicates =
+//! false`) the grid can therefore also keep another element for a
+//! duplicated piece: the element containing it, where the scan's
+//! deduplication keeps the lower index, the distant one. The grid's choice
+//! is upstream's: a probe of upstream's `MeshSegmentIntersector<2,
+//! _triangle_3>` gives the grid's pieces on such queries, and the port's
+//! CGAL-compatible AABB tree agrees (`akantu-geometry-cgal`,
+//! `diagonal_bar_keeps_its_element`). With the default tiled assembly no
+//! difference was found (the noise pieces do not lie in their element and
+//! are dropped). `exhaustive_search = true` selects the scan; the tests
+//! `grid_index`, `grid_index_intersector` and `grid_margin` of
 //! `akantu-geometry` compare both structures. With the default
 //! [`SegmentIntersectorOptions`] (`SegmentOrder::Lexicographic`, UD-408) the
 //! interface elements of one query come in exact lexicographic order with
@@ -118,7 +129,8 @@ pub struct EmbeddedInterfaceIntersector {
     pub remove_near_duplicates: bool,
     /// Search structure: `false` (default) the uniform grid [`GridIndex`],
     /// `true` the exhaustive [`LinearScan`] (see the module documentation
-    /// for the one difference, rounding artefacts of distant primitives).
+    /// for the differences, all caused by the scan's rounding noise on
+    /// distant primitives).
     pub exhaustive_search: bool,
 }
 

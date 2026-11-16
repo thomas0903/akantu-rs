@@ -212,25 +212,10 @@ fn compare(mesh: &Mesh, ty: ElementType, n: usize) -> (usize, usize) {
                 if a == b {
                     continue;
                 }
-                // only the collected set may differ: the grid's pieces are
-                // the scan's in the scan's order, the missing ones belong to
-                // elements far from the query (rounding artefacts of the
-                // scan's predicates, which upstream's AABB tree does not
-                // report either)
+                // only the collected set may differ
                 assert_eq!(assembly, PieceAssembly::Collected, "{q:?}\n{a:?}\n{b:?}");
-                let mut j = 0;
-                for piece in &a {
-                    if j < b.len() && *piece == b[j] {
-                        j += 1;
-                    } else {
-                        let gap = element_gap(mesh, ty, piece.1, q);
-                        // the grid's margin is at least an eighth of the
-                        // mesh spacing here
-                        assert!(gap > 0.125 / n as Real, "{q:?}: {piece:?} (gap {gap})");
-                        differ += 1;
-                    }
-                }
-                assert_eq!(j, b.len(), "{q:?}\n{a:?}\n{b:?}");
+                let (missing, replaced) = explain_difference(mesh, ty, n, q, &a, &b);
+                differ += missing + replaced;
             }
         }
     }
@@ -329,6 +314,49 @@ fn segment_triangle(a: V, b: V, t: &[V; 3]) -> Real {
     best
 }
 
+/// Explain how the grid's collected pieces `b` of query `q` differ from the
+/// scan's `a` (same order): a piece of the scan is missing from the grid
+/// only if its element is far from the query (a rounding artefact of the
+/// scan's predicates on a distant primitive), and a piece present in both
+/// with different elements (a duplicated piece, of which the deduplication
+/// keeps the lower element index) must belong, in the grid, to an element
+/// touching the query and, in the scan, to a far one. Returns the counts
+/// (missing, replaced).
+fn explain_difference(
+    mesh: &Mesh,
+    ty: ElementType,
+    n: usize,
+    q: &Segment3,
+    a: &[(Segment3, Int)],
+    b: &[(Segment3, Int)],
+) -> (usize, usize) {
+    // the grid's margin is at least an eighth of the mesh spacing here
+    #[allow(clippy::cast_precision_loss)] // small meshes
+    let far = 0.125 / n as Real;
+    let (mut j, mut missing, mut replaced) = (0, 0, 0);
+    for piece in a {
+        if j < b.len() && *piece == b[j] {
+            j += 1;
+        } else if j < b.len() && piece.0 == b[j].0 {
+            let gap_scan = element_gap(mesh, ty, piece.1, q);
+            let gap_grid = element_gap(mesh, ty, b[j].1, q);
+            assert!(
+                gap_scan > far && gap_grid <= 1e-12,
+                "{q:?}: scan {piece:?}, grid {:?}",
+                b[j]
+            );
+            j += 1;
+            replaced += 1;
+        } else {
+            let gap = element_gap(mesh, ty, piece.1, q);
+            assert!(gap > far, "{q:?}: {piece:?} (gap {gap})");
+            missing += 1;
+        }
+    }
+    assert_eq!(j, b.len(), "{q:?}\n{a:?}\n{b:?}");
+    (missing, replaced)
+}
+
 /// Distance between an element (triangle, or the faces of a tetrahedron)
 /// and a query.
 fn element_gap(mesh: &Mesh, ty: ElementType, e: Int, q: &Segment3) -> Real {
@@ -376,4 +404,126 @@ fn grid_and_scan_pieces_3d() {
         eprintln!("3d n {n}: {pieces} pieces, {differ} far pieces of the scan's collected set");
         assert!(pieces > 10_000);
     }
+}
+
+/// `n × n` cells over `[0, 1]²`, the diagonal of cell `(i, j)` from the lower
+/// left corner when `i + j + variant` is even, else from the lower right
+/// (diagonal edges of distant cells on common lines).
+fn alternating_grid(n: usize, variant: usize) -> Mesh {
+    let mut mesh = Mesh::new(2, "mesh").unwrap();
+    let id = |i: usize, j: usize| i32::try_from(j * (n + 1) + i).unwrap();
+    {
+        let mut acc = MeshAccessor::new(&mut mesh);
+        for j in 0..=n {
+            for i in 0..=n {
+                #[allow(clippy::cast_precision_loss)] // small grids
+                acc.push_node(&[i as Real / n as Real, j as Real / n as Real])
+                    .unwrap();
+            }
+        }
+        let mut c = acc.connectivity_mut(ElementType::Triangle3, GhostType::NotGhost);
+        for j in 0..n {
+            for i in 0..n {
+                if (i + j + variant).is_multiple_of(2) {
+                    c.try_push_tuple(&[id(i, j), id(i + 1, j), id(i + 1, j + 1)])
+                        .unwrap();
+                    c.try_push_tuple(&[id(i, j), id(i + 1, j + 1), id(i, j + 1)])
+                        .unwrap();
+                } else {
+                    c.try_push_tuple(&[id(i, j), id(i + 1, j), id(i, j + 1)])
+                        .unwrap();
+                    c.try_push_tuple(&[id(i + 1, j), id(i + 1, j + 1), id(i, j + 1)])
+                        .unwrap();
+                }
+            }
+        }
+    }
+    mesh
+}
+
+/// A short bar on the line `x − y = c` (`sign > 0`) or `x + y = c + 1`.
+fn diagonal_bar(c: Real, x0: Real, sign: Real) -> Option<Segment3> {
+    let len = 0.0143;
+    let (y0, y1) = if sign > 0.0 {
+        (x0 - c, x0 + len - c)
+    } else {
+        (c + 1.0 - x0, c + 1.0 - x0 - len)
+    };
+    let inside = |v: Real| (0.0..=1.0).contains(&v);
+    (inside(y0) && inside(y1) && x0 + len <= 1.0)
+        .then(|| Segment3::new(Point3::new(x0, y0, 0.0), Point3::new(x0 + len, y1, 0.0)))
+}
+
+/// Bars strictly inside one element, on the line of diagonal edges of
+/// distant cells (7 × 7 cells, alternating diagonals): the scan's collected
+/// set can attach a bar to a distant element whose edge lies on its line
+/// (rounding noise of the coplanar predicates); when the bar is reported
+/// twice, the deduplication keeps the lower element index, the distant one.
+/// The grid attaches it to the element containing it. Every difference must
+/// be of that kind or a missing distant piece; the tiled assembly is equal.
+#[test]
+fn diagonal_bars_attached_to_distant_elements() {
+    let n = 7;
+    let (mut replaced, mut missing, mut bars) = (0, 0, 0);
+    for variant in 0..2 {
+        let mesh = alternating_grid(n, variant);
+        for assembly in [PieceAssembly::Collected, PieceAssembly::Tiled] {
+            let options = SegmentIntersectorOptions {
+                assembly,
+                ..SegmentIntersectorOptions::default()
+            };
+            let ty = ElementType::Triangle3;
+            let scan = MeshSegmentIntersector::<LinearScan>::new(&mesh, ty, options).unwrap();
+            let grid = MeshSegmentIntersector::<GridIndex>::new(&mesh, ty, options).unwrap();
+            for k in -6i32..=6 {
+                for sign in [1.0, -1.0] {
+                    for m in 1..200 {
+                        let Some(q) =
+                            diagonal_bar(Real::from(k) / 7.0, Real::from(m) / 200.0, sign)
+                        else {
+                            continue;
+                        };
+                        bars += 1;
+                        let a = scan.compute_segments(&mesh, &q).unwrap();
+                        let b = grid.compute_segments(&mesh, &q).unwrap();
+                        if a == b {
+                            continue;
+                        }
+                        assert_eq!(assembly, PieceAssembly::Collected, "{q:?}");
+                        let (mi, re) = explain_difference(&mesh, ty, n, &q, &a, &b);
+                        missing += mi;
+                        replaced += re;
+                    }
+                }
+            }
+        }
+    }
+    eprintln!(
+        "{bars} bars: {replaced} pieces on another element, {missing} distant pieces missing"
+    );
+    assert!(replaced >= 5, "{replaced}");
+}
+
+/// Regression case of the above: the bar from (0.43, 0.7157…) to
+/// (0.4443, 0.7300…) lies strictly inside element 77 and on the line
+/// `x − y = −2/7` of the diagonal edge of element 29. The scan reports it on
+/// both elements and keeps (bar, 29); the grid keeps (bar, 77), which is
+/// also what the CGAL-compatible AABB tree gives (`akantu-geometry-cgal`,
+/// `diagonal_bar_keeps_its_element`).
+#[test]
+fn diagonal_bar_regression() {
+    let mesh = alternating_grid(7, 0);
+    let q = diagonal_bar(-2.0 / 7.0, 43.0 / 200.0 * 2.0, 1.0).unwrap();
+    assert_eq!(q.source, Point3::new(0.43, 0.7157142857142857, 0.0));
+    let options = SegmentIntersectorOptions {
+        assembly: PieceAssembly::Collected,
+        ..SegmentIntersectorOptions::default()
+    };
+    let ty = ElementType::Triangle3;
+    let scan = MeshSegmentIntersector::<LinearScan>::new(&mesh, ty, options).unwrap();
+    let grid = MeshSegmentIntersector::<GridIndex>::new(&mesh, ty, options).unwrap();
+    assert_eq!(scan.compute_segments(&mesh, &q).unwrap(), vec![(q, 29)]);
+    assert_eq!(grid.compute_segments(&mesh, &q).unwrap(), vec![(q, 77)]);
+    assert_eq!(element_gap(&mesh, ty, 77, &q), 0.0);
+    assert!(element_gap(&mesh, ty, 29, &q) > 0.1);
 }
