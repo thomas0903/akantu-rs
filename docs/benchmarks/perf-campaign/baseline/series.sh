@@ -10,7 +10,7 @@
 #
 #   series.sh explicit            explicit-step table: 7 rotated rounds,
 #                                 ten configurations, cpp-strict cpp-default port
-#                                 (one tjob per round)
+#                                 (one tjob for the rounds not yet done)
 #   series.sh explicit-digests    the state digests of the three programs (bjob)
 #   series.sh driver STEPS        cohesive driver h = 0.12, port vs C++ strict,
 #                                 1 rank, materials cohesive + elastic, 5 rotated
@@ -44,18 +44,21 @@ say() { echo "$(date -u +%FT%TZ) $*" | tee -a "$OUT/series.log"; }
 explicit_cases="tet4-20k:30 tet4-20k:30:fd tet4-200k:6 tet4-200k:6:fd tet10-20k:6 tet10-20k:6:fd hex8-20k:8 hex8-20k:8:fd hex8-200k:3 hex8-200k:3:fd"
 
 case "${1:-}" in
-  explicit)
+  explicit-inner) # the rounds not yet done, run by `series.sh explicit` inside one tjob
     d="$OUT/explicit"; mkdir -p "$d"
     for r in 1 2 3 4 5 6 7; do
-      [ -e "$d/r$r.ok" ] && { say "explicit round $r: done, skipped"; continue; }
+      [ -e "$d/r$r.ok" ] && continue
       rm -f "$d/r$r.jsonl"
-      say "explicit round $r: start"
-      tjob "$L-explicit-r$r" -- env PIN_CPU="$PIN" ROUND_START="$r" BIN_DIR="$PORT_DIR" \
+      env PIN_CPU="$PIN" ROUND_START="$r" BIN_DIR="$PORT_DIR" \
         CPP_BIN_DIR="$BASE/cpp-bin" MESH_DIR="$BASE/meshes/explicit" \
         "$repo/scripts/perf/explicit-step/timing_rotated.sh" "$d/r$r.jsonl" 1 \
         "cpp-strict cpp-default port" "$explicit_cases" > "$d/r$r.log" 2>&1
-      touch "$d/r$r.ok"; say "explicit round $r: done"
-    done
+      touch "$d/r$r.ok"; echo "round $r done $(date -u +%FT%TZ)"
+    done ;;
+  explicit)
+    d="$OUT/explicit"; mkdir -p "$d"
+    say "explicit: start"
+    tjob "$L-explicit" -- "$0" explicit-inner >> "$d/explicit.log" 2>&1
     cat "$d"/r[1-7].jsonl > "$d/explicit.jsonl"
     SUMMARY_LABELS="cpp-strict cpp-default port" SUMMARY_PAIRS="port/cpp-strict port/cpp-default cpp-default/cpp-strict" \
       python3 -I "$repo/scripts/perf/explicit-step/summarize_timing.py" "$d/explicit.jsonl" step fint stress > "$d/summary.md" 2>&1 || true
