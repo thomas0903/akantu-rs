@@ -1023,6 +1023,38 @@ every supported level against the scalar bits. Fast-mode kernels: marked
 `akantu_validation::fast_mode::check_fast_mode` against the bitwise run with
 a rule of `fixtures/fast_mode/<area>/tolerances.json`.
 
+Bitwise lane kernels (`exec::with_simd`, `exec::Lanes4`): a kernel body
+written once over `Lanes4` (four `f64` lanes, each operation per lane, no
+FMA) implements `SimdTask`; `with_simd(token, task)` compiles it inside an
+`#[target_feature(enable = "avx2")]` entry point on `Avx2` and `Avx512`
+tokens and for the baseline otherwise, so every level gives the same bits
+and the crates that write such kernels (`akantu-fe`, `akantu-solid`) stay
+free of `unsafe` (the one dispatch site is in `akantu-core`, `UNSAFE.md`
+CO-19, CO-20). Lane layouts of the explicit step: the gradient has one
+lane per row of `∇u`, the integrated `BᵀD` one lane per row of `D`, the
+integrated finite-deformation residual one lane per node of a group of
+four (component `k` fixed per vector; the `B_L0` selections then depend on
+`k` only). Lanes are not a promise of packed instructions: the compiler
+packs the integrated `BᵀD` and residual, about half of the plain gradient
+and none of the gradient with the `eigen_grad_u` subtraction (scalar AVX
+instructions; a packed variant was not faster,
+`docs/benchmarks/perf-campaign/explicit/README.md`). No AVX-512 instance: three-component lanes do not fill 512-bit
+vectors, and the compiler's AVX-512 code for the gradient was slower.
+
+Element-block pass of the internal forces
+(`MaterialElastic::stress_and_element_forces`, called by
+`assemble_internal_forces`): for a model with one elastic law on one
+element type of a mesh without ghosts and without non-local laws, one
+threaded region runs, per block of elements of about 192 KiB of
+per-element data, the gradient minus `eigen_grad_u`
+(`FeEngine::gradient_plan`), the thermal pre-step, the stress (or second
+Piola–Kirchhoff stress) and the integrated `BᵀD` (`btd_integrate_plan`)
+or residual (`assembly::ResidualPlan`); the scatter follows. The plans run
+the batch kernels on element ranges after checking the whole filter once,
+and `grad_u`, the stress fields and the thermal fields receive the values
+of the separate passes. Any other model, or a plan that cannot be made,
+runs the separate passes.
+
 Wait policy: idle workers spin for `ExecPolicy::spin` (`AKANTU_EXEC_SPIN_US`;
 default 5 ms, 0 when the threads outnumber the available cores, with a
 one-time warning), then park; the caller's wait for the workers inside a

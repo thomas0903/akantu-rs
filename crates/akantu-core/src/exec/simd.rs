@@ -211,6 +211,109 @@ unsafe fn run_with_fma<T: FmaTask>(task: T) -> T::Output {
     task.run()
 }
 
+/// A bitwise kernel written once in portable code that [`with_simd`]
+/// compiles for the executor's SIMD level. Its `run` must be
+/// `#[inline(always)]` (and every function it calls in its hot loop), so
+/// that it is compiled inside the level's entry point. The body performs
+/// per lane the scalar sequence (no `mul_add`, no reassociation): the
+/// compiler vectorises independent lanes (for instance the four lanes of a
+/// [`Lanes4`]) without changing any rounding, since Rust never contracts a
+/// multiplication and an addition into a fused multiply-add.
+pub trait SimdTask {
+    /// Result.
+    type Output;
+    /// The computation.
+    fn run(self) -> Self::Output;
+}
+
+/// Run `task` compiled for the token's level: with the AVX2 instruction
+/// set (256-bit vectors, **without** FMA) on `Avx2` and `Avx512`, as
+/// compiled for the baseline otherwise (aarch64 baselines include NEON).
+/// Every level computes the same bits: the task performs the scalar
+/// operations per lane, and the AVX2 entry point does not enable FMA.
+/// AVX-512 tokens use the AVX2 instance: 512-bit vectors do not fit the
+/// three-component lanes of the FE kernels, and a build for AVX-512 made the
+/// compiler emit gathers that were slower on hexahedra.
+pub fn with_simd<T: SimdTask>(token: SimdToken, task: T) -> T::Output {
+    match token.level() {
+        #[cfg(target_arch = "x86_64")]
+        SimdLevel::Avx2 | SimdLevel::Avx512 => {
+            // SAFETY: a token of `Avx2` or `Avx512` exists only when the CPU
+            // reports avx2 (`SimdLevel::is_supported`).
+            unsafe { run_with_avx2(task) }
+        }
+        _ => task.run(),
+    }
+}
+
+#[cfg(target_arch = "x86_64")]
+#[target_feature(enable = "avx2")]
+unsafe fn run_with_avx2<T: SimdTask>(task: T) -> T::Output {
+    task.run()
+}
+
+/// Four `f64` lanes; every operation is the scalar operation on each lane
+/// (no fusion, no reassociation), so a computation on `Lanes4` gives each
+/// lane exactly the bits of the same computation on that lane's scalars.
+/// Aligned to 32 bytes so that an array of lanes loads as AVX vectors.
+#[derive(Debug, Clone, Copy, Default, PartialEq)]
+#[repr(C, align(32))]
+pub struct Lanes4(pub [Real; 4]);
+
+impl Lanes4 {
+    /// Every lane `x`.
+    #[inline(always)]
+    #[must_use]
+    pub const fn splat(x: Real) -> Self {
+        Self([x; 4])
+    }
+
+    /// The first `N ≤ 4` lanes from `v`, the others `+0`.
+    #[inline(always)]
+    #[must_use]
+    pub fn from_prefix<const N: usize>(v: &[Real; N]) -> Self {
+        let mut l = [0.0; 4];
+        l[..N].copy_from_slice(v);
+        Self(l)
+    }
+
+    /// The first `N ≤ 4` lanes.
+    #[inline(always)]
+    #[must_use]
+    pub fn prefix<const N: usize>(self) -> [Real; N] {
+        let mut v = [0.0; N];
+        v.copy_from_slice(&self.0[..N]);
+        v
+    }
+
+    /// FAST MODE only (D-122): `self · b + c` per lane with one rounding
+    /// (`f64::mul_add`; one instruction inside [`with_fma`]). Not the
+    /// bitwise result of `self * b + c`.
+    #[inline(always)]
+    #[must_use]
+    pub fn mul_add(self, b: Self, c: Self) -> Self {
+        let (x, y, z) = (self.0, b.0, c.0);
+        Self(std::array::from_fn(|k| x[k].mul_add(y[k], z[k])))
+    }
+}
+
+macro_rules! lanes_op {
+    ($tr:ident, $f:ident, $op:tt) => {
+        impl std::ops::$tr for Lanes4 {
+            type Output = Self;
+            #[inline(always)]
+            fn $f(self, o: Self) -> Self {
+                let (a, b) = (self.0, o.0);
+                Self([a[0] $op b[0], a[1] $op b[1], a[2] $op b[2], a[3] $op b[3]])
+            }
+        }
+    };
+}
+lanes_op!(Add, add, +);
+lanes_op!(Sub, sub, -);
+lanes_op!(Mul, mul, *);
+lanes_op!(Div, div, /);
+
 /// Example of the convention: `out[i] += a · x[i]` (the product rounded,
 /// then the sum rounded, as the scalar statement `*o += a * x`), with one
 /// version per level. Every level gives the scalar bits.
@@ -405,6 +508,53 @@ mod tests {
                 exact,
                 "{level:?}"
             );
+        }
+    }
+
+    /// A lane task on special and random values gives at every level the
+    /// bits of the scalar operations, including the products that FMA
+    /// contraction would change.
+    #[test]
+    fn simd_tasks_give_the_scalar_bits_at_every_level() {
+        struct Task<'a>(&'a [Real], &'a [Real]);
+        impl SimdTask for Task<'_> {
+            type Output = Vec<Real>;
+            #[inline(always)]
+            fn run(self) -> Vec<Real> {
+                let mut out = Vec::new();
+                for (a, b) in self
+                    .0
+                    .as_chunks::<4>()
+                    .0
+                    .iter()
+                    .zip(self.1.as_chunks::<4>().0)
+                {
+                    let x = Lanes4(*a);
+                    let y = Lanes4(*b);
+                    let r = (x * y - Lanes4::splat(1.0)) + x / y;
+                    out.extend_from_slice(&r.0);
+                }
+                out
+            }
+        }
+        let a = values(4000, 11);
+        let b = values(4000, 12);
+        let scalar: Vec<Real> = a
+            .iter()
+            .zip(&b)
+            .map(|(&x, &y)| (x * y - 1.0) + x / y)
+            .collect();
+        for level in SimdLevel::supported() {
+            let r = with_simd(level.token().unwrap(), Task(&a, &b));
+            for (i, (&s, &v)) in scalar.iter().zip(&r).enumerate() {
+                assert!(same(s, v), "{level:?} i={i}: {s:e} vs {v:e}");
+            }
+        }
+        // (1 + 2⁻³⁰)² − 1 with a rounded product loses the 2⁻⁶⁰ term
+        let x = 1.0 + (2.0 as Real).powi(-30);
+        for level in SimdLevel::supported() {
+            let r = with_simd(level.token().unwrap(), Task(&[x; 4], &[x; 4]));
+            assert_eq!(r[0], (2.0 as Real).powi(-29) + 1.0, "{level:?}");
         }
     }
 
