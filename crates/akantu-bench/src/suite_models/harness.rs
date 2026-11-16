@@ -152,6 +152,9 @@ pub struct Run {
     pub comm: Communicator,
     /// Problem sizes (set by the case).
     pub counts: Counts,
+    /// Sparse direct solver of the case (`none` without a sparse solve;
+    /// set by `common::eigen_options`).
+    pub sparse_solver: &'static str,
     phases: Vec<Phase>,
 }
 
@@ -163,6 +166,7 @@ impl Run {
             opts,
             comm,
             counts: Counts::default(),
+            sparse_solver: "none",
             phases: Vec::new(),
         }
     }
@@ -261,7 +265,8 @@ impl Run {
                 "{{\"suite\":\"models\",\"case\":\"{case}\",\"size\":\"{}\",\"rep\":{rep},\
                  \"phase\":\"{}\",\"calls\":{},\"seconds\":{:.6},\"n_elements\":{},\
                  \"n_nodes\":{},\"n_dofs\":{},\"ranks\":{},\"threads\":{},\
-                 \"digest\":\"{}\",\"commit\":\"{}\",\"features\":\"{}\"}}",
+                 \"digest\":\"{}\",\"commit\":\"{}\",\"features\":\"{}\",\
+                 \"sparse_solver\":\"{}\"}}",
                 self.opts.size.name(),
                 p.name,
                 p.calls,
@@ -274,6 +279,7 @@ impl Run {
                 digest.hex(),
                 commit(),
                 features(),
+                self.sparse_solver,
             );
             out.push(s);
         }
