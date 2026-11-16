@@ -272,7 +272,9 @@ binaries built with the default release profile on the same toolchain.
 Raw data, commands and profiles: `docs/benchmarks/perf-campaign/cohesive-check/`.
 
 What the profile showed (branch point, h = 0.12 driver, full schedule;
-shares of all samples): the elemental interpolation's two small products
+shares of all samples of a flat profile on the AWS machine, attributed to
+callers with frame-pointer call graphs on a boat.dev development VM;
+`profiles/aws-base-flat.txt`, `profiles/base-5000.txt`): the elemental interpolation's two small products
 per element through the general product path, 31 % (the second product of
 the linear tetrahedron at its facets' 3 × 4 points takes Eigen's `gebp`
 route); the copy of the interpolated values into `facet_stress`, 14 %, and
@@ -340,8 +342,9 @@ interpolation and 2.12 law checks; over the full schedule 4.80 stress
 interpolation (with the copy plan rebuilt after every insertion step),
 2.42 law checks and 4.08 insertion.
 
-Remaining shares in the full schedule after the change (frame-pointer
-profile; `profiles/src2-5000.txt`): stress interpolation 26.5 % of the run
+Remaining shares in the full schedule after the change (shares of a
+frame-pointer call-graph profile on a boat.dev development VM, not times;
+`profiles/src2-5000.txt`): stress interpolation 26.5 % of the run
 (the fused loop streams `facet_stress`, 20 MB on this mesh, about the
 memory traffic of writing it), the law check 12 %, the insertion 19 %, of
 which the mesh consistency check 11.6 % and the inserter's topology work
@@ -374,7 +377,8 @@ Milan machine (5 interleaved repetitions; the slowest rank), ms per step:
   reduction, an order map of all facets, an agreement), and every
   insertion step runs the distributed transaction. At 2 ranks the insertion
   part (8.85 ms) is about twice the serial insertion phase (4.08 ms). An
-  8-rank call-graph profile of the insertion part: MPI and kernel time
+  8-rank call-graph profile of the insertion part on the 8-core EPYC Milan
+  development machine (shares, not times): MPI and kernel time
   31 %, the mesh consistency check 27 %, the DOF manager's global-number
   exchange 11 %.
 - A first version of the change was slower at 8 ranks (×1.05): the copy
