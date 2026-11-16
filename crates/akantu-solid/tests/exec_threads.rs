@@ -1038,3 +1038,22 @@ fn drucker_prager_law_is_bitwise_for_every_thread_count() {
         options: None,
     });
 }
+
+/// The phase-field law's stress (volumetric–deviatoric split, a thermal
+/// strain) with the damage the law starts with; the tangent and an evolving
+/// damage are covered by the phase-field model's thread test.
+#[test]
+fn phasefield_law_is_bitwise_for_every_thread_count() {
+    check_law(&LawCase {
+        name: "phasefield",
+        dat: |_| {
+            "material phasefield volumetric_deviatoric [\n  name = body\n  rho = 2500\n  \
+             E = 70e9\n  nu = 0.22\n  alpha = 1e-5\n  delta_T = 10\n]\n"
+                .into()
+        },
+        amp: 1e-3,
+        steps: 6,
+        active: "stress",
+        options: None,
+    });
+}
