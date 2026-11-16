@@ -23,6 +23,23 @@
 //!   value at that moment (upstream copy-constructs `previous_<id>` and
 //!   `reset()`s it — the current values are *not* copied). The history keeps
 //!   its own default value afterwards (upstream: a separate field).
+//! * **Deferred saves** (port-specific; the same values as upstream's
+//!   copy). [`InternalField::save_current_values`] does not copy a block
+//!   whose current values are not exported (no NumPy view, D-047): it
+//!   records that the previous values *are* the current ones. The copy is
+//!   made when the current values are about to change (every mutable
+//!   accessor, resize, reset, compaction); it is skipped when nothing
+//!   changes them before the next save, and it becomes an exchange of the
+//!   two allocations when the caller announces that it rewrites the whole
+//!   block ([`InternalField::prepare_overwrite`],
+//!   [`InternalField::commit_overwrite`]). [`InternalField::previous`]
+//!   returns the current values of such a block, which are exactly what the
+//!   copy would have held. A block exported at the save is copied at once
+//!   (Python may write it at any time), and a block can only be exported
+//!   through [`InternalField::values_mut`], which performs the deferred
+//!   saves first, so a view never sees an exchanged allocation; previous
+//!   values reach Python only as copies. Upstream copies at every
+//!   `saveCurrentValues`.
 //! * **Random fields** ([`InternalField::new_random`], upstream
 //!   `RandomInternalField<Real>`): every value written by `reset()` or by
 //!   `resize()` (only the new tail of each block) is a draw of the field's
@@ -94,32 +111,37 @@ impl TypeRestriction {
     }
 }
 
-/// Copy every block of `src` into `dst` **in place** when the block sizes
-/// agree (upstream `ElementTypeMapArray::copy` → `Array::copy`), so foreign
-/// views of `dst` stay attached across `save`/`restore`.
-fn save_blocks<T: Clone>(
+/// Copy the current block `a` into `dst` **in place** when the block sizes
+/// agree (upstream `ElementTypeMapArray::copy` → `Array::copy`).
+fn save_block<T: Clone>(
     dst: &mut ElementTypeMapArray<T>,
-    src: &SharedElementTypeMapArray<T>,
+    a: &SharedArray<T>,
+    ty: ElementType,
+    ghost: GhostType,
 ) -> Result<()> {
-    for (ty, ghost, a) in src.as_map().iter_all() {
-        let a = a.read()?;
-        match dst.as_map_mut().get_mut(ty, ghost) {
-            Some(d) => d.copy_from(&a)?,
-            None => {
-                dst.as_map_mut().insert(ty, ghost, (*a).clone())?;
-            }
+    let a = a.read()?;
+    match dst.as_map_mut().get_mut(ty, ghost) {
+        Some(d) => d.copy_from(&a)?,
+        None => {
+            dst.as_map_mut().insert(ty, ghost, (*a).clone())?;
         }
     }
     Ok(())
 }
 
 /// `dst ← src` for the current (exportable) values, in place when the
-/// block sizes agree (see [`save_blocks`]).
+/// block sizes agree, so foreign views of `dst` stay attached across
+/// `save`/`restore`; blocks listed in `pending` (deferred saves) already
+/// hold these values.
 fn restore_blocks<T: Clone>(
     dst: &mut SharedElementTypeMapArray<T>,
     src: &ElementTypeMapArray<T>,
+    pending: &[(ElementType, GhostType)],
 ) -> Result<()> {
     for (ty, ghost, a) in src.as_map().iter_all() {
+        if pending.contains(&(ty, ghost)) {
+            continue;
+        }
         match dst.as_map_mut().get_mut(ty, ghost) {
             Some(d) => d.write()?.copy_from(a)?,
             None => {
@@ -162,6 +184,56 @@ fn random_set_base(param: &mut RandomParameter, value: &Real) {
 struct History<T> {
     values: ElementTypeMapArray<T>,
     default_value: T,
+    /// Blocks whose save is deferred (see "Deferred saves" in the module
+    /// documentation): their previous values are the current values, and
+    /// `values` holds nothing meaningful for them. Invariants: the current
+    /// block is not exported, and both blocks exist with the same number of
+    /// tuples and components.
+    pending: Vec<(ElementType, GhostType)>,
+}
+
+impl<T: Clone> History<T> {
+    fn is_pending(&self, ty: ElementType, ghost: GhostType) -> bool {
+        self.pending.contains(&(ty, ghost))
+    }
+
+    /// Perform the deferred save of `(ty, ghost)` (`previous <- current`, a
+    /// copy), if there is one.
+    fn materialize(
+        &mut self,
+        current: &SharedElementTypeMapArray<T>,
+        ty: ElementType,
+        ghost: GhostType,
+    ) {
+        let Some(i) = self.pending.iter().position(|&b| b == (ty, ghost)) else {
+            return;
+        };
+        self.pending.swap_remove(i);
+        let (Ok(src), Some(dst)) = (
+            current.shared(ty, ghost),
+            self.values.as_map_mut().get_mut(ty, ghost),
+        ) else {
+            return; // not reachable: both blocks exist while pending
+        };
+        // not exported while pending: the guard counts nothing
+        let src = src.borrow();
+        if dst.len() == src.len() && dst.nb_component() == src.nb_component() {
+            dst.as_mut_slice().clone_from_slice(src.as_slice());
+        } else {
+            // not reachable (same shapes while pending); a full copy keeps
+            // the result right anyway
+            let id = dst.id().to_owned();
+            *dst = (*src).clone();
+            dst.set_id(id);
+        }
+    }
+
+    /// Perform every deferred save.
+    fn materialize_all(&mut self, current: &SharedElementTypeMapArray<T>) {
+        while let Some(&(ty, ghost)) = self.pending.last() {
+            self.materialize(current, ty, ghost);
+        }
+    }
 }
 
 /// Per-quadrature-point field with optional history.
@@ -405,6 +477,7 @@ impl<T: Clone> InternalField<T> {
         self.previous = Some(Box::new(History {
             values,
             default_value: self.default_value.clone(),
+            pending: Vec::new(),
         }));
     }
 
@@ -440,6 +513,7 @@ impl<T: Clone> InternalField<T> {
         if !self.handles(ty) {
             return Ok(());
         }
+        self.materialize(ty, ghost);
         let old = self.values.shared(ty, ghost).map_or(0, SharedArray::len);
         let mut a = self.values.alloc(
             nb_quad_points,
@@ -486,6 +560,7 @@ impl<T: Clone> InternalField<T> {
     /// If a block is exported and no native section of its runtime is
     /// active (protocol violation, see [`SharedArray::borrow_mut`]).
     pub fn reset(&mut self) {
+        self.materialize_all();
         let default = self.default_value.clone();
         let restriction = self.restriction;
         for g in GhostType::ALL {
@@ -516,9 +591,100 @@ impl<T: Clone> InternalField<T> {
         self.values.get(ty, ghost)
     }
 
-    /// Mutable current values.
+    /// Mutable current values (performs a deferred save of the block
+    /// first).
     pub fn get_mut(&mut self, ty: ElementType, ghost: GhostType) -> Result<ArrayMut<'_, T>> {
+        self.materialize(ty, ghost);
         self.values.get_mut(ty, ghost)
+    }
+
+    /// Announce that the caller rewrites **every** value of the current
+    /// block `(ty, ghost)` before it reads any of them, and cannot fail in
+    /// between (it checks its inputs first). A deferred save of the block
+    /// then becomes an exchange of the current and previous allocations (no
+    /// copy), and the current values of the block are unspecified until the
+    /// caller has written them. Without a deferred save of the block, or
+    /// when the exchange is not possible, this performs the save as
+    /// [`InternalField::get_mut`] would. Returns `true` if the allocations
+    /// were exchanged (see [`InternalField::undo_overwrite`]).
+    pub fn prepare_overwrite(&mut self, ty: ElementType, ghost: GhostType) -> bool {
+        let Some(p) = &mut self.previous else {
+            return false;
+        };
+        let Some(i) = p.pending.iter().position(|&b| b == (ty, ghost)) else {
+            return false;
+        };
+        let swapped = match (
+            self.values.shared_mut(ty, ghost),
+            p.values.as_map_mut().get_mut(ty, ghost),
+        ) {
+            (Ok(c), Some(prev)) => c.try_swap_values(prev),
+            _ => false,
+        };
+        if swapped {
+            p.pending.swap_remove(i);
+        } else {
+            p.materialize(&self.values, ty, ghost);
+        }
+        swapped
+    }
+
+    /// After a [`InternalField::prepare_overwrite`] that returned `true`,
+    /// for a caller that failed before writing anything: the current block
+    /// gets the values of the last save back (a copy from the previous
+    /// values, which hold them), so current and previous are what a save
+    /// by copy followed by the failed call leaves. Nothing happens for a
+    /// field without history or a missing block.
+    ///
+    /// # Errors
+    /// The guard errors of [`InternalField::get_mut`].
+    pub fn undo_overwrite(&mut self, ty: ElementType, ghost: GhostType) -> Result<()> {
+        let Some(p) = &self.previous else {
+            return Ok(());
+        };
+        let (Some(prev), Ok(cur)) = (
+            p.values.as_map().get(ty, ghost),
+            self.values.shared_mut(ty, ghost),
+        ) else {
+            return Ok(());
+        };
+        cur.write()?.copy_from(prev)
+    }
+
+    /// `current(ty, ghost) <- new` for a whole block (`new` has the shape of
+    /// the current block); the values left in `new` are unspecified. The
+    /// result is that of `get_mut(ty, ghost)?.copy_from(new)`, obtained by
+    /// exchanging allocations where possible: a deferred save of the block
+    /// and the write then cost no copy. Laws that compute a block into
+    /// scratch storage of their own commit it with this; nothing changes
+    /// if it fails.
+    ///
+    /// # Errors
+    /// A missing block, `new` of another shape
+    /// ([`Error::DimensionMismatch`]), the guard errors of
+    /// [`InternalField::get_mut`].
+    pub fn commit_overwrite(
+        &mut self,
+        ty: ElementType,
+        ghost: GhostType,
+        new: &mut Array<T>,
+    ) -> Result<()> {
+        {
+            let c = self.values.shared(ty, ghost)?;
+            if c.len() != new.len() || c.nb_component() != new.nb_component() {
+                return Err(Error::DimensionMismatch {
+                    context: "InternalField::commit_overwrite",
+                    expected: c.len(),
+                    got: new.len(),
+                });
+            }
+        }
+        let _ = self.prepare_overwrite(ty, ghost);
+        let c = self.values.shared_mut(ty, ghost)?;
+        if !c.try_swap_values(new) {
+            c.write()?.copy_from(new)?;
+        }
+        Ok(())
     }
 
     /// `true` if the block `(ty, ghost)` exists.
@@ -528,14 +694,25 @@ impl<T: Clone> InternalField<T> {
     }
 
     /// Previous values of `(ty, ghost)` (upstream `previous(type, ghost)`).
+    /// For a block with a deferred save these are the current values (the
+    /// returned array then carries the current block's id).
     pub fn previous(&self, ty: ElementType, ghost: GhostType) -> Result<&Array<T>> {
-        self.previous
-            .as_ref()
-            .ok_or_else(|| {
-                Error::invalid(format!("internal field '{}' has no history", self.name))
-            })?
-            .values
-            .get(ty, ghost)
+        let p = self.previous.as_ref().ok_or_else(|| {
+            Error::invalid(format!("internal field '{}' has no history", self.name))
+        })?;
+        if p.is_pending(ty, ghost) {
+            return self
+                .values
+                .shared(ty, ghost)?
+                .as_unexported()
+                .ok_or_else(|| {
+                    Error::invalid(format!(
+                        "internal field '{}': deferred save of an exported block",
+                        self.name
+                    ))
+                });
+        }
+        p.values.get(ty, ghost)
     }
 
     /// Mutable previous values of `(ty, ghost)`, allocated (empty, with the
@@ -546,6 +723,7 @@ impl<T: Clone> InternalField<T> {
     /// `updateInternalParameters`, on blocks that already exist, so
     /// they are unaffected by the allocation).
     pub fn previous_mut(&mut self, ty: ElementType, ghost: GhostType) -> Result<&mut Array<T>> {
+        self.materialize(ty, ghost);
         let nbc = self.nb_component;
         let name = &self.name;
         let p = self
@@ -567,6 +745,7 @@ impl<T: Clone> InternalField<T> {
         ty: ElementType,
         ghost: GhostType,
     ) -> Result<(ArrayMut<'_, T>, &Array<T>)> {
+        self.materialize(ty, ghost);
         let name = &self.name;
         let prev = self
             .previous
@@ -584,26 +763,62 @@ impl<T: Clone> InternalField<T> {
         &self.values
     }
 
-    /// All current values, mutable.
+    /// All current values, mutable (performs every deferred save first;
+    /// the Python bindings export blocks through it).
     pub fn values_mut(&mut self) -> &mut SharedElementTypeMapArray<T> {
+        self.materialize_all();
         &mut self.values
     }
 
-    /// `previous ← current` (upstream `saveCurrentValues`).
-    pub fn save_current_values(&mut self) -> Result<()> {
-        match &mut self.previous {
-            Some(p) => save_blocks(&mut p.values, &self.values),
-            None => Err(Error::invalid(format!(
-                "internal field '{}' has no history",
-                self.name
-            ))),
+    /// Perform the deferred save of `(ty, ghost)`, if any.
+    fn materialize(&mut self, ty: ElementType, ghost: GhostType) {
+        if let Some(p) = &mut self.previous {
+            p.materialize(&self.values, ty, ghost);
         }
     }
 
-    /// `current ← previous` (upstream `restorePreviousValues`).
+    /// Perform every deferred save.
+    fn materialize_all(&mut self) {
+        if let Some(p) = &mut self.previous {
+            p.materialize_all(&self.values);
+        }
+    }
+
+    /// `previous ← current` (upstream `saveCurrentValues`). A block whose
+    /// current values are not exported and whose previous block has the
+    /// same shape is saved lazily (module documentation, "Deferred
+    /// saves"); the others are copied now.
+    pub fn save_current_values(&mut self) -> Result<()> {
+        let Some(p) = &mut self.previous else {
+            return Err(Error::invalid(format!(
+                "internal field '{}' has no history",
+                self.name
+            )));
+        };
+        for (ty, ghost, a) in self.values.as_map().iter_all() {
+            if p.is_pending(ty, ghost) {
+                // unchanged since that deferred save: the same save again
+                continue;
+            }
+            let same_shape = p
+                .values
+                .as_map()
+                .get(ty, ghost)
+                .is_some_and(|d| d.len() == a.len() && d.nb_component() == a.nb_component());
+            if same_shape && a.as_unexported().is_some() {
+                p.pending.push((ty, ghost));
+                continue;
+            }
+            save_block(&mut p.values, a, ty, ghost)?;
+        }
+        Ok(())
+    }
+
+    /// `current ← previous` (upstream `restorePreviousValues`); a block with
+    /// a deferred save already holds its previous values.
     pub fn restore_previous_values(&mut self) -> Result<()> {
         match &self.previous {
-            Some(p) => restore_blocks(&mut self.values, &p.values),
+            Some(p) => restore_blocks(&mut self.values, &p.values, &p.pending),
             None => Err(Error::invalid(format!(
                 "internal field '{}' has no history",
                 self.name
@@ -630,6 +845,7 @@ impl<T: Clone> InternalField<T> {
         new_numbering: &ElementTypeMapArray<Idx>,
         nb_quad: &dyn Fn(ElementType, GhostType) -> usize,
     ) -> Result<()> {
+        self.materialize_all();
         let nbc = self.nb_component;
         let mut plans = Vec::new();
         for (ty, g, renumbering) in new_numbering.as_map().iter_all() {
@@ -730,6 +946,7 @@ impl<T: Clone> InternalField<T> {
         nb_quad: &dyn Fn(ElementType) -> usize,
         field: &ElementTypeMapArray<T>,
     ) -> Result<()> {
+        self.materialize_all();
         let nbc = self.nb_component;
         for (ty, src) in field.as_map().iter(ghost) {
             let Some(dest) = self.values.as_map_mut().get_mut(ty, ghost) else {
@@ -1444,5 +1661,205 @@ mod tests {
         flat.get_mut(TRI, NG).unwrap().as_mut_slice()[1] = 60.0;
         f.inflate(&filter, NG, &|_| 1, &flat).unwrap();
         assert_eq!(f.get(TRI, NG).unwrap().as_slice(), &[5.0, 60.0]);
+    }
+
+    /// Deferred saves: every reader sees the values of an immediate copy,
+    /// whatever the order of saves, restores, writes, announced rewrites,
+    /// commits, resizes and resets (a random sequence against two plain
+    /// vectors that copy at every save).
+    #[test]
+    fn deferred_saves_match_immediate_copies() {
+        let mut seed: u64 = 0x2545_f491_4f6c_dd1d;
+        let mut next = move |m: u64| {
+            seed ^= seed << 13;
+            seed ^= seed >> 7;
+            seed ^= seed << 17;
+            seed % m
+        };
+        for run in 0..200 {
+            let nbc = 1 + run % 3;
+            let mut f: InternalField<f64> = InternalField::new("s", nbc, 0.25).unwrap();
+            f.resize(TRI, NG, 4).unwrap();
+            f.initialize_history();
+            let mut cur = vec![0.25; 4 * nbc];
+            let mut prev = cur.clone();
+            let mut stamp = 1.0;
+            for _ in 0..60 {
+                stamp += 1.0;
+                match next(9) {
+                    0 | 1 => {
+                        f.save_current_values().unwrap();
+                        prev.clone_from(&cur);
+                    }
+                    2 => {
+                        f.restore_previous_values().unwrap();
+                        cur.clone_from(&prev);
+                    }
+                    3 => {
+                        let i = usize::try_from(next(cur.len() as u64)).unwrap();
+                        f.get_mut(TRI, NG).unwrap().as_mut_slice()[i] = stamp;
+                        cur[i] = stamp;
+                    }
+                    4 => {
+                        f.prepare_overwrite(TRI, NG);
+                        let mut g = f.get_mut(TRI, NG).unwrap();
+                        for (k, v) in g.as_mut_slice().iter_mut().enumerate() {
+                            *v = stamp + k as f64;
+                        }
+                        for (k, v) in cur.iter_mut().enumerate() {
+                            *v = stamp + k as f64;
+                        }
+                    }
+                    5 => {
+                        let n = cur.len() / nbc;
+                        let new: Vec<f64> = (0..cur.len()).map(|k| -stamp - k as f64).collect();
+                        let mut a = Array::from_vec(new.clone(), nbc).unwrap();
+                        assert_eq!(a.len(), n);
+                        f.commit_overwrite(TRI, NG, &mut a).unwrap();
+                        cur = new;
+                    }
+                    6 => {
+                        let n = 2 + usize::try_from(next(5)).unwrap();
+                        f.resize(TRI, NG, n).unwrap();
+                        cur.resize(n * nbc, 0.25);
+                        prev.resize(n * nbc, 0.25);
+                    }
+                    7 => {
+                        f.reset();
+                        cur.iter_mut().for_each(|v| *v = 0.25);
+                    }
+                    _ => {
+                        let (c, p) = f.current_and_previous_mut(TRI, NG).unwrap();
+                        assert_eq!(c.as_slice(), cur.as_slice());
+                        assert_eq!(p.as_slice(), prev.as_slice());
+                    }
+                }
+                assert_eq!(f.get(TRI, NG).unwrap().as_slice(), cur.as_slice());
+                assert_eq!(f.previous(TRI, NG).unwrap().as_slice(), prev.as_slice());
+                let c = f.clone();
+                assert_eq!(c.previous(TRI, NG).unwrap().as_slice(), prev.as_slice());
+            }
+        }
+    }
+
+    /// A save defers the copy; an announced rewrite exchanges the
+    /// allocations instead of copying; a commit leaves the old values in
+    /// the caller's array; an unchanged block is not copied again. (In the
+    /// test-only export-all mode every block counts as exported: the saves
+    /// are copies, with the same values.)
+    #[test]
+    fn deferred_save_and_overwrite() {
+        let lazy = !akantu_core::array_shared::export_all::ENABLED;
+        let deferred = if lazy { vec![(TRI, NG)] } else { Vec::new() };
+        let mut f: InternalField<f64> = InternalField::new("stress", 2, 0.0).unwrap();
+        f.resize(TRI, NG, 2).unwrap();
+        f.initialize_history();
+        f.get_mut(TRI, NG)
+            .unwrap()
+            .as_mut_slice()
+            .copy_from_slice(&[1.0, 2.0, 3.0, 4.0]);
+        f.save_current_values().unwrap();
+        assert_eq!(f.previous.as_ref().unwrap().pending, deferred);
+        assert_eq!(
+            f.previous(TRI, NG).unwrap().as_slice(),
+            &[1.0, 2.0, 3.0, 4.0]
+        );
+        f.save_current_values().unwrap();
+        f.restore_previous_values().unwrap();
+        assert_eq!(f.previous.as_ref().unwrap().pending, deferred);
+        let before = f.get(TRI, NG).unwrap().as_slice().as_ptr();
+        f.prepare_overwrite(TRI, NG);
+        assert!(f.previous.as_ref().unwrap().pending.is_empty());
+        if lazy {
+            assert_eq!(
+                f.previous(TRI, NG).unwrap().as_slice().as_ptr(),
+                before,
+                "the old allocation became the history"
+            );
+        }
+        f.get_mut(TRI, NG)
+            .unwrap()
+            .as_mut_slice()
+            .copy_from_slice(&[5.0, 6.0, 7.0, 8.0]);
+        assert_eq!(
+            f.previous(TRI, NG).unwrap().as_slice(),
+            &[1.0, 2.0, 3.0, 4.0]
+        );
+        // ids stay with their blocks
+        assert!(
+            f.previous(TRI, NG)
+                .unwrap()
+                .id()
+                .starts_with("previous_stress")
+        );
+        f.save_current_values().unwrap();
+        let mut new = Array::from_vec(vec![9.0, 10.0, 11.0, 12.0], 2).unwrap();
+        f.commit_overwrite(TRI, NG, &mut new).unwrap();
+        assert_eq!(f.get(TRI, NG).unwrap().as_slice(), &[9.0, 10.0, 11.0, 12.0]);
+        assert_eq!(
+            f.previous(TRI, NG).unwrap().as_slice(),
+            &[5.0, 6.0, 7.0, 8.0]
+        );
+        let mut wrong = Array::from_vec(vec![0.0; 2], 2).unwrap();
+        assert!(f.commit_overwrite(TRI, NG, &mut wrong).is_err());
+        assert_eq!(f.get(TRI, NG).unwrap().as_slice(), &[9.0, 10.0, 11.0, 12.0]);
+        f.restore_previous_values().unwrap();
+        assert_eq!(f.get(TRI, NG).unwrap().as_slice(), &[5.0, 6.0, 7.0, 8.0]);
+    }
+
+    /// An exported block (a NumPy view, D-047) is saved by copy at once and
+    /// never exchanged: the view keeps its allocation and sees every value
+    /// the field holds; after the view is gone the saves are deferred
+    /// again. Exporting performs the deferred saves first.
+    #[test]
+    fn exported_blocks_are_copied_and_keep_their_views() {
+        use akantu_core::array_shared::ForeignRuntime;
+        let rt = ForeignRuntime::new();
+        let mut f: InternalField<f64> = InternalField::new("stress", 1, 0.0).unwrap();
+        f.resize(TRI, NG, 3).unwrap();
+        f.initialize_history();
+        f.get_mut(TRI, NG)
+            .unwrap()
+            .as_mut_slice()
+            .copy_from_slice(&[1.0, 2.0, 3.0]);
+        f.save_current_values().unwrap(); // deferred
+        let lease = f
+            .values_mut()
+            .shared_mut(TRI, NG)
+            .unwrap()
+            .export(&rt)
+            .unwrap();
+        assert!(
+            f.previous.as_ref().unwrap().pending.is_empty(),
+            "exporting saved"
+        );
+        let mut interp = rt.enter().unwrap();
+        {
+            let _s = interp.native().unwrap();
+            assert_eq!(f.previous(TRI, NG).unwrap().as_slice(), &[1.0, 2.0, 3.0]);
+            f.get_mut(TRI, NG).unwrap().as_mut_slice()[0] = 4.0;
+            f.save_current_values().unwrap();
+            assert!(
+                f.previous.as_ref().unwrap().pending.is_empty(),
+                "copied at once"
+            );
+            f.prepare_overwrite(TRI, NG);
+            let mut new = Array::from_vec(vec![7.0, 8.0, 9.0], 1).unwrap();
+            f.commit_overwrite(TRI, NG, &mut new).unwrap();
+            assert_eq!(f.previous(TRI, NG).unwrap().as_slice(), &[4.0, 2.0, 3.0]);
+            assert!(f.values().shared(TRI, NG).unwrap().is_attached(&lease));
+            let cur = f.get(TRI, NG).unwrap();
+            assert_eq!(cur.as_slice().as_ptr().cast_mut(), lease.as_ptr());
+            assert_eq!(cur.as_slice(), &[7.0, 8.0, 9.0]);
+        }
+        lease.check_foreign_access(&interp).unwrap();
+        drop(interp);
+        drop(lease);
+        f.save_current_values().unwrap();
+        // deferred again (not in the test-only export-all mode, where every
+        // block counts as exported)
+        let lazy = !akantu_core::array_shared::export_all::ENABLED;
+        let deferred = if lazy { vec![(TRI, NG)] } else { Vec::new() };
+        assert_eq!(f.previous.as_ref().unwrap().pending, deferred);
     }
 }

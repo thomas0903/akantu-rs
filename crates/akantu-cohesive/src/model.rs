@@ -164,8 +164,9 @@ pub struct CohesiveExtension {
 #[derive(Clone, Debug, Default, PartialEq)]
 struct StressCopyPlan {
     revision: u64,
-    /// Per bulk type: filter length and an order-sensitive digest.
-    filter_key: Vec<(ElementType, usize, u64)>,
+    /// Per bulk type: the law's not-ghost filter the plan was built for
+    /// (compared in full, a memory comparison, at every check).
+    filter_key: Vec<(ElementType, Vec<Idx>)>,
     blocks: Vec<StressCopyBlock>,
     /// The fused form of every block ([`build_fused`]), once built for
     /// these blocks (`None` for a block without it).
@@ -282,21 +283,34 @@ fn fuse_block(
     Some(out)
 }
 
-/// Length and digest of a law's not-ghost filter per type (plan key).
+/// A law's not-ghost filter per type (plan key).
 fn filter_key(
     filter: &ElementTypeMapArray<Idx>,
     types: &[ElementType],
-) -> Result<Vec<(ElementType, usize, u64)>> {
+) -> Result<Vec<(ElementType, Vec<Idx>)>> {
     let mut key = Vec::with_capacity(types.len());
     for &ty in types {
-        let elems = filter.get(ty, GhostType::NotGhost)?.as_slice();
-        let mut h: u64 = 0xcbf2_9ce4_8422_2325;
-        for &e in elems {
-            h = (h ^ u64::from(e.cast_unsigned())).wrapping_mul(0x0100_0000_01b3);
-        }
-        key.push((ty, elems.len(), h));
+        key.push((ty, filter.get(ty, GhostType::NotGhost)?.as_slice().to_vec()));
     }
     Ok(key)
+}
+
+/// `key` is the filter `filter` of `types` ([`filter_key`] of it):
+/// compared, not copied or hashed (performance).
+fn filter_matches(
+    key: &[(ElementType, Vec<Idx>)],
+    filter: &ElementTypeMapArray<Idx>,
+    types: &[ElementType],
+) -> Result<bool> {
+    if key.len() != types.len() {
+        return Ok(false);
+    }
+    for ((kt, kv), &ty) in key.iter().zip(types) {
+        if *kt != ty || filter.get(ty, GhostType::NotGhost)?.as_slice() != kv.as_slice() {
+            return Ok(false);
+        }
+    }
+    Ok(true)
 }
 
 /// Copy `nq` stress tuples of `n` values: source tuples consecutive,
@@ -451,6 +465,42 @@ fn interpolate_fused(
     facet_stress: &mut ElementTypeMapArray<Real>,
     stress_size: usize,
 ) -> Result<bool> {
+    if !fused_ready(plan, stress, filter, interp, facet_stress, stress_size)? {
+        return Ok(false);
+    }
+    let Some(fused) = &plan.fused else {
+        return Ok(false);
+    };
+    for (block, pairs) in plan.blocks.iter().zip(fused) {
+        let f = stress.get(block.bulk, GhostType::NotGhost)?;
+        let rs = facet_stress
+            .get_mut(block.facet, block.facet_ghost)?
+            .as_mut_slice();
+        write_fused_block(
+            interp,
+            block,
+            pairs.as_deref(),
+            f.as_slice(),
+            rs,
+            stress_size,
+            0,
+            usize::MAX,
+        )?;
+    }
+    Ok(true)
+}
+
+/// The conditions of [`interpolate_fused`]: every block of `plan` has its
+/// fused form and the law's stress, filter, interpolation and
+/// `facet_stress` have the sizes the plan was built for.
+fn fused_ready(
+    plan: &StressCopyPlan,
+    stress: &akantu_core::SharedElementTypeMapArray<Real>,
+    filter: &ElementTypeMapArray<Idx>,
+    interp: &ElementalFieldInterpolation,
+    facet_stress: &ElementTypeMapArray<Real>,
+    stress_size: usize,
+) -> Result<bool> {
     let Some(fused) = &plan.fused else {
         return Ok(false);
     };
@@ -477,44 +527,58 @@ fn interpolate_fused(
             return Ok(false);
         }
     }
-    for (block, pairs) in plan.blocks.iter().zip(fused) {
-        let (Some(pairs), Some(view)) = (
-            pairs,
-            interp.point_interpolation(block.bulk, g, stress_size)?,
-        ) else {
-            return Err(Error::invalid(
-                "interpolateStress: fused plan changed while in use",
-            ));
-        };
-        let f = stress.get(block.bulk, g)?;
-        let fs = f.as_slice();
-        let rs = facet_stress
-            .get_mut(block.facet, block.facet_ghost)?
-            .as_mut_slice();
-        // Threading candidate (the execution policy's primitives, independent outputs):
-        // every pair writes only its own destination tuples (the plan holds
-        // one pair per destination), so any chunking of `pairs` keeps every
-        // bit; chunks by destination range keep the writes sequential.
-        match stress_size {
-            9 => fused_pairs::<9>(&view, pairs, fs, rs, block.nq),
-            4 => fused_pairs::<4>(&view, pairs, fs, rs, block.nq),
-            n => {
-                for p in pairs {
-                    let src = &fs[p.field as usize..p.field as usize + n];
-                    for q in 0..block.nq {
-                        let d = p.dst as usize + 2 * q * n;
-                        view.value(
-                            p.slot as usize,
-                            p.point as usize + q,
-                            src,
-                            &mut rs[d..d + n],
-                        );
-                    }
+    Ok(true)
+}
+
+/// The fused pairs `pairs[from..]` of one block whose destination is below
+/// `dst_limit` (they are ordered by destination), written into `rs` from
+/// the law's stress block `fs` ([`fused_pairs`]); returns the position of
+/// the first pair not written.
+#[allow(clippy::too_many_arguments)] // the block, its pairs, source, destination and range
+fn write_fused_block(
+    interp: &ElementalFieldInterpolation,
+    block: &StressCopyBlock,
+    pairs: Option<&[FusedPair]>,
+    fs: &[Real],
+    rs: &mut [Real],
+    stress_size: usize,
+    from: usize,
+    dst_limit: usize,
+) -> Result<usize> {
+    let (Some(pairs), Some(view)) = (
+        pairs,
+        interp.point_interpolation(block.bulk, GhostType::NotGhost, stress_size)?,
+    ) else {
+        return Err(Error::invalid(
+            "interpolateStress: fused plan changed while in use",
+        ));
+    };
+    let rest = pairs.get(from..).unwrap_or(&[]);
+    let n = rest.partition_point(|p| (p.dst as usize) < dst_limit);
+    let range = &rest[..n];
+    // Threading candidate (the execution policy's primitives, independent outputs):
+    // every pair writes only its own destination tuples (the plan holds
+    // one pair per destination), so any chunking of `pairs` keeps every
+    // bit; chunks by destination range keep the writes sequential.
+    match stress_size {
+        9 => fused_pairs::<9>(&view, range, fs, rs, block.nq),
+        4 => fused_pairs::<4>(&view, range, fs, rs, block.nq),
+        n => {
+            for p in range {
+                let src = &fs[p.field as usize..p.field as usize + n];
+                for q in 0..block.nq {
+                    let d = p.dst as usize + 2 * q * n;
+                    view.value(
+                        p.slot as usize,
+                        p.point as usize + q,
+                        src,
+                        &mut rs[d..d + n],
+                    );
                 }
             }
         }
     }
-    Ok(true)
+    Ok(from + n)
 }
 
 /// The pairs of one fused block for stress tuples of `N` values: the
@@ -553,14 +617,146 @@ fn update_stress_plan(
     interp: &ElementalFieldInterpolation,
     stress_size: usize,
 ) -> Result<bool> {
-    let key = filter_key(filter, types)?;
-    if !plan.blocks.is_empty() && plan.revision == m.revision() && plan.filter_key == key {
+    if !plan.blocks.is_empty()
+        && plan.revision == m.revision()
+        && filter_matches(&plan.filter_key, filter, types)?
+    {
         return Ok(false);
     }
     *plan = build_stress_plan(fm, filter, types, interp, stress_size)?;
     plan.revision = m.revision();
-    plan.filter_key = key;
+    plan.filter_key = filter_key(filter, types)?;
     Ok(true)
+}
+
+/// Bring `plan` (built at the mesh revision `before`) to the mesh `m` of the
+/// next revision after an insertion that doubled the facets `doubled`
+/// (`(old, new)`), without rebuilding it (performance: the rebuild reads
+/// every `element_to_subelement` list). The insertion changes the plan's
+/// inputs only there: the second neighbour of a doubled facet `F` now has
+/// the new facet `F'` in its `subelement_to_element` row (same position)
+/// and is `F'`'s first neighbour, every other row and first neighbour is
+/// unchanged. So the pair writing side 1 of `F` moves to side 0 of `F'`
+/// (same source, same fused coefficients); the new facets follow every
+/// existing one in their block, in the order of `doubled`, so the pairs
+/// stay ordered by destination. Each moved pair is checked against the
+/// mesh; returns `false` (the caller rebuilds) when the plan is not at
+/// `before`, a check fails or an offset does not fit.
+fn patch_stress_plan(
+    plan: &mut StressCopyPlan,
+    before: u64,
+    m: &Mesh,
+    doubled: &[(Element, Element)],
+    stress_size: usize,
+) -> bool {
+    if plan.blocks.is_empty() || plan.revision != before || stress_size == 0 {
+        return false;
+    }
+    let Some(fm) = m.mesh_facets() else {
+        return false;
+    };
+    let (Ok(s2e), Ok(e2s)) = (
+        fm.data().element_map(SUBELEMENT_TO_ELEMENT),
+        fm.data().element_lists(ELEMENT_TO_SUBELEMENT),
+    ) else {
+        return false;
+    };
+    let mut fused = plan.fused.take();
+    if let Some(f) = &fused
+        && f.len() != plan.blocks.len()
+    {
+        return false;
+    }
+    let mut moved: Vec<(usize, usize)> = Vec::new();
+    for (b, block) in plan.blocks.iter_mut().enumerate() {
+        let (nq, nip) = (block.nq, block.nip);
+        if nq == 0 || nip == 0 {
+            return false;
+        }
+        moved.clear();
+        let mut last_dst = block.pairs.last().map_or(0, |&(_, d)| d);
+        for &(old, new) in doubled {
+            if old.ty() != block.facet || old.ghost_type() != block.facet_ghost {
+                continue;
+            }
+            let (Some(fo), Some(fnew)) = (old.try_idx(), new.try_idx()) else {
+                return false;
+            };
+            let d_old = (fo * nq * 2 + 1) * stress_size;
+            let Ok(k) = block.pairs.binary_search_by_key(&d_old, |&(_, d)| d) else {
+                // the second neighbour is not an element of this law
+                continue;
+            };
+            let d_new = fnew * nq * 2 * stress_size;
+            if d_new <= last_dst {
+                return false;
+            }
+            // the moved pair's element and local facet
+            let p = block.pairs[k].0 / stress_size;
+            let (ge, f) = (p / nip, (p % nip) / nq);
+            let Ok(ge_idx) = akantu_core::Idx::try_from(ge) else {
+                return false;
+            };
+            let el = Element::new(block.bulk, ge_idx, GhostType::NotGhost);
+            let row_ok = s2e.element(el).is_ok_and(|r| r.get(f) == Some(&new));
+            let first_ok = e2s
+                .element(new)
+                .is_ok_and(|l| l.first().and_then(|v| v.first()) == Some(&el));
+            if !row_ok || !first_ok {
+                return false;
+            }
+            moved.push((k, d_new));
+            last_dst = d_new;
+        }
+        if moved.is_empty() {
+            continue;
+        }
+        let fused_block = match &mut fused {
+            Some(f) => match f[b].as_mut() {
+                Some(v) if v.len() == block.pairs.len() => Some(v),
+                Some(_) => return false,
+                None => None,
+            },
+            None => None,
+        };
+        // compaction: the moved pairs leave their places, then follow the
+        // existing pairs with their new destinations
+        let mut is_moved = vec![false; block.pairs.len()];
+        for &(k, _) in &moved {
+            is_moved[k] = true;
+        }
+        let mut new_fused: Vec<FusedPair> = Vec::new();
+        if let Some(v) = fused_block.as_deref() {
+            for &(k, d) in &moved {
+                let Ok(d) = u32::try_from(d) else {
+                    return false;
+                };
+                new_fused.push(FusedPair { dst: d, ..v[k] });
+            }
+        }
+        let new_pairs: Vec<(usize, usize)> =
+            moved.iter().map(|&(k, d)| (block.pairs[k].0, d)).collect();
+        let mut i = 0;
+        block.pairs.retain(|_| {
+            i += 1;
+            !is_moved[i - 1]
+        });
+        block.pairs.extend_from_slice(&new_pairs);
+        if let Some(v) = fused_block {
+            let mut i = 0;
+            v.retain(|_| {
+                i += 1;
+                !is_moved[i - 1]
+            });
+            v.extend_from_slice(&new_fused);
+        }
+        for &(_, d) in &new_pairs {
+            block.dst_end = block.dst_end.max(d + (2 * (nq - 1) + 1) * stress_size);
+        }
+    }
+    plan.fused = fused;
+    plan.revision = m.revision();
+    true
 }
 
 /// Order the copies by destination (sequential writes into `facet_stress`,
@@ -823,17 +1019,20 @@ impl MeshEventHandler for CohesiveEventHandler<'_, '_> {
 /// Upstream `SolidMechanicsModelCohesive` (serial).
 ///
 /// # Size
-/// The type is large: about 63 kB (63,200 bytes) by value
-/// (63,184 bytes were measured). Box it when several are alive
-/// in one frame on a spawned thread in debug builds: with unoptimised frames
-/// of that size, several models on a small thread stack (e.g. the 2 MiB of a
-/// libtest worker thread) overflow the stack.
+/// The cohesive part is boxed: the model is the solid model plus a pointer
+/// (11,648 bytes in an x86_64 debug build with the `mumps` feature, against
+/// 38,416 with the cohesive part inline). Unoptimised builds keep several
+/// copies of a model by value in each frame that builds or moves one; five
+/// such frames of about 200 kB overflowed a 1 MiB stack in the benchmark
+/// suite's insertion case. Box the model when several are alive in one
+/// frame on a small thread stack (e.g. the 2 MiB of a libtest worker
+/// thread).
 #[derive(Debug)]
 pub struct SolidMechanicsModelCohesive {
     /// The solid mechanics model (bulk and cohesive laws).
     pub smm: SolidMechanicsModel,
     /// The cohesive part.
-    pub ext: CohesiveExtension,
+    pub ext: Box<CohesiveExtension>,
 }
 
 /// Downcast a law of the handler to a cohesive material.
@@ -1260,7 +1459,7 @@ impl SolidMechanicsModelCohesive {
         };
         let mut model = Self {
             smm,
-            ext: CohesiveExtension {
+            ext: Box::new(CohesiveExtension {
                 inserter,
                 facet_fe: Box::new(facet_fe),
                 is_extrinsic: false,
@@ -1280,7 +1479,7 @@ impl SolidMechanicsModelCohesive {
                 staged_insertion_facets: None,
                 insertion_check: (None, 0),
                 parallel,
-            },
+            }),
         };
         model.refresh_default_selector(None);
         Ok(model)
@@ -1736,6 +1935,46 @@ impl SolidMechanicsModelCohesive {
         Ok(())
     }
 
+    /// After a committed insertion from the mesh revision `before` that
+    /// doubled the facets `doubled`: every stress copy plan brought to the
+    /// new revision ([`patch_stress_plan`]), or dropped for a rebuild at the
+    /// next interpolation. Debug builds compare each patched plan with a
+    /// rebuilt one.
+    fn patch_stress_plans(&mut self, before: u64, m: &Mesh, doubled: &[(Element, Element)]) {
+        let stress_size = self.ext.dim * self.ext.dim;
+        for (&i, plan) in &mut self.ext.stress_plans {
+            if !patch_stress_plan(plan, before, m, doubled, stress_size) {
+                *plan = StressCopyPlan::default();
+                continue;
+            }
+            #[cfg(debug_assertions)]
+            if let (Ok(law), Some(interp), Some(fm)) = (
+                self.smm.physics.materials.law(i),
+                self.ext.stress_interpolation.get(&i),
+                m.mesh_facets(),
+            ) {
+                let filter = &law.base().element_filter;
+                let types = law.base().filter_types(GhostType::NotGhost);
+                if let Ok(fresh) = build_stress_plan(fm, filter, &types, interp, stress_size) {
+                    assert_eq!(
+                        plan.blocks, fresh.blocks,
+                        "patched stress copy plan of law {i} differs from the rebuilt one"
+                    );
+                    if plan.fused.is_some() {
+                        let fused = build_fused(&fresh, filter, interp, stress_size);
+                        assert_eq!(
+                            plan.fused.as_ref(),
+                            Some(&fused),
+                            "patched fused plan of law {i} differs from the rebuilt one"
+                        );
+                    }
+                }
+            }
+            #[cfg(not(debug_assertions))]
+            let _ = i;
+        }
+    }
+
     /// Upstream `interpolateStress()`: every bulk law's stresses at the
     /// facet quadrature points, written into `facet_stress` (side 0 for the
     /// facet's first neighbour, side 1 for the second).
@@ -1757,7 +1996,7 @@ impl SolidMechanicsModelCohesive {
             facet_stress,
             stress_plans,
             ..
-        } = &mut self.ext;
+        } = &mut *self.ext;
         for (&i, interp) in stress_interpolation.iter_mut() {
             if interp.mesh_revision() != m.revision() {
                 interp.accept_revision_unchanged_geometry(&m)?;
@@ -2210,6 +2449,10 @@ impl SolidMechanicsModelCohesive {
     fn flagged_insertion_facets(&self) -> Vec<(ElementType, GhostType, usize)> {
         let mut out = Vec::new();
         for (ty, ghost, a) in self.ext.inserter.insertion_facets().as_map().iter_all() {
+            // none flagged (the usual case): one vectorised pass
+            if !a.as_slice().contains(&true) {
+                continue;
+            }
             for (i, &f) in a.as_slice().iter().enumerate() {
                 if f {
                     out.push((ty, ghost, i));
@@ -2239,7 +2482,7 @@ impl SolidMechanicsModelCohesive {
             facet_stress,
             tangents,
             ..
-        } = &mut self.ext;
+        } = &mut *self.ext;
         let (check, insertion) = inserter.flags_mut();
         let mut inputs = InsertionInputs {
             mesh_facets: fm,
@@ -2522,6 +2765,7 @@ impl SolidMechanicsModelCohesive {
             None
         };
         let mesh_h = self.smm.physics.base.mesh.clone();
+        let revision_before = mesh_h.read()?.revision();
         let (token, smm_parts) = self.smm.split_for_mutation();
         let parts = RefCell::new(smm_parts);
         let CohesiveExtension {
@@ -2532,7 +2776,7 @@ impl SolidMechanicsModelCohesive {
             parallel,
             compat,
             ..
-        } = &mut self.ext;
+        } = &mut *self.ext;
         let mut handler = CohesiveEventHandler {
             smm: &parts,
             facet_stress,
@@ -2605,6 +2849,7 @@ impl SolidMechanicsModelCohesive {
         }
         let r = result.unwrap_or_default();
         let m = mesh_h.read()?;
+        self.patch_stress_plans(revision_before, &m, &r.doubled_facets);
         if !r.doubled_facets.is_empty() {
             self.ext.inserter.update_insertion_facets(&m)?;
         }
@@ -2633,6 +2878,7 @@ impl SolidMechanicsModelCohesive {
         order: Option<&[Element]>,
     ) -> Result<usize> {
         let mesh_h = self.smm.physics.base.mesh.clone();
+        let revision_before = mesh_h.read()?.revision();
         let (token, smm_parts) = self.smm.split_for_mutation();
         let exchange_laws = smm_parts.physics.materials.nb_laws() > 0;
         let parts = RefCell::new(smm_parts);
@@ -2644,7 +2890,7 @@ impl SolidMechanicsModelCohesive {
             parallel,
             compat,
             ..
-        } = &mut self.ext;
+        } = &mut *self.ext;
         let ghost_laws: crate::parallel::GhostLaws = Arc::default();
         let mut handler = CohesiveEventHandler {
             smm: &parts,
@@ -2713,6 +2959,7 @@ impl SolidMechanicsModelCohesive {
         };
         let r = result.unwrap_or_default();
         let m = mesh_h.read()?;
+        self.patch_stress_plans(revision_before, &m, &r.doubled_facets);
         if !r.new_elements.is_empty() {
             self.ext.inserter.update_insertion_facets(&m)?;
         }
@@ -3533,6 +3780,97 @@ mod perf_tests {
                 model.ext.stats.inserted > 0,
                 "{file}: insertions between the rounds"
             );
+        }
+    }
+
+    /// Bits of every `facet_stress` value after `interpolate_stress`, every
+    /// value set to a sentinel before.
+    fn facet_stress_bits(model: &mut SolidMechanicsModelCohesive) -> Vec<u64> {
+        model.ext.facet_stress.fill(-7.25);
+        model.interpolate_stress().unwrap();
+        model
+            .ext
+            .facet_stress
+            .as_map()
+            .iter_all()
+            .flat_map(|(_, _, a)| a.as_slice().iter().map(|x| x.to_bits()))
+            .collect()
+    }
+
+    /// The stress copy plan patched after each insertion equals a plan
+    /// rebuilt from the mesh (blocks and fused pairs), and the facet
+    /// stresses written with it equal those written after every plan was
+    /// dropped (rebuilt), bit for bit, side values of the doubled facets
+    /// included (public state, never checked again). Random loading
+    /// sequences with insertions on the 3-D and 2-D fixture meshes. Runs
+    /// in release builds too, where the debug comparison of
+    /// `patch_stress_plans` is compiled out.
+    #[test]
+    fn patched_copy_plans_are_the_rebuilt_ones() {
+        let mut state = 0x9e37_79b9_7f4a_7c15_u64;
+        let mut unit = || {
+            state ^= state << 13;
+            state ^= state >> 7;
+            state ^= state << 17;
+            Real::from(u32::try_from(state >> 40).unwrap()) / Real::from(1u32 << 24)
+        };
+        for (file, dim) in [
+            ("_cohesive_3d_6_tetrahedron_4.msh", 3),
+            ("_cohesive_2d_4_triangle_3.msh", 2),
+        ] {
+            for sequence in 0..4 {
+                let (mut model, mesh) = fixture_model(file, dim);
+                model.interpolate_stress().unwrap();
+                let mut patched = 0;
+                for round in 0..10 {
+                    let scale = 1e-3 * (1.0 + 4.0 * unit()) * Real::from(round + 1);
+                    set_wobbly_displacement(&mut model, dim, scale);
+                    {
+                        // a random perturbation per node
+                        let mut u_g = model.smm.displacement_mut().unwrap();
+                        for x in u_g.as_mut_slice() {
+                            *x += 1e-4 * (unit() - 0.5);
+                        }
+                    }
+                    model.assemble_internal_forces().unwrap();
+                    let before = model.ext.stats.inserted;
+                    model.check_cohesive_stress().unwrap();
+                    if model.ext.stats.inserted == before {
+                        continue;
+                    }
+                    let m = mesh.read().unwrap();
+                    let fm = m.mesh_facets().unwrap();
+                    let stress_size = dim * dim;
+                    for (&i, plan) in &model.ext.stress_plans {
+                        if plan.blocks.is_empty() {
+                            continue;
+                        }
+                        if plan.revision == m.revision() {
+                            patched += 1;
+                        }
+                        let law = model.smm.physics.materials.law(i).unwrap();
+                        let filter = &law.base().element_filter;
+                        let types = law.base().filter_types(GhostType::NotGhost);
+                        let interp = &model.ext.stress_interpolation[&i];
+                        let fresh =
+                            build_stress_plan(fm, filter, &types, interp, stress_size).unwrap();
+                        assert_eq!(plan.blocks, fresh.blocks, "{file} {sequence} {round}");
+                        if let Some(f) = &plan.fused {
+                            assert_eq!(
+                                f,
+                                &build_fused(&fresh, filter, interp, stress_size),
+                                "{file} {sequence} {round}: fused pairs"
+                            );
+                        }
+                    }
+                    drop(m);
+                    let with_patched = facet_stress_bits(&mut model);
+                    model.ext.stress_plans.clear();
+                    let with_rebuilt = facet_stress_bits(&mut model);
+                    assert_eq!(with_patched, with_rebuilt, "{file} {sequence} {round}");
+                }
+                assert!(patched > 0, "{file} {sequence}: no patched plan checked");
+            }
         }
     }
 

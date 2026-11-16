@@ -103,8 +103,10 @@ pub struct CohesiveSynchronizers {
     /// `init_full`).
     pub facet_stress: Option<Synchronizer<Element>>,
     /// Owner rank of every element of the mesh dimension at construction
-    /// (upstream `element_to_prank`; bulk elements).
-    pub element_to_prank: ElementTypeMapArray<Rank>,
+    /// (upstream `element_to_prank`; bulk elements). Shared: never changed
+    /// after construction, so the copy an insertion stages does not copy it
+    /// (performance).
+    pub element_to_prank: Arc<ElementTypeMapArray<Rank>>,
 }
 
 impl CohesiveSynchronizers {
@@ -120,7 +122,7 @@ impl CohesiveSynchronizers {
             element.communicator.clone(),
         );
         cohesive.split_from(element, |e| e.kind() == ElementKind::Cohesive);
-        let element_to_prank = akantu_mesh::distribution::element_to_prank(mesh)?;
+        let element_to_prank = Arc::new(akantu_mesh::distribution::element_to_prank(mesh)?);
         Ok(Self {
             cohesive,
             facet_stress: None,
@@ -868,7 +870,8 @@ impl akantu_mesh::DistributedHook for CohesiveGlobalDataUpdater<'_> {
             tx.rebuild_element_group_nodes(MeshPart::Main)?;
             if let Some(mut ns) = tx.mesh().synchronizers().node.clone() {
                 akantu_mesh::synchronizers::rebuild_node_schemes_in(ph, tx.mesh(), &mut ns)?;
-                tx.synchronizers_mut(MeshPart::Main)?.node = Some(ns);
+                // journaled replacement (no copy of the other synchronizers)
+                tx.replace_node_synchronizer(MeshPart::Main, Some(ns))?;
             }
         }
         // ---- laws of the new ghost cohesive elements (owner -> ghost) -----

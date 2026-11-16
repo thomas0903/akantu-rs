@@ -16,11 +16,14 @@
 //! eigen-gradient, 2-D meshes of triangles and quadrangles, and six-node
 //! triangles.
 
+use akantu_core::array_shared::ForeignRuntime;
+use akantu_core::array_storage::ExportLease;
 use akantu_core::enums::AnalysisMethod;
 use akantu_core::exec::{ExecPolicy, Grain};
 use akantu_core::{Element, ElementType, GhostType, Real};
 use akantu_mesh::{Mesh, MeshAccessor, MeshEvent, MeshPart, SharedMesh};
 use akantu_model::ModelOptions;
+use akantu_model::constitutive_law::{ConstitutiveLaw, InternalFieldMut};
 use akantu_parser::Parser;
 use akantu_solid::SolidMechanicsModel;
 
@@ -485,6 +488,358 @@ fn wider_models_are_bitwise_for_every_thread_count() {
                 compare(
                     &reference,
                     &wide_state(mesh(), p, 6),
+                    &format!("{name}: threads={threads} {grain:?}"),
+                );
+            }
+        }
+    }
+}
+
+/// An `n³` grid of the unit cube with one element type: hexahedra, or every
+/// cell split into six tetrahedra (slightly irregular inner nodes).
+fn single_cube(n: usize, hex: bool) -> Mesh {
+    // the nodes of the mixed cube, one element type
+    let nodes: Vec<Real> = mixed_cube(n).nodes().as_slice().to_vec();
+    let mut m = Mesh::new(3, "cube").unwrap();
+    {
+        let mut a = MeshAccessor::new(&mut m);
+        for p in nodes.as_chunks::<3>().0 {
+            a.push_node(p).unwrap();
+        }
+        let id = |i: usize, j: usize, k: usize| ((k * (n + 1) + j) * (n + 1) + i) as i32;
+        for k in 0..n {
+            for j in 0..n {
+                for i in 0..n {
+                    let c = [
+                        id(i, j, k),
+                        id(i + 1, j, k),
+                        id(i + 1, j + 1, k),
+                        id(i, j + 1, k),
+                        id(i, j, k + 1),
+                        id(i + 1, j, k + 1),
+                        id(i + 1, j + 1, k + 1),
+                        id(i, j + 1, k + 1),
+                    ];
+                    if hex {
+                        a.connectivity_mut(ElementType::Hexahedron8, GhostType::NotGhost)
+                            .push_tuple(&c);
+                        continue;
+                    }
+                    for t in [
+                        [0, 1, 3, 4],
+                        [1, 2, 3, 6],
+                        [1, 3, 4, 6],
+                        [1, 4, 5, 6],
+                        [3, 4, 6, 7],
+                        [3, 2, 6, 1],
+                    ] {
+                        a.connectivity_mut(ElementType::Tetrahedron4, GhostType::NotGhost)
+                            .push_tuple(&[c[t[0]], c[t[1]], c[t[2]], c[t[3]]]);
+                    }
+                }
+            }
+        }
+    }
+    m.compute_bounding_box().unwrap();
+    m
+}
+
+/// An `n²` grid of the unit square with one element type: quadrangles, or
+/// every cell split into two triangles.
+fn single_square(n: usize, quad: bool) -> Mesh {
+    let nodes: Vec<Real> = grid2d(n, false).nodes().as_slice().to_vec();
+    let mut m = Mesh::new(2, "square").unwrap();
+    {
+        let mut a = MeshAccessor::new(&mut m);
+        for p in nodes.as_chunks::<2>().0 {
+            a.push_node(p).unwrap();
+        }
+        let id = |i: usize, j: usize| (j * (n + 1) + i) as i32;
+        for j in 0..n {
+            for i in 0..n {
+                if quad {
+                    a.connectivity_mut(ElementType::Quadrangle4, GhostType::NotGhost)
+                        .push_tuple(&[id(i, j), id(i + 1, j), id(i + 1, j + 1), id(i, j + 1)]);
+                } else {
+                    for t in [
+                        [id(i, j), id(i + 1, j), id(i + 1, j + 1)],
+                        [id(i, j), id(i + 1, j + 1), id(i, j + 1)],
+                    ] {
+                        a.connectivity_mut(ElementType::Triangle3, GhostType::NotGhost)
+                            .push_tuple(&t);
+                    }
+                }
+            }
+        }
+    }
+    m.compute_bounding_box().unwrap();
+    m
+}
+
+/// Every element takes law 0 (a second law, if any, keeps an empty filter).
+#[derive(Debug)]
+struct AllFirst;
+
+impl akantu_model::constitutive_law::ConstitutiveLawSelector for AllFirst {
+    fn select(
+        &self,
+        _: &akantu_model::constitutive_law::SelectorContext<'_>,
+        _: Element,
+    ) -> akantu_core::Result<Option<usize>> {
+        Ok(Some(0))
+    }
+}
+
+/// One case of the element-block pass: one elastic law on one element type
+/// (optionally with an eigen-gradient and a temperature change that varies
+/// per quadrature point), or the same model with a second, empty law, which
+/// makes the model run the separate passes. Returns the nodal fields, the
+/// first law's gradient, stress and thermal fields, the previous values of
+/// every internal field with history, and the energies after `steps`
+/// steps. With `copy_every_save` the blocks of the fields with history are
+/// exported to a foreign runtime (as NumPy views would be), which makes
+/// every history save a copy, as upstream does; otherwise the saves are
+/// deferred and exchanged.
+fn block_state(
+    mesh: Mesh,
+    fd: bool,
+    thermal: bool,
+    second_law: bool,
+    policy: ExecPolicy,
+    steps: usize,
+    copy_every_save: bool,
+) -> Vec<(String, Vec<u64>)> {
+    let dim = mesh.spatial_dimension();
+    let extra = if thermal {
+        let eigen = if dim == 2 {
+            "[[1e-4, 0], [5e-5, -1e-4]]"
+        } else {
+            "[[1e-4, 0, 0], [5e-5, -1e-4, 0], [0, 2e-5, 3e-5]]"
+        };
+        format!("  eigen_grad_u = {eigen}\n  alpha = 1e-5\n  delta_T = 20\n")
+    } else {
+        String::new()
+    };
+    let mut dat = format!(
+        "material elastic [\n  name = a\n  rho = 2500\n  E = 70e9\n  nu = 0.22\n  \
+         finite_deformation = {fd}\n{extra}]\n"
+    );
+    if second_law {
+        dat.push_str(
+            "material elastic [\n  name = empty\n  rho = 2000\n  E = 50e9\n  nu = 0.3\n]\n",
+        );
+    }
+    let parser = Parser::parse_str(&dat, "material.dat").unwrap();
+    let mut m =
+        SolidMechanicsModel::with_parser(SharedMesh::new(mesh), None, "smm", parser).unwrap();
+    m.set_exec_policy(policy).unwrap();
+    m.set_material_selector(Box::new(AllFirst));
+    m.init_full(&ModelOptions::new(AnalysisMethod::ExplicitLumpedMass))
+        .unwrap();
+    assert_eq!(m.physics.materials.nb_laws(), 1 + usize::from(second_law));
+    let ty = m.physics.materials.laws()[0]
+        .base()
+        .filter_types(GhostType::NotGhost)[0];
+    if thermal {
+        // a temperature change that varies per quadrature point
+        let law = m.physics.materials.laws_mut()[0].as_any_mut().unwrap();
+        let dt = if dim == 2 {
+            &mut law
+                .downcast_mut::<akantu_solid::materials::elastic::MaterialElastic<2>>()
+                .unwrap()
+                .delta_t
+        } else {
+            &mut law
+                .downcast_mut::<akantu_solid::materials::elastic::MaterialElastic<3>>()
+                .unwrap()
+                .delta_t
+        };
+        for (q, v) in dt
+            .get_mut(ty, GhostType::NotGhost)
+            .unwrap()
+            .as_mut_slice()
+            .iter_mut()
+            .enumerate()
+        {
+            *v = 20.0 + ((q * 7) % 13) as Real;
+        }
+    }
+    let dt = m.stable_time_step().unwrap() * 0.5;
+    m.set_time_step(dt, None).unwrap();
+    let x: Vec<Real> = m
+        .physics
+        .base
+        .mesh
+        .read()
+        .unwrap()
+        .nodes()
+        .as_slice()
+        .to_vec();
+    {
+        let s = if fd { 2e-2 } else { 1e-3 };
+        let mut u = m.displacement_mut().unwrap();
+        for (u, p) in u
+            .as_mut_slice()
+            .chunks_exact_mut(dim)
+            .zip(x.chunks_exact(dim))
+        {
+            for (c, uc) in u.iter_mut().enumerate() {
+                *uc = s * ((5.0 + c as Real) * p[0]).sin() * (p[1] + 0.2 + 0.1 * c as Real);
+            }
+        }
+    }
+    let rt = ForeignRuntime::new();
+    let mut leases: Vec<ExportLease<Real>> = Vec::new();
+    if copy_every_save {
+        let law = m.physics.materials.laws_mut()[0].as_mut();
+        ConstitutiveLaw::for_each_internal_mut(law, &mut |_, field| {
+            if let InternalFieldMut::Real(f) = field
+                && f.has_history()
+            {
+                leases.push(
+                    f.values_mut()
+                        .shared_mut(ty, GhostType::NotGhost)?
+                        .export(&rt)?,
+                );
+            }
+            Ok(())
+        })
+        .unwrap();
+        assert!(
+            leases.len() >= 4,
+            "grad_u, the stress and the thermal fields"
+        );
+    }
+    let mut interp = rt.enter().unwrap();
+    let _native = interp.native().unwrap();
+    for _ in 0..steps {
+        m.solve_step(None).unwrap();
+    }
+    let bits = |v: &[Real]| v.iter().map(|x| x.to_bits()).collect::<Vec<u64>>();
+    let mut out = vec![
+        ("u".into(), bits(m.displacement().unwrap().as_slice())),
+        ("v".into(), bits(m.velocity().unwrap().as_slice())),
+        ("a".into(), bits(m.acceleration().unwrap().as_slice())),
+        ("f_int".into(), bits(m.internal_force().unwrap().as_slice())),
+    ];
+    let law = m.physics.materials.laws()[0].as_ref();
+    let b = law.base();
+    out.push((
+        "grad_u".into(),
+        bits(b.grad_u.get(ty, GhostType::NotGhost).unwrap().as_slice()),
+    ));
+    out.push((
+        "sigma".into(),
+        bits(
+            b.sigma_field()
+                .unwrap()
+                .get(ty, GhostType::NotGhost)
+                .unwrap()
+                .as_slice(),
+        ),
+    ));
+    let mut thermal_fields = Vec::new();
+    law.for_each_internal(&mut |name, field| {
+        if let (true, akantu_model::constitutive_law::InternalFieldRef::Real(f)) =
+            (matches!(name, "sigma_th" | "epsilon_th"), field)
+        {
+            thermal_fields.push((
+                name.to_string(),
+                bits(f.get(ty, GhostType::NotGhost).unwrap().as_slice()),
+            ));
+        }
+    });
+    assert_eq!(thermal_fields.len(), 2);
+    out.extend(thermal_fields);
+    let mut previous = Vec::new();
+    law.for_each_internal(&mut |name, field| {
+        if let akantu_model::constitutive_law::InternalFieldRef::Real(f) = field
+            && f.has_history()
+        {
+            previous.push((
+                format!("previous {name}"),
+                bits(f.previous(ty, GhostType::NotGhost).unwrap().as_slice()),
+            ));
+        }
+    });
+    assert!(
+        previous.len() >= 4,
+        "grad_u, the stress and the thermal fields"
+    );
+    out.extend(previous);
+    let energies = ["external work new", "kinetic", "potential", "external work"]
+        .map(|id| m.energy(id).unwrap().to_bits())
+        .to_vec();
+    out.push(("energies".into(), energies));
+    out
+}
+
+/// The element-block pass of the internal forces (one elastic law on one
+/// element type): the same bits at 1, 2, 3, 4 and 8 threads with the finest
+/// grain (one element per block, every part split) and the automatic one,
+/// and the same bits as the separate passes the model runs when a second
+/// (empty) law is present; the previous values of every internal field
+/// included, also against runs whose history saves are copies.
+#[test]
+fn block_pass_is_bitwise_for_every_thread_count_and_equals_the_separate_passes() {
+    type Case = (&'static str, fn() -> Mesh, bool, bool);
+    let cases: [Case; 4] = [
+        (
+            "3-D tetrahedra, small strain, eigen-gradient and delta_T",
+            || single_cube(4, false),
+            false,
+            true,
+        ),
+        (
+            "3-D hexahedra, finite deformation",
+            || single_cube(4, true),
+            true,
+            false,
+        ),
+        (
+            "2-D triangles, small strain, eigen-gradient and delta_T",
+            || single_square(8, false),
+            false,
+            true,
+        ),
+        (
+            "2-D quadrangles, finite deformation",
+            || single_square(8, true),
+            true,
+            false,
+        ),
+    ];
+    for (name, mesh, fd, thermal) in cases {
+        let serial = ExecPolicy::serial();
+        let separate = block_state(mesh(), fd, thermal, true, serial, 6, false);
+        assert!(
+            separate[0].1.iter().any(|&b| b != 0),
+            "{name}: the displacement is not zero"
+        );
+        let reference = block_state(mesh(), fd, thermal, false, serial, 6, false);
+        // the history saved by copy at every step (upstream), against the
+        // deferred saves and exchanges of the block pass
+        compare(
+            &reference,
+            &block_state(mesh(), fd, thermal, false, serial, 6, true),
+            &format!("{name}: block pass, saves by copy"),
+        );
+        compare(
+            &separate,
+            &block_state(mesh(), fd, thermal, true, serial, 6, true),
+            &format!("{name}: separate passes, saves by copy"),
+        );
+        compare(
+            &separate,
+            &reference,
+            &format!("{name}: block pass against separate passes"),
+        );
+        for threads in [1, 2, 3, 4, 8] {
+            for grain in [Grain::Finest, Grain::Auto] {
+                let p = serial.with_threads(threads).unwrap().with_grain(grain);
+                compare(
+                    &reference,
+                    &block_state(mesh(), fd, thermal, false, p, 6, false),
                     &format!("{name}: threads={threads} {grain:?}"),
                 );
             }

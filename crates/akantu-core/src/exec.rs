@@ -42,7 +42,7 @@ use std::sync::RwLock;
 
 pub use pool::{Exec, Split, Tuples, TuplesRef};
 pub use scatter::NodeScatter;
-pub use simd::{FastToken, FmaTask, SimdLevel, SimdToken, with_fma};
+pub use simd::{FastToken, FmaTask, Lanes4, SimdLevel, SimdTask, SimdToken, with_fma, with_simd};
 
 use crate::error::{Error, Result};
 
