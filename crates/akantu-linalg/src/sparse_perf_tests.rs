@@ -866,3 +866,97 @@ fn threaded_batch_resolves_like_the_serial_loop() {
         );
     }
 }
+
+/// A reduction that reports a distributed vector and changes nothing (the
+/// distributed branch of the product on one process).
+struct DistributedNoop;
+
+impl PartialSumReduction for DistributedNoop {
+    fn is_distributed(&self) -> bool {
+        true
+    }
+    fn reduce_and_synchronize(&self, local: &mut [f64]) -> Result<()> {
+        for v in local.iter_mut() {
+            *v *= 1.0;
+        }
+        Ok(())
+    }
+}
+
+/// The whole-matrix operations on threads (`*_with`, `*_on`) give the bits
+/// and releases of their serial forms at 1, 2, 3, 4 and 8 threads:
+/// products (symmetric and unsymmetric storage, both reductions, with an
+/// appended entry after a first product), Dirichlet rows, matrix sums,
+/// profile copies, scaling and zeroing.
+#[test]
+fn threaded_matrix_operations_match_the_serial_ones() {
+    let execs = execs();
+    for (seed, ty) in [MatrixType::Symmetric, MatrixType::Unsymmetric]
+        .into_iter()
+        .enumerate()
+    {
+        for trial in 0..6u64 {
+            let special = if trial % 2 == 0 { 0 } else { 20 };
+            let mut rng = Rng(
+                (0xabcd_ef01 ^ (seed as u64) << 40 ^ trial << 8) | 1,
+                special,
+            );
+            let n: GlobalIdx = 30 + GlobalIdx::try_from(rng.below(40)).unwrap();
+            let nu = usize::try_from(n).unwrap();
+            let layout = EquationLayout::serial(nu).unwrap();
+            let nnz = 3 * nu + rng.below(4 * nu);
+            let base = random_matrix(&mut rng, n, ty, nnz);
+            let mut other = SparseMatrixAij::new("B", n, ty);
+            other.copy_profile(&base);
+            for v in other.a.iter_mut() {
+                *v = rng.value();
+            }
+            let x: Vec<Real> = (0..nu).map(|_| rng.value()).collect();
+            let y0: Vec<Real> = (0..nu).map(|_| rng.value()).collect();
+            let blocked: Vec<bool> = (0..nu).map(|_| rng.below(5) == 0).collect();
+            let (alpha, beta) = (rng.value(), rng.value());
+            for exec in &execs {
+                let what = format!("{ty:?} trial {trial} threads {}", exec.threads());
+                for red in [&NoReduction as &dyn PartialSumReduction, &DistributedNoop] {
+                    let mut m = base.clone();
+                    for round in 0..2 {
+                        if round == 1 {
+                            // an appended entry: the gathered rows are rebuilt
+                            let (i, j) = (rng.below(nu) as GlobalIdx, rng.below(nu) as GlobalIdx);
+                            m.add(i, j, 0.75).unwrap();
+                        }
+                        let (mut y1, mut y2) = (y0.clone(), y0.clone());
+                        let r1 = m.mat_vec_mul(&layout, red, &x, &mut y1, alpha, beta);
+                        let r2 = m.mat_vec_mul_with(exec, &layout, red, &x, &mut y2, alpha, beta);
+                        same_result(&r1, &r2, &what);
+                        assert_eq!(bits(&y1), bits(&y2), "{what}: product round {round}");
+                    }
+                }
+                let (mut a, mut b) = (base.clone(), base.clone());
+                let r1 = a.apply_boundary(&layout, &blocked, 1.0);
+                let r2 = b.apply_boundary_on(exec, &layout, &blocked, 1.0);
+                same_result(&r1, &r2, &what);
+                same_state(&a, &b, &format!("{what}: boundary"));
+                let (mut a, mut b) = (other.clone(), other.clone());
+                a.add_matrix(&base, alpha).unwrap();
+                b.add_matrix_with(exec, &base, alpha).unwrap();
+                same_state(&a, &b, &format!("{what}: add_matrix"));
+                let (mut a, mut b) = (other.clone(), other.clone());
+                a.add_matrix_upstream(&base, alpha).unwrap();
+                b.add_matrix_upstream_with(exec, &base, alpha).unwrap();
+                same_state(&a, &b, &format!("{what}: add_matrix_upstream"));
+                let (mut a, mut b) = (other.clone(), other.clone());
+                a.copy_profile(&base);
+                b.copy_profile_with(exec, &base);
+                same_state(&a, &b, &format!("{what}: copy_profile"));
+                let (mut a, mut b) = (other.clone(), other.clone());
+                a.mul(beta);
+                b.mul_with(exec, beta);
+                same_state(&a, &b, &format!("{what}: mul"));
+                a.zero();
+                b.zero_with(exec);
+                same_state(&a, &b, &format!("{what}: zero"));
+            }
+        }
+    }
+}

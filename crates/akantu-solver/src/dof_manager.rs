@@ -386,6 +386,8 @@ pub struct DofManager {
     assembly_caches: BTreeMap<(Id, Id, ElementType, GhostType), BlockPositionCache>,
     /// Whether `assembly_caches` is used ([`DofManager::set_assembly_cache`]).
     assembly_cache_enabled: bool,
+    /// Element assemblies done by the threaded batch (diagnostic).
+    threaded_assemblies: u64,
     /// Declared type of every matrix.
     declared: BTreeMap<Id, MatrixType>,
     /// `source → derived` matrices (promotion propagation).
@@ -811,6 +813,7 @@ impl DofManager {
             profiled: BTreeSet::new(),
             assembly_caches: BTreeMap::new(),
             assembly_cache_enabled: true,
+            threaded_assemblies: 0,
             declared: BTreeMap::new(),
             derived: BTreeMap::new(),
             node_sync: None,
@@ -844,6 +847,7 @@ impl DofManager {
     /// D-123); every result is the same for every thread count in
     /// [`akantu_core::exec::Precision::Bitwise`].
     pub fn set_exec(&mut self, exec: akantu_core::exec::Exec) {
+        self.backend.set_exec(&exec);
         self.exec = exec;
     }
 
@@ -1841,6 +1845,15 @@ impl DofManager {
             .sum()
     }
 
+    /// Number of element assemblies (calls of
+    /// [`DofManager::assemble_elemental_matrices_to_matrix`]) whose blocks
+    /// were added on threads by entry ranges (diagnostic; the results are
+    /// those of the serial loop).
+    #[must_use]
+    pub fn threaded_assemblies(&self) -> u64 {
+        self.threaded_assemblies
+    }
+
     /// Bytes held by the assembly position caches.
     #[must_use]
     pub fn assembly_cache_bytes(&self) -> usize {
@@ -2037,6 +2050,7 @@ impl DofManager {
             );
             if done {
                 self.assembly_caches.insert(key, cache);
+                self.threaded_assemblies += 1;
                 return Ok(());
             }
             begun = Some(cache);

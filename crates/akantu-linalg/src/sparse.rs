@@ -259,6 +259,9 @@ pub struct SparseMatrixAij {
     /// Values and lookup map released, coordinates kept
     /// ([`SparseMatrixAij::release_values`]); revived by the next mutation.
     released: bool,
+    /// Row-gathered terms of the threaded matrix-vector product (built on
+    /// first use, keyed by the entry positions).
+    row_gather: threaded::RowGatherCache,
 }
 
 impl SparseMatrixAij {
@@ -283,6 +286,7 @@ impl SparseMatrixAij {
             scratch: Vec::new(),
             max_coord: -1,
             released: false,
+            row_gather: threaded::RowGatherCache::default(),
         }
     }
 
