@@ -535,6 +535,17 @@ pub(crate) fn trsm_unit_lower(
 /// size 1 and `RK = 2`: `C += A·B` where, per entry, the depth is consumed
 /// in blocks of two, `c = (c + a0·b0) + a1·b1`, and an odd last term is
 /// added as `c + b·a` (the `rd` tail).
+///
+/// Each entry's sequence is therefore `c ← c + a(i,k)·b(k,j)` for `k` in
+/// order, then `c ← c + b(d−1,j)·a(i,d−1)` when `d` is odd. The entries are
+/// independent, so the kernel computes them in register tiles of
+/// [`GEMM_MR`] rows × up to [`GEMM_NR`] columns (the tile's `k` loop runs over
+/// the whole depth, `a` read column by column, contiguous), with exactly
+/// that sequence per entry: every product and every sum is a separate
+/// IEEE operation (Rust never contracts `a * b + c` into an FMA), so the
+/// result is bitwise the one of the entry-by-entry loop
+/// (`tests::gemm_matches_reference_bitwise`).
+#[cfg(test)] // the callers all use `sparselu_gemm_into_zero`
 #[allow(clippy::too_many_arguments)] // BLAS-style kernel signature
 pub(crate) fn sparselu_gemm(
     m: usize,
@@ -550,36 +561,291 @@ pub(crate) fn sparselu_gemm(
     c_off: usize,
     ldc: usize,
 ) {
-    const RK: usize = 2;
-    let d_end = (d / RK) * RK;
-    let rd = d - d_end;
-    for j in 0..n {
-        for i in 0..m {
-            let mut acc = c[c_off + i + j * ldc];
-            let mut k = 0;
-            while k < d_end {
-                for l in 0..RK {
-                    acc += a[a_off + i + (k + l) * lda] * b[b_off + (k + l) + j * ldb];
-                }
-                k += RK;
-            }
-            if rd > 0 {
-                let term =
-                    |l: usize| b[b_off + d_end + l + j * ldb] * a[a_off + i + (d_end + l) * lda];
-                let mut s = term(0);
-                for l in 1..rd {
-                    s += term(l);
-                }
-                acc += s;
-            }
-            c[c_off + i + j * ldc] = acc;
+    gemm_tiles::<false>(m, n, d, a, a_off, lda, b, b_off, ldb, c, c_off, ldc);
+}
+
+/// [`sparselu_gemm`] on a destination that the caller would have set to
+/// `+0.0` first: the accumulators start at `+0.0` without reading `C`, and
+/// every entry of the `m × n` block is written. Bitwise the same as
+/// zero-filling `C` and calling [`sparselu_gemm`].
+#[allow(clippy::too_many_arguments)] // BLAS-style kernel signature
+pub(crate) fn sparselu_gemm_into_zero(
+    m: usize,
+    n: usize,
+    d: usize,
+    a: &[f64],
+    a_off: usize,
+    lda: usize,
+    b: &[f64],
+    b_off: usize,
+    ldb: usize,
+    c: &mut [f64],
+    c_off: usize,
+    ldc: usize,
+) {
+    gemm_tiles::<true>(m, n, d, a, a_off, lda, b, b_off, ldb, c, c_off, ldc);
+}
+
+/// Rows of a register tile of [`sparselu_gemm`].
+const GEMM_MR: usize = 8;
+/// Columns of a register tile of [`sparselu_gemm`].
+const GEMM_NR: usize = 4;
+
+#[allow(clippy::too_many_arguments)] // BLAS-style kernel signature
+#[inline(always)]
+fn gemm_tiles<const ZERO: bool>(
+    m: usize,
+    n: usize,
+    d: usize,
+    a: &[f64],
+    a_off: usize,
+    lda: usize,
+    b: &[f64],
+    b_off: usize,
+    ldb: usize,
+    c: &mut [f64],
+    c_off: usize,
+    ldc: usize,
+) {
+    if m == 0 || n == 0 {
+        return;
+    }
+    let mut j = 0;
+    while j < n {
+        let nr = (n - j).min(GEMM_NR);
+        let bj = b_off + j * ldb;
+        let cj = c_off + j * ldc;
+        match nr {
+            4 => gemm_cols::<4, ZERO>(m, d, a, a_off, lda, b, bj, ldb, c, cj, ldc),
+            3 => gemm_cols::<3, ZERO>(m, d, a, a_off, lda, b, bj, ldb, c, cj, ldc),
+            2 => gemm_cols::<2, ZERO>(m, d, a, a_off, lda, b, bj, ldb, c, cj, ldc),
+            _ => gemm_cols::<1, ZERO>(m, d, a, a_off, lda, b, bj, ldb, c, cj, ldc),
         }
+        j += nr;
+    }
+}
+
+/// All rows of `NR` columns: tiles of [`GEMM_MR`] rows, then 4, 2, 1.
+#[allow(clippy::too_many_arguments)] // BLAS-style kernel signature
+#[inline(always)]
+fn gemm_cols<const NR: usize, const ZERO: bool>(
+    m: usize,
+    d: usize,
+    a: &[f64],
+    a_off: usize,
+    lda: usize,
+    b: &[f64],
+    b_off: usize,
+    ldb: usize,
+    c: &mut [f64],
+    c_off: usize,
+    ldc: usize,
+) {
+    // the columns of B, each `d` long
+    let bcols: [&[f64]; NR] = std::array::from_fn(|jn| &b[b_off + jn * ldb..][..d]);
+    let mut i = 0;
+    while i + GEMM_MR <= m {
+        gemm_tile::<GEMM_MR, NR, ZERO>(d, a, a_off + i, lda, &bcols, c, c_off + i, ldc);
+        i += GEMM_MR;
+    }
+    if i + 4 <= m {
+        gemm_tile::<4, NR, ZERO>(d, a, a_off + i, lda, &bcols, c, c_off + i, ldc);
+        i += 4;
+    }
+    if i + 2 <= m {
+        gemm_tile::<2, NR, ZERO>(d, a, a_off + i, lda, &bcols, c, c_off + i, ldc);
+        i += 2;
+    }
+    if i < m {
+        gemm_tile::<1, NR, ZERO>(d, a, a_off + i, lda, &bcols, c, c_off + i, ldc);
+    }
+}
+
+/// One `MR × NR` tile: `c(r, jn) = a_off + r + jn·ldc`, `a(r, k) = a_off +
+/// r + k·lda`.
+#[allow(clippy::too_many_arguments)] // BLAS-style kernel signature
+#[inline(always)]
+fn gemm_tile<const MR: usize, const NR: usize, const ZERO: bool>(
+    d: usize,
+    a: &[f64],
+    a_off: usize,
+    lda: usize,
+    bcols: &[&[f64]; NR],
+    c: &mut [f64],
+    c_off: usize,
+    ldc: usize,
+) {
+    let d_end = d & !1;
+    let mut acc = [[0.0f64; MR]; NR];
+    if !ZERO {
+        for (jn, accj) in acc.iter_mut().enumerate() {
+            accj.copy_from_slice(&c[c_off + jn * ldc..][..MR]);
+        }
+    }
+    for k in 0..d_end {
+        let ak: &[f64; MR] = a[a_off + k * lda..][..MR]
+            .try_into()
+            .unwrap_or_else(|_| unreachable!());
+        for (accj, bc) in acc.iter_mut().zip(bcols) {
+            let bk = bc[k];
+            for r in 0..MR {
+                accj[r] = accj[r] + ak[r] * bk;
+            }
+        }
+    }
+    if d_end < d {
+        // the `rd` tail: `c + b·a`
+        let ak: &[f64; MR] = a[a_off + d_end * lda..][..MR]
+            .try_into()
+            .unwrap_or_else(|_| unreachable!());
+        for (accj, bc) in acc.iter_mut().zip(bcols) {
+            let bk = bc[d_end];
+            for r in 0..MR {
+                accj[r] = accj[r] + bk * ak[r];
+            }
+        }
+    }
+    for (jn, accj) in acc.iter().enumerate() {
+        c[c_off + jn * ldc..][..MR].copy_from_slice(accj);
     }
 }
 
 #[cfg(test)]
 mod tests {
     use super::*;
+
+    /// The entry-by-entry `sparselu_gemm` the tiled kernel replaced (the
+    /// reference of the bitwise property test).
+    #[allow(clippy::too_many_arguments)]
+    fn sparselu_gemm_reference(
+        m: usize,
+        n: usize,
+        d: usize,
+        a: &[f64],
+        a_off: usize,
+        lda: usize,
+        b: &[f64],
+        b_off: usize,
+        ldb: usize,
+        c: &mut [f64],
+        c_off: usize,
+        ldc: usize,
+    ) {
+        const RK: usize = 2;
+        let d_end = (d / RK) * RK;
+        let rd = d - d_end;
+        for j in 0..n {
+            for i in 0..m {
+                let mut acc = c[c_off + i + j * ldc];
+                let mut k = 0;
+                while k < d_end {
+                    for l in 0..RK {
+                        acc += a[a_off + i + (k + l) * lda] * b[b_off + (k + l) + j * ldb];
+                    }
+                    k += RK;
+                }
+                if rd > 0 {
+                    let term = |l: usize| {
+                        b[b_off + d_end + l + j * ldb] * a[a_off + i + (d_end + l) * lda]
+                    };
+                    let mut s = term(0);
+                    for l in 1..rd {
+                        s += term(l);
+                    }
+                    acc += s;
+                }
+                c[c_off + i + j * ldc] = acc;
+            }
+        }
+    }
+
+    /// A small deterministic generator (xorshift64*) of doubles that include
+    /// signed zeros, infinities, NaNs, subnormals and wide exponents.
+    pub(super) struct Gen(pub u64);
+    impl Gen {
+        pub fn next_u64(&mut self) -> u64 {
+            self.0 ^= self.0 >> 12;
+            self.0 ^= self.0 << 25;
+            self.0 ^= self.0 >> 27;
+            self.0.wrapping_mul(0x2545_F491_4F6C_DD1D)
+        }
+        pub fn below(&mut self, n: usize) -> usize {
+            (self.next_u64() % n as u64) as usize
+        }
+        pub fn value(&mut self, specials: bool) -> f64 {
+            let r = self.next_u64();
+            if specials {
+                match r % 64 {
+                    0 => return 0.0,
+                    1 => return -0.0,
+                    2 => return f64::INFINITY,
+                    3 => return f64::NEG_INFINITY,
+                    4 => return f64::NAN,
+                    5 => return f64::from_bits(0x7ff8_0000_0000_1234 | (r & (1 << 63))),
+                    6 => return f64::from_bits(r & 0x800f_ffff_ffff_ffff), // subnormal
+                    7 => return f64::MIN_POSITIVE,
+                    8 => return f64::MAX,
+                    9 => return f64::from_bits((r >> 1) | 1), // any finite or not
+                    _ => {}
+                }
+            }
+            let m = (r >> 11) as f64 / (1u64 << 53) as f64 - 0.5;
+            m * 2f64.powi(((r >> 3) % 40) as i32 - 20)
+        }
+        pub fn vec(&mut self, n: usize, specials: bool) -> Vec<f64> {
+            (0..n).map(|_| self.value(specials)).collect()
+        }
+    }
+
+    /// Bitwise equality, any NaN equal to any NaN: Rust does not specify
+    /// which NaN payload an operation with NaN operands returns (and LLVM
+    /// may commute the operands of `+` and `*`), in the reference kernel as
+    /// in the new one. Non-finite factors are refused by `factorize`.
+    pub(super) fn same_bits(x: f64, y: f64) -> bool {
+        x.to_bits() == y.to_bits() || (x.is_nan() && y.is_nan())
+    }
+
+    #[test]
+    fn gemm_matches_reference_bitwise() {
+        let mut g = Gen(0x9E37_79B9_7F4A_7C15);
+        for case in 0..4000 {
+            let specials = case % 3 == 0;
+            let m = g.below(40);
+            let n = g.below(19);
+            let d = g.below(23);
+            let lda = m + g.below(4);
+            let ldb = d + g.below(3);
+            let ldc = m + g.below(3);
+            let (ao, bo, co) = (g.below(5), g.below(5), g.below(5));
+            let a = g.vec(ao + lda * d.max(1) + m, specials);
+            let b = g.vec(bo + ldb * n.max(1) + d, specials);
+            let c0 = g.vec(co + ldc * n.max(1) + m, specials);
+            let mut c1 = c0.clone();
+            let mut c2 = c0.clone();
+            sparselu_gemm_reference(m, n, d, &a, ao, lda, &b, bo, ldb, &mut c1, co, ldc);
+            sparselu_gemm(m, n, d, &a, ao, lda, &b, bo, ldb, &mut c2, co, ldc);
+            for (x, y) in c1.iter().zip(&c2) {
+                assert!(
+                    same_bits(*x, *y),
+                    "case {case}: m={m} n={n} d={d}: {x:e} {y:e}"
+                );
+            }
+            // the zero-destination variant equals a zero fill + the reference
+            let mut z1 = c0.clone();
+            let mut z2 = c0.clone();
+            for j in 0..n {
+                z1[co + j * ldc..co + j * ldc + m].fill(0.0);
+            }
+            sparselu_gemm_reference(m, n, d, &a, ao, lda, &b, bo, ldb, &mut z1, co, ldc);
+            sparselu_gemm_into_zero(m, n, d, &a, ao, lda, &b, bo, ldb, &mut z2, co, ldc);
+            for j in 0..n {
+                z2[co + j * ldc..co + j * ldc + m]
+                    .iter()
+                    .zip(&z1[co + j * ldc..co + j * ldc + m])
+                    .for_each(|(x, y)| assert!(same_bits(*x, *y), "case {case}"));
+            }
+        }
+    }
 
     #[test]
     fn kc_rule_with_kc_factor_4() {
