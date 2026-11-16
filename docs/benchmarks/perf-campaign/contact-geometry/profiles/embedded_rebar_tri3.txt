@@ -1,0 +1,87 @@
+# Profile of suite case embedded_rebar_tri3
+
+binary: ~/w/contact/bin/models-g4 (bc219e8beca0be34)
+command: taskset -c 5 ~/w/contact/bin/models-g4 --case embedded_rebar_tri3 --size m --loop-seconds 6
+perf: perf record -F 499 --call-graph dwarf,16384
+cpu: AMD EPYC 9R14
+date_utc: 2026-11-16T12:45:56Z
+commit: faf1b35c7
+
+## Phases of the profiled run (seconds, calls)
+
+mesh                         0.0284 s       1 calls
+init                         0.0328 s       1 calls
+intersect                    6.0296 s     475 calls
+solve_step                   0.5473 s       1 calls
+assemble_internal_forces     6.0201 s    2420 calls
+assemble_stiffness           6.0358 s     185 calls
+
+## Top 25 symbols, self time
+
+    11.50%  [.] akantu_core::eigen_gebp::product_into::<akantu_fe::eigen::product_slices::{closure#1}, akantu_fe::eigen::product_slices::{closure#2}>
+     9.02%  [.] <std::hash::random::RandomState as core::hash::BuildHasher>::hash_one::<&(i64, i64)>
+     6.90%  [.] <akantu_linalg::sparse::SparseMatrixAij>::resolve_block
+     6.26%  [.] akantu_fe::engine::fast::integrate::<<akantu_fe::engine::FeEngine>::integrate::{closure#0}>
+     3.93%  [.] <akantu_embedded::material::MaterialReinforcement<2> as akantu_solid::material::Material>::compute_all_stresses
+     3.22%  [.] akantu_fe::eigen::product_slices
+     3.19%  [.] <akantu_solver::dof_manager::DofManager>::assemble_elemental_array_local_view
+     2.88%  [.] akantu_core::eigen_gebp::route
+     2.79%  [.] <akantu_embedded::material::MaterialReinforcement<2> as akantu_solid::material::Material>::assemble_internal_forces_custom
+     2.31%  [.] akantu_fe::engine::fast::gradient::<akantu_fe::element_class::types::Cohesive3d6>
+     2.14%  [.] <akantu_geometry::index::GridIndex as akantu_geometry::index::TriangleIndex>::all_intersections
+     1.97%  [.] <std::hash::random::DefaultHasher as core::hash::Hasher>::write
+     1.93%  [.] <akantu_linalg::sparse::SparseMatrixAij>::add_values
+     1.84%  [.] <akantu_geometry::index::GridIndex as akantu_geometry::index::TriangleIndex>::build
+     1.70%  [.] akantu_geometry::tiling::tile
+     1.51%  [.] <akantu_geometry::tiling::Simplex>::triangle
+     1.40%  [.] akantu_fe::engine::fast::btd
+     1.38%  [.] <akantu_geometry::segment_intersector::MeshSegmentIntersector<akantu_geometry::index::GridIndex>>::compute_intersection_query_list
+     1.28%  [.] core::ptr::drop_glue::<akantu_core::error::Error>
+     1.15%  [.] akantu_geometry::intersections::coplanar_aux
+     1.03%  [.] akantu_linalg::eigen_sparse_lu::dense::sparselu_gemm
+     1.01%  [.] <akantu_geometry::factory::MeshGeomFactory>::construct_data
+     0.94%  [.] alloc::fmt::format::format_inner
+     0.91%  [.] <akantu_geometry::index::Grid>::segment_candidates
+     0.91%  [.] <akantu_solver::dof_manager::DofManager>::element_equations
+
+## Top 25 symbols, inclusive time (children)
+
+    11.50%    11.50%  [.] akantu_core::eigen_gebp::product_into::<akantu_fe::eigen::product_slices::{closure#1}, akantu_fe::eigen::product_slices::{closure#2}>
+     9.02%     9.02%  [.] <std::hash::random::RandomState as core::hash::BuildHasher>::hash_one::<&(i64, i64)>
+     6.90%     6.90%  [.] <akantu_linalg::sparse::SparseMatrixAij>::resolve_block
+     6.26%     6.26%  [.] akantu_fe::engine::fast::integrate::<<akantu_fe::engine::FeEngine>::integrate::{closure#0}>
+     3.93%     3.93%  [.] <akantu_embedded::material::MaterialReinforcement<2> as akantu_solid::material::Material>::compute_all_stresses
+     3.22%     3.22%  [.] akantu_fe::eigen::product_slices
+     3.19%     3.19%  [.] <akantu_solver::dof_manager::DofManager>::assemble_elemental_array_local_view
+     2.88%     2.88%  [.] akantu_core::eigen_gebp::route
+     2.79%     2.79%  [.] <akantu_embedded::material::MaterialReinforcement<2> as akantu_solid::material::Material>::assemble_internal_forces_custom
+     2.68%     0.63%  [.] realloc
+     2.31%     2.31%  [.] akantu_fe::engine::fast::gradient::<akantu_fe::element_class::types::Cohesive3d6>
+     2.22%     2.14%  [.] <akantu_geometry::index::GridIndex as akantu_geometry::index::TriangleIndex>::all_intersections
+     1.97%     1.97%  [.] <std::hash::random::DefaultHasher as core::hash::Hasher>::write
+     1.93%     1.93%  [.] <akantu_linalg::sparse::SparseMatrixAij>::add_values
+     1.88%     1.84%  [.] <akantu_geometry::index::GridIndex as akantu_geometry::index::TriangleIndex>::build
+     1.83%     0.40%  [.] cfree
+     1.78%     1.70%  [.] akantu_geometry::tiling::tile
+     1.70%     0.47%  [.] malloc
+     1.65%     1.38%  [.] <akantu_geometry::segment_intersector::MeshSegmentIntersector<akantu_geometry::index::GridIndex>>::compute_intersection_query_list
+     1.51%     1.51%  [.] <akantu_geometry::tiling::Simplex>::triangle
+     1.40%     1.40%  [.] akantu_fe::engine::fast::btd
+     1.28%     1.28%  [.] core::ptr::drop_glue::<akantu_core::error::Error>
+     1.16%     0.94%  [.] alloc::fmt::format::format_inner
+     1.15%     1.15%  [.] akantu_geometry::intersections::coplanar_aux
+     1.05%     1.01%  [.] <akantu_geometry::factory::MeshGeomFactory>::construct_data
+
+## Call chains (callers of the hottest self-time symbols, entries above 2 %)
+
+    11.50%  [.] akantu_core::eigen_gebp::product_into::<akantu_fe::eigen::product_slices::{closure#1}, akantu_fe::eigen::product_slices::{closure#2}>
+     9.02%  [.] <std::hash::random::RandomState as core::hash::BuildHasher>::hash_one::<&(i64, i64)>
+     6.90%  [.] <akantu_linalg::sparse::SparseMatrixAij>::resolve_block
+     6.26%  [.] akantu_fe::engine::fast::integrate::<<akantu_fe::engine::FeEngine>::integrate::{closure#0}>
+     3.93%  [.] <akantu_embedded::material::MaterialReinforcement<2> as akantu_solid::material::Material>::compute_all_stresses
+     3.22%  [.] akantu_fe::eigen::product_slices
+     3.19%  [.] <akantu_solver::dof_manager::DofManager>::assemble_elemental_array_local_view
+     2.88%  [.] akantu_core::eigen_gebp::route
+     2.79%  [.] <akantu_embedded::material::MaterialReinforcement<2> as akantu_solid::material::Material>::assemble_internal_forces_custom
+     2.31%  [.] akantu_fe::engine::fast::gradient::<akantu_fe::element_class::types::Cohesive3d6>
+     2.14%  [.] <akantu_geometry::index::GridIndex as akantu_geometry::index::TriangleIndex>::all_intersections

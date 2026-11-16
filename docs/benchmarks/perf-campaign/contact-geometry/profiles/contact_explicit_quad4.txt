@@ -1,0 +1,83 @@
+# Profile of suite case contact_explicit_quad4
+
+binary: ~/w/contact/bin/models-g4 (bc219e8beca0be34)
+command: taskset -c 5 ~/w/contact/bin/models-g4 --case contact_explicit_quad4 --size m --loop-seconds 6
+perf: perf record -F 499 --call-graph dwarf,16384
+cpu: AMD EPYC 9R14
+date_utc: 2026-11-16T12:38:55Z
+commit: faf1b35c7
+
+## Phases of the profiled run (seconds, calls)
+
+mesh                         0.2063 s       1 calls
+init                         0.2577 s       1 calls
+stable_time_step             0.0039 s       1 calls
+solve_step                   9.1649 s     400 calls
+
+## Top 25 symbols, self time
+
+    12.67%  [.] akantu_fe::engine::fast::btd
+    10.74%  [.] akantu_fe::engine::fast::gradient::<akantu_fe::element_class::types::Cohesive3d8>
+     8.77%  [.] akantu_fe::engine::fast::integrate::<<akantu_fe::engine::FeEngine>::integrate::{closure#0}>
+     4.44%  [.] <akantu_solver::dof_manager::DofManager>::assemble_elemental_array_local_view
+     3.84%  [.] <akantu_solid::materials::elastic::MaterialElastic<2> as akantu_solid::material::Material>::compute_stress
+     3.56%  [.] akantu_solid::material::grad_u_in_place
+     2.57%  [.] <akantu_solver::dof_manager::DofManager>::assemble_to_residual
+     2.53%  [.] 0x00000000001a1876
+     2.29%  [.] 0x00000000001a187d
+     1.91%  [.] 0x00000000001a185b
+     1.79%  [.] <akantu_solid::materials::elastic::MaterialElastic<2>>::compute_thermal
+     1.55%  [.] akantu_core::eigen_gebp::product_into::<akantu_fe::eigen::product_slices::{closure#1}, akantu_fe::eigen::product_slices::{closure#2}>
+     1.49%  [.] 0x00000000001a186f
+     1.47%  [.] <akantu_solver::integration_scheme::NewmarkBeta as akantu_solver::integration_scheme::IntegrationScheme>::corrector
+     1.43%  [.] 0x00000000001a1846
+     1.41%  [.] <alloc::vec::Vec<usize> as alloc::vec::spec_from_iter::SpecFromIter<usize, core::iter::adapters::GenericShunt<core::iter::adapters::map::Map<core::slice::iter::Iter<i32>, akantu_fe::engine::resolve_filter::{closure#0}::{closure#0}>, core::result::Result<core::convert::Infallible, akantu_core::error::Error>>>>::from_iter
+     1.27%  [.] <akantu_core::array_storage::ArrayStorage<f64>>::try_resize
+     1.25%  [.] 0x00000000001a1914
+     1.19%  [.] 0x00000000001a1921
+     1.17%  [.] 0x00000000001a191b
+     1.15%  [.] akantu_fe::eigen::product_slices
+     1.09%  [.] <akantu_solver::integration_scheme::NewmarkBeta as akantu_solver::integration_scheme::IntegrationScheme>::predictor
+     1.05%  [.] 0x00000000001a1868
+     0.99%  [.] 0x00000000001a1f47
+     0.89%  [.] 0x00000000001a184d
+
+## Top 25 symbols, inclusive time (children)
+
+    12.67%    12.67%  [.] akantu_fe::engine::fast::btd
+    10.74%    10.74%  [.] akantu_fe::engine::fast::gradient::<akantu_fe::element_class::types::Cohesive3d8>
+     8.77%     8.77%  [.] akantu_fe::engine::fast::integrate::<<akantu_fe::engine::FeEngine>::integrate::{closure#0}>
+     3.84%     3.84%  [.] <akantu_solver::dof_manager::DofManager>::assemble_elemental_array_local_view
+     3.56%     3.56%  [.] akantu_solid::material::grad_u_in_place
+     3.28%     3.28%  [.] <akantu_solid::materials::elastic::MaterialElastic<2> as akantu_solid::material::Material>::compute_stress
+     2.55%     0.00%  [.] 0x00007e0f84da1876
+     2.53%     2.53%  [.] 0x00000000001a1876
+     2.31%     0.00%  [.] 0x00007e0f84da187d
+     2.29%     2.29%  [.] 0x00000000001a187d
+     2.25%     2.25%  [.] <akantu_solver::dof_manager::DofManager>::assemble_to_residual
+     1.91%     1.91%  [.] 0x00000000001a185b
+     1.91%     0.00%  [.] 0x00007e0f84da185b
+     1.59%     1.59%  [.] <akantu_solid::materials::elastic::MaterialElastic<2>>::compute_thermal
+     1.55%     1.55%  [.] akantu_core::eigen_gebp::product_into::<akantu_fe::eigen::product_slices::{closure#1}, akantu_fe::eigen::product_slices::{closure#2}>
+     1.49%     1.49%  [.] 0x00000000001a186f
+     1.49%     0.00%  [.] 0x00007e0f84da186f
+     1.49%     0.42%  [.] asm_exc_page_fault
+     1.47%     0.00%  [.] 0x00007e0f84da1846
+     1.43%     1.43%  [.] 0x00000000001a1846
+     1.33%     1.33%  [.] <akantu_solver::integration_scheme::NewmarkBeta as akantu_solver::integration_scheme::IntegrationScheme>::corrector
+     1.27%     0.00%  [.] 0x00007e0f84da1914
+     1.25%     1.25%  [.] 0x00000000001a1914
+     1.25%     1.25%  [.] <alloc::vec::Vec<usize> as alloc::vec::spec_from_iter::SpecFromIter<usize, core::iter::adapters::GenericShunt<core::iter::adapters::map::Map<core::slice::iter::Iter<i32>, akantu_fe::engine::resolve_filter::{closure#0}::{closure#0}>, core::result::Result<core::convert::Infallible, akantu_core::error::Error>>>>::from_iter
+     1.21%     0.00%  [.] 0x00007e0f84da1921
+
+## Call chains (callers of the hottest self-time symbols, entries above 2 %)
+
+    12.67%  [.] akantu_fe::engine::fast::btd
+    10.74%  [.] akantu_fe::engine::fast::gradient::<akantu_fe::element_class::types::Cohesive3d8>
+     8.77%  [.] akantu_fe::engine::fast::integrate::<<akantu_fe::engine::FeEngine>::integrate::{closure#0}>
+     4.44%  [.] <akantu_solver::dof_manager::DofManager>::assemble_elemental_array_local_view
+     3.84%  [.] <akantu_solid::materials::elastic::MaterialElastic<2> as akantu_solid::material::Material>::compute_stress
+     3.56%  [.] akantu_solid::material::grad_u_in_place
+     2.57%  [.] <akantu_solver::dof_manager::DofManager>::assemble_to_residual
+     2.53%  [.] 0x00000000001a1876
+     2.29%  [.] 0x00000000001a187d

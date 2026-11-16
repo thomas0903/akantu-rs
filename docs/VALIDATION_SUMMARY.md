@@ -115,12 +115,12 @@ and handled by category (D-003; the register's own definitions):
   of the port's API or file format where upstream has no numerical
   behaviour to keep and no bug to correct (e.g. UD-474); it counts with C.
 
-The register has **596 entries**. By the category its *Cat.* column
+The register has **597 entries**. By the category its *Cat.* column
 starts with: **A 148** (20 of them also name another category, e.g.
-`A/B`), **B 242** (10 also name another), **C 176** (8 also name another);
+`A/B`), **B 242** (10 also name another), **C 177** (8 also name another);
 test infrastructure 20, build 3, scope 1, dead code 1, and 5 entries
 without a category (withdrawn or not a defect). By status (first word):
-538 implemented, 48 documented, 4 withdrawn, 2 superseded, 1 decided, 2
+539 implemented, 48 documented, 4 withdrawn, 2 superseded, 1 decided, 2
 `registered` (candidate rows pointing to UD-263, UD-264 / UD-312) and 1
 `not ported` (UD-790); **no entry is `open`** (D-115, §5.5;
 `scripts/docs/validation_counts.py defects`).

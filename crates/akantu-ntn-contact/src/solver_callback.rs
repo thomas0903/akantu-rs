@@ -183,12 +183,19 @@ impl NtnContactSolverCallback {
         crate::state::check_len("getExternalWorkIncrement: contact force", f_cont, nb * dim)?;
         crate::state::check_len("getExternalWorkIncrement: friction force", f_fric, nb * dim)?;
         let mut work = [0.0, 0.0];
-        for n in 0..nb {
-            let idx = akantu_core::Idx::try_from(n).map_err(|_| Error::InvalidIndex {
+        // the node flags read once (`is_local_or_master_node` and
+        // `is_periodic_slave` per node check the index each time); a flag
+        // array shorter than the nodes fails as the first missing node
+        let flags = mesh.nodes_flags().as_slice();
+        if flags.len() < nb {
+            return Err(Error::OutOfRange {
                 what: "node",
-                value: n as i64,
-            })?;
-            let counted = mesh.is_local_or_master_node(idx)? && !mesh.is_periodic_slave(idx)?;
+                index: flags.len(),
+                len: flags.len(),
+            });
+        }
+        for (n, flag) in flags[..nb].iter().enumerate() {
+            let counted = flag.is_local_or_master() && !flag.is_periodic_slave();
             let count_node = if counted { 1.0 } else { 0.0 };
             let inc = &increment[n * dim..(n + 1) * dim];
             work[0] -= count_node * dot(&f_cont[n * dim..(n + 1) * dim], inc);

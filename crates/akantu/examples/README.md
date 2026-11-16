@@ -213,7 +213,7 @@ explicit step is refused (the port does not divide by a zero lumped mass).
 **`embedded` (EX-008).** Upstream builds the example with the package
 `CGAL`; the port's example needs the facade feature `cgal` too (`cargo run
 -p akantu --features cgal --example embedded`), although its intersector is
-the LGPL `LinearScan` of `akantu-geometry` (order-independent result, no
+the LGPL `GridIndex` of `akantu-geometry` (order-independent result, no
 GPL-derived code). Upstream's embedded package does not compile at the
 reference commit; built against the patched variant of
 `docs/ORACLE_BUILD.md` (`oracle/probes/examples/embedded`), the
