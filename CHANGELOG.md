@@ -52,8 +52,10 @@ change of default results or of a public API raises the minor version.
   backend. `HeatTransferModel`, `PhaseFieldModel` and
   `StructuralMechanicsModel` take the process default policy and have
   `exec_policy` / `set_exec_policy` (the structural engine's elemental
-  matrices stay serial). The first assembly of a matrix (its profile)
-  stays serial.
+  matrices stay serial). The first assembly of every element of a type
+  (profile and values) also runs on threads with the serial profile,
+  entry for entry (`SparseMatrixAij::add_first_blocks_batch`,
+  `LinearSystemBackend::add_first_blocks_batch`).
 - Fast-mode harness `akantu_validation::fast_mode` with the rules of
   `fixtures/fast_mode/`, and its demonstrator (the gradient kernel with
   fused multiply-adds under `Precision::Fast`).

@@ -220,6 +220,26 @@ pub trait LinearSystemBackend: std::fmt::Debug + Send {
     ) -> bool {
         false
     }
+    /// The first assembly of a batch of square blocks (the loop of
+    /// [`LinearSystemBackend::add_block_to_profile_and_values`] over
+    /// `equations(k, ·)` and `values[k·n²..(k+1)·n²]`, `n = nb_eq`, `k <
+    /// nb`) on the threads of `exec`, with the same profile, values and
+    /// releases ([`SparseMatrixAij::add_first_blocks_batch`]). `false` when
+    /// not done (nothing changed): the caller runs the serial loop.
+    /// Default: `false`.
+    #[allow(clippy::too_many_arguments)] // the serial loop's arguments, batched
+    fn add_first_blocks_batch(
+        &mut self,
+        _id: &str,
+        _exec: &akantu_core::exec::Exec,
+        _nb_eq: usize,
+        _nb: usize,
+        _equations: &(dyn Fn(usize, &mut Vec<GlobalIdx>) -> Result<()> + Sync),
+        _values: &[Real],
+        _values_type: MatrixType,
+    ) -> bool {
+        false
+    }
     /// Run the whole-matrix operations (zeroing, sums, Dirichlet rows,
     /// products) on the threads of `exec`, with the results of one thread
     /// (D-123). Default: ignored.
@@ -1062,6 +1082,20 @@ impl LinearSystemBackend for AijBackend {
     }
     fn set_exec(&mut self, exec: &akantu_core::exec::Exec) {
         self.exec = exec.clone();
+    }
+    fn add_first_blocks_batch(
+        &mut self,
+        id: &str,
+        exec: &akantu_core::exec::Exec,
+        nb_eq: usize,
+        nb: usize,
+        equations: &(dyn Fn(usize, &mut Vec<GlobalIdx>) -> Result<()> + Sync),
+        values: &[Real],
+        values_type: MatrixType,
+    ) -> bool {
+        self.get_mut(id).is_ok_and(|m| {
+            m.add_first_blocks_batch(exec, nb_eq, nb, equations, values, values_type)
+        })
     }
     fn add_values_cached_batch(
         &mut self,

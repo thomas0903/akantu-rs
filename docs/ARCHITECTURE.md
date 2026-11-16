@@ -993,6 +993,56 @@ and the solution gather (`dof_manager/assembly.rs`, `dof_manager.rs`).
 The per-node and per-equation loops split only into parts of at least
 131,072 nodes or 262,144 equations; below, they run serially.
 
+Matrix assembly and the matrix operations of implicit steps (bitwise at
+every thread count; `akantu-solver/tests/threaded_assembly.rs`,
+`akantu-solid/tests/exec_threads_matrices.rs`,
+`akantu-fe/tests/threaded_elemental_matrices.rs`, the heat and
+structural `tests/exec_threads.rs`):
+
+- Elemental matrices on the FE engine's executor:
+  `FeEngine::compute_btdb_integrated` (`∫ BᵀDB` per element, the products
+  of `compute_btdb` and of `integrate`, without the per-point array; the
+  solid stiffness and the heat conductivity) and the consistent mass
+  (`field_matrix_elemental`: Jacobians, point matrices and integrals per
+  part of elements). A law's tangent is called once per block as before
+  (on threads only inside a law that declared `independent_points`). The
+  solid model keeps its stiffness arrays between assemblies
+  (`StiffnessScratch`, released by `release_static_solver`).
+- The scatter of a repeated element assembly
+  (`DofManager::assemble_elemental_matrices_to_matrix` →
+  `SparseMatrixAij::add_values_cached_batch`): when the round continues
+  a `BlockPositionCache` of the current entry positions, the blocks'
+  equations are checked against the stored slots (and missing slots
+  resolved, without touching the matrix) in parallel; then the entries
+  are split into contiguous ranges and every part visits, in element
+  order, the elements whose smallest-to-largest stored position meets its
+  range, adding only the contributions inside it. Every entry receives
+  its contributions in element order. Any batch the matrix declines (a
+  promotion, an equation the cache does not hold, a missing entry, a
+  repeated slot) runs the serial loop.
+- The first assembly of every element of a type in order (profile and
+  values, `SparseMatrixAij::add_first_blocks_batch`): every part of the
+  elements lists, in its order, the pairs whose key is neither in the
+  matrix nor earlier in the part (threads); the parts are merged in their
+  order (serial, one insertion per listed pair), which gives every key the
+  position and coordinates of its first occurrence, i.e. the serial
+  profile entry for entry; then positions per element (a temporary) and
+  the entry-range scatter. A first assembly of a subset of a type's
+  elements (one material of several) profiles serially, as before.
+- Whole-matrix operations of the AIJ backend on the DOF manager's
+  executor (`LinearSystemBackend::set_exec`): zeroing, entry-wise sums of
+  matrices with the same entries (`J += c·K`), the profile copy of `J`,
+  Dirichlet rows, and the matrix-vector product on serial layouts, which
+  gathers per row the terms of its entries and of the mirrors of
+  symmetric storage in storage order (`RowGather`, built once per entry
+  positions, 8 bytes per term) so that every row adds its terms in the
+  order of the serial pass. Parts of at least 32,768 entries.
+- `HeatTransferModel`, `PhaseFieldModel` and `StructuralMechanicsModel`
+  take the process default policy and have `exec_policy` /
+  `set_exec_policy`; the structural engine's elemental matrices and the
+  phase-field elemental matrices (`compute_btdb`, `compute_ntbn`) stay
+  serial.
+
 A law opts in with `Material::independent_points() -> true` and uses
 `material::points_exec(self, ctx)` in its per-point loop. Declared: the
 elastic law (`elastic`, small strain and finite deformation). Must stay

@@ -237,10 +237,13 @@ fn matrix_assembly_and_operations_are_bitwise_for_every_thread_count() {
                 let what = format!("symmetric {symmetric} threads {threads} {grain:?}");
                 // every assembly from the second round on is threaded (3
                 // per round: two materials and the hexahedra), and in the
-                // first round the second material of K and of M (it
-                // continues the position cache of the first, as the serial
-                // loop does: its positions are stored in that round)
-                assert_eq!(batches, 5 * 3 + 2, "{what}: threaded assemblies");
+                // first round, for K and for M, the hexahedra (a first
+                // assembly of every element of the type) and the second
+                // material (it continues the position cache of the first,
+                // as the serial loop does: its positions are stored in that
+                // round); the first material's first assembly profiles
+                // every element of the type but adds a subset: serial
+                assert_eq!(batches, 5 * 3 + 4, "{what}: threaded assemblies");
                 assert_eq!(products, ref_products, "{what}: products");
                 for (round, (a, b)) in reference.iter().zip(&snaps).enumerate() {
                     for (ma, mb) in a.iter().zip(b) {

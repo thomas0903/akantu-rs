@@ -753,3 +753,237 @@ fn boundary_part(
         }
     }
 }
+
+impl SparseMatrixAij {
+    /// The loop `for k { add_block_to_profile_and_values(eqs_k, eqs_k,
+    /// values_k, values_type) }` (the first assembly of a matrix: profile
+    /// and values) over a batch of square blocks, on the threads of `exec`.
+    ///
+    /// The profile is the serial loop's, entry for entry (its order is
+    /// the order of first occurrence in the sequence of (block, pair)):
+    /// every part of the batch lists, in its order, the pairs whose key is
+    /// neither in the matrix nor earlier in the part (threads), then the
+    /// parts are merged in their order (serial: about one insertion per new
+    /// entry of the part instead of one lookup per pair), so every key gets
+    /// its first occurrence's position and coordinates. The values are then
+    /// added by entry ranges in block order
+    /// ([`SparseMatrixAij::add_values_cached_batch`]), with positions
+    /// resolved per block in a temporary (nothing is stored). Values, value
+    /// and profile releases are those of the serial loop.
+    ///
+    /// Returns `false`, having changed nothing, when the batch does not
+    /// qualify (one thread, a released matrix, a block that would promote
+    /// the matrix, an equation that fails or is not a valid coordinate, a
+    /// matrix too large for 32-bit positions): the caller runs the serial
+    /// loop, which reports the errors the serial way.
+    pub fn add_first_blocks_batch(
+        &mut self,
+        exec: &Exec,
+        nb_eq: usize,
+        nb: usize,
+        equations: &(dyn Fn(usize, &mut Vec<GlobalIdx>) -> Result<()> + Sync),
+        values: &[Real],
+        values_type: MatrixType,
+    ) -> bool {
+        let n2 = nb_eq * nb_eq;
+        if !exec.is_parallel()
+            || self.released
+            || nb < 2
+            || nb_eq == 0
+            || nb.checked_mul(n2) != Some(values.len())
+            || self.would_promote(values_type)
+            || !u32::try_from(self.size).is_ok_and(|n| n < u32::MAX)
+        {
+            return false;
+        }
+        let size = self.size;
+        // Pass 1 (threads): equations of every block and, per part, the
+        // pairs that are new to the matrix and to the part, in order.
+        let parts = exec.nb_parts(nb, MIN_BLOCKS);
+        let bounds: Vec<usize> = (0..=parts).map(|p| p * nb / parts).collect();
+        let mut eqs = vec![0 as GlobalIdx; nb * nb_eq];
+        let mut ok = vec![true; nb];
+        let mut lists: Vec<Mutex<Vec<(GlobalIdx, GlobalIdx)>>> =
+            (0..parts).map(|_| Mutex::new(Vec::new())).collect();
+        {
+            let this: &Self = self;
+            let lists_ref = &lists;
+            let bounds_ref = &bounds;
+            exec.for_each_bounds(
+                &bounds,
+                (Tuples::new(&mut eqs, nb_eq), Tuples::new(&mut ok, 1)),
+                |first, (mut e, mut okp)| {
+                    let p = bounds_ref.partition_point(|&b| b <= first) - 1;
+                    let list = first_pairs_part(
+                        this,
+                        equations,
+                        first,
+                        nb_eq,
+                        size,
+                        e.as_mut_slice(),
+                        okp.as_mut_slice(),
+                    );
+                    *lists_ref[p].lock().unwrap_or_else(|e| e.into_inner()) = list;
+                },
+            );
+        }
+        if ok.contains(&false) {
+            return false;
+        }
+        let new_total: usize = lists
+            .iter_mut()
+            .map(|l| l.get_mut().map_or(0, |v| v.len()))
+            .sum();
+        if !u32::try_from(self.a.len() + new_total).is_ok_and(|n| n < SKIP) {
+            return false;
+        }
+        // Pass 2 (serial): merge the parts in order.
+        self.profile.reserve(new_total);
+        self.irn.reserve(new_total);
+        self.jcn.reserve(new_total);
+        self.a.reserve(new_total);
+        let mut added: u64 = 0;
+        for list in &mut lists {
+            let list = std::mem::take(list.get_mut().unwrap_or_else(|e| e.into_inner()));
+            for (i, j) in list {
+                let key = self.key(i, j);
+                let k = self.a.len();
+                if let Entry::Vacant(v) = self.profile.entry(key) {
+                    v.insert(k);
+                    self.max_coord = self.max_coord.max(i).max(j);
+                    self.irn.push(i);
+                    self.jcn.push(j);
+                    self.a.push(0.0);
+                    added += 1;
+                }
+            }
+        }
+        if added > 0 {
+            self.profile_release = self.profile_release.wrapping_add(added);
+            self.profile_stamp.invalidate();
+        }
+        self.bump_values(added);
+        // Pass 3 (threads): the positions of every block (temporary).
+        let mode = if self.matrix_type == MatrixType::Symmetric {
+            if values_type == MatrixType::Symmetric {
+                Selection::LocalUpper
+            } else {
+                Selection::GlobalUpper
+            }
+        } else {
+            Selection::All
+        };
+        let vidx = value_indices(mode, nb_eq);
+        let stride = vidx.len();
+        let mut positions = vec![SKIP; nb * stride];
+        let mut spans = vec![NO_SPAN; nb];
+        let mut touched = vec![0u32; nb];
+        {
+            let this: &Self = self;
+            exec.for_each(
+                (
+                    Tuples::new(&mut positions, stride),
+                    Tuples::new(&mut spans, 1),
+                    Tuples::new(&mut touched, 1),
+                    TuplesRef::new(&eqs, nb_eq),
+                ),
+                MIN_BLOCKS,
+                |_, (mut pos, mut sp, mut to, e)| {
+                    let (pos, sp, to) = (pos.as_mut_slice(), sp.as_mut_slice(), to.as_mut_slice());
+                    let mut buf = Vec::with_capacity(stride);
+                    for (t, eq) in e.as_slice().chunks_exact(nb_eq).enumerate() {
+                        buf.clear();
+                        // every pair is in the profile: it was just merged
+                        if this.resolve_block_positions(eq, eq, mode, &mut buf).is_ok() {
+                            pos[t * stride..(t + 1) * stride].copy_from_slice(&buf);
+                        }
+                        let (span, n) = span_of(&pos[t * stride..(t + 1) * stride]);
+                        sp[t] = span;
+                        to[t] = n;
+                    }
+                },
+            );
+        }
+        // Pass 4 (threads): the values by entry ranges, in block order.
+        let slots: Vec<usize> = (0..nb).collect();
+        let nnz = self.a.len();
+        let parts = exec.nb_parts(nb, MIN_BLOCKS).min(nnz.max(1));
+        let bounds: Vec<usize> = (0..=parts).map(|p| p * nnz / parts).collect();
+        let (first, last) = block_ranges(&spans, &bounds);
+        exec.for_each_bounds(&bounds, Tuples::new(&mut self.a, 1), |lo, mut part| {
+            let a = part.as_mut_slice();
+            if a.is_empty() {
+                return;
+            }
+            let r = bounds.partition_point(|&b| b <= lo) - 1;
+            if first[r] > last[r] {
+                return;
+            }
+            scatter_range(
+                a,
+                lo,
+                &slots[first[r]..=last[r]],
+                &spans[first[r]..=last[r]],
+                &values[first[r] * n2..(last[r] + 1) * n2],
+                &positions,
+                stride,
+                &vidx,
+                n2,
+            );
+        });
+        let total: u64 = touched.iter().map(|&n| u64::from(n)).sum();
+        self.bump_values(total);
+        true
+    }
+}
+
+/// Pass 1 of [`SparseMatrixAij::add_first_blocks_batch`] for the blocks
+/// `first..first + ok.len()`: their equations into `eqs` and the pairs, in
+/// the profiling order (rows outer, columns inner, equations `< size`),
+/// whose key is neither in the matrix nor earlier in the part.
+#[inline(never)] // no-alias parameters (docs/benchmarks/perf-campaign/exec)
+fn first_pairs_part(
+    m: &SparseMatrixAij,
+    equations: &(dyn Fn(usize, &mut Vec<GlobalIdx>) -> Result<()> + Sync),
+    first: usize,
+    nb_eq: usize,
+    size: GlobalIdx,
+    eqs: &mut [GlobalIdx],
+    ok: &mut [bool],
+) -> Vec<(GlobalIdx, GlobalIdx)> {
+    let mut seen: crate::int_hash::IntHashMap<(GlobalIdx, GlobalIdx), ()> =
+        crate::int_hash::IntHashMap::default();
+    let mut list = Vec::new();
+    let mut buf = Vec::with_capacity(nb_eq);
+    for (t, okt) in ok.iter_mut().enumerate() {
+        if equations(first + t, &mut buf).is_err()
+            || buf.len() != nb_eq
+            || buf
+                .iter()
+                .any(|&g| g < size && SparseMatrixAij::check_coordinate(g).is_err())
+        {
+            *okt = false;
+            continue;
+        }
+        eqs[t * nb_eq..(t + 1) * nb_eq].copy_from_slice(&buf);
+        for &gi in &buf {
+            if gi >= size {
+                continue;
+            }
+            for &gj in &buf {
+                if gj >= size {
+                    continue;
+                }
+                let key = m.key(gi, gj);
+                if m.profile.contains_key(&key) {
+                    continue;
+                }
+                if let Entry::Vacant(v) = seen.entry(key) {
+                    v.insert(());
+                    list.push((gi, gj));
+                }
+            }
+        }
+    }
+    list
+}
