@@ -214,6 +214,44 @@ impl Clone for ProfileStamp {
     }
 }
 
+/// A [`ProfileStamp`] drawn when it is first read after a change (`0`:
+/// not drawn yet), so that the profile construction, which changes the
+/// profile at every new entry, does not draw one per entry from the
+/// process-wide counter. Unique as a drawn stamp: a change discards the
+/// stamp, the next read draws a new one.
+#[derive(Debug, Default)]
+struct LazyStamp(AtomicU64);
+
+impl LazyStamp {
+    /// Discard the stamp (the profile changed).
+    fn invalidate(&mut self) {
+        *self.0.get_mut() = 0;
+    }
+
+    /// The stamp, drawn now if it was discarded.
+    fn get(&self) -> u64 {
+        let s = self.0.load(Ordering::Relaxed);
+        if s != 0 {
+            return s;
+        }
+        let new = ProfileStamp::fresh().0;
+        match self
+            .0
+            .compare_exchange(0, new, Ordering::Relaxed, Ordering::Relaxed)
+        {
+            Ok(_) => new,
+            Err(current) => current,
+        }
+    }
+}
+
+impl Clone for LazyStamp {
+    /// A clone is another matrix object: it draws its own identity.
+    fn clone(&self) -> Self {
+        Self::default()
+    }
+}
+
 /// Global sparse matrix in coordinate (COO) storage (0-based coordinates, with
 /// 1-based accessors for the solvers) with
 /// a first-insertion-order profile (upstream `SparseMatrixAIJ`,
@@ -244,7 +282,7 @@ pub struct SparseMatrixAij {
     value_release: u64,
     /// Process-unique identity of the current profile (port extension;
     /// see [`SparseMatrixAij::profile_identity`]).
-    profile_stamp: ProfileStamp,
+    profile_stamp: LazyStamp,
     /// Identity of the current *entry positions*: drawn afresh whenever an
     /// existing entry may move or change its key (construction, clone,
     /// `clear_profile`, `copy_profile`, promotion), but not when entries
@@ -281,7 +319,7 @@ impl SparseMatrixAij {
             profile: IntHashMap::default(),
             profile_release: 1,
             value_release: 1,
-            profile_stamp: ProfileStamp::fresh(),
+            profile_stamp: LazyStamp::default(),
             position_epoch: ProfileStamp::fresh(),
             scratch: Vec::new(),
             max_coord: -1,
@@ -384,7 +422,7 @@ impl SparseMatrixAij {
     /// unchanged values. Local information (each process draws its own).
     #[must_use]
     pub fn profile_identity(&self) -> u64 {
-        self.profile_stamp.0
+        self.profile_stamp.get()
     }
 
     /// Raw COO data `(irn, jcn, a)`, 0-based global coordinates.
@@ -413,7 +451,7 @@ impl SparseMatrixAij {
 
     fn bump_profile(&mut self) {
         self.profile_release = self.profile_release.wrapping_add(1);
-        self.profile_stamp = ProfileStamp::fresh();
+        self.profile_stamp.invalidate();
     }
 
     fn bump_values(&mut self, n: u64) {
@@ -1045,7 +1083,7 @@ impl SparseMatrixAij {
         }
         self.size = other.size;
         self.profile_release = other.profile_release;
-        self.profile_stamp = ProfileStamp::fresh();
+        self.profile_stamp.invalidate();
         self.position_epoch = ProfileStamp::fresh();
         self.bump_values(1);
     }

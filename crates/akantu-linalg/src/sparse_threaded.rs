@@ -474,7 +474,7 @@ impl SparseMatrixAij {
         });
         self.size = other.size;
         self.profile_release = other.profile_release;
-        self.profile_stamp = ProfileStamp::fresh();
+        self.profile_stamp.invalidate();
         self.position_epoch = ProfileStamp::fresh();
         self.bump_values(1);
     }
