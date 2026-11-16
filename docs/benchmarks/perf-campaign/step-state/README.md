@@ -112,11 +112,13 @@ of the timed cases at size `m`, are equal before and after.
   `suite_setup` at size `s`: 73 equal (two cases print no digest without
   the `mumps` / `scotch` features); the timed cases at size `m` in
   `ab/` (every run of a case, both binaries, the same digest).
-- CI on the machine below, branch merged with its base: `ci/run-all.sh
-  --backend docker` (fast preset) passed; `par` and `docs` passed;
-  `exportall` passed except the two deferred-save unit tests, whose
-  structural checks assumed deferred saves (fixed: in that mode they check
-  the values only).
+- CI on the machine below at `84310238f` (the branch with its base
+  `b3f6c78aa` merged): `ci/run-all.sh --backend docker` (fast preset:
+  lint, test, fixtures, parity, licence), and the `exportall`, `par` and
+  `docs` tiers: all passed. Python tests with a wheel of that commit
+  (`test_history_views`, `test_zero_copy_views`,
+  `test_constitutive_laws`, `test_views_runtime`, `test_exec_policy`): 64
+  passed.
 
 ## Measurements
 
