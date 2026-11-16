@@ -432,10 +432,14 @@ pub(crate) struct Glu {
     pub xusub: Vec<i64>,
 }
 
+/// Makes `v` at least `len` long (Eigen's `expand`, which grows by 1.5×
+/// and leaves the new entries uninitialised). The length grows to `len`
+/// exactly and the capacity by `Vec`'s amortised doubling, so only the
+/// entries in use are ever written (resident); every entry is written
+/// before it is read.
 fn grow<T: Clone + Default>(v: &mut Vec<T>, len: usize) {
     if v.len() < len {
-        let new_len = len.max(v.len() + v.len() / 2);
-        v.resize(new_len, T::default());
+        v.resize(len, T::default());
     }
 }
 
