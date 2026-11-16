@@ -707,6 +707,13 @@ impl<const DIM: usize> MaterialViscoelasticMaxwell<DIM> {
             *w += dd * dt;
         }
         let mut diss = self.dissipated_energy.get_mut(ty, g)?;
+        if diss.as_slice().len() != nq {
+            return Err(Error::DimensionMismatch {
+                context: "MaterialViscoelasticMaxwell::updateDissipatedEnergy: dissipated_energy",
+                expected: nq,
+                got: diss.as_slice().len(),
+            });
+        }
         // the work just updated minus the potential energy, per point
         for ((d, w), e) in diss
             .as_mut_slice()

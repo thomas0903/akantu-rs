@@ -717,7 +717,7 @@ impl<const DIM: usize> Material for MaterialElastic<DIM> {
             written += 1;
         }
         drop((grad_u, sigma, sigma_th, delta_t));
-        let mut epot = self.base.potential_energy.get_mut(ty, g)?;
+        let epot = self.base.potential_energy.get(ty, g)?;
         if epot.len() != nq {
             return Err(Error::DimensionMismatch {
                 context: "MaterialElastic::computePotentialEnergy: potential_energy",
@@ -725,18 +725,21 @@ impl<const DIM: usize> Material for MaterialElastic<DIM> {
                 got: epot.len(),
             });
         }
-        if written == nq && epot.nb_component() == 1 {
-            drop(epot);
-            self.base
-                .potential_energy
-                .commit_overwrite(ty, g, scratch.get_mut(0))?;
-        } else {
-            // the values computed (as many as the shortest input), as before
-            epot.as_mut_slice()[..written]
-                .copy_from_slice(&scratch.get_mut(0).as_slice()[..written]);
+        if written != nq || epot.nb_component() != 1 {
+            // blocks of inconsistent widths (one density per point)
+            return Err(Error::DimensionMismatch {
+                context: "MaterialElastic::computePotentialEnergy: densities",
+                expected: epot.as_slice().len(),
+                got: written,
+            });
         }
+        drop(epot);
+        let result = self
+            .base
+            .potential_energy
+            .commit_overwrite(ty, g, scratch.get_mut(0));
         self.energy_scratch = scratch;
-        Ok(())
+        result
     }
 
     fn potential_energy_by_element(
