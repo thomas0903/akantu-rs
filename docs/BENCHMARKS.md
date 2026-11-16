@@ -255,8 +255,12 @@ Ranked by share of the profile; none was worked on.
    `update_global_blocked_dofs` in O(n_dof) every step), more visible on
    hex8.
 6. The history copies (`save_previous_state`, about 13 % of hex8 ss) are
-   upstream's behaviour; avoiding them needs double buffering, which would
-   change the buffer identity that zero-copy Python views hold (D-047).
+   upstream's behaviour. Plain double buffering would change the buffer
+   identity that zero-copy Python views hold (D-047); the performance
+   campaign removed them without that: a save of a block that is not
+   exported is deferred, and becomes an exchange of allocations when the
+   writer rewrites the whole block; an exported block is still copied in
+   place (`docs/benchmarks/perf-campaign/step-state/`).
 7. The insertion check's stress interpolation used the general product per
    point; reworked in the performance campaign (next section).
 
