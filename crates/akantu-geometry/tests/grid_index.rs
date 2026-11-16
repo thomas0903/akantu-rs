@@ -464,3 +464,75 @@ fn grid_index_small_and_non_finite_inputs_scan() {
     prims[5].triangle.v[1].x = Real::NAN;
     assert!(!GridIndex::build(&prims).unwrap().has_grid());
 }
+
+/// One huge element among many small ones: the grid is kept, its size
+/// stays linear (the huge element is listed once per cell), and the
+/// reports are the scan's. Many huge elements exceed the item bound: the
+/// index scans.
+#[test]
+fn grid_index_huge_elements_are_bounded() {
+    let mut rng = Rng(11);
+    let (mut prims, nodes) = tri_mesh(40, 0.025, 0.2, &mut rng);
+    let n_small = prims.len();
+    let huge = |id: usize| {
+        prim(
+            id,
+            Point3::new(-0.5, -0.5, 0.0),
+            Point3::new(2.0, -0.5, 0.0),
+            Point3::new(-0.5, 2.0, 0.0),
+        )
+    };
+    prims.push(huge(n_small));
+    let grid = GridIndex::build(&prims).unwrap();
+    let (cells, items) = grid.grid_size().unwrap();
+    // every small triangle spans at most 2 × 2 cells, the huge one all
+    assert!(items <= 4 * n_small + cells, "{cells} cells, {items} items");
+    assert!(cells <= 4 * prims.len(), "{cells} cells");
+    let qs = queries(&nodes, 2, 1.0, 0.025, &mut rng);
+    let (hits, _, _) = check(&prims, &qs[..400]);
+    assert!(hits > 400);
+    // many large primitives: the mean-extent rule makes the cells coarser,
+    // the grid stays within its item bound
+    for k in 0..n_small / 4 {
+        prims[4 * k] = huge(4 * k);
+    }
+    let grid = GridIndex::build(&prims).unwrap();
+    let (cells, items) = grid.grid_size().unwrap();
+    assert!(
+        items <= 64 * (prims.len() + cells),
+        "{cells} cells, {items} items"
+    );
+    check(&prims, &qs[..100]);
+    // a heavy tail (3 % of the primitives a thousand times larger than the
+    // others): beyond 64 items per primitive and cell, the index scans
+    let (mut prims, _) = tri_mesh(70, 1.0 / 70.0, 0.0, &mut rng);
+    let n_small = prims.len();
+    for k in 0..3 * n_small / 100 {
+        prims.push(prim(
+            n_small + k,
+            Point3::new(-6.5, -6.5, 0.0),
+            Point3::new(7.5, -6.5, 0.0),
+            Point3::new(-6.5, 7.5, 0.0),
+        ));
+    }
+    let grid = GridIndex::build(&prims).unwrap();
+    assert!(!grid.has_grid(), "{:?}", grid.grid_size());
+    check_scan_only(&prims, &qs[..50]);
+}
+
+/// Without a grid the index is the scan (same reports, same order).
+fn check_scan_only(prims: &[TrianglePrimitive], qs: &[Segment3]) {
+    let scan = LinearScan::build(prims).unwrap();
+    let grid = GridIndex::build(prims).unwrap();
+    for q in qs {
+        let (mut a, mut b) = (Vec::new(), Vec::new());
+        assert_eq!(
+            scan.all_intersections(q, &mut a).is_ok(),
+            grid.all_intersections(q, &mut b).is_ok()
+        );
+        assert_eq!(
+            a.iter().map(report_key).collect::<Vec<_>>(),
+            b.iter().map(report_key).collect::<Vec<_>>()
+        );
+    }
+}

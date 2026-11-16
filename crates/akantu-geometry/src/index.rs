@@ -95,6 +95,11 @@ impl TriangleIndex for LinearScan {
 /// Below this many primitives [`GridIndex`] scans (no grid).
 const GRID_MIN_PRIMITIVES: usize = 32;
 
+/// Largest number of cell items per primitive and cell (on average) a grid
+/// may hold; beyond, [`GridIndex`] scans (memory bound for meshes whose
+/// primitives span many cells, e.g. a few huge elements among many small).
+const ITEMS_PER_PRIMITIVE: u64 = 64;
+
 /// Cube root of a positive finite `v` with a fixed sequence of IEEE
 /// operations (the same result on every platform; not necessarily
 /// correctly rounded, which the cell size does not need): a power-of-two
@@ -144,7 +149,9 @@ fn cube_root(v: Real) -> Real {
 /// distant face or on the supporting line of a distant edge); such a report
 /// is a point or piece outside the query, which upstream's AABB tree (its
 /// box test) does not produce either. Non-finite coordinates in the
-/// primitives (at build) or in a query make that query a full scan.
+/// primitives (at build) or in a query make that query a full scan; so does
+/// a grid whose cell items would exceed `u32` or 64 per primitive and cell
+/// on average (the index then scans every query).
 #[derive(Clone, Debug, Default)]
 pub struct GridIndex {
     primitives: Vec<TrianglePrimitive>,
@@ -218,7 +225,6 @@ impl Grid {
             2 => v.sqrt(),
             _ => cube_root(v),
         };
-
         // cells not much smaller than the primitives (a primitive spans
         // about two cells per direction at most)
         let mean_extent = primitives
@@ -244,6 +250,38 @@ impl Grid {
             total *= c;
         }
         let delta = 0.25 * h;
+        // the item count of every primitive's cell range, checked: beyond
+        // `u32` (the counters) or beyond `ITEMS_PER_PRIMITIVE` items per
+        // primitive and cell on average (memory), the index scans instead
+        let probe = Self {
+            lo,
+            hi,
+            h,
+            n,
+            delta,
+            scale,
+            start: Vec::new(),
+            items: Vec::new(),
+        };
+        let ranges: Vec<[[usize; 2]; 3]> = primitives
+            .iter()
+            .map(|p| {
+                let b = p.triangle.bbox();
+                probe.cell_range(&b.min, &b.max, 0.0)
+            })
+            .collect();
+        let nb_items = ranges.iter().try_fold(0u64, |acc, r| {
+            let k = r.iter().try_fold(1u64, |m, [a, b]| {
+                m.checked_mul(u64::try_from(b - a + 1).ok()?)
+            })?;
+            acc.checked_add(k)
+        })?;
+        let cap = u64::try_from(np.saturating_add(total))
+            .ok()?
+            .saturating_mul(ITEMS_PER_PRIMITIVE);
+        if nb_items >= u64::from(u32::MAX) || nb_items > cap {
+            return None;
+        }
         let mut g = Self {
             lo,
             hi,
@@ -256,14 +294,8 @@ impl Grid {
         };
         // two passes: counts, then fill (items of a cell in primitive order);
         // a primitive is listed in the cells its exact box overlaps (the
-        // margin is added on the query side)
-        let ranges: Vec<[[usize; 2]; 3]> = primitives
-            .iter()
-            .map(|p| {
-                let b = p.triangle.bbox();
-                g.cell_range(&b.min, &b.max, 0.0)
-            })
-            .collect();
+        // margin is added on the query side); the counts cannot overflow
+        // (`nb_items < u32::MAX`, checked above)
         let n = g.n;
         for r in &ranges {
             let start = &mut g.start;
@@ -428,6 +460,14 @@ impl GridIndex {
     #[must_use]
     pub fn margin(&self) -> Option<Real> {
         self.grid.as_ref().map(|g| g.delta)
+    }
+
+    /// Cell count and cell-item count of the grid (`None` without a grid).
+    #[must_use]
+    pub fn grid_size(&self) -> Option<(usize, usize)> {
+        self.grid
+            .as_ref()
+            .map(|g| (g.start.len().saturating_sub(1), g.items.len()))
     }
 
     /// `true` when queries use the grid (enough primitives, all finite).
