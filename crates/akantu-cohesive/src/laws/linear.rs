@@ -174,6 +174,37 @@ fn effective_norm_fixed<const D: usize>(
     (normal_contrib * normal_contrib + tangent_contrib * tangent_contrib * beta2_inv).sqrt()
 }
 
+/// One facet type of [`Linear::check_insertion`] in progress
+/// ([`Linear::scan_begin`], [`Linear::scan_until`],
+/// [`Linear::scan_finish`]): the position in the law's facet filter and the
+/// parameters of the facets flagged so far, in the filter's order.
+#[derive(Debug)]
+pub(crate) struct LinearScan {
+    pub(crate) type_facet: ElementType,
+    type_cohesive: ElementType,
+    nq: usize,
+    /// Next entry of the facet filter.
+    next: usize,
+    /// Entries scanned in all (the filter, or its pairs with the strengths
+    /// of UD-040).
+    nb_pairs: usize,
+    prepared: Vec<Element>,
+    new_sigmas: Vec<Real>,
+    new_tractions: Vec<[Real; 3]>,
+    new_delta: Vec<Real>,
+    stress_check: Vec<Real>,
+    normal_traction: Vec<[Real; 3]>,
+}
+
+/// The blocks of one facet type [`Linear::scan_until`] reads.
+#[derive(Clone, Copy, Debug)]
+pub(crate) struct ScanInputs<'a> {
+    pub(crate) facet_stress: &'a [Real],
+    pub(crate) facets_check: &'a [bool],
+    pub(crate) normals: &'a [Real],
+    pub(crate) tangents: &'a [Real],
+}
+
 impl Linear {
     pub(crate) fn new(core: &mut CohesiveCore) -> Result<Self> {
         core.use_previous_delta_max = true;
@@ -357,32 +388,12 @@ impl Linear {
         inputs: &mut InsertionInputs<'_>,
         check_only: bool,
     ) -> Result<Vec<Element>> {
-        let dim = core.dim;
         let mut prepared = Vec::new();
-        let g = GhostType::NotGhost;
-        let fm = inputs.mesh_facets;
-        let types: Vec<ElementType> = fm
-            .element_types(TypeFilter {
-                spatial_dimension: Some(dim - 1),
-                ghost_type: g,
-                kind: Some(ElementKind::Regular),
-            })
-            .collect();
-        for type_facet in types {
-            let type_cohesive =
-                type_facet
-                    .cohesive_type()
-                    .ok_or(Error::UnsupportedElementType {
-                        ty: type_facet,
-                        context: "checkInsertion (no cohesive type)",
-                    })?;
-            let nq = nb_quad_facet(type_facet)?;
-            if nb_quad_cohesive(type_cohesive)? != nq {
-                return Err(Error::invalid(
-                    "the cohesive element and the corresponding facet do not have the same \
-                     numbers of integration points",
-                ));
-            }
+        for type_facet in Self::check_types(core, inputs.mesh_facets) {
+            // the validations in upstream's order: the facet and cohesive
+            // types, the blocks read, then the strengths
+            Self::scan_type(type_facet)?;
+            let g = GhostType::NotGhost;
             let facets_check = inputs.check_facets.get(type_facet, g)?.as_slice();
             let f_stress = inputs.facet_stress.get(type_facet, g)?.as_slice();
             let tangents = inputs.tangents.get(type_facet, g)?.as_slice();
@@ -390,148 +401,273 @@ impl Linear {
                 .facet_fe
                 .normals_on_integration_points(type_facet, g)?
                 .as_slice();
-            let ntc = dim * (dim - 1);
-            let mut new_sigmas = Vec::new();
-            let mut new_tractions: Vec<[Real; 3]> = Vec::new();
-            let mut new_delta = Vec::new();
-            {
-                // borrowed for the scan (no per-step copies of the filter
-                // and the strengths, no per-facet allocation)
-                let filter: &[Idx] = match core.facet_filter.get(type_facet, g) {
-                    Ok(a) => a.as_slice(),
-                    Err(_) => &[],
-                };
-                let sigma_limits = block(&core.sigma_c, type_facet, g);
-                if !core.compat.sigma_c_zipped_per_quad && sigma_limits.len() < filter.len() * nq {
-                    // e.g. `add_facet` after initialisation:
-                    // the facet strengths do not cover the facet filter
-                    return Err(Error::DimensionMismatch {
-                        context: "checkInsertion: sigma_c shorter than the facet filter \
-                                  (facets added after initialisation?)",
-                        expected: filter.len() * nq,
-                        got: sigma_limits.len(),
-                    });
+            let mut scan = self.scan_begin(core, type_facet)?;
+            let insertion = &mut *inputs.insertion_facets;
+            self.scan_until(
+                core,
+                &mut scan,
+                ScanInputs {
+                    facet_stress: f_stress,
+                    facets_check,
+                    normals,
+                    tangents,
+                },
+                insertion,
+                usize::MAX,
+                check_only,
+            )?;
+            prepared.extend(self.scan_finish(core, scan)?);
+        }
+        Ok(prepared)
+    }
+
+    /// The facet types [`Linear::check_insertion`] scans, in its order.
+    pub(crate) fn check_types(core: &CohesiveCore, fm: &akantu_mesh::Mesh) -> Vec<ElementType> {
+        fm.element_types(TypeFilter {
+            spatial_dimension: Some(core.dim - 1),
+            ghost_type: GhostType::NotGhost,
+            kind: Some(ElementKind::Regular),
+        })
+        .collect()
+    }
+
+    /// The cohesive type of `type_facet` and the quadrature points per
+    /// facet, with the checks that open each facet type of
+    /// [`Linear::check_insertion`].
+    fn scan_type(type_facet: ElementType) -> Result<(ElementType, usize)> {
+        let type_cohesive = type_facet
+            .cohesive_type()
+            .ok_or(Error::UnsupportedElementType {
+                ty: type_facet,
+                context: "checkInsertion (no cohesive type)",
+            })?;
+        let nq = nb_quad_facet(type_facet)?;
+        if nb_quad_cohesive(type_cohesive)? != nq {
+            return Err(Error::invalid(
+                "the cohesive element and the corresponding facet do not have the same \
+                 numbers of integration points",
+            ));
+        }
+        Ok((type_cohesive, nq))
+    }
+
+    /// Start the scan of one facet type of [`Linear::check_insertion`]:
+    /// the validations that precede the loop over the law's facet filter.
+    pub(crate) fn scan_begin(
+        &self,
+        core: &CohesiveCore,
+        type_facet: ElementType,
+    ) -> Result<LinearScan> {
+        let g = GhostType::NotGhost;
+        let (type_cohesive, nq) = Self::scan_type(type_facet)?;
+        let filter_len = core.facet_filter.get(type_facet, g).map_or(0, |a| a.len());
+        let sigma_len = block(&core.sigma_c, type_facet, g).len();
+        if !core.compat.sigma_c_zipped_per_quad && sigma_len < filter_len * nq {
+            // e.g. `add_facet` after initialisation:
+            // the facet strengths do not cover the facet filter
+            return Err(Error::DimensionMismatch {
+                context: "checkInsertion: sigma_c shorter than the facet filter \
+                          (facets added after initialisation?)",
+                expected: filter_len * nq,
+                got: sigma_len,
+            });
+        }
+        let nb_pairs = if core.compat.sigma_c_zipped_per_quad {
+            filter_len.min(sigma_len)
+        } else {
+            filter_len
+        };
+        Ok(LinearScan {
+            type_facet,
+            type_cohesive,
+            nq,
+            next: 0,
+            nb_pairs,
+            prepared: Vec::new(),
+            new_sigmas: Vec::new(),
+            new_tractions: Vec::new(),
+            new_delta: Vec::new(),
+            stress_check: vec![0.0; nq],
+            normal_traction: vec![[0.0; 3]; nq],
+        })
+    }
+
+    /// Continue the scan: the entries of the law's facet filter from the
+    /// next one, in the filter's order, while their facet is below
+    /// `facet_limit` (`usize::MAX`: to the end). The facet stresses of
+    /// those facets must be final.
+    #[allow(clippy::too_many_arguments)] // the scan state and its read and written blocks
+    pub(crate) fn scan_until(
+        &self,
+        core: &CohesiveCore,
+        scan: &mut LinearScan,
+        inputs: ScanInputs<'_>,
+        insertion: &mut akantu_core::ElementTypeMapArray<bool>,
+        facet_limit: usize,
+        check_only: bool,
+    ) -> Result<()> {
+        let dim = core.dim;
+        let g = GhostType::NotGhost;
+        let ScanInputs {
+            facet_stress: f_stress,
+            facets_check,
+            normals,
+            tangents,
+        } = inputs;
+        let type_facet = scan.type_facet;
+        let nq = scan.nq;
+        let ntc = dim * (dim - 1);
+        // borrowed for the scan (no per-step copies of the filter and the
+        // strengths, no per-facet allocation)
+        let filter: &[Idx] = match core.facet_filter.get(type_facet, g) {
+            Ok(a) => a.as_slice(),
+            Err(_) => &[],
+        };
+        let sigma_limits = block(&core.sigma_c, type_facet, g);
+        let LinearScan {
+            next,
+            nb_pairs,
+            prepared,
+            new_sigmas,
+            new_tractions,
+            new_delta,
+            stress_check,
+            normal_traction,
+            ..
+        } = scan;
+        // Threading candidate (WP-EXEC primitives): the norms and
+        // the decision of a facet read only that facet's data and
+        // write only its own insertion flag; the appended parameters
+        // (`prepared`, `new_sigmas`, `new_tractions`, `new_delta`)
+        // must keep the filter order: per-chunk buffers concatenated
+        // in chunk order.
+        while *next < *nb_pairs {
+            let k = *next;
+            let facet = akantu_core::try_to_usize(filter[k])?;
+            if facet >= facet_limit {
+                break;
+            }
+            *next += 1;
+            if !facets_check.get(facet).copied().unwrap_or(false) {
+                continue;
+            }
+            for q in 0..nq {
+                let cq = facet * nq + q;
+                let fs = &f_stress[cq * 2 * dim * dim..(cq + 1) * 2 * dim * dim];
+                stress_check[q] = self.effective_norm_at(
+                    dim,
+                    fs,
+                    &normals[cq * dim..(cq + 1) * dim],
+                    &tangents[cq * ntc..(cq + 1) * ntc],
+                    &mut normal_traction[q][..dim],
+                );
+            }
+            // `stress_check.mean()` (run-time size)
+            let mut final_stress = stress_check[0];
+            for v in &stress_check[1..] {
+                final_stress += v;
+            }
+            final_stress /= nq as Real;
+            if self.max_quad_stress_insertion {
+                // `*std::max_element` (first maximum)
+                let mut m = stress_check[0];
+                for &v in &stress_check[1..] {
+                    if m < v {
+                        m = v;
+                    }
                 }
-                let mut stress_check = vec![0.0; nq];
-                let mut normal_traction = vec![[0.0; 3]; nq];
-                let nb_pairs = if core.compat.sigma_c_zipped_per_quad {
-                    filter.len().min(sigma_limits.len())
+                final_stress = m;
+            }
+            // UD-040: upstream pairs facet k with strength entry k
+            let zipped = core.compat.sigma_c_zipped_per_quad;
+            let limit_q = |q: usize| {
+                if zipped {
+                    sigma_limits[k]
                 } else {
-                    filter.len()
-                };
-                // Threading candidate (WP-EXEC primitives): the norms and
-                // the decision of a facet read only that facet's data and
-                // write only its own insertion flag; the appended parameters
-                // (`prepared`, `new_sigmas`, `new_tractions`, `new_delta`)
-                // must keep the filter order: per-chunk buffers concatenated
-                // in chunk order.
-                for (k, &facet) in filter.iter().enumerate().take(nb_pairs) {
-                    let facet = akantu_core::try_to_usize(facet)?;
-                    if !facets_check.get(facet).copied().unwrap_or(false) {
-                        continue;
-                    }
-                    for q in 0..nq {
-                        let cq = facet * nq + q;
-                        let fs = &f_stress[cq * 2 * dim * dim..(cq + 1) * 2 * dim * dim];
-                        stress_check[q] = self.effective_norm_at(
-                            dim,
-                            fs,
-                            &normals[cq * dim..(cq + 1) * dim],
-                            &tangents[cq * ntc..(cq + 1) * ntc],
-                            &mut normal_traction[q][..dim],
-                        );
-                    }
-                    // `stress_check.mean()` (run-time size)
-                    let mut final_stress = stress_check[0];
-                    for v in &stress_check[1..] {
-                        final_stress += v;
-                    }
-                    final_stress /= nq as Real;
-                    if self.max_quad_stress_insertion {
-                        // `*std::max_element` (first maximum)
-                        let mut m = stress_check[0];
-                        for &v in &stress_check[1..] {
-                            if m < v {
-                                m = v;
-                            }
+                    sigma_limits[k * nq + q]
+                }
+            };
+            let limit: Real = if zipped {
+                sigma_limits[k]
+            } else {
+                let lq = &sigma_limits[k * nq..(k + 1) * nq];
+                let mut m = lq[0];
+                for v in &lq[1..] {
+                    m += v;
+                }
+                m / nq as Real
+            };
+            if final_stress > limit {
+                insertion.get_mut(type_facet, g)?.as_mut_slice()[facet] = true;
+                if check_only {
+                    continue;
+                }
+                // Only the facets whose
+                // parameters are appended below (a
+                // textual merge puts this line after the
+                // `facets_check` test above, which is wrong)
+                prepared.push(Element::try_new(type_facet, facet, g)?);
+                for q in 0..nq {
+                    let new_sigma = stress_check[q];
+                    let mut nt = normal_traction[q];
+                    if dim != 3 {
+                        for x in nt.iter_mut().take(dim) {
+                            *x *= -1.;
                         }
-                        final_stress = m;
                     }
-                    // UD-040: upstream pairs facet k with strength entry k
-                    let zipped = core.compat.sigma_c_zipped_per_quad;
-                    let limit_q = |q: usize| {
-                        if zipped {
-                            sigma_limits[k]
-                        } else {
-                            sigma_limits[k * nq + q]
-                        }
-                    };
-                    let limit: Real = if zipped {
-                        sigma_limits[k]
+                    new_sigmas.push(new_sigma);
+                    new_tractions.push(nt);
+                    let new_d = if are_float_equal(core.delta_c, 0.0, self.tol) {
+                        2. * self.g_c / new_sigma
                     } else {
-                        let lq = &sigma_limits[k * nq..(k + 1) * nq];
-                        let mut m = lq[0];
-                        for v in &lq[1..] {
-                            m += v;
-                        }
-                        m / nq as Real
+                        limit_q(q) / new_sigma * core.delta_c
                     };
-                    if final_stress > limit {
-                        inputs
-                            .insertion_facets
-                            .get_mut(type_facet, g)?
-                            .as_mut_slice()[facet] = true;
-                        if check_only {
-                            continue;
-                        }
-                        // Only the facets whose
-                        // parameters are appended below (a
-                        // textual merge puts this line after the
-                        // `facets_check` test above, which is wrong)
-                        prepared.push(Element::try_new(type_facet, facet, g)?);
-                        for q in 0..nq {
-                            let new_sigma = stress_check[q];
-                            let mut nt = normal_traction[q];
-                            if dim != 3 {
-                                for x in nt.iter_mut().take(dim) {
-                                    *x *= -1.;
-                                }
-                            }
-                            new_sigmas.push(new_sigma);
-                            new_tractions.push(nt);
-                            let new_d = if are_float_equal(core.delta_c, 0.0, self.tol) {
-                                2. * self.g_c / new_sigma
-                            } else {
-                                limit_q(q) / new_sigma * core.delta_c
-                            };
-                            new_delta.push(new_d);
-                        }
-                    }
+                    new_delta.push(new_d);
                 }
             }
-            let mut sig = block_mut(&mut self.sigma_c_eff, type_cohesive, g)?;
-            let old = sig.len();
-            let n_new = new_sigmas.len();
-            sig.try_resize(old + n_new, 0.0)?;
-            sig.as_mut_slice()[old..].copy_from_slice(&new_sigmas);
-            let mut ins = block_mut(&mut self.insertion_stress, type_cohesive, g)?;
-            ins.try_resize(old + n_new, 0.0)?;
-            let trac_old = core.tractions.previous_mut(type_cohesive, g)?;
-            trac_old.try_resize(old + n_new, 0.0)?;
-            let mut del = block_mut(&mut self.delta_c_eff, type_cohesive, g)?;
-            del.try_resize(old + n_new, 0.0)?;
-            del.as_mut_slice()[old..old + n_new].copy_from_slice(&new_delta);
-            // the insertion-stress guard taken above is still alive (explicit
-            // guard `Drop`): written through it
-            for (q, nt) in new_tractions.iter().enumerate() {
-                ins.as_mut_slice()[(old + q) * dim..(old + q + 1) * dim]
-                    .copy_from_slice(&nt[..dim]);
-            }
-            let trac_old = core.tractions.previous_mut(type_cohesive, g)?;
-            for (q, nt) in new_tractions.iter().enumerate() {
-                trac_old.as_mut_slice()[(old + q) * dim..(old + q + 1) * dim]
-                    .copy_from_slice(&nt[..dim]);
-            }
+        }
+        Ok(())
+    }
+
+    /// End the scan of one facet type: the parameters of the facets it
+    /// flagged appended to the law's arrays; returns those facets in the
+    /// arrays' order.
+    pub(crate) fn scan_finish(
+        &mut self,
+        core: &mut CohesiveCore,
+        scan: LinearScan,
+    ) -> Result<Vec<Element>> {
+        let dim = core.dim;
+        let g = GhostType::NotGhost;
+        let LinearScan {
+            type_cohesive,
+            prepared,
+            new_sigmas,
+            new_tractions,
+            new_delta,
+            ..
+        } = scan;
+        let mut sig = block_mut(&mut self.sigma_c_eff, type_cohesive, g)?;
+        let old = sig.len();
+        let n_new = new_sigmas.len();
+        sig.try_resize(old + n_new, 0.0)?;
+        sig.as_mut_slice()[old..].copy_from_slice(&new_sigmas);
+        let mut ins = block_mut(&mut self.insertion_stress, type_cohesive, g)?;
+        ins.try_resize(old + n_new, 0.0)?;
+        let trac_old = core.tractions.previous_mut(type_cohesive, g)?;
+        trac_old.try_resize(old + n_new, 0.0)?;
+        let mut del = block_mut(&mut self.delta_c_eff, type_cohesive, g)?;
+        del.try_resize(old + n_new, 0.0)?;
+        del.as_mut_slice()[old..old + n_new].copy_from_slice(&new_delta);
+        // the insertion-stress guard taken above is still alive (explicit
+        // guard `Drop`): written through it
+        for (q, nt) in new_tractions.iter().enumerate() {
+            ins.as_mut_slice()[(old + q) * dim..(old + q + 1) * dim].copy_from_slice(&nt[..dim]);
+        }
+        let trac_old = core.tractions.previous_mut(type_cohesive, g)?;
+        for (q, nt) in new_tractions.iter().enumerate() {
+            trac_old.as_mut_slice()[(old + q) * dim..(old + q + 1) * dim]
+                .copy_from_slice(&nt[..dim]);
         }
         Ok(prepared)
     }
