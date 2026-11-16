@@ -74,6 +74,10 @@ pub(crate) struct SmmServices<'a> {
 }
 
 impl ModelServices for SmmServices<'_> {
+    fn exec(&self) -> &akantu_core::exec::Exec {
+        self.fems.exec()
+    }
+
     fn spatial_dimension(&self) -> usize {
         self.spatial_dimension
     }

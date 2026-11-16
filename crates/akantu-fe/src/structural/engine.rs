@@ -1102,14 +1102,13 @@ impl StructuralFeEngine {
         let mut ue = vec![0.0; nc];
         let (ms, o) = (m.as_slice(), out.as_mut_slice());
         let sz = rows * nc;
+        let p_mu = eigen::prepare(Dims::dynamic(rows, nc), Dims::dynamic(nc, 1))?;
         for (pos, &e) in ids.iter().enumerate() {
             block.gather(e, u.as_slice(), nb_dof, &mut ue)?;
             for q in 0..nq {
                 let s = e * nq + q;
                 let t = pos * nq + q;
-                eigen::product_slices(
-                    Dims::dynamic(rows, nc),
-                    Dims::dynamic(nc, 1),
+                p_mu.eval(
                     &ms[s * sz..(s + 1) * sz],
                     &ue,
                     &mut o[t * rows..(t + 1) * rows],
@@ -1180,12 +1179,11 @@ impl StructuralFeEngine {
         )?;
         prepare_out(out, d.len(), nc)?;
         let (bs, ds, os) = (b.as_slice(), d.as_slice(), out.as_mut_slice());
+        let p_btd = eigen::prepare(Dims::dynamic(ns, nc).t(), Dims::new(ns, 1, false, true))?;
         for (pos, &e) in ids.iter().enumerate() {
             for q in 0..nq {
                 let (s, t) = (e * nq + q, pos * nq + q);
-                eigen::product_slices(
-                    Dims::dynamic(ns, nc).t(),
-                    Dims::new(ns, 1, false, true),
+                p_btd.eval(
                     &bs[s * ns * nc..(s + 1) * ns * nc],
                     &ds[t * ns..(t + 1) * ns],
                     &mut os[t * nc..(t + 1) * nc],
@@ -1222,25 +1220,15 @@ impl StructuralFeEngine {
         )?;
         prepare_out(out, d.len(), nc * nc)?;
         let mut btd = vec![0.0; nc * ns];
+        let p_btd = eigen::prepare(Dims::dynamic(ns, nc).t(), Dims::dynamic(ns, ns))?;
+        let p_btdb = eigen::prepare(Dims::dynamic(nc, ns), Dims::dynamic(ns, nc))?;
         let (bs, ds, os) = (b.as_slice(), d.as_slice(), out.as_mut_slice());
         for (pos, &e) in ids.iter().enumerate() {
             for q in 0..nq {
                 let (s, t) = (e * nq + q, pos * nq + q);
                 let bq = &bs[s * ns * nc..(s + 1) * ns * nc];
-                eigen::product_slices(
-                    Dims::dynamic(ns, nc).t(),
-                    Dims::dynamic(ns, ns),
-                    bq,
-                    &ds[t * ns * ns..(t + 1) * ns * ns],
-                    &mut btd,
-                )?;
-                eigen::product_slices(
-                    Dims::dynamic(nc, ns),
-                    Dims::dynamic(ns, nc),
-                    &btd,
-                    bq,
-                    &mut os[t * nc * nc..(t + 1) * nc * nc],
-                )?;
+                p_btd.eval(bq, &ds[t * ns * ns..(t + 1) * ns * ns], &mut btd)?;
+                p_btdb.eval(&btd, bq, &mut os[t * nc * nc..(t + 1) * nc * nc])?;
             }
         }
         Ok(())
@@ -1277,12 +1265,11 @@ impl StructuralFeEngine {
         )?;
         prepare_out(out, b.len(), nc)?;
         let (ns_, bs, os) = (n.as_slice(), b.as_slice(), out.as_mut_slice());
+        let p_ntb = eigen::prepare(Dims::fixed(ndof, nc).t(), Dims::fixed(ndof, 1))?;
         for (pos, &e) in ids.iter().enumerate() {
             for q in 0..nq {
                 let (s, t) = (e * nq + q, pos * nq + q);
-                eigen::product_slices(
-                    Dims::fixed(ndof, nc).t(),
-                    Dims::fixed(ndof, 1),
+                p_ntb.eval(
                     &ns_[s * ndof * nc..(s + 1) * ndof * nc],
                     &bs[t * ndof..(t + 1) * ndof],
                     &mut os[t * nc..(t + 1) * nc],
@@ -1392,24 +1379,18 @@ impl StructuralFeEngine {
         let mut ue = vec![0.0; nc];
         let mut db = vec![0.0; ns * nc];
         let (bs, ds, os) = (b.as_slice(), d.as_slice(), out.as_mut_slice());
+        let p_db = eigen::prepare(Dims::dynamic(ns, ns), Dims::dynamic(ns, nc))?;
+        let p_dbu = eigen::prepare(Dims::dynamic(ns, nc), Dims::new(nc, 1, false, true))?;
         for &e in &ids {
             block.gather(e, u.as_slice(), ndof, &mut ue)?;
             for q in 0..nq {
                 let s = e * nq + q;
-                eigen::product_slices(
-                    Dims::dynamic(ns, ns),
-                    Dims::dynamic(ns, nc),
+                p_db.eval(
                     &ds[s * ns * ns..(s + 1) * ns * ns],
                     &bs[s * ns * nc..(s + 1) * ns * nc],
                     &mut db,
                 )?;
-                eigen::product_slices(
-                    Dims::dynamic(ns, nc),
-                    Dims::new(nc, 1, false, true),
-                    &db,
-                    &ue,
-                    &mut os[s * ns..(s + 1) * ns],
-                )?;
+                p_dbu.eval(&db, &ue, &mut os[s * ns..(s + 1) * ns])?;
             }
         }
         Ok(())
@@ -1477,12 +1458,11 @@ impl StructuralFeEngine {
         )?;
         prepare_out(out, ne * nq, ndof)?;
         let (rs, gs, os) = (r.as_slice(), global.as_slice(), out.as_mut_slice());
+        let p_rg = eigen::prepare(Dims::dynamic(ndof, ndof), Dims::new(ndof, 1, false, true))?;
         for e in 0..ne {
             for q in 0..nq {
                 let s = e * nq + q;
-                eigen::product_slices(
-                    Dims::dynamic(ndof, ndof),
-                    Dims::new(ndof, 1, false, true),
+                p_rg.eval(
                     &rs[e * ndof * ndof..(e + 1) * ndof * ndof],
                     &gs[s * ndof..(s + 1) * ndof],
                     &mut os[s * ndof..(s + 1) * ndof],

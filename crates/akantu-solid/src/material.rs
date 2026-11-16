@@ -976,10 +976,41 @@ fn grad_u_in_place(
             got: gu.len(),
         });
     }
-    for (g, e) in gu.as_mut_slice().iter_mut().zip(eigen.as_slice()) {
+    // every value from its own pair: contiguous parts on the model's
+    // threads (D-123)
+    let n = gu.as_slice().len().min(eigen.as_slice().len());
+    let items = (
+        akantu_core::exec::Tuples::new(&mut gu.as_mut_slice()[..n], 1),
+        akantu_core::exec::TuplesRef::new(&eigen.as_slice()[..n], 1),
+    );
+    ctx.services
+        .exec()
+        .for_each(items, 32_768, |_, (mut g, e)| {
+            subtract_part(g.as_mut_slice(), e.as_slice());
+        });
+    Ok(true)
+}
+
+/// `g -= e` per value (a part of `grad_u -= eigen_grad_u`; no-alias
+/// parameters, not inlined into the part closure).
+#[inline(never)]
+fn subtract_part(g: &mut [Real], e: &[Real]) {
+    for (g, e) in g.iter_mut().zip(e) {
         *g -= *e;
     }
-    Ok(true)
+}
+
+/// The executor of a law's per-point loop: the model's when the law
+/// declares [`Material::independent_points`], else the serial one (D-123).
+pub fn points_exec<'a, M: Material + ?Sized>(
+    law: &M,
+    ctx: &'a LawContext<'_>,
+) -> &'a akantu_core::exec::Exec {
+    if law.independent_points() {
+        ctx.services.exec()
+    } else {
+        akantu_core::exec::Exec::serial_ref()
+    }
 }
 
 /// Built-in laws: a static parameter table on top of [`BASE_PARAMS`]
@@ -1235,6 +1266,15 @@ pub trait Material: ConstitutiveLaw {
         ty: ElementType,
         ghost: GhostType,
     ) -> Result<()>;
+
+    /// The law's declaration for threads (D-123): `true` when
+    /// [`Material::compute_stress`] updates every quadrature point from that
+    /// point's own data (no state shared between points, no non-local term,
+    /// no reduction), so its per-point loop may run on the model's threads
+    /// ([`points_exec`]). Default `false`: the loop stays serial.
+    fn independent_points(&self) -> bool {
+        false
+    }
 
     /// Tangent moduli per quadrature point, column-major Voigt matrices
     /// (`tangent` has one tuple of `voigt²` values per quadrature point of

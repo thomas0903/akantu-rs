@@ -51,6 +51,8 @@ builds of the port, build the harness at each commit into `~/perf/bin/<label>`
 and list both labels. The cohesive extrinsic step has its own harness,
 `crates/akantu-cohesive/examples/cohesive_step_timing.rs` (labels `coh-*` in
 `run_ab.sh`). The release profile is the workspace's (no LTO, no
-`target-cpu`, no fast-math); a timing with `-C target-cpu` or fat LTO must
-first pass `digests.sh` and the oracle replays, since its bit identity is
-not established.
+`target-cpu`, no fast-math). The build configurations (`-C target-cpu`,
+LTO, codegen units, PGO) were checked for bit identity and timed in
+`docs/benchmarks/perf-campaign/build-profile/` (scripts in
+`scripts/perf/build/`); after a toolchain update, rerun `digests.sh` for
+such a build before timing it.

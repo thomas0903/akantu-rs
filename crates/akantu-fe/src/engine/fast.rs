@@ -18,9 +18,15 @@
 //! route, size or layout returns `None` and the caller runs the general path
 //! unchanged, so the results are bitwise those of the general path in every
 //! case (property tests below and in `tests/fast_kernels.rs`).
+//!
+//! Each kernel computes every output tuple (quadrature point or element) from
+//! its own inputs only, so it splits its elements into contiguous parts run
+//! by the engine's executor ([`Exec::for_each`], D-123): the same code per
+//! output for every split, hence the same bits for every thread count.
 
 use akantu_core::eigen_gebp::{GEMV_BLOCKING_MIN_DEPTH, GemvMatrix, Order, Reduction, Route};
 use akantu_core::eigen_unrolled::{TREE_MAX, seq_sum, tree_sum};
+use akantu_core::exec::{Exec, FmaTask, Tuples, TuplesRef, with_fma};
 use akantu_core::{Real, Result};
 
 use super::Block;
@@ -36,6 +42,7 @@ use crate::element_class::LagrangeElement;
 /// layout is not the one this kernel implements.
 #[allow(clippy::too_many_arguments)] // the general kernel's arguments
 pub(super) fn gradient<E: LagrangeElement>(
+    exec: &Exec,
     block: &Block<'_>,
     u: &[Real],
     nb_dof: usize,
@@ -46,7 +53,7 @@ pub(super) fn gradient<E: LagrangeElement>(
 ) -> Option<Result<()>> {
     let nd = E::NATURAL_DIM;
     let nn = E::NB_SHAPES;
-    if nd == 0 || nn > TREE_MAX || block.nnpe != nn {
+    if nd == 0 || nq == 0 || nn > TREE_MAX || block.nnpe != nn {
         return None;
     }
     let route = product_route(Dims::new(nb_dof, nn, false, true), Dims::fixed(nd, nn).t());
@@ -56,15 +63,135 @@ pub(super) fn gradient<E: LagrangeElement>(
     {
         return None;
     }
-    Some(match nb_dof {
-        1 => gradient_impl::<E, 1>(block, u, dshapes, nq, ids, out),
-        2 => gradient_impl::<E, 2>(block, u, dshapes, nq, ids, out),
-        3 => gradient_impl::<E, 3>(block, u, dshapes, nq, ids, out),
-        _ => return None,
-    })
+    if !(1..=3).contains(&nb_dof) {
+        return None;
+    }
+    // parts of at least ~2048 quadrature points (tens of microseconds)
+    let min = (2048 / nq.max(1)).max(1);
+    let items = (Tuples::new(out, nq * nb_dof * nd), TuplesRef::new(ids, 1));
+    if let Some(token) = exec.fast_token() {
+        // FAST MODE (D-122): the FMA demonstrator, validated against this
+        // kernel by `akantu-solid/tests/fast_mode_gradient.rs`
+        return Some(exec.try_for_each(items, min, |_, (mut o, ids)| {
+            let (o, ids) = (o.as_mut_slice(), ids.as_slice());
+            match nb_dof {
+                1 => with_fma(
+                    token,
+                    FmaGradient::<E, 1>::new(block, u, dshapes, nq, ids, o),
+                ),
+                2 => with_fma(
+                    token,
+                    FmaGradient::<E, 2>::new(block, u, dshapes, nq, ids, o),
+                ),
+                _ => with_fma(
+                    token,
+                    FmaGradient::<E, 3>::new(block, u, dshapes, nq, ids, o),
+                ),
+            }
+        }));
+    }
+    Some(exec.try_for_each(items, min, |_, (mut o, ids)| {
+        let (o, ids) = (o.as_mut_slice(), ids.as_slice());
+        match nb_dof {
+            1 => gradient_impl::<E, 1>(block, u, dshapes, nq, ids, o),
+            2 => gradient_impl::<E, 2>(block, u, dshapes, nq, ids, o),
+            _ => gradient_impl::<E, 3>(block, u, dshapes, nq, ids, o),
+        }
+    }))
 }
 
-#[inline(always)]
+/// FAST MODE (D-122), the demonstrator of the fast-mode harness (D-123):
+/// `∇u = U·Bᵀ` with each entry `Σ_l U(i, l)·B(j, l)` evaluated as a chain of
+/// fused multiply-adds in the order `l = 0, 1, …` (one rounding per step
+/// instead of a rounded product and the halving tree of
+/// [`gradient_impl`]). Not bitwise the default path; its difference is
+/// bounded by the rule of `fixtures/fast_mode/solid/tolerances.json`.
+struct FmaGradient<'a, 'b, E, const NBD: usize> {
+    block: &'a Block<'b>,
+    u: &'a [Real],
+    dshapes: &'a [Real],
+    nq: usize,
+    ids: &'a [usize],
+    out: &'a mut [Real],
+    element: std::marker::PhantomData<E>,
+}
+
+impl<'a, 'b, E, const NBD: usize> FmaGradient<'a, 'b, E, NBD> {
+    fn new(
+        block: &'a Block<'b>,
+        u: &'a [Real],
+        dshapes: &'a [Real],
+        nq: usize,
+        ids: &'a [usize],
+        out: &'a mut [Real],
+    ) -> Self {
+        Self {
+            block,
+            u,
+            dshapes,
+            nq,
+            ids,
+            out,
+            element: std::marker::PhantomData,
+        }
+    }
+}
+
+impl<E: LagrangeElement, const NBD: usize> FmaTask for FmaGradient<'_, '_, E, NBD> {
+    type Output = Result<()>;
+
+    #[inline(always)]
+    fn run(self) -> Result<()> {
+        let Self {
+            block,
+            u,
+            dshapes,
+            nq,
+            ids,
+            out,
+            ..
+        } = self;
+        let nd = E::NATURAL_DIM;
+        let nn = E::NB_SHAPES;
+        let bsz = nd * nn;
+        let tsz = NBD * nd;
+        let mut ue = [[0.0; NBD]; TREE_MAX];
+        for (pos, &e) in ids.iter().enumerate() {
+            for (n, ue_n) in ue.iter_mut().enumerate().take(nn) {
+                let node = block.node(e, n)?;
+                let Some(src) = u.get(node * NBD..(node + 1) * NBD) else {
+                    return Err(akantu_core::Error::OutOfRange {
+                        what: "nodal field node",
+                        index: node,
+                        len: u.len() / NBD,
+                    });
+                };
+                ue_n.copy_from_slice(src);
+            }
+            for q in 0..nq {
+                let b = &dshapes[(e * nq + q) * bsz..(e * nq + q + 1) * bsz];
+                let t = pos * nq + q;
+                let g = &mut out[t * tsz..(t + 1) * tsz];
+                for j in 0..nd {
+                    for i in 0..NBD {
+                        let mut acc = ue[0][i] * b[j];
+                        for l in 1..nn {
+                            acc = ue[l][i].mul_add(b[j + l * nd], acc);
+                        }
+                        g[i + j * NBD] = acc;
+                    }
+                }
+            }
+        }
+        Ok(())
+    }
+}
+
+// Not inlined into the part closure: as a function its slices are
+// no-alias parameters, so the block's fields and the nodal values stay in
+// registers across the stores to `out` (inlined into the closure, the
+// kernel ran 1.6 times slower at one thread).
+#[inline(never)]
 fn gradient_impl<E: LagrangeElement, const NBD: usize>(
     block: &Block<'_>,
     u: &[Real],
@@ -119,6 +246,7 @@ fn gradient_impl<E: LagrangeElement, const NBD: usize>(
 /// (3, 3)}`.
 #[allow(clippy::too_many_arguments)]
 pub(super) fn btd(
+    exec: &Exec,
     r: usize,
     sdim: usize,
     nn: usize,
@@ -129,7 +257,12 @@ pub(super) fn btd(
     os: &mut [Real],
 ) -> Option<()> {
     let route = product_route(Dims::dynamic(r, sdim), Dims::dynamic(sdim, nn));
-    if route != Route::Coeff(Reduction::Sequential) || sdim > TREE_MAX {
+    if route != Route::Coeff(Reduction::Sequential)
+        || sdim > TREE_MAX
+        || nq == 0
+        || r == 0
+        || nn == 0
+    {
         return None;
     }
     let bsz = sdim * nn;
@@ -140,18 +273,30 @@ pub(super) fn btd(
     if ids.iter().any(|&e| (e + 1) * nq * bsz > bs.len()) {
         return None;
     }
-    match (r, sdim) {
-        (1, 1) => btd_impl::<1, 1>(nn, ids, nq, bs, ds, os),
-        (1, 2) => btd_impl::<1, 2>(nn, ids, nq, bs, ds, os),
-        (1, 3) => btd_impl::<1, 3>(nn, ids, nq, bs, ds, os),
-        (2, 2) => btd_impl::<2, 2>(nn, ids, nq, bs, ds, os),
-        (3, 3) => btd_impl::<3, 3>(nn, ids, nq, bs, ds, os),
+    let run: BtdPart = match (r, sdim) {
+        (1, 1) => btd_impl::<1, 1>,
+        (1, 2) => btd_impl::<1, 2>,
+        (1, 3) => btd_impl::<1, 3>,
+        (2, 2) => btd_impl::<2, 2>,
+        (3, 3) => btd_impl::<3, 3>,
         _ => return None,
-    }
+    };
+    let min = (2048 / nq.max(1)).max(1);
+    let items = (
+        Tuples::new(os, nq * r * nn),
+        TuplesRef::new(ds, nq * r * sdim),
+        TuplesRef::new(ids, 1),
+    );
+    exec.for_each(items, min, |_, (mut o, d, ids)| {
+        run(nn, ids.as_slice(), nq, bs, d.as_slice(), o.as_mut_slice());
+    });
     Some(())
 }
 
-#[inline(always)]
+/// One part of [`btd`]: `(nn, ids, nq, bs, ds, os)`.
+type BtdPart = fn(usize, &[usize], usize, &[Real], &[Real], &mut [Real]);
+
+#[inline(never)] // as `gradient_impl`
 fn btd_impl<const R: usize, const S: usize>(
     nn: usize,
     ids: &[usize],
@@ -182,16 +327,55 @@ fn btd_impl<const R: usize, const S: usize>(
     }
 }
 
+/// Per-element integrals of a **scalar** field (`nb_dof = 1`): the route
+/// of `f_e · J_e` (`f_e` dynamic `1 × nq`, `J_e` a `Dynamic × 1` vector) is
+/// the run-time `1 × 1` inner-product fallback with the sequential order
+/// (`out = 0; out = out + (t0 + t1 + …)`, `t_l = fl(f(l)·J(l))`). `None`
+/// for another route (the caller then runs the general path).
+pub(super) fn integrate_scalar<'j>(
+    f: &[Real],
+    nq: usize,
+    jac: &impl Fn(usize) -> &'j [Real],
+    nb_element: usize,
+    o: &mut [Real],
+) -> Option<()> {
+    let route = product_route(Dims::dynamic(1, nq), Dims::new(nq, 1, false, true));
+    if route != Route::Dot(Reduction::Sequential)
+        || nq == 0
+        || f.len() != nb_element * nq
+        || o.len() != nb_element
+    {
+        return None;
+    }
+    if (0..nb_element).any(|pos| jac(pos).len() < nq) {
+        return None;
+    }
+    for (pos, (fe, oe)) in f.chunks_exact(nq).zip(o.iter_mut()).enumerate() {
+        let j = &jac(pos)[..nq];
+        // r = t0; r = r + t_l (Reduction::Sequential)
+        let mut r = fe[0] * j[0];
+        for (&fl, &jl) in fe[1..].iter().zip(&j[1..]) {
+            r += fl * jl;
+        }
+        // dst(0, 0) = 0; dst(0, 0) += r
+        let mut d = 0.0;
+        d += r;
+        *oe = d;
+    }
+    Some(())
+}
+
 /// Per-element integrals `out_e = f_e · J_e` (`f_e` dynamic `nb_dof × nq`,
 /// `J_e` a `Dynamic × 1` vector; `integrate_with_jacobians`) when the route
 /// is the column-major GEMV kernel without depth blocking (`nq < 128`):
 /// `c = 0; c = c + f(i, l)·J(l)` over `l`, then `out(i) = 0 + c`. `None`
 /// otherwise (e.g. the `1 × 1` inner-product fallback of a scalar field).
 pub(super) fn integrate<'j>(
+    exec: &Exec,
     f: &[Real],
     nb_dof: usize,
     nq: usize,
-    jac: &impl Fn(usize) -> &'j [Real],
+    jac: &(impl Fn(usize) -> &'j [Real] + Sync),
     nb_element: usize,
     o: &mut [Real],
 ) -> Option<()> {
@@ -201,6 +385,8 @@ pub(super) fn integrate<'j>(
         kernel: Order::ColMajor,
     };
     if route != gemv
+        || nb_dof == 0
+        || nq == 0
         || nq >= GEMV_BLOCKING_MIN_DEPTH
         || f.len() != nb_element * nq * nb_dof
         || o.len() != nb_element * nb_dof
@@ -210,12 +396,37 @@ pub(super) fn integrate<'j>(
     if (0..nb_element).any(|pos| jac(pos).len() < nq) {
         return None;
     }
+    let min = (4096 / (nq * nb_dof).max(1)).max(1);
+    let items = (Tuples::new(o, nb_dof), TuplesRef::new(f, nq * nb_dof));
+    exec.for_each(items, min, |first, (mut o, f)| {
+        integrate_part(
+            f.as_slice(),
+            nb_dof,
+            nq,
+            |pos| jac(first + pos),
+            o.as_mut_slice(),
+        );
+    });
+    Some(())
+}
+
+/// [`integrate`] of the elements whose values are `f` and whose integrals
+/// go to `o` (`jac(pos)` the weighted Jacobians of the part's `pos`-th
+/// element, checked by the caller).
+#[inline(never)] // as `gradient_impl`
+fn integrate_part<'j>(
+    f: &[Real],
+    nb_dof: usize,
+    nq: usize,
+    jac: impl Fn(usize) -> &'j [Real],
+    o: &mut [Real],
+) {
     // accumulators of one element: c(i) = 0; then, for l = 0, 1, …,
     // c(i) = c(i) + fl(f(i, l)·J(l)) — every c(i) sees the same additions in
     // the same order as the per-row loop of the GEMV kernel, the loops are
     // only interchanged (contiguous columns of f)
     let mut c = vec![0.0; nb_dof];
-    for pos in 0..nb_element {
+    for pos in 0..o.len() / nb_dof {
         let j = &jac(pos)[..nq];
         let fe = &f[pos * nq * nb_dof..(pos + 1) * nq * nb_dof];
         let oe = &mut o[pos * nb_dof..(pos + 1) * nb_dof];
@@ -230,7 +441,6 @@ pub(super) fn integrate<'j>(
             *oi += ci; // res = res + c (zeroed destination)
         }
     }
-    Some(())
 }
 
 #[cfg(test)]
@@ -245,7 +455,17 @@ mod tests {
     use crate::element_class::ElementClass;
     use crate::with_element_class;
     use akantu_core::array_shared::ArrayRef;
+    use akantu_core::exec::{ExecPolicy, Grain};
     use akantu_core::{Array, ElementType, GhostType, Idx};
+
+    /// An executor whose thread count (1 to 4) varies with the case and that
+    /// splits every batch as finely as it can, so the property tests also
+    /// cover the split batches (D-123).
+    fn test_exec(salt: usize) -> Exec {
+        let n = 1 + salt % 4;
+        let p = ExecPolicy::serial().with_threads(n).unwrap();
+        Exec::new(p.with_grain(Grain::Finest)).unwrap()
+    }
 
     /// Deterministic test values. Default mode: special values (signed zeros,
     /// infinities, subnormals, extremes), arbitrary bit patterns and finite
@@ -431,7 +651,16 @@ mod tests {
         let ids = v.ids(ne);
         let tsz = nb_dof * nd;
         let mut fast = vec![Real::NAN; ids.len() * nq * tsz];
-        let res = gradient::<E>(&block, &u, nb_dof, &dsh, nq, &ids, &mut fast);
+        let res = gradient::<E>(
+            &test_exec(ids.len()),
+            &block,
+            &u,
+            nb_dof,
+            &dsh,
+            nq,
+            &ids,
+            &mut fast,
+        );
         let ud = Dims::new(nb_dof, nn, false, true);
         let bt = Dims::fixed(nd, nn).t();
         let tree = product_route(ud, bt) == Route::Coeff(Reduction::Tree);
@@ -530,7 +759,7 @@ mod tests {
         let u = vec![1.0; 12];
         let dsh = vec![1.0; 12];
         let mut out = vec![0.0; 9];
-        let fast = gradient::<E>(&block, &u, 3, &dsh, 1, &[0], &mut out).unwrap();
+        let fast = gradient::<E>(&test_exec(1), &block, &u, 3, &dsh, 1, &[0], &mut out).unwrap();
         let mut ue = vec![0.0; 12];
         let general = block.gather(0, &u, 3, &mut ue);
         assert_eq!(
@@ -564,7 +793,18 @@ mod tests {
         let ds = v.vec(np * r * sdim);
         v.default_mode();
         let mut fast = vec![Real::NAN; np * r * nn];
-        let done = btd(r, sdim, nn, &ids, nq, &bs, &ds, &mut fast).is_some();
+        let done = btd(
+            &test_exec(ids.len()),
+            r,
+            sdim,
+            nn,
+            &ids,
+            nq,
+            &bs,
+            &ds,
+            &mut fast,
+        )
+        .is_some();
         let seq = product_route(Dims::dynamic(r, sdim), Dims::dynamic(sdim, nn))
             == Route::Coeff(Reduction::Sequential);
         let supported = matches!((r, sdim), (1, 1..=3) | (2, 2) | (3, 3));
@@ -641,7 +881,7 @@ mod tests {
         v.default_mode();
         let jf = |pos: usize| &jac[pos * nq..(pos + 1) * nq];
         let mut fast = vec![Real::NAN; ne * nb_dof];
-        let done = integrate(&f, nb_dof, nq, &jf, ne, &mut fast).is_some();
+        let done = integrate(&test_exec(ne), &f, nb_dof, nq, &jf, ne, &mut fast).is_some();
         assert_eq!(done, nb_dof > 1 && nq < 128, "nb_dof={nb_dof} nq={nq}");
         if !done {
             return (0, 0);
@@ -694,5 +934,58 @@ mod tests {
             products >= 20_000 && nans > 0,
             "{products} products, {nans} NaNs"
         );
+    }
+
+    /// The scalar integration kernel against the general route (the
+    /// closure evaluation of `akantu_core::eigen_gebp::product_into`).
+    #[test]
+    fn integrate_scalar_matches_general_path_bitwise() {
+        use akantu_core::eigen_gebp::{Extent, ProductShape, product_into};
+        let mut v = Values::new(0x0123_4567_89ab_cdef);
+        let (mut products, mut nans) = (0, 0);
+        for nq in INT_NQ {
+            for round in 0..40 {
+                let ne = 100;
+                let payload = round % 4 == 3;
+                if payload {
+                    let k = 1 + v.next_u64() % (2 * ne * nq) as u64;
+                    v.payload_at(k);
+                }
+                let f = v.vec(ne * nq);
+                let jac = v.vec(ne * nq);
+                v.default_mode();
+                let jf = |pos: usize| &jac[pos * nq..(pos + 1) * nq];
+                let mut fast = vec![Real::NAN; ne];
+                assert!(integrate_scalar(&f, nq, &jf, ne, &mut fast).is_some());
+                let mut general = vec![7.0; ne];
+                let shape = ProductShape::new(
+                    Extent::Dynamic(1),
+                    Extent::Dynamic(nq),
+                    Extent::Dynamic(nq),
+                    Extent::Fixed(1),
+                );
+                for pos in 0..ne {
+                    let fe = &f[pos * nq..(pos + 1) * nq];
+                    let je = jf(pos);
+                    product_into(
+                        &shape,
+                        &|_, l| fe[l],
+                        &|l, _| je[l],
+                        &mut general[pos..=pos],
+                    )
+                    .unwrap();
+                }
+                products += ne;
+                nans += assert_bits(&fast, &general, "integrate_scalar");
+            }
+        }
+        assert!(
+            products >= 20_000 && nans > 0,
+            "{products} products, {nans} NaNs"
+        );
+        // other routes are declined
+        let f = [1.0; 4];
+        let mut o = [0.0; 2];
+        assert!(integrate_scalar(&f, 2, &|_| &f[..2], 2, &mut o[..1]).is_none());
     }
 }

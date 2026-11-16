@@ -40,6 +40,31 @@ change of default results or of a public API raises the minor version.
   `ContactSurface` takes the contact-surface facets only, for meshes whose
   side facets are much larger than the surface facets (the closest master
   node found can then differ); `ContactMechanicsModel::set_grid_spacing`.
+- Execution policy (D-123): `akantu_core::exec` with `ExecPolicy`
+  (precision mode `Bitwise`/`Fast`, thread count, SIMD level, split grain),
+  `Exec` (a shared thread pool per thread count), `NodeScatter` and the
+  SIMD dispatch convention. Environment variables `AKANTU_NUM_THREADS`
+  (default 1), `AKANTU_PRECISION` (`bitwise`), `AKANTU_SIMD` (`auto`),
+  `AKANTU_EXEC_GRAIN` (`auto`), `AKANTU_EXEC_SPIN_US` (5000; 0 when the
+  threads outnumber the cores). Rust API:
+  `SolidMechanicsModel::{exec_policy, set_exec_policy}`,
+  `FeEngine::{exec, set_exec}`, `FeEngineRegistry::{exec, set_exec}`,
+  `DofManager::{exec, set_exec}`, `ModelServices::exec` (default serial),
+  `Material::independent_points` (default `false`) and
+  `material::points_exec`. Python: `akantu.setNumThreads`,
+  `getNumThreads`, `setPrecision`, `getPrecision`, `setSimdLevel`,
+  `getSimdLevel` (the default of models created afterwards).
+- Threads in the explicit step of `SolidMechanicsModel`, bitwise equal to
+  one thread for every thread count: FE gradient, `BᵀD` and integration
+  kernels, `grad_u −= eigen_grad_u` (for every law), elastic stresses and
+  thermal strains, finite-deformation residual, internal-force scatter,
+  external-work increment (per-node terms), Newmark-β predictor and
+  corrector, lumped solve, residual scatter and solution gather (the
+  per-node and per-equation loops only for parts of at least 131,072
+  nodes / 262,144 equations).
+- Fast-mode harness `akantu_validation::fast_mode` with the rules of
+  `fixtures/fast_mode/`, and its demonstrator (the gradient kernel with
+  fused multiply-adds under `Precision::Fast`).
 - `akantu_fe::engine::PointInterpolation`
   (`ElementalFieldInterpolation::point_interpolation`): the value of one
   interpolation point of one element of an elemental-field interpolation
@@ -50,9 +75,28 @@ change of default results or of a public API raises the minor version.
   writes `chrono_rank<r>.csv` (the phase times of every rank) and, for the
   cohesive model, `insertion_stats_rank<r>.csv` (the split of the
   insertion check) on every rank.
+- `akantu_core::eigen_kernels`: `SliceProduct` (a product of slice operands
+  with its Eigen route, strides and kernel decided once; `eval` gives the
+  bits of `eigen_gebp::product_into`), `product_slices`, and
+  `fast_mode` (order-free dot and GEMM variants for the fast mode of
+  D-122; not called by the library; hidden from the documentation and
+  unstable: it will move behind the precision switch).
+  `akantu_fe::eigen::prepare` (the
+  `SliceProduct` of two `Dims`), `akantu_fe::kernels::{
+  shape_derivatives_product, shape_derivatives_with}`.
+- `akantu_core::eigen_order::{redux_tree_recursive, TREE_LEVELS_MAX}`;
+  `akantu_core::eigen_gebp::route` is a `const fn`.
 
 ### Changed
 
+- `DofManager::split_solution_per_dofs` returns `Error::OutOfRange` for a
+  local equation outside the solution vector, where it used to panic.
+- `MaterialElastic::compute_stress` returns `Error::DimensionMismatch` when
+  `grad_u` or the stress block does not have `dim × dim` components per
+  point (before, such a block was processed in chunks of the wrong size).
+- `akantu-core` denies `unsafe` instead of forbidding it: the thread pool
+  of `exec::spin` and the SIMD kernels of `exec::simd` (listed in its
+  `UNSAFE.md`) are the only sites.
 - The cohesive insertion check is faster with bitwise identical results:
   the facet stresses are computed directly from the bulk stresses (the
   by-element buffer is no longer written per step; it is still allocated
@@ -60,6 +104,20 @@ change of default results or of a public API raises the minor version.
   route once per block, the copy plan after an insertion is built in
   linear time, and the linear law's effective norm uses fixed-size loops
   (`docs/BENCHMARKS.md`, "The insertion check").
+- Small dense products and Eigen-order reductions are faster with bitwise
+  identical results: the halving-tree reduction is non-recursive and
+  inlined, fixed-size tensor products select their route at compile time,
+  the FE products of slices run fixed-order kernels (one per route and
+  depth class), and the FE per-element loops decide each product once.
+- `akantu_fe::eigen::product_slices` checks the operands' inner
+  dimension before the slice lengths: a call with both wrong now reports
+  the inner-dimension mismatch (still `Error::DimensionMismatch`, with
+  another context). Errors of `SliceProduct` carry their own context
+  strings (`SliceProduct ...`).
+- `FeEngine::field_matrix_elemental` (consistent mass) integrates each
+  element's point matrices as they are computed instead of materialising
+  all of them first (memory `nq·(nb_dof·nn)²` instead of
+  `ne·nq·(nb_dof·nn)²` reals; 35 k `_tetrahedron_10` needed 4.4 GB).
 
 ## [0.1.0] - Unreleased
 

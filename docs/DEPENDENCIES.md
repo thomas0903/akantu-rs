@@ -94,6 +94,16 @@ those of `Cargo.lock` at the time of writing.
 
 Notes:
 
+- The thread pool of the execution policy (D-123) is the port's own
+  (`akantu_core::exec`, on `std::thread`). `rayon` (MIT OR Apache-2.0) was
+  allowed and measured, and not taken: one region cost 4.9–13.8 µs more
+  than the ideal with it against 0.18–3.7 µs with the own pool (2 and 4
+  threads, AMD EPYC 9R14, commit `3b6d0257`); 7.7–15.2 µs against
+  0.18–11.3 µs at 2–8 threads on an 8-vCPU EPYC Milan VM (commit
+  `427eb987`)
+  (`docs/benchmarks/perf-campaign/exec/`). `rayon` remains a dependency of
+  the standalone microbenchmark `scripts/perf/exec/pool-overhead` only (not
+  a workspace member, not shipped).
 - faer's SIMD kernels use FMA internally. That is acceptable only because
   faer is qualified by the conditioning-aware protocol of
   `docs/NUMERICAL_VALIDATION.md` and never compared bitwise; it is never
