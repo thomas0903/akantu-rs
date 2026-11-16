@@ -2188,14 +2188,14 @@ tests against the default path.
   workers cost its caller 18–31 µs of futex wake-up on the screening
   machine; the serial stretches of an explicit step last about a
   millisecond). Chosen over `rayon` by the measured cost of one
-  region (`scripts/perf/exec/pool-overhead`, AMD EPYC 9R14, 8 cores,
-  `docs/benchmarks/perf-campaign/exec/`): an empty region costs 0.2–0.9 µs
-  with this pool at 2–8 threads against 5.0–7.0 µs with `rayon` (its
-  `install` and `broadcast` alike), and a region of 10–100 µs of work
-  spends 0.7–1.5 µs above the ideal `work / threads` at 4 and 8 threads
-  (up to 3.7 µs at 2) against 4.9–13.8 µs with `rayon`; an explicit step
-  has about a dozen regions, so on a 20 k-element mesh `rayon` would add
-  tens of percent. The
+  region (`scripts/perf/exec/pool-overhead`; empty regions and regions of
+  10–100 µs of work, overhead above the ideal `work / threads`, 2/4/8
+  threads): on an AWS `m7a.2xlarge` (AMD EPYC 9R14, 8 cores) 0.18–3.7 µs
+  at 2 and 4 threads (commit `3b6d0257`) against 4.9–13.8 µs for
+  `rayon::ThreadPool::broadcast`; on an 8-vCPU EPYC Milan VM, all three
+  thread counts at commit `427eb987`, 0.18–11.3 µs against 7.7–15.2 µs.
+  An explicit step has about a dozen regions, so on a 20 k-element mesh
+  `rayon` would add tens of percent. The
   price is `unsafe` code (a borrowed closure handed to the workers for one
   region; 7 sites in `crates/akantu-core/UNSAFE.md`) and workers that spin
   briefly after each region. A region started while the pool runs
@@ -2224,7 +2224,13 @@ tests against the default path.
   pipelines with the siblings. Recommendation: `ranks × threads ≤ cores`
   (physical cores), otherwise `AKANTU_EXEC_SPIN_US=0`. Measured on an
   8-core cloud VM (`docs/benchmarks/perf-campaign/exec/README.md`,
-  "Wait policy"): M1_NUMBERS.
+  "Wait policy"; 4,000 back-to-back regions of about 5 µs of work): at 4
+  threads on 4 cores the median region took 3.7 µs before these changes
+  and 3.9 µs after (p99 4.5 and 4.4 µs); with 16 threads on 8 cores the
+  old pool (5 ms of spinning) had a median of 8.6 µs and stalls of 6.0 ms
+  (a worker descheduled inside a region), the default now (spin 0) a
+  median of 20.1 µs, a p99 of 81 µs and a maximum of 0.2 ms; with 5 ms of
+  spinning forced the stalls of 6 ms come back.
   The library does not pin threads: a rank's threads inherit the rank's
   CPU mask, so with `mpirun --bind-to core` all threads of a rank share
   one core; run `ranks × threads ≤ cores` with a binding that gives each

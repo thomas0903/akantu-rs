@@ -177,3 +177,31 @@ about 1 ns per element of 11–15 on tet4. Not within noise for the rest:
 listed as an open problem. Before the part kernels became separate
 functions (`5c7543bb`) the head was 0.71–0.90 at one thread (the closures
 lost the no-alias guarantee of function parameters).
+
+## Wait policy (o1, review fixes)
+
+`crates/akantu-core/examples/exec_region_gap.rs THREADS 4000`: 4,000
+back-to-back regions of 4,000 items (about 5 µs of serial work), region
+time median [min, max] over 5 rounds of the per-round p50, p99 and maximum
+(µs), the two builds alternating. "Before": commit `4addb652` (5 ms spin,
+no yield); "after": commit `427eb987` (default spin 5 ms, 0 when the
+threads outnumber the cores; the caller's wait yields after 2048 polls).
+Raw data: `wait-policy-o1.jsonl`.
+
+| threads / cores | build | spin | p50 | p99 | max |
+|---|---|---|---|---|---|
+| 4 / 4 | before | 5 ms | 3.7 [3.6, 3.9] | 4.5 [4.2, 4.8] | 17.9 [13.5, 36.6] |
+| 4 / 4 | after | 5 ms (default) | 3.9 [3.6, 4.3] | 4.4 [4.1, 5.0] | 16.4 [14.2, 58.8] |
+| 4 / 4 | after | 0 | 10.8 [8.7, 12.4] | 21.5 [16.7, 22.0] | 35.4 [31.3, 69.3] |
+| 16 / 8 | before | 5 ms | 8.6 [8.4, 9.1] | 16.6 [15.1, 17.8] | 6017 [5012, 6020] |
+| 16 / 8 | after | 0 (default) | 20.1 [18.4, 23.3] | 81.3 [71.1, 100.3] | 197 [186, 218] |
+| 16 / 8 | after | 5 ms (forced) | 7.8 [6.7, 8.6] | 15.9 [13.9, 17.4] | 6019 [6018, 6023] |
+
+With more threads than cores, spinning workers delay a worker descheduled
+inside a region by a scheduler slice (6 ms); parking at once bounds the
+worst region at 0.2 ms for a higher median. With threads ≤ cores the
+default is unchanged.
+
+`pool-overhead` at commit `427eb987` on o1 (2/4/8 threads, 5 rounds,
+`pool-o1-427eb987.jsonl`): overhead above `work / threads` 0.18–11.3 µs
+for the own pool against 7.7–15.2 µs for `rayon::ThreadPool::broadcast`.

@@ -69,13 +69,13 @@ no part runs after `run` returns; the pool works afterwards).
 
 | Id | Line | Site | What it does | Invariant (its `SAFETY:` comment) | Established by | Test |
 |---|---|---|---|---|---|---|
-| CO-12 | 110 | `impl Sync for Shared` impl 1 | shares the pool state (with the `UnsafeCell` job slot) between threads | writes and reads of `job` never overlap | the region protocol (enter / close) | `exec::spin::tests::*`, `exec::pool::tests::*` |
-| CO-13 | 112 | `impl Send for Shared` impl 1 | moves the shared state into the workers | as CO-12 | as CO-12 | as CO-12 |
-| CO-14 | 204 | `impl SpinPool › fn run` block 1 | erases the lifetime of the region's closure | the pointer is not used after `run` returns or unwinds | `RegionGuard::drop` closes the region, waits until no worker is inside and clears the slot, on every path out of `run` | `every_part_runs_once`, `concurrent_callers` |
-| CO-15 | 207 | `impl SpinPool › fn run` block 2 | writes the job slot | no worker reads it now | `busy` held; the previous region is closed with nobody inside | as CO-14 |
-| CO-16 | 263 | `impl Drop for RegionGuard<'_> › fn drop` block 1 | clears the job slot (in `RegionGuard::drop`) | the region is closed and nobody is inside | closed bit set, count 0 observed | as CO-14 |
-| CO-17 | 398 | `fn worker` block 1 | reads the job slot | this worker is inside the open region | successful enter (compare-exchange); `Inside` not yet dropped | as CO-14, `regions_after_parking_and_nested_regions` |
-| CO-18 | 401 | `fn worker` block 2 | calls the region's closure | the closure outlives the region | as CO-17 | `a_panic_reaches_the_caller_and_the_pool_survives` |
+| CO-12 | 112 | `impl Sync for Shared` impl 1 | shares the pool state (with the `UnsafeCell` job slot) between threads | writes and reads of `job` never overlap | the region protocol (enter / close) | `exec::spin::tests::*`, `exec::pool::tests::*` |
+| CO-13 | 114 | `impl Send for Shared` impl 1 | moves the shared state into the workers | as CO-12 | as CO-12 | as CO-12 |
+| CO-14 | 206 | `impl SpinPool › fn run` block 1 | erases the lifetime of the region's closure | the pointer is not used after `run` returns or unwinds | `RegionGuard::drop` closes the region, waits until no worker is inside and clears the slot, on every path out of `run` | `every_part_runs_once`, `concurrent_callers` |
+| CO-15 | 209 | `impl SpinPool › fn run` block 2 | writes the job slot | no worker reads it now | `busy` held; the previous region is closed with nobody inside | as CO-14 |
+| CO-16 | 265 | `impl Drop for RegionGuard<'_> › fn drop` block 1 | clears the job slot (in `RegionGuard::drop`) | the region is closed and nobody is inside | closed bit set, count 0 observed | as CO-14 |
+| CO-17 | 400 | `fn worker` block 1 | reads the job slot | this worker is inside the open region | successful enter (compare-exchange); `Inside` not yet dropped | as CO-14, `regions_after_parking_and_nested_regions` |
+| CO-18 | 403 | `fn worker` block 2 | calls the region's closure | the closure outlives the region | as CO-17 | `a_panic_reaches_the_caller_and_the_pool_survives` |
 
 ## Guarantees the `unsafe` code of other crates relies on
 

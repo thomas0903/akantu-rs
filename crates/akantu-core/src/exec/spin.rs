@@ -16,17 +16,19 @@
 //! spin time (default 5 ms: the serial stretches of an explicit step last
 //! about a millisecond; 0 when the threads outnumber the cores), then parks
 //! on a condition variable. The caller's wait for the workers inside a
-//! region yields the core after a bounded number of polls.
+//! region yields the core after a bounded number of polls. Measured cost of
+//! one region above the ideal `work / threads` (`pool-overhead`): 0.18–3.7
+//! µs at 2 and 4 threads on 8 cores of an AMD EPYC 9R14 (commit
+//! `3b6d0257`), 0.18–11.3 µs at 2–8 threads on an 8-vCPU EPYC Milan VM
+//! (`427eb987`), against 4.9–15.2 µs for a `rayon` pool
+//! (`docs/benchmarks/perf-campaign/exec/README.md`).
 //!
 //! No unwind can leave a region open: the caller closes the region and waits
 //! for the workers inside in a guard's `Drop`, a worker leaves the region in
 //! a guard's `Drop`, a part's panic is caught inside the region, and its
 //! payload is dropped only after the region is closed and empty (the first
 //! one is resumed on the caller, the others are dropped there, a panic of
-//! such a `Drop` caught and its payload forgotten). Measured cost of one region on 8 cores of
-//! an AMD EPYC 9R14: 0.2–1.5 µs at 2–8 threads (3.7 µs at most), against
-//! 5–14 µs for a `rayon` pool
-//! (`docs/benchmarks/perf-campaign/exec/README.md`).
+//! such a `Drop` caught and its payload forgotten).
 //!
 //! A region submitted while the pool runs another one (from another thread,
 //! or from inside a part) runs serially on the calling thread: the parts
