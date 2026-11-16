@@ -317,6 +317,15 @@ fn copy_points_dyn(by: &[Real], rs: &mut [Real], src: usize, dst: usize, nq: usi
     }
 }
 
+/// One facet block of [`build_stress_plan`]: its type and ghost type, its
+/// `element_to_subelement` lists and the first neighbour of each facet.
+type FacetBlockTable<'a> = (
+    ElementType,
+    GhostType,
+    &'a akantu_core::Array<Vec<Element>>,
+    Vec<Option<Element>>,
+);
+
 /// Build the [`StressCopyPlan`] of one bulk law (upstream
 /// `interpolateStress` loop: for every element of the filter and every
 /// facet of it, the side is 1 unless the element is the facet's first
@@ -337,13 +346,7 @@ fn build_stress_plan(
     // per facet block met (not-ghost and ghost facets alternate on a
     // distributed mesh): its neighbour lists and the first neighbour of each
     // of its facets, read once in facet order (no per-pair visit of the lists)
-    #[allow(clippy::type_complexity)] // (facet type, ghost, lists, first neighbours)
-    let mut tables: Vec<(
-        ElementType,
-        GhostType,
-        &akantu_core::Array<Vec<Element>>,
-        Vec<Option<Element>>,
-    )> = Vec::new();
+    let mut tables: Vec<FacetBlockTable<'_>> = Vec::new();
     for &ty in types {
         let elems = filter.get(ty, GhostType::NotGhost)?.as_slice();
         if elems.is_empty() {
