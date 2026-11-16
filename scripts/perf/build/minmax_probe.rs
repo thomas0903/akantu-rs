@@ -15,10 +15,28 @@ use std::hint::black_box;
 
 fn vals() -> Vec<f64> {
     let mut v = vec![
-        0.0, -0.0, 1.0, -1.0, 2.5, -2.5, f64::INFINITY, f64::NEG_INFINITY, f64::MIN_POSITIVE,
-        -f64::MIN_POSITIVE, 5e-324, -5e-324, f64::MAX, f64::MIN,
+        0.0,
+        -0.0,
+        1.0,
+        -1.0,
+        2.5,
+        -2.5,
+        f64::INFINITY,
+        f64::NEG_INFINITY,
+        f64::MIN_POSITIVE,
+        -f64::MIN_POSITIVE,
+        5e-324,
+        -5e-324,
+        f64::MAX,
+        f64::MIN,
     ];
-    for bits in [0x7ff8_0000_0000_0000_u64, 0xfff8_0000_0000_0000, 0x7ff8_0000_0000_0123, 0xfff4_0000_0000_0001, 0x7ff0_0000_0000_0001] {
+    for bits in [
+        0x7ff8_0000_0000_0000_u64,
+        0xfff8_0000_0000_0000,
+        0x7ff8_0000_0000_0123,
+        0xfff4_0000_0000_0001,
+        0x7ff0_0000_0000_0001,
+    ] {
         v.push(f64::from_bits(bits));
     }
     v
@@ -34,16 +52,46 @@ fn fnv(h: &mut u64, x: f64) {
 #[inline(never)]
 fn vec_op(a: &[f64], b: &[f64], out: &mut [f64], op: u8) {
     match op {
-        0 => out.iter_mut().zip(a.iter().zip(b)).for_each(|(o, (x, y))| *o = x.min(*y)),
-        1 => out.iter_mut().zip(a.iter().zip(b)).for_each(|(o, (x, y))| *o = x.max(*y)),
-        2 => out.iter_mut().zip(a.iter().zip(b)).for_each(|(o, (x, y))| *o = x + y),
-        3 => out.iter_mut().zip(a.iter().zip(b)).for_each(|(o, (x, y))| *o = x * y),
-        4 => out.iter_mut().zip(a.iter().zip(b)).for_each(|(o, (x, y))| *o = x / y),
-        5 => out.iter_mut().zip(a.iter().zip(b)).for_each(|(o, (x, y))| *o = x - y),
-        6 => out.iter_mut().zip(a.iter().zip(b)).for_each(|(o, (x, y))| *o = if x < y { *x } else { *y }),
-        7 => out.iter_mut().zip(a.iter().zip(b)).for_each(|(o, (x, y))| *o = x.abs().max(y.abs())),
-        8 => out.iter_mut().zip(a.iter()).for_each(|(o, x)| *o = x.sqrt()),
-        _ => out.iter_mut().zip(a.iter().zip(b)).for_each(|(o, (x, y))| *o = x.clamp(-1.0, 1.0) + 0.0 * y),
+        0 => out
+            .iter_mut()
+            .zip(a.iter().zip(b))
+            .for_each(|(o, (x, y))| *o = x.min(*y)),
+        1 => out
+            .iter_mut()
+            .zip(a.iter().zip(b))
+            .for_each(|(o, (x, y))| *o = x.max(*y)),
+        2 => out
+            .iter_mut()
+            .zip(a.iter().zip(b))
+            .for_each(|(o, (x, y))| *o = x + y),
+        3 => out
+            .iter_mut()
+            .zip(a.iter().zip(b))
+            .for_each(|(o, (x, y))| *o = x * y),
+        4 => out
+            .iter_mut()
+            .zip(a.iter().zip(b))
+            .for_each(|(o, (x, y))| *o = x / y),
+        5 => out
+            .iter_mut()
+            .zip(a.iter().zip(b))
+            .for_each(|(o, (x, y))| *o = x - y),
+        6 => out
+            .iter_mut()
+            .zip(a.iter().zip(b))
+            .for_each(|(o, (x, y))| *o = if x < y { *x } else { *y }),
+        7 => out
+            .iter_mut()
+            .zip(a.iter().zip(b))
+            .for_each(|(o, (x, y))| *o = x.abs().max(y.abs())),
+        8 => out
+            .iter_mut()
+            .zip(a.iter())
+            .for_each(|(o, x)| *o = x.sqrt()),
+        _ => out
+            .iter_mut()
+            .zip(a.iter().zip(b))
+            .for_each(|(o, (x, y))| *o = x.clamp(-1.0, 1.0) + 0.0 * y),
     }
 }
 
@@ -57,8 +105,21 @@ fn main() {
         }
     }
     // reductions as the kernels write them (fold with max of |x|)
-    let mut dump = std::env::args().nth(1).map(|f| std::io::BufWriter::new(std::fs::File::create(f).expect("dump file")));
-    let names = ["min", "max", "add", "mul", "div", "sub", "lt-select", "absmax", "sqrt", "clamp"];
+    let mut dump = std::env::args()
+        .nth(1)
+        .map(|f| std::io::BufWriter::new(std::fs::File::create(f).expect("dump file")));
+    let names = [
+        "min",
+        "max",
+        "add",
+        "mul",
+        "div",
+        "sub",
+        "lt-select",
+        "absmax",
+        "sqrt",
+        "clamp",
+    ];
     for (op, name) in names.iter().enumerate() {
         let op = op as u8;
         let mut out = vec![0.0; a.len()];
@@ -68,7 +129,14 @@ fn main() {
         if let Some(w) = dump.as_mut() {
             use std::io::Write;
             for (k, r) in out.iter().enumerate() {
-                writeln!(w, "{name} vector {k} {:016x} {:016x} {:016x}", a[k].to_bits(), b[k].to_bits(), r.to_bits()).expect("write");
+                writeln!(
+                    w,
+                    "{name} vector {k} {:016x} {:016x} {:016x}",
+                    a[k].to_bits(),
+                    b[k].to_bits(),
+                    r.to_bits()
+                )
+                .expect("write");
             }
         }
         let mut hs = 0xcbf2_9ce4_8422_2325_u64;
@@ -81,7 +149,13 @@ fn main() {
                 3 => x * y,
                 4 => x / y,
                 5 => x - y,
-                6 => if x < y { x } else { y },
+                6 => {
+                    if x < y {
+                        x
+                    } else {
+                        y
+                    }
+                }
                 7 => x.abs().max(y.abs()),
                 8 => x.sqrt(),
                 _ => x.clamp(-1.0, 1.0) + 0.0 * y,
@@ -89,15 +163,31 @@ fn main() {
             fnv(&mut hs, black_box(r));
             if let Some(w) = dump.as_mut() {
                 use std::io::Write;
-                writeln!(w, "{name} scalar {k} {:016x} {:016x} {:016x}", x.to_bits(), y.to_bits(), r.to_bits()).expect("write");
+                writeln!(
+                    w,
+                    "{name} scalar {k} {:016x} {:016x} {:016x}",
+                    x.to_bits(),
+                    y.to_bits(),
+                    r.to_bits()
+                )
+                .expect("write");
             }
         }
-        println!("{name:10} vector {hv:016x} scalar {hs:016x} min(+0,-0)={:016x} min(-0,+0)={:016x}",
-            black_box(0.0_f64).min(black_box(-0.0)).to_bits(), black_box(-0.0_f64).min(black_box(0.0)).to_bits());
+        println!(
+            "{name:10} vector {hv:016x} scalar {hs:016x} min(+0,-0)={:016x} min(-0,+0)={:016x}",
+            black_box(0.0_f64).min(black_box(-0.0)).to_bits(),
+            black_box(-0.0_f64).min(black_box(0.0)).to_bits()
+        );
     }
     let fold = a.iter().fold(0.0_f64, |m, x| m.max(x.abs()));
     let fold_min = b.iter().fold(f64::INFINITY, |m, x| m.min(*x));
     let nan = black_box(0.0_f64) / black_box(0.0);
     let inf_sub = black_box(f64::INFINITY) - black_box(f64::INFINITY);
-    println!("fold absmax {:016x} fold min {:016x} 0/0 {:016x} inf-inf {:016x}", fold.to_bits(), fold_min.to_bits(), nan.to_bits(), inf_sub.to_bits());
+    println!(
+        "fold absmax {:016x} fold min {:016x} 0/0 {:016x} inf-inf {:016x}",
+        fold.to_bits(),
+        fold_min.to_bits(),
+        nan.to_bits(),
+        inf_sub.to_bits()
+    );
 }
