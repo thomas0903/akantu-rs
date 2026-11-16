@@ -983,9 +983,16 @@ Rules for a threaded kernel:
   item order. Outputs after the failing item may already be written
   (unlike the serial loop). The FE kernels' callers treat the outputs of a
   failed kernel as undefined. A law's state after an error is the serial
-  loop's at every thread count: the laws that work on copies of their
-  blocks write them back only when every point succeeded (Mazars, plastic,
-  Drucker–Prager, anisotropic damage, standard linear solid, Maxwell);
+  loop's at every thread count (current and previous values). The laws
+  that compute into scratch blocks committed by swap (plastic, standard
+  linear solid, Marigo, Maxwell) take their guards, size the scratch and
+  load what the points read before they write (the plastic hardening, the
+  Marigo damage) on the calling thread, before the parts; the parts write
+  disjoint ranges of the scratch and call no `InternalField` method; the
+  commits run once on the calling thread after every part succeeded,
+  none when a part failed. The laws that work on copies of their blocks
+  write them back only when every point succeeded (Mazars, Drucker–Prager,
+  anisotropic damage);
   the neo-Hookean stress finds the first point with `J ≤ 0` with a
   read-only pass of the kernel's own predicate, runs the points before it
   on the threads and the rest serially; the plane-stress `C33` solve
@@ -1035,14 +1042,14 @@ predecessor fails. Declared:
 | `elastic` | stress, thermal pre-step | a point's stress from its own gradient and thermal stress |
 | `elastic_orthotropic`, `elastic_anisotropic` | stress | a point from its own gradient and the constant `C` |
 | `neohookean` (incl. 2-D plane stress) | stress, `C33` solve | a point from its own gradient and stored `C33`; error path as above |
-| `plastic_linear_isotropic_hardening` | J2 return, plastic work, thermal pre-step | a point from its own history (copies written back on success) |
+| `plastic_linear_isotropic_hardening` | J2 return, plastic work, thermal pre-step | a point from its own history (scratch blocks committed on success) |
 | `plastic_drucker_prager` | projection, plastic work, thermal pre-step | the same |
 | `mazars`, `plastic_mazars` | parent stress, damage loop, dissipated energy, thermal refresh | a point from its own values (copies); a failed eigen solve leaves the state unchanged |
-| `marigo` | stress and damage loop, dissipated energy, thermal refresh | a point from its own values (copies) |
+| `marigo` | stress and damage loop, dissipated energy, thermal refresh | a point from its own values (scratch blocks, the damage loaded first) |
 | `mazars_non_local`, `marigo_non_local` | the inner law's local loop (equivalent strain / `Y` per point) | the local loop is per point; the averaging, its own phase, stays serial |
 | `anisotropic_damage`, experimental and corrected models | stress and damage | a point from its own gradient and committed damage (copies) |
-| `viscoelastic_maxwell` | stress, branch update, potential and dissipated energy | a point from its own gradients and branch state; block constants set outside the loops |
-| `sls_deviatoric` | stress and history | a point from its own gradient and history (copies) |
+| `viscoelastic_maxwell` | stress, branch update, potential and dissipated energy | a point from its own gradients and branch state; block constants set outside the loops; the stress and potential energy into scratch blocks, the branch state, work and dissipation in place |
+| `sls_deviatoric` | stress and history | a point from its own gradient and history (scratch blocks) |
 | `phasefield` | stress, tangent, thermal pre-step | a point from its own gradient, damage (written by the phase-field model) and thermal strain |
 | `visco_plastic` (extra materials) | flow and return, plastic work | a point from its own values (copies); upstream mode (UD-583): also the first point's previous state, which the loop does not write |
 | `damage_linear` (extra materials), per-point thresholds | stress and damage | a point from its own damage and threshold (copies) |
