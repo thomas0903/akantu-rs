@@ -119,7 +119,14 @@ change of default results or of a public API raises the minor version.
   place, skips the interpolation of the temperature when the
   conductivity cannot depend on it (`conductivity_variation = 0`, finite
   temperatures) and keeps its temporary arrays between steps
-  (`docs/benchmarks/perf-campaign/laws/`).
+  (`docs/benchmarks/perf-campaign/laws/`). Two error paths of the heat law
+  differ: `∇u` is written into its block, so an error part-way through
+  the gradient leaves the entries of the elements before it written (as
+  upstream's `computeGradU` does); the constant-conductivity path does not
+  run the interpolation of `T` and its filter and length checks, so it
+  sets the diffusivity and updates its release where an invalid filter
+  used to return an error there (the same operation still fails right
+  after, in the gradient or in `compute_btdb`).
 - `akantu_fe::eigen::product_slices` checks the operands' inner
   dimension before the slice lengths: a call with both wrong now reports
   the inner-dimension mismatch (still `Error::DimensionMismatch`, with
