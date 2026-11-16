@@ -1057,3 +1057,23 @@ fn phasefield_law_is_bitwise_for_every_thread_count() {
         options: None,
     });
 }
+
+/// Non-local Mazars: the local loop of the law on threads (equivalent
+/// strain per point), the neighbourhood average serial, the damage after
+/// it.
+#[test]
+fn mazars_non_local_law_is_bitwise_for_every_thread_count() {
+    check_law(&LawCase {
+        name: "mazars_non_local",
+        dat: |dim| {
+            format!(
+                "{}non_local body base_wf [\n  radius = 0.4\n]\n",
+                mazars_dat(dim).replace("material mazars [", "material mazars_non_local [")
+            )
+        },
+        amp: 1e-3,
+        steps: 6,
+        active: "damage",
+        options: None,
+    });
+}
