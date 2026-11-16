@@ -76,9 +76,25 @@
 //! detects cycles exactly: a reference to a parameter whose value is being
 //! evaluated can only recurse forever, so it is a hard error with
 //! [`ConversionError::is_cyclic_reference`] (category A).
+//!
+//! Variable values are cached per evaluation: upstream parses a variable's
+//! value again at every reference, so a chain in which each parameter refers
+//! twice to the previous one costs 2^k parses. The port stores the value of
+//! each variable after its first successful evaluation and reuses it for the
+//! later references of the same top-level evaluation. The value bits are the
+//! same (the expression functions are deterministic, and a value is always
+//! evaluated with the X3 grammar in the scope that defines it), and so are
+//! the errors: only successes are stored, and an evaluation stops at its
+//! first error. A parameter that is being evaluated is never in the cache
+//! (it is stored when its evaluation completes), so the cycle check sees the
+//! same references; and a variable whose evaluation succeeded once cannot
+//! reach a parameter that is active at a later reference (that parameter
+//! would have reached the variable, a cycle the first evaluation would have
+//! reported).
 
-use std::collections::HashSet;
+use std::collections::HashMap;
 use std::fmt;
+use std::hash::{BuildHasherDefault, Hasher};
 
 use crate::cmath::{BINARY, Binary, CONSTANTS, UNARY, Unary};
 use crate::scope::{ScopeRef, SearchScope};
@@ -794,11 +810,11 @@ enum Cont<'x> {
     /// `'(' expr ')'`.
     Parenthesis,
     /// `unary '(' expr ')'`.
-    Unary { f: Unary, name: String },
+    Unary { f: Unary, name: Name<'x> },
     /// `binary '(' expr ',' expr ')'`: after the first argument.
-    Binary1 { f: Binary, name: String },
+    Binary1 { f: Binary, name: Name<'x> },
     /// `binary '(' expr ',' expr ')'`: after the second argument.
-    Binary2 { f: Binary, a: f64, name: String },
+    Binary2 { f: Binary, a: f64, name: Name<'x> },
     /// A variable reference: after the evaluation of its value (in its own
     /// context); `outer` is the context to resume.
     Variable {
@@ -806,6 +822,16 @@ enum Cont<'x> {
         param: &'x ParserParameter,
         outer: Ctx<'x>,
     },
+}
+
+/// A function name as written in the expression (shown in messages only).
+#[derive(Clone, Copy)]
+struct Name<'x>(&'x [u8]);
+
+impl fmt::Display for Name<'_> {
+    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
+        f.write_str(&String::from_utf8_lossy(self.0))
+    }
 }
 
 /// What the machine does next.
@@ -816,12 +842,41 @@ enum Step {
 
 struct Eval<'x> {
     ctx: Ctx<'x>,
-    /// Parameters whose value is being evaluated (by address): a reference
-    /// to one of them is a cycle.
-    active: HashSet<*const ParserParameter>,
+    /// Variables of this evaluation by address of the parameter (which also
+    /// fixes the scope that defines it): being evaluated (a reference to
+    /// one of them is a cycle), or evaluated successfully with their value.
+    vars: HashMap<*const ParserParameter, VarState, BuildHasherDefault<PtrHasher>>,
     /// Context of an error unwinding through variable references, innermost
     /// first.
     wraps: Vec<String>,
+}
+
+/// State of a variable during one evaluation.
+#[derive(Clone, Copy)]
+enum VarState {
+    Active,
+    Done(f64),
+}
+
+/// Hasher of parameter addresses (a multiplicative hash; the keys are
+/// addresses of live parameters, not attacker-chosen).
+#[derive(Default)]
+struct PtrHasher(u64);
+
+impl Hasher for PtrHasher {
+    fn write(&mut self, bytes: &[u8]) {
+        for &b in bytes {
+            self.0 = (self.0 ^ u64::from(b)).wrapping_mul(0x0100_0000_01B3);
+        }
+    }
+
+    fn write_usize(&mut self, x: usize) {
+        self.0 = (self.0 ^ x as u64).wrapping_mul(0x9E37_79B9_7F4A_7C15);
+    }
+
+    fn finish(&self) -> u64 {
+        self.0 ^ (self.0 >> 29)
+    }
 }
 
 /// Contexts shown in full in a message before eliding the middle of a long
@@ -837,7 +892,7 @@ impl<'x> Eval<'x> {
                 dialect,
                 scope,
             },
-            active: HashSet::new(),
+            vars: HashMap::default(),
             wraps: Vec::new(),
         }
     }
@@ -888,12 +943,21 @@ impl<'x> Eval<'x> {
     }
 
     fn expect_char(&mut self, c: u8, what: &str) -> Result<(), ConversionError> {
+        self.expect_char_with(c, || what.to_owned())
+    }
+
+    /// [`Self::expect_char`] with a message built only on failure.
+    fn expect_char_with(
+        &mut self,
+        c: u8,
+        what: impl FnOnce() -> String,
+    ) -> Result<(), ConversionError> {
         self.skip_ws();
         if self.peek() == Some(c) {
             self.ctx.pos += 1;
             Ok(())
         } else {
-            Err(self.expectation(what))
+            Err(self.expectation(&what()))
         }
     }
 
@@ -1046,18 +1110,18 @@ impl<'x> Eval<'x> {
         &mut self,
         table: &[(&str, F)],
         no_case: bool,
-    ) -> Option<(F, String)> {
+    ) -> Option<(F, Name<'x>)> {
         self.skip_ws();
         let (f, len) = longest_match(table, self.ctx.s, self.ctx.pos, no_case)?;
         let p = self.ctx.pos;
-        let name = String::from_utf8_lossy(&self.ctx.s[p..p + len]).into_owned();
+        let name = Name(&self.ctx.s[p..p + len]);
         self.ctx.pos += len;
         Some((f, name))
     }
 
     fn unary(&mut self, no_case: bool, stack: &mut Vec<Cont<'x>>) -> Option<Step> {
         let (f, name) = self.function_name::<Unary>(UNARY, no_case)?;
-        if let Err(e) = self.expect_char(b'(', &format!("'(' after function '{name}'")) {
+        if let Err(e) = self.expect_char_with(b'(', || format!("'(' after function '{name}'")) {
             return Some(Step::Return(Err(e)));
         }
         stack.push(Cont::Unary { f, name });
@@ -1066,7 +1130,7 @@ impl<'x> Eval<'x> {
 
     fn binary(&mut self, no_case: bool, stack: &mut Vec<Cont<'x>>) -> Option<Step> {
         let (f, name) = self.function_name::<Binary>(BINARY, no_case)?;
-        if let Err(e) = self.expect_char(b'(', &format!("'(' after function '{name}'")) {
+        if let Err(e) = self.expect_char_with(b'(', || format!("'(' after function '{name}'")) {
             return Some(Step::Return(Err(e)));
         }
         stack.push(Cont::Binary1 { f, name });
@@ -1099,18 +1163,25 @@ impl<'x> Eval<'x> {
                 start,
             ))));
         };
-        if !self.active.insert(std::ptr::from_ref(param)) {
-            return Some(Step::Return(Err(ConversionError {
-                cyclic: true,
-                ..ConversionError::hard(
-                    format!(
-                        "cyclic variable reference: the value of '{}' depends on itself (at {})",
-                        String::from_utf8_lossy(name),
-                        self.here()
-                    ),
-                    start,
-                )
-            })));
+        let key = std::ptr::from_ref(param);
+        match self.vars.get(&key) {
+            Some(&VarState::Done(v)) => return Some(Step::Return(Ok(Some(v)))),
+            None => {
+                self.vars.insert(key, VarState::Active);
+            }
+            Some(VarState::Active) => {
+                return Some(Step::Return(Err(ConversionError {
+                    cyclic: true,
+                    ..ConversionError::hard(
+                        format!(
+                            "cyclic variable reference: the value of '{}' depends on itself (at {})",
+                            String::from_utf8_lossy(name),
+                            self.here()
+                        ),
+                        start,
+                    )
+                })));
+            }
         }
         stack.push(Cont::Variable {
             start,
@@ -1186,10 +1257,14 @@ impl<'x> Eval<'x> {
         {
             let r = r.and_then(|v| self.finish(v, "a Real expression"));
             self.ctx = outer;
-            self.active.remove(&std::ptr::from_ref(param));
+            let key = std::ptr::from_ref(param);
             return Step::Return(match r {
-                Ok(v) => Ok(Some(v)),
+                Ok(v) => {
+                    self.vars.insert(key, VarState::Done(v));
+                    Ok(Some(v))
+                }
                 Err(e) => {
+                    self.vars.remove(&key);
                     self.wraps
                         .push(format!("in variable '{}' = '{}'", param.name, param.value));
                     Err(ConversionError { offset: start, ..e })
@@ -1249,7 +1324,7 @@ impl<'x> Eval<'x> {
             },
             Cont::Binary1 { f, name } => {
                 if let Err(e) =
-                    self.expect_char(b',', &format!("',' between the arguments of '{name}'"))
+                    self.expect_char_with(b',', || format!("',' between the arguments of '{name}'"))
                 {
                     return Step::Return(Err(e));
                 }
@@ -1684,6 +1759,65 @@ mod tests {
         assert!(eval_random(b"10 uniform [0.2, ]", sc).is_err());
         assert!(eval_random(b"10 uniform [0.2 0.5]", sc).is_err());
         assert!(eval_random(b"10 normalx [1, 2]", sc).is_err());
+    }
+
+    /// A section `a0 = 1`, `a<i> = a<i-1> + a<i-1>`, plus `extra` lines.
+    fn chain(k: usize, extra: &[(&str, &str)]) -> ParserSection {
+        let mut s = ParserSection::new(ParserType::Global, "global");
+        s.parameters.push(ParserParameter::new("a0", "1"));
+        for i in 1..k {
+            let v = format!("a{} + a{}", i - 1, i - 1);
+            s.parameters
+                .push(ParserParameter::new(format!("a{i}").as_str(), v.as_str()));
+        }
+        for &(n, v) in extra {
+            s.parameters.push(ParserParameter::new(n, v));
+        }
+        s
+    }
+
+    #[test]
+    fn doubling_chain_is_linear() {
+        // Without the per-evaluation cache this is 2^200 parses.
+        let s = chain(200, &[]);
+        let sc = ScopeRef::Section(&s);
+        let v = eval_real(b"a199", sc).unwrap();
+        assert_eq!(v.to_bits(), 2f64.powi(199).to_bits());
+        let v = eval_vector(b"[a199, a198 * 2, a0]", sc).unwrap();
+        assert_eq!(v, vec![2f64.powi(199), 2f64.powi(199), 1.0]);
+    }
+
+    #[test]
+    fn cache_keeps_errors_and_cycles() {
+        // An error below a cached variable: the same message as without a
+        // cache (the error comes from the first failing reference).
+        let s = chain(5, &[("bad", "a4 + a3 + 1 +"), ("top", "a4 * bad")]);
+        let sc = ScopeRef::Section(&s);
+        let e = eval_real(b"top", sc).unwrap_err();
+        assert!(e.is_hard() && !e.is_cyclic_reference(), "{e:?}");
+        assert_eq!(
+            e.message(),
+            "in variable 'top' = 'a4 * bad': in variable 'bad' = 'a4 + a3 + 1 +': \
+             expecting a term at 'a4 + a3 + 1 +<HERE>'"
+        );
+        // A cycle reached through a diamond: `x` refers twice to `y`, `y`
+        // to `z`, `z` back to `x`. The cycle is reported at the first
+        // reference, with the same chain of contexts.
+        let s = chain(2, &[("x", "y + y"), ("y", "z * 2"), ("z", "a1 + x")]);
+        let sc = ScopeRef::Section(&s);
+        let e = eval_real(b"x", sc).unwrap_err();
+        assert!(e.is_hard() && e.is_cyclic_reference(), "{e:?}");
+        assert_eq!(
+            e.message(),
+            "in variable 'x' = 'y + y': in variable 'y' = 'z * 2': \
+             in variable 'z' = 'a1 + x': cyclic variable reference: the value of 'x' \
+             depends on itself (at 'a1 + x<HERE>')"
+        );
+        // A variable used again after an error-free first use at another
+        // depth: same value.
+        let s = chain(3, &[("p", "a2 + q"), ("q", "a2 * a1")]);
+        let sc = ScopeRef::Section(&s);
+        assert_eq!(eval_real(b"p + q + a2", sc).unwrap(), 4.0 + 8.0 + 8.0 + 4.0);
     }
 
     #[test]
