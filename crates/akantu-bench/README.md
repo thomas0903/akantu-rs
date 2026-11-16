@@ -72,12 +72,19 @@ with the same contract. Scripts in `scripts/perf/suite/`:
   case list, one process per run, each pinned with `taskset` (or started by
   an MPI launcher), the binaries of a case back to back with their order
   rotated per repetition; `--wrap "tjob LABEL --"` runs each such group as
-  one job on the measurement machine.
+  one job on the measurement machine; `--rep-offset K` numbers the
+  repetitions of a series split over several calls.
 - `summarize.py`: medians with [min, max], per-call and per-element times,
   paired ratios against a reference binary, and whether the digests agree,
   as a Markdown table.
 - `profile.sh`: `perf record --call-graph dwarf` of one case with
   `--loop-seconds`, and the text report (top symbols, call chains).
+- `run_mpi.sh`: the MPI cases at several rank counts in the project's MPI
+  image (one container per run, ranks bound to distinct cores, the same
+  output layout as `run_ab.sh`).
+
+Results, profiles and the ranked hot-spot list of the solid area:
+`docs/benchmarks/perf-campaign/suite-solid/`.
 
 ### Solid mechanics (`suite_solid`)
 
