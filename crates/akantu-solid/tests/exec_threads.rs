@@ -731,3 +731,18 @@ fn anisotropic_law_is_bitwise_for_every_thread_count() {
         active: "stress",
     });
 }
+
+#[test]
+fn maxwell_law_is_bitwise_for_every_thread_count() {
+    check_law(&LawCase {
+        name: "viscoelastic_maxwell",
+        dat: |_| {
+            "material viscoelastic_maxwell [\n  name = body\n  rho = 2500\n  Einf = 70e9\n  \
+             nu = 0.22\n  Eta = [1e3, 1e4]\n  Ev = [20e9, 10e9]\n]\n"
+                .into()
+        },
+        amp: 1e-3,
+        steps: 6,
+        active: "sigma_v",
+    });
+}
