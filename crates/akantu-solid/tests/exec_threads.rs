@@ -651,12 +651,91 @@ struct LawCase {
     options: Option<fn() -> akantu_solid::material::LawOptions>,
 }
 
-fn run_law(case: &LawCase, mesh: Mesh, policy: ExecPolicy) -> State {
-    let mut m = case_model(case, mesh, policy);
-    for _ in 0..case.steps {
-        m.solve_step(None).unwrap();
+/// Run `f` on `m`; with `copy_every_save` the blocks of every field with
+/// history of every law are exported to a foreign runtime first (as NumPy
+/// views would be), which makes every history save a copy, as upstream
+/// does; otherwise the saves are deferred and exchanged.
+fn with_saves<R>(
+    m: &mut SolidMechanicsModel,
+    copy_every_save: bool,
+    f: impl FnOnce(&mut SolidMechanicsModel) -> R,
+) -> R {
+    use akantu_model::constitutive_law::InternalFieldMut as Mut;
+    let rt = ForeignRuntime::new();
+    let mut leases: Vec<ExportLease<Real>> = Vec::new();
+    if copy_every_save {
+        for law in m.physics.materials.laws_mut() {
+            let types = law.base().filter_types(GhostType::NotGhost);
+            law.for_each_internal_mut(&mut |_, field| {
+                if let Mut::Real(f) = field
+                    && f.has_history()
+                {
+                    for &ty in &types {
+                        if f.exists(ty, GhostType::NotGhost) {
+                            leases.push(
+                                f.values_mut()
+                                    .shared_mut(ty, GhostType::NotGhost)?
+                                    .export(&rt)?,
+                            );
+                        }
+                    }
+                }
+                Ok(())
+            })
+            .unwrap();
+        }
+        assert!(!leases.is_empty(), "fields with history were exported");
     }
-    law_state(&mut m)
+    let mut interp = rt.enter().unwrap();
+    let _native = interp.native().unwrap();
+    f(m)
+}
+
+fn run_law(case: &LawCase, mesh: Mesh, policy: ExecPolicy, copy_every_save: bool) -> State {
+    let mut m = case_model(case, mesh, policy);
+    with_saves(&mut m, copy_every_save, |m| {
+        for _ in 0..case.steps {
+            m.solve_step(None).unwrap();
+        }
+        law_state(m)
+    })
+}
+
+/// With `AKANTU_TEST_STATE_DUMP=<file>`, append one line per serial
+/// reference state: the case, a hash of every array's bits (FNV-1a) and the
+/// error message, so that the serial results of two builds (e.g. before and
+/// after a change) can be compared.
+fn dump_state(case: &str, error: &str, state: &State) {
+    let Ok(path) = std::env::var("AKANTU_TEST_STATE_DUMP") else {
+        return;
+    };
+    let mut h: u64 = 0xcbf2_9ce4_8422_2325;
+    for (name, v) in state {
+        for b in name.bytes() {
+            h = (h ^ u64::from(b)).wrapping_mul(0x0100_0000_01b3);
+        }
+        for x in v {
+            for b in x.to_le_bytes() {
+                h = (h ^ u64::from(b)).wrapping_mul(0x0100_0000_01b3);
+            }
+        }
+    }
+    use std::io::Write as _;
+    let mut f = std::fs::OpenOptions::new()
+        .create(true)
+        .append(true)
+        .open(path)
+        .unwrap();
+    writeln!(f, "{case}\t{h:016x}\t{error}").unwrap();
+}
+
+/// The policies of the runs whose history saves are copies (exported
+/// blocks).
+fn copy_policies() -> Vec<ExecPolicy> {
+    threaded_policies()
+        .into_iter()
+        .filter(|p| matches!(p.threads(), 1 | 4 | 8))
+        .collect()
 }
 
 /// The thread counts and grains of the invariance tests.
@@ -678,7 +757,8 @@ fn check_law(case: &LawCase) {
         ("3-D tetrahedra and hexahedra", || mixed_cube(3)),
     ];
     for (mesh_name, mesh) in meshes {
-        let reference = run_law(case, mesh(), ExecPolicy::serial());
+        let reference = run_law(case, mesh(), ExecPolicy::serial(), false);
+        dump_state(&format!("{} ({mesh_name})", case.name), "", &reference);
         let moved = reference
             .iter()
             .filter(|(n, _)| n.contains(&format!("/{}/", case.active)))
@@ -691,9 +771,23 @@ fn check_law(case: &LawCase) {
         for p in threaded_policies() {
             compare(
                 &reference,
-                &run_law(case, mesh(), p),
+                &run_law(case, mesh(), p, false),
                 &format!(
                     "{} ({mesh_name}): threads={} {:?}",
+                    case.name,
+                    p.threads(),
+                    p.grain()
+                ),
+            );
+        }
+        // every history save a copy (exported blocks): the same current
+        // and previous values
+        for p in copy_policies() {
+            compare(
+                &reference,
+                &run_law(case, mesh(), p, true),
+                &format!(
+                    "{} ({mesh_name}): saves by copy, threads={} {:?}",
                     case.name,
                     p.threads(),
                     p.grain()
@@ -787,9 +881,18 @@ fn marigo_law_is_bitwise_for_every_thread_count() {
 /// nearest the centre becomes NaN, so the points of the elements around it
 /// (in the middle of the blocks) fail; the next step's error and the state
 /// it leaves are compared bit for bit across thread counts.
-fn law_error_state(case: &LawCase, mesh: Mesh, policy: ExecPolicy) -> (String, State) {
-    let dim = mesh.spatial_dimension();
+fn law_error_state(
+    case: &LawCase,
+    mesh: Mesh,
+    policy: ExecPolicy,
+    copy_every_save: bool,
+) -> (String, State) {
     let mut m = case_model(case, mesh, policy);
+    with_saves(&mut m, copy_every_save, |m| law_error_steps(case, m))
+}
+
+fn law_error_steps(case: &LawCase, m: &mut SolidMechanicsModel) -> (String, State) {
+    let dim = m.physics.base.spatial_dimension;
     for _ in 0..case.steps {
         m.solve_step(None).unwrap();
     }
@@ -811,7 +914,7 @@ fn law_error_state(case: &LawCase, mesh: Mesh, policy: ExecPolicy) -> (String, S
         .solve_step(None)
         .expect_err("a NaN displacement makes the law fail")
         .to_string();
-    (err, law_state(&mut m))
+    (err, law_state(m))
 }
 
 /// `expect`: a part of the error message of the law's failing point.
@@ -822,7 +925,12 @@ fn check_law_error(case: &LawCase, expect: &str) {
         ("3-D tetrahedra and hexahedra", || mixed_cube(3)),
     ];
     for (mesh_name, mesh) in meshes {
-        let (err, reference) = law_error_state(case, mesh(), ExecPolicy::serial());
+        let (err, reference) = law_error_state(case, mesh(), ExecPolicy::serial(), false);
+        dump_state(
+            &format!("{} error path ({mesh_name})", case.name),
+            &err,
+            &reference,
+        );
         assert!(
             err.contains(expect),
             "{} ({mesh_name}): the step failed elsewhere: {err}",
@@ -835,7 +943,18 @@ fn check_law_error(case: &LawCase, expect: &str) {
                 p.threads(),
                 p.grain()
             );
-            let (e, state) = law_error_state(case, mesh(), p);
+            let (e, state) = law_error_state(case, mesh(), p, false);
+            assert_eq!(err, e, "{what}: another error");
+            compare(&reference, &state, &what);
+        }
+        for p in copy_policies() {
+            let what = format!(
+                "{} error path ({mesh_name}): saves by copy, threads={} {:?}",
+                case.name,
+                p.threads(),
+                p.grain()
+            );
+            let (e, state) = law_error_state(case, mesh(), p, true);
             assert_eq!(err, e, "{what}: another error");
             compare(&reference, &state, &what);
         }

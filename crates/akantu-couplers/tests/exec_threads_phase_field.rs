@@ -69,7 +69,8 @@ fn bits(v: &[Real]) -> Vec<u64> {
     v.iter().map(|x| x.to_bits()).collect()
 }
 
-/// The `Real` internals of a law, current values, on triangles.
+/// The `Real` internals of a law on triangles, current values and, for
+/// the fields with history, previous values.
 fn law_bits(prefix: &str, law: &dyn ConstitutiveLaw, out: &mut State) {
     law.for_each_internal(&mut |name, f| {
         if let InternalFieldRef::Real(f) = f
@@ -83,6 +84,16 @@ fn law_bits(prefix: &str, law: &dyn ConstitutiveLaw, out: &mut State) {
                         .as_slice(),
                 ),
             ));
+            if f.has_history() {
+                out.push((
+                    format!("{prefix}/{name}/previous"),
+                    bits(
+                        f.previous(ElementType::Triangle3, GhostType::NotGhost)
+                            .unwrap()
+                            .as_slice(),
+                    ),
+                ));
+            }
         }
     });
 }

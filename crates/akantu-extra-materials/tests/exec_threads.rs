@@ -11,13 +11,15 @@
 //! bit with the one-thread run at 1, 2, 3, 4 and 8 threads, finest and
 //! automatic grain, in 2-D and 3-D.
 
+use akantu_core::array_shared::ForeignRuntime;
+use akantu_core::array_storage::ExportLease;
 use akantu_core::enums::AnalysisMethod;
 use akantu_core::exec::{ExecPolicy, Grain};
 use akantu_core::{ElementType, GhostType, Real};
 use akantu_extra_materials::{ExtraLawOptions, register_extra_materials_with};
 use akantu_mesh::{Mesh, MeshAccessor, SharedMesh};
 use akantu_model::ModelOptions;
-use akantu_model::constitutive_law::InternalFieldRef;
+use akantu_model::constitutive_law::{InternalFieldMut, InternalFieldRef};
 use akantu_parser::Parser;
 use akantu_solid::SolidMechanicsModel;
 
@@ -163,7 +165,16 @@ fn bits(v: &[Real]) -> Vec<u64> {
 /// `steps` explicit steps of one law on the whole mesh: the left side
 /// clamped at a non-zero value, the right side's second component
 /// prescribed, an initial field of amplitude 1e-3 elsewhere.
-fn run(mesh: Mesh, dat: &str, options: ExtraLawOptions, policy: ExecPolicy) -> State {
+/// With `copy_every_save` the blocks of every field with history are
+/// exported to a foreign runtime (as NumPy views would be), which makes
+/// every history save a copy; otherwise the saves are deferred.
+fn run(
+    mesh: Mesh,
+    dat: &str,
+    options: ExtraLawOptions,
+    policy: ExecPolicy,
+    copy_every_save: bool,
+) -> State {
     let dim = mesh.spatial_dimension();
     let parser = Parser::parse_str(dat, "material.dat").unwrap();
     let mut m =
@@ -208,6 +219,33 @@ fn run(mesh: Mesh, dat: &str, options: ExtraLawOptions, policy: ExecPolicy) -> S
         .unwrap()
         .as_mut_slice()
         .copy_from_slice(&prescribed);
+    let rt = ForeignRuntime::new();
+    let mut leases: Vec<ExportLease<Real>> = Vec::new();
+    if copy_every_save {
+        for law in m.physics.materials.laws_mut() {
+            let types = law.base().filter_types(GhostType::NotGhost);
+            law.for_each_internal_mut(&mut |_, field| {
+                if let InternalFieldMut::Real(f) = field
+                    && f.has_history()
+                {
+                    for &ty in &types {
+                        if f.exists(ty, GhostType::NotGhost) {
+                            leases.push(
+                                f.values_mut()
+                                    .shared_mut(ty, GhostType::NotGhost)?
+                                    .export(&rt)?,
+                            );
+                        }
+                    }
+                }
+                Ok(())
+            })
+            .unwrap();
+        }
+        assert!(!leases.is_empty(), "fields with history were exported");
+    }
+    let mut interp = rt.enter().unwrap();
+    let _native = interp.native().unwrap();
     for _ in 0..6 {
         m.solve_step(None).unwrap();
     }
@@ -258,7 +296,7 @@ fn check(name: &str, dat: &str, options: ExtraLawOptions, active: &str) {
     type MeshFn = fn() -> Mesh;
     let meshes: [(&str, MeshFn); 2] = [("2-D", || grid2d(6, false)), ("3-D", || mixed_cube(3))];
     for (mesh_name, mesh) in meshes {
-        let reference = run(mesh(), dat, options, ExecPolicy::serial());
+        let reference = run(mesh(), dat, options, ExecPolicy::serial(), false);
         let moved = reference
             .iter()
             .filter(|(n, _)| n.contains(&format!("/{active}/")))
@@ -270,12 +308,20 @@ fn check(name: &str, dat: &str, options: ExtraLawOptions, active: &str) {
                     .with_threads(threads)
                     .unwrap()
                     .with_grain(grain);
-                let what = format!("{name} ({mesh_name}): threads={threads} {grain:?}");
-                let s = run(mesh(), dat, options, p);
-                assert_eq!(reference.len(), s.len(), "{what}");
-                for ((n, r), (_, o)) in reference.iter().zip(&s) {
-                    assert!(!r.is_empty(), "{what}: {n} empty");
-                    assert!(r == o, "{what}: {n} differs from the one-thread run");
+                // deferred history saves at every thread count, saves by
+                // copy (exported blocks) at 1, 4 and 8 threads
+                for copy in [false, true] {
+                    if copy && !matches!(threads, 1 | 4 | 8) {
+                        continue;
+                    }
+                    let what =
+                        format!("{name} ({mesh_name}): threads={threads} {grain:?} copy={copy}");
+                    let s = run(mesh(), dat, options, p, copy);
+                    assert_eq!(reference.len(), s.len(), "{what}");
+                    for ((n, r), (_, o)) in reference.iter().zip(&s) {
+                        assert!(!r.is_empty(), "{what}: {n} empty");
+                        assert!(r == o, "{what}: {n} differs from the one-thread run");
+                    }
                 }
             }
         }

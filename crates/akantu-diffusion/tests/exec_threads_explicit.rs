@@ -211,6 +211,12 @@ fn run(mesh: Mesh, variation: Real, policy: ExecPolicy, steps: usize) -> State {
                     format!("law{i}/{name}/{ty:?}"),
                     bits(f.get(ty, GhostType::NotGhost).unwrap().as_slice()),
                 ));
+                if f.has_history() {
+                    out.push((
+                        format!("law{i}/{name}/{ty:?}/previous"),
+                        bits(f.previous(ty, GhostType::NotGhost).unwrap().as_slice()),
+                    ));
+                }
             }
         }
     }
