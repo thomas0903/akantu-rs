@@ -51,6 +51,7 @@
 //! loops do not allocate.
 
 use akantu_core::eigen_gebp::{self, Extent, Order, ProductShape};
+pub use akantu_core::eigen_kernels::SliceProduct;
 use akantu_core::eigen_order as eo;
 use akantu_core::{Error, Real, Result};
 
@@ -233,23 +234,28 @@ pub fn product_slices(
             });
         }
     }
-    // (row stride, column stride) of the logical operand in its slice
-    let strides = |d: Dims| {
-        if d.transposed {
-            (d.cols, 1)
-        } else {
-            (1, d.rows)
-        }
-    };
-    let (ai, ak) = strides(lhs);
-    let (bk, bj) = strides(rhs);
-    product(
-        lhs,
-        rhs,
-        |i, k| a[i * ai + k * ak],
-        |k, j| b[k * bk + j * bj],
-        c,
-    )
+    let p = SliceProduct::new(product_shape(lhs, rhs))?;
+    let got = c.len();
+    if got < p.out_len() {
+        return Err(Error::DimensionMismatch {
+            context: "eigen::product: result",
+            expected: p.out_len(),
+            got,
+        });
+    }
+    p.eval(a, b, c)?;
+    Ok(p.route())
+}
+
+/// The [`SliceProduct`] of `lhs * rhs` (operand storage as in
+/// [`product_slices`]): route, strides and lengths decided once, for loops
+/// that evaluate the same product per element or quadrature point
+/// ([`SliceProduct::eval`] gives the bits of [`product_slices`]).
+///
+/// # Errors
+/// [`Error::DimensionMismatch`] if `lhs.cols != rhs.rows`.
+pub fn prepare(lhs: Dims, rhs: Dims) -> Result<SliceProduct> {
+    SliceProduct::new(product_shape(lhs, rhs))
 }
 
 /// `squaredNorm()` of `n` values: halving tree for a compile-time size within

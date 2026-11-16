@@ -64,6 +64,7 @@ pub mod csr;
 pub mod debug;
 pub mod dim;
 pub mod eigen_gebp;
+pub mod eigen_kernels;
 pub mod eigen_order;
 pub mod eigen_unrolled;
 pub mod element;
