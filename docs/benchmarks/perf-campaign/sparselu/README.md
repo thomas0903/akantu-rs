@@ -1,9 +1,9 @@
 <!-- SPDX-License-Identifier: LGPL-3.0-or-later -->
-# W2-SPARSELU: the Eigen SparseLU translation
+# The Eigen SparseLU translation
 
-Task of the performance campaign: make the default sparse direct solver
+Performance work on the default sparse direct solver
 (`akantu_linalg::eigen_sparse_lu`, the translation of Eigen 3.4's
-`SparseLU<SparseMatrix<double>, COLAMDOrdering<int>>`) as fast as possible
+`SparseLU<SparseMatrix<double>, COLAMDOrdering<int>>`): as fast as possible
 with the bits of the oracle's strict build (scalar Eigen, no FMA).
 
 Machine of every table: Google Cloud, AMD EPYC 9B14 (Zen 4, AVX-512),
@@ -126,5 +126,4 @@ CI job running on the other four cores). Tolerance test
 `tests::fma_mode_solution_within_tolerance`: relative 2-norm difference
 of the solution ≤ 1e-12 on a diagonally dominant 3-D stencil (condition
 number below 10). Larger fast-mode gains need another algorithm (a
-supernodal BLAS-3 kernel with packing, another ordering) and are listed in
-the task report.
+supernodal BLAS-3 kernel with packing, another ordering).

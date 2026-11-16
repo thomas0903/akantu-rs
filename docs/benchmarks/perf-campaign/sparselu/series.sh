@@ -1,13 +1,14 @@
 #!/usr/bin/env bash
 # SPDX-License-Identifier: LGPL-3.0-or-later
-# akantu-rs project tooling (not ported from Akantu): the final A/B series of
-# task W2-SPARSELU (Eigen SparseLU translation), run from the root of a
-# checkout of the branch on a machine with the suite binaries of the two
-# commits in BIN (default ~/w/sparselu/bin: before_{solid,models} built at
-# perf/wave2-base 59e05aa3, final_{solid,models} at the branch head).
-#   docs/benchmarks/perf-campaign/sparselu/series.sh OUT REPS
+# akantu-rs project tooling (not ported from Akantu): the A/B series of the
+# Eigen SparseLU translation's performance work, run from the root of a
+# checkout with the suite binaries of the two commits in the directory BIN
+# (before_{solid,models}: the base, final_{solid,models}: the branch head).
+#   BIN=DIR docs/benchmarks/perf-campaign/sparselu/series.sh OUT REPS
 set -euo pipefail
-OUT=${1:?OUT}; REPS=${2:-5}; BIN=${BIN:-$HOME/w/sparselu/bin}
+OUT=${1:?OUT}
+REPS=${2:-5}
+BIN=${BIN:?BIN: the directory of the suite binaries}
 SOLID=static_linear_eigen,static_newton_plastic,implicit_dynamic,cohesive_intrinsic_implicit
 MODELS=heat_implicit_hex8_kvar,heat_static_tri6,structural_beam3_frame_static,structural_dkt18_plate_static,phasefield_staggered_tri3,phasefield_staggered_tet4,contact_implicit_static_quad4,embedded_rebar_tet4
 scripts/perf/suite/run_ab.sh --out "$OUT/solid" --size m --reps "$REPS" --cases "$SOLID" --core 2 \
