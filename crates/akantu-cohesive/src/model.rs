@@ -194,7 +194,7 @@ struct StressCopyBlock {
 /// interpolating every element into the by-element buffer and copying the
 /// buffer's tuples, the value of the pair's interpolation points is
 /// computed directly into `facet_stress` from the element's stress tuple
-/// ([`akantu_fe::PointInterpolation::value`], the operations the
+/// ([`akantu_fe::engine::PointInterpolation::value`], the operations the
 /// interpolation performs for that element and point). The element's tuple
 /// and slot are those the interpolation would have left in the buffer: the
 /// **last** position of the element in the law's filter (later positions
@@ -213,7 +213,7 @@ struct FusedPair {
 
 /// The fused form of every block of `plan` for the law filter `filter`
 /// and its stress interpolation `interp`: `None` for a block whose bulk
-/// type has no [`akantu_fe::PointInterpolation`] (more than one quadrature
+/// type has no [`akantu_fe::engine::PointInterpolation`] (more than one quadrature
 /// point, other routes), whose filter does not match the interpolation, or
 /// whose offsets do not fit `u32`; such a block makes the law take the
 /// general path.
@@ -343,8 +343,11 @@ fn build_stress_plan(
         // per-chunk vectors concatenated in filter order before
         // `sort_by_destination` give the same plan (rebuilt after every
         // insertion step).
-        // last facet-type array looked up (one type per bulk type normally)
+        // last facet-type block looked up (one type per bulk type normally),
+        // with the first neighbour of each of its facets read once in facet
+        // order (no per-pair visit of the neighbour lists)
         let mut cached: Option<(ElementType, GhostType, &akantu_core::Array<Vec<Element>>)> = None;
+        let mut first_of: Vec<Option<Element>> = Vec::new();
         for &ge in elems {
             let ge_u = akantu_core::try_to_usize(ge)?;
             let element = Element::new(ty, ge, GhostType::NotGhost);
@@ -355,14 +358,23 @@ fn build_stress_plan(
                     _ => {
                         let a = e2s.get(facet.ty(), facet.ghost_type())?;
                         cached = Some((facet.ty(), facet.ghost_type(), a));
+                        first_of.clear();
+                        if a.nb_component() == 1 {
+                            first_of.extend(a.as_slice().iter().map(|l| l.first().copied()));
+                        }
                         a
                     }
                 };
                 let fi = facet.try_idx().ok_or_else(|| {
                     Error::invalid("interpolateStress: a bulk element without facet")
                 })?;
-                let neighbours = lists.get_tuple(fi)?;
-                let second = usize::from(neighbours[0].first() != Some(&element));
+                let first = match first_of.get(fi) {
+                    Some(&f) => f,
+                    // other layouts and out-of-range rows: the lists
+                    // themselves (and their errors)
+                    None => lists.get_tuple(fi)?[0].first().copied(),
+                };
+                let second = usize::from(first != Some(element));
                 let src = (ge_u * nip + f * nq) * stress_size;
                 let dst = (fi * nq * 2 + second) * stress_size;
                 let block = match plan.blocks[first_block..]
@@ -454,25 +466,53 @@ fn interpolate_fused(
         let rs = facet_stress
             .get_mut(block.facet, block.facet_ghost)?
             .as_mut_slice();
-        let nq = block.nq;
         // Threading candidate (WP-EXEC primitives, independent outputs):
         // every pair writes only its own destination tuples (the plan holds
         // one pair per destination), so any chunking of `pairs` keeps every
         // bit; chunks by destination range keep the writes sequential.
-        for p in pairs {
-            let src = &fs[p.field as usize..p.field as usize + stress_size];
-            for q in 0..nq {
-                let d = p.dst as usize + 2 * q * stress_size;
-                view.value(
-                    p.slot as usize,
-                    p.point as usize + q,
-                    src,
-                    &mut rs[d..d + stress_size],
-                );
+        match stress_size {
+            9 => fused_pairs::<9>(&view, pairs, fs, rs, block.nq),
+            4 => fused_pairs::<4>(&view, pairs, fs, rs, block.nq),
+            n => {
+                for p in pairs {
+                    let src = &fs[p.field as usize..p.field as usize + n];
+                    for q in 0..block.nq {
+                        let d = p.dst as usize + 2 * q * n;
+                        view.value(
+                            p.slot as usize,
+                            p.point as usize + q,
+                            src,
+                            &mut rs[d..d + n],
+                        );
+                    }
+                }
             }
         }
     }
     Ok(true)
+}
+
+/// The pairs of one fused block for stress tuples of `N` values: the
+/// element's coefficients once per pair (shared by the facet's `nq`
+/// points), then each point's value (`PointInterpolation::value`, in two
+/// steps).
+#[inline]
+fn fused_pairs<const N: usize>(
+    view: &akantu_fe::engine::PointInterpolation<'_>,
+    pairs: &[FusedPair],
+    fs: &[Real],
+    rs: &mut [Real],
+    nq: usize,
+) {
+    let mut c = [0.0; N];
+    for p in pairs {
+        let (slot, field) = (p.slot as usize, p.field as usize);
+        view.coefficients(slot, &fs[field..field + N], &mut c);
+        for q in 0..nq {
+            let d = p.dst as usize + 2 * q * N;
+            view.value_from_coefficients(&c, slot, p.point as usize + q, &mut rs[d..d + N]);
+        }
+    }
 }
 
 /// Rebuild `plan` when it was never built, the bulk mesh revision changed

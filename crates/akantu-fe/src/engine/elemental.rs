@@ -286,7 +286,8 @@ impl PointInterpolation<'_> {
     /// route's form, see the type's documentation): the value
     /// [`FeEngine::interpolate_elemental_field`] writes at interpolation
     /// point `point` of an element in slot `slot` whose quadrature-point
-    /// tuple is `field`.
+    /// tuple is `field`. Equal to [`PointInterpolation::coefficients`]
+    /// followed by [`PointInterpolation::value_from_coefficients`].
     ///
     /// # Panics
     /// `slot ≥ nb_slots()`, `point ≥ nb_interpolation_points()` or `field`
@@ -300,6 +301,50 @@ impl PointInterpolation<'_> {
         let (f1, f2) = (self.kernel.first, self.kernel.second);
         for (x, &f) in out.iter_mut().zip(field) {
             *x = f2.one(f1.one(a * f) * m);
+        }
+    }
+
+    /// The first product of an element in slot `slot` (its coefficients,
+    /// shared by all its interpolation points): `coeff[c] = inv(slot)·field[c]`
+    /// for `c < coeff.len()`, with the first product's form.
+    ///
+    /// # Panics
+    /// `slot ≥ nb_slots()` or `field` shorter than `coeff`.
+    #[inline]
+    pub fn coefficients(&self, slot: usize, field: &[Real], coeff: &mut [Real]) {
+        let a = self.inv[slot];
+        let f1 = self.kernel.first;
+        let field = &field[..coeff.len()];
+        for (c, &f) in coeff.iter_mut().zip(field) {
+            *c = f1.one(a * f);
+        }
+    }
+
+    /// The second product at interpolation point `point` of the element in
+    /// slot `slot`, from its [`PointInterpolation::coefficients`]:
+    /// `out[c] = coeff[c]·itp(slot, point)` for `c < out.len()`, with the
+    /// second product's form.
+    ///
+    /// # Panics
+    /// `slot ≥ nb_slots()`, `point ≥ nb_interpolation_points()` or `coeff`
+    /// shorter than `out`.
+    #[inline]
+    pub fn value_from_coefficients(
+        &self,
+        coeff: &[Real],
+        slot: usize,
+        point: usize,
+        out: &mut [Real],
+    ) {
+        assert!(
+            point < self.nip,
+            "PointInterpolation::value_from_coefficients: point {point}"
+        );
+        let m = self.itp[slot * self.nip + point];
+        let f2 = self.kernel.second;
+        let coeff = &coeff[..out.len()];
+        for (x, &c) in out.iter_mut().zip(coeff) {
+            *x = f2.one(c * m);
         }
     }
 }
@@ -988,6 +1033,14 @@ mod tests {
                 for (pos, (&e, &slot)) in ids.iter().zip(&slots).enumerate() {
                     for i in 0..nip {
                         view.value(slot, i, &fs[pos * nbc..(pos + 1) * nbc], &mut v);
+                        let mut c = [0.0; 9];
+                        let mut w = [0.0; 9];
+                        view.coefficients(slot, &fs[pos * nbc..(pos + 1) * nbc], &mut c);
+                        view.value_from_coefficients(&c, slot, i, &mut w);
+                        assert!(
+                            v.iter().zip(&w).all(|(x, y)| x.to_bits() == y.to_bits()),
+                            "two-step form"
+                        );
                         let r = &out[(e * nip + i) * nbc..(e * nip + i + 1) * nbc];
                         for (x, y) in v.iter().zip(r) {
                             assert!(
