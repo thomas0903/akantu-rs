@@ -415,35 +415,6 @@ pub(crate) fn trsm_kc(depth: usize, rows: usize, cols: usize) -> usize {
     }
 }
 
-/// `gebp` accumulation of one result entry over `depth` products `t(l)`
-/// for a result column that the `1 × nr` micro-kernel handles (`full` =
-/// column index below `(cols / nr)·nr`): even and odd `l` accumulate
-/// separately up to the peeled depth, then `c + d`, then the remainder;
-/// other columns accumulate sequentially. Both start from `+0`.
-fn gebp_acc(depth: usize, full: bool, t: impl Fn(usize) -> f64) -> f64 {
-    if full {
-        let peeled = depth & !(GEBP_PK - 1);
-        let (mut c, mut d) = (0.0, 0.0);
-        let mut l = 0;
-        while l < peeled {
-            c += t(l);
-            d += t(l + 1);
-            l += 2;
-        }
-        let mut c = c + d;
-        for l in peeled..depth {
-            c += t(l);
-        }
-        c
-    } else {
-        let mut c = 0.0;
-        for l in 0..depth {
-            c += t(l);
-        }
-        c
-    }
-}
-
 /// `triangular_solve_matrix<double, …, OnTheLeft, Lower|UnitDiag,
 /// ColMajor (tri), ColMajor (other)>`: solves `L X = B` in place for the
 /// `size × cols` block `X(i, j) = o[o_off + i + j·ldo]`, `L(i, j) =
@@ -500,17 +471,19 @@ pub(crate) fn trsm_unit_lower(
                 let start_block = k2 + k1;
                 if length_target > 0 {
                     let start_target = k2 + k1 + apw;
-                    for jj in 0..acols {
-                        let j = j2 + jj;
-                        for tt in 0..length_target {
-                            let row = start_target + tt;
-                            let c = gebp_acc(apw, jj < full_cols, |l| {
-                                tri(row, start_block + l) * o[o_off + (start_block + l) + j * ldo]
-                            });
-                            let r = &mut o[o_off + row + j * ldo];
-                            *r = c * -1.0 + *r;
-                        }
-                    }
+                    gebp_minus(
+                        apw,
+                        start_block,
+                        start_target..start_target + length_target,
+                        j2..j2 + acols,
+                        full_cols,
+                        t,
+                        t_off,
+                        ldt,
+                        o,
+                        o_off,
+                        ldo,
+                    );
                 }
                 k1 += TRSM_SMALL_PANEL;
             }
@@ -518,16 +491,146 @@ pub(crate) fn trsm_unit_lower(
         }
         // R2 -= A21 * B (rows below the kc block)
         let full_cols = (cols / GEBP_NR) * GEBP_NR;
-        for row in (k2 + kc).min(size)..size {
-            for j in 0..cols {
-                let c = gebp_acc(akc, j < full_cols, |l| {
-                    tri(row, k2 + l) * o[o_off + (k2 + l) + j * ldo]
-                });
-                let r = &mut o[o_off + row + j * ldo];
-                *r = c * -1.0 + *r;
-            }
+        let below = (k2 + kc).min(size);
+        if below < size {
+            gebp_minus(
+                akc,
+                k2,
+                below..size,
+                0..cols,
+                full_cols,
+                t,
+                t_off,
+                ldt,
+                o,
+                o_off,
+                ldo,
+            );
         }
         k2 += kc;
+    }
+}
+
+/// The `gebp` update `o(row, j) = c·(−1) + o(row, j)` of [`trsm_unit_lower`]
+/// for `row ∈ rows`, `j ∈ cols`, with `c` = [`gebp_acc`] over the `depth`
+/// products `t(row, k0 + l)·o(k0 + l, j)` (`full` for the first
+/// `full_cols` columns of `cols`). The rows are independent and the
+/// right-hand values `o(k0 + l, j)` lie outside `rows`: the update runs
+/// over tiles of rows, each lane with [`gebp_acc`]'s sequence
+/// (`tests::trsm_matches_reference_bitwise`).
+#[allow(clippy::too_many_arguments)] // BLAS-style kernel signature
+fn gebp_minus(
+    depth: usize,
+    k0: usize,
+    rows: std::ops::Range<usize>,
+    cols: std::ops::Range<usize>,
+    full_cols: usize,
+    t: &[f64],
+    t_off: usize,
+    ldt: usize,
+    o: &mut [f64],
+    o_off: usize,
+    ldo: usize,
+) {
+    debug_assert!(rows.start >= k0 + depth || rows.end <= k0);
+    const XMAX: usize = 128;
+    let mut xbuf = [0.0f64; XMAX];
+    let mut xheap = Vec::new();
+    let x: &mut [f64] = if depth <= XMAX {
+        &mut xbuf[..depth]
+    } else {
+        xheap.resize(depth, 0.0);
+        &mut xheap
+    };
+    let tcol = &t[t_off..];
+    for (jj, j) in cols.enumerate() {
+        let full = jj < full_cols;
+        x.copy_from_slice(&o[o_off + k0 + j * ldo..][..depth]);
+        let ocol = &mut o[o_off + j * ldo..];
+        let mut row = rows.start;
+        while row + 8 <= rows.end {
+            gebp_minus_tile::<8>(
+                depth,
+                full,
+                tcol,
+                row + k0 * ldt,
+                ldt,
+                x,
+                &mut ocol[row..row + 8],
+            );
+            row += 8;
+        }
+        if row + 4 <= rows.end {
+            gebp_minus_tile::<4>(
+                depth,
+                full,
+                tcol,
+                row + k0 * ldt,
+                ldt,
+                x,
+                &mut ocol[row..row + 4],
+            );
+            row += 4;
+        }
+        while row < rows.end {
+            gebp_minus_tile::<1>(
+                depth,
+                full,
+                tcol,
+                row + k0 * ldt,
+                ldt,
+                x,
+                &mut ocol[row..=row],
+            );
+            row += 1;
+        }
+    }
+}
+
+/// `MR` rows of [`gebp_minus`]: `t(r, l) = t[t0 + r + l·ldt]`, `x(l)`.
+#[inline(always)]
+fn gebp_minus_tile<const MR: usize>(
+    depth: usize,
+    full: bool,
+    t: &[f64],
+    t0: usize,
+    ldt: usize,
+    x: &[f64],
+    out: &mut [f64],
+) {
+    let tl = |l: usize| -> &[f64; MR] {
+        t[t0 + l * ldt..][..MR]
+            .try_into()
+            .unwrap_or_else(|_| unreachable!())
+    };
+    let mut c = [0.0f64; MR];
+    let mut l = 0;
+    if full {
+        let peeled = depth & !(GEBP_PK - 1);
+        let mut dd = [0.0f64; MR];
+        while l < peeled {
+            let (t0v, t1v) = (tl(l), tl(l + 1));
+            let (x0, x1) = (x[l], x[l + 1]);
+            for r in 0..MR {
+                c[r] += t0v[r] * x0;
+                dd[r] += t1v[r] * x1;
+            }
+            l += 2;
+        }
+        for r in 0..MR {
+            c[r] = c[r] + dd[r];
+        }
+    }
+    while l < depth {
+        let tv = tl(l);
+        let xl = x[l];
+        for r in 0..MR {
+            c[r] += tv[r] * xl;
+        }
+        l += 1;
+    }
+    for r in 0..MR {
+        out[r] = c[r] * -1.0 + out[r];
     }
 }
 
@@ -587,7 +690,7 @@ pub(crate) fn sparselu_gemm_into_zero(
 }
 
 /// Rows of a register tile of [`sparselu_gemm`].
-const GEMM_MR: usize = 8;
+const GEMM_MR: usize = 4;
 /// Columns of a register tile of [`sparselu_gemm`].
 const GEMM_NR: usize = 4;
 
@@ -647,10 +750,6 @@ fn gemm_cols<const NR: usize, const ZERO: bool>(
     while i + GEMM_MR <= m {
         gemm_tile::<GEMM_MR, NR, ZERO>(d, a, a_off + i, lda, &bcols, c, c_off + i, ldc);
         i += GEMM_MR;
-    }
-    if i + 4 <= m {
-        gemm_tile::<4, NR, ZERO>(d, a, a_off + i, lda, &bcols, c, c_off + i, ldc);
-        i += 4;
     }
     if i + 2 <= m {
         gemm_tile::<2, NR, ZERO>(d, a, a_off + i, lda, &bcols, c, c_off + i, ldc);
@@ -803,6 +902,146 @@ mod tests {
     /// in the new one. Non-finite factors are refused by `factorize`.
     pub(super) fn same_bits(x: f64, y: f64) -> bool {
         x.to_bits() == y.to_bits() || (x.is_nan() && y.is_nan())
+    }
+
+    /// `gebp_acc` of the reference `trsm_unit_lower`.
+    fn gebp_acc(depth: usize, full: bool, t: impl Fn(usize) -> f64) -> f64 {
+        if full {
+            let peeled = depth & !(GEBP_PK - 1);
+            let (mut c, mut d) = (0.0, 0.0);
+            let mut l = 0;
+            while l < peeled {
+                c += t(l);
+                d += t(l + 1);
+                l += 2;
+            }
+            let mut c = c + d;
+            for l in peeled..depth {
+                c += t(l);
+            }
+            c
+        } else {
+            let mut c = 0.0;
+            for l in 0..depth {
+                c += t(l);
+            }
+            c
+        }
+    }
+
+    /// The row-by-row `trsm_unit_lower` that the row-tiled one replaced.
+    #[allow(clippy::too_many_arguments)] // BLAS-style kernel signature
+    fn trsm_unit_lower_reference(
+        size: usize,
+        cols: usize,
+        t: &[f64],
+        t_off: usize,
+        ldt: usize,
+        o: &mut [f64],
+        o_off: usize,
+        ldo: usize,
+    ) {
+        if size == 0 {
+            return;
+        }
+        let tri = |i: usize, j: usize| t[t_off + i + j * ldt];
+        let kc = trsm_kc(size, size, cols);
+        let subcols = if cols > 0 {
+            L2 / (4 * SCALAR * ldo.max(size))
+        } else {
+            0
+        };
+        let subcols = ((subcols / GEBP_NR) * GEBP_NR).max(GEBP_NR);
+        let mut k2 = 0;
+        while k2 < size {
+            let akc = (size - k2).min(kc);
+            let mut j2 = 0;
+            while j2 < cols {
+                let acols = (cols - j2).min(subcols);
+                let full_cols = (acols / GEBP_NR) * GEBP_NR;
+                let mut k1 = 0;
+                while k1 < akc {
+                    let apw = (akc - k1).min(TRSM_SMALL_PANEL);
+                    // tr solve of the small panel (unit diagonal: a = 1)
+                    for k in 0..apw {
+                        let i = k2 + k1 + k;
+                        let rs = apw - k - 1;
+                        let s = i + 1;
+                        for j in j2..j2 + acols {
+                            let oij = &mut o[o_off + i + j * ldo];
+                            *oij *= 1.0;
+                            let b = *oij;
+                            for i3 in 0..rs {
+                                let r = &mut o[o_off + (s + i3) + j * ldo];
+                                *r -= b * tri(s + i3, i);
+                            }
+                        }
+                    }
+                    // gebp update of the rows below the panel, inside the kc block
+                    let length_target = akc - k1 - apw;
+                    let start_block = k2 + k1;
+                    if length_target > 0 {
+                        let start_target = k2 + k1 + apw;
+                        for jj in 0..acols {
+                            let j = j2 + jj;
+                            for tt in 0..length_target {
+                                let row = start_target + tt;
+                                let c = gebp_acc(apw, jj < full_cols, |l| {
+                                    tri(row, start_block + l)
+                                        * o[o_off + (start_block + l) + j * ldo]
+                                });
+                                let r = &mut o[o_off + row + j * ldo];
+                                *r = c * -1.0 + *r;
+                            }
+                        }
+                    }
+                    k1 += TRSM_SMALL_PANEL;
+                }
+                j2 += subcols;
+            }
+            // R2 -= A21 * B (rows below the kc block)
+            let full_cols = (cols / GEBP_NR) * GEBP_NR;
+            for row in (k2 + kc).min(size)..size {
+                for j in 0..cols {
+                    let c = gebp_acc(akc, j < full_cols, |l| {
+                        tri(row, k2 + l) * o[o_off + (k2 + l) + j * ldo]
+                    });
+                    let r = &mut o[o_off + row + j * ldo];
+                    *r = c * -1.0 + *r;
+                }
+            }
+            k2 += kc;
+        }
+    }
+
+    #[test]
+    fn trsm_matches_reference_bitwise() {
+        let mut g = Gen(0x0123_4567_89AB_CDEF);
+        for case in 0..600 {
+            let specials = case % 4 == 0;
+            // sizes around the kc split (96 / 128) and the panel widths
+            let size = match case % 5 {
+                0 => g.below(10),
+                1 => 90 + g.below(50),
+                _ => g.below(70),
+            };
+            let cols = g.below(18);
+            let ldt = size + g.below(5);
+            let ldo = size + g.below(3);
+            let (to, oo) = (g.below(4), g.below(4));
+            let t = g.vec(to + ldt * size.max(1) + 1, specials);
+            let o0 = g.vec(oo + ldo * cols.max(1) + size, specials);
+            let mut o1 = o0.clone();
+            let mut o2 = o0.clone();
+            trsm_unit_lower_reference(size, cols, &t, to, ldt, &mut o1, oo, ldo);
+            trsm_unit_lower(size, cols, &t, to, ldt, &mut o2, oo, ldo);
+            for (x, y) in o1.iter().zip(&o2) {
+                assert!(
+                    same_bits(*x, *y),
+                    "case {case}: size={size} cols={cols}: {x:e} {y:e}"
+                );
+            }
+        }
     }
 
     #[test]
