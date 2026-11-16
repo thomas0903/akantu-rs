@@ -1493,6 +1493,44 @@ impl GroupManager {
 mod tests {
     use super::*;
 
+    /// The bit-set form of the sorted unique list gives the values and the
+    /// order of the sort, also with negative values (sort fallback), wide
+    /// ranges (sort fallback), duplicates and empty lists.
+    #[test]
+    fn sort_unique_dense_is_the_sort() {
+        let mut state = 0x9e37_79b9_7f4a_7c15_u64;
+        let mut next = || {
+            state ^= state << 13;
+            state ^= state >> 7;
+            state ^= state << 17;
+            state
+        };
+        let mut marks = Vec::new();
+        for case in 0..400 {
+            let len = usize::try_from(next() % 300).unwrap();
+            let range = match case % 4 {
+                0 => 50,
+                1 => 5_000,
+                2 => 1 << 30,
+                _ => 3,
+            };
+            let mut v: Vec<Idx> = (0..len)
+                .map(|_| {
+                    let x = Idx::try_from(next() % range).unwrap();
+                    if case % 7 == 0 && next() % 5 == 0 {
+                        -x - 1
+                    } else {
+                        x
+                    }
+                })
+                .collect();
+            let mut w = v.clone();
+            let n = sort_unique(&mut v);
+            let m = sort_unique_dense(&mut w, &mut marks);
+            assert_eq!(&v[..n], &w[..m], "case {case}");
+        }
+    }
+
     #[test]
     fn groups() {
         let mut g = GroupManager::default();

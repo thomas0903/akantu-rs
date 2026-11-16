@@ -1919,6 +1919,63 @@ pub fn flip_facets_local_with(
 #[cfg(test)]
 mod tests {
     use super::*;
+
+    /// The facet search through the narrowest coordinate window finds the
+    /// facet the linear scan finds (the lowest index within the tolerance),
+    /// with points on common planes and lines, duplicates, near misses and
+    /// non-finite queries.
+    #[test]
+    fn first_facet_within_is_the_linear_scan() {
+        let mut state = 0x2545_f491_4f6c_dd1d_u64;
+        let mut unit = || {
+            state ^= state << 13;
+            state ^= state >> 7;
+            state ^= state << 17;
+            Real::from(u32::try_from(state >> 40).unwrap()) / Real::from(1u32 << 24)
+        };
+        for dim in [2usize, 3] {
+            let n = 400;
+            let mut points = Vec::with_capacity(n * dim);
+            for k in 0..n {
+                for c in 0..dim {
+                    // grid planes (many facets share a coordinate), some
+                    // exact duplicates
+                    let v = if k % 3 == 0 && c == 0 {
+                        1.0
+                    } else if k % 5 == 0 {
+                        (unit() * 8.0).floor() / 8.0
+                    } else {
+                        unit()
+                    };
+                    points.push(v);
+                }
+            }
+            let dup: Vec<Real> = points[..dim].to_vec();
+            points.extend_from_slice(&dup);
+            let bary = FacetBarycenters::new(dim, points.clone());
+            for q in 0..600 {
+                let mut x: Vec<Real> = if q % 2 == 0 {
+                    let j = q % (n + 1);
+                    points[j * dim..(j + 1) * dim].to_vec()
+                } else {
+                    (0..dim).map(|_| unit()).collect()
+                };
+                if q % 3 == 0 {
+                    x[q % dim] += Real::EPSILON * Real::from(u8::try_from(q % 4).unwrap());
+                }
+                if q == 599 {
+                    x[0] = Real::NAN;
+                }
+                let tol = MATH_TOLERANCE * norm(&x).max(1.0);
+                let linear = (0..bary.len()).find(|&j| distance(&x, bary.point(j)) < tol);
+                assert_eq!(
+                    first_facet_within(&bary, &x, tol),
+                    linear,
+                    "dim {dim}, query {q}"
+                );
+            }
+        }
+    }
     use crate::accessor::MeshAccessor;
     use akantu_core::ElementType as Et;
 

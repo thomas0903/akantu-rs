@@ -120,6 +120,11 @@ pub struct CohesiveExtension {
     /// Copy plans of [`SolidMechanicsModelCohesive::interpolate_stress`]
     /// per bulk law (performance).
     stress_plans: BTreeMap<usize, StressCopyPlan>,
+    /// The fused form of the insertion check may run
+    /// (`fused_insertion_checks`; tests compare it with the two passes).
+    fused_check_enabled: bool,
+    /// Checks that ran in the fused form (tests).
+    fused_checks: usize,
     selector_state: Arc<std::sync::RwLock<crate::selector::CohesiveSelectorState>>,
     custom_selector: bool,
     dim: usize,
@@ -1471,6 +1476,8 @@ impl SolidMechanicsModelCohesive {
                 stress_interpolation: BTreeMap::new(),
                 by_elem_buffer: ElementTypeMapArray::new("temporary_stress_by_facets"),
                 stress_plans: BTreeMap::new(),
+                fused_check_enabled: true,
+                fused_checks: 0,
                 selector_state: Arc::default(),
                 custom_selector: false,
                 dim,
@@ -2211,6 +2218,7 @@ impl SolidMechanicsModelCohesive {
             times: (t0, t1, t1),
         };
         let checks = if fused {
+            self.ext.fused_checks += 1;
             self.fused_insertion_checks().map(|p| (p, Vec::new()))
         } else {
             self.builtin_insertion_checks()
@@ -2540,7 +2548,7 @@ impl SolidMechanicsModelCohesive {
     /// The errors `interpolate_stress` reports first (interpolation
     /// revision, plan construction).
     fn fused_check_ready(&mut self) -> Result<bool> {
-        if self.ext.parallel.is_some() {
+        if self.ext.parallel.is_some() || !self.ext.fused_check_enabled {
             return Ok(false);
         }
         let laws = self.smm.physics.materials.laws();
@@ -4115,6 +4123,79 @@ mod perf_tests {
                 model.ext.stats.inserted > 0,
                 "{file}: insertions between the rounds"
             );
+        }
+    }
+
+    /// Bits of a cohesive law's arrays the check appends to, per cohesive
+    /// type.
+    fn cohesive_law_bits(model: &SolidMechanicsModelCohesive) -> Vec<u64> {
+        let mut out = Vec::new();
+        for law in model.smm.physics.materials.laws() {
+            let Some(c) = law
+                .as_any()
+                .and_then(|a| a.downcast_ref::<MaterialCohesive>())
+            else {
+                continue;
+            };
+            let Some(l) = c.law.linear() else { continue };
+            for (_, _, a) in l.sigma_c_eff.values().as_map().iter_all() {
+                out.extend(a.borrow().as_slice().iter().map(|x| x.to_bits()));
+            }
+            for (_, _, a) in l.delta_c_eff.values().as_map().iter_all() {
+                out.extend(a.borrow().as_slice().iter().map(|x| x.to_bits()));
+            }
+            for (_, _, a) in l.insertion_stress.values().as_map().iter_all() {
+                out.extend(a.borrow().as_slice().iter().map(|x| x.to_bits()));
+            }
+        }
+        out
+    }
+
+    /// The fused insertion check (facet stresses and the linear law's
+    /// check per block of facets) gives bitwise the facet stresses, the
+    /// inserted elements and the laws' appended parameters of the two
+    /// passes, over a sequence of checks with insertions, in 2-D and 3-D.
+    #[test]
+    fn fused_insertion_check_is_bitwise_the_two_passes() {
+        for (file, dim) in [
+            ("_cohesive_3d_6_tetrahedron_4.msh", 3),
+            ("_cohesive_2d_4_triangle_3.msh", 2),
+        ] {
+            let (mut fused, _m1) = fixture_model(file, dim);
+            let (mut two, _m2) = fixture_model(file, dim);
+            two.ext.fused_check_enabled = false;
+            let mut inserted = 0;
+            for round in 0..6u8 {
+                for model in [&mut fused, &mut two] {
+                    set_wobbly_displacement(model, dim, 2e-3 * Real::from(round + 1));
+                    model.assemble_internal_forces().unwrap();
+                }
+                let n1 = fused.check_cohesive_stress().unwrap();
+                let n2 = two.check_cohesive_stress().unwrap();
+                assert_eq!(n1, n2, "{file}, round {round}: inserted");
+                inserted += n1;
+                let bits = |m: &SolidMechanicsModelCohesive| -> Vec<u64> {
+                    m.ext
+                        .facet_stress
+                        .as_map()
+                        .iter_all()
+                        .flat_map(|(_, _, a)| a.as_slice().iter().map(|x| x.to_bits()))
+                        .collect()
+                };
+                assert_eq!(
+                    bits(&fused),
+                    bits(&two),
+                    "{file}, round {round}: facet stress"
+                );
+                assert_eq!(
+                    cohesive_law_bits(&fused),
+                    cohesive_law_bits(&two),
+                    "{file}, round {round}: appended parameters"
+                );
+            }
+            assert!(inserted > 0, "{file}: insertions");
+            assert!(fused.ext.fused_checks >= 6, "{file}: the fused form ran");
+            assert_eq!(two.ext.fused_checks, 0, "{file}: the two passes ran");
         }
     }
 
