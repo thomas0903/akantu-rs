@@ -68,13 +68,13 @@ pub fn parser_dat(ctx: &Ctx) -> Result<CaseOut> {
     let n = ctx.size.pick(50, 2000, 16_000);
     let text = out.phase("generate", || Ok(dat_text(n)))?;
     let mut parser = Parser::default();
-    out.loop_phase(ctx, "parse", ctx.size.pick(2, 20, 5), || {
+    out.loop_phase(ctx, "parse", ctx.size.pick(2, 200, 50), || {
         parser = Parser::parse_str(&text, "input.dat")?;
         Ok(())
     })?;
     let mut d = Digest::new();
     let mut count = 0;
-    out.loop_phase(ctx, "evaluate", ctx.size.pick(2, 20, 5), || {
+    out.loop_phase(ctx, "evaluate", ctx.size.pick(2, 200, 50), || {
         d = Digest::new();
         count = evaluate(&parser.root, &mut d)?;
         Ok(())
@@ -128,6 +128,16 @@ fn first_file_digest(dir: &std::path::Path, ext: &str) -> Result<u64> {
     Ok(Digest::new().bytes(&bytes).value())
 }
 
+/// Dumps per loop: 2–3 s at `m` (the text mode takes about 6× the
+/// base64 mode).
+fn dump_calls(ctx: &Ctx, ascii: bool) -> usize {
+    if ascii {
+        ctx.size.pick(1, 3, 1)
+    } else {
+        ctx.size.pick(1, 15, 4)
+    }
+}
+
 fn dump_case(ctx: &Ctx, ascii: bool) -> Result<CaseOut> {
     let mut out = CaseOut::default();
     let mut model = dumped_model(ctx, &mut out)?;
@@ -146,7 +156,7 @@ fn dump_case(ctx: &Ctx, ascii: bool) -> Result<CaseOut> {
     if ascii {
         model.dumpers.dumpable.set_text_mode()?;
     }
-    out.loop_phase(ctx, "dump", ctx.size.pick(1, 10, 3), || {
+    out.loop_phase(ctx, "dump", dump_calls(ctx, ascii), || {
         model.dump(None, None)
     })?;
     out.digest = first_file_digest(&dir.0, "vtu")?;
@@ -180,7 +190,7 @@ pub fn dump_text_tet4(ctx: &Ctx) -> Result<CaseOut> {
     for f in ["displacement", "velocity", "acceleration"] {
         model.add_dump_field_to_dumper("text", f)?;
     }
-    out.loop_phase(ctx, "dump", ctx.size.pick(1, 10, 3), || {
+    out.loop_phase(ctx, "dump", ctx.size.pick(1, 30, 8), || {
         model.dump_named("text", None, None)
     })?;
     let mut files: Vec<std::path::PathBuf> = std::fs::read_dir(&dir.0)
@@ -219,7 +229,7 @@ pub fn tri3_n(ctx: &Ctx) -> usize {
 
 /// Steps of the Python twin's loop (after three warm-up steps).
 pub fn tri3_steps(ctx: &Ctx) -> usize {
-    ctx.size.pick(5, 200, 50)
+    ctx.size.pick(5, 400, 100)
 }
 
 fn tri3_model(n: usize, out: &mut CaseOut) -> Result<SolidMechanicsModel> {
@@ -260,7 +270,7 @@ pub fn py_twin_explicit_tri3(ctx: &Ctx) -> Result<CaseOut> {
     out.loop_phase(
         ctx,
         "solve_step_tiny",
-        ctx.size.pick(20, 20_000, 20_000),
+        ctx.size.pick(20, 300_000, 300_000),
         || tiny.solve_step(None),
     )?;
     (out.n_elements, out.n_nodes, out.n_dofs) = (ne, nn, nd);

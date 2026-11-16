@@ -164,7 +164,7 @@ def tri3_n(size):
 
 def tri3_steps(size):
     """crates/akantu-bench cases_io::tri3_steps."""
-    return pick(size, 5, 200, 50)
+    return pick(size, 5, 400, 100)
 
 
 def write(ctx, name, text):
@@ -233,7 +233,7 @@ def case_explicit(ctx):
     tiny_out = Out()
     _, tiny = explicit_model(ctx, tiny_out, 4)
     out.loop_phase(
-        ctx, "solve_step_tiny", pick(ctx.size, 20, 20000, 20000), tiny.solveStep
+        ctx, "solve_step_tiny", pick(ctx.size, 20, 300000, 300000), tiny.solveStep
     )
     out.n_elements, out.n_nodes, out.n_dofs = keep
     return out
