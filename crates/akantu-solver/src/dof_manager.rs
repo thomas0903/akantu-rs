@@ -1726,6 +1726,17 @@ impl DofManager {
         }
     }
 
+    /// Number of element blocks whose entry positions were looked up and
+    /// stored by the assembly position caches since they were created
+    /// (diagnostic: an assembly into an unchanged profile adds none).
+    #[must_use]
+    pub fn assembly_cache_resolves(&self) -> u64 {
+        self.assembly_caches
+            .values()
+            .map(BlockPositionCache::resolves)
+            .sum()
+    }
+
     /// Bytes held by the assembly position caches.
     #[must_use]
     pub fn assembly_cache_bytes(&self) -> usize {
@@ -1957,7 +1968,10 @@ impl DofManager {
         }
         // Positions of the entries per element, cached for repeated
         // assemblies with an unchanged profile (the same additions in the
-        // same order: `SparseMatrixAij::add_values_cached`).
+        // same order: `SparseMatrixAij::add_values_cached`). The slot is the
+        // element's index in the connectivity, not its index in the filter:
+        // several filters (materials) of one element type share the cache
+        // of the key, each element keeps its own slot.
         let mut cache = if self.assembly_cache_enabled {
             self.assembly_caches.remove(&key).unwrap_or_default()
         } else {
@@ -1973,7 +1987,7 @@ impl DofManager {
                     self.backend.add_values_cached(
                         matrix_id,
                         &mut cache,
-                        k,
+                        e,
                         &eqs,
                         &eqs,
                         elementary.tuple(k),

@@ -764,6 +764,7 @@ impl SparseMatrixAij {
                 return Err(e);
             }
             cache.store(slot, &positions);
+            cache.resolves += 1;
             cache.scratch = positions;
         }
         let stride = cache.stride;
@@ -1606,6 +1607,9 @@ pub struct BlockPositionCache {
     positions: Vec<u32>,
     key: Vec<u32>,
     scratch: Vec<u32>,
+    /// Blocks resolved and stored since the cache was created (kept
+    /// across resets; diagnostic).
+    resolves: u64,
 }
 
 impl BlockPositionCache {
@@ -1625,9 +1629,18 @@ impl BlockPositionCache {
         } else {
             *self = Self {
                 stamp,
+                resolves: self.resolves,
                 ..Self::default()
             };
         }
+    }
+
+    /// Number of blocks whose positions were looked up and stored since
+    /// the cache was created (diagnostic: a round that finds every block
+    /// stored adds none).
+    #[must_use]
+    pub fn resolves(&self) -> u64 {
+        self.resolves
     }
 
     /// Bytes held by the stored slots (capacity of the slot arrays).
@@ -1647,6 +1660,7 @@ impl BlockPositionCache {
         *self = Self {
             stamp,
             rounds,
+            resolves: self.resolves,
             size,
             mode: Some(mode),
             shape: (nr, nc),
