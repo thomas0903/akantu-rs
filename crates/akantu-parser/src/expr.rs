@@ -92,8 +92,9 @@
 //! would have reached the variable, a cycle the first evaluation would have
 //! reported).
 
-use std::collections::{HashMap, HashSet};
+use std::collections::HashMap;
 use std::fmt;
+use std::hash::{BuildHasherDefault, Hasher};
 
 use crate::cmath::{BINARY, Binary, CONSTANTS, UNARY, Unary};
 use crate::scope::{ScopeRef, SearchScope};
@@ -841,16 +842,41 @@ enum Step {
 
 struct Eval<'x> {
     ctx: Ctx<'x>,
-    /// Parameters whose value is being evaluated (by address): a reference
-    /// to one of them is a cycle.
-    active: HashSet<*const ParserParameter>,
-    /// Values of the variables already evaluated successfully in this
-    /// evaluation (by address of the parameter, which also fixes the scope
-    /// that defines it).
-    cache: HashMap<*const ParserParameter, f64>,
+    /// Variables of this evaluation by address of the parameter (which also
+    /// fixes the scope that defines it): being evaluated (a reference to
+    /// one of them is a cycle), or evaluated successfully with their value.
+    vars: HashMap<*const ParserParameter, VarState, BuildHasherDefault<PtrHasher>>,
     /// Context of an error unwinding through variable references, innermost
     /// first.
     wraps: Vec<String>,
+}
+
+/// State of a variable during one evaluation.
+#[derive(Clone, Copy)]
+enum VarState {
+    Active,
+    Done(f64),
+}
+
+/// Hasher of parameter addresses (a multiplicative hash; the keys are
+/// addresses of live parameters, not attacker-chosen).
+#[derive(Default)]
+struct PtrHasher(u64);
+
+impl Hasher for PtrHasher {
+    fn write(&mut self, bytes: &[u8]) {
+        for &b in bytes {
+            self.0 = (self.0 ^ u64::from(b)).wrapping_mul(0x0100_0000_01B3);
+        }
+    }
+
+    fn write_usize(&mut self, x: usize) {
+        self.0 = (self.0 ^ x as u64).wrapping_mul(0x9E37_79B9_7F4A_7C15);
+    }
+
+    fn finish(&self) -> u64 {
+        self.0 ^ (self.0 >> 29)
+    }
 }
 
 /// Contexts shown in full in a message before eliding the middle of a long
@@ -866,8 +892,7 @@ impl<'x> Eval<'x> {
                 dialect,
                 scope,
             },
-            active: HashSet::new(),
-            cache: HashMap::new(),
+            vars: HashMap::default(),
             wraps: Vec::new(),
         }
     }
@@ -1138,21 +1163,25 @@ impl<'x> Eval<'x> {
                 start,
             ))));
         };
-        if let Some(&v) = self.cache.get(&std::ptr::from_ref(param)) {
-            return Some(Step::Return(Ok(Some(v))));
-        }
-        if !self.active.insert(std::ptr::from_ref(param)) {
-            return Some(Step::Return(Err(ConversionError {
-                cyclic: true,
-                ..ConversionError::hard(
-                    format!(
-                        "cyclic variable reference: the value of '{}' depends on itself (at {})",
-                        String::from_utf8_lossy(name),
-                        self.here()
-                    ),
-                    start,
-                )
-            })));
+        let key = std::ptr::from_ref(param);
+        match self.vars.get(&key) {
+            Some(&VarState::Done(v)) => return Some(Step::Return(Ok(Some(v)))),
+            None => {
+                self.vars.insert(key, VarState::Active);
+            }
+            Some(VarState::Active) => {
+                return Some(Step::Return(Err(ConversionError {
+                    cyclic: true,
+                    ..ConversionError::hard(
+                        format!(
+                            "cyclic variable reference: the value of '{}' depends on itself (at {})",
+                            String::from_utf8_lossy(name),
+                            self.here()
+                        ),
+                        start,
+                    )
+                })));
+            }
         }
         stack.push(Cont::Variable {
             start,
@@ -1228,13 +1257,14 @@ impl<'x> Eval<'x> {
         {
             let r = r.and_then(|v| self.finish(v, "a Real expression"));
             self.ctx = outer;
-            self.active.remove(&std::ptr::from_ref(param));
+            let key = std::ptr::from_ref(param);
             return Step::Return(match r {
                 Ok(v) => {
-                    self.cache.insert(std::ptr::from_ref(param), v);
+                    self.vars.insert(key, VarState::Done(v));
                     Ok(Some(v))
                 }
                 Err(e) => {
+                    self.vars.remove(&key);
                     self.wraps
                         .push(format!("in variable '{}' = '{}'", param.name, param.value));
                     Err(ConversionError { offset: start, ..e })

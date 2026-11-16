@@ -92,12 +92,12 @@ fn encode_into(out: &mut String, head: &[u8], body: &[u8]) {
     let flush = |buf: &[u8], out: &mut String| {
         out.push_str(std::str::from_utf8(buf).unwrap_or(""));
     };
-    for g in head.chunks_exact(3) {
+    for g in head.as_chunks::<3>().0 {
         buf[n..n + 4].copy_from_slice(&group(g));
         n += 4;
     }
-    let mut chunks = body.chunks_exact(3);
-    for g in &mut chunks {
+    let (groups, rest) = body.as_chunks::<3>();
+    for g in groups {
         if n + 4 > BLOCK {
             flush(&buf[..n], out);
             n = 0;
@@ -109,7 +109,6 @@ fn encode_into(out: &mut String, head: &[u8], body: &[u8]) {
         buf[n + 3] = ETABLE[usize::from(g2 & 0x3F)];
         n += 4;
     }
-    let rest = chunks.remainder();
     if !rest.is_empty() {
         if n + 4 > BLOCK {
             flush(&buf[..n], out);
