@@ -713,6 +713,25 @@ impl<const DIM: usize> Material for MaterialElastic<DIM> {
         Some(&mut self.options)
     }
 
+    /// `compute_stress` writes every `epsilon_th`, `sigma_th` and stress
+    /// (PK2) value of the block from `delta_T`, `grad_u` and `sigma_th`
+    /// before reading it, and fails only on the shapes checked here.
+    fn prepare_stress_overwrite(&mut self, ty: ElementType, ghost: GhostType) {
+        if !self.prepare_thermal_overwrite(ty, ghost) {
+            return;
+        }
+        let n = shape(&self.base.grad_u, ty, ghost);
+        if shape(&self.sigma_th, ty, ghost).0 != n.0 {
+            return;
+        }
+        if let Ok(sigma) = self.base.sigma_field_mut()
+            && n.1 == DIM * DIM
+            && shape(sigma, ty, ghost) == n
+        {
+            sigma.prepare_overwrite(ty, ghost);
+        }
+    }
+
     /// 2-D plane stress: upstream `PlaneStressToolbox<2>::computeAllCauchyStresses`
     /// calls the (empty) `computeCauchyStressPlaneStress` for `elastic`.
     fn compute_all_cauchy_stresses(&mut self, ghost: GhostType) -> Result<()> {
@@ -725,6 +744,33 @@ impl<const DIM: usize> Material for MaterialElastic<DIM> {
             return Ok(());
         }
         self.base.compute_all_cauchy_stresses(ghost)
+    }
+}
+
+/// `(tuples, components)` of a block (`(usize::MAX, 0)` if missing).
+fn shape(f: &InternalField<Real>, ty: ElementType, ghost: GhostType) -> (usize, usize) {
+    f.values()
+        .shared(ty, ghost)
+        .map_or((usize::MAX, 0), |a| (a.len(), a.nb_component()))
+}
+
+impl<const DIM: usize> MaterialElastic<DIM> {
+    /// [`InternalField::prepare_overwrite`] of the `epsilon_th` and
+    /// `sigma_th` blocks before [`Self::compute_thermal`], which writes every
+    /// value of both from `delta_T` when the three blocks have the same
+    /// length and one component (checked here; `false`, nothing done,
+    /// otherwise).
+    pub(crate) fn prepare_thermal_overwrite(&mut self, ty: ElementType, ghost: GhostType) -> bool {
+        let n = shape(&self.delta_t, ty, ghost);
+        if n.1 != 1
+            || shape(&self.epsilon_th, ty, ghost) != n
+            || shape(&self.sigma_th, ty, ghost) != n
+        {
+            return false;
+        }
+        self.epsilon_th.prepare_overwrite(ty, ghost);
+        self.sigma_th.prepare_overwrite(ty, ghost);
+        true
     }
 }
 

@@ -340,6 +340,26 @@ impl<T> ArrayStorage<T> {
         self.is_exported()
     }
 
+    /// `true` if neither a lease of the allocation exists nor the test-only
+    /// export-all mode applies: un-guarded access and an exchange of the
+    /// allocation are unobservable by foreign code.
+    #[inline]
+    pub(crate) fn is_plain(&self) -> bool {
+        !self.retires_on_change()
+    }
+
+    /// Exchange the values (the allocations) of `self` and `other` when both
+    /// are [plain](Self::is_plain); `false`, with nothing changed, otherwise.
+    /// No value is copied; the generations and export anchors stay with
+    /// their storages (neither allocation has a live lease).
+    pub(crate) fn try_swap_values(&mut self, other: &mut ArrayStorage<T>) -> bool {
+        if !self.is_plain() || !other.is_plain() {
+            return false;
+        }
+        std::mem::swap(&mut self.vec, &mut other.vec);
+        true
+    }
+
     /// The runtime the current allocation is exported to (`None` if not
     /// exported).
     #[must_use]

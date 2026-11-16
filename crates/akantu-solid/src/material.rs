@@ -982,6 +982,31 @@ fn grad_u_in_place(
     Ok(true)
 }
 
+/// [`InternalField::prepare_overwrite`] of the `grad_u` block when the
+/// in-place gradient of [`Material::compute_all_stresses`] will write all
+/// of it (`n = filter length · nb_quad` tuples of `dim²` values, an
+/// `eigen_grad_u` block of the same length); otherwise nothing, and the
+/// write performs the save. Either path of the caller rewrites the whole
+/// block.
+fn prepare_grad_u_overwrite(
+    base: &mut MaterialBase,
+    dim: usize,
+    ty: ElementType,
+    ghost: GhostType,
+    n: usize,
+) {
+    let shape = |f: &InternalField<Real>| {
+        f.values()
+            .shared(ty, ghost)
+            .map_or((usize::MAX, 0), |a| (a.len(), a.nb_component()))
+    };
+    let (len, nbc) = shape(&base.grad_u);
+    if n == 0 || len != n || nbc != dim * dim || shape(&base.eigen_grad_u).0 != n {
+        return;
+    }
+    base.grad_u.prepare_overwrite(ty, ghost);
+}
+
 /// Built-in laws: a static parameter table on top of [`BASE_PARAMS`]
 /// (upstream registers the parameters of every class of the hierarchy in
 /// one registry).
@@ -1391,9 +1416,16 @@ pub trait Material: ConstitutiveLaw {
             if filter.is_empty() {
                 continue;
             }
+            // Every value of `grad_u` is written below, before it is read:
+            // a deferred history save of the block needs no copy (when
+            // the in-place path's shape checks pass; it can then fail only
+            // in the gradient service, as the temporary path can)
+            let n = filter.len() * ctx.services.nb_integration_points(ty, ghost);
+            prepare_grad_u_overwrite(self.base_mut(), dim, ty, ghost, n);
             // In the stored gradient when its shape allows (same
             // values, no per-step temporary); else the temporary below
             if grad_u_in_place(self.base_mut(), ctx, dim, ty, ghost, &filter)? {
+                self.prepare_stress_overwrite(ty, ghost);
                 self.compute_stress(ctx, ty, ghost)?;
                 continue;
             }
@@ -1421,9 +1453,23 @@ pub trait Material: ConstitutiveLaw {
                 }
                 base.grad_u.get_mut(ty, ghost)?.copy_from(&gu)?;
             }
+            self.prepare_stress_overwrite(ty, ghost);
             self.compute_stress(ctx, ty, ghost)?;
         }
         Ok(())
+    }
+
+    /// Called by [`Material::compute_all_stresses`] right before
+    /// `compute_stress(ctx, ty, ghost)`. A law whose
+    /// [`Material::compute_stress`] writes every value of some internal
+    /// blocks before reading them, and cannot fail once the shapes it checks
+    /// are right, checks those shapes here and calls
+    /// [`InternalField::prepare_overwrite`] on these blocks, so that a
+    /// deferred history save of them costs no copy. Calling it without the
+    /// `compute_stress` that follows would leave those blocks unspecified.
+    /// Default: nothing (the law's writes perform the saves).
+    fn prepare_stress_overwrite(&mut self, ty: ElementType, ghost: GhostType) {
+        let _ = (ty, ghost);
     }
 
     /// The rank reductions upstream performs at the end of
