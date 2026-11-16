@@ -702,28 +702,21 @@ mod tests {
     use super::super::real_schur::{real_schur, schur_eigenvalues};
     use super::super::{Buf, Mat, Storage};
     use super::*;
-    use akantu_core::bitwise_testing::{Values, same};
+    use akantu_core::bitwise_testing::{Values, same, same_payload_sign_free};
 
     fn same_slice(a: &[f64], b: &[f64]) -> bool {
         a.len() == b.len() && a.iter().zip(b).all(|(x, y)| same(*x, *y))
     }
 
-    /// Payload mode: identical bits, or two NaNs with the same payload
-    /// that differ only in the sign. The input NaN spreads through the
-    /// iteration and meets itself (once negated) in later additions; which
-    /// operand IEEE 754 returns then is unspecified and the compiler may
-    /// commute the operands (the D-046 situation), so only the sign is
-    /// free; the payload must survive.
+    /// Payload mode: [`same_payload_sign_free`] (the input NaN spreads
+    /// through the iteration and meets itself, once negated, in later
+    /// operations; D-046).
     fn exact_slice(a: &[f64], b: &[f64]) -> bool {
-        let sign = 1u64 << 63;
-        a.len() == b.len()
-            && a.iter().zip(b).all(|(x, y)| {
-                x.to_bits() == y.to_bits() || (x.is_nan() && (x.to_bits() ^ y.to_bits()) == sign)
-            })
+        a.len() == b.len() && a.iter().zip(b).all(|(x, y)| same_payload_sign_free(*x, *y))
     }
 
     /// One input through both paths; `exact`: the payload-mode rule
-    /// ([`exact_slice`]), otherwise the D-046 rule.
+    /// ([`exact_slice`]), otherwise the default-mode D-046 rule.
     fn check<const N: usize>(a: &FMat<N>, exact: bool) -> Info {
         let cmp = if exact { exact_slice } else { same_slice };
         let m = Mat {
