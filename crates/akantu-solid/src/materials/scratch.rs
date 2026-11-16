@@ -8,7 +8,8 @@
 //! allocations, so a step allocates nothing and copies nothing, and the
 //! law's internals are unchanged if the computation fails.
 
-use akantu_core::{Array, Real, Result};
+use akantu_core::{Array, ElementType, GhostType, Real, Result};
+use akantu_model::InternalField;
 
 /// `K` scratch arrays.
 #[derive(Clone, Debug)]
@@ -43,5 +44,47 @@ impl<const K: usize> ScratchBlocks<K> {
     /// Array `i` (as left by the last commit or [`Self::sized`]).
     pub(crate) fn get_mut(&mut self, i: usize) -> &mut Array<Real> {
         &mut self.blocks[i]
+    }
+}
+
+impl<const K: usize> ScratchBlocks<K> {
+    /// The arrays, as left by the last call.
+    pub(crate) fn blocks(&mut self) -> &mut [Array<Real>; K] {
+        &mut self.blocks
+    }
+}
+
+/// `dst ← src` (shape and values), reusing `dst`'s allocation.
+///
+/// # Errors
+/// Allocation failure.
+pub(crate) fn load(dst: &mut Array<Real>, src: &Array<Real>) -> Result<()> {
+    if dst.nb_component() != src.nb_component() {
+        *dst = Array::new(src.nb_component());
+    }
+    dst.copy_from(src)
+}
+
+/// `field(ty, ghost) ← new`, the result of `field.get_mut(ty, ghost)?
+/// .copy_from(new)`: by [`InternalField::commit_overwrite`] (an exchange of
+/// allocations; `new` then holds unspecified values) when the shapes
+/// agree, else by that copy.
+///
+/// # Errors
+/// Those of `get_mut` and `copy_from`.
+pub(crate) fn commit(
+    field: &mut InternalField<Real>,
+    ty: ElementType,
+    ghost: GhostType,
+    new: &mut Array<Real>,
+) -> Result<()> {
+    let same = field
+        .values()
+        .shared(ty, ghost)
+        .is_ok_and(|a| a.len() == new.len() && a.nb_component() == new.nb_component());
+    if same {
+        field.commit_overwrite(ty, ghost, new)
+    } else {
+        field.get_mut(ty, ghost)?.copy_from(new)
     }
 }

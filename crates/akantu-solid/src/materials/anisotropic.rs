@@ -720,11 +720,45 @@ pub(crate) fn anisotropic_compute_stress<const DIM: usize>(
     ghost: GhostType,
 ) -> Result<()> {
     let n = DIM * DIM;
-    let grad_u = base.grad_u.get(ty, ghost)?.clone();
     // Upstream uses Material::getArguments: "sigma" is the stress (or the
     // PK2 stress if finite_deformation was requested, which the
     // anisotropic laws do not support beyond this storage choice).
-    let mut sigma = base.sigma_field_mut()?.get_mut(ty, ghost)?;
+    // Disjoint borrows of `grad_u` and the stress field instead of a
+    // per-step copy of `grad_u`.
+    let MaterialBase {
+        grad_u,
+        stress,
+        piola_kirchhoff_2,
+        finite_deformation,
+        ..
+    } = base;
+    let sigma_field = if *finite_deformation {
+        piola_kirchhoff_2.as_mut().ok_or_else(|| {
+            Error::invalid(
+                "finite_deformation: piola_kirchhoff_2 is not registered (init the material first)",
+            )
+        })?
+    } else {
+        stress
+    };
+    let grad_u = grad_u.get(ty, ghost)?;
+    // A point's kernel fails only on the law's Voigt sizes, the same for
+    // every point: when the first point succeeds every point does, and the
+    // loop below writes every value of a block of the gradient's shape,
+    // so a deferred history save of it needs no copy.
+    let shape = |a: &akantu_core::SharedArray<Real>| (a.len(), a.nb_component());
+    if let (Ok(s), Some(g0)) = (
+        sigma_field.values().shared(ty, ghost).map(shape),
+        grad_u.as_slice().get(..n),
+    ) && s == (grad_u.len(), n)
+        && grad_u.nb_component() == n
+        && core
+            .stress_on_quad(as_matrix(g0)?, &mut [[0.0; DIM]; DIM])
+            .is_ok()
+    {
+        sigma_field.prepare_overwrite(ty, ghost);
+    }
+    let mut sigma = sigma_field.get_mut(ty, ghost)?;
     if grad_u.len() != sigma.len() {
         return Err(Error::DimensionMismatch {
             context: "MaterialElasticLinearAnisotropic::computeStress",
@@ -771,9 +805,16 @@ pub(crate) fn anisotropic_energy<const DIM: usize>(
     }
     let g = GhostType::NotGhost;
     let n = DIM * DIM;
-    let grad_u = base.grad_u.get(ty, g)?.clone();
-    let sigma = base.stress.get(ty, g)?.clone();
-    let mut epot = base.potential_energy.get_mut(ty, g)?;
+    // disjoint borrows instead of per-call copies
+    let MaterialBase {
+        grad_u,
+        stress,
+        potential_energy,
+        ..
+    } = base;
+    let grad_u = grad_u.get(ty, g)?;
+    let sigma = stress.get(ty, g)?;
+    let mut epot = potential_energy.get_mut(ty, g)?;
     for ((gu, s), e) in grad_u
         .as_slice()
         .chunks_exact(n)

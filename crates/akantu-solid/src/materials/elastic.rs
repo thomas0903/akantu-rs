@@ -47,6 +47,7 @@ use akantu_model::constitutive_law::{
 };
 use akantu_parser::param::{ParamDescriptor, ParamKind, ParamValue, ParameterAccess};
 
+use super::scratch::ScratchBlocks;
 use super::thermal::{ThermalEnergy, ThermalParams, thermal_energy_correction, thermal_on_quad};
 use crate::material::{
     LawOptions, Material, MaterialBase, MaterialFactory, MaterialParams, check_tangent,
@@ -79,6 +80,9 @@ pub struct MaterialElastic<const DIM: usize> {
     mu: Real,
     kpa: Real,
     was_stiffness_assembled: bool,
+    /// The potential energy density of a block before it is committed
+    /// (`compute_potential_energy`; kept between calls).
+    energy_scratch: ScratchBlocks<1>,
 }
 
 impl<const DIM: usize> MaterialElastic<DIM> {
@@ -118,6 +122,7 @@ impl<const DIM: usize> MaterialElastic<DIM> {
             mu: 0.0,
             kpa: 0.0,
             was_stiffness_assembled: false,
+            energy_scratch: ScratchBlocks::default(),
         })
     }
 
@@ -610,10 +615,13 @@ impl<const DIM: usize> Material for MaterialElastic<DIM> {
     fn compute_potential_energy(&mut self, _ctx: &LawContext<'_>, ty: ElementType) -> Result<()> {
         let g = GhostType::NotGhost;
         let n = DIM * DIM;
-        let grad_u = self.base.grad_u.get(ty, g)?.clone();
-        let sigma = self.base.sigma_field()?.get(ty, g)?.clone();
-        let sigma_th = self.sigma_th.get(ty, g)?.clone();
-        let delta_t = self.delta_t.get(ty, g)?.clone();
+        // the inputs read in place, the densities into the law's scratch
+        // block (every value written), committed by exchange
+        let mut scratch = std::mem::take(&mut self.energy_scratch);
+        let grad_u = self.base.grad_u.get(ty, g)?;
+        let sigma = self.base.sigma_field()?.get(ty, g)?;
+        let sigma_th = self.sigma_th.get(ty, g)?;
+        let delta_t = self.delta_t.get(ty, g)?;
         let nq = grad_u.len();
         if sigma.len() != nq || sigma_th.len() != nq || delta_t.len() != nq {
             return Err(Error::DimensionMismatch {
@@ -622,16 +630,20 @@ impl<const DIM: usize> Material for MaterialElastic<DIM> {
                 got: sigma.len().min(sigma_th.len()).min(delta_t.len()),
             });
         }
-        let mut density = Vec::with_capacity(nq);
-        for (((gu, s), &th), &dt) in grad_u
+        let [density] = scratch.sized([(nq, 1)])?;
+        let mut written = 0;
+        for ((((gu, s), &th), &dt), d) in grad_u
             .as_slice()
             .chunks_exact(n)
             .zip(sigma.as_slice().chunks_exact(n))
             .zip(sigma_th.as_slice())
             .zip(delta_t.as_slice())
+            .zip(density.as_mut_slice())
         {
-            density.push(self.point_energy(as_matrix(gu)?, as_matrix(s)?, th, dt));
+            *d = self.point_energy(as_matrix(gu)?, as_matrix(s)?, th, dt);
+            written += 1;
         }
+        drop((grad_u, sigma, sigma_th, delta_t));
         let mut epot = self.base.potential_energy.get_mut(ty, g)?;
         if epot.len() != nq {
             return Err(Error::DimensionMismatch {
@@ -640,7 +652,17 @@ impl<const DIM: usize> Material for MaterialElastic<DIM> {
                 got: epot.len(),
             });
         }
-        epot.as_mut_slice().copy_from_slice(&density);
+        if written == nq && epot.nb_component() == 1 {
+            drop(epot);
+            self.base
+                .potential_energy
+                .commit_overwrite(ty, g, scratch.get_mut(0))?;
+        } else {
+            // the values computed (as many as the shortest input), as before
+            epot.as_mut_slice()[..written]
+                .copy_from_slice(&scratch.get_mut(0).as_slice()[..written]);
+        }
+        self.energy_scratch = scratch;
         Ok(())
     }
 

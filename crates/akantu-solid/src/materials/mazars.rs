@@ -103,6 +103,7 @@ use akantu_parser::param::{ParamDescriptor, ParameterAccess};
 use super::damage::{DamageFields, DamageParent, std_max, std_min};
 use super::elastic::MaterialElastic;
 use super::plastic::MaterialLinearIsotropicHardening;
+use super::scratch::{ScratchBlocks, commit, load};
 use crate::material::{
     FiniteStrainDamage, FiniteStrainPlasticity, LawOptions, Material, MaterialBase,
     MaterialFactory, MaterialParams,
@@ -305,6 +306,9 @@ pub struct MaterialMazars<const DIM: usize, P> {
     /// plastic parents only, internal `effective_stress`): the stress
     /// history of the J2 return by default (UD-139).
     pub effective_stress: Option<InternalField<Real>>,
+    /// The new gradient, stress, damage and `Ehat` of a block
+    /// (`damage_block`).
+    scratch: ScratchBlocks<4>,
 }
 
 /// `mazars`: Mazars damage on `elastic`.
@@ -349,6 +353,7 @@ impl<const DIM: usize, P: DamageParent<DIM>> MaterialMazars<DIM, P> {
             params: MazarsParams::default(),
             damage_in_compute_stress: true,
             effective_stress,
+            scratch: ScratchBlocks::default(),
         })
     }
 
@@ -382,9 +387,7 @@ impl<const DIM: usize, P: DamageParent<DIM>> MaterialMazars<DIM, P> {
 
     /// Steps 2–6 of the module docs over one block (after the parent's
     /// kernel).
-    #[allow(clippy::too_many_lines)] // one upstream loop with its options
     fn damage_block(&mut self, ty: ElementType, ghost: GhostType) -> Result<()> {
-        let n = DIM * DIM;
         let el = self.elastic_constants();
         let mode = self.strain_mode();
         let params = self.params;
@@ -392,87 +395,129 @@ impl<const DIM: usize, P: DamageParent<DIM>> MaterialMazars<DIM, P> {
         let damage_in_cs = self.damage_in_compute_stress;
         let committed = self.options_ref().committed_trial_state;
         let alpha = self.parent.elastic().thermal.alpha;
-        let delta_t = self.parent.elastic().delta_t.get(ty, ghost)?.clone();
-        let inel = self
-            .parent
-            .inelastic_strain()
-            .map(|f| f.get(ty, ghost).map(|a| Array::clone(&a)))
-            .transpose()?;
-        let k0 = self.k0.get(ty, ghost)?.clone();
-        let (mut dam, prev_dam) = {
-            let (c, p) = self.damage.damage.current_and_previous_mut(ty, ghost)?;
-            (c.clone(), p.clone())
-        };
-        let mut ehat = self.ehat.get(ty, ghost)?.clone();
-        let base = self.parent.base();
-        let mut grad_u = base.grad_u.get(ty, ghost)?.clone();
-        let mut sigma = base.sigma_field()?.get(ty, ghost)?.clone();
-        let nq = grad_u.len();
-        if [
-            sigma.len(),
-            k0.len(),
-            dam.len(),
-            prev_dam.len(),
-            ehat.len(),
-            delta_t.len(),
-        ]
-        .iter()
-        .any(|&l| l != nq)
-            || inel.as_ref().is_some_and(|a| a.len() != nq)
+        let mut scratch = std::mem::take(&mut self.scratch);
+        let result = self.damage_block_with(
+            &mut scratch,
+            ty,
+            ghost,
+            (el, mode, params),
+            [non_local, damage_in_cs, committed],
+            alpha,
+        );
+        self.scratch = scratch;
+        result
+    }
+
+    /// [`Self::damage_block`] with the law's scratch blocks: the inputs read
+    /// in place, the new gradient, stress, damage and `Ehat` computed into
+    /// `scratch` (loaded with the current values where they are read) and
+    /// committed (nothing changes on an error).
+    #[allow(clippy::too_many_lines)] // one upstream loop with its options
+    fn damage_block_with(
+        &mut self,
+        scratch: &mut ScratchBlocks<4>,
+        ty: ElementType,
+        ghost: GhostType,
+        (el, mode, params): (MazarsElastic, MazarsStrainMode, MazarsParams),
+        [non_local, damage_in_cs, committed]: [bool; 3],
+        alpha: Real,
+    ) -> Result<()> {
+        let n = DIM * DIM;
         {
-            return Err(Error::DimensionMismatch {
-                context: "MaterialMazars::computeStress",
-                expected: nq,
-                got: sigma.len().min(dam.len()).min(k0.len()),
-            });
-        }
-        if let Some(es) = &mut self.effective_stress {
-            // the undamaged stress of the parent's return (UD-139)
-            es.get_mut(ty, ghost)?.copy_from(&sigma)?;
-        }
-        for q in 0..nq {
-            let r = q * n..(q + 1) * n;
-            let g: &mut Matrix<DIM, DIM> = as_matrix_mut(&mut grad_u.as_mut_slice()[r.clone()])?;
-            let p: Option<&Matrix<DIM, DIM>> = inel
-                .as_ref()
-                .map(|a| as_matrix(&a.as_slice()[r.clone()]))
+            let delta_t = self.parent.elastic().delta_t.get(ty, ghost)?;
+            let inel = self
+                .parent
+                .inelastic_strain()
+                .map(|f| f.get(ty, ghost))
                 .transpose()?;
-            if let Some(p) = p {
-                *g = g.sub(p);
+            let k0 = self.k0.get(ty, ghost)?;
+            let dam_cur = self.damage.damage.get(ty, ghost)?;
+            let prev_dam = self.damage.damage.previous(ty, ghost)?;
+            let ehat_cur = self.ehat.get(ty, ghost)?;
+            let base = self.parent.base();
+            let grad_u_cur = base.grad_u.get(ty, ghost)?;
+            let sigma_cur = base.sigma_field()?.get(ty, ghost)?;
+            let nq = grad_u_cur.len();
+            if [
+                sigma_cur.len(),
+                k0.len(),
+                dam_cur.len(),
+                prev_dam.len(),
+                ehat_cur.len(),
+                delta_t.len(),
+            ]
+            .iter()
+            .any(|&l| l != nq)
+                || inel.as_ref().is_some_and(|a| a.len() != nq)
+            {
+                return Err(Error::DimensionMismatch {
+                    context: "MaterialMazars::computeStress",
+                    expected: nq,
+                    got: sigma_cur.len().min(dam_cur.len()).min(k0.len()),
+                });
             }
-            let inel_trace = p.map_or(0., SquareMatrixExt::trace);
-            let e3 = mazars_strain_3d(g, inel_trace, delta_t.as_slice()[q] * alpha, mode);
-            let (fdiag, e) = principal_strains_and_ehat3(&e3)?;
-            ehat.as_mut_slice()[q] = e;
-            // UD-138: the damage of an earlier trial of the step is not kept
-            if committed {
-                dam.as_mut_slice()[q] = prev_dam.as_slice()[q];
+            if let Some(es) = &mut self.effective_stress {
+                // the undamaged stress of the parent's return (UD-139)
+                es.get_mut(ty, ghost)?.copy_from(&sigma_cur)?;
             }
-            let d = &mut dam.as_mut_slice()[q];
-            if damage_in_cs {
-                *d = mazars_damage_on_quad(&params, &el, e, k0.as_slice()[q], &fdiag, *d);
+            // the gradient, stress and damage are read before they are
+            // written; `Ehat` is written for every point
+            let [grad_u, sigma, dam, ehat] = scratch.sized([
+                (nq, grad_u_cur.nb_component()),
+                (nq, sigma_cur.nb_component()),
+                (nq, dam_cur.nb_component()),
+                (nq, ehat_cur.nb_component()),
+            ])?;
+            load(grad_u, &grad_u_cur)?;
+            load(sigma, &sigma_cur)?;
+            load(dam, &dam_cur)?;
+            if ehat_cur.nb_component() != 1 {
+                load(ehat, &ehat_cur)?;
             }
-            if !non_local {
-                if !damage_in_cs {
-                    let (fdiag, _) = principal_strains_and_ehat3(&e3)?;
+            for q in 0..nq {
+                let r = q * n..(q + 1) * n;
+                let g: &mut Matrix<DIM, DIM> =
+                    as_matrix_mut(&mut grad_u.as_mut_slice()[r.clone()])?;
+                let p: Option<&Matrix<DIM, DIM>> = inel
+                    .as_ref()
+                    .map(|a| as_matrix(&a.as_slice()[r.clone()]))
+                    .transpose()?;
+                if let Some(p) = p {
+                    *g = g.sub(p);
+                }
+                let inel_trace = p.map_or(0., SquareMatrixExt::trace);
+                let e3 = mazars_strain_3d(g, inel_trace, delta_t.as_slice()[q] * alpha, mode);
+                let (fdiag, e) = principal_strains_and_ehat3(&e3)?;
+                ehat.as_mut_slice()[q] = e;
+                // UD-138: the damage of an earlier trial of the step is not kept
+                if committed {
+                    dam.as_mut_slice()[q] = prev_dam.as_slice()[q];
+                }
+                let d = &mut dam.as_mut_slice()[q];
+                if damage_in_cs {
                     *d = mazars_damage_on_quad(&params, &el, e, k0.as_slice()[q], &fdiag, *d);
                 }
-                let f = 1. - *d;
-                for s in &mut sigma.as_mut_slice()[r.clone()] {
-                    *s *= f;
-                }
-                if let Some(p) = p {
-                    *g = g.add(p);
+                if !non_local {
+                    if !damage_in_cs {
+                        let (fdiag, _) = principal_strains_and_ehat3(&e3)?;
+                        *d = mazars_damage_on_quad(&params, &el, e, k0.as_slice()[q], &fdiag, *d);
+                    }
+                    let f = 1. - *d;
+                    for s in &mut sigma.as_mut_slice()[r.clone()] {
+                        *s *= f;
+                    }
+                    if let Some(p) = p {
+                        *g = g.add(p);
+                    }
                 }
             }
         }
+        let [grad_u, sigma, dam, ehat] = scratch.blocks();
         let base = self.parent.base_mut();
-        base.grad_u.get_mut(ty, ghost)?.copy_from(&grad_u)?;
-        base.sigma_field_mut()?
-            .get_mut(ty, ghost)?
-            .copy_from(&sigma)?;
-        self.damage.damage.get_mut(ty, ghost)?.copy_from(&dam)?;
-        self.ehat.get_mut(ty, ghost)?.copy_from(&ehat)?;
+        commit(&mut base.grad_u, ty, ghost, grad_u)?;
+        commit(base.sigma_field_mut()?, ty, ghost, sigma)?;
+        commit(&mut self.damage.damage, ty, ghost, dam)?;
+        commit(&mut self.ehat, ty, ghost, ehat)?;
         Ok(())
     }
 }
