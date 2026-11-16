@@ -69,6 +69,9 @@ pub struct FeEngine {
     normals: ElementTypeMapArray<Real>,
     /// Mesh revision the precomputed data corresponds to.
     mesh_revision: u64,
+    /// How the batch kernels run (threads, precision mode, SIMD level;
+    /// D-123): serial until the owning model sets its own.
+    exec: akantu_core::exec::Exec,
 }
 
 // ---------------------------------------------------------------------------
@@ -376,6 +379,7 @@ impl FeEngine {
             orders: IntegrationOrders::default(),
             rules: ElementTypeMap::new(),
             mesh_revision: mesh.revision(),
+            exec: akantu_core::exec::Exec::serial(),
         })
     }
 
@@ -422,6 +426,19 @@ impl FeEngine {
     #[must_use]
     pub fn mesh_revision(&self) -> u64 {
         self.mesh_revision
+    }
+
+    /// How the batch kernels (gradient, `BᵀD`, integration) run (D-123).
+    #[must_use]
+    pub fn exec(&self) -> &akantu_core::exec::Exec {
+        &self.exec
+    }
+
+    /// Set how the batch kernels run (the owning model's executor). In
+    /// [`akantu_core::exec::Precision::Bitwise`] every result is the same
+    /// for every thread count and SIMD level.
+    pub fn set_exec(&mut self, exec: akantu_core::exec::Exec) {
+        self.exec = exec;
     }
 
     /// Configured integration orders.

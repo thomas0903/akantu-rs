@@ -128,6 +128,9 @@ pub struct FeEngineRegistry {
     model_id: Id,
     fems: BTreeMap<Id, FeEngine>,
     default_fem: Option<Id>,
+    /// The executor of the engines (D-123), given to every engine,
+    /// including those registered later.
+    exec: akantu_core::exec::Exec,
 }
 
 impl FeEngineRegistry {
@@ -138,7 +141,22 @@ impl FeEngineRegistry {
             model_id: model_id.into(),
             fems: BTreeMap::new(),
             default_fem: None,
+            exec: akantu_core::exec::Exec::serial(),
         }
+    }
+
+    /// Set the executor of every engine, present and future (D-123).
+    pub fn set_exec(&mut self, exec: &akantu_core::exec::Exec) {
+        for fe in self.fems.values_mut() {
+            fe.set_exec(exec.clone());
+        }
+        self.exec = exec.clone();
+    }
+
+    /// The executor of the engines.
+    #[must_use]
+    pub fn exec(&self) -> &akantu_core::exec::Exec {
+        &self.exec
     }
 
     /// Upstream `registerFEEngineObject<FEEngineTemplate<IntegratorGauss,
@@ -169,13 +187,14 @@ impl FeEngineRegistry {
                 id: name.into(),
             });
         }
-        let fe = FeEngine::with_precomputation(
+        let mut fe = FeEngine::with_precomputation(
             mesh,
             Some(element_dimension),
             kind,
             ShapeFamily::Lagrange,
             format!("{}:fem:{name}", self.model_id),
         )?;
+        fe.set_exec(self.exec.clone());
         if self.fems.is_empty() {
             self.default_fem = Some(name.into());
         }
@@ -280,6 +299,7 @@ impl FeEngineRegistry {
             )?;
             fe.compute_normals_on_integration_points(mesh, GhostType::NotGhost)?;
             fe.compute_normals_on_integration_points(mesh, GhostType::Ghost)?;
+            fe.set_exec(self.exec.clone());
             self.fems.insert(boundary_name.clone(), fe);
         }
         self.fems

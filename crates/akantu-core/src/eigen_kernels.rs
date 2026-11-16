@@ -740,20 +740,32 @@ mod tests {
         assert_eq!(out, [3.0; 4]);
     }
 
+    /// The token of a serial executor in `Precision::Fast` (the only way to
+    /// obtain one); a bitwise executor has none.
+    fn fast_token() -> crate::exec::FastToken {
+        use crate::exec::{Exec, ExecPolicy, Precision};
+        assert!(Exec::serial().fast_token().is_none());
+        Exec::new(ExecPolicy::serial().with_precision(Precision::Fast))
+            .unwrap()
+            .fast_token()
+            .unwrap()
+    }
+
     /// The fast-mode variants refuse bad sizes with errors and write nothing.
     #[test]
     fn fast_mode_size_errors() {
+        let fast = fast_token();
         let a = [1.0; 130];
         let b = [1.0; 130];
         let mut out = [7.0; 4];
-        assert!(fast_mode::gemm_colmajor(1, 65, 1, &a, &b, &mut out).is_err());
-        assert!(fast_mode::gemm_colmajor(2, 3, 2, &a[..5], &b, &mut out).is_err());
-        assert!(fast_mode::gemm_colmajor(2, 3, 2, &a, &b[..5], &mut out).is_err());
-        assert!(fast_mode::gemm_colmajor(2, 3, 2, &a, &b, &mut out[..3]).is_err());
-        assert!(fast_mode::gemm_tn(2, 3, 2, &a[..5], &b, &mut out).is_err());
-        assert!(fast_mode::gemm_tn(2, 3, 2, &a, &b, &mut out[..3]).is_err());
+        assert!(fast_mode::gemm_colmajor(fast, 1, 65, 1, &a, &b, &mut out).is_err());
+        assert!(fast_mode::gemm_colmajor(fast, 2, 3, 2, &a[..5], &b, &mut out).is_err());
+        assert!(fast_mode::gemm_colmajor(fast, 2, 3, 2, &a, &b[..5], &mut out).is_err());
+        assert!(fast_mode::gemm_colmajor(fast, 2, 3, 2, &a, &b, &mut out[..3]).is_err());
+        assert!(fast_mode::gemm_tn(fast, 2, 3, 2, &a[..5], &b, &mut out).is_err());
+        assert!(fast_mode::gemm_tn(fast, 2, 3, 2, &a, &b, &mut out[..3]).is_err());
         assert_eq!(out, [7.0; 4]);
-        fast_mode::gemm_tn(2, 3, 2, &a, &b, &mut out).unwrap();
+        fast_mode::gemm_tn(fast, 2, 3, 2, &a, &b, &mut out).unwrap();
         assert_eq!(out, [3.0; 4]);
     }
 
@@ -762,6 +774,7 @@ mod tests {
     /// they differ by at most `2 γ_k Σ |a_il b_lj|`).
     #[test]
     fn fast_mode_variants_within_the_summation_bound() {
+        let token = fast_token();
         let mut v = Values::new(0xfa57_0de5);
         let u = Real::EPSILON / 2.0;
         let mut a = vec![0.0; 64 * 64];
@@ -791,9 +804,9 @@ mod tests {
                 let gamma = (k as Real) * u / (1.0 - (k as Real) * u);
                 let p = SliceProduct::new(ProductShape::dynamic(m, k, n)).unwrap();
                 p.eval(&a, &b, &mut exact).unwrap();
-                fast_mode::gemm_colmajor(m, k, n, &a, &b, &mut fast).unwrap();
+                fast_mode::gemm_colmajor(token, m, k, n, &a, &b, &mut fast).unwrap();
                 let mut fast_tn = vec![0.0; m * n];
-                fast_mode::gemm_tn(m, k, n, &at, &b, &mut fast_tn).unwrap();
+                fast_mode::gemm_tn(token, m, k, n, &at, &b, &mut fast_tn).unwrap();
                 for j in 0..n {
                     for i in 0..m {
                         let abs: Real = (0..k).map(|l| (a[i + l * m] * b[l + j * k]).abs()).sum();
@@ -814,11 +827,11 @@ mod tests {
 
 /// Order-free variants of the hottest product classes, for the fast mode
 /// (D-122: **not** bitwise; off by default). Unstable and hidden from the
-/// documentation: they will move behind the precision switch of the
-/// execution policy. Nothing in the library calls
-/// them yet: the global switch (D-123, `akantu-core::exec`) lands with
-/// another work package, which can route the callers listed in
-/// `docs/benchmarks/perf-campaign/small-products/README.md` here.
+/// documentation. Every entry point takes the [`crate::exec::FastToken`]
+/// that only [`crate::exec::Exec::fast_token`] hands out, in
+/// `Precision::Fast` (D-123), so a bitwise run cannot call them. Nothing in
+/// the library calls them yet; the callers they could serve are listed in
+/// `docs/benchmarks/perf-campaign/small-products/README.md`.
 ///
 /// The variants reassociate each coefficient's sum into independent
 /// partial sums (four accumulators over the depth, combined pairwise), so
@@ -832,6 +845,7 @@ mod tests {
 #[doc(hidden)]
 pub mod fast_mode {
     use crate::error::{Error, Result};
+    use crate::exec::FastToken;
     use crate::types::Real;
 
     /// Largest depth of [`gemm_colmajor`] (its row buffer).
@@ -841,7 +855,13 @@ pub mod fast_mode {
     /// four partial sums (order-free).
     #[inline]
     #[must_use]
-    pub fn dot(a: &[Real], b: &[Real]) -> Real {
+    pub fn dot(_fast: FastToken, a: &[Real], b: &[Real]) -> Real {
+        dot4(a, b)
+    }
+
+    /// [`dot`] without the token, for the products of this module.
+    #[inline]
+    fn dot4(a: &[Real], b: &[Real]) -> Real {
         let n = a.len().min(b.len());
         let (a, b) = (&a[..n], &b[..n]);
         let mut acc = [0.0; 4];
@@ -893,6 +913,7 @@ pub mod fast_mode {
     /// `Error::DimensionMismatch` if a slice is shorter than its matrix or
     /// `k >` [`MAX_DEPTH`] (nothing is written then).
     pub fn gemm_colmajor(
+        _fast: FastToken,
         m: usize,
         k: usize,
         n: usize,
@@ -914,7 +935,7 @@ pub mod fast_mode {
                 *x = a[i + l * m];
             }
             for j in 0..n {
-                out[i + j * m] = dot(&row[..k], &b[j * k..(j + 1) * k]);
+                out[i + j * m] = dot4(&row[..k], &b[j * k..(j + 1) * k]);
             }
         }
         Ok(())
@@ -928,6 +949,7 @@ pub mod fast_mode {
     /// `Error::DimensionMismatch` if a slice is shorter than its matrix
     /// (nothing is written then).
     pub fn gemm_tn(
+        _fast: FastToken,
         m: usize,
         k: usize,
         n: usize,
@@ -939,7 +961,7 @@ pub mod fast_mode {
         for j in 0..n {
             let bj = &b[j * k..(j + 1) * k];
             for i in 0..m {
-                out[i + j * m] = dot(&at[i * k..(i + 1) * k], bj);
+                out[i + j * m] = dot4(&at[i * k..(i + 1) * k], bj);
             }
         }
         Ok(())
