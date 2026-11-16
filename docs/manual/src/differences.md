@@ -381,7 +381,7 @@ platforms themselves: `docs/PLATFORMS.md`):
 * Why does the `embedded` example need the GPL feature `cgal` when the
   crate is LGPL? To reproduce upstream's AABB traversal order, as upstream
   builds the example with CGAL. The library itself uses the LGPL
-  `LinearScan` ([Geometry](geometry.md)).
+  `GridIndex` ([Geometry](geometry.md)).
 * What was compared for the extra materials and IGFEM? Neither package
   compiles upstream at the reference commit (UD-025, UD-572), so there is
   no oracle: they are checked against upstream's test criteria, its
