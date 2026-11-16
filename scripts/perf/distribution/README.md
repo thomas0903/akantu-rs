@@ -16,4 +16,5 @@ image) from a directory `~/w/dist/` holding the binaries in
 | `coh.sh <series> <reps> <ranks> <variant>...` | the cohesive driver with `coh-input.dat` (insertion off, the port's Eigen-order static solver), interleaved and rotated |
 | `cohsumm.py <series-dir> <base>` | equality of the driver's physical summary across variants and repetitions, phase times (maximum over the ranks) |
 | `prof.sh`, `flat.sh`, `incl.sh`, `callers.py` | `perf record` of a running suite case from the host and the flat / inclusive / caller reports (a symbol tree of the image's libraries resolves their symbols) |
+| `serial_ab.sh <series> <case> <reps> <size> <variant>...` | the same for serial builds (no `mpi` feature), pinned to one vCPU |
 | `final.sh` | the before / after series of the report |

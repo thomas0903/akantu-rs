@@ -412,7 +412,7 @@ remains: `docs/benchmarks/perf-campaign/distribution/README.md`.
 | Explicit step, 162,000 Tet4, 2 / 8 ranks | 13.2 / 8.2 ms | 10.1 / 5.7 ms | 0.88 / 0.79 |
 | Two energies, 162,000 Tet4, 1 rank | 17.4 ms | 14.7 ms | 0.79 |
 | `all_reduce` of 2 reals, 8 ranks | 10.6 µs | 6.2 µs | 0.52 |
-| Explicit step of a 32-triangle model, 1 rank | 7.9 µs | 5.4 µs | 0.66 |
+| Explicit step of a 32-triangle model, serial communicator | 8.1 µs | 5.1 µs | 0.63 |
 
 The part of the distributed explicit step that does not shrink with the
 rank count is memory traffic (four independent one-rank runs at once each

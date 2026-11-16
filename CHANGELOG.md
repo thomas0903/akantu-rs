@@ -58,7 +58,7 @@ change of default results or of a public API raises the minor version.
   per rank, checked collectives of the MPI back-end carry payloads of at
   most 64 bytes in their header (agreements and scalar reductions are one
   MPI collective), byte messages are sent and received without a copy,
-  agreements on one rank skip the all-reduce, `Math::reduce` sorts with a
+  agreements on a one-rank serial or in-process communicator skip the all-reduce, `Math::reduce` sorts with a
   radix sort, and the solid model posts its `_smm_stress` exchange before
   the not-ghost assembly and completes it before the ghost one (as
   upstream), keeps one assembly buffer set per ghost type and looks up the

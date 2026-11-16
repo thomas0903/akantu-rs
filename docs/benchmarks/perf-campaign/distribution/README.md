@@ -6,8 +6,9 @@ Machine: an 8-vCPU development virtual machine, AMD EPYC Milan (Zen 3),
 vCPU (`mpirun --bind-to core --map-by core`), `SCOTCH_PTHREAD_NUMBER=1`.
 Release builds of `suite_setup` (features `mpi,scotch`), `suite_models` and
 `cohesive_extrinsic`. Before: `24f73b94e` (`perf/wave2-base`); after:
-`818a43195` (`perf/distribution`; the commits after it change documents and
-scripts only). Interleaved A/B, the order rotated per repetition, 5
+`818a43195` (`perf/distribution`; after it the branch changed documents
+and scripts, merged the updated base, and limited the one-rank shortcut
+to non-MPI communicators, `805ac50d8`, re-measured where it matters). Interleaved A/B, the order rotated per repetition, 5
 repetitions (3 at size `l` and for the cohesive driver); medians [min, max]
 of the time per call, paired ratios after / before per repetition. Scripts:
 `scripts/perf/distribution/`. Dates: 2026-11-16 and 2026-11-17 (UTC).
@@ -90,10 +91,17 @@ session (`screening/s5`) the build with every step change (`h7`) ran
 
 ### Serial bookkeeping (`py_twin_explicit_tri3`, one rank)
 
-| phase | before | after | ratio |
-|---|---|---|---|
-| `solve_step_tiny` (4 × 4 square, 32 Tri3) | 7.93 µs [7.82, 11.43] | 5.36 µs [5.17, 5.86] | 0.661 [0.490, 0.746] |
-| `solve_step` (80,000 Tri3) | 4.21 ms [4.07, 4.82] | 4.20 ms [4.04, 6.19] | 0.991 [0.978, 1.284] |
+Measured after a correction of the one-rank shortcut (it applies to the
+serial and in-process back-ends only, `805ac50d8`; an MPI communicator of
+one rank keeps its MPI calls): `screening/tiny-ser` (builds without the
+`mpi` feature, the serial communicator) and `screening/tiny-mpi1`
+(`mpirun -n 1`), against 24f73b94e.
+
+| phase | communicator | before | after | ratio |
+|---|---|---|---|---|
+| `solve_step_tiny` (4 × 4 square, 32 Tri3) | serial | 8.06 µs [8.02, 8.30] | 5.11 µs [5.08, 5.43] | 0.634 [0.630, 0.664] |
+| `solve_step_tiny` | MPI, 1 rank | 7.60 µs [7.56, 7.67] | 5.14 µs [5.03, 5.28] | 0.674 [0.663, 0.691] |
+| `solve_step` (80,000 Tri3) | serial | 4.06 ms [4.04, 4.09] | 4.07 ms [4.04, 4.12] | 0.997 [0.995, 1.008] |
 
 ### Cohesive driver, insertion off (`cohesive_extrinsic`, frozen `cube-h0.12` mesh, 23,156 Tet4, 500 steps, the port's Eigen-order static solver)
 
@@ -151,9 +159,12 @@ Each change keeps every value's floating-point operations and their order
    reduction accessor unpacks a record at once, then combines its values in
    order.
 6. **One-rank agreements** (`crates/akantu-comm/src/phase.rs`): on a
-   communicator of one rank an agreement returns the rank's own outcome
-   without the all-reduce, the qualified phase name and the step guard (the
-   protocol was about 40 % of the 32-triangle model's step).
+   communicator of one rank without MPI (serial or in-process back-end) an
+   agreement returns the rank's own outcome without the all-reduce, the
+   qualified phase name and the step guard (the protocol was about 40 % of
+   the 32-triangle model's step). An MPI communicator of one rank keeps
+   the MPI call, whose thread-level check the `mpi` tier tests
+   (`funneled_worker_policy`).
 7. **Energies** (`crates/akantu-core/src/math.rs`): `Math::reduce` sorts
    with an LSD radix sort of the `total_cmp` keys from 512 values on
    (values with equal keys have equal bits, so the sorted array is the

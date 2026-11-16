@@ -16,5 +16,10 @@
 driver, before (24f73b94e) against the merged head (042c8d2ae): digests
 and physical summaries identical.
 
+`tiny-ser`, `tiny-mpi1`: the tiny step at `805ac50d8` (the one-rank
+shortcut limited to non-MPI communicators) against 24f73b94e, serial
+builds and `mpirun -n 1`; `dig11`: digests of that build at 1-8 ranks
+(identical).
+
 `contention.txt` and `imbalance.txt`: the memory-bandwidth and per-vCPU
 measurements of the README's "What remains".
