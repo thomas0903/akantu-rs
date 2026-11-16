@@ -83,7 +83,18 @@ change of default results or of a public API raises the minor version.
   `StructuralMechanicsModel` take the process default policy and have
   `exec_policy` / `set_exec_policy` (the structural engine's elemental
   matrices stay serial). The first assembly of a matrix (its profile)
-  stays serial.
+  stays serial. `FeEngine::field_matrix_elemental_into`: the consistent
+  mass into caller-owned arrays (same checks, errors and values).
+- `SolidMechanicsModel` keeps the arrays of its stiffness and
+  consistent-mass assemblies between assemblies: one elemental-matrix
+  array per element type (shared by the stiffness and the mass), the
+  tangent, the gradient and the density values. For 162,000 four-node
+  tetrahedra that is 187 MB of elemental matrices and 46 MB of tangent
+  held after an assembly, which used to be allocated, page-faulted and
+  freed at every assembly. The peak during an assembly is lower than
+  before: the per-point `BᵀDB` array (`nb_element · nq · n²` values) is
+  no longer built. `SolidMechanicsModel::release_static_solver` frees
+  them; the next assembly allocates them again.
 - Fast-mode harness `akantu_validation::fast_mode` with the rules of
   `fixtures/fast_mode/`, and its demonstrator (the gradient kernel with
   fused multiply-adds under `Precision::Fast`).

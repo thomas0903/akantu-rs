@@ -1008,8 +1008,15 @@ structural `tests/exec_threads.rs`):
   (`field_matrix_elemental`: Jacobians, point matrices and integrals per
   part of elements). A law's tangent is called once per block as before
   (on threads only inside a law that declared `independent_points`). The
-  solid model keeps its stiffness arrays between assemblies
-  (`StiffnessScratch`, released by `release_static_solver`).
+  solid model keeps its stiffness and mass arrays between assemblies
+  (`StiffnessScratch`, boxed in the model: one elemental-matrix array
+  per element type, shared by stiffness and mass, the tangent, the
+  gradient and the density values; 187 + 46 MB for 162,000 four-node
+  tetrahedra), so that repeated assemblies map and fault no fresh arrays;
+  only arrays taken from its pool return to it (a law's own blocks and
+  the finite-deformation blocks are dropped). `release_static_solver`
+  frees them. The mass goes through
+  `FeEngine::field_matrix_elemental_into` (caller-owned arrays).
 - The scatter of a repeated element assembly
   (`DofManager::assemble_elemental_matrices_to_matrix` →
   `SparseMatrixAij::add_values_cached_batch`): when the round continues
