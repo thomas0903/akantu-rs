@@ -16,6 +16,18 @@ change of default results or of a public API raises the minor version.
   with one quadrature point per element, with the operations
   `interpolate_elemental_field` performs (`value`, or `coefficients` then
   `value_from_coefficients`).
+- Python: a `DirichletFunctor` subclass may define
+  `callNodes(nodes, flags, primal, coords)`; `applyBC` then calls it once
+  per group with NumPy copies of the group's rows and writes `flags` and
+  `primal` back after it returns, instead of calling `__call__` per node.
+  Subclasses that define only `__call__` behave as before.
+- `akantu_model::boundary_condition::DirichletFunctor::apply_shared_nodes`
+  (default: `apply_shared` per node, `apply_shared_per_node`): the
+  foreign-functor path of `apply_dirichlet` hands the whole node list to the
+  functor.
+- Benchmark suites: `suite_setup` case `parser_chain` (a chain of
+  parameters that each refer twice to the previous one) and Python case
+  `dirichlet_group_tri3`.
 - The cohesive benchmark driver (`akantu-bench`, `cohesive_extrinsic`)
   writes `chrono_rank<r>.csv` (the phase times of every rank) and, for the
   cohesive model, `insertion_stats_rank<r>.csv` (the split of the
@@ -30,6 +42,18 @@ change of default results or of a public API raises the minor version.
   route once per block, the copy plan after an insertion is built in
   linear time, and the linear law's effective norm uses fixed-size loops
   (`docs/BENCHMARKS.md`, "The insertion check").
+- The input-file parser evaluates each variable once per evaluation (it
+  parsed a variable's expression again at every reference, so a chain of
+  k parameters that each refer twice to the previous one cost 2^k
+  parses); values and error messages are unchanged.
+- Dumps and the MSH writer format numbers into the output buffer instead
+  of one `String` per number, and VTU base64 arrays are encoded in one
+  pass; the written bytes are unchanged.
+- The Gmsh reader keeps node and element tags in dense tables, allocates
+  nothing per element and parses integers in one pass; the meshes read are
+  unchanged.
+- Python Dirichlet functors (`__call__` per node) enter Python once per
+  group instead of once per node.
 
 ## [0.1.0] - Unreleased
 

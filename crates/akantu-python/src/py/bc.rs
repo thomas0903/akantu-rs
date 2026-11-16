@@ -10,7 +10,15 @@
 //! `__call__` is called back, through the runtime trampoline
 //! ([`super::runtime::callback`]), once per node (Dirichlet:
 //! `__call__(node, flags, primal, coord)`) or quadrature point (Neumann:
-//! `__call__(quad_point, dual, coord, normals)`).
+//! `__call__(quad_point, dual, coord, normals)`). For a Dirichlet group the
+//! runtime is entered once and `__call__` runs for every node in order.
+//!
+//! akantu-rs extension: a Dirichlet functor that defines
+//! `callNodes(nodes, flags, primal, coords)` is called once per group
+//! instead, with NumPy copies of the group's rows (`nodes` int32 `(n,)`,
+//! `flags` bool and `primal` float64 `(n, c)`, `coords` read-only float64
+//! `(n, dim)`); `flags` and `primal` are written back to the model after
+//! the call returns (nothing is written if it raises).
 //!
 //! Dirichlet arguments are, as upstream (`VectorProxy` row views through
 //! pybind11's Eigen caster), **views of the live rows**: `flags` and
@@ -278,9 +286,12 @@ pub(crate) enum DirichletAdapter {
     Builtin(BuiltinDirichlet),
     /// A Python `__call__`, with a view of the mesh node coordinates for
     /// the `coord` row views (set inside the native section).
+    /// `vectorised`: the object has a `callNodes` method, called once per
+    /// group instead of `__call__` per node.
     Python {
         obj: Py<PyAny>,
         coords: Option<ForeignView<Real>>,
+        vectorised: bool,
     },
 }
 
@@ -300,13 +311,19 @@ pub(crate) enum NeumannAdapter {
     Python(Py<PyAny>),
 }
 
+/// Name of the optional group method of Python Dirichlet functors
+/// (akantu-rs extension): `callNodes(nodes, flags, primal, coords)`.
+const CALL_NODES: &str = "callNodes";
+
 /// The adapter of a `DirichletFunctor` object: the Python `__call__` if a
 /// subclass defines one, else the built-in functor.
 pub(crate) fn dirichlet_adapter(obj: &Bound<'_, PyAny>) -> PyResult<DirichletAdapter> {
-    if obj.is_callable() {
+    let vectorised = obj.hasattr(CALL_NODES)?;
+    if obj.is_callable() || vectorised {
         return Ok(DirichletAdapter::Python {
             obj: obj.clone().unbind(),
             coords: None,
+            vectorised,
         });
     }
     let f = obj.cast::<PyDirichletFunctor>()?;
@@ -376,7 +393,7 @@ impl DirichletFunctor for DirichletAdapter {
         primal: &mut SharedArray<Real>,
         coord: &[Real],
     ) -> Result<()> {
-        let Self::Python { obj, coords } = self else {
+        let Self::Python { obj, coords, .. } = self else {
             return apply_rows_by_copy(self, node, row, blocked, primal, coord);
         };
         let rt = runtime();
@@ -410,9 +427,17 @@ impl DirichletFunctor for DirichletAdapter {
         blocked: &mut SharedArray<bool>,
         primal: &mut SharedArray<Real>,
     ) -> Result<()> {
-        let Self::Python { obj, coords } = self else {
+        let Self::Python {
+            obj,
+            coords,
+            vectorised,
+        } = self
+        else {
             return apply_shared_per_node(self, nodes, mesh, blocked, primal);
         };
+        if *vectorised {
+            return call_nodes(obj, nodes, mesh, blocked, primal);
+        }
         let Some(coords) = coords else {
             return apply_shared_per_node(self, nodes, mesh, blocked, primal);
         };
@@ -436,6 +461,79 @@ impl DirichletFunctor for DirichletAdapter {
             Ok(())
         })
     }
+}
+
+/// `callNodes(nodes, flags, primal, coords)` of a Python Dirichlet functor
+/// (akantu-rs extension): one call for the group with NumPy copies of the
+/// group's rows (`nodes` int32 `(n,)`, `flags` bool `(n, c)`, `primal`
+/// float64 `(n, c)`, `coords` read-only float64 `(n, dim)`); the rows of
+/// `flags` and `primal` are written back to the model in node order after
+/// the call (a node listed twice keeps its last row).
+fn call_nodes(
+    obj: &Py<PyAny>,
+    nodes: &[Idx],
+    mesh: &Mesh,
+    blocked: &mut SharedArray<bool>,
+    primal: &mut SharedArray<Real>,
+) -> Result<()> {
+    let dim = mesh.spatial_dimension();
+    let rows: Vec<usize> = nodes
+        .iter()
+        .map(|&n| akantu::core::try_to_usize(n))
+        .collect::<Result<_>>()?;
+    let n = rows.len();
+    let (c, flags, values) = {
+        let b = blocked.read()?;
+        let p = primal.read()?;
+        let c = p.nb_component();
+        if b.nb_component() != c {
+            return Err(akantu::core::Error::DimensionMismatch {
+                context: "DirichletFunctor.callNodes: blocked flags vs primal components",
+                expected: c,
+                got: b.nb_component(),
+            });
+        }
+        let mut flags = Vec::with_capacity(n * c);
+        let mut values = Vec::with_capacity(n * c);
+        for &r in &rows {
+            flags.extend_from_slice(b.get_tuple(r)?);
+            values.extend_from_slice(p.get_tuple(r)?);
+        }
+        (c, flags, values)
+    };
+    let mut coords = Vec::with_capacity(n * dim);
+    for &r in &rows {
+        coords.extend_from_slice(&mesh.nodes().as_slice()[r * dim..(r + 1) * dim]);
+    }
+    akantu::core::array_shared::export_all::callback_site("DirichletFunctor::callNodes");
+    let (flags, values) = callback(|py| {
+        let nd = PyArray1::from_slice(py, nodes);
+        let fl = PyArray1::from_vec(py, flags).reshape([n, c])?;
+        let pr = PyArray1::from_vec(py, values).reshape([n, c])?;
+        let co = PyArray1::from_vec(py, coords).reshape([n, dim])?;
+        co.call_method1("setflags", (false,))?;
+        obj.call_method1(py, CALL_NODES, (nd, &fl, &pr, co))?;
+        Ok((fl.to_vec()?, pr.to_vec()?))
+    })?;
+    if flags.len() != n * c || values.len() != n * c {
+        return Err(akantu::core::Error::DimensionMismatch {
+            context: "DirichletFunctor.callNodes output",
+            expected: n * c,
+            got: flags.len().min(values.len()),
+        });
+    }
+    let mut b = blocked.write()?;
+    for (k, &r) in rows.iter().enumerate() {
+        b.get_tuple_mut(r)?
+            .copy_from_slice(&flags[k * c..(k + 1) * c]);
+    }
+    drop(b);
+    let mut p = primal.write()?;
+    for (k, &r) in rows.iter().enumerate() {
+        p.get_tuple_mut(r)?
+            .copy_from_slice(&values[k * c..(k + 1) * c]);
+    }
+    Ok(())
 }
 
 impl NeumannFunctor for NeumannAdapter {
