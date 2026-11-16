@@ -1,0 +1,122 @@
+# perf record -F 499 --call-graph dwarf; dist_mesh_tet4-l-p4-r1
+# phases of the profiled run (seconds, calls):
+#   mesh                             2.834 s       2 calls   9.7 %
+#   partition                        8.891 s       2 calls  30.3 %
+#   distribute                      17.621 s       2 calls  60.0 %
+
+## flat profile (self), top symbols
+     7.74%  [kernel.kallsyms]               [k] _raw_spin_lock
+     4.99%  [kernel.kallsyms]               [k] __schedule
+     4.34%  libmpi.so.40.40.7               [.] 0x0000000000091304
+     4.09%  [kernel.kallsyms]               [k] __raw_callee_save___pv_queued_spin_unlock
+     3.08%  [kernel.kallsyms]               [k] __update_blocked_fair
+     2.36%  suite_setup_mpi                 [.] akantu_mesh::utils::node_to_elements_unchecked
+     2.13%  suite_setup_mpi                 [.] <alloc::vec::Vec<u32> as alloc::vec::spec_from_iter::SpecFromIter<u32, core::iter::adapters::GenericShunt<core::iter::adapters::map::Map<core::ops::range::Range<usize>, <akantu_comm::buffer::CommunicationBuffer>::unpack_vec<u32>::{closure#2}>, core::result::Result<core::convert::Infallible, akantu_core::error::Error>>>>::from_iter
+     2.09%  [vdso]                          [.] 0x00000000000007c7
+     2.02%  [kernel.kallsyms]               [k] __seccomp_filter
+     1.97%  suite_setup_mpi                 [.] suite_setup::suite_setup::mesh_digest
+     1.94%  libmpi.so.40.40.7               [.] 0x0000000000270835
+     1.89%  libc.so.6                       [.] 0x00000000000a29bd
+     1.87%  libc.so.6                       [.] 0x00000000000f8647
+     1.83%  [kernel.kallsyms]               [k] __update_load_avg_cfs_rq
+     1.56%  [kernel.kallsyms]               [k] native_read_msr
+     1.55%  [kernel.kallsyms]               [k] native_write_msr
+     1.53%  [kernel.kallsyms]               [k] pick_eevdf
+     1.31%  [kernel.kallsyms]               [k] x64_sys_call
+     1.08%  [kernel.kallsyms]               [k] perf_syscall_enter
+     0.96%  [kernel.kallsyms]               [k] clear_page_erms
+     0.94%  suite_setup_mpi                 [.] <core::iter::adapters::map::Map<core::ops::range::Range<usize>, <akantu_comm::buffer::CommunicationBuffer>::unpack_vec<i32>::{closure#2}> as core::iter::traits::iterator::Iterator>::try_fold::<(), <core::iter::adapters::GenericShunt<core::iter::adapters::map::Map<core::ops::range::Range<usize>, <akantu_comm::buffer::CommunicationBuffer>::unpack_vec<i32>::{closure#2}>, core::result::Result<core::convert::Infallible, akantu_core::error::Error>> as core::iter::traits::iterator::Iterator>::try_fold<(), core::iter::traits::iterator::Iterator::try_for_each::call<i32, core::ops::control_flow::ControlFlow<i32>, core::ops::control_flow::ControlFlow<i32>::Break>::{closure#0}, core::ops::control_flow::ControlFlow<i32>>::{closure#0}, core::ops::control_flow::ControlFlow<core::ops::control_flow::ControlFlow<i32>>>  -
+     0.94%  [kernel.kallsyms]               [k] populate_seccomp_data
+     0.93%  libc.so.6                       [.] 0x00000000000a29dc
+     0.92%  suite_setup_mpi                 [.] <akantu_core::element::Element as core::cmp::PartialOrd>::partial_cmp
+     0.89%  [kernel.kallsyms]               [k] __rcu_read_lock
+
+## inclusive (children), top entries
+    48.61%     0.13%  [k] entry_SYSCALL_64_after_hwframe
+    47.59%     0.61%  [k] do_syscall_64
+    41.00%     1.31%  [k] x64_sys_call
+    27.26%     4.99%  [k] __schedule
+    27.26%     0.00%  [k] schedule
+    27.25%     0.00%  [.] 0x00007d8a1cf7d72e
+    27.04%     0.48%  [.] <akantu_comm::mpi_backend::MpiInFlight>::finish
+    23.53%     0.00%  [.] 0x00007d8a1cfdb647
+    21.70%     0.80%  [k] __x64_sys_clock_nanosleep
+    20.90%     0.23%  [k] common_nsleep_timens
+    20.42%     0.28%  [k] hrtimer_nanosleep
+    19.87%     0.56%  [k] do_nanosleep
+    16.10%     0.00%  [k] __x64_sys_sched_yield
+    16.05%     0.00%  [k] 0xffffffffffffffff
+    15.50%     0.00%  [k] do_sched_yield
+    12.05%     0.00%  [k] pick_next_task
+    11.38%     0.30%  [k] pick_next_task_fair
+    10.82%     0.00%  [.] 0x00007fff3207957f
+     8.83%     0.30%  [.] akantu_mesh::distribution::distribute_impl
+     8.83%     0.00%  [.] akantu_mesh::distribution::distribute_impl::{closure#0} (inlined)
+     8.04%     7.74%  [k] _raw_spin_lock
+     7.76%     0.27%  [k] sched_balance_newidle
+     7.48%     0.32%  [k] exc_page_fault
+     7.48%     0.00%  [k] asm_exc_page_fault
+     7.16%     0.00%  [k] do_user_addr_fault
+     6.94%     0.20%  [k] update_blocked_averages
+     6.26%     0.00%  [k] 0xffffffffffffffff
+     6.24%     0.00%  [k] __handle_mm_fault
+     6.24%     0.00%  [k] handle_mm_fault
+     6.24%     0.00%  [k] handle_pte_fault
+     6.09%     0.00%  [.] akantu_mesh::distribution::build_local_mesh (inlined)
+     5.93%     0.31%  [k] do_anonymous_page
+     5.44%     0.31%  [.] akantu_mesh::utils::compute_element_to_subelements_data
+     5.44%     0.00%  [.] akantu_mesh::utils::fill_element_to_subelements_data
+     5.28%     0.00%  [.] 0x00007d8a1d55004f
+     5.08%     0.00%  [.] <akantu_comm::mpi_backend::MpiInFlight>::finish (inlined)
+     4.65%     3.08%  [k] __update_blocked_fair
+     4.34%     4.34%  [.] 0x0000000000091304
+     4.34%     0.00%  [.] 0x00007d8a1d287304
+     4.23%     0.50%  [k] syscall_trace_enter
+     4.09%     4.09%  [k] __raw_callee_save___pv_queued_spin_unlock
+     3.94%     0.00%  [k] _raw_spin_unlock
+     3.80%     0.00%  [.] <akantu_comm::pacing::Pacer>::pause (inlined)
+     3.75%     0.00%  [.] 0x00007d8a1cfbec18
+     2.96%     0.30%  [k] __perf_event_task_sched_out
+
+## call chains of the top self symbols (callers, >= 1 %)
+     7.74%  [k] _raw_spin_lock
+            |
+             --4.43%--do_sched_yield
+                       __x64_sys_sched_yield
+                       x64_sys_call
+                       do_syscall_64
+                       entry_SYSCALL_64_after_hwframe
+                       0x7d8a1cfdb647
+     4.99%  [k] __schedule
+            |
+            ---schedule
+               |
+                --4.34%--do_sched_yield
+                          __x64_sys_sched_yield
+                          x64_sys_call
+                          do_syscall_64
+                          entry_SYSCALL_64_after_hwframe
+                          0x7d8a1cfdb647
+     4.34%  [.] 0x0000000000091304
+     4.09%  [k] __raw_callee_save___pv_queued_spin_unlock
+            |
+             --3.94%--_raw_spin_unlock
+     3.08%  [k] __update_blocked_fair
+            |
+            ---update_blocked_averages
+               sched_balance_newidle
+               pick_next_task_fair
+               pick_next_task
+               __schedule
+               schedule
+               do_nanosleep
+               hrtimer_nanosleep
+               common_nsleep_timens
+               __x64_sys_clock_nanosleep
+               x64_sys_call
+               do_syscall_64
+               entry_SYSCALL_64_after_hwframe
+               0x7d8a1cf7d72e
+               <akantu_comm::pacing::Pacer>::pause (inlined)
+               akantu_comm::mpi_backend::complete (inlined)
+               <akantu_comm::mpi_backend::MpiInFlight>::finish (inlined)

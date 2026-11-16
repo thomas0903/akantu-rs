@@ -1,0 +1,128 @@
+# perf record -F 499 --call-graph dwarf; dist_mesh_tet4-l-p4-r0
+# phases of the profiled run (seconds, calls):
+#   mesh                             2.834 s       2 calls   9.7 %
+#   partition                        8.891 s       2 calls  30.3 %
+#   distribute                      17.621 s       2 calls  60.0 %
+
+## flat profile (self), top symbols
+    13.02%  suite_setup_mpi        [.] <akantu_core::element::Element as core::cmp::Ord>::cmp
+    10.67%  libc.so.6              [.] pthread_rwlock_timedrdlock
+     8.94%  suite_setup_mpi        [.] <alloc::collections::btree::map::entry::Entry<akantu_core::element::Element, usize>>::or_default
+     8.86%  libc.so.6              [.] pthread_mutex_setprioceiling
+     7.94%  suite_setup_mpi        [.] <akantu_mesh::distribution::Plan>::package
+     5.36%  suite_setup_mpi        [.] akantu_mesh::partition::build_dual_graph
+     5.05%  libc.so.6              [.] pthread_kill
+     2.13%  libc.so.6              [.] 0x000000000009ec83
+     1.69%  suite_setup_mpi        [.] <akantu_io::mesh_io::lexer::Line>::token
+     1.43%  suite_setup_mpi        [.] akantu_mesh::utils::renumber_mesh_nodes
+     1.35%  suite_setup_mpi        [.] <alloc::collections::btree::node::Handle<alloc::collections::btree::node::NodeRef<alloc::collections::btree::node::marker::Mut, akantu_core::element::Element, usize, alloc::collections::btree::node::marker::Leaf>, alloc::collections::btree::node::marker::Edge>>::insert_recursing::<alloc::alloc::Global, <alloc::collections::btree::map::entry::VacantEntry<akantu_core::element::Element, usize>>::insert_entry::{closure#0}>
+     1.34%  suite_setup_mpi        [.] <akantu_io::mesh_io::lexer::Source>::expect_line
+     1.29%  suite_setup_mpi        [.] akantu_mesh::partition::fill_partition_information_with
+     1.25%  suite_setup_mpi        [.] <alloc::collections::btree::map::IntoIter<akantu_core::element::Element, usize>>::dying_next
+     1.19%  libc.so.6              [.] pthread_mutex_lock
+     1.12%  suite_setup_mpi        [.] <akantu_io::mesh_io::msh::Reader>::node_index
+     1.08%  libc.so.6              [.] 0x000000000009ecd3
+     1.05%  libc.so.6              [.] xdr_uint64_t
+     0.96%  suite_setup_mpi        [.] <akantu_io::mesh_io::msh::Reader>::elements_v2
+     0.76%  libc.so.6              [.] 0x0000000000172221
+     0.74%  libscotch-7.0.7.so     [.] 0x00000000000497b5
+     0.73%  libc.so.6              [.] xdr_u_quad_t
+     0.67%  suite_setup_mpi        [.] <hashbrown::raw::RawTable<(usize, alloc::vec::Vec<u32>)>>::reserve_rehash::<hashbrown::map::make_hasher<usize, alloc::vec::Vec<u32>, std::hash::random::RandomState>::{closure#0}>
+     0.55%  suite_setup_mpi        [.] alloc::fmt::format::format_inner
+     0.55%  libc.so.6              [.] pthread_rwlock_timedwrlock
+
+## inclusive (children), top entries
+    55.57%     0.00%  [k] 0xffffffffffffffff
+    33.52%     0.00%  [.] suite_setup::suite_setup::cases_dist::distributed_tet4
+    32.72%     0.00%  [.] <suite_setup::suite_setup::harness::CaseOut>::phase::<core::option::Option<core::result::Result<akantu_mesh::partition::MeshPartition, akantu_core::error::Error>>, suite_setup::suite_setup::cases_dist::distributed_tet4::{closure#1}>
+    32.72%     0.00%  [.] suite_setup::suite_setup::cases_dist::distributed_tet4::{closure#1} (inlined)
+    32.72%     0.00%  [.] <akantu_mesh::scotch::ScotchPartitioner>::partition_with_loads
+    32.72%     0.00%  [.] <akantu_mesh::scotch::ScotchPartitioner as akantu_mesh::partition::MeshPartitioner>::partition
+    30.67%     5.36%  [.] akantu_mesh::partition::build_dual_graph
+    16.54%     0.00%  [.] <alloc::collections::btree::map::BTreeMap<akantu_core::element::Element, usize>>::entry (inlined)
+    16.13%     0.00%  [.] <alloc::collections::btree::node::NodeRef<alloc::collections::btree::node::marker::Mut, akantu_core::element::Element, usize, alloc::collections::btree::node::marker::LeafOrInternal>>::search_tree::<akantu_core::element::Element> (inlined)
+    15.94%     0.00%  [.] <alloc::collections::btree::node::NodeRef<alloc::collections::btree::node::marker::Mut, akantu_core::element::Element, usize, alloc::collections::btree::node::marker::LeafOrInternal>>::search_node::<akantu_core::element::Element> (inlined)
+    15.94%     0.00%  [.] <alloc::collections::btree::node::NodeRef<alloc::collections::btree::node::marker::Mut, akantu_core::element::Element, usize, alloc::collections::btree::node::marker::LeafOrInternal>>::find_key_index::<akantu_core::element::Element> (inlined)
+    13.13%    13.02%  [.] <akantu_core::element::Element as core::cmp::Ord>::cmp
+    12.78%     0.01%  [.] akantu_mesh::distribution::distribute_impl
+    12.78%     0.00%  [.] akantu_mesh::distribution::distribute_impl::{closure#0} (inlined)
+    12.62%     0.00%  [.] <core::result::Result<core::option::Option<&akantu_mesh::partition::MeshPartition>, akantu_core::error::Error>>::and_then::<core::option::Option<alloc::vec::Vec<alloc::vec::Vec<u8>>>, akantu_mesh::distribution::distribute_impl::{closure#0}::{closure#1}> (inlined)
+    12.62%     0.00%  [.] akantu_mesh::distribution::distribute_impl::{closure#0}::{closure#1} (inlined)
+    12.62%     0.00%  [.] akantu_mesh::distribution::preflight (inlined)
+    10.91%     7.94%  [.] <akantu_mesh::distribution::Plan>::package
+    10.91%     0.00%  [.] core::iter::adapters::try_process::<core::iter::adapters::map::Map<core::ops::range::Range<usize>, akantu_mesh::distribution::preflight::{closure#2}>, alloc::vec::Vec<u8>, core::result::Result<core::convert::Infallible, akantu_core::error::Error>, <core::result::Result<alloc::vec::Vec<alloc::vec::Vec<u8>>, akantu_core::error::Error> as core::iter::traits::collect::FromIterator<core::result::Result<alloc::vec::Vec<u8>, akantu_core::error::Error>>>::from_iter<core::iter::adapters::map::Map<core::ops::range::Range<usize>, akantu_mesh::distribution::preflight::{closure#2}>>::{closure#0}, alloc::vec::Vec<alloc::vec::Vec<u8>>>
+    10.91%     0.00%  [.] <core::iter::adapters::GenericShunt<core::iter::adapters::map::Map<core::ops::range::Range<usize>, akantu_mesh::distribution::preflight::{closure#2}>, core::result::Result<core::convert::Infallible, akantu_core::error::Error>> as core::iter::traits::iterator::Iterator>::try_fold::<(), core::iter::traits::iterator::Iterator::try_for_each::call<alloc::vec::Vec<u8>, core::ops::control_flow::ControlFlow<alloc::vec::Vec<u8>>, core::ops::control_flow::ControlFlow<alloc::vec::Vec<u8>>::Break>::{closure#0}, core::ops::control_flow::ControlFlow<alloc::vec::Vec<u8>>> (inlined)
+    10.91%     0.00%  [.] <core::iter::adapters::map::Map<core::ops::range::Range<usize>, akantu_mesh::distribution::preflight::{closure#2}> as core::iter::traits::iterator::Iterator>::try_fold::<(), <core::iter::adapters::GenericShunt<core::iter::adapters::map::Map<core::ops::range::Range<usize>, akantu_mesh::distribution::preflight::{closure#2}>, core::result::Result<core::convert::Infallible, akantu_core::error::Error>> as core::iter::traits::iterator::Iterator>::try_fold<(), core::iter::traits::iterator::Iterator::try_for_each::call<alloc::vec::Vec<u8>, core::ops::control_flow::ControlFlow<alloc::vec::Vec<u8>>, core::ops::control_flow::ControlFlow<alloc::vec::Vec<u8>>::Break>::{closure#0}, core::ops::control_flow::ControlFlow<alloc::vec::Vec<u8>>>::{closure#0}, core::ops::control_flow::ControlFlow<core::ops::control_flow::ControlFlow<alloc::vec::Vec<u8>>>> (inlined)
+    10.91%     0.00%  [.] <alloc::vec::Vec<alloc::vec::Vec<u8>> as core::iter::traits::collect::FromIterator<alloc::vec::Vec<u8>>>::from_iter::<core::iter::adapters::GenericShunt<core::iter::adapters::map::Map<core::ops::range::Range<usize>, akantu_mesh::distribution::preflight::{closure#2}>, core::result::Result<core::convert::Infallible, akantu_core::error::Error>>> (inlined)
+    10.91%     0.00%  [.] <core::result::Result<alloc::vec::Vec<alloc::vec::Vec<u8>>, akantu_core::error::Error> as core::iter::traits::collect::FromIterator<core::result::Result<alloc::vec::Vec<u8>, akantu_core::error::Error>>>::from_iter::<core::iter::adapters::map::Map<core::ops::range::Range<usize>, akantu_mesh::distribution::preflight::{closure#2}>> (inlined)
+    10.91%     0.00%  [.] <core::ops::range::Range<usize> as core::iter::traits::iterator::Iterator>::try_fold::<(), core::iter::adapters::map::map_try_fold<usize, core::result::Result<alloc::vec::Vec<u8>, akantu_core::error::Error>, (), core::ops::control_flow::ControlFlow<core::ops::control_flow::ControlFlow<alloc::vec::Vec<u8>>>, akantu_mesh::distribution::preflight::{closure#2}, <core::iter::adapters::GenericShunt<core::iter::adapters::map::Map<core::ops::range::Range<usize>, akantu_mesh::distribution::preflight::{closure#2}>, core::result::Result<core::convert::Infallible, akantu_core::error::Error>> as core::iter::traits::iterator::Iterator>::try_fold<(), core::iter::traits::iterator::Iterator::try_for_each::call<alloc::vec::Vec<u8>, core::ops::control_flow::ControlFlow<alloc::vec::Vec<u8>>, core::ops::control_flow::ControlFlow<alloc::vec::Vec<u8>>::Break>::{closure#0}, core::ops::control_flow::ControlFlow<alloc::vec::Vec<u8>>>::{closure#0}>::{closure#0}, core::ops::control_flow::ControlFlow<core::ops::control_flow::ControlFlow<alloc::vec::Vec<u8>>>> (inlined)
+    10.91%     0.00%  [.] <core::iter::adapters::GenericShunt<core::iter::adapters::map::Map<core::ops::range::Range<usize>, akantu_mesh::distribution::preflight::{closure#2}>, core::result::Result<core::convert::Infallible, akantu_core::error::Error>> as core::iter::traits::iterator::Iterator>::try_for_each::<core::ops::control_flow::ControlFlow<alloc::vec::Vec<u8>>::Break, core::ops::control_flow::ControlFlow<alloc::vec::Vec<u8>>> (inlined)
+    10.91%     0.00%  [.] <core::iter::adapters::GenericShunt<core::iter::adapters::map::Map<core::ops::range::Range<usize>, akantu_mesh::distribution::preflight::{closure#2}>, core::result::Result<core::convert::Infallible, akantu_core::error::Error>> as core::iter::traits::iterator::Iterator>::collect::<alloc::vec::Vec<alloc::vec::Vec<u8>>> (inlined)
+    10.91%     0.00%  [.] <core::iter::adapters::map::Map<core::ops::range::Range<usize>, akantu_mesh::distribution::preflight::{closure#2}> as core::iter::traits::iterator::Iterator>::collect::<core::result::Result<alloc::vec::Vec<alloc::vec::Vec<u8>>, akantu_core::error::Error>> (inlined)
+    10.91%     0.00%  [.] core::iter::adapters::map::map_try_fold::<usize, core::result::Result<alloc::vec::Vec<u8>, akantu_core::error::Error>, (), core::ops::control_flow::ControlFlow<core::ops::control_flow::ControlFlow<alloc::vec::Vec<u8>>>, akantu_mesh::distribution::preflight::{closure#2}, <core::iter::adapters::GenericShunt<core::iter::adapters::map::Map<core::ops::range::Range<usize>, akantu_mesh::distribution::preflight::{closure#2}>, core::result::Result<core::convert::Infallible, akantu_core::error::Error>> as core::iter::traits::iterator::Iterator>::try_fold<(), core::iter::traits::iterator::Iterator::try_for_each::call<alloc::vec::Vec<u8>, core::ops::control_flow::ControlFlow<alloc::vec::Vec<u8>>, core::ops::control_flow::ControlFlow<alloc::vec::Vec<u8>>::Break>::{closure#0}, core::ops::control_flow::ControlFlow<alloc::vec::Vec<u8>>>::{closure#0}>::{closure#0} (inlined)
+    10.91%     0.00%  [.] <core::result::Result<alloc::vec::Vec<alloc::vec::Vec<u8>>, akantu_core::error::Error> as core::iter::traits::collect::FromIterator<core::result::Result<alloc::vec::Vec<u8>, akantu_core::error::Error>>>::from_iter::<core::iter::adapters::map::Map<core::ops::range::Range<usize>, akantu_mesh::distribution::preflight::{closure#2}>>::{closure#0} (inlined)
+    10.91%     0.00%  [.] akantu_mesh::distribution::preflight::{closure#2} (inlined)
+    10.91%     0.00%  [.] <alloc::vec::Vec<alloc::vec::Vec<u8>> as alloc::vec::spec_from_iter::SpecFromIter<alloc::vec::Vec<u8>, core::iter::adapters::GenericShunt<core::iter::adapters::map::Map<core::ops::range::Range<usize>, akantu_mesh::distribution::preflight::{closure#2}>, core::result::Result<core::convert::Infallible, akantu_core::error::Error>>>>::from_iter
+    10.91%     0.00%  [.] <alloc::vec::Vec<alloc::vec::Vec<u8>> as alloc::vec::spec_from_iter_nested::SpecFromIterNested<alloc::vec::Vec<u8>, core::iter::adapters::GenericShunt<core::iter::adapters::map::Map<core::ops::range::Range<usize>, akantu_mesh::distribution::preflight::{closure#2}>, core::result::Result<core::convert::Infallible, akantu_core::error::Error>>>>::from_iter (inlined)
+    10.91%     0.00%  [.] <core::iter::adapters::GenericShunt<core::iter::adapters::map::Map<core::ops::range::Range<usize>, akantu_mesh::distribution::preflight::{closure#2}>, core::result::Result<core::convert::Infallible, akantu_core::error::Error>> as core::iter::traits::iterator::Iterator>::next (inlined)
+    10.68%    10.67%  [.] pthread_rwlock_timedrdlock
+    10.39%     8.94%  [.] <alloc::collections::btree::map::entry::Entry<akantu_core::element::Element, usize>>::or_default
+     8.87%     8.86%  [.] pthread_mutex_setprioceiling
+     8.54%     0.00%  [.] akantu_io::mesh_io::parse
+     8.46%     0.00%  [.] akantu_io::mesh_io::read_mesh_from_str
+     8.46%     0.00%  [.] akantu_io::mesh_io::msh::read
+     8.28%     0.00%  [.] <alloc::vec::Vec<alloc::vec::Vec<u8>>>::extend_desugared::<core::iter::adapters::GenericShunt<core::iter::adapters::map::Map<core::ops::range::Range<usize>, akantu_mesh::distribution::preflight::{closure#2}>, core::result::Result<core::convert::Infallible, akantu_core::error::Error>>> (inlined)
+     8.28%     0.00%  [.] <alloc::vec::Vec<alloc::vec::Vec<u8>> as alloc::vec::spec_extend::SpecExtend<alloc::vec::Vec<u8>, core::iter::adapters::GenericShunt<core::iter::adapters::map::Map<core::ops::range::Range<usize>, akantu_mesh::distribution::preflight::{closure#2}>, core::result::Result<core::convert::Infallible, akantu_core::error::Error>>>>::spec_extend (inlined)
+     7.82%     0.00%  [.] <akantu_io::mesh_io::msh::Reader>::run
+     7.42%     0.96%  [.] <akantu_io::mesh_io::msh::Reader>::elements_v2
+     6.98%     0.00%  [.] <akantu_core::element::Element>::is_null (inlined)
+     6.15%     0.00%  [.] <(bool, akantu_core::element_type::GhostType, akantu_core::element_type::ElementType, i32) as core::cmp::Ord>::cmp (inlined)
+
+## call chains of the top self symbols (callers, >= 1 %)
+    13.02%  [.] <akantu_core::element::Element as core::cmp::Ord>::cmp
+            |
+            |--6.92%--<akantu_core::element::Element>::is_null (inlined)
+            |          <akantu_core::element::Element as core::cmp::Ord>::cmp
+            |          <alloc::collections::btree::node::NodeRef<alloc::collections::btree::node::marker::Mut, akantu_core::element::Element, usize, alloc::collections::btree::node::marker::LeafOrInternal>>::find_key_index::<akantu_core::element::Element> (inlined)
+            |          <alloc::collections::btree::node::NodeRef<alloc::collections::btree::node::marker::Mut, akantu_core::element::Element, usize, alloc::collections::btree::node::marker::LeafOrInternal>>::search_node::<akantu_core::element::Element> (inlined)
+            |          <alloc::collections::btree::node::NodeRef<alloc::collections::btree::node::marker::Mut, akantu_core::element::Element, usize, alloc::collections::btree::node::marker::LeafOrInternal>>::search_tree::<akantu_core::element::Element> (inlined)
+            |          <alloc::collections::btree::map::BTreeMap<akantu_core::element::Element, usize>>::entry (inlined)
+            |          akantu_mesh::partition::build_dual_graph
+            |          <akantu_mesh::scotch::ScotchPartitioner>::partition_with_loads
+            |          <akantu_mesh::scotch::ScotchPartitioner as akantu_mesh::partition::MeshPartitioner>::partition
+            |          suite_setup::suite_setup::cases_dist::distributed_tet4::{closure#1} (inlined)
+            |          <suite_setup::suite_setup::harness::CaseOut>::phase::<core::option::Option<core::result::Result<akantu_mesh::partition::MeshPartition, akantu_core::error::Error>>, suite_setup::suite_setup::cases_dist::distributed_tet4::{closure#1}>
+            |          suite_setup::suite_setup::cases_dist::distributed_tet4
+            |          0xffffffffffffffff
+            |
+             --5.85%--<u8 as core::cmp::Ord>::cmp (inlined)
+                       |
+                        --3.54%--<akantu_core::element_type::GhostType as core::cmp::Ord>::cmp (inlined)
+                                  <(bool, akantu_core::element_type::GhostType, akantu_core::element_type::ElementType, i32) as core::cmp::Ord>::cmp (inlined)
+                                  <akantu_core::element::Element as core::cmp::Ord>::cmp
+                                  <alloc::collections::btree::node::NodeRef<alloc::collections::btree::node::marker::Mut, akantu_core::element::Element, usize, alloc::collections::btree::node::marker::LeafOrInternal>>::find_key_index::<akantu_core::element::Element> (inlined)
+                                  <alloc::collections::btree::node::NodeRef<alloc::collections::btree::node::marker::Mut, akantu_core::element::Element, usize, alloc::collections::btree::node::marker::LeafOrInternal>>::search_node::<akantu_core::element::Element> (inlined)
+                                  <alloc::collections::btree::node::NodeRef<alloc::collections::btree::node::marker::Mut, akantu_core::element::Element, usize, alloc::collections::btree::node::marker::LeafOrInternal>>::search_tree::<akantu_core::element::Element> (inlined)
+                                  <alloc::collections::btree::map::BTreeMap<akantu_core::element::Element, usize>>::entry (inlined)
+                                  akantu_mesh::partition::build_dual_graph
+                                  <akantu_mesh::scotch::ScotchPartitioner>::partition_with_loads
+                                  <akantu_mesh::scotch::ScotchPartitioner as akantu_mesh::partition::MeshPartitioner>::partition
+                                  suite_setup::suite_setup::cases_dist::distributed_tet4::{closure#1} (inlined)
+                                  <suite_setup::suite_setup::harness::CaseOut>::phase::<core::option::Option<core::result::Result<akantu_mesh::partition::MeshPartition, akantu_core::error::Error>>, suite_setup::suite_setup::cases_dist::distributed_tet4::{closure#1}>
+                                  suite_setup::suite_setup::cases_dist::distributed_tet4
+                                  0xffffffffffffffff
+    10.67%  [.] pthread_rwlock_timedrdlock
+     8.94%  [.] <alloc::collections::btree::map::entry::Entry<akantu_core::element::Element, usize>>::or_default
+            |
+             --8.35%--<alloc::collections::btree::map::entry::Entry<akantu_core::element::Element, usize>>::or_default
+                       akantu_mesh::partition::build_dual_graph
+                       <akantu_mesh::scotch::ScotchPartitioner>::partition_with_loads
+                       <akantu_mesh::scotch::ScotchPartitioner as akantu_mesh::partition::MeshPartitioner>::partition
+                       suite_setup::suite_setup::cases_dist::distributed_tet4::{closure#1} (inlined)
+                       <suite_setup::suite_setup::harness::CaseOut>::phase::<core::option::Option<core::result::Result<akantu_mesh::partition::MeshPartition, akantu_core::error::Error>>, suite_setup::suite_setup::cases_dist::distributed_tet4::{closure#1}>
+                       suite_setup::suite_setup::cases_dist::distributed_tet4
+                       0xffffffffffffffff
+     8.86%  [.] pthread_mutex_setprioceiling
+     7.94%  [.] <akantu_mesh::distribution::Plan>::package
+     5.36%  [.] akantu_mesh::partition::build_dual_graph
+     5.05%  [.] pthread_kill

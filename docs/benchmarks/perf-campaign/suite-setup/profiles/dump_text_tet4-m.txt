@@ -1,0 +1,310 @@
+# perf record -F 499 --call-graph dwarf; dump_text_tet4-m
+# phases of the profiled run (seconds, calls):
+#   mesh                             0.190 s       1 calls   1.8 %
+#   init                             0.110 s       1 calls   1.0 %
+#   dump                            10.517 s     180 calls  97.2 %
+
+## flat profile (self), top symbols
+     9.61%  suite_setup           [.] core::num::imp::flt2dec::strategy::grisu::format_exact_opt
+     6.93%  suite_setup           [.] core::fmt::float::float_to_exponential_common_exact::<f64>
+     6.85%  suite_setup           [.] core::num::imp::flt2dec::strategy::dragon::format_exact
+     5.81%  suite_setup           [.] <alloc::string::String as core::fmt::Write>::write_str
+     5.12%  suite_setup           [.] <core::num::imp::bignum::Big32x40>::mul_pow2
+     4.29%  suite_setup           [.] akantu_io::dumper::cfmt::format_e
+     3.71%  suite_setup           [.] core::fmt::write
+     3.26%  suite_setup           [.] <core::fmt::Formatter>::write_formatted_parts
+     2.66%  suite_setup           [.] <core::fmt::Formatter>::pad_integral
+     2.33%  libc.so.6             [.] 0x00000000001a1577
+     2.31%  suite_setup           [.] <alloc::raw_vec::RawVecInner>::finish_grow
+     2.29%  suite_setup           [.] core::num::imp::flt2dec::strategy::grisu::format_exact_opt::possibly_round
+     2.24%  libc.so.6             [.] 0x00000000001a1533
+     2.22%  suite_setup           [.] alloc::fmt::format::format_inner
+     2.01%  suite_setup           [.] <alloc::string::String as core::fmt::Write>::write_str
+     1.95%  libc.so.6             [.] malloc
+     1.89%  suite_setup           [.] akantu_io::dumper::cfmt::rust_exp
+     1.85%  libc.so.6             [.] 0x00000000001a14c0
+     1.60%  libc.so.6             [.] realloc
+     1.39%  suite_setup           [.] <alloc::raw_vec::RawVecInner<_>>::reserve::do_reserve_and_handle::<alloc::alloc::Global>
+     1.37%  suite_setup           [.] <u32 as core::fmt::Display>::fmt
+     1.23%  libc.so.6             [.] 0x00000000001a14c4
+     1.16%  suite_setup           [.] core::num::imp::flt2dec::digits_to_exp_str
+     1.07%  suite_setup           [.] <alloc::raw_vec::RawVecInner>::finish_grow
+     1.02%  suite_setup           [.] __rustc::__rdl_realloc
+
+## inclusive (children), top entries
+    95.54%     0.00%  [.] <core::result::Result<akantu_comm::communicator::Communicator, akantu_core::error::Error>>::and_then::<(), suite_setup::main::{closure#1}> (inlined)
+    95.54%     0.00%  [.] std::panic::catch_unwind::<std::rt::lang_start_internal::{closure#0}, isize> (inlined)
+    95.54%     0.00%  [.] std::panic::catch_unwind::<&dyn core::ops::function::Fn<(), Output = i32> + core::panic::unwind_safe::RefUnwindSafe + core::marker::Sync, i32> (inlined)
+    95.54%     0.00%  [.] std::panicking::catch_unwind::<isize, std::rt::lang_start_internal::{closure#0}> (inlined)
+    95.54%     0.00%  [.] std::panicking::catch_unwind::<i32, &dyn core::ops::function::Fn<(), Output = i32> + core::panic::unwind_safe::RefUnwindSafe + core::marker::Sync> (inlined)
+    95.54%     0.00%  [.] std::panicking::catch_unwind::do_call::<std::rt::lang_start_internal::{closure#0}, isize> (inlined)
+    95.54%     0.00%  [.] std::panicking::catch_unwind::do_call::<&dyn core::ops::function::Fn<(), Output = i32> + core::panic::unwind_safe::RefUnwindSafe + core::marker::Sync, i32> (inlined)
+    95.54%     0.00%  [.] std::rt::lang_start::<std::process::ExitCode>::{closure#0} (inlined)
+    95.54%     0.00%  [.] suite_setup::main::{closure#1} (inlined)
+    95.54%     0.00%  [.] std::rt::lang_start_internal::{closure#0} (inlined)
+    95.54%     0.00%  [.] suite_setup::main
+    95.54%     0.00%  [.] std::rt::lang_start_internal
+    95.54%     0.00%  [.] suite_setup::suite_setup::harness::run_cases
+    95.54%     0.00%  [.] <&dyn core::ops::function::Fn<(), Output = i32> + core::panic::unwind_safe::RefUnwindSafe + core::marker::Sync as core::ops::function::FnOnce<()>>::call_once (inlined)
+    95.54%     0.00%  [.] <fn() -> std::process::ExitCode as core::ops::function::FnOnce<()>>::call_once (inlined)
+    95.54%     0.00%  [.] __libc_start_main
+    95.54%     0.00%  [.] _start
+    95.54%     0.00%  [.] 0x000076d7ea02a1c9
+    95.54%     0.00%  [.] std::sys::backtrace::__rust_begin_short_backtrace::<fn() -> std::process::ExitCode, std::process::ExitCode>
+    95.53%     0.00%  [.] main
+    95.53%     0.00%  [.] suite_setup::suite_setup::cases_io::dump_text_tet4
+    94.53%     0.00%  [.] <suite_setup::suite_setup::harness::CaseOut>::loop_phase::<suite_setup::suite_setup::cases_io::dump_text_tet4::{closure#0}>
+    94.53%     0.00%  [.] suite_setup::suite_setup::cases_io::dump_text_tet4::{closure#0} (inlined)
+    94.53%     0.00%  [.] <akantu_solid::model::SolidMechanicsModel>::dump_named
+    94.48%     0.57%  [.] <akantu_io::dumper::text::DumperText>::dump_steps
+    94.48%     0.00%  [.] <akantu_io::dumper::dumpable::Dumpable>::dump_named
+    94.48%     0.00%  [.] <akantu_io::dumper::text::DumperText as akantu_io::dumper::Dumper>::dump
+    90.66%     0.00%  [.] <akantu_io::dumper::text::DumperText>::render (inlined)
+    89.38%     0.00%  [.] <akantu_io::dumper::text::DumperText>::field_text (inlined)
+    88.75%     0.76%  [.] <akantu_io::dumper::text::DumperText>::format_value
+    84.00%     4.29%  [.] akantu_io::dumper::cfmt::format_e
+    73.66%     3.71%  [.] core::fmt::write
+    64.77%     0.00%  [.] akantu_io::dumper::cfmt::rust_exp (inlined)
+    64.39%     0.00%  [.] <core::fmt::rt::Argument>::fmt (inlined)
+    60.47%     2.22%  [.] alloc::fmt::format::format_inner
+    60.40%     0.00%  [.] <core::option::Option<&str>>::map_or_else::<alloc::string::String, alloc::fmt::format::{closure#0}, <str as alloc::borrow::ToOwned>::to_owned> (inlined)
+    60.40%     0.00%  [.] alloc::fmt::format::{closure#0} (inlined)
+    60.40%     0.00%  [.] alloc::fmt::format (inlined)
+    58.31%     0.00%  [.] <&mut alloc::string::String as core::fmt::Write::write_fmt::SpecWriteFmt>::spec_write_fmt (inlined)
+    58.31%     0.00%  [.] <alloc::string::String as core::fmt::Write>::write_fmt (inlined)
+    55.85%     6.93%  [.] core::fmt::float::float_to_exponential_common_exact::<f64>
+    33.47%     0.00%  [.] core::num::imp::flt2dec::to_exact_exp_str::<f64, core::num::imp::flt2dec::strategy::grisu::format_exact> (inlined)
+    28.01%     0.00%  [.] core::num::imp::flt2dec::strategy::grisu::format_exact (inlined)
+    28.01%     0.00%  [.] <core::num::imp::flt2dec::strategy::grisu::format_exact as core::ops::function::FnMut<(&core::num::imp::flt2dec::decoder::Decoded, &mut [core::mem::maybe_uninit::MaybeUninit<u8>], i16)>>::call_mut (inlined)
+    21.56%     3.26%  [.] <core::fmt::Formatter>::write_formatted_parts
+
+## call chains of the top self symbols (callers, >= 1 %)
+     9.61%  [.] core::num::imp::flt2dec::strategy::grisu::format_exact_opt
+            |
+            |--5.17%--core::num::imp::flt2dec::strategy::grisu::format_exact_opt
+            |          core::num::imp::flt2dec::strategy::grisu::format_exact (inlined)
+            |          <core::num::imp::flt2dec::strategy::grisu::format_exact as core::ops::function::FnMut<(&core::num::imp::flt2dec::decoder::Decoded, &mut [core::mem::maybe_uninit::MaybeUninit<u8>], i16)>>::call_mut (inlined)
+            |          core::num::imp::flt2dec::to_exact_exp_str::<f64, core::num::imp::flt2dec::strategy::grisu::format_exact> (inlined)
+            |          core::fmt::float::float_to_exponential_common_exact::<f64>
+            |          <core::fmt::rt::Argument>::fmt (inlined)
+            |          core::fmt::write
+            |          <&mut alloc::string::String as core::fmt::Write::write_fmt::SpecWriteFmt>::spec_write_fmt (inlined)
+            |          <alloc::string::String as core::fmt::Write>::write_fmt (inlined)
+            |          alloc::fmt::format::format_inner
+            |          alloc::fmt::format::{closure#0} (inlined)
+            |          <core::option::Option<&str>>::map_or_else::<alloc::string::String, alloc::fmt::format::{closure#0}, <str as alloc::borrow::ToOwned>::to_owned> (inlined)
+            |          alloc::fmt::format (inlined)
+            |          akantu_io::dumper::cfmt::rust_exp (inlined)
+            |          akantu_io::dumper::cfmt::format_e
+            |          <akantu_io::dumper::text::DumperText>::format_value
+            |          <akantu_io::dumper::text::DumperText>::field_text (inlined)
+            |          <akantu_io::dumper::text::DumperText>::render (inlined)
+            |          <akantu_io::dumper::text::DumperText>::dump_steps
+            |          <akantu_io::dumper::text::DumperText as akantu_io::dumper::Dumper>::dump
+            |          <akantu_io::dumper::dumpable::Dumpable>::dump_named
+            |          <akantu_solid::model::SolidMechanicsModel>::dump_named
+            |          suite_setup::suite_setup::cases_io::dump_text_tet4::{closure#0} (inlined)
+            |          <suite_setup::suite_setup::harness::CaseOut>::loop_phase::<suite_setup::suite_setup::cases_io::dump_text_tet4::{closure#0}>
+            |          suite_setup::suite_setup::cases_io::dump_text_tet4
+            |          suite_setup::suite_setup::harness::run_cases
+            |          suite_setup::main::{closure#1} (inlined)
+            |          <core::result::Result<akantu_comm::communicator::Communicator, akantu_core::error::Error>>::and_then::<(), suite_setup::main::{closure#1}> (inlined)
+            |          suite_setup::main
+            |          <fn() -> std::process::ExitCode as core::ops::function::FnOnce<()>>::call_once (inlined)
+            |          std::sys::backtrace::__rust_begin_short_backtrace::<fn() -> std::process::ExitCode, std::process::ExitCode>
+            |          std::rt::lang_start::<std::process::ExitCode>::{closure#0} (inlined)
+            |          <&dyn core::ops::function::Fn<(), Output = i32> + core::panic::unwind_safe::RefUnwindSafe + core::marker::Sync as core::ops::function::FnOnce<()>>::call_once (inlined)
+            |          std::panicking::catch_unwind::do_call::<&dyn core::ops::function::Fn<(), Output = i32> + core::panic::unwind_safe::RefUnwindSafe + core::marker::Sync, i32> (inlined)
+            |          std::panicking::catch_unwind::<i32, &dyn core::ops::function::Fn<(), Output = i32> + core::panic::unwind_safe::RefUnwindSafe + core::marker::Sync> (inlined)
+            |          std::panic::catch_unwind::<&dyn core::ops::function::Fn<(), Output = i32> + core::panic::unwind_safe::RefUnwindSafe + core::marker::Sync, i32> (inlined)
+            |          std::rt::lang_start_internal::{closure#0} (inlined)
+            |          std::panicking::catch_unwind::do_call::<std::rt::lang_start_internal::{closure#0}, isize> (inlined)
+            |          std::panicking::catch_unwind::<isize, std::rt::lang_start_internal::{closure#0}> (inlined)
+            |          std::panic::catch_unwind::<std::rt::lang_start_internal::{closure#0}, isize> (inlined)
+            |          std::rt::lang_start_internal
+            |          main
+            |          0x76d7ea02a1c9
+            |          __libc_start_main
+            |          _start
+            |
+             --3.35%--<u64>::leading_zeros (inlined)
+                       <core::num::imp::diy_float::Fp>::normalize (inlined)
+                       core::num::imp::flt2dec::strategy::grisu::format_exact_opt
+                       core::num::imp::flt2dec::strategy::grisu::format_exact (inlined)
+                       <core::num::imp::flt2dec::strategy::grisu::format_exact as core::ops::function::FnMut<(&core::num::imp::flt2dec::decoder::Decoded, &mut [core::mem::maybe_uninit::MaybeUninit<u8>], i16)>>::call_mut (inlined)
+                       core::num::imp::flt2dec::to_exact_exp_str::<f64, core::num::imp::flt2dec::strategy::grisu::format_exact> (inlined)
+                       core::fmt::float::float_to_exponential_common_exact::<f64>
+                       <core::fmt::rt::Argument>::fmt (inlined)
+                       core::fmt::write
+                       <&mut alloc::string::String as core::fmt::Write::write_fmt::SpecWriteFmt>::spec_write_fmt (inlined)
+                       <alloc::string::String as core::fmt::Write>::write_fmt (inlined)
+                       alloc::fmt::format::format_inner
+                       alloc::fmt::format::{closure#0} (inlined)
+                       <core::option::Option<&str>>::map_or_else::<alloc::string::String, alloc::fmt::format::{closure#0}, <str as alloc::borrow::ToOwned>::to_owned> (inlined)
+                       alloc::fmt::format (inlined)
+                       akantu_io::dumper::cfmt::rust_exp (inlined)
+                       akantu_io::dumper::cfmt::format_e
+                       <akantu_io::dumper::text::DumperText>::format_value
+                       <akantu_io::dumper::text::DumperText>::field_text (inlined)
+                       <akantu_io::dumper::text::DumperText>::render (inlined)
+                       <akantu_io::dumper::text::DumperText>::dump_steps
+                       <akantu_io::dumper::text::DumperText as akantu_io::dumper::Dumper>::dump
+                       <akantu_io::dumper::dumpable::Dumpable>::dump_named
+                       <akantu_solid::model::SolidMechanicsModel>::dump_named
+                       suite_setup::suite_setup::cases_io::dump_text_tet4::{closure#0} (inlined)
+                       <suite_setup::suite_setup::harness::CaseOut>::loop_phase::<suite_setup::suite_setup::cases_io::dump_text_tet4::{closure#0}>
+                       suite_setup::suite_setup::cases_io::dump_text_tet4
+                       suite_setup::suite_setup::harness::run_cases
+                       suite_setup::main::{closure#1} (inlined)
+                       <core::result::Result<akantu_comm::communicator::Communicator, akantu_core::error::Error>>::and_then::<(), suite_setup::main::{closure#1}> (inlined)
+                       suite_setup::main
+                       <fn() -> std::process::ExitCode as core::ops::function::FnOnce<()>>::call_once (inlined)
+                       std::sys::backtrace::__rust_begin_short_backtrace::<fn() -> std::process::ExitCode, std::process::ExitCode>
+                       std::rt::lang_start::<std::process::ExitCode>::{closure#0} (inlined)
+                       <&dyn core::ops::function::Fn<(), Output = i32> + core::panic::unwind_safe::RefUnwindSafe + core::marker::Sync as core::ops::function::FnOnce<()>>::call_once (inlined)
+                       std::panicking::catch_unwind::do_call::<&dyn core::ops::function::Fn<(), Output = i32> + core::panic::unwind_safe::RefUnwindSafe + core::marker::Sync, i32> (inlined)
+                       std::panicking::catch_unwind::<i32, &dyn core::ops::function::Fn<(), Output = i32> + core::panic::unwind_safe::RefUnwindSafe + core::marker::Sync> (inlined)
+                       std::panic::catch_unwind::<&dyn core::ops::function::Fn<(), Output = i32> + core::panic::unwind_safe::RefUnwindSafe + core::marker::Sync, i32> (inlined)
+                       std::rt::lang_start_internal::{closure#0} (inlined)
+                       std::panicking::catch_unwind::do_call::<std::rt::lang_start_internal::{closure#0}, isize> (inlined)
+                       std::panicking::catch_unwind::<isize, std::rt::lang_start_internal::{closure#0}> (inlined)
+                       std::panic::catch_unwind::<std::rt::lang_start_internal::{closure#0}, isize> (inlined)
+                       std::rt::lang_start_internal
+                       main
+                       0x76d7ea02a1c9
+                       __libc_start_main
+                       _start
+     6.93%  [.] core::fmt::float::float_to_exponential_common_exact::<f64>
+     6.85%  [.] core::num::imp::flt2dec::strategy::dragon::format_exact
+     5.81%  [.] <alloc::string::String as core::fmt::Write>::write_str
+            |
+             --3.71%--<alloc::string::String as core::fmt::Write>::write_str
+                       |
+                        --3.40%--<core::fmt::Formatter>::write_formatted_parts::write_bytes (inlined)
+                                  <core::fmt::Formatter>::write_formatted_parts
+                                  |
+                                   --3.23%--core::fmt::float::float_to_exponential_common_exact::<f64>
+                                             <core::fmt::rt::Argument>::fmt (inlined)
+                                             core::fmt::write
+                                             <&mut alloc::string::String as core::fmt::Write::write_fmt::SpecWriteFmt>::spec_write_fmt (inlined)
+                                             <alloc::string::String as core::fmt::Write>::write_fmt (inlined)
+                                             alloc::fmt::format::format_inner
+                                             alloc::fmt::format::{closure#0} (inlined)
+                                             <core::option::Option<&str>>::map_or_else::<alloc::string::String, alloc::fmt::format::{closure#0}, <str as alloc::borrow::ToOwned>::to_owned> (inlined)
+                                             alloc::fmt::format (inlined)
+                                             akantu_io::dumper::cfmt::rust_exp (inlined)
+                                             akantu_io::dumper::cfmt::format_e
+                                             <akantu_io::dumper::text::DumperText>::format_value
+                                             <akantu_io::dumper::text::DumperText>::field_text (inlined)
+                                             <akantu_io::dumper::text::DumperText>::render (inlined)
+                                             <akantu_io::dumper::text::DumperText>::dump_steps
+                                             <akantu_io::dumper::text::DumperText as akantu_io::dumper::Dumper>::dump
+                                             <akantu_io::dumper::dumpable::Dumpable>::dump_named
+                                             <akantu_solid::model::SolidMechanicsModel>::dump_named
+                                             suite_setup::suite_setup::cases_io::dump_text_tet4::{closure#0} (inlined)
+                                             <suite_setup::suite_setup::harness::CaseOut>::loop_phase::<suite_setup::suite_setup::cases_io::dump_text_tet4::{closure#0}>
+                                             suite_setup::suite_setup::cases_io::dump_text_tet4
+                                             suite_setup::suite_setup::harness::run_cases
+                                             suite_setup::main::{closure#1} (inlined)
+                                             <core::result::Result<akantu_comm::communicator::Communicator, akantu_core::error::Error>>::and_then::<(), suite_setup::main::{closure#1}> (inlined)
+                                             suite_setup::main
+                                             <fn() -> std::process::ExitCode as core::ops::function::FnOnce<()>>::call_once (inlined)
+                                             std::sys::backtrace::__rust_begin_short_backtrace::<fn() -> std::process::ExitCode, std::process::ExitCode>
+                                             std::rt::lang_start::<std::process::ExitCode>::{closure#0} (inlined)
+                                             <&dyn core::ops::function::Fn<(), Output = i32> + core::panic::unwind_safe::RefUnwindSafe + core::marker::Sync as core::ops::function::FnOnce<()>>::call_once (inlined)
+                                             std::panicking::catch_unwind::do_call::<&dyn core::ops::function::Fn<(), Output = i32> + core::panic::unwind_safe::RefUnwindSafe + core::marker::Sync, i32> (inlined)
+                                             std::panicking::catch_unwind::<i32, &dyn core::ops::function::Fn<(), Output = i32> + core::panic::unwind_safe::RefUnwindSafe + core::marker::Sync> (inlined)
+                                             std::panic::catch_unwind::<&dyn core::ops::function::Fn<(), Output = i32> + core::panic::unwind_safe::RefUnwindSafe + core::marker::Sync, i32> (inlined)
+                                             std::rt::lang_start_internal::{closure#0} (inlined)
+                                             std::panicking::catch_unwind::do_call::<std::rt::lang_start_internal::{closure#0}, isize> (inlined)
+                                             std::panicking::catch_unwind::<isize, std::rt::lang_start_internal::{closure#0}> (inlined)
+                                             std::panic::catch_unwind::<std::rt::lang_start_internal::{closure#0}, isize> (inlined)
+                                             std::rt::lang_start_internal
+                                             main
+                                             0x76d7ea02a1c9
+                                             __libc_start_main
+                                             _start
+     5.12%  [.] <core::num::imp::bignum::Big32x40>::mul_pow2
+            |
+             --3.54%--<core::num::imp::bignum::Big32x40>::mul_pow2
+                       |
+                        --3.19%--core::num::imp::flt2dec::strategy::dragon::format_exact
+                                  core::num::imp::flt2dec::strategy::grisu::format_exact (inlined)
+                                  <core::num::imp::flt2dec::strategy::grisu::format_exact as core::ops::function::FnMut<(&core::num::imp::flt2dec::decoder::Decoded, &mut [core::mem::maybe_uninit::MaybeUninit<u8>], i16)>>::call_mut (inlined)
+                                  core::num::imp::flt2dec::to_exact_exp_str::<f64, core::num::imp::flt2dec::strategy::grisu::format_exact> (inlined)
+                                  core::fmt::float::float_to_exponential_common_exact::<f64>
+                                  <core::fmt::rt::Argument>::fmt (inlined)
+                                  core::fmt::write
+                                  <&mut alloc::string::String as core::fmt::Write::write_fmt::SpecWriteFmt>::spec_write_fmt (inlined)
+                                  <alloc::string::String as core::fmt::Write>::write_fmt (inlined)
+                                  alloc::fmt::format::format_inner
+                                  alloc::fmt::format::{closure#0} (inlined)
+                                  <core::option::Option<&str>>::map_or_else::<alloc::string::String, alloc::fmt::format::{closure#0}, <str as alloc::borrow::ToOwned>::to_owned> (inlined)
+                                  alloc::fmt::format (inlined)
+                                  akantu_io::dumper::cfmt::rust_exp (inlined)
+                                  akantu_io::dumper::cfmt::format_e
+                                  <akantu_io::dumper::text::DumperText>::format_value
+                                  <akantu_io::dumper::text::DumperText>::field_text (inlined)
+                                  <akantu_io::dumper::text::DumperText>::render (inlined)
+                                  <akantu_io::dumper::text::DumperText>::dump_steps
+                                  <akantu_io::dumper::text::DumperText as akantu_io::dumper::Dumper>::dump
+                                  <akantu_io::dumper::dumpable::Dumpable>::dump_named
+                                  <akantu_solid::model::SolidMechanicsModel>::dump_named
+                                  suite_setup::suite_setup::cases_io::dump_text_tet4::{closure#0} (inlined)
+                                  <suite_setup::suite_setup::harness::CaseOut>::loop_phase::<suite_setup::suite_setup::cases_io::dump_text_tet4::{closure#0}>
+                                  suite_setup::suite_setup::cases_io::dump_text_tet4
+                                  suite_setup::suite_setup::harness::run_cases
+                                  suite_setup::main::{closure#1} (inlined)
+                                  <core::result::Result<akantu_comm::communicator::Communicator, akantu_core::error::Error>>::and_then::<(), suite_setup::main::{closure#1}> (inlined)
+                                  suite_setup::main
+                                  <fn() -> std::process::ExitCode as core::ops::function::FnOnce<()>>::call_once (inlined)
+                                  std::sys::backtrace::__rust_begin_short_backtrace::<fn() -> std::process::ExitCode, std::process::ExitCode>
+                                  std::rt::lang_start::<std::process::ExitCode>::{closure#0} (inlined)
+                                  <&dyn core::ops::function::Fn<(), Output = i32> + core::panic::unwind_safe::RefUnwindSafe + core::marker::Sync as core::ops::function::FnOnce<()>>::call_once (inlined)
+                                  std::panicking::catch_unwind::do_call::<&dyn core::ops::function::Fn<(), Output = i32> + core::panic::unwind_safe::RefUnwindSafe + core::marker::Sync, i32> (inlined)
+                                  std::panicking::catch_unwind::<i32, &dyn core::ops::function::Fn<(), Output = i32> + core::panic::unwind_safe::RefUnwindSafe + core::marker::Sync> (inlined)
+                                  std::panic::catch_unwind::<&dyn core::ops::function::Fn<(), Output = i32> + core::panic::unwind_safe::RefUnwindSafe + core::marker::Sync, i32> (inlined)
+                                  std::rt::lang_start_internal::{closure#0} (inlined)
+                                  std::panicking::catch_unwind::do_call::<std::rt::lang_start_internal::{closure#0}, isize> (inlined)
+                                  std::panicking::catch_unwind::<isize, std::rt::lang_start_internal::{closure#0}> (inlined)
+                                  std::panic::catch_unwind::<std::rt::lang_start_internal::{closure#0}, isize> (inlined)
+                                  std::rt::lang_start_internal
+                                  main
+                                  0x76d7ea02a1c9
+                                  __libc_start_main
+                                  _start
+     4.29%  [.] akantu_io::dumper::cfmt::format_e
+            |
+             --4.07%--akantu_io::dumper::cfmt::format_e
+                       <akantu_io::dumper::text::DumperText>::format_value
+                       <akantu_io::dumper::text::DumperText>::field_text (inlined)
+                       <akantu_io::dumper::text::DumperText>::render (inlined)
+                       <akantu_io::dumper::text::DumperText>::dump_steps
+                       <akantu_io::dumper::text::DumperText as akantu_io::dumper::Dumper>::dump
+                       <akantu_io::dumper::dumpable::Dumpable>::dump_named
+                       <akantu_solid::model::SolidMechanicsModel>::dump_named
+                       suite_setup::suite_setup::cases_io::dump_text_tet4::{closure#0} (inlined)
+                       <suite_setup::suite_setup::harness::CaseOut>::loop_phase::<suite_setup::suite_setup::cases_io::dump_text_tet4::{closure#0}>
+                       suite_setup::suite_setup::cases_io::dump_text_tet4
+                       suite_setup::suite_setup::harness::run_cases
+                       suite_setup::main::{closure#1} (inlined)
+                       <core::result::Result<akantu_comm::communicator::Communicator, akantu_core::error::Error>>::and_then::<(), suite_setup::main::{closure#1}> (inlined)
+                       suite_setup::main
+                       <fn() -> std::process::ExitCode as core::ops::function::FnOnce<()>>::call_once (inlined)
+                       std::sys::backtrace::__rust_begin_short_backtrace::<fn() -> std::process::ExitCode, std::process::ExitCode>
+                       std::rt::lang_start::<std::process::ExitCode>::{closure#0} (inlined)
+                       <&dyn core::ops::function::Fn<(), Output = i32> + core::panic::unwind_safe::RefUnwindSafe + core::marker::Sync as core::ops::function::FnOnce<()>>::call_once (inlined)
+                       std::panicking::catch_unwind::do_call::<&dyn core::ops::function::Fn<(), Output = i32> + core::panic::unwind_safe::RefUnwindSafe + core::marker::Sync, i32> (inlined)
+                       std::panicking::catch_unwind::<i32, &dyn core::ops::function::Fn<(), Output = i32> + core::panic::unwind_safe::RefUnwindSafe + core::marker::Sync> (inlined)
+                       std::panic::catch_unwind::<&dyn core::ops::function::Fn<(), Output = i32> + core::panic::unwind_safe::RefUnwindSafe + core::marker::Sync, i32> (inlined)
+                       std::rt::lang_start_internal::{closure#0} (inlined)
+                       std::panicking::catch_unwind::do_call::<std::rt::lang_start_internal::{closure#0}, isize> (inlined)
+                       std::panicking::catch_unwind::<isize, std::rt::lang_start_internal::{closure#0}> (inlined)
+                       std::panic::catch_unwind::<std::rt::lang_start_internal::{closure#0}, isize> (inlined)
+                       std::rt::lang_start_internal
+                       main
+                       0x76d7ea02a1c9
+                       __libc_start_main
+                       _start
+     3.71%  [.] core::fmt::write
+     3.26%  [.] <core::fmt::Formatter>::write_formatted_parts
