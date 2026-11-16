@@ -39,6 +39,22 @@ use akantu_core::exec::{FastToken, SimdToken};
 
 use super::dense;
 
+/// The executor's kernel choice for a batch: the SIMD level and, in
+/// [`Precision::Fast`](akantu_core::exec::Precision::Fast) with the fast mode
+/// enabled, the [`FastToken`] (FAST MODE kernels).
+#[derive(Clone, Copy, Debug)]
+pub(crate) struct Mode {
+    pub simd: SimdToken,
+    pub fast: Option<FastToken>,
+}
+
+impl Mode {
+    /// The bitwise kernels of `simd`'s level.
+    pub(crate) const fn bitwise(simd: SimdToken) -> Self {
+        Self { simd, fast: None }
+    }
+}
+
 /// `C = 0; C += A·B` ([`dense::gemm_tiles`] with a zero destination) with
 /// the instance of `simd`'s level.
 #[allow(clippy::too_many_arguments)] // BLAS-style kernel signature
@@ -144,8 +160,7 @@ pub(crate) fn fma_instance(fast: FastToken) -> bool {
 #[allow(clippy::too_many_arguments)] // BLAS-style kernel signature
 #[inline]
 pub(crate) fn gemm_into_zero_mode(
-    simd: SimdToken,
-    fast: Option<FastToken>,
+    mode: Mode,
     m: usize,
     n: usize,
     d: usize,
@@ -159,11 +174,13 @@ pub(crate) fn gemm_into_zero_mode(
     c_off: usize,
     ldc: usize,
 ) {
-    match fast {
+    match mode.fast {
         Some(fast) => {
             gemm_into_zero_fma(fast, m, n, d, a, a_off, lda, b, b_off, ldb, c, c_off, ldc)
         }
-        None => gemm_into_zero(simd, m, n, d, a, a_off, lda, b, b_off, ldb, c, c_off, ldc),
+        None => gemm_into_zero(
+            mode.simd, m, n, d, a, a_off, lda, b, b_off, ldb, c, c_off, ldc,
+        ),
     }
 }
 
@@ -171,7 +188,7 @@ pub(crate) fn gemm_into_zero_mode(
 /// with the instance of `simd`'s level.
 #[allow(clippy::too_many_arguments)] // BLAS-style kernel signature
 pub(crate) fn gemv(
-    simd: SimdToken,
+    mode: Mode,
     rows: usize,
     cols: usize,
     a: &[f64],
@@ -181,8 +198,11 @@ pub(crate) fn gemv(
     res: &mut [f64],
     alpha: f64,
 ) {
+    if let Some(fast) = mode.fast {
+        return gemv_fma(fast, rows, cols, a, a_off, lda, x, res, alpha);
+    }
     #[cfg(target_arch = "x86_64")]
-    match simd.level() {
+    match mode.simd.level() {
         SimdLevel::Avx512 => {
             // SAFETY: the token proves that the CPU supports AVX-512F;
             // `x86::gemv_avx512` has no precondition beyond its target
@@ -196,14 +216,84 @@ pub(crate) fn gemv(
         }
         SimdLevel::Scalar | SimdLevel::Neon => {}
     }
+    dense::gemv_tiles::<8, false>(rows, cols, a, a_off, lda, x, res, alpha);
+}
+
+/// FAST MODE: [`gemv`] with fused multiply-adds (each term and the final
+/// `c·α + res`), the instance of the token's level (AVX-512F + FMA, AVX2 +
+/// FMA; the bitwise kernel on the other levels).
+#[allow(clippy::too_many_arguments)] // BLAS-style kernel signature
+fn gemv_fma(
+    fast: FastToken,
+    rows: usize,
+    cols: usize,
+    a: &[f64],
+    a_off: usize,
+    lda: usize,
+    x: &[f64],
+    res: &mut [f64],
+    alpha: f64,
+) {
+    #[cfg(target_arch = "x86_64")]
+    match fast.simd().level() {
+        SimdLevel::Avx512 => {
+            // SAFETY: the fast token's level proves AVX-512F, AVX2 and FMA3.
+            return unsafe { x86::gemv_avx512_fma(rows, cols, a, a_off, lda, x, res, alpha) };
+        }
+        SimdLevel::Avx2 => {
+            // SAFETY: the fast token's level proves AVX2 and FMA3.
+            return unsafe { x86::gemv_avx2_fma(rows, cols, a, a_off, lda, x, res, alpha) };
+        }
+        SimdLevel::Scalar | SimdLevel::Neon => {}
+    }
+    gemv(
+        Mode::bitwise(fast.simd()),
+        rows,
+        cols,
+        a,
+        a_off,
+        lda,
+        x,
+        res,
+        alpha,
+    );
+}
+
+/// FAST MODE: `dense::trsm_unit_lower` with fused multiply-adds in its
+/// `gebp` updates, the instance of the token's level (AVX-512F + FMA,
+/// AVX2 + FMA; the bitwise kernel on the other levels).
+#[allow(clippy::too_many_arguments)] // BLAS-style kernel signature
+pub(crate) fn trsm_fma(
+    fast: FastToken,
+    size: usize,
+    cols: usize,
+    t: &[f64],
+    t_off: usize,
+    ldt: usize,
+    o: &mut [f64],
+    o_off: usize,
+    ldo: usize,
+) {
+    #[cfg(target_arch = "x86_64")]
+    match fast.simd().level() {
+        SimdLevel::Avx512 => {
+            // SAFETY: the fast token's level proves AVX-512F, AVX2 and FMA3.
+            return unsafe { x86::trsm_avx512_fma(size, cols, t, t_off, ldt, o, o_off, ldo) };
+        }
+        SimdLevel::Avx2 => {
+            // SAFETY: the fast token's level proves AVX2 and FMA3.
+            return unsafe { x86::trsm_avx2_fma(size, cols, t, t_off, ldt, o, o_off, ldo) };
+        }
+        SimdLevel::Scalar | SimdLevel::Neon => {}
+    }
     #[cfg(not(target_arch = "x86_64"))]
-    let _ = simd;
-    dense::gemv_tiles::<8>(rows, cols, a, a_off, lda, x, res, alpha);
+    let _ = fast;
+    dense::trsm_unit_lower_impl::<false>(size, cols, t, t_off, ldt, o, o_off, ldo);
 }
 
 #[cfg(target_arch = "x86_64")]
 mod x86 {
-    use super::dense::{gemm_tiles, gemv_tiles};
+    use super::dense::{gemm_tiles, gemv_tiles, trsm_unit_lower_impl};
 
     /// `gemv_tiles` compiled with AVX-512F: tiles of 32 rows (four vectors).
     #[target_feature(enable = "avx512f")]
@@ -218,7 +308,7 @@ mod x86 {
         res: &mut [f64],
         alpha: f64,
     ) {
-        gemv_tiles::<32>(rows, cols, a, a_off, lda, x, res, alpha);
+        gemv_tiles::<32, false>(rows, cols, a, a_off, lda, x, res, alpha);
     }
 
     /// `gemv_tiles` compiled with AVX: tiles of 16 rows (four vectors).
@@ -234,7 +324,7 @@ mod x86 {
         res: &mut [f64],
         alpha: f64,
     ) {
-        gemv_tiles::<16>(rows, cols, a, a_off, lda, x, res, alpha);
+        gemv_tiles::<16, false>(rows, cols, a, a_off, lda, x, res, alpha);
     }
 
     /// `gemm_tiles` compiled with AVX-512F: tiles of 16 rows (two vectors).
@@ -316,6 +406,71 @@ mod x86 {
     ) {
         gemm_tiles::<8, true, true>(m, n, d, a, a_off, lda, b, b_off, ldb, c, c_off, ldc);
     }
+
+    /// Fast mode: `gemv_tiles` with fused multiply-adds, AVX-512F.
+    #[target_feature(enable = "avx512f,fma")]
+    #[allow(clippy::too_many_arguments)] // BLAS-style kernel signature
+    pub(super) fn gemv_avx512_fma(
+        rows: usize,
+        cols: usize,
+        a: &[f64],
+        a_off: usize,
+        lda: usize,
+        x: &[f64],
+        res: &mut [f64],
+        alpha: f64,
+    ) {
+        gemv_tiles::<32, true>(rows, cols, a, a_off, lda, x, res, alpha);
+    }
+
+    /// Fast mode: `gemv_tiles` with fused multiply-adds, AVX2.
+    #[target_feature(enable = "avx2,fma")]
+    #[allow(clippy::too_many_arguments)] // BLAS-style kernel signature
+    pub(super) fn gemv_avx2_fma(
+        rows: usize,
+        cols: usize,
+        a: &[f64],
+        a_off: usize,
+        lda: usize,
+        x: &[f64],
+        res: &mut [f64],
+        alpha: f64,
+    ) {
+        gemv_tiles::<16, true>(rows, cols, a, a_off, lda, x, res, alpha);
+    }
+
+    /// Fast mode: the triangular panel solve with fused multiply-adds in its
+    /// `gebp` updates, AVX-512F.
+    #[target_feature(enable = "avx512f,fma")]
+    #[allow(clippy::too_many_arguments)] // BLAS-style kernel signature
+    pub(super) fn trsm_avx512_fma(
+        size: usize,
+        cols: usize,
+        t: &[f64],
+        t_off: usize,
+        ldt: usize,
+        o: &mut [f64],
+        o_off: usize,
+        ldo: usize,
+    ) {
+        trsm_unit_lower_impl::<true>(size, cols, t, t_off, ldt, o, o_off, ldo);
+    }
+
+    /// Fast mode: the triangular panel solve with fused multiply-adds, AVX2.
+    #[target_feature(enable = "avx2,fma")]
+    #[allow(clippy::too_many_arguments)] // BLAS-style kernel signature
+    pub(super) fn trsm_avx2_fma(
+        size: usize,
+        cols: usize,
+        t: &[f64],
+        t_off: usize,
+        ldt: usize,
+        o: &mut [f64],
+        o_off: usize,
+        ldo: usize,
+    ) {
+        trsm_unit_lower_impl::<true>(size, cols, t, t_off, ldt, o, o_off, ldo);
+    }
 }
 
 #[cfg(test)]
@@ -373,6 +528,60 @@ mod tests {
         // every x86-64 CPU with AVX2 has an FMA instance to test
         if SimdLevel::Avx2.is_supported() {
             assert!(!tokens.is_empty());
+        }
+    }
+    /// The FMA instances of the triangular panel solve and of the GEMV
+    /// against their portable bodies with `FMA = true` (compiled without the
+    /// `fma` feature, `f64::mul_add` is the correctly rounded software
+    /// operation): the same per-entry sequence, so the same bits.
+    #[test]
+    fn fma_trsm_and_gemv_instances_match_the_portable_fused_bodies() {
+        use akantu_core::bitwise_testing::Values;
+        let tokens: Vec<_> = SimdLevel::supported()
+            .into_iter()
+            .filter_map(|level| {
+                let policy = ExecPolicy::serial()
+                    .with_precision(Precision::Fast)
+                    .with_simd(level)
+                    .ok()?;
+                Exec::new(policy).ok()?.fast_token()
+            })
+            .filter(|&t| super::fma_instance(t))
+            .collect();
+        let mut v = Values::new(0x7E57_FA57_0000_0002);
+        for case in 0..300usize {
+            // trsm: sizes around the panel widths and the kc split
+            let size = [3, 9, 17, 40, 100, 130][case % 6];
+            let cols = 1 + case % 13;
+            let ldt = size + case % 3;
+            let t: Vec<f64> = (0..ldt * size + 1).map(|_| v.finite() / 8.0).collect();
+            let o0: Vec<f64> = (0..size * cols).map(|_| v.finite()).collect();
+            let mut want = o0.clone();
+            super::dense::trsm_unit_lower_impl::<true>(size, cols, &t, 0, ldt, &mut want, 0, size);
+            // gemv: rows, columns around the 128-column block rule
+            let (rows, gc) = (1 + case % 70, [1, 7, 30, 127, 140][case % 5]);
+            let a: Vec<f64> = (0..rows * gc).map(|_| v.finite()).collect();
+            let x: Vec<f64> = (0..gc).map(|_| v.finite()).collect();
+            let r0: Vec<f64> = (0..rows).map(|_| v.finite()).collect();
+            let alpha = [1.0, -1.0, 0.5][case % 3];
+            let mut gwant = r0.clone();
+            super::dense::gemv_tiles::<8, true>(rows, gc, &a, 0, rows, &x, &mut gwant, alpha);
+            for &fast in &tokens {
+                let mut got = o0.clone();
+                super::trsm_fma(fast, size, cols, &t, 0, ldt, &mut got, 0, size);
+                for (p, q) in got.iter().zip(&want) {
+                    assert_eq!(p.to_bits(), q.to_bits(), "trsm {fast:?} case {case}");
+                }
+                let mut g = r0.clone();
+                let mode = super::Mode {
+                    simd: fast.simd(),
+                    fast: Some(fast),
+                };
+                super::gemv(mode, rows, gc, &a, 0, rows, &x, &mut g, alpha);
+                for (p, q) in g.iter().zip(&gwant) {
+                    assert_eq!(p.to_bits(), q.to_bits(), "gemv {fast:?} case {case}");
+                }
+            }
         }
     }
 }

@@ -140,7 +140,7 @@
 // numbers; NaN propagation follows the written operand order).
 #![allow(clippy::assign_op_pattern, clippy::neg_multiply)]
 
-use akantu_core::exec::SimdToken;
+use super::simd::Mode;
 
 /// `EIGEN_TUNE_TRIANGULAR_PANEL_WIDTH` (`Core/arch/Default/Settings.h`: 8).
 const TRSV_PANEL: usize = 8;
@@ -161,7 +161,7 @@ const SCALAR: usize = std::mem::size_of::<f64>();
 /// a[a_off + i + j·lda]`.
 #[allow(clippy::too_many_arguments)] // BLAS-style kernel signature
 pub(crate) fn gemv_in_place(
-    simd: SimdToken,
+    mode: Mode,
     rows: usize,
     cols: usize,
     a: &[f64],
@@ -179,7 +179,7 @@ pub(crate) fn gemv_in_place(
     if x_off + cols <= r_off {
         let (lo, hi) = v.split_at_mut(r_off);
         super::simd::gemv(
-            simd,
+            mode,
             rows,
             cols,
             a,
@@ -192,7 +192,7 @@ pub(crate) fn gemv_in_place(
     } else {
         let (lo, hi) = v.split_at_mut(x_off);
         super::simd::gemv(
-            simd,
+            mode,
             rows,
             cols,
             a,
@@ -208,7 +208,7 @@ pub(crate) fn gemv_in_place(
 /// Same kernel with the vector and the result in different buffers.
 #[allow(clippy::too_many_arguments)] // BLAS-style kernel signature
 pub(crate) fn gemv(
-    simd: SimdToken,
+    mode: Mode,
     rows: usize,
     cols: usize,
     a: &[f64],
@@ -224,7 +224,7 @@ pub(crate) fn gemv(
         return;
     }
     super::simd::gemv(
-        simd,
+        mode,
         rows,
         cols,
         a,
@@ -245,7 +245,7 @@ pub(crate) fn gemv(
 /// by column (`tests::gemv_matches_reference_bitwise`).
 #[allow(clippy::too_many_arguments)] // BLAS-style kernel signature
 #[inline(always)]
-pub(super) fn gemv_tiles<const MR: usize>(
+pub(super) fn gemv_tiles<const MR: usize, const FMA: bool>(
     rows: usize,
     cols: usize,
     a: &[f64],
@@ -260,34 +260,34 @@ pub(super) fn gemv_tiles<const MR: usize>(
     let res = &mut res[..rows];
     let mut i = 0;
     while i + MR <= rows {
-        gemv_tile::<MR>(i, cols, block, a, a_off, lda, x, res, alpha);
+        gemv_tile::<MR, FMA>(i, cols, block, a, a_off, lda, x, res, alpha);
         i += MR;
     }
     if MR > 16 && i + 16 <= rows {
-        gemv_tile::<16>(i, cols, block, a, a_off, lda, x, res, alpha);
+        gemv_tile::<16, FMA>(i, cols, block, a, a_off, lda, x, res, alpha);
         i += 16;
     }
     if MR > 8 && i + 8 <= rows {
-        gemv_tile::<8>(i, cols, block, a, a_off, lda, x, res, alpha);
+        gemv_tile::<8, FMA>(i, cols, block, a, a_off, lda, x, res, alpha);
         i += 8;
     }
     if MR > 4 && i + 4 <= rows {
-        gemv_tile::<4>(i, cols, block, a, a_off, lda, x, res, alpha);
+        gemv_tile::<4, FMA>(i, cols, block, a, a_off, lda, x, res, alpha);
         i += 4;
     }
     if i + 2 <= rows {
-        gemv_tile::<2>(i, cols, block, a, a_off, lda, x, res, alpha);
+        gemv_tile::<2, FMA>(i, cols, block, a, a_off, lda, x, res, alpha);
         i += 2;
     }
     if i < rows {
-        gemv_tile::<1>(i, cols, block, a, a_off, lda, x, res, alpha);
+        gemv_tile::<1, FMA>(i, cols, block, a, a_off, lda, x, res, alpha);
     }
 }
 
 /// Rows `i..i + MR` of [`gemv_tiles`].
 #[allow(clippy::too_many_arguments)] // BLAS-style kernel signature
 #[inline(always)]
-fn gemv_tile<const MR: usize>(
+fn gemv_tile<const MR: usize, const FMA: bool>(
     i: usize,
     cols: usize,
     block: usize,
@@ -310,11 +310,20 @@ fn gemv_tile<const MR: usize>(
                 .try_into()
                 .unwrap_or_else(|_| unreachable!());
             for r in 0..MR {
-                c[r] = c[r] + col[r] * xj;
+                if FMA {
+                    // FAST MODE: one rounding per term
+                    c[r] = col[r].mul_add(xj, c[r]);
+                } else {
+                    c[r] = c[r] + col[r] * xj;
+                }
             }
         }
         for r in 0..MR {
-            out[r] = c[r] * alpha + out[r];
+            if FMA {
+                out[r] = c[r].mul_add(alpha, out[r]);
+            } else {
+                out[r] = c[r] * alpha + out[r];
+            }
         }
         j2 = jend;
     }
@@ -348,7 +357,7 @@ pub(crate) fn dot(n: usize, a: impl Fn(usize) -> f64, b: impl Fn(usize) -> f64) 
 /// inner product when `rows == 1`, the column-major GEMV otherwise.
 #[allow(clippy::too_many_arguments)] // BLAS-style kernel signature
 pub(crate) fn gemv_product_in_place(
-    simd: SimdToken,
+    mode: Mode,
     rows: usize,
     cols: usize,
     a: &[f64],
@@ -363,14 +372,14 @@ pub(crate) fn gemv_product_in_place(
         let d = dot(cols, |k| a[a_off + k * lda], |k| v[x_off + k]);
         v[r_off] += alpha * d;
     } else {
-        gemv_in_place(simd, rows, cols, a, a_off, lda, v, x_off, r_off, alpha);
+        gemv_in_place(mode, rows, cols, a, a_off, lda, v, x_off, r_off, alpha);
     }
 }
 
 /// Separate-buffer variant of [`gemv_product_in_place`].
 #[allow(clippy::too_many_arguments)] // BLAS-style kernel signature
 pub(crate) fn gemv_product(
-    simd: SimdToken,
+    mode: Mode,
     rows: usize,
     cols: usize,
     a: &[f64],
@@ -386,7 +395,7 @@ pub(crate) fn gemv_product(
         let d = dot(cols, |k| a[a_off + k * lda], |k| x[x_off + k]);
         res[r_off] += alpha * d;
     } else {
-        gemv(simd, rows, cols, a, a_off, lda, x, x_off, res, r_off, alpha);
+        gemv(mode, rows, cols, a, a_off, lda, x, x_off, res, r_off, alpha);
     }
 }
 
@@ -394,7 +403,7 @@ pub(crate) fn gemv_product(
 /// solves `L x = b` in place for `x = v[x_off..x_off+n]`, `L(i, j) =
 /// a[a_off + i + j·lda]` (unit diagonal, not read).
 pub(crate) fn trsv_unit_lower(
-    simd: SimdToken,
+    mode: Mode,
     n: usize,
     a: &[f64],
     a_off: usize,
@@ -421,7 +430,7 @@ pub(crate) fn trsv_unit_lower(
         let r = n - end_block;
         if r > 0 {
             gemv_in_place(
-                simd,
+                mode,
                 r,
                 apw,
                 a,
@@ -440,7 +449,7 @@ pub(crate) fn trsv_unit_lower(
 /// `triangular_solve_vector<…, OnTheLeft, Upper, ColMajor>` (non-unit
 /// diagonal: `x_i /= U(i, i)`, skipped when `x_i == 0`).
 pub(crate) fn trsv_upper(
-    simd: SimdToken,
+    mode: Mode,
     n: usize,
     a: &[f64],
     a_off: usize,
@@ -468,7 +477,7 @@ pub(crate) fn trsv_upper(
         let r = start_block;
         if r > 0 {
             gemv_in_place(
-                simd,
+                mode,
                 r,
                 apw,
                 a,
@@ -532,6 +541,26 @@ pub(crate) fn trsm_kc(depth: usize, rows: usize, cols: usize) -> usize {
 /// t[t_off + i + j·ldt]`.
 #[allow(clippy::too_many_arguments)] // BLAS-style kernel signature
 pub(crate) fn trsm_unit_lower(
+    mode: Mode,
+    size: usize,
+    cols: usize,
+    t: &[f64],
+    t_off: usize,
+    ldt: usize,
+    o: &mut [f64],
+    o_off: usize,
+    ldo: usize,
+) {
+    match mode.fast {
+        Some(fast) => super::simd::trsm_fma(fast, size, cols, t, t_off, ldt, o, o_off, ldo),
+        None => trsm_unit_lower_impl::<false>(size, cols, t, t_off, ldt, o, o_off, ldo),
+    }
+}
+
+/// The body of [`trsm_unit_lower`]; `FMA`: FAST MODE (`simd::trsm_fma`).
+#[allow(clippy::too_many_arguments)] // BLAS-style kernel signature
+#[inline(always)]
+pub(super) fn trsm_unit_lower_impl<const FMA: bool>(
     size: usize,
     cols: usize,
     t: &[f64],
@@ -582,7 +611,7 @@ pub(crate) fn trsm_unit_lower(
                 let start_block = k2 + k1;
                 if length_target > 0 {
                     let start_target = k2 + k1 + apw;
-                    gebp_minus(
+                    gebp_minus::<FMA>(
                         apw,
                         start_block,
                         start_target..start_target + length_target,
@@ -604,7 +633,7 @@ pub(crate) fn trsm_unit_lower(
         let full_cols = (cols / GEBP_NR) * GEBP_NR;
         let below = (k2 + kc).min(size);
         if below < size {
-            gebp_minus(
+            gebp_minus::<FMA>(
                 akc,
                 k2,
                 below..size,
@@ -630,7 +659,8 @@ pub(crate) fn trsm_unit_lower(
 /// over tiles of rows, each lane with [`gebp_acc`]'s sequence
 /// (`tests::trsm_matches_reference_bitwise`).
 #[allow(clippy::too_many_arguments)] // BLAS-style kernel signature
-fn gebp_minus(
+#[inline(always)]
+fn gebp_minus<const FMA: bool>(
     depth: usize,
     k0: usize,
     rows: std::ops::Range<usize>,
@@ -660,7 +690,7 @@ fn gebp_minus(
         let ocol = &mut o[o_off + j * ldo..];
         let mut row = rows.start;
         while row + 8 <= rows.end {
-            gebp_minus_tile::<8>(
+            gebp_minus_tile::<8, FMA>(
                 depth,
                 full,
                 tcol,
@@ -672,7 +702,7 @@ fn gebp_minus(
             row += 8;
         }
         if row + 4 <= rows.end {
-            gebp_minus_tile::<4>(
+            gebp_minus_tile::<4, FMA>(
                 depth,
                 full,
                 tcol,
@@ -684,7 +714,7 @@ fn gebp_minus(
             row += 4;
         }
         while row < rows.end {
-            gebp_minus_tile::<1>(
+            gebp_minus_tile::<1, FMA>(
                 depth,
                 full,
                 tcol,
@@ -700,7 +730,7 @@ fn gebp_minus(
 
 /// `MR` rows of [`gebp_minus`]: `t(r, l) = t[t0 + r + l·ldt]`, `x(l)`.
 #[inline(always)]
-fn gebp_minus_tile<const MR: usize>(
+fn gebp_minus_tile<const MR: usize, const FMA: bool>(
     depth: usize,
     full: bool,
     t: &[f64],
@@ -723,8 +753,14 @@ fn gebp_minus_tile<const MR: usize>(
             let (t0v, t1v) = (tl(l), tl(l + 1));
             let (x0, x1) = (x[l], x[l + 1]);
             for r in 0..MR {
-                c[r] += t0v[r] * x0;
-                dd[r] += t1v[r] * x1;
+                if FMA {
+                    // FAST MODE: one rounding per term
+                    c[r] = t0v[r].mul_add(x0, c[r]);
+                    dd[r] = t1v[r].mul_add(x1, dd[r]);
+                } else {
+                    c[r] += t0v[r] * x0;
+                    dd[r] += t1v[r] * x1;
+                }
             }
             l += 2;
         }
@@ -736,7 +772,11 @@ fn gebp_minus_tile<const MR: usize>(
         let tv = tl(l);
         let xl = x[l];
         for r in 0..MR {
-            c[r] += tv[r] * xl;
+            if FMA {
+                c[r] = tv[r].mul_add(xl, c[r]);
+            } else {
+                c[r] += tv[r] * xl;
+            }
         }
         l += 1;
     }
@@ -977,6 +1017,7 @@ fn gemm_tile<const MR: usize, const NR: usize, const ZERO: bool, const FMA: bool
 mod tests {
     use super::*;
     use akantu_core::bitwise_testing::{Values, same};
+    use akantu_core::exec::SimdToken;
 
     /// The entry-by-entry `sparselu_gemm` the tiled kernel replaced (the
     /// reference of the bitwise property test).
@@ -1207,7 +1248,17 @@ mod tests {
             let mut o1 = o0.clone();
             let mut o2 = o0.clone();
             trsm_unit_lower_reference(size, cols, &t, to, ldt, &mut o1, oo, ldo);
-            trsm_unit_lower(size, cols, &t, to, ldt, &mut o2, oo, ldo);
+            trsm_unit_lower(
+                Mode::bitwise(SimdToken::detected()),
+                size,
+                cols,
+                &t,
+                to,
+                ldt,
+                &mut o2,
+                oo,
+                ldo,
+            );
             for (x, y) in o1.iter().zip(&o2) {
                 assert!(
                     dr.eq(*x, *y),
@@ -1291,7 +1342,7 @@ mod tests {
                 let mut r2 = r0.clone();
                 let ro = 2.min(r0.len() - rows);
                 super::super::simd::gemv(
-                    tok,
+                    Mode::bitwise(tok),
                     rows,
                     cols,
                     &a,
@@ -1321,7 +1372,7 @@ mod tests {
                 gemv_reference(rows, cols, &a, ao, lda, &xs, 0, &mut v1, ro, alpha);
                 let mut v2 = v0.clone();
                 gemv_in_place(
-                    SimdToken::detected(),
+                    Mode::bitwise(SimdToken::detected()),
                     rows,
                     cols,
                     &a,
@@ -1432,7 +1483,7 @@ mod tests {
                 b[i] += l[i + j * n] * x[j];
             }
         }
-        trsv_unit_lower(SimdToken::detected(), n, &l, 0, n, &mut b, 0);
+        trsv_unit_lower(Mode::bitwise(SimdToken::detected()), n, &l, 0, n, &mut b, 0);
         for (bi, xi) in b.iter().zip(&x) {
             assert!((bi - xi).abs() < 1e-12);
         }
@@ -1442,7 +1493,15 @@ mod tests {
                 bu[i] += u[i + j * n] * x[j];
             }
         }
-        trsv_upper(SimdToken::detected(), n, &u, 0, n, &mut bu, 0);
+        trsv_upper(
+            Mode::bitwise(SimdToken::detected()),
+            n,
+            &u,
+            0,
+            n,
+            &mut bu,
+            0,
+        );
         for (bi, xi) in bu.iter().zip(&x) {
             assert!((bi - xi).abs() < 1e-11, "{bi} {xi}");
         }
@@ -1465,7 +1524,17 @@ mod tests {
                 o[i + c * n] = s;
             }
         }
-        trsm_unit_lower(n, 2, &l, 0, n, &mut o, 0, n);
+        trsm_unit_lower(
+            Mode::bitwise(SimdToken::detected()),
+            n,
+            2,
+            &l,
+            0,
+            n,
+            &mut o,
+            0,
+            n,
+        );
         for c in 0..2 {
             for i in 0..n {
                 assert!((o[i + c * n] - (i + c) as f64).abs() < 1e-9);

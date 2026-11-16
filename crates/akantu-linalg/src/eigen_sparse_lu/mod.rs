@@ -78,8 +78,9 @@ mod kernels;
 mod simd;
 
 use akantu_core::enums::{MatrixType, SparseSolverType};
-use akantu_core::exec::{Exec, FastToken, SimdToken};
+use akantu_core::exec::{Exec, FastToken};
 use akantu_core::{Error, Real, Result};
+use simd::Mode;
 
 use crate::direct::{
     BackendCapabilities, CscMatrix, SparseDirectSolver, arithmetic_range_failure,
@@ -202,11 +203,16 @@ impl SparseLu {
     /// pivoting may differ when two candidate pivots are within those bits.
     /// The token comes from [`Exec::fast_token`](akantu_core::exec::Exec::fast_token),
     /// so only an executor in [`Precision::Fast`](akantu_core::exec::Precision::Fast)
-    /// can enable it. Tolerance against the default:
-    /// `docs/NUMERICAL_VALIDATION.md` ("SparseLU fast mode"). Takes effect at
-    /// the next factorisation. Through [`EigenSparseLuSolver`],
+    /// can enable it; an executor in `Fast` given by [`SparseLu::set_exec`]
+    /// (a model's) enables it as well. The FAST MODE kernels: the panel
+    /// products, the triangular panel solves (`gebp` updates) and the GEMV
+    /// of the column updates and of the triangular solves. Tolerance against
+    /// the default: the rule of `fixtures/fast_mode/linalg/tolerances.json`
+    /// (`docs/NUMERICAL_VALIDATION.md`, "SparseLU fast mode"). Takes effect
+    /// at the next factorisation. Through [`EigenSparseLuSolver`],
     /// `destroy_internal_data` (the DOF manager's `release_solvers`,
-    /// `set_solver`) resets it to the bitwise default.
+    /// `set_solver`) resets the explicit token; a model in precision `Fast`
+    /// passes its executor again before every solve.
     pub fn set_fast_mode(&mut self, fast: Option<FastToken>) {
         self.fast = fast;
     }
@@ -226,6 +232,14 @@ impl SparseLu {
     #[doc(hidden)]
     pub fn set_threaded_update_min(&mut self, min: Option<usize>) {
         self.threaded_min = min;
+    }
+
+    /// The fast mode in effect: the token of [`SparseLu::set_fast_mode`], else
+    /// that of the executor ([`SparseLu::set_exec`]) when its precision is
+    /// `Fast` (D-123: a model in `Precision::Fast` gets the FAST MODE
+    /// kernels of its solver).
+    fn fast_mode(&self) -> Option<FastToken> {
+        self.fast.or_else(|| self.exec.fast_token())
     }
 
     /// `colsPermutation().indices()`.
@@ -276,7 +290,7 @@ impl SparseLu {
         glu.reset(n);
         let mut wk = self.work.take().unwrap_or_default();
         wk.reset(m, n, PANEL_SIZE, MAXSUPER as usize);
-        wk.fast = self.fast;
+        wk.fast = self.fast_mode();
         wk.simd = kernels::Simd(self.exec.simd_token());
         let mut relax_end = vec![EMPTY; n];
         kernels::relax_snode(n, &self.etree, RELAX, &mut relax_end);
@@ -431,9 +445,12 @@ impl SparseLu {
             xv[perm_r[i] as usize] = bi;
         }
         if n > 0 {
-            let simd = self.exec.simd_token();
-            solve_l(simd, n, g, xv, work);
-            solve_u(simd, n, g, xv);
+            let mode = Mode {
+                simd: self.exec.simd_token(),
+                fast: self.fast_mode(),
+            };
+            solve_l(mode, n, g, xv, work);
+            solve_u(mode, n, g, xv);
         }
         if let Some(i) = xv.iter().position(|v| !v.is_finite()) {
             return Err(arithmetic_range_failure(
@@ -451,7 +468,7 @@ impl SparseLu {
 /// `MappedSuperNodalMatrix::solveInPlace` for one right-hand side.
 #[allow(clippy::explicit_counter_loop)] // keeps Eigen's `iptr` counter
 /// `work`: `n` zeros (left zero).
-fn solve_l(simd: SimdToken, n: usize, g: &Glu, x: &mut [f64], work: &mut [f64]) {
+fn solve_l(mode: Mode, n: usize, g: &Glu, x: &mut [f64], work: &mut [f64]) {
     let nsuper = g.supno[n] as usize;
     for k in 0..=nsuper {
         let fsupc = g.xsup[k] as usize;
@@ -470,10 +487,10 @@ fn solve_l(simd: SimdToken, n: usize, g: &Glu, x: &mut [f64], work: &mut [f64]) 
         } else {
             let luptr = g.xlusup[fsupc] as usize;
             let lda = g.xlusup[fsupc + 1] as usize - luptr;
-            dense::trsv_unit_lower(simd, nsupc, &g.lusup, luptr, lda, x, fsupc);
+            dense::trsv_unit_lower(mode, nsupc, &g.lusup, luptr, lda, x, fsupc);
             work[..nrow].fill(0.0);
             dense::gemv_product(
-                simd,
+                mode,
                 nrow,
                 nsupc,
                 &g.lusup,
@@ -497,7 +514,7 @@ fn solve_l(simd: SimdToken, n: usize, g: &Glu, x: &mut [f64], work: &mut [f64]) 
 }
 
 /// `SparseLUMatrixUReturnType::solveInPlace` for one right-hand side.
-fn solve_u(simd: SimdToken, n: usize, g: &Glu, x: &mut [f64]) {
+fn solve_u(mode: Mode, n: usize, g: &Glu, x: &mut [f64]) {
     let nsuper = g.supno[n];
     let mut k = nsuper;
     while k >= 0 {
@@ -509,7 +526,7 @@ fn solve_u(simd: SimdToken, n: usize, g: &Glu, x: &mut [f64]) {
         if nsupc == 1 {
             x[fsupc] /= g.lusup[luptr];
         } else {
-            dense::trsv_upper(simd, nsupc, &g.lusup, luptr, lda, x, fsupc);
+            dense::trsv_upper(mode, nsupc, &g.lusup, luptr, lda, x, fsupc);
         }
         for jcol in fsupc..fsupc + nsupc {
             let (p0, p1) = (g.xusub[jcol] as usize, g.xusub[jcol + 1] as usize);
@@ -684,86 +701,6 @@ mod tests {
         assert_eq!(
             x1.iter().map(|x| x.to_bits()).collect::<Vec<_>>(),
             x2.iter().map(|x| x.to_bits()).collect::<Vec<_>>()
-        );
-    }
-
-    #[test]
-    fn fma_mode_solution_within_tolerance() {
-        // A 3-D 7-point stencil (large supernodes, so the panel products
-        // run), diagonally dominant: condition number below 10, so a
-        // relative change of the solution above 1e-12 would mean an error,
-        // not rounding (each FMA saves one rounding of at most 2^-53).
-        let k = 14;
-        let n = k * k * k;
-        let mut t = Vec::new();
-        let id = |i: usize, j: usize, l: usize| (i * k + j) * k + l;
-        for i in 0..k {
-            for j in 0..k {
-                for l in 0..k {
-                    let p = id(i, j, l);
-                    t.push((p, p, 8.0 + ((p * 7) % 5) as f64 * 0.1));
-                    let nb = [
-                        (i.wrapping_sub(1), j, l),
-                        (i + 1, j, l),
-                        (i, j.wrapping_sub(1), l),
-                        (i, j + 1, l),
-                        (i, j, l.wrapping_sub(1)),
-                        (i, j, l + 1),
-                    ];
-                    for (q, &(a, b, c)) in nb.iter().enumerate() {
-                        if a < k && b < k && c < k {
-                            t.push((p, id(a, b, c), -1.0 + 0.05 * q as f64));
-                        }
-                    }
-                }
-            }
-        }
-        let a = CscMatrix::from_triplets(n, &t).unwrap();
-        let b: Vec<f64> = (0..n).map(|i| ((i * 13) % 17) as f64 - 8.0).collect();
-        let fast = || {
-            use akantu_core::exec::{Exec, ExecPolicy, Precision};
-            assert!(Exec::serial().fast_token().is_none());
-            Exec::new(ExecPolicy::serial().with_precision(Precision::Fast))
-                .unwrap()
-                .fast_token()
-        };
-        let solve = |fma: bool| {
-            let mut lu = SparseLu::default();
-            lu.set_fast_mode(if fma { fast() } else { None });
-            lu.analyze_pattern(&a).unwrap();
-            lu.factorize(&a).unwrap();
-            let mut x = vec![0.0; n];
-            lu.solve(&b, &mut x).unwrap();
-            x
-        };
-        let (x0, x1) = (solve(false), solve(true));
-        let norm = x0.iter().map(|v| v * v).sum::<f64>().sqrt();
-        let diff = x0
-            .iter()
-            .zip(&x1)
-            .map(|(u, v)| (u - v) * (u - v))
-            .sum::<f64>()
-            .sqrt();
-        assert!(diff <= 1e-12 * norm, "relative difference {}", diff / norm);
-        // the FMA kernels ran where the CPU has them (else the bitwise ones)
-        let bits = |x: &[f64]| x.iter().map(|v| v.to_bits()).collect::<Vec<_>>();
-        if fast().is_some_and(super::simd::fma_instance) {
-            assert_ne!(bits(&x0), bits(&x1), "the fast mode did not change any bit");
-        } else {
-            assert_eq!(bits(&x0), bits(&x1));
-        }
-        // the default mode is unaffected by an earlier fast factorisation
-        let mut lu = SparseLu::default();
-        lu.set_fast_mode(fast());
-        lu.analyze_pattern(&a).unwrap();
-        lu.factorize(&a).unwrap();
-        lu.set_fast_mode(None);
-        lu.factorize(&a).unwrap();
-        let mut x2 = vec![0.0; n];
-        lu.solve(&b, &mut x2).unwrap();
-        assert_eq!(
-            x2.iter().map(|v| v.to_bits()).collect::<Vec<_>>(),
-            x0.iter().map(|v| v.to_bits()).collect::<Vec<_>>()
         );
     }
 

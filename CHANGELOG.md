@@ -114,6 +114,17 @@ change of default results or of a public API raises the minor version.
   `EigenSparseLuSolver::set_fast_mode`, enabled with an
   `akantu_core::exec::FastToken` (fused multiply-adds in the panel
   products; not bitwise, off by default).
+- The sparse solver follows the model's execution policy (D-123): the
+  DOF manager passes its executor before every solve
+  (`SparseDirectSolver::set_exec`, `LinearSystemBackend::set_sparse_solver_exec`;
+  `SparseLu::set_exec` outside a model). With several threads the large
+  panel updates of the Eigen SparseLU translation run on them, with the
+  same factors and solutions at every thread count; in precision `Fast`
+  its FAST MODE kernels run (fused multiply-adds also in the triangular
+  panel solves and the GEMV kernels; rule
+  `fixtures/fast_mode/linalg/tolerances.json`). Its dense kernels take the
+  executor's SIMD level (`AKANTU_SIMD`); the environment variable
+  `AKANTU_SPARSELU_ISA` is gone.
 - Small dense products and Eigen-order reductions are faster with bitwise
   identical results: the halving-tree reduction is non-recursive and
   inlined, fixed-size tensor products select their route at compile time,

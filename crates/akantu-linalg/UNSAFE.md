@@ -29,8 +29,8 @@ compiled by `build.rs`. This audit compared every `extern` declaration of
 the two blocks below with its shim prototype (names, argument order, C
 types): no mismatch.
 
-**Counts** (library / tests): block 74 / 4, `unsafe fn` 4 / 4, `unsafe impl`
-6 / 2, `extern` block 2 / 0 — **86 library sites, 10 test sites** (6
+**Counts** (library / tests): block 78 / 4, `unsafe fn` 4 / 4, `unsafe impl`
+6 / 2, `extern` block 2 / 0 — **90 library sites, 10 test sites** (10
 library blocks in the default build: `src/eigen_sparse_lu/simd.rs`; the
 others need `mumps` or `petsc`).
 
@@ -119,12 +119,16 @@ others need `mumps` or `petsc`).
 
 | Id | Line | Site | What it does | Invariant (its `SAFETY:` comment) | Established by | Test |
 |---|---|---|---|---|---|---|
-| LA-81 | 66 | `fn gemm_into_zero` block 1 | calls `x86::gemm_avx512` (`sparselu_gemm`, 16-row tiles) | the token proves AVX-512F | L6 (arm `SimdLevel::Avx512`) | `dense::tests::gemm_matches_reference_bitwise`, `eigen_sparse_lu_oracle` |
-| LA-82 | 73 | `fn gemm_into_zero` block 2 | calls `x86::gemm_avx` (8-row tiles) | the token proves AVX2 (hence AVX) | L6 (arm `SimdLevel::Avx2`) | `dense::tests::gemm_matches_reference_bitwise` |
-| LA-85 | 108 | `fn gemm_into_zero_fma` block 1 | calls `x86::gemm_avx512_fma` (fast mode, opt-in) | the fast token's level proves AVX-512F, AVX2 and FMA3 | L6 (arm `SimdLevel::Avx512`) | `tests::fma_mode_solution_within_tolerance`, `simd::tests::fma_instances_match_a_scalar_fused_reference` |
-| LA-86 | 114 | `fn gemm_into_zero_fma` block 2 | calls `x86::gemm_avx2_fma` (fast mode, opt-in) | the fast token's level proves AVX2 and FMA3 | L6 (arm `SimdLevel::Avx2`) | `tests::fma_mode_solution_within_tolerance`, `simd::tests::fma_instances_match_a_scalar_fused_reference` |
-| LA-83 | 190 | `fn gemv` block 1 | calls `x86::gemv_avx512` (column-major GEMV, 32-row tiles) | the token proves AVX-512F | L6 (arm `SimdLevel::Avx512`) | `dense::tests::gemv_matches_reference_bitwise`, `eigen_sparse_lu_oracle` |
-| LA-84 | 195 | `fn gemv` block 2 | calls `x86::gemv_avx` (16-row tiles) | the token proves AVX2 (hence AVX) | L6 (arm `SimdLevel::Avx2`) | `dense::tests::gemv_matches_reference_bitwise` |
+| LA-81 | 82 | `fn gemm_into_zero` block 1 | calls `x86::gemm_avx512` (`sparselu_gemm`, 16-row tiles) | the token proves AVX-512F | L6 (arm `SimdLevel::Avx512`) | `dense::tests::gemm_matches_reference_bitwise`, `eigen_sparse_lu_oracle` |
+| LA-82 | 89 | `fn gemm_into_zero` block 2 | calls `x86::gemm_avx` (8-row tiles) | the token proves AVX2 (hence AVX) | L6 (arm `SimdLevel::Avx2`) | `dense::tests::gemm_matches_reference_bitwise` |
+| LA-85 | 124 | `fn gemm_into_zero_fma` block 1 | calls `x86::gemm_avx512_fma` (fast mode, opt-in) | the fast token's level proves AVX-512F, AVX2 and FMA3 | L6 (arm `SimdLevel::Avx512`) | `tests/fast_mode_sparse_lu.rs`, `simd::tests::fma_instances_match_a_scalar_fused_reference` |
+| LA-86 | 130 | `fn gemm_into_zero_fma` block 2 | calls `x86::gemm_avx2_fma` (fast mode, opt-in) | the fast token's level proves AVX2 and FMA3 | L6 (arm `SimdLevel::Avx2`) | `tests/fast_mode_sparse_lu.rs`, `simd::tests::fma_instances_match_a_scalar_fused_reference` |
+| LA-87 | 241 | `fn gemv_fma` block 1 | calls `x86::gemv_avx512_fma` (fast mode) | the fast token's level proves AVX-512F, AVX2 and FMA3 | L6 (arm `SimdLevel::Avx512`) | `simd::tests::fma_trsm_and_gemv_instances_match_the_portable_fused_bodies`, `tests/fast_mode_sparse_lu.rs` |
+| LA-88 | 245 | `fn gemv_fma` block 2 | calls `x86::gemv_avx2_fma` (fast mode) | the fast token's level proves AVX2 and FMA3 | L6 (arm `SimdLevel::Avx2`) | `simd::tests::fma_trsm_and_gemv_instances_match_the_portable_fused_bodies` |
+| LA-89 | 281 | `fn trsm_fma` block 1 | calls `x86::trsm_avx512_fma` (fast mode, the triangular panel solve) | the fast token's level proves AVX-512F, AVX2 and FMA3 | L6 (arm `SimdLevel::Avx512`) | `simd::tests::fma_trsm_and_gemv_instances_match_the_portable_fused_bodies`, `tests/fast_mode_sparse_lu.rs` |
+| LA-90 | 285 | `fn trsm_fma` block 2 | calls `x86::trsm_avx2_fma` (fast mode) | the fast token's level proves AVX2 and FMA3 | L6 (arm `SimdLevel::Avx2`) | `simd::tests::fma_trsm_and_gemv_instances_match_the_portable_fused_bodies` |
+| LA-83 | 210 | `fn gemv` block 1 | calls `x86::gemv_avx512` (column-major GEMV, 32-row tiles) | the token proves AVX-512F | L6 (arm `SimdLevel::Avx512`) | `dense::tests::gemv_matches_reference_bitwise`, `eigen_sparse_lu_oracle` |
+| LA-84 | 215 | `fn gemv` block 2 | calls `x86::gemv_avx` (16-row tiles) | the token proves AVX2 (hence AVX) | L6 (arm `SimdLevel::Avx2`) | `dense::tests::gemv_matches_reference_bitwise` |
 
 ### src/mumps/mod.rs
 

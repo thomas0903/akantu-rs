@@ -400,6 +400,7 @@
 #![allow(clippy::needless_range_loop, clippy::explicit_counter_loop)]
 
 use super::dense;
+use super::simd::Mode;
 use akantu_core::exec::{Exec, FastToken, SimdToken, Tuples};
 
 /// `emptyIdxLU`.
@@ -559,6 +560,14 @@ fn refill<T: Copy>(v: &mut Vec<T>, len: usize, value: T) {
 }
 
 impl Work {
+    /// The kernels of this factorisation (SIMD level, fast mode).
+    pub(crate) fn mode(&self) -> Mode {
+        Mode {
+            simd: self.simd.0,
+            fast: self.fast,
+        }
+    }
+
     /// The arrays of `SparseLU::factorize` for an `m × n` matrix, in
     /// their initial state (`segrep`, `parent`, `xplore`, `xprune` 0;
     /// `repfnz`, `panel_lsub`, `marker` `emptyIdxLU`; `dense`, `tempv` 0),
@@ -881,7 +890,7 @@ pub(crate) fn column_dfs(
 /// the column in it.
 #[allow(clippy::too_many_arguments)] // translation of LU_kernel_bmod::run
 fn kernel_bmod(
-    simd: SimdToken,
+    mode: Mode,
     fixed: usize,
     segsize: usize,
     dense: &mut [f64],
@@ -925,13 +934,13 @@ fn kernel_bmod(
     if fixed == 2 || fixed == 3 {
         dense::unit_lower_unrolled(segsize, lusup, luptr, lda, tempv, 0);
     } else {
-        dense::trsv_unit_lower(simd, segsize, lusup, luptr, lda, tempv, 0);
+        dense::trsv_unit_lower(mode, segsize, lusup, luptr, lda, tempv, 0);
     }
     luptr += segsize;
     let (useg, l) = tempv.split_at_mut(segsize);
     // `l = 0; l += B·u` (Eigen zero-fills `l`, then `sparselu_gemm`)
-    super::simd::gemm_into_zero(
-        simd, nrow, 1, segsize, lusup, luptr, lda, useg, 0, segsize, l, 0, nrow,
+    super::simd::gemm_into_zero_mode(
+        mode, nrow, 1, segsize, lusup, luptr, lda, useg, 0, segsize, l, 0, nrow,
     );
     let mut isub = lptr + no_zeros;
     for &t in useg.iter() {
@@ -1015,7 +1024,18 @@ pub(crate) fn panel_bmod(
             let lda = u(glu.xlusup[u(fsupc + 1)] - glu.xlusup[u(fsupc)]);
             let no_zeros = u((krep - u_rows + 1) - fsupc);
             luptr += lda * no_zeros + no_zeros;
-            dense::trsm_unit_lower(ur, u_cols, &glu.lusup, luptr, lda, &mut wk.tempv, 0, ldu);
+            let mode = wk.mode();
+            dense::trsm_unit_lower(
+                mode,
+                ur,
+                u_cols,
+                &glu.lusup,
+                luptr,
+                lda,
+                &mut wk.tempv,
+                0,
+                ldu,
+            );
             // update: L = B * U
             luptr += ur;
             let ldl = nr;
@@ -1039,15 +1059,13 @@ pub(crate) fn panel_bmod(
                     ldu,
                     lrows,
                     ucols,
-                    simd: wk.simd.0,
-                    fast: wk.fast,
+                    mode,
                 };
                 upd.run_threaded(exec, tl, &mut wk.dense[..m * SPA_W]);
             } else {
                 // `L = 0; L += B·U` (Eigen zero-fills `L`, then `sparselu_gemm`)
                 super::simd::gemm_into_zero_mode(
-                    wk.simd.0, wk.fast, nr, u_cols, ur, &glu.lusup, luptr, lda, tu, 0, ldu, tl, 0,
-                    ldl,
+                    mode, nr, u_cols, ur, &glu.lusup, luptr, lda, tu, 0, ldu, tl, 0, ldl,
                 );
                 // scatter U (assignments) and L (one subtraction per entry; the
                 // entries are distinct, so row by row is the same arithmetic)
@@ -1077,11 +1095,10 @@ pub(crate) fn panel_bmod(
                 let lda = u(glu.xlusup[u(fsupc + 1)] - glu.xlusup[u(fsupc)]);
                 let no_zeros = u(kfnz - fsupc);
                 let fixed = if segsize <= 3 { segsize } else { 0 };
-                let Work {
-                    dense, tempv, simd, ..
-                } = &mut *wk;
+                let mode = wk.mode();
+                let Work { dense, tempv, .. } = &mut *wk;
                 kernel_bmod(
-                    simd.0,
+                    mode,
                     fixed,
                     segsize,
                     dense,
@@ -1133,8 +1150,7 @@ pub(crate) struct PanelUpdate<'a> {
     pub ldu: usize,
     pub lrows: &'a [i32],
     pub ucols: &'a [(usize, usize)],
-    pub simd: SimdToken,
-    pub fast: Option<FastToken>,
+    pub mode: Mode,
 }
 
 impl PanelUpdate<'_> {
@@ -1158,8 +1174,7 @@ impl PanelUpdate<'_> {
                 let chunk = part.into_slice();
                 let rows = chunk.len() / nc.max(1);
                 super::simd::gemm_into_zero_mode(
-                    self.simd,
-                    self.fast,
+                    self.mode,
                     rows,
                     nc,
                     self.ur,
@@ -1239,11 +1254,10 @@ pub(crate) fn column_bmod(
             let lda = glu.xlusup[u(fst_col + 1)] - glu.xlusup[u(fst_col)];
             let no_zeros = kfnz - fst_col;
             let fixed = if segsize == 1 { 1 } else { 0 };
-            let Work {
-                dense, tempv, simd, ..
-            } = &mut *wk;
+            let mode = wk.mode();
+            let Work { dense, tempv, .. } = &mut *wk;
             kernel_bmod(
-                simd.0,
+                mode,
                 fixed,
                 u(segsize),
                 dense,
@@ -1284,9 +1298,9 @@ pub(crate) fn column_bmod(
         let lda = u(glu.xlusup[jcol + 1] - glu.xlusup[jcol]);
         let nsupc = u(nsupc);
         let (left, right) = glu.lusup.split_at_mut(base);
-        dense::trsv_unit_lower(wk.simd.0, nsupc, left, luptr, lda, right, ufirst);
+        dense::trsv_unit_lower(wk.mode(), nsupc, left, luptr, lda, right, ufirst);
         dense::gemv_product_in_place(
-            wk.simd.0,
+            wk.mode(),
             nrow,
             nsupc,
             left,
