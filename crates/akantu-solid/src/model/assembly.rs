@@ -370,7 +370,7 @@ impl SolidMechanicsPhysics {
                     self.base.spatial_dimension,
                     ghost,
                     &mut f_int,
-                    &mut self.assembly_scratch,
+                    &mut self.assembly_scratch[ghost.index()],
                 )?;
             }
         }
