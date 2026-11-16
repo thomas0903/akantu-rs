@@ -266,7 +266,8 @@ Items 1–4 of the list above were worked on with bitwise identical results
 at every thread count and SIMD level
 (`docs/benchmarks/perf-campaign/explicit/README.md`): the batch kernels
 check their ids and connectivity once and run lane kernels (AVX2 at run
-time, no FMA), `BᵀD` and the finite-deformation residual are integrated as
+time, no FMA; packed for the integrated `BᵀD` and residual, partly or not
+for the gradient), `BᵀD` and the finite-deformation residual are integrated as
 they are computed, `grad_u −= eigen_grad_u` is applied in the gradient's
 lanes, and one elastic law on one element type runs gradient, stress and
 integration per cache-sized block of elements. On an AMD EPYC 7B13 at one

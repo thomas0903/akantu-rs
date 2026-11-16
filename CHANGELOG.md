@@ -82,8 +82,11 @@ change of default results or of a public API raises the minor version.
   its time at one thread on an AMD EPYC 7B13, per mesh in
   `docs/benchmarks/perf-campaign/explicit/README.md`): the FE gradient,
   `BᵀD`, integration and finite-deformation residual kernels check their
-  element ids and connectivity once per batch and run lane kernels (AVX2
-  when the CPU has it); `BᵀD` and the finite-deformation residual are
+  element ids and connectivity once per batch and run lane kernels,
+  compiled for AVX2 when the CPU has it (the integrated `BᵀD` and the
+  integrated residual run packed AVX2 arithmetic, the gradient partly, and
+  the gradient with the `eigen_grad_u` subtraction of the block pass
+  scalar AVX instructions); `BᵀD` and the finite-deformation residual are
   integrated as they are computed (no per-point array); for one elastic
   law on one element type of a mesh without ghosts, the gradient, the
   thermal pre-step, the stress and the integration run in one pass per

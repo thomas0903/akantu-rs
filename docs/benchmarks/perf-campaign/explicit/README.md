@@ -62,6 +62,20 @@ cores `0..N−1` (`scripts/perf/exec/wrappers.sh`). Raw data: `t1.jsonl`,
    `B_L0` selections are the same in every lane) — in a screening run this
    layout took the hex8-20k finite-deformation step from 0.87 to 0.60 of
    the branch point's time (lanes over the component: 0.87).
+   What the compiler makes of them (`objdump` of the AVX2 instances, x86-64
+   release build): the integrated `BᵀD` (39 packed, 1 scalar arithmetic
+   instructions) and the integrated residual (103 packed, 1 scalar) run
+   packed AVX2 code; the gradient without subtraction about half packed
+   (tetrahedra and hexahedra: 63 / 135 packed, as many scalar); the
+   gradient with the `eigen_grad_u` subtraction, the instance the
+   element-block pass runs, compiles to scalar AVX instructions only
+   (`vmulsd` / `vaddsd`). A version that the compiler packs (the
+   subtraction's operand taken per point instead of sliced per entry) gave
+   the same step time on tet4 and hex8 (1.00–1.01) and a slower one on
+   tet10 small strain (internal forces 1.09 [1.03, 1.11]), so the scalar
+   version stays (`i1.jsonl`, `summary-i1.md`: `after` = `8534c3f6`, `i1`
+   = the packed variant, 5 rounds); its cost is the shape-derivative stream and the gather of
+   the nodal values, not the arithmetic.
 5. **Filter copies.** The internal-force assembly reads the law's filter
    through its guard; the FE batch calls take the filter itself (no
    `Vec<usize>` of element ids; one is built only without a filter).

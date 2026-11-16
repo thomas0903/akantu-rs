@@ -1030,7 +1030,11 @@ CO-19, CO-20). Lane layouts of the explicit step: the gradient has one
 lane per row of `∇u`, the integrated `BᵀD` one lane per row of `D`, the
 integrated finite-deformation residual one lane per node of a group of
 four (component `k` fixed per vector; the `B_L0` selections then depend on
-`k` only). No AVX-512 instance: three-component lanes do not fill 512-bit
+`k` only). Lanes are not a promise of packed instructions: the compiler
+packs the integrated `BᵀD` and residual, about half of the plain gradient
+and none of the gradient with the `eigen_grad_u` subtraction (scalar AVX
+instructions; a packed variant was not faster,
+`docs/benchmarks/perf-campaign/explicit/README.md`). No AVX-512 instance: three-component lanes do not fill 512-bit
 vectors, and the compiler's AVX-512 code for the gradient was slower.
 
 Element-block pass of the internal forces
