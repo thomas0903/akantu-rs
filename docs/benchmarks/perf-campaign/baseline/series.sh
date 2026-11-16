@@ -52,7 +52,8 @@ case "${1:-}" in
       touch "$d/r$r.ok"; say "explicit round $r: done"
     done
     cat "$d"/r[1-7].jsonl > "$d/explicit.jsonl"
-    python3 -I "$repo/scripts/perf/explicit-step/summarize_timing.py" "$d/explicit.jsonl" > "$d/summary.md" 2>&1 || true
+    SUMMARY_LABELS="cpp-strict cpp-default port" SUMMARY_PAIRS="port/cpp-strict port/cpp-default cpp-default/cpp-strict" \
+      python3 -I "$repo/scripts/perf/explicit-step/summarize_timing.py" "$d/explicit.jsonl" step fint stress > "$d/summary.md" 2>&1 || true
     say "explicit: $d/summary.md" ;;
   explicit-digests)
     bjob "$L-explicit-digests" -- "$here/explicit_digests.sh" "$PORT_DIR/port" "$BASE/cpp-bin" \
