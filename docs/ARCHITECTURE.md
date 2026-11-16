@@ -908,7 +908,7 @@ its C shim in `build.rs` only when it is enabled.
 the GPL crate. `crates/akantu-geometry/tests/license_separation.rs` replays
 Cargo's feature resolution and fails if any default feature set of an LGPL
 crate, or any other feature, reaches it. `embedded` never implies `cgal`:
-it uses the LGPL `LinearScan` search structure.
+it uses the LGPL `GridIndex` search structure (or `LinearScan`).
 
 ## Python extension and C interface
 

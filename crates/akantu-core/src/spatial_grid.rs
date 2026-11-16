@@ -5,10 +5,13 @@
 //! Dynamic spatial hash grid (upstream `SpatialGrid<T>`, CORE-030).
 //!
 //! Cells are addressed by integer ids `floor((x_d − center_d) / spacing_d)`
-//! per direction and stored sparsely in a [`BTreeMap`] keyed by
-//! [`CellId`] — lexicographic order, exactly upstream's
-//! `std::map<CellID, Cell>`, so iteration over cells (and therefore every
-//! output built from it: neighbour lists, grid synchronisation, the mesh of
+//! per direction and stored sparsely: one slot per non-empty cell, found
+//! through an open-addressing hash table on the ids (a lookup hashes the
+//! ids in place, without building a [`CellId`]). Iteration over cells is in
+//! the lexicographic order of the ids — exactly upstream's
+//! `std::map<CellID, Cell>` — through a sorted slot order built on the first
+//! ordered access after a cell was created, so every output built from it
+//! (neighbour lists, grid synchronisation, the mesh of
 //! [`SpatialGrid::mesh_arrays`]) follows upstream's order. Items in a cell
 //! keep their insertion order. Neighbour cells ([`CellId::neighbors`]) are
 //! the `3^d` cells with offsets in `{−1, 0, 1}^d`, **first coordinate
@@ -48,8 +51,8 @@
 //! (upstream: uninitialised Eigen vectors); dimensions other than 1, 2, 3
 //! cannot be saved as a mesh (upstream: `_not_defined` element type).
 
-use std::collections::BTreeMap;
 use std::fmt::Write as _;
+use std::sync::OnceLock;
 
 use crate::element_type::ElementType;
 use crate::error::{Error, Result};
@@ -246,7 +249,7 @@ impl<'a, T> Iterator for NeighborhoodItems<'a, '_, T> {
             }
             // As `Neighbors::next`
             if s.cell.ids.iter().all(|&i| is_admissible(i)) {
-                return Some(grid.cell(&s.cell));
+                return Some(grid.cell_of_ids(&s.cell.ids));
             }
         }
         None
@@ -270,6 +273,20 @@ pub struct GridMeshArrays {
     pub tags: Vec<Int>,
 }
 
+/// Hash of a cell's ids (multiply–rotate per id; any function would do,
+/// the table's iteration order is never observed).
+#[inline]
+fn hash_ids(ids: &[Idx]) -> u64 {
+    let mut h: u64 = 0x9E37_79B9_7F4A_7C15;
+    for &i in ids {
+        // the id's bits (sign extension included); any injective map would do
+        #[allow(clippy::cast_sign_loss)]
+        let v = i64::from(i) as u64;
+        h = (h.rotate_left(23) ^ v).wrapping_mul(0x2545_F491_4F6C_DD1D);
+    }
+    h ^ (h >> 29)
+}
+
 /// Dynamic spatial hash grid (upstream `SpatialGrid<T>`).
 #[derive(Clone, Debug)]
 pub struct SpatialGrid<T> {
@@ -278,7 +295,16 @@ pub struct SpatialGrid<T> {
     center: Vec<Real>,
     lower: Vec<Real>,
     upper: Vec<Real>,
-    cells: BTreeMap<CellId, Vec<T>>,
+    /// Ids of the non-empty cells, one per slot (creation order).
+    ids: Vec<CellId>,
+    /// Items of each slot, in insertion order.
+    items: Vec<Vec<T>>,
+    /// Open-addressing table (linear probing): `0` empty, else slot + 1;
+    /// its length is a power of two at least twice the slot count.
+    table: Vec<u32>,
+    /// Slots in the lexicographic order of their ids (built on demand,
+    /// reset when a cell is created).
+    order: OnceLock<Vec<u32>>,
 }
 
 impl<T> SpatialGrid<T> {
@@ -293,8 +319,86 @@ impl<T> SpatialGrid<T> {
             center: vec![0.0; dimension],
             lower: vec![Real::MAX; dimension],
             upper: vec![-Real::MAX; dimension],
-            cells: BTreeMap::new(),
+            ids: Vec::new(),
+            items: Vec::new(),
+            table: Vec::new(),
+            order: OnceLock::new(),
         }
+    }
+
+    /// Slot of the cell with ids `ids` (any length: a length other than the
+    /// dimension finds nothing).
+    #[inline]
+    fn find(&self, ids: &[Idx]) -> Option<usize> {
+        if self.table.is_empty() || ids.len() != self.dimension {
+            return None;
+        }
+        let mask = self.table.len() - 1;
+        // the table length is a power of two below usize::MAX
+        #[allow(clippy::cast_possible_truncation)]
+        let mut k = (hash_ids(ids) as usize) & mask;
+        loop {
+            match self.table[k] {
+                0 => return None,
+                e => {
+                    let slot = (e - 1) as usize;
+                    if self.ids[slot].ids == ids {
+                        return Some(slot);
+                    }
+                }
+            }
+            k = (k + 1) & mask;
+        }
+    }
+
+    /// Put `slot` (whose id is stored) into the table (no duplicate check).
+    fn place(table: &mut [u32], ids: &[Idx], slot: usize) {
+        let mask = table.len() - 1;
+        #[allow(clippy::cast_possible_truncation)] // masked
+        let mut k = (hash_ids(ids) as usize) & mask;
+        while table[k] != 0 {
+            k = (k + 1) & mask;
+        }
+        // slot counts are bounded by the u32 check in `new_slot`
+        #[allow(clippy::cast_possible_truncation)]
+        let e = slot as u32 + 1;
+        table[k] = e;
+    }
+
+    /// Create the slot of a new cell `id`.
+    fn new_slot(&mut self, id: CellId) -> Result<usize> {
+        let slot = self.ids.len();
+        if slot >= u32::MAX as usize - 1 {
+            return Err(Error::CapacityExceeded {
+                what: "spatial grid cells",
+                requested: slot as u128 + 1,
+                limit: u128::from(u32::MAX - 1),
+            });
+        }
+        if 2 * (slot + 1) > self.table.len() {
+            let cap = (2 * (slot + 1)).next_power_of_two().max(16);
+            let mut table = vec![0u32; cap];
+            for (s, cid) in self.ids.iter().enumerate() {
+                Self::place(&mut table, &cid.ids, s);
+            }
+            self.table = table;
+        }
+        Self::place(&mut self.table, &id.ids, slot);
+        self.ids.push(id);
+        self.items.push(Vec::new());
+        self.order = OnceLock::new();
+        Ok(slot)
+    }
+
+    /// Slots in the lexicographic order of their ids.
+    fn ordered(&self) -> &[u32] {
+        self.order.get_or_init(|| {
+            // slot counts fit u32 (`new_slot`)
+            #[allow(clippy::cast_possible_truncation)]
+            let mut o: Vec<u32> = (0..self.ids.len() as u32).collect();
+            o.sort_unstable_by(|&a, &b| self.ids[a as usize].cmp(&self.ids[b as usize]));
+            o
+        })
     }
 
     /// Empty grid with spacing and center (upstream
@@ -439,8 +543,24 @@ impl<T> SpatialGrid<T> {
     /// # Errors
     /// As [`SpatialGrid::cell_id`]; nothing is inserted on error.
     pub fn insert(&mut self, item: T, position: &[Real]) -> Result<&[T]> {
-        let id = self.cell_id(position)?;
-        if !self.cells.contains_key(&id) {
+        self.check_len("SpatialGrid::cell_id", position.len())?;
+        // ids on the stack for the usual dimensions (no allocation for an
+        // existing cell)
+        let mut buf = [0 as Idx; 3];
+        let mut heap = Vec::new();
+        let ids: &mut [Idx] = if self.dimension <= 3 {
+            &mut buf[..self.dimension]
+        } else {
+            heap.resize(self.dimension, 0);
+            &mut heap
+        };
+        for (d, (slot, &x)) in ids.iter_mut().zip(position).enumerate() {
+            *slot = self.cell_index(x, d)?;
+        }
+        let slot = if let Some(slot) = self.find(ids) {
+            slot
+        } else {
+            let id = CellId { ids: ids.to_vec() };
             for d in 0..self.dimension {
                 let posl = self.center[d] + Real::from(id.ids[d]) * self.spacing[d];
                 let posu = posl + self.spacing[d];
@@ -452,8 +572,9 @@ impl<T> SpatialGrid<T> {
                     self.upper[d] = posu;
                 }
             }
-        }
-        let cell = self.cells.entry(id).or_default();
+            self.new_slot(id)?
+        };
+        let cell = &mut self.items[slot];
         cell.push(item);
         Ok(cell)
     }
@@ -462,7 +583,13 @@ impl<T> SpatialGrid<T> {
     /// `getCell`, `beginCell`/`endCell`).
     #[must_use]
     pub fn cell(&self, id: &CellId) -> &[T] {
-        self.cells.get(id).map_or(&[], Vec::as_slice)
+        self.cell_of_ids(&id.ids)
+    }
+
+    /// Items of the cell with ids `ids`, empty if it does not exist.
+    #[inline]
+    fn cell_of_ids(&self, ids: &[Idx]) -> &[T] {
+        self.find(ids).map_or(&[], |s| self.items[s].as_slice())
     }
 
     /// Items of the cell containing `position` (upstream
@@ -477,12 +604,14 @@ impl<T> SpatialGrid<T> {
     /// Non-empty cells with their items, in cell order (upstream
     /// `begin()`/`end()` over the cell map).
     pub fn cells(&self) -> impl ExactSizeIterator<Item = (&CellId, &[T])> + '_ {
-        self.cells.iter().map(|(k, v)| (k, v.as_slice()))
+        self.ordered()
+            .iter()
+            .map(|&s| (&self.ids[s as usize], self.items[s as usize].as_slice()))
     }
 
     /// Ids of the non-empty cells, in cell order.
     pub fn cell_ids(&self) -> impl ExactSizeIterator<Item = &CellId> + '_ {
-        self.cells.keys()
+        self.ordered().iter().map(|&s| &self.ids[s as usize])
     }
 
     /// Non-empty cells whose ids lie in the closed box `[first, last]`
@@ -494,10 +623,10 @@ impl<T> SpatialGrid<T> {
     /// direction outermost, `getCell` of each id. That enumeration is the
     /// lexicographic order of the ids, i.e. the cell order, and an absent
     /// cell contributes nothing, so the visited (cell, item) sequence is
-    /// identical; only the non-empty cells of the range are looked at
-    /// (a [`BTreeMap`] range scan) instead of every id of the box. An
-    /// inverted range (`first[d] > last[d]` in some direction) visits
-    /// nothing, as upstream's loops.
+    /// identical; only the non-empty cells of the range are looked at (the
+    /// sorted cells between `first` and `last`, filtered) instead of every
+    /// id of the box. An inverted range (`first[d] > last[d]` in some
+    /// direction) visits nothing, as upstream's loops.
     ///
     /// # Errors
     /// [`Error::DimensionMismatch`] if `first` or `last` does not have
@@ -512,21 +641,30 @@ impl<T> SpatialGrid<T> {
         // all first[d] ≤ last[d] ⇒ first ≤ last lexicographically, so the
         // map range is valid (BTreeMap::range panics on start > end)
         let non_empty = first.ids.iter().zip(&last.ids).all(|(f, l)| f <= l);
-        let range = non_empty.then(|| self.cells.range(first..=last));
+        let range = non_empty.then(|| {
+            // the sorted cells from the first id ≥ `first` while ≤ `last`
+            // (the lexicographic range `first..=last`)
+            let order = self.ordered();
+            let start = order.partition_point(|&s| self.ids[s as usize] < *first);
+            order[start..]
+                .iter()
+                .take_while(move |&&s| self.ids[s as usize] <= *last)
+                .map(move |&s| (&self.ids[s as usize], self.items[s as usize].as_slice()))
+        });
         Ok(range.into_iter().flatten().filter_map(move |(id, items)| {
             let inside = id
                 .ids
                 .iter()
                 .zip(first.ids.iter().zip(&last.ids))
                 .all(|(c, (f, l))| f <= c && c <= l);
-            inside.then_some((id, items.as_slice()))
+            inside.then_some((id, items))
         }))
     }
 
     /// Number of non-empty cells.
     #[must_use]
     pub fn nb_cells(&self) -> usize {
-        self.cells.len()
+        self.ids.len()
     }
 
     /// Items of the `3^d` cells around the cell containing `position`
@@ -600,7 +738,7 @@ impl<T> SpatialGrid<T> {
         let _ = writeln!(
             s,
             "{space} + nb_cells     : {}/{}",
-            self.cells.len(),
+            self.ids.len(),
             format_g(nb, 5)
         );
         let _ = writeln!(s, "{space}]");
@@ -628,7 +766,7 @@ impl<T> SpatialGrid<T> {
             }
         };
         let per_cell = 1usize << dim;
-        let nb_new = self.cells.len().saturating_mul(per_cell);
+        let nb_new = self.ids.len().saturating_mul(per_cell);
         let total = node_offset.saturating_add(nb_new);
         if total > crate::types::MAX_LOCAL_COUNT {
             return Err(Error::CapacityExceeded {
@@ -639,10 +777,10 @@ impl<T> SpatialGrid<T> {
         }
         let mut nodes = Vec::with_capacity(nb_new * dim);
         let mut connectivity = Vec::with_capacity(nb_new);
-        let mut tags = Vec::with_capacity(self.cells.len());
+        let mut tags = Vec::with_capacity(self.ids.len());
         let s = &self.spacing;
         let mut pos = vec![0.0; dim];
-        for (global_id, id) in self.cells.keys().enumerate() {
+        for (global_id, id) in self.cell_ids().enumerate() {
             let cur = crate::types::to_idx(node_offset + global_id * per_cell);
             for (i, p) in pos.iter_mut().enumerate() {
                 *p = self.center[i] + Real::from(id.ids[i]) * s[i];
@@ -1019,5 +1157,86 @@ mod tests {
             ]
         );
         assert!(SpatialGrid::<u8>::new(4).mesh_arrays(0).is_err());
+    }
+
+    /// The slot storage behaves as upstream's `std::map<CellID, Cell>`
+    /// (the port's former `BTreeMap`): the same cells, items in insertion
+    /// order, iteration and `cells_in_range` in lexicographic order, the
+    /// bounds, with cells created between ordered accesses, in 1-, 2- and
+    /// 3-D (a reference `BTreeMap` is filled alongside).
+    #[test]
+    fn slot_storage_matches_an_ordered_map() {
+        use std::collections::BTreeMap;
+        let mut seed = 0x1234_5678_u32;
+        let mut next = move || {
+            seed ^= seed << 13;
+            seed ^= seed >> 17;
+            seed ^= seed << 5;
+            seed
+        };
+        for dim in 1..=3usize {
+            let spacing = vec![0.3; dim];
+            let center = vec![0.05; dim];
+            let mut g = SpatialGrid::with_spacing(dim, &spacing, &center).unwrap();
+            let mut reference: BTreeMap<Vec<Idx>, Vec<usize>> = BTreeMap::new();
+            for item in 0..3000 {
+                let x: Vec<Real> = (0..dim)
+                    .map(|_| Real::from(next() % 4001) / 400.0 - 5.0)
+                    .collect();
+                let id = g.cell_id(&x).unwrap();
+                g.insert(item, &x).unwrap();
+                reference.entry(id.ids().to_vec()).or_default().push(item);
+                if item % 500 == 499 {
+                    // ordered access in the middle of the insertions
+                    let a: Vec<(Vec<Idx>, Vec<usize>)> = g
+                        .cells()
+                        .map(|(k, v)| (k.ids().to_vec(), v.to_vec()))
+                        .collect();
+                    let b: Vec<(Vec<Idx>, Vec<usize>)> = reference
+                        .iter()
+                        .map(|(k, v)| (k.clone(), v.clone()))
+                        .collect();
+                    assert_eq!(a, b);
+                }
+            }
+            assert_eq!(g.nb_cells(), reference.len());
+            for (k, v) in &reference {
+                assert_eq!(g.cell(&CellId::new(k.clone()).unwrap()), v.as_slice());
+            }
+            // absent cells and ids of another length
+            assert!(g.cell(&CellId::new(vec![1000; dim]).unwrap()).is_empty());
+            assert!(g.cell(&CellId::new(vec![0; dim + 1]).unwrap()).is_empty());
+            // ranges
+            for _ in 0..200 {
+                let lo: Vec<Idx> = (0..dim).map(|_| (next() % 40) as Idx - 20).collect();
+                let hi: Vec<Idx> = lo.iter().map(|&l| l + (next() % 12) as Idx - 2).collect();
+                let (first, last) = (
+                    CellId::new(lo.clone()).unwrap(),
+                    CellId::new(hi.clone()).unwrap(),
+                );
+                let a: Vec<(Vec<Idx>, Vec<usize>)> = g
+                    .cells_in_range(&first, &last)
+                    .unwrap()
+                    .map(|(k, v)| (k.ids().to_vec(), v.to_vec()))
+                    .collect();
+                let b: Vec<(Vec<Idx>, Vec<usize>)> = reference
+                    .iter()
+                    .filter(|(k, _)| {
+                        k.iter()
+                            .zip(lo.iter().zip(&hi))
+                            .all(|(c, (l, h))| l <= c && c <= h)
+                    })
+                    .map(|(k, v)| (k.clone(), v.clone()))
+                    .collect();
+                assert_eq!(a, b);
+            }
+            // bounds: the union of the cells
+            for d in 0..dim {
+                let lo = reference.keys().map(|k| k[d]).min().unwrap();
+                let hi = reference.keys().map(|k| k[d]).max().unwrap();
+                assert_eq!(g.lower_bounds()[d], 0.05 + Real::from(lo) * 0.3);
+                assert_eq!(g.upper_bounds()[d], 0.05 + Real::from(hi) * 0.3 + 0.3);
+            }
+        }
     }
 }

@@ -51,10 +51,29 @@ use akantu_parser::{Parser, ParserSection, ParserType, SearchScope};
 use crate::eigen_ops::{cpp_max, cpp_min, dot, norm};
 use crate::element::ContactElement;
 use crate::geometry::{
-    MAX_FACET_NODES, MeshView, NormalOrientation, OutwardFrame, ProjectionMetric,
-    ProjectionParameters, ProjectionValidity, normal_from_coords, orthogonal_projection,
+    MAX_FACET_NODES, MeshView, NormalOrientation, OutwardCache, OutwardFrame, ProjectionMetric,
+    ProjectionParameters, ProjectionValidity, normal_from_coords, orthogonal_projection_in,
 };
 use crate::selector::SurfaceSelector;
+
+/// Rule for the cell size of the detection grid.
+#[derive(Clone, Copy, Debug, Default, PartialEq, Eq)]
+pub enum GridSpacing {
+    /// Upstream (default): `√2 ·` the largest in-radius of every facet
+    /// around a master node, side facets of the master body included. With
+    /// elongated facets next to the contact surface a cell holds many master
+    /// nodes and the local search degenerates towards `O(slaves × masters)`.
+    #[default]
+    Upstream,
+    /// `√2 ·` the largest in-radius of the **contact-surface** facets
+    /// around the master nodes (`maximum_bounding_box` and the minimal
+    /// distance are unchanged). The 3^d neighbouring cells of a slave cover
+    /// a different region than with [`GridSpacing::Upstream`], so the
+    /// closest master node found can differ when it lies farther than one
+    /// cell; an opt-in for meshes whose side facets are much larger than the
+    /// surface facets.
+    ContactSurface,
+}
 
 /// Nodal output arrays of a search (the model's fields).
 #[derive(Debug)]
@@ -81,6 +100,9 @@ pub struct ContactDetector {
     max_iterations: i64,
     extension_tolerance: Real,
     max_dd: Real,
+    /// Largest in-radius of the contact-surface facets around the master
+    /// nodes ([`GridSpacing::ContactSurface`]).
+    surface_dd: Real,
     min_dd: Real,
     max_bb: Real,
     positions: Array<Real>,
@@ -93,7 +115,18 @@ pub struct ContactDetector {
     pub normal_orientation: NormalOrientation,
     /// Rule preferring projections inside their facet (UD-372 switch).
     pub projection_validity: ProjectionValidity,
+    /// Cell size of the detection grid (default upstream's).
+    pub grid_spacing: GridSpacing,
     node_to_elements: Option<(u64, NodeToElements)>,
+    /// Outward directions of the facets on the positions of the running
+    /// [`ContactDetector::create_contact_elements`] (a new generation per
+    /// call).
+    outward: OutwardCache,
+    /// Facets whose in-radius the running search has taken (per type and
+    /// ghost type: the search number that last visited each facet).
+    visited: Vec<(akantu_core::ElementType, akantu_core::GhostType, Vec<u32>)>,
+    /// Number of the running maximal-detection-distance computation.
+    visit_round: u32,
 }
 
 impl ContactDetector {
@@ -131,6 +164,7 @@ impl ContactDetector {
             max_iterations: 0,
             extension_tolerance: 0.0,
             max_dd: 0.0,
+            surface_dd: 0.0,
             min_dd: 0.0,
             max_bb: 0.0,
             positions: positions.clone(),
@@ -139,7 +173,11 @@ impl ContactDetector {
             projection_metric: ProjectionMetric::default(),
             normal_orientation: NormalOrientation::default(),
             projection_validity: ProjectionValidity::default(),
+            grid_spacing: GridSpacing::default(),
             node_to_elements: None,
+            outward: OutwardCache::default(),
+            visited: Vec::new(),
+            visit_round: 0,
         };
         d.parse_section(section)?;
         Ok(d)
@@ -334,15 +372,49 @@ impl ContactDetector {
 
     /// Upstream `computeMaximalDetectionDistance` (std::max/std::min
     /// semantics, starting from `numeric_limits::min()` / `max()`).
+    ///
+    /// A facet around several master nodes is measured once: `std::max` /
+    /// `std::min` from those starts never keep a NaN and are idempotent, so
+    /// the result does not depend on repetitions or order.
     fn compute_maximal_detection_distance(&mut self, view: &MeshView<'_>) -> Result<()> {
         let dim = self.spatial_dimension;
         let mut max_size = Real::MIN_POSITIVE;
         let mut min_size = Real::MAX;
+        let mut surface_size = Real::MIN_POSITIVE;
+        let by_surface = self.grid_spacing == GridSpacing::ContactSurface;
+        self.visit_round = self.visit_round.wrapping_add(1);
+        if self.visit_round == 0 {
+            for t in &mut self.visited {
+                t.2.fill(0);
+            }
+            self.visit_round = 1;
+        }
+        let round = self.visit_round;
+        let mut visited = std::mem::take(&mut self.visited);
         let selector = self.selector()?;
         let masters = selector.master_list(view.mesh)?;
         let mut coords = [0.0; 3 * 27];
         for &master in &masters {
             for &element in self.facets_of(master)? {
+                let pos = match visited
+                    .iter()
+                    .position(|t| t.0 == element.ty() && t.1 == element.ghost_type())
+                {
+                    Some(p) => p,
+                    None => {
+                        visited.push((element.ty(), element.ghost_type(), Vec::new()));
+                        visited.len() - 1
+                    }
+                };
+                let stamps = &mut visited[pos].2;
+                let i = element.idx();
+                if stamps.len() <= i {
+                    stamps.resize(i + 1, 0);
+                }
+                if stamps[i] == round {
+                    continue;
+                }
+                stamps[i] = round;
                 let conn = view.mesh.element_connectivity(element)?;
                 let nn = conn.len();
                 if nn * dim > coords.len() {
@@ -358,13 +430,24 @@ impl ContactDetector {
                     akantu_fe::engine::element_inradius_of(element.ty(), &coords[..nn * dim]);
                 max_size = cpp_max(max_size, size);
                 min_size = cpp_min(min_size, size);
+                if by_surface
+                    && selector.contact_surface().contains(
+                        element.ty(),
+                        element.ghost_type(),
+                        element.index(),
+                    )
+                {
+                    surface_size = cpp_max(surface_size, size);
+                }
             }
         }
         // the master list borrows `self` (through the selector): end it
         // before the fields are written (explicit guard `Drop`)
         drop(masters);
+        self.visited = visited;
         self.min_dd = min_size;
         self.max_dd = max_size;
+        self.surface_dd = surface_size;
         self.max_bb = max_size;
         Ok(())
     }
@@ -395,7 +478,11 @@ impl ContactDetector {
         let bbox_slave = self.bounding_box(&slaves)?;
         let intersection = bbox_master.intersection(&bbox_slave);
         let center = intersection.center();
-        let spacing = vec![2.0_f64.sqrt() * self.max_dd; self.spatial_dimension];
+        let dd = match self.grid_spacing {
+            GridSpacing::Upstream => self.max_dd,
+            GridSpacing::ContactSurface => self.surface_dd,
+        };
+        let spacing = vec![2.0_f64.sqrt() * dd; self.spatial_dimension];
         let mut grid = SpatialGrid::with_spacing(self.spatial_dimension, &spacing, &center)?;
         for &n in &masters {
             let p = self.pos(n)?;
@@ -490,6 +577,21 @@ impl ContactDetector {
         gap: Real,
         normal: &[Real],
     ) -> Result<bool> {
+        let frame = OutwardFrame::of(self.normal_orientation, &self.positions);
+        self.is_valid_self_contact_in(view, slave, master_node, gap, normal, frame)
+    }
+
+    /// [`ContactDetector::is_valid_self_contact`] with the slave normals
+    /// oriented on `frame` (the detector's orientation, possibly cached).
+    fn is_valid_self_contact_in(
+        &self,
+        view: &MeshView<'_>,
+        slave: Idx,
+        master_node: Idx,
+        gap: Real,
+        normal: &[Real],
+        frame: OutwardFrame<'_>,
+    ) -> Result<bool> {
         let dim = self.spatial_dimension;
         let mut slave_normal = [0.0; 3];
         let mut coords = [0.0; 3 * MAX_FACET_NODES];
@@ -507,12 +609,7 @@ impl ContactDetector {
             for (k, &n) in conn.iter().enumerate() {
                 coords[k * dim..(k + 1) * dim].copy_from_slice(self.pos(n)?);
             }
-            let n = normal_from_coords(
-                view,
-                &coords[..conn.len() * dim],
-                element,
-                Some(OutwardFrame::of(self.normal_orientation, &self.positions)),
-            )?;
+            let n = normal_from_coords(view, &coords[..conn.len() * dim], element, Some(frame))?;
             for i in 0..dim {
                 slave_normal[i] += n[i];
             }
@@ -549,6 +646,15 @@ impl ContactDetector {
         let sd = dim - 1;
         let pairs = std::mem::take(&mut self.contact_pairs);
         let params = self.projection_parameters();
+        // the positions do not change during the call: one generation of
+        // memoised outward directions
+        let mut outward = std::mem::take(&mut self.outward);
+        outward.next_generation();
+        let outward = std::cell::RefCell::new(outward);
+        let frame = match self.normal_orientation {
+            NormalOrientation::Current => OutwardFrame::CurrentCached(&self.positions, &outward),
+            NormalOrientation::Reference => OutwardFrame::Reference,
+        };
         let result = (|| -> Result<()> {
             let surface = self.selector()?.contact_surface();
             for &(slave, master_node) in &pairs {
@@ -556,13 +662,14 @@ impl ContactDetector {
                 let mut slave_pos = [0.0; 3];
                 slave_pos[..dim].copy_from_slice(self.pos(slave)?);
                 let facets = self.facets_of(master_node)?;
-                let found = orthogonal_projection(
+                let found = orthogonal_projection_in(
                     view,
                     &self.positions,
                     &slave_pos[..dim],
                     facets,
                     surface,
                     &params,
+                    frame,
                 )?;
                 if let Some(p) = &found {
                     out.gaps.get_tuple_mut(s)?[0] = p.gap;
@@ -578,12 +685,13 @@ impl ContactDetector {
                 }
                 let accepted = match &found {
                     None => false,
-                    Some(p) => self.is_valid_self_contact(
+                    Some(p) => self.is_valid_self_contact_in(
                         view,
                         slave,
                         master_node,
                         p.gap,
                         &p.normal[..dim],
+                        frame,
                     )?,
                 };
                 if !accepted {
@@ -599,6 +707,7 @@ impl ContactDetector {
             }
             Ok(())
         })();
+        self.outward = outward.into_inner();
         self.contact_pairs = pairs;
         self.contact_pairs.clear();
         result
@@ -802,5 +911,80 @@ mod tests {
                 [-1, -1]
             ]
         );
+    }
+
+    /// [`GridSpacing::ContactSurface`]: a long side facet at a master node
+    /// sets upstream's cell size (√2 · its in-radius) but not the
+    /// contact-surface one; on this geometry both find the same pairs.
+    #[test]
+    fn grid_spacing_from_the_contact_surface() {
+        let ty = ElementType::Segment2;
+        let g = GhostType::NotGhost;
+        // masters: 0..=8 along y = 0 (segments of 0.5); side: 8 – 9 down to
+        // y = −100; slaves: 10..=17 along y = 0.05
+        let mut nodes: Vec<[Real; 2]> = (0..=8).map(|i| [0.5 * Real::from(i), 0.0]).collect();
+        nodes.push([4.0, -100.0]);
+        nodes.extend((0..8).map(|i| [0.3 + 0.5 * Real::from(i), 0.05]));
+        let master: Vec<[Idx; 2]> = (0..8).map(|i| [i, i + 1]).collect();
+        let side: Vec<[Idx; 2]> = vec![[8, 9]];
+        let slave: Vec<[Idx; 2]> = (10..17).map(|i| [i + 1, i]).collect();
+        let mut mesh = Mesh::new(2, "spacing").unwrap();
+        {
+            let mut a = MeshAccessor::new(&mut mesh);
+            for p in &nodes {
+                a.push_node(p).unwrap();
+            }
+            for c in master.iter().chain(&side).chain(&slave) {
+                a.connectivity_mut(ty, g).push_tuple(c);
+            }
+        }
+        let n_master = master.len();
+        for (name, first, n) in [
+            ("master", 0, n_master),
+            ("side", n_master, 1),
+            ("slave", n_master + 1, slave.len()),
+        ] {
+            mesh.groups_mut().create_element_group(name, 1).unwrap();
+            for i in first..first + n {
+                mesh.element_group_add(name, Element::try_new(ty, i, g).unwrap(), true, true)
+                    .unwrap();
+            }
+            mesh.groups_mut()
+                .element_group_mut(name)
+                .unwrap()
+                .optimize();
+        }
+        let dat = "contact_detector [\n  type = explicit\n  master = master\n  slave = slave\n  \
+                   projection_tolerance = 1e-10\n  max_iterations = 100\n  extension_tolerance = 1e-5\n]\n";
+        let parser = Parser::parse_str(dat, "spacing.dat").unwrap();
+        let mut positions = Array::<Real>::new(2);
+        for p in &nodes {
+            positions.push_tuple(p);
+        }
+        let view = MeshView::new(&mesh);
+        let mut result = Vec::new();
+        for spacing in [GridSpacing::Upstream, GridSpacing::ContactSurface] {
+            let selector = PhysicalSurfaceSelector::new(&mesh, &parser).unwrap();
+            let mut detector =
+                ContactDetector::with_positions(2, &positions, &parser, "spacing").unwrap();
+            detector.set_surface_selector(Box::new(selector));
+            detector.grid_spacing = spacing;
+            detector.node_to_elements(&view).unwrap();
+            detector.compute_maximal_detection_distance(&view).unwrap();
+            let (intersection, grid) = detector.global_search(&view).unwrap();
+            detector.local_search(&view, &intersection, &grid).unwrap();
+            result.push((
+                grid.spacing()[0],
+                grid.nb_cells(),
+                detector.contact_pairs().to_vec(),
+            ));
+        }
+        // upstream: the side facet's in-radius (half its length for a
+        // segment) sets the cells, all masters share one or two cells
+        assert!(result[0].0 > 50.0, "{result:?}");
+        assert!(result[1].0 < 1.0, "{result:?}");
+        assert!(result[1].1 > result[0].1, "{result:?}");
+        assert_eq!(result[0].2, result[1].2);
+        assert_eq!(result[0].2.len(), 8);
     }
 }
