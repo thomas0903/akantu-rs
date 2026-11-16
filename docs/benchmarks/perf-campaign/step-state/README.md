@@ -107,15 +107,17 @@ of the timed cases at size `m`, are equal before and after.
   298 passed, 13 skipped, 2 failed: the two
   `structural_mechanics_dynamics*` example comparisons, which need
   matplotlib (`ci/tiers/wheel.sh`); with matplotlib installed both pass.
-- Digests: `digests/size-s.tsv` (suite, case, digest before, digest after,
-  status) for every case of `suite_solid`, `suite_models` and
-  `suite_setup` at size `s`: 73 equal (two cases print no digest without
+- Digests: `digests/size-s.tsv` (suite, case, digest of the base
+  `72337cb4e`, digest of the branch at `d74b9f36d`, status) for every case
+  of `suite_solid`, `suite_models` and `suite_setup` at size `s`: 73 equal
+  (the same held for each earlier base and branch pair) (two cases print no digest without
   the `mumps` / `scotch` features); the timed cases at size `m` in
   `ab/` (every run of a case, both binaries, the same digest).
 - CI on the machine below at `84310238f` (the branch with its base
   `b3f6c78aa` merged): `ci/run-all.sh --backend docker` (fast preset:
   lint, test, fixtures, parity, licence), and the `exportall`, `par` and
-  `docs` tiers: all passed. Python tests with a wheel of that commit
+  `docs` tiers: all passed; after the last merge of the base, at
+  `d74b9f36d`, the fast preset passed again. Python tests with a wheel of that commit
   (`test_history_views`, `test_zero_copy_views`,
   `test_constitutive_laws`, `test_views_runtime`, `test_exec_policy`): 64
   passed.
@@ -183,6 +185,22 @@ Readings:
   (65 % of the profile, a fixed-order kernel is another task's item).
 - Non-local Mazars: the weights are computed once per rebuild instead of
   at every step (×0.44 of the `residual`).
+
+### After the last merge of the base (`ab-merge/`)
+
+The base `72337cb4e` brought fixed-size kernels for several laws (Maxwell,
+anisotropic). Branch `d74b9f36d` (that base merged) against it, same
+method, four cases; `digests/size-s.tsv` is this pair (73 equal):
+
+| case | base [ms/step] | after [ms/step] | after/base | `step_hooks` base → after [ms/step] |
+|---|---|---|---|---|
+| explicit_maxwell | 90.64 [89.82, 90.75] | 24.76 [24.71, 25.08] | 0.276 [0.272, 0.278] | 35.22 → 4.41 |
+| explicit_orthotropic | 12.11 [12.07, 12.28] | 10.29 [10.24, 10.36] | 0.848 [0.838, 0.859] | 0.70 → 0.00 |
+| explicit_plastic | 50.94 [50.59, 51.56] | 18.10 [18.00, 18.63] | 0.355 [0.355, 0.365] | 1.81 → 0.58 |
+| explicit_tet4_ss | 16.01 [15.76, 16.72] | 13.73 [13.67, 14.53] | 0.864 [0.851, 0.869] | 1.24 → 0.00 |
+
+With the Maxwell products fixed-size, its per-step clones were most of
+what was left of its step.
 
 ### Energies (`energies`: one kinetic and one potential energy per call)
 
