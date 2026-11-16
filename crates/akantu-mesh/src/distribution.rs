@@ -371,6 +371,54 @@ struct Plan {
     ghost_rows: Vec<crate::partition::PartCsr>,
     dim: usize,
     nb_global_nodes: usize,
+    /// Per type (same order as `types`): the element groups of every
+    /// element ([`element_to_groups`]), built once for all packages.
+    element_groups: Vec<Csr<u32>>,
+    /// Names of the root's node groups and, per global node, the indices
+    /// (into the names) of the node groups listing it, as often as listed.
+    node_group_names: Vec<String>,
+    node_groups: Csr<u32>,
+}
+
+/// Rows of values, one per index, in one array.
+#[derive(Default)]
+struct Csr<T> {
+    offsets: Vec<usize>,
+    values: Vec<T>,
+}
+
+impl<T: Copy> Csr<T> {
+    /// From `(row, value)` pairs in the order the values are listed per
+    /// row; rows `0..nb_rows`.
+    fn from_pairs(nb_rows: usize, pairs: &[(usize, T)]) -> Result<Self> {
+        let mut offsets = vec![0usize; nb_rows + 1];
+        for &(r, _) in pairs {
+            *offsets.get_mut(r + 1).ok_or(Error::OutOfRange {
+                what: "group entry",
+                index: r,
+                len: nb_rows,
+            })? += 1;
+        }
+        for i in 0..nb_rows {
+            offsets[i + 1] += offsets[i];
+        }
+        let mut fill = offsets.clone();
+        let mut values = Vec::with_capacity(pairs.len());
+        let mut slots: Vec<Option<T>> = vec![None; pairs.len()];
+        for &(r, v) in pairs {
+            slots[fill[r]] = Some(v);
+            fill[r] += 1;
+        }
+        values.extend(slots.into_iter().flatten());
+        Ok(Self { offsets, values })
+    }
+
+    fn row(&self, r: usize) -> &[T] {
+        match (self.offsets.get(r), self.offsets.get(r + 1)) {
+            (Some(&a), Some(&b)) => &self.values[a..b],
+            _ => &[],
+        }
+    }
 }
 
 #[derive(Default)]
@@ -546,6 +594,21 @@ impl Plan {
         } else {
             None
         };
+        let element_groups = types
+            .iter()
+            .map(|t| element_to_groups(mesh, t.ty))
+            .collect::<Result<Vec<_>>>()?;
+        let mut node_group_names = Vec::new();
+        let mut pairs: Vec<(usize, u32)> = Vec::new();
+        for (gi, g) in mesh.groups().node_groups().enumerate() {
+            let gi = u32::try_from(gi).map_err(|_| Error::invalid("too many node groups"))?;
+            node_group_names.push(g.name().to_owned());
+            for n in g.node_list() {
+                pairs.push((try_to_usize(n)?, gi));
+            }
+        }
+        // a node listed in several groups: its row in group order
+        let node_groups = Csr::from_pairs(nb_global_nodes, &pairs)?;
         Ok(Self {
             types,
             ranks,
@@ -556,6 +619,9 @@ impl Plan {
             ghost_rows,
             dim,
             nb_global_nodes,
+            element_groups,
+            node_group_names,
+            node_groups,
         })
     }
 
@@ -612,14 +678,11 @@ impl Plan {
                 b.pack_vec(els);
             }
             // element groups (names in group order, possibly repeated)
-            let e2g = element_to_groups(mesh, t.ty)?;
+            let e2g = &self.element_groups[ti];
+            let mut idx: Vec<u32> = Vec::new();
             for &el in t.local[p].iter().chain(&t.ghost[p]) {
-                let idx: Vec<u32> = e2g
-                    .get(&el)
-                    .map_or(&[][..], Vec::as_slice)
-                    .iter()
-                    .map(|&gi| merged_index[gi as usize])
-                    .collect();
+                idx.clear();
+                idx.extend(e2g.row(el).iter().map(|&gi| merged_index[gi as usize]));
                 b.pack_vec(&idx);
             }
             // elemental mesh data (tags in name order, local then ghost)
@@ -725,23 +788,20 @@ impl Plan {
             None => b.pack(&0u8),
         }
         // node groups: sorted local nodes of each group (the missing
-        // periodic nodes are appended after upstream filled the groups)
-        let mut local_of_global: HashMap<Idx, Vec<Idx>> = HashMap::new();
+        // periodic nodes are appended after upstream filled the groups);
+        // each local node is listed in the groups of its global node
+        let mut lists: Vec<Vec<Idx>> = vec![Vec::new(); self.node_group_names.len()];
         for (l, &g) in rn.globals.iter().enumerate() {
-            local_of_global.entry(g).or_default().push(try_idx(l)?);
+            for &gi in self.node_groups.row(try_to_usize(g)?) {
+                lists[gi as usize].push(try_idx(l)?);
+            }
         }
         b.pack(&(names.node.len() as u64));
         for name in &names.node {
             // a name known only by other ranks: empty on the root
-            let mut ls: Vec<Idx> = match groups.node_group(name) {
-                Ok(g) => g
-                    .node_list()
-                    .iter()
-                    .filter_map(|n| local_of_global.get(n))
-                    .flatten()
-                    .copied()
-                    .collect(),
-                Err(_) => Vec::new(),
+            let mut ls = match self.node_group_names.iter().position(|n| n == name) {
+                Some(gi) => std::mem::take(&mut lists[gi]),
+                None => Vec::new(),
             };
             ls.sort_unstable();
             ls.dedup();
@@ -768,15 +828,15 @@ fn rank_index(p: Idx, size: usize) -> Result<usize> {
 /// Element → indices (into the name-sorted element group list) of its
 /// groups, in group-name order, repeated as many times as the element is
 /// listed (upstream `element_to_group`).
-fn element_to_groups(mesh: &Mesh, ty: ElementType) -> Result<HashMap<usize, Vec<u32>>> {
-    let mut out: HashMap<usize, Vec<u32>> = HashMap::new();
+fn element_to_groups(mesh: &Mesh, ty: ElementType) -> Result<Csr<u32>> {
+    let mut pairs: Vec<(usize, u32)> = Vec::new();
     for (gi, g) in mesh.groups().element_groups().enumerate() {
         let gi = u32::try_from(gi).map_err(|_| Error::invalid("too many element groups"))?;
         for &e in &g.elements_of(ty, NG) {
-            out.entry(try_to_usize(e)?).or_default().push(gi);
+            pairs.push((try_to_usize(e)?, gi));
         }
     }
-    Ok(out)
+    Csr::from_pairs(mesh.nb_element(ty, NG), &pairs)
 }
 
 fn type_code_u8(c: MeshDataTypeCode) -> u8 {
