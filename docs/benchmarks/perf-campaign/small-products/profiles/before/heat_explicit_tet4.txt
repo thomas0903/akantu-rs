@@ -1,0 +1,87 @@
+# Profile of suite case heat_explicit_tet4
+
+binary: ~/w/gebp/bin/before-models (69609d587869272d)
+command: taskset -c 3 ~/w/gebp/bin/before-models --case heat_explicit_tet4 --size m --loop-seconds 4
+perf: perf record -F 499 --call-graph dwarf,16384
+cpu: AMD EPYC 9B45
+date_utc: 2026-11-16T11:24:15Z
+commit: 184dbb6e5
+
+## Phases of the profiled run (seconds, calls)
+
+mesh                         0.2681 s       1 calls
+init                         0.0116 s       1 calls
+stable_time_step             0.0109 s       1 calls
+solve_step                   6.1673 s     200 calls
+
+## Top 25 symbols, self time
+
+    18.83%  [.] akantu_core::eigen_order::redux_tree::<<akantu_diffusion::heat_diffusion::HeatDiffusion as akantu_diffusion::law::DiffusionLaw>::compute_diffusivity_grad_u_on_quad_points::{closure#0}>
+     9.22%  [.] akantu_fe::engine::fast::integrate::<<akantu_fe::engine::FeEngine>::integrate::{closure#0}>
+     8.38%  [.] akantu_fe::engine::fast::gradient::<akantu_fe::element_class::types::Tetrahedron4>
+     8.26%  [.] akantu_core::eigen_gebp::product_into::<akantu_fe::eigen::product_slices::{closure#1}, akantu_fe::eigen::product_slices::{closure#2}>
+     6.26%  [.] akantu_core::eigen_gebp::route
+     5.99%  [.] <akantu_fe::engine::FeEngine>::gather_element
+     5.57%  [.] <akantu_solver::dof_manager::DofManager>::assemble_elemental_array_local_view
+     5.48%  [.] akantu_fe::engine::fast::btd
+     4.13%  [.] akantu_fe::eigen::product_slices
+     2.42%  [.] <akantu_diffusion::heat_diffusion::HeatDiffusion as akantu_diffusion::law::DiffusionLaw>::compute_diffusivity_grad_u_on_quad_points
+     2.39%  [.] <akantu_fe::engine::FeEngine>::interpolate_impl
+     2.30%  [.] <akantu_core::array_storage::ArrayStorage<f64>>::try_resize
+     2.18%  [.] <akantu_diffusion::heat_diffusion::HeatDiffusion as akantu_diffusion::law::DiffusionLaw>::compute_diffusivity_on_quad_points
+     1.44%  [.] <alloc::vec::Vec<usize> as alloc::vec::spec_from_iter::SpecFromIter<usize, core::iter::adapters::GenericShunt<core::iter::adapters::map::Map<core::slice::iter::Iter<i32>, akantu_fe::engine::resolve_filter::{closure#0}::{closure#0}>, core::result::Result<core::convert::Infallible, akantu_core::error::Error>>>>::from_iter
+     1.23%  [.] 0x00000000001a15b4
+     1.11%  [.] 0x00000000001a15b0
+     1.02%  [.] 0x00000000001a18eb
+     1.02%  [.] 0x00000000001a18f2
+     0.99%  [.] 0x00000000001a16fd
+     0.90%  [.] 0x00000000001a184d
+     0.78%  [.] 0x00000000001a1854
+     0.63%  [.] 0x00000000001a1846
+     0.60%  [.] akantu_core::eigen_order::redux_tree::<akantu_core::eigen_gebp::eval_product<akantu_fe::eigen::product_slices::{closure#1}, akantu_fe::eigen::product_slices::{closure#2}>::{closure#0}>
+     0.54%  [.] 0x00000000001a185b
+     0.36%  [.] 0x00000000001a18ff
+
+## Top 25 symbols, inclusive time (children)
+
+    18.83%    18.83%  [.] akantu_core::eigen_order::redux_tree::<<akantu_diffusion::heat_diffusion::HeatDiffusion as akantu_diffusion::law::DiffusionLaw>::compute_diffusivity_grad_u_on_quad_points::{closure#0}>
+     9.22%     9.22%  [.] akantu_fe::engine::fast::integrate::<<akantu_fe::engine::FeEngine>::integrate::{closure#0}>
+     8.38%     8.38%  [.] akantu_fe::engine::fast::gradient::<akantu_fe::element_class::types::Tetrahedron4>
+     8.26%     8.26%  [.] akantu_core::eigen_gebp::product_into::<akantu_fe::eigen::product_slices::{closure#1}, akantu_fe::eigen::product_slices::{closure#2}>
+     6.26%     6.26%  [.] akantu_core::eigen_gebp::route
+     5.99%     5.99%  [.] <akantu_fe::engine::FeEngine>::gather_element
+     5.57%     5.57%  [.] <akantu_solver::dof_manager::DofManager>::assemble_elemental_array_local_view
+     5.48%     5.48%  [.] akantu_fe::engine::fast::btd
+     4.13%     4.13%  [.] akantu_fe::eigen::product_slices
+     2.42%     2.42%  [.] <akantu_diffusion::heat_diffusion::HeatDiffusion as akantu_diffusion::law::DiffusionLaw>::compute_diffusivity_grad_u_on_quad_points
+     2.39%     2.39%  [.] <akantu_fe::engine::FeEngine>::interpolate_impl
+     2.30%     2.30%  [.] <akantu_core::array_storage::ArrayStorage<f64>>::try_resize
+     2.18%     2.18%  [.] <akantu_diffusion::heat_diffusion::HeatDiffusion as akantu_diffusion::law::DiffusionLaw>::compute_diffusivity_on_quad_points
+     1.44%     1.44%  [.] <alloc::vec::Vec<usize> as alloc::vec::spec_from_iter::SpecFromIter<usize, core::iter::adapters::GenericShunt<core::iter::adapters::map::Map<core::slice::iter::Iter<i32>, akantu_fe::engine::resolve_filter::{closure#0}::{closure#0}>, core::result::Result<core::convert::Infallible, akantu_core::error::Error>>>>::from_iter
+     1.23%     1.23%  [.] 0x00000000001a15b4
+     1.23%     0.00%  [.] 0x0000719f52fa15b4
+     1.11%     1.11%  [.] 0x00000000001a15b0
+     1.11%     0.00%  [.] 0x0000719f52fa15b0
+     1.02%     1.02%  [.] 0x00000000001a18eb
+     1.02%     1.02%  [.] 0x00000000001a18f2
+     1.02%     0.00%  [.] 0x0000719f52fa18eb
+     1.02%     0.00%  [.] 0x0000719f52fa18f2
+     0.99%     0.99%  [.] 0x00000000001a16fd
+     0.99%     0.00%  [.] 0x0000719f52fa16fd
+     0.90%     0.90%  [.] 0x00000000001a184d
+
+## Call chains (callers of the hottest self-time symbols, entries above 2 %)
+
+    18.83%  [.] akantu_core::eigen_order::redux_tree::<<akantu_diffusion::heat_diffusion::HeatDiffusion as akantu_diffusion::law::DiffusionLaw>::compute_diffusivity_grad_u_on_quad_points::{closure#0}>
+     9.22%  [.] akantu_fe::engine::fast::integrate::<<akantu_fe::engine::FeEngine>::integrate::{closure#0}>
+     8.38%  [.] akantu_fe::engine::fast::gradient::<akantu_fe::element_class::types::Tetrahedron4>
+     8.26%  [.] akantu_core::eigen_gebp::product_into::<akantu_fe::eigen::product_slices::{closure#1}, akantu_fe::eigen::product_slices::{closure#2}>
+     6.26%  [.] akantu_core::eigen_gebp::route
+     5.99%  [.] <akantu_fe::engine::FeEngine>::gather_element
+     5.57%  [.] <akantu_solver::dof_manager::DofManager>::assemble_elemental_array_local_view
+     5.48%  [.] akantu_fe::engine::fast::btd
+     4.13%  [.] akantu_fe::eigen::product_slices
+     2.42%  [.] <akantu_diffusion::heat_diffusion::HeatDiffusion as akantu_diffusion::law::DiffusionLaw>::compute_diffusivity_grad_u_on_quad_points
+     2.39%  [.] <akantu_fe::engine::FeEngine>::interpolate_impl
+     2.30%  [.] <akantu_core::array_storage::ArrayStorage<f64>>::try_resize
+     2.18%  [.] <akantu_diffusion::heat_diffusion::HeatDiffusion as akantu_diffusion::law::DiffusionLaw>::compute_diffusivity_on_quad_points
