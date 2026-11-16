@@ -40,7 +40,7 @@ fn partitioner() -> (Box<dyn MeshPartitioner>, &'static str) {
 
 /// The box on rank 0, distributed over the world (phases `mesh`,
 /// `distribute`); serial when the world has one rank.
-fn distributed_box(ctx: &mut Ctx<'_>, spec: &BoxSpec) -> Result<Mesh> {
+pub(crate) fn distributed_box(ctx: &mut Ctx<'_>, spec: &BoxSpec) -> Result<Mesh> {
     let comm = ctx.comm().clone();
     let root = comm.rank() == 0;
     let mut mesh = ctx.once("mesh", || box_mesh(spec, Some(&comm), root))?;
@@ -55,8 +55,8 @@ fn distributed_box(ctx: &mut Ctx<'_>, spec: &BoxSpec) -> Result<Mesh> {
 }
 
 /// Owned counts (elements of the mesh dimension, nodes, DOFs) and the
-/// gathered digest of `u` and `v`.
-fn counts_and_digest(ctx: &mut Ctx<'_>, m: &SolidMechanicsModel) -> Result<()> {
+/// gathered digest of `u` and `v` (`u` alone without a velocity).
+pub(crate) fn counts_and_digest(ctx: &mut Ctx<'_>, m: &SolidMechanicsModel) -> Result<()> {
     let d = m.spatial_dimension();
     let (global, owned, ne) = {
         let mesh = m.physics.base.mesh.read()?;
@@ -83,10 +83,17 @@ fn counts_and_digest(ctx: &mut Ctx<'_>, m: &SolidMechanicsModel) -> Result<()> {
     ctx.set_counts(ne, nb_owned, nb_owned * d);
     let comm = ctx.comm().clone();
     let u = gather_owned_by_global_id(&comm, &global, &owned, m.displacement()?.as_slice(), d)?;
-    let v = gather_owned_by_global_id(&comm, &global, &owned, m.velocity()?.as_slice(), d)?;
-    if let (Some(u), Some(v)) = (u, v) {
+    // static models have no velocity (the same on every rank)
+    let v = match m.velocity() {
+        Ok(v) => gather_owned_by_global_id(&comm, &global, &owned, v.as_slice(), d)?,
+        Err(_) => None,
+    };
+    if let Some(u) = u {
         let mut h = Digest::new();
-        h.reals(&u).reals(&v);
+        h.reals(&u);
+        if let Some(v) = v {
+            h.reals(&v);
+        }
         ctx.set_digest(&h);
     }
     Ok(())

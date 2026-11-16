@@ -95,7 +95,14 @@ pub fn static_linear(ctx: &mut Ctx<'_>, sparse: SparseSolverType) -> Result<Outc
     }
     let n = ctx.pick(TET_N[0], TET_N[1], TET_N[2]);
     let spec = BoxSpec::unit(ElementType::Tetrahedron4, n);
-    let mesh = ctx.once("mesh", || box_mesh(&spec, None, true))?;
+    // MUMPS needs the MPI world: the cube is built on it (distributed at
+    // P > 1); the centralised solvers run serially
+    let mumps = sparse == SparseSolverType::Mumps;
+    let mesh = if mumps {
+        super::parallel::distributed_box(ctx, &spec)?
+    } else {
+        ctx.once("mesh", || box_mesh(&spec, None, true))?
+    };
     let mut m = ctx.once("init", || {
         let mut m = common::solid_model(mesh, &common::elastic_dat(false))?;
         m.init_full(&options(
@@ -105,7 +112,6 @@ pub fn static_linear(ctx: &mut Ctx<'_>, sparse: SparseSolverType) -> Result<Outc
         ))?;
         Ok(m)
     })?;
-    common::set_counts(ctx, &m)?;
     clamp_and_pull(&mut m, 1e-3)?;
     // the first solve alone: assembly, analysis, factorisation, solve
     let mut split = StepSplit {
@@ -117,12 +123,18 @@ pub fn static_linear(ctx: &mut Ctx<'_>, sparse: SparseSolverType) -> Result<Outc
     let first = t.elapsed().as_secs_f64();
     ctx.record("solve_step", 1, first);
     split.record(ctx, 1, first);
-    let digest = common::digest(&m)?;
+    let digest = if mumps {
+        super::parallel::counts_and_digest(ctx, &m)?;
+        None
+    } else {
+        common::set_counts(ctx, &m)?;
+        Some(common::digest(&m)?)
+    };
     let k = ctx.pick(1, 3, 3);
     ctx.repeat("stiffness_assembly", k, |_| {
         m.assemble_stiffness_matrix(true)
     })?;
-    if sparse != SparseSolverType::Mumps {
+    if !mumps {
         let factory = SparseSolverFactory::default();
         let mut solver = factory.create(sparse, 1)?;
         let backend = m.dof_manager().backend();
@@ -137,7 +149,9 @@ pub fn static_linear(ctx: &mut Ctx<'_>, sparse: SparseSolverType) -> Result<Outc
         ctx.extra("nnz", Extra::Int(a.nnz() as i64));
     }
     ctx.extra("sparse_solver", Extra::Text(sparse_name(sparse).into()));
-    ctx.set_digest(&digest);
+    if let Some(d) = digest {
+        ctx.set_digest(&d);
+    }
     Ok(Outcome::Done)
 }
 
