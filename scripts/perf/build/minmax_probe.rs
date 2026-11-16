@@ -8,6 +8,9 @@
 // of the result bits, and the bits of the first few results. Compile with
 //   rustc -C opt-level=3 [-C target-cpu=x86-64-v4] minmax_probe.rs
 // and compare the outputs of the builds (identical lines = identical bits).
+// With an argument FILE, every result is also written to FILE as lines
+// `op kind index a_bits b_bits result_bits` (kind = vector | scalar), for
+// classifying the differences (minmax_compare.py).
 use std::hint::black_box;
 
 fn vals() -> Vec<f64> {
@@ -54,6 +57,7 @@ fn main() {
         }
     }
     // reductions as the kernels write them (fold with max of |x|)
+    let mut dump = std::env::args().nth(1).map(|f| std::io::BufWriter::new(std::fs::File::create(f).expect("dump file")));
     let names = ["min", "max", "add", "mul", "div", "sub", "lt-select", "absmax", "sqrt", "clamp"];
     for (op, name) in names.iter().enumerate() {
         let op = op as u8;
@@ -61,8 +65,14 @@ fn main() {
         vec_op(black_box(&a), black_box(&b), &mut out, black_box(op));
         let mut hv = 0xcbf2_9ce4_8422_2325_u64;
         out.iter().for_each(|x| fnv(&mut hv, *x));
+        if let Some(w) = dump.as_mut() {
+            use std::io::Write;
+            for (k, r) in out.iter().enumerate() {
+                writeln!(w, "{name} vector {k} {:016x} {:016x} {:016x}", a[k].to_bits(), b[k].to_bits(), r.to_bits()).expect("write");
+            }
+        }
         let mut hs = 0xcbf2_9ce4_8422_2325_u64;
-        for (x, y) in a.iter().zip(&b) {
+        for (k, (x, y)) in a.iter().zip(&b).enumerate() {
             let (x, y) = (black_box(*x), black_box(*y));
             let r = match op {
                 0 => x.min(y),
@@ -77,6 +87,10 @@ fn main() {
                 _ => x.clamp(-1.0, 1.0) + 0.0 * y,
             };
             fnv(&mut hs, black_box(r));
+            if let Some(w) = dump.as_mut() {
+                use std::io::Write;
+                writeln!(w, "{name} scalar {k} {:016x} {:016x} {:016x}", x.to_bits(), y.to_bits(), r.to_bits()).expect("write");
+            }
         }
         println!("{name:10} vector {hv:016x} scalar {hs:016x} min(+0,-0)={:016x} min(-0,+0)={:016x}",
             black_box(0.0_f64).min(black_box(-0.0)).to_bits(), black_box(-0.0_f64).min(black_box(0.0)).to_bits());
