@@ -504,14 +504,16 @@ impl SolidMechanicsPhysics {
         self.periodic_internal_forces(dofs, mesh)
     }
 
-    /// Stresses and `−∫ Bᵀσ` of the not-ghost elements in one pass per
-    /// cache-sized element block
-    /// ([`crate::materials::elastic::MaterialElastic::stress_and_element_forces`])
-    /// when the model has exactly one law, an elastic law of the model's
-    /// dimension with small strains on a single element type, on a mesh
-    /// without ghosts or periodic exchange across ranks and without
-    /// non-local laws; the scatter then runs as in the separate passes. The
-    /// values written (`grad_u`, `stress`, the thermal arrays, `f_int`) are
+    /// Stresses and the element force vectors of the not-ghost elements in
+    /// one pass per cache-sized element block
+    /// ([`crate::materials::elastic::MaterialElastic::stress_and_element_forces`]:
+    /// `−∫ Bᵀσ` with small strains, the total-Lagrangian residual with
+    /// finite deformation) when the model has exactly one law, an elastic
+    /// law of the model's dimension on a single element type, on one rank
+    /// (no element synchronizer) and without non-local laws; the scatter
+    /// then runs as in the separate passes, and the periodic consistency
+    /// after it. The values written (`grad_u`, the stress or second
+    /// Piola–Kirchhoff stress, the thermal arrays, `f_int`) are
     /// those of the separate passes (upstream statement order: every
     /// law's stresses, then the assembly), which this case does not
     /// distinguish: one law, whose stresses read only the displacement.
