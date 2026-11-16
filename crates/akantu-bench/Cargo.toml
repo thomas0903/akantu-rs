@@ -18,7 +18,7 @@ exclude = ["scripts/"]
 
 [features]
 # Real MPI (rsmpi; Docker image docker/mpi): `mpirun -np N cohesive_extrinsic`.
-mpi = ["akantu-comm/mpi", "akantu-mesh/mpi"]
+mpi = ["akantu-comm/mpi", "akantu-mesh/mpi", "akantu-diffusion/mpi", "akantu-couplers/mpi"]
 # Scotch partitioner (Docker image docker/scotch): upstream `mesh.distribute()`.
 scotch = ["akantu-mesh/scotch"]
 # The parallel MUMPS static solve (Docker image docker/mumps,
@@ -41,6 +41,16 @@ akantu-cohesive.workspace = true
 # the static solve's resolved sparse solver and its statistics (DOF manager
 # backend); also the `mumps` feature switch
 akantu-solver.workspace = true
+# the model suite (src/suite_models/, binary suite_models)
+akantu-fe.workspace = true
+akantu-geometry.workspace = true
+akantu-diffusion.workspace = true
+akantu-phase-field.workspace = true
+akantu-couplers.workspace = true
+akantu-contact.workspace = true
+akantu-structural.workspace = true
+akantu-embedded.workspace = true
+akantu-ntn-contact.workspace = true
 
 [dev-dependencies]
 # the differential test reads the oracle's JSON summaries (correctly rounded
@@ -50,6 +60,11 @@ serde_json.workspace = true
 [[bin]]
 name = "cohesive_extrinsic"
 path = "src/bin/cohesive_extrinsic.rs"
+
+# The model suite of the performance campaign (README, "Model suite").
+[[bin]]
+name = "suite_models"
+path = "src/bin/suite_models.rs"
 
 # The MUMPS static solve against the strict oracle (MPI binary,
 # harness = false; scripts/mumps/run-mumps-tier.sh runs it under mpirun 1/2).
