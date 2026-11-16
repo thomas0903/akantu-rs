@@ -1,0 +1,162 @@
+# Profile of suite case setup_hex8
+
+binary: ~/w/gebp/bin/final-solid (183c6b69e2f07f7d)
+command: taskset -c 3 ~/w/gebp/bin/final-solid --case setup_hex8 --size m --reps 3
+perf: perf record -F 499 --call-graph dwarf,16384
+cpu: AMD EPYC 9B45
+date_utc: 2026-11-16T11:18:35Z
+commit: 184dbb6e5
+
+## Phases of the profiled run (seconds, calls)
+
+mesh                         0.0010 s       1 calls
+init_explicit                0.0388 s       1 calls
+shape_functions              0.0659 s       3 calls
+mass_lumped                  0.0152 s       3 calls
+init_implicit                0.0416 s       1 calls
+mass_consistent              1.3072 s       3 calls
+stiffness_assembly           1.9926 s       3 calls
+mesh                         0.0005 s       1 calls
+init_explicit                0.0347 s       1 calls
+shape_functions              0.0719 s       3 calls
+mass_lumped                  0.0160 s       3 calls
+init_implicit                0.0387 s       1 calls
+mass_consistent              1.4822 s       3 calls
+stiffness_assembly           2.0814 s       3 calls
+mesh                         0.0006 s       1 calls
+init_explicit                0.0323 s       1 calls
+shape_functions              0.0593 s       3 calls
+mass_lumped                  0.0134 s       3 calls
+init_implicit                0.0318 s       1 calls
+mass_consistent              1.1016 s       3 calls
+stiffness_assembly           2.0073 s       3 calls
+
+## Top 25 symbols, self time
+
+    44.10%  [.] <akantu_linalg::sparse::SparseMatrixAij>::resolve_block
+    10.71%  [.] akantu_core::eigen_kernels::gebp_shallow_colmajor
+     9.08%  [.] <akantu_linalg::sparse::SparseMatrixAij>::add_to_profile
+     4.48%  [.] <std::hash::random::DefaultHasher as core::hash::Hasher>::write
+     3.77%  [.] <std::hash::random::RandomState as core::hash::BuildHasher>::hash_one::<&(i64, i64)>
+     2.76%  [.] <akantu_linalg::sparse::SparseMatrixAij>::add_values
+     2.38%  [k] _raw_spin_unlock_irqrestore
+     2.34%  [k] do_user_addr_fault
+     2.03%  [.] akantu_core::eigen_kernels::chain_unrolled
+     2.01%  [k] _raw_spin_lock
+     1.72%  [.] akantu_fe::engine::fast::integrate::<<akantu_fe::engine::FeEngine>::integrate::{closure#0}>
+     1.67%  [.] akantu_fe::eigen::lu_factor
+     1.53%  [.] <akantu_core::array_storage::ArrayStorage<f64>>::try_resize
+     0.95%  [.] akantu_core::eigen_kernels::coeff_tree
+     0.89%  [k] zap_present_ptes.constprop.0
+     0.62%  [.] akantu_core::eigen_kernels::coeff_seq_unrolled
+     0.49%  [.] <hashbrown::map::HashMap<(i64, i64), usize, std::hash::random::RandomState>>::insert
+     0.47%  [k] __rmqueue_pcplist
+     0.42%  [.] <hashbrown::raw::RawTable<((i64, i64), usize)>>::reserve_rehash::<hashbrown::map::make_hasher<(i64, i64), usize, std::hash::random::RandomState>::{closure#0}>
+     0.39%  [.] <akantu_bench::suite::Digest>::reals
+     0.37%  [.] <akantu_solver::dof_manager::DofManager>::element_equations
+     0.34%  [k] kernel_init_pages
+     0.33%  [.] akantu_fe::eigen::lu_inverse
+     0.19%  [k] __handle_mm_fault
+     0.18%  [.] akantu_core::voigt::b_matrix_to_sym_voigt
+
+## Top 25 symbols, inclusive time (children)
+
+    44.11%    44.10%  [.] <akantu_linalg::sparse::SparseMatrixAij>::resolve_block
+    42.67%     0.00%  [.] <hashbrown::map::HashMap<(i64, i64), usize, std::hash::random::RandomState>>::get::<(i64, i64)> (inlined)
+    42.67%     0.00%  [.] <std::collections::hash::map::HashMap<(i64, i64), usize>>::get::<(i64, i64)> (inlined)
+    42.65%     0.00%  [.] <hashbrown::raw::RawTable<((i64, i64), usize)>>::find::<hashbrown::map::equivalent_key<(i64, i64), (i64, i64), usize>::{closure#0}> (inlined)
+    42.65%     0.00%  [.] <hashbrown::raw::RawTable<((i64, i64), usize)>>::get::<hashbrown::map::equivalent_key<(i64, i64), (i64, i64), usize>::{closure#0}> (inlined)
+    42.65%     0.00%  [.] <hashbrown::raw::RawTableInner>::find_inner (inlined)
+    34.84%     0.00%  [.] core::intrinsics::likely (inlined)
+    10.89%    10.71%  [.] akantu_core::eigen_kernels::gebp_shallow_colmajor
+    10.01%     1.53%  [.] <akantu_core::array_storage::ArrayStorage<f64>>::try_resize
+    10.01%     0.00%  [.] <alloc::vec::Vec<f64>>::extend_with (inlined)
+    10.01%     0.00%  [.] <alloc::vec::Vec<f64>>::resize (inlined)
+    10.01%     0.00%  [.] core::ptr::write::<f64> (inlined)
+     9.40%     0.00%  [.] asm_exc_page_fault
+     9.38%     0.00%  [.] exc_page_fault
+     9.37%     2.34%  [.] do_user_addr_fault
+     9.16%     9.08%  [.] <akantu_linalg::sparse::SparseMatrixAij>::add_to_profile
+     8.23%     0.00%  [k] 0x0000000000000017
+     6.76%     0.09%  [.] handle_mm_fault
+     6.59%     0.19%  [.] __handle_mm_fault
+     6.40%     0.02%  [.] handle_pte_fault
+     6.35%     0.00%  [.] <hashbrown::control::group::sse2::Group>::match_tag (inlined)
+     6.35%     0.00%  [.] core::core_arch::x86::sse2::_mm_movemask_epi8 (inlined)
+     6.28%     0.15%  [.] do_anonymous_page
+     5.16%     0.00%  [.] <akantu_linalg::sparse::SparseMatrixAij>::bump_profile (inlined)
+     4.48%     4.48%  [.] <std::hash::random::DefaultHasher as core::hash::Hasher>::write
+
+## Call chains (callers of the hottest self-time symbols, entries above 2 %)
+
+    44.10%  [.] <akantu_linalg::sparse::SparseMatrixAij>::resolve_block
+            |
+            |--34.83%--core::intrinsics::likely (inlined)
+            |          <hashbrown::raw::RawTableInner>::find_inner (inlined)
+            |          <hashbrown::raw::RawTable<((i64, i64), usize)>>::find::<hashbrown::map::equivalent_key<(i64, i64), (i64, i64), usize>::{closure#0}> (inlined)
+            |          <hashbrown::raw::RawTable<((i64, i64), usize)>>::get::<hashbrown::map::equivalent_key<(i64, i64), (i64, i64), usize>::{closure#0}> (inlined)
+            |          <hashbrown::map::HashMap<(i64, i64), usize, std::hash::random::RandomState>>::get::<(i64, i64)> (inlined)
+            |          <std::collections::hash::map::HashMap<(i64, i64), usize>>::get::<(i64, i64)> (inlined)
+            |          <akantu_linalg::sparse::SparseMatrixAij>::resolve_block
+            |
+             --6.35%--core::core_arch::x86::sse2::_mm_movemask_epi8 (inlined)
+                       <hashbrown::control::group::sse2::Group>::match_tag (inlined)
+                       |
+                        --6.22%--<hashbrown::raw::RawTableInner>::find_inner (inlined)
+                                  <hashbrown::raw::RawTable<((i64, i64), usize)>>::find::<hashbrown::map::equivalent_key<(i64, i64), (i64, i64), usize>::{closure#0}> (inlined)
+                                  <hashbrown::raw::RawTable<((i64, i64), usize)>>::get::<hashbrown::map::equivalent_key<(i64, i64), (i64, i64), usize>::{closure#0}> (inlined)
+                                  <hashbrown::map::HashMap<(i64, i64), usize, std::hash::random::RandomState>>::get::<(i64, i64)> (inlined)
+                                  <std::collections::hash::map::HashMap<(i64, i64), usize>>::get::<(i64, i64)> (inlined)
+                                  <akantu_linalg::sparse::SparseMatrixAij>::resolve_block
+    10.71%  [.] akantu_core::eigen_kernels::gebp_shallow_colmajor
+            |
+             --9.41%--akantu_core::eigen_kernels::gebp_shallow_colmajor
+                       |
+                        --3.07%--0xfffffffffffffeff
+     9.08%  [.] <akantu_linalg::sparse::SparseMatrixAij>::add_to_profile
+            |
+            |--5.15%--<akantu_linalg::sparse::SparseMatrixAij>::bump_profile (inlined)
+            |          <akantu_linalg::sparse::SparseMatrixAij>::add_to_profile
+            |          |
+            |           --2.81%--0x17
+            |
+             --2.47%--core::intrinsics::likely (inlined)
+                       <hashbrown::raw::RawTableInner>::find_inner (inlined)
+                       <hashbrown::raw::RawTable<((i64, i64), usize)>>::find::<hashbrown::map::equivalent_key<(i64, i64), (i64, i64), usize>::{closure#0}> (inlined)
+                       <hashbrown::raw::RawTable<((i64, i64), usize)>>::get::<hashbrown::map::equivalent_key<(i64, i64), (i64, i64), usize>::{closure#0}> (inlined)
+                       <hashbrown::map::HashMap<(i64, i64), usize, std::hash::random::RandomState>>::get::<(i64, i64)> (inlined)
+                       <std::collections::hash::map::HashMap<(i64, i64), usize>>::get::<(i64, i64)> (inlined)
+                       <akantu_linalg::sparse::SparseMatrixAij>::add_to_profile
+     4.48%  [.] <std::hash::random::DefaultHasher as core::hash::Hasher>::write
+            |
+             --2.20%--<core::hash::sip::Hasher<core::hash::sip::Sip13Rounds> as core::hash::Hasher>::write (inlined)
+                       <core::hash::sip::SipHasher13 as core::hash::Hasher>::write (inlined)
+                       <std::hash::random::DefaultHasher as core::hash::Hasher>::write
+     3.77%  [.] <std::hash::random::RandomState as core::hash::BuildHasher>::hash_one::<&(i64, i64)>
+     2.76%  [.] <akantu_linalg::sparse::SparseMatrixAij>::add_values
+            |
+             --2.44%--<akantu_linalg::sparse::SparseMatrixAij>::add_values
+                       |
+                        --2.42%--0x17
+     2.38%  [k] _raw_spin_unlock_irqrestore
+     2.34%  [k] do_user_addr_fault
+            |
+             --2.32%--exc_page_fault
+                       asm_exc_page_fault
+                       |
+                        --2.21%--core::ptr::write::<f64> (inlined)
+                                  |
+                                   --2.19%--<alloc::vec::Vec<f64>>::extend_with (inlined)
+                                             <alloc::vec::Vec<f64>>::resize (inlined)
+                                             |
+                                              --2.13%--<akantu_core::array_storage::ArrayStorage<f64>>::try_resize
+     2.03%  [.] akantu_core::eigen_kernels::chain_unrolled
+     2.01%  [k] _raw_spin_lock
+            |
+            ---do_anonymous_page
+               handle_pte_fault
+               __handle_mm_fault
+               handle_mm_fault
+               do_user_addr_fault
+               exc_page_fault
+               asm_exc_page_fault

@@ -1,0 +1,92 @@
+# Profile of suite case explicit_marigo
+
+binary: ~/w/gebp/bin/before-solid (150e36efe78a51c9)
+command: taskset -c 3 ~/w/gebp/bin/before-solid --case explicit_marigo --size m --loop-seconds 4
+perf: perf record -F 499 --call-graph dwarf,16384
+cpu: AMD EPYC 9B45
+date_utc: 2026-11-16T11:22:51Z
+commit: 59e05aa3f
+
+## Phases of the profiled run (seconds, calls)
+
+mesh                         0.0025 s       1 calls
+init                         0.0610 s       1 calls
+stable_time_step             0.0256 s       5 calls
+solve_step                   7.3931 s     400 calls
+predictor                    0.0001 s     400 calls
+residual                     4.3527 s     400 calls
+lumped_matrix                0.0002 s     400 calls
+corrector                    0.0001 s     400 calls
+step_hooks                   2.8497 s     800 calls
+step_rest                    0.1875 s     400 calls
+internal_forces              0.4653 s      40 calls
+stresses                     0.2665 s      40 calls
+energies                     0.2278 s      40 calls
+
+## Top 25 symbols, self time
+
+    31.75%  [.] akantu_core::eigen_order::redux_tree::<<[[f64; 2]; 2] as akantu_core::tensor::MatrixExt<2, 2>>::double_dot::{closure#0}>
+     8.42%  [.] akantu_fe::engine::fast::gradient::<akantu_fe::element_class::types::Tetrahedron4>
+     6.01%  [.] akantu_fe::engine::fast::integrate::<<akantu_fe::engine::FeEngine>::integrate::{closure#0}>
+     5.48%  [.] <akantu_solver::dof_manager::DofManager>::assemble_elemental_array_local_view
+     5.11%  [.] akantu_fe::engine::fast::btd
+     4.92%  [.] <akantu_solid::materials::marigo::MaterialMarigo<3>>::damage_and_stress_on_quad
+     4.25%  [.] <akantu_solid::materials::damage::DamageFields>::update_energies::<3>
+     4.25%  [.] akantu_solid::materials::damage::elastic_damage_energy_densities::<3>
+     2.39%  [.] 0x00000000001a1846
+     1.83%  [.] 0x00000000001a185b
+     1.79%  [.] <akantu_solid::materials::elastic::ElasticConstants<3>>::stress_on_quad
+     1.62%  [.] <akantu_solid::materials::marigo::MaterialMarigo<3> as akantu_solid::material::Material>::compute_stress
+     1.49%  [.] akantu_solid::material::grad_u_in_place
+     1.49%  [.] 0x00000000001a184d
+     1.37%  [.] akantu_core::eigen_order::redux_tree::<<[[f64; 3]; 3] as akantu_core::tensor::SquareMatrixExt<3>>::trace::{closure#0}>
+     1.32%  [.] <akantu_solid::materials::marigo::MaterialMarigo<3>>::energy_release_rate
+     1.30%  [.] <alloc::vec::Vec<usize> as alloc::vec::spec_from_iter::SpecFromIter<usize, core::iter::adapters::GenericShunt<core::iter::adapters::map::Map<core::slice::iter::Iter<i32>, akantu_fe::engine::resolve_filter::{closure#0}::{closure#0}>, core::result::Result<core::convert::Infallible, akantu_core::error::Error>>>>::from_iter
+     1.18%  [.] 0x00000000001a186f
+     1.02%  [.] 0x00000000001a1854
+     0.95%  [.] <core::iter::adapters::enumerate::Enumerate<core::iter::adapters::zip::Zip<core::iter::adapters::zip::Zip<core::iter::adapters::zip::Zip<core::iter::adapters::zip::Zip<core::iter::adapters::zip::Zip<core::slice::iter::ChunksExact<f64>, core::slice::iter::ChunksExact<f64>>, core::slice::iter::ChunksExact<f64>>, core::slice::iter::ChunksExact<f64>>, core::slice::iter::Iter<f64>>, core::iter::adapters::zip::Zip<core::slice::iter::IterMut<f64>, core::slice::iter::IterMut<f64>>>> as core::iter::traits::iterator::Iterator>::next
+     0.95%  [.] core::array::try_from_fn::<core::ops::try_trait::NeverShortCircuit<[f64; 3]>, 3, <core::ops::try_trait::NeverShortCircuit<[f64; 3]>>::wrap_mut_1<usize, <[[f64; 3]; 3] as akantu_core::tensor::MatrixExt<3, 3>>::sub::{closure#0}>::{closure#0}>
+     0.84%  [.] 0x00000000001a18eb
+     0.56%  [.] 0x00000000001a18f9
+     0.53%  [.] akantu_core::eigen_gebp::route
+     0.53%  [.] 0x00000000001a18ff
+
+## Top 25 symbols, inclusive time (children)
+
+    31.75%    31.75%  [.] akantu_core::eigen_order::redux_tree::<<[[f64; 2]; 2] as akantu_core::tensor::MatrixExt<2, 2>>::double_dot::{closure#0}>
+     8.42%     8.42%  [.] akantu_fe::engine::fast::gradient::<akantu_fe::element_class::types::Tetrahedron4>
+     6.01%     6.01%  [.] akantu_fe::engine::fast::integrate::<<akantu_fe::engine::FeEngine>::integrate::{closure#0}>
+     5.48%     5.48%  [.] <akantu_solver::dof_manager::DofManager>::assemble_elemental_array_local_view
+     5.11%     5.11%  [.] akantu_fe::engine::fast::btd
+     4.92%     4.92%  [.] <akantu_solid::materials::marigo::MaterialMarigo<3>>::damage_and_stress_on_quad
+     4.25%     4.25%  [.] <akantu_solid::materials::damage::DamageFields>::update_energies::<3>
+     4.25%     4.25%  [.] akantu_solid::materials::damage::elastic_damage_energy_densities::<3>
+     2.39%     2.39%  [.] 0x00000000001a1846
+     2.39%     0.00%  [.] 0x00007dd38b9a1846
+     1.83%     1.83%  [.] 0x00000000001a185b
+     1.83%     0.00%  [.] 0x00007dd38b9a185b
+     1.79%     1.79%  [.] <akantu_solid::materials::elastic::ElasticConstants<3>>::stress_on_quad
+     1.62%     1.62%  [.] <akantu_solid::materials::marigo::MaterialMarigo<3> as akantu_solid::material::Material>::compute_stress
+     1.49%     1.49%  [.] akantu_solid::material::grad_u_in_place
+     1.49%     1.49%  [.] 0x00000000001a184d
+     1.49%     0.00%  [.] 0x00007dd38b9a184d
+     1.37%     1.37%  [.] akantu_core::eigen_order::redux_tree::<<[[f64; 3]; 3] as akantu_core::tensor::SquareMatrixExt<3>>::trace::{closure#0}>
+     1.32%     1.32%  [.] <akantu_solid::materials::marigo::MaterialMarigo<3>>::energy_release_rate
+     1.30%     1.30%  [.] <alloc::vec::Vec<usize> as alloc::vec::spec_from_iter::SpecFromIter<usize, core::iter::adapters::GenericShunt<core::iter::adapters::map::Map<core::slice::iter::Iter<i32>, akantu_fe::engine::resolve_filter::{closure#0}::{closure#0}>, core::result::Result<core::convert::Infallible, akantu_core::error::Error>>>>::from_iter
+     1.18%     1.18%  [.] 0x00000000001a186f
+     1.18%     0.00%  [.] 0x00007dd38b9a186f
+     1.02%     1.02%  [.] 0x00000000001a1854
+     1.02%     0.00%  [.] 0x00007dd38b9a1854
+     0.95%     0.95%  [.] <core::iter::adapters::enumerate::Enumerate<core::iter::adapters::zip::Zip<core::iter::adapters::zip::Zip<core::iter::adapters::zip::Zip<core::iter::adapters::zip::Zip<core::iter::adapters::zip::Zip<core::slice::iter::ChunksExact<f64>, core::slice::iter::ChunksExact<f64>>, core::slice::iter::ChunksExact<f64>>, core::slice::iter::ChunksExact<f64>>, core::slice::iter::Iter<f64>>, core::iter::adapters::zip::Zip<core::slice::iter::IterMut<f64>, core::slice::iter::IterMut<f64>>>> as core::iter::traits::iterator::Iterator>::next
+
+## Call chains (callers of the hottest self-time symbols, entries above 2 %)
+
+    31.75%  [.] akantu_core::eigen_order::redux_tree::<<[[f64; 2]; 2] as akantu_core::tensor::MatrixExt<2, 2>>::double_dot::{closure#0}>
+     8.42%  [.] akantu_fe::engine::fast::gradient::<akantu_fe::element_class::types::Tetrahedron4>
+     6.01%  [.] akantu_fe::engine::fast::integrate::<<akantu_fe::engine::FeEngine>::integrate::{closure#0}>
+     5.48%  [.] <akantu_solver::dof_manager::DofManager>::assemble_elemental_array_local_view
+     5.11%  [.] akantu_fe::engine::fast::btd
+     4.92%  [.] <akantu_solid::materials::marigo::MaterialMarigo<3>>::damage_and_stress_on_quad
+     4.25%  [.] <akantu_solid::materials::damage::DamageFields>::update_energies::<3>
+     4.25%  [.] akantu_solid::materials::damage::elastic_damage_energy_densities::<3>
+     2.39%  [.] 0x00000000001a1846

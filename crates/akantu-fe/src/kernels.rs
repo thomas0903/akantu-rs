@@ -108,9 +108,21 @@ pub fn shape_derivatives(
     dnds_dims: Dims,
     out: &mut [Real],
 ) -> Result<Route> {
+    let p = shape_derivatives_product(dnds_dims)?;
+    shape_derivatives_with(&p, j, dnds, out)?;
+    Ok(p.route())
+}
+
+/// The product `J⁻¹ · dnds` of [`shape_derivatives`] for `dnds` of dims
+/// `dnds_dims`, for loops that call [`shape_derivatives_with`] per point.
+///
+/// # Errors
+/// `Error::DimensionMismatch` if the spatial dimension (`dnds_dims.rows`)
+/// exceeds 3.
+pub fn shape_derivatives_product(dnds_dims: Dims) -> Result<eigen::SliceProduct> {
     let sdim = dnds_dims.rows;
     // Bound the dimension first, so the Jacobian-length
-    // diagnostic below cannot overflow for an absurd caller dimension.
+    // diagnostic cannot overflow for an absurd caller dimension.
     if sdim > MAX_DIM {
         return Err(Error::DimensionMismatch {
             context: "shape_derivatives: spatial dimension (at most 3)",
@@ -118,6 +130,21 @@ pub fn shape_derivatives(
             got: sdim,
         });
     }
+    eigen::prepare(Dims::dynamic(sdim, sdim), dnds_dims)
+}
+
+/// [`shape_derivatives`] with the product of [`shape_derivatives_product`]
+/// (the same bits).
+///
+/// # Errors
+/// `Error::DimensionMismatch` if a slice is too short.
+pub fn shape_derivatives_with(
+    p: &eigen::SliceProduct,
+    j: &[Real],
+    dnds: &[Real],
+    out: &mut [Real],
+) -> Result<()> {
+    let sdim = p.shape().rows.size();
     if j.len() < sdim * sdim {
         return Err(Error::DimensionMismatch {
             context: "shape_derivatives: Jacobian (square, spatial dimension at most 3)",
@@ -128,7 +155,7 @@ pub fn shape_derivatives(
     let mut inv = [0.0; MAX_DIM * MAX_DIM];
     // Upstream does not check for singular Jacobians here: inf/NaN propagate.
     let _ = eigen::lu_inverse(sdim, j, &mut inv);
-    eigen::product_slices(Dims::dynamic(sdim, sdim), dnds_dims, &inv, dnds, out)
+    p.eval(&inv, dnds, out)
 }
 
 /// `X · N` (upstream `InterpolationElement::interpolate(nodal, shapes)`):
