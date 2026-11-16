@@ -29,6 +29,11 @@ change of default results or of a public API raises the minor version.
   inlined, fixed-size tensor products select their route at compile time,
   the FE products of slices run fixed-order kernels (one per route and
   depth class), and the FE per-element loops decide each product once.
+- `akantu_fe::eigen::product_slices` checks the operands' inner
+  dimension before the slice lengths: a call with both wrong now reports
+  the inner-dimension mismatch (still `Error::DimensionMismatch`, with
+  another context). Errors of `SliceProduct` carry their own context
+  strings (`SliceProduct ...`).
 - `FeEngine::field_matrix_elemental` (consistent mass) integrates each
   element's point matrices as they are computed instead of materialising
   all of them first (memory `nq·(nb_dof·nn)²` instead of
