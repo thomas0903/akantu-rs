@@ -110,10 +110,12 @@ def test_two_threads_give_the_one_thread_bits(bar_inputs):
         assert _explicit_state(threads)[1] == one
 
 
-def test_setters_replace_an_invalid_environment():
+def test_setters_replace_an_invalid_environment(tmp_path):
     """With an invalid `AKANTU_NUM_THREADS` the setters still set the
     default (from the serial policy) instead of raising the environment's
-    error; the getters raise it until a setter ran."""
+    error; the getters raise it until a setter ran. The interpreter starts
+    in `tmp_path`: from `python/`, `-c` would import the source tree's
+    `akantu` instead of the installed package."""
     script = (
         "import akantu as aka\n"
         "try:\n    aka.getNumThreads()\n    print('no error')\n"
@@ -121,6 +123,7 @@ def test_setters_replace_an_invalid_environment():
         "aka.setNumThreads(2)\nprint(aka.getNumThreads())\n"
     )
     env = dict(os.environ, AKANTU_NUM_THREADS="two")
-    out = subprocess.run([sys.executable, "-c", script], env=env, check=True,
-                         capture_output=True, text=True).stdout.splitlines()
-    assert out == ["error True", "2"]
+    run = subprocess.run([sys.executable, "-c", script], env=env, cwd=tmp_path,
+                         capture_output=True, text=True)
+    assert run.returncode == 0, run.stderr
+    assert run.stdout.splitlines() == ["error True", "2"]
