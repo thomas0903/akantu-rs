@@ -83,15 +83,14 @@ impl NodeScatter {
         }
         let mut counts = vec![0u32; nb_nodes + 1];
         for &n in &rows {
-            let node =
-                usize::try_from(n)
-                    .ok()
-                    .filter(|&u| u < nb_nodes)
-                    .ok_or_else(|| Error::OutOfRange {
-                        what: "node",
-                        index: usize::try_from(n).unwrap_or(usize::MAX),
-                        len: nb_nodes,
-                    })?;
+            let node = usize::try_from(n)
+                .ok()
+                .filter(|&u| u < nb_nodes)
+                .ok_or_else(|| Error::OutOfRange {
+                    what: "node",
+                    index: usize::try_from(n).unwrap_or(usize::MAX),
+                    len: nb_nodes,
+                })?;
             counts[node + 1] += 1;
         }
         for n in 0..nb_nodes {

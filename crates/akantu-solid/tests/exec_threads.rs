@@ -9,7 +9,12 @@
 //! internal force, the laws' gradients and stresses) is compared bit for bit
 //! with the one-thread run, small strain and finite deformation, on a mesh
 //! with two element types, with batches split as finely as possible
-//! ([`Grain::Finest`]) so that every threaded kernel really splits.
+//! ([`Grain::Finest`]) so that every threaded kernel really splits, and at
+//! the automatic grain. The wider cases add Dirichlet conditions with
+//! non-zero prescribed values, a second law that stays serial
+//! (`neohookean`, finite deformation) on a third of the elements, an
+//! eigen-gradient, 2-D meshes of triangles and quadrangles, and six-node
+//! triangles.
 
 use akantu_core::enums::AnalysisMethod;
 use akantu_core::exec::{ExecPolicy, Grain};
@@ -262,4 +267,227 @@ fn the_policy_round_trips_through_the_model() {
     let p = ExecPolicy::serial().with_threads(2).unwrap();
     let m = model(1, false, p);
     assert_eq!(m.exec_policy(), p);
+}
+
+// ---------------------------------------------------------------------------
+// Wider models: Dirichlet conditions with prescribed values, a second law
+// that stays serial (`neohookean`, `independent_points() = false`, finite
+// deformation) on part of the mesh, an eigen-gradient, 2-D meshes of
+// triangles and quadrangles, a quadratic element.
+// ---------------------------------------------------------------------------
+
+/// An `n × n` grid of the unit square: linear (cells with `i + j` even as
+/// quadrangles, the others as two triangles) or quadratic (six-node
+/// triangles, two per cell).
+fn grid2d(n: usize, quadratic: bool) -> Mesh {
+    let mut m = Mesh::new(2, "square").unwrap();
+    {
+        let mut a = MeshAccessor::new(&mut m);
+        let h = 1.0 / n as Real;
+        let stride = if quadratic { 2 * n + 1 } else { n + 1 };
+        let hh = if quadratic { h / 2.0 } else { h };
+        for j in 0..stride {
+            for i in 0..stride {
+                let inner = i != 0 && j != 0 && i != stride - 1 && j != stride - 1;
+                let w = if inner {
+                    0.04 * hh * (((i * 7 + j * 3) % 11) as Real / 11.0 - 0.5)
+                } else {
+                    0.0
+                };
+                a.push_node(&[i as Real * hh + w, j as Real * hh - w])
+                    .unwrap();
+            }
+        }
+        let id = |i: usize, j: usize| (j * stride + i) as i32;
+        for j in 0..n {
+            for i in 0..n {
+                if quadratic {
+                    let (x, y) = (2 * i, 2 * j);
+                    // corners then mid-edge nodes, counter-clockwise
+                    let t1 = [
+                        id(x, y),
+                        id(x + 2, y),
+                        id(x + 2, y + 2),
+                        id(x + 1, y),
+                        id(x + 2, y + 1),
+                        id(x + 1, y + 1),
+                    ];
+                    let t2 = [
+                        id(x, y),
+                        id(x + 2, y + 2),
+                        id(x, y + 2),
+                        id(x + 1, y + 1),
+                        id(x + 1, y + 2),
+                        id(x, y + 1),
+                    ];
+                    for t in [t1, t2] {
+                        a.connectivity_mut(ElementType::Triangle6, GhostType::NotGhost)
+                            .push_tuple(&t);
+                    }
+                } else if (i + j) % 2 == 0 {
+                    a.connectivity_mut(ElementType::Quadrangle4, GhostType::NotGhost)
+                        .push_tuple(&[id(i, j), id(i + 1, j), id(i + 1, j + 1), id(i, j + 1)]);
+                } else {
+                    for t in [
+                        [id(i, j), id(i + 1, j), id(i + 1, j + 1)],
+                        [id(i, j), id(i + 1, j + 1), id(i, j + 1)],
+                    ] {
+                        a.connectivity_mut(ElementType::Triangle3, GhostType::NotGhost)
+                            .push_tuple(&t);
+                    }
+                }
+            }
+        }
+    }
+    m.compute_bounding_box().unwrap();
+    m
+}
+
+/// Elements whose index is a multiple of three take law 1 (`neohookean`),
+/// the others law 0 (`elastic`).
+#[derive(Debug)]
+struct EveryThird;
+
+impl akantu_model::constitutive_law::ConstitutiveLawSelector for EveryThird {
+    fn select(
+        &self,
+        _: &akantu_model::constitutive_law::SelectorContext<'_>,
+        e: Element,
+    ) -> akantu_core::Result<Option<usize>> {
+        Ok(Some(usize::from(e.index() % 3 == 0)))
+    }
+}
+
+/// The model of a wider case: two laws (elastic with an eigen-gradient on
+/// two thirds of the elements, neohookean on the others), the left side
+/// clamped at a non-zero prescribed displacement, the right side's second
+/// component prescribed, and an initial field elsewhere.
+fn wide_model(mesh: Mesh, policy: ExecPolicy) -> SolidMechanicsModel {
+    let dim = mesh.spatial_dimension();
+    let eigen = if dim == 2 {
+        "[[1e-4, 0], [5e-5, -1e-4]]"
+    } else {
+        "[[1e-4, 0, 0], [5e-5, -1e-4, 0], [0, 2e-5, 3e-5]]"
+    };
+    let dat = format!(
+        "material elastic [\n  name = a\n  rho = 2500\n  E = 70e9\n  nu = 0.22\n  \
+         eigen_grad_u = {eigen}\n]\n\
+         material neohookean [\n  name = b\n  rho = 2000\n  E = 50e9\n  nu = 0.3\n]\n"
+    );
+    let parser = Parser::parse_str(&dat, "material.dat").unwrap();
+    let mut m =
+        SolidMechanicsModel::with_parser(SharedMesh::new(mesh), None, "smm", parser).unwrap();
+    m.set_exec_policy(policy).unwrap();
+    m.set_material_selector(Box::new(EveryThird));
+    m.init_full(&ModelOptions::new(AnalysisMethod::ExplicitLumpedMass))
+        .unwrap();
+    assert_eq!(m.physics.materials.nb_laws(), 2);
+    let dt = m.stable_time_step().unwrap() * 0.5;
+    m.set_time_step(dt, None).unwrap();
+    let x: Vec<Real> = m
+        .physics
+        .base
+        .mesh
+        .read()
+        .unwrap()
+        .nodes()
+        .as_slice()
+        .to_vec();
+    let nodes = x.len() / dim;
+    let mut prescribed = vec![false; nodes * dim];
+    {
+        let mut u = m.displacement_mut().unwrap();
+        let u = u.as_mut_slice();
+        for n in 0..nodes {
+            let p = &x[n * dim..(n + 1) * dim];
+            for c in 0..dim {
+                u[n * dim + c] = 1e-3 * ((5.0 + c as Real) * p[0]).sin() * (p[1] + 0.2);
+            }
+            if p[0] < 1e-9 {
+                // clamped at a non-zero value
+                for c in 0..dim {
+                    u[n * dim + c] = 2e-4 * (c as Real + 1.0) * (p[1] - 0.5);
+                    prescribed[n * dim + c] = true;
+                }
+            } else if p[0] > 1.0 - 1e-9 {
+                u[n * dim + 1] = -3e-4 * p[1];
+                prescribed[n * dim + 1] = true;
+            }
+        }
+    }
+    m.blocked_dofs_mut()
+        .unwrap()
+        .as_mut_slice()
+        .copy_from_slice(&prescribed);
+    m
+}
+
+/// Every nodal array and, per law and element type of its filter, the
+/// gradient and the stress, plus the energies, after `steps` steps.
+fn wide_state(mesh: Mesh, policy: ExecPolicy, steps: usize) -> Vec<(String, Vec<u64>)> {
+    let mut m = wide_model(mesh, policy);
+    for _ in 0..steps {
+        m.solve_step(None).unwrap();
+    }
+    let bits = |v: &[Real]| v.iter().map(|x| x.to_bits()).collect::<Vec<u64>>();
+    let mut out = vec![
+        ("u".into(), bits(m.displacement().unwrap().as_slice())),
+        ("v".into(), bits(m.velocity().unwrap().as_slice())),
+        ("a".into(), bits(m.acceleration().unwrap().as_slice())),
+        ("f_int".into(), bits(m.internal_force().unwrap().as_slice())),
+    ];
+    for (i, law) in m.physics.materials.laws().iter().enumerate() {
+        let b = law.base();
+        let types = b.filter_types(GhostType::NotGhost);
+        assert!(!types.is_empty(), "law {i} has elements");
+        for ty in types {
+            out.push((
+                format!("law{i}/{ty:?}/grad_u"),
+                bits(b.grad_u.get(ty, GhostType::NotGhost).unwrap().as_slice()),
+            ));
+            out.push((
+                format!("law{i}/{ty:?}/sigma"),
+                bits(
+                    b.sigma_field()
+                        .unwrap()
+                        .get(ty, GhostType::NotGhost)
+                        .unwrap()
+                        .as_slice(),
+                ),
+            ));
+        }
+    }
+    let energies = ["external work new", "kinetic", "potential", "external work"]
+        .map(|id| m.energy(id).unwrap().to_bits())
+        .to_vec();
+    out.push(("energies".into(), energies));
+    out
+}
+
+#[test]
+fn wider_models_are_bitwise_for_every_thread_count() {
+    type Case = (&'static str, fn() -> Mesh);
+    let cases: [Case; 3] = [
+        ("2-D triangles and quadrangles", || grid2d(8, false)),
+        ("2-D six-node triangles", || grid2d(6, true)),
+        ("3-D tetrahedra and hexahedra", || mixed_cube(3)),
+    ];
+    for (name, mesh) in cases {
+        let serial = ExecPolicy::serial();
+        let reference = wide_state(mesh(), serial, 6);
+        assert!(
+            reference[0].1.iter().any(|&b| b != 0),
+            "{name}: the displacement is not zero"
+        );
+        for threads in [2, 3, 4, 8] {
+            for grain in [Grain::Finest, Grain::Auto] {
+                let p = serial.with_threads(threads).unwrap().with_grain(grain);
+                compare(
+                    &reference,
+                    &wide_state(mesh(), p, 6),
+                    &format!("{name}: threads={threads} {grain:?}"),
+                );
+            }
+        }
+    }
 }
