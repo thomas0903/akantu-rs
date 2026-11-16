@@ -269,6 +269,132 @@ mod tests {
         }
     }
 
+    /// Little-endian 64-bit limbs; only what the next test needs
+    /// (independent of the table's own big-integer code).
+    mod big {
+        use std::cmp::Ordering;
+
+        pub type N = Vec<u64>;
+
+        pub fn from_u128(v: u128) -> N {
+            norm(vec![v as u64, (v >> 64) as u64])
+        }
+
+        fn norm(mut a: N) -> N {
+            while a.last() == Some(&0) {
+                a.pop();
+            }
+            a
+        }
+
+        pub fn mul_small(a: &N, k: u64) -> N {
+            let mut out = Vec::with_capacity(a.len() + 1);
+            let mut carry = 0u128;
+            for &l in a {
+                let v = u128::from(l) * u128::from(k) + carry;
+                out.push(v as u64);
+                carry = v >> 64;
+            }
+            out.push(carry as u64);
+            norm(out)
+        }
+
+        pub fn pow10(p: u32) -> N {
+            let mut a = vec![1];
+            for _ in 0..p {
+                a = mul_small(&a, 10);
+            }
+            a
+        }
+
+        /// `a · 2^s`.
+        pub fn shl(a: &N, s: u32) -> N {
+            let (w, b) = ((s / 64) as usize, s % 64);
+            let mut out = vec![0u64; w];
+            let mut carry = 0u64;
+            for &l in a {
+                out.push(if b == 0 { l } else { (l << b) | carry });
+                carry = if b == 0 { 0 } else { l >> (64 - b) };
+            }
+            out.push(carry);
+            norm(out)
+        }
+
+        /// `a · b` (schoolbook).
+        pub fn mul(a: &N, b: &N) -> N {
+            let mut out = vec![0u64; a.len() + b.len() + 1];
+            for (i, &x) in a.iter().enumerate() {
+                let mut carry = 0u128;
+                for (j, &y) in b.iter().enumerate() {
+                    let v = u128::from(out[i + j]) + u128::from(x) * u128::from(y) + carry;
+                    out[i + j] = v as u64;
+                    carry = v >> 64;
+                }
+                let mut k = i + b.len();
+                while carry != 0 {
+                    let v = u128::from(out[k]) + carry;
+                    out[k] = v as u64;
+                    carry = v >> 64;
+                    k += 1;
+                }
+            }
+            norm(out)
+        }
+
+        pub fn cmp(a: &N, b: &N) -> Ordering {
+            a.len()
+                .cmp(&b.len())
+                .then_with(|| a.iter().rev().cmp(b.iter().rev()))
+        }
+    }
+
+    /// Every entry `(M, E)` of the table satisfies its definition
+    /// `M · 2^E ≤ 10^q < (M + 1) · 2^E` with `2^127 ≤ M < 2^128`, checked
+    /// in exact integer arithmetic (multiplications only, unlike the
+    /// table's construction by repeated division).
+    #[test]
+    fn every_table_entry_brackets_its_power_of_ten() {
+        use std::cmp::Ordering::{Greater, Less};
+        let t = table();
+        assert_eq!(t.len(), (Q_MAX - Q_MIN + 1) as usize);
+        for q in Q_MIN..=Q_MAX {
+            let (m, e) = t[(q - Q_MIN) as usize];
+            assert!(m >> 127 == 1, "q = {q}: not normalised");
+            let lo = big::from_u128(m);
+            let hi = big::from_u128(m + 1); // m < 2^128 - 1 for powers of ten
+            // Compare M · 2^E and (M + 1) · 2^E with 10^q, both sides
+            // scaled to integers.
+            let (lhs_lo, lhs_hi, rhs) = match (q >= 0, e >= 0) {
+                // M · 2^E ≤ 10^q < (M + 1) · 2^E
+                (true, true) => (
+                    big::shl(&lo, e as u32),
+                    big::shl(&hi, e as u32),
+                    big::pow10(q as u32),
+                ),
+                // M ≤ 10^q · 2^-E < M + 1
+                (true, false) => (lo, hi, big::shl(&big::pow10(q as u32), (-e) as u32)),
+                // M · 10^-q ≤ 2^-E < (M + 1) · 10^-q
+                (false, false) => {
+                    let p = big::pow10((-q) as u32);
+                    (
+                        big::mul(&lo, &p),
+                        big::mul(&hi, &p),
+                        big::shl(&vec![1], (-e) as u32),
+                    )
+                }
+                (false, true) => panic!("q = {q}: E = {e} cannot be non-negative"),
+            };
+            assert!(
+                big::cmp(&lhs_lo, &rhs) != Greater,
+                "q = {q}: M · 2^E > 10^q"
+            );
+            assert!(
+                big::cmp(&rhs, &lhs_hi) == Less,
+                "q = {q}: 10^q ≥ (M + 1) · 2^E"
+            );
+        }
+    }
+
     #[test]
     fn digits_match_core_fmt() {
         let mut fallbacks = 0;
