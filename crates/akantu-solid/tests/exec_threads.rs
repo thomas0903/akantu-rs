@@ -968,13 +968,15 @@ fn sls_law_is_bitwise_for_every_thread_count() {
     check_law(&LawCase {
         name: "sls_deviatoric",
         dat: |_| {
+            // relaxation time Eta / Ev of the order of the time step: the
+            // dissipated energy moves too
             "material sls_deviatoric [\n  name = body\n  rho = 2500\n  E = 70e9\n  nu = 0.22\n  \
-             Eta = 1e3\n  Ev = 20e9\n]\n"
+             Eta = 3e5\n  Ev = 20e9\n]\n"
                 .into()
         },
         amp: 1e-3,
         steps: 6,
-        active: "history_integral",
+        active: "dissipated_energy",
         options: None,
     });
 }
