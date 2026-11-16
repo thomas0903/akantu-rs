@@ -403,8 +403,8 @@ impl<'m> MeshTransaction<'m> {
             }
         }
         // a row edited several times is read once
-        t.rows.sort_unstable_by_key(|&(a, e)| (a as u8, e));
-        t.rows.dedup();
+        let mut seen = std::collections::HashSet::with_capacity(t.rows.len());
+        t.rows.retain(|r| seen.insert(*r));
         Some(t)
     }
 

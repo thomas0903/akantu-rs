@@ -340,20 +340,31 @@ impl<'a> ElementRanks<'a> {
 #[allow(clippy::too_many_lines)] // one upstream loop nest, kept together
 fn plan_facets(mesh: &Mesh, boundary_only: bool, dimension: usize) -> Result<FacetPlan> {
     let csr = node_to_elements_unchecked(mesh, dimension)?;
-    // the rows list their elements in the order the connectivities are
-    // walked; when that is the elements' order (`Element::cmp`, the usual
-    // case) the occurrences of an element in a row are found by binary
-    // search instead of a scan (performance; the same counts)
-    let rows_sorted = (0..csr.offsets.len().saturating_sub(1))
-        .all(|n| csr.row(n).windows(2).all(|w| w[0] <= w[1]));
-    let occurrences = |row: &[Element], e: &Element| -> usize {
-        if rows_sorted {
-            let lo = row.partition_point(|x| x < e);
-            row[lo..].iter().take_while(|x| *x == e).count()
-        } else {
-            row.iter().filter(|x| *x == e).count()
+    // Dense ids of the CSR's elements (block offset + index, one id per
+    // element) for counting the occurrences of every element of the first
+    // node's row in the other facet nodes' rows: one pass over those rows
+    // per facet instead of one scan per (element, node) pair (performance;
+    // the same counts, multiplicities included).
+    let mut block_offsets: Vec<(GhostType, ElementType, usize)> = Vec::new();
+    let mut nb_dense = 0usize;
+    for ghost in GhostType::ALL {
+        for ty in mesh.element_types(TypeFilter::new().dim(dimension).ghost(ghost)) {
+            block_offsets.push((ghost, ty, nb_dense));
+            nb_dense += mesh.nb_element(ty, ghost);
         }
-    };
+    }
+    let dense: Vec<usize> = csr
+        .elements
+        .iter()
+        .map(|e| {
+            block_offsets
+                .iter()
+                .find(|(g, t, _)| *g == e.ghost_type() && *t == e.ty())
+                .map_or(usize::MAX, |&(_, _, o)| o + e.idx())
+        })
+        .collect();
+    let dense_row = |n: usize| &dense[csr.offsets[n]..csr.offsets[n + 1]];
+    let mut occurrences = vec![0usize; nb_dense];
     let mut ranks = ElementRanks::new(mesh);
     let mut init = Vec::new();
     for ghost in GhostType::ALL {
@@ -392,10 +403,23 @@ fn plan_facets(mesh: &Mesh, boundary_only: bool, dimension: usize) -> Result<Fac
                     // facet node (counted with multiplicity, as upstream).
                     let row0 = csr.row(ux(facet[0]));
                     counter.clear();
-                    counter.resize(row0.len(), 0);
-                    for (c, e) in counter.iter_mut().zip(row0) {
-                        for &n in &facet[1..] {
-                            *c += occurrences(csr.row(ux(n)), e);
+                    for &n in &facet[1..] {
+                        for &d in dense_row(ux(n)) {
+                            if let Some(c) = occurrences.get_mut(d) {
+                                *c += 1;
+                            }
+                        }
+                    }
+                    counter.extend(
+                        dense_row(ux(facet[0]))
+                            .iter()
+                            .map(|&d| occurrences.get(d).copied().unwrap_or(0)),
+                    );
+                    for &n in &facet[1..] {
+                        for &d in dense_row(ux(n)) {
+                            if let Some(c) = occurrences.get_mut(d) {
+                                *c = 0;
+                            }
                         }
                     }
                     connected.clear();
@@ -1169,7 +1193,7 @@ pub fn check_facet_mesh_consistency(mesh: &Mesh) -> Result<()> {
 }
 
 /// The adjacency datasets checked by [`check_facet_mesh_consistency`].
-#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+#[derive(Clone, Copy, Debug, PartialEq, Eq, Hash)]
 pub(crate) enum AdjacencySet {
     /// The facet mesh's [`ELEMENT_TO_SUBELEMENT`].
     ElementToSubelement,
