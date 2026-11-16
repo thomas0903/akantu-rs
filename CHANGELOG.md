@@ -6,6 +6,31 @@ All notable changes to akantu-rs are recorded in this file. The format follows
 [semantic versioning](https://semver.org/spec/v2.0.0.html); before 1.0, a
 change of default results or of a public API raises the minor version.
 
+## [Unreleased]
+
+### Added
+
+- Sparse assembly without per-entry hashing, bitwise equal to the former
+  code: `akantu_linalg::sparse::BlockPositionCache` and
+  `SparseMatrixAij::add_values_cached` (entry positions per element
+  block, stored from the second assembly with unchanged positions),
+  `SparseMatrixAij::{add_block_to_profile_and_values, would_promote}`
+  (profile and first values in one pass), `EquationLayout::{try_local,
+  is_identity}`, the module `akantu_linalg::int_hash` (a deterministic
+  hasher for integer keys), `DofManager::{set_assembly_cache,
+  assembly_cache_bytes}`, and the `LinearSystemBackend` methods
+  `begin_cached_assembly`, `add_values_cached`,
+  `can_fuse_profile_and_values` and `add_block_to_profile_and_values`
+  (default implementations forward to the former methods).
+
+### Changed
+
+- `DofManager::assemble_elemental_matrices_to_matrix` keeps the entry
+  positions of each element (4 bytes per assembled entry and per element
+  equation, e.g. 360 bytes per `Tetrahedron4` element of a 3-D solid)
+  from the second assembly into an unchanged profile on;
+  `DofManager::set_assembly_cache(false)` turns this off.
+
 ## [0.1.0] - Unreleased
 
 The initial public state.
