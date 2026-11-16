@@ -142,9 +142,10 @@ enum Undo {
     /// The node synchronizer of a part before
     /// [`MeshTransaction::replace_node_synchronizer`] (instead of a snapshot
     /// of every synchronizer of the part; performance).
+    /// (Boxed: the entries of every journal stay small.)
     NodeSynchronizer {
         part: MeshPart,
-        old: Option<crate::synchronizers::NodeSynchronizer>,
+        old: Option<Box<crate::synchronizers::NodeSynchronizer>>,
     },
     /// The node lists of the element groups of a part before
     /// [`MeshTransaction::rebuild_element_group_nodes`] (instead of a
@@ -767,7 +768,7 @@ impl<'m> MeshTransaction<'m> {
                     && *p == part
                 {
                     // the first replacement holds the original
-                    copy.node = old.clone();
+                    copy.node = old.as_deref().cloned();
                     break;
                 }
             }
@@ -791,7 +792,10 @@ impl<'m> MeshTransaction<'m> {
         let m = part_mut(self.mesh, part)?;
         let old = std::mem::replace(&mut m.synchronizers.node, node);
         if self.saved.synchronizers[slot(part)].is_none() {
-            self.journal.push(Undo::NodeSynchronizer { part, old });
+            self.journal.push(Undo::NodeSynchronizer {
+                part,
+                old: old.map(Box::new),
+            });
         }
         Ok(())
     }
@@ -1517,7 +1521,7 @@ impl<'m> MeshTransaction<'m> {
                 }
                 Undo::NodeSynchronizer { part, old } => {
                     if let Ok(m) = part_mut(mesh, part) {
-                        m.synchronizers.node = old;
+                        m.synchronizers.node = old.map(|b| *b);
                     }
                 }
                 Undo::GroupNodes { part, lists } => {
@@ -2307,6 +2311,11 @@ fn own_error(r: Result<()>) -> Error {
     r.err()
         .unwrap_or_else(|| Error::Mesh("unreachable: failed agreement returned Ok".into()))
 }
+
+/// The journal entries stay small (a whole-mesh insertion journals
+/// millions of them; a large inline variant made it slower).
+#[cfg(test)]
+const _: () = assert!(std::mem::size_of::<Undo>() <= 64);
 
 #[cfg(test)]
 mod tests {
