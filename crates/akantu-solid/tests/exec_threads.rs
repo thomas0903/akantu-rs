@@ -501,15 +501,28 @@ fn wider_models_are_bitwise_for_every_thread_count() {
 
 type State = Vec<(String, Vec<u64>)>;
 
+/// The model of `case` on `mesh`.
+fn case_model(case: &LawCase, mesh: Mesh, policy: ExecPolicy) -> SolidMechanicsModel {
+    let dim = mesh.spatial_dimension();
+    law_model(mesh, &(case.dat)(dim), case.amp, case.options, policy)
+}
+
 /// One law on the whole mesh: the left side clamped at a non-zero
 /// prescribed displacement, the right side's second component prescribed,
 /// an initial field of amplitude `amp` elsewhere.
-fn law_model(mesh: Mesh, dat: &str, amp: Real, policy: ExecPolicy) -> SolidMechanicsModel {
+fn law_model(
+    mesh: Mesh,
+    dat: &str,
+    amp: Real,
+    options: Option<fn() -> akantu_solid::material::LawOptions>,
+    policy: ExecPolicy,
+) -> SolidMechanicsModel {
     let dim = mesh.spatial_dimension();
     let parser = Parser::parse_str(dat, "material.dat").unwrap();
     let mut m =
         SolidMechanicsModel::with_parser(SharedMesh::new(mesh), None, "smm", parser).unwrap();
     m.set_exec_policy(policy).unwrap();
+    m.physics.law_options = options.map(|o| o());
     m.init_full(&ModelOptions::new(AnalysisMethod::ExplicitLumpedMass))
         .unwrap();
     let dt = m.stable_time_step().unwrap() * 0.5;
@@ -631,11 +644,12 @@ struct LawCase {
     amp: Real,
     steps: usize,
     active: &'static str,
+    /// Options of every law (`SolidMechanicsPhysics::law_options`).
+    options: Option<fn() -> akantu_solid::material::LawOptions>,
 }
 
 fn run_law(case: &LawCase, mesh: Mesh, policy: ExecPolicy) -> State {
-    let dim = mesh.spatial_dimension();
-    let mut m = law_model(mesh, &(case.dat)(dim), case.amp, policy);
+    let mut m = case_model(case, mesh, policy);
     for _ in 0..case.steps {
         m.solve_step(None).unwrap();
     }
@@ -706,6 +720,7 @@ fn orthotropic_law_is_bitwise_for_every_thread_count() {
         amp: 1e-3,
         steps: 6,
         active: "stress",
+        options: None,
     });
 }
 
@@ -729,6 +744,7 @@ fn anisotropic_law_is_bitwise_for_every_thread_count() {
         amp: 1e-3,
         steps: 6,
         active: "stress",
+        options: None,
     });
 }
 
@@ -744,6 +760,7 @@ fn maxwell_law_is_bitwise_for_every_thread_count() {
         amp: 1e-3,
         steps: 6,
         active: "sigma_v",
+        options: None,
     });
 }
 
@@ -759,6 +776,7 @@ fn marigo_law_is_bitwise_for_every_thread_count() {
         amp: 1e-3,
         steps: 6,
         active: "damage",
+        options: None,
     });
 }
 
@@ -768,7 +786,7 @@ fn marigo_law_is_bitwise_for_every_thread_count() {
 /// it leaves are compared bit for bit across thread counts.
 fn law_error_state(case: &LawCase, mesh: Mesh, policy: ExecPolicy) -> (String, State) {
     let dim = mesh.spatial_dimension();
-    let mut m = law_model(mesh, &(case.dat)(dim), case.amp, policy);
+    let mut m = case_model(case, mesh, policy);
     for _ in 0..case.steps {
         m.solve_step(None).unwrap();
     }
@@ -833,6 +851,7 @@ const MAZARS: LawCase = LawCase {
     amp: 1e-3,
     steps: 6,
     active: "damage",
+    options: None,
 };
 
 #[test]
@@ -853,6 +872,7 @@ const NEOHOOKEAN: LawCase = LawCase {
     amp: 2e-2,
     steps: 6,
     active: "grad_u",
+    options: None,
 };
 
 /// Plane stress in 2-D (the `C33` solve before the stress), plain in 3-D.
@@ -871,6 +891,7 @@ const NEOHOOKEAN_PLANE_STRESS: LawCase = LawCase {
     amp: 2e-2,
     steps: 6,
     active: "grad_u",
+    options: None,
 };
 
 #[test]
@@ -903,6 +924,7 @@ fn plastic_law_is_bitwise_for_every_thread_count() {
         amp: 1e-3,
         steps: 6,
         active: "inelastic_strain",
+        options: None,
     });
 }
 
@@ -921,6 +943,7 @@ fn plastic_mazars_law_is_bitwise_for_every_thread_count() {
         amp: 1e-3,
         steps: 6,
         active: "damage",
+        options: None,
     });
 }
 
@@ -936,6 +959,7 @@ fn marigo_thermal_law_is_bitwise_for_every_thread_count() {
         amp: 1e-3,
         steps: 6,
         active: "damage",
+        options: None,
     });
 }
 
@@ -951,5 +975,50 @@ fn sls_law_is_bitwise_for_every_thread_count() {
         amp: 1e-3,
         steps: 6,
         active: "history_integral",
+        options: None,
     });
+}
+
+fn anisotropic_damage_options(
+    model: akantu_solid::materials::anisotropic_damage::AnisotropicDamageModel,
+) -> akantu_solid::material::LawOptions {
+    akantu_solid::material::LawOptions {
+        anisotropic_damage: model,
+        ..akantu_solid::material::LawOptions::default()
+    }
+}
+
+const ANISOTROPIC_DAMAGE_CORRECTED: LawCase = LawCase {
+    name: "anisotropic_damage, corrected model",
+    dat: |_| {
+        "material anisotropic_damage [\n  name = body\n  rho = 2400\n  E = 30e9\n  nu = 0.2\n]\n"
+            .into()
+    },
+    amp: 1e-3,
+    steps: 6,
+    active: "damage",
+    options: Some(|| {
+        anisotropic_damage_options(
+            akantu_solid::materials::anisotropic_damage::AnisotropicDamageModel::Corrected,
+        )
+    }),
+};
+
+#[test]
+fn anisotropic_damage_laws_are_bitwise_for_every_thread_count() {
+    check_law(&ANISOTROPIC_DAMAGE_CORRECTED);
+    check_law(&LawCase {
+        name: "anisotropic_damage, experimental Desmorat model",
+        options: Some(|| {
+            anisotropic_damage_options(
+                akantu_solid::materials::anisotropic_damage::AnisotropicDamageModel::DesmoratExperimental,
+            )
+        }),
+        ..ANISOTROPIC_DAMAGE_CORRECTED
+    });
+}
+
+#[test]
+fn anisotropic_damage_error_path_is_bitwise_for_every_thread_count() {
+    check_law_error(&ANISOTROPIC_DAMAGE_CORRECTED, "eig");
 }

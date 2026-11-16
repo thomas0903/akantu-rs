@@ -176,6 +176,7 @@
 use std::sync::Arc;
 
 use akantu_core::enums::MatrixType;
+use akantu_core::exec::{Tuples, TuplesRef};
 use akantu_core::glibc_libm;
 use akantu_core::tensor::{Matrix, MatrixExt, SquareMatrixExt, as_matrix, as_matrix_mut};
 use akantu_core::{
@@ -1031,8 +1032,14 @@ impl<const DIM: usize> MaterialAnisotropicDamage<DIM> {
     /// The Desmorat-type models: every point from the committed state
     /// (`damage`, `trace_damage` previous values); `corrected` selects the
     /// UD-058 evolution.
+    ///
+    /// The points split over `exec`'s threads into the output copies,
+    /// written back only when every point succeeded: an error is that of
+    /// the first failing point and leaves the law's state unchanged at
+    /// every split, as the serial loop.
     fn compute_stress_desmorat(
         &mut self,
+        exec: &akantu_core::exec::Exec,
         ty: ElementType,
         ghost: GhostType,
         corrected: bool,
@@ -1047,21 +1054,56 @@ impl<const DIM: usize> MaterialAnisotropicDamage<DIM> {
         let mut el_out = vec![0.0; nq * n];
         let mut t_out = vec![0.0; nq];
         let mut e_out = vec![0.0; nq];
-        for q in 0..nq {
-            let r = q * n..(q + 1) * n;
-            let g: &Matrix<DIM, DIM> = as_matrix(&grad_u.as_slice()[r.clone()])?;
-            let dn: &Matrix<DIM, DIM> = as_matrix(&d_prev.as_slice()[r.clone()])?;
-            let (s, d, t, e, el) = if corrected {
-                self.corrected_on_quad(g, dn, t_prev.as_slice()[q])?
-            } else {
-                self.desmorat_on_quad(g, dn, t_prev.as_slice()[q])?
-            };
-            sigma_out[r.clone()].copy_from_slice(s.as_flattened());
-            d_out[r.clone()].copy_from_slice(d.as_flattened());
-            el_out[r].copy_from_slice(el.as_flattened());
-            t_out[q] = t;
-            e_out[q] = e;
+        if grad_u.nb_component() != n || d_prev.nb_component() != n || t_prev.len() != nq {
+            return Err(Error::DimensionMismatch {
+                context: "anisotropic_damage: computeStress",
+                expected: nq,
+                got: t_prev.len(),
+            });
         }
+        let items = (
+            (
+                TuplesRef::new(grad_u.as_slice(), n),
+                TuplesRef::new(d_prev.as_slice(), n),
+                TuplesRef::new(t_prev.as_slice(), 1),
+            ),
+            Tuples::new(&mut sigma_out, n),
+            Tuples::new(&mut d_out, n),
+            Tuples::new(&mut el_out, n),
+            Tuples::new(&mut t_out, 1),
+            Tuples::new(&mut e_out, 1),
+        );
+        let this = &*self;
+        exec.try_for_each(
+            items,
+            256,
+            |_, ((g, dn, tp), mut so, mut dout, mut elout, mut tout, mut eout)| {
+                let points = g
+                    .as_slice()
+                    .chunks_exact(n)
+                    .zip(dn.as_slice().chunks_exact(n))
+                    .zip(tp.as_slice())
+                    .zip(so.as_mut_slice().chunks_exact_mut(n))
+                    .zip(dout.as_mut_slice().chunks_exact_mut(n))
+                    .zip(elout.as_mut_slice().chunks_exact_mut(n))
+                    .zip(tout.as_mut_slice().iter_mut().zip(eout.as_mut_slice()));
+                for ((((((g, dn), &tp), so), dout), elout), (tout, eout)) in points {
+                    let g: &Matrix<DIM, DIM> = as_matrix(g)?;
+                    let dn: &Matrix<DIM, DIM> = as_matrix(dn)?;
+                    let (s, d, t, e, el) = if corrected {
+                        this.corrected_on_quad(g, dn, tp)?
+                    } else {
+                        this.desmorat_on_quad(g, dn, tp)?
+                    };
+                    so.copy_from_slice(s.as_flattened());
+                    dout.copy_from_slice(d.as_flattened());
+                    elout.copy_from_slice(el.as_flattened());
+                    *tout = t;
+                    *eout = e;
+                }
+                Ok(())
+            },
+        )?;
         self.elastic
             .base_mut()
             .sigma_field_mut()?
@@ -1167,10 +1209,11 @@ impl<const DIM: usize> Material for MaterialAnisotropicDamage<DIM> {
 
     fn compute_stress(
         &mut self,
-        _ctx: &LawContext<'_>,
+        ctx: &LawContext<'_>,
         ty: ElementType,
         ghost: GhostType,
     ) -> Result<()> {
+        let exec = crate::material::points_exec(self, ctx);
         match self.model() {
             AnisotropicDamageModel::Unsupported => Err(unsupported_default()),
             AnisotropicDamageModel::Upstream => self.compute_stress_upstream(ty, ghost),
@@ -1185,9 +1228,21 @@ impl<const DIM: usize> Material for MaterialAnisotropicDamage<DIM> {
                     self.damage.initialize_history();
                     self.damage.save_current_values()?;
                 }
-                self.compute_stress_desmorat(ty, ghost, corrected)
+                self.compute_stress_desmorat(exec, ty, ghost, corrected)
             }
         }
+    }
+
+    /// The Desmorat-type models (experimental and corrected): a point's
+    /// stress and damage read only that point's gradient and committed
+    /// damage (copies, written back when every point succeeded) and the
+    /// law's constants. Not the upstream model: a point exceeding `Dc`
+    /// rewrites the law's own `E` and `ν`, which the later points read.
+    fn independent_points(&self) -> bool {
+        matches!(
+            self.model(),
+            AnisotropicDamageModel::DesmoratExperimental | AnisotropicDamageModel::Corrected
+        )
     }
 
     fn compute_tangent_moduli(
