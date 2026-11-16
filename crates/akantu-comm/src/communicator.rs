@@ -1177,6 +1177,26 @@ fn from_bytes<T: CommData>(bytes: &[u8], out: &mut [T]) -> Result<()> {
     T::unpack_all(bytes, out)
 }
 
+/// `values` as its bytes, without a copy, when `T` is `u8` (the packed
+/// buffers of the synchronizers); `Err(values)` otherwise.
+#[cfg(feature = "mpi")]
+fn byte_vec<T: CommData>(values: Vec<T>) -> std::result::Result<Vec<u8>, Vec<T>> {
+    let mut slot = Some(values);
+    if let Some(bytes) = (&mut slot as &mut dyn std::any::Any).downcast_mut::<Option<Vec<u8>>>() {
+        return Ok(bytes.take().unwrap_or_default());
+    }
+    Err(slot.unwrap_or_default())
+}
+
+/// `bytes` as a `Vec<T>`, without a copy, when `T` is `u8`.
+fn from_byte_vec<T: CommData>(bytes: Vec<u8>) -> std::result::Result<Vec<T>, Vec<u8>> {
+    let mut slot = Some(bytes);
+    if let Some(v) = (&mut slot as &mut dyn std::any::Any).downcast_mut::<Option<Vec<T>>>() {
+        return Ok(v.take().unwrap_or_default());
+    }
+    Err(slot.unwrap_or_default())
+}
+
 fn vec_from_bytes<T: CommData>(bytes: &[u8]) -> Result<Vec<T>> {
     if !bytes.len().is_multiple_of(T::SIZE) {
         return Err(comm_err("message size is not a multiple of the item size"));
@@ -2676,17 +2696,22 @@ impl Communicator {
     ) -> Result<SendRequest<T>> {
         self.check_rank(dest)?;
         message_bytes(values.len(), T::SIZE, "send")?;
+        // the buffer `SendRequest::wait` returns (a byte buffer sent by MPI
+        // is moved to the backend and comes back from it instead)
+        #[allow(unused_mut)] // emptied on the MPI path only
+        let mut kept: Option<Vec<T>> = Some(values);
+        let values: &[T] = kept.as_deref().unwrap_or(&[]);
         let pending = match self.backend() {
             Backend::Serial { state } => {
                 let mut st = state.lock().map_err(|_| comm_err("poisoned mailbox"))?;
-                if let Err(bytes) = st.posted.deliver(tag, to_bytes(&values)) {
+                if let Err(bytes) = st.posted.deliver(tag, to_bytes(values)) {
                     st.queue.entry(tag).or_default().push_back(bytes);
                 }
                 None
             }
             Backend::Local(l) => {
                 let sync = mode == SendMode::Rendezvous || l.world.mode == SendMode::Rendezvous;
-                let id = l.push(dest, Channel::P2P(tag), to_bytes(&values), sync)?;
+                let id = l.push(dest, Channel::P2P(tag), to_bytes(values), sync)?;
                 sync.then(|| PendingSend::Local {
                     comm: self.clone(),
                     id,
@@ -2696,25 +2721,37 @@ impl Communicator {
             // Messages to self never enter MPI.
             #[cfg(feature = "mpi")]
             Backend::Mpi(m) if dest == m.rank() => self
-                .mpi(m.send_to_self(to_bytes(&values), tag.0, mode == SendMode::Rendezvous))?
+                .mpi(m.send_to_self(to_bytes(values), tag.0, mode == SendMode::Rendezvous))?
                 .map(|id| PendingSend::MpiSelf {
                     comm: self.clone(),
                     id,
                 }),
+            // A byte buffer is handed to MPI as it is (no copy) and given
+            // back by `SendRequest::wait`; other types are packed.
             #[cfg(feature = "mpi")]
-            Backend::Mpi(m) => Some(PendingSend::Mpi {
-                comm: self.clone(),
-                req: Box::new(self.mpi(m.isend(
-                    to_bytes(&values),
-                    dest,
-                    tag.0,
-                    mode == SendMode::Rendezvous,
-                ))?),
-            }),
+            Backend::Mpi(m) => {
+                let bytes = match byte_vec(kept.take().unwrap_or_default()) {
+                    Ok(bytes) => bytes,
+                    Err(v) => {
+                        let b = to_bytes(&v);
+                        kept = Some(v);
+                        b
+                    }
+                };
+                Some(PendingSend::Mpi {
+                    comm: self.clone(),
+                    req: Box::new(self.mpi(m.isend(
+                        bytes,
+                        dest,
+                        tag.0,
+                        mode == SendMode::Rendezvous,
+                    ))?),
+                })
+            }
         };
         Ok(SendRequest {
             completed: pending.is_none(),
-            buffer: Some(values),
+            buffer: kept,
             pending,
         })
     }
@@ -3260,7 +3297,14 @@ impl<T: CommData> SendRequest<T> {
             }
             #[cfg(feature = "mpi")]
             Some(PendingSend::Mpi { comm, req }) => {
-                comm.mpi(req.wait())?;
+                let bufs = comm.mpi(req.wait())?;
+                if self.buffer.is_none() {
+                    // a byte buffer moved to the backend (`isend`)
+                    self.buffer = bufs
+                        .into_iter()
+                        .next()
+                        .and_then(|b| from_byte_vec::<T>(b).ok());
+                }
             }
             #[cfg(feature = "mpi")]
             Some(PendingSend::MpiSelf { comm, id }) => {
@@ -3300,6 +3344,17 @@ impl<T: CommData> SendRequest<T> {
             },
         };
         if done {
+            #[cfg(feature = "mpi")]
+            if let Some(PendingSend::Mpi { comm, req }) = self.pending.take()
+                && self.buffer.is_none()
+            {
+                // completed: give back the byte buffer moved to the backend
+                let bufs = comm.mpi(req.wait())?;
+                self.buffer = bufs
+                    .into_iter()
+                    .next()
+                    .and_then(|b| from_byte_vec::<T>(b).ok());
+            }
             self.pending = None;
             self.completed = true;
         }
@@ -3455,7 +3510,10 @@ impl<T: CommData> RecvRequest<T> {
     /// error.
     pub fn wait_received(mut self) -> Result<Vec<T>> {
         let bytes = self.complete()?;
-        vec_from_bytes(&bytes)
+        match from_byte_vec::<T>(bytes) {
+            Ok(v) => Ok(v), // bytes: no copy
+            Err(bytes) => vec_from_bytes(&bytes),
+        }
     }
 
     /// Posted length.

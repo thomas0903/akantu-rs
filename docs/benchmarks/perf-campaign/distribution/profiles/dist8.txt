@@ -1,0 +1,61 @@
+# perf record -F 999 --call-graph dwarf, CPU 0 (rank 0 or the single process); binary h7 (h6+overlap); development VM, AMD EPYC Milan
+## flat (self)
+    11.81%           254  suite_setup                         [.] <akantu_core::element::Element as core::cmp::Ord>::cmp
+     7.83%           170  suite_setup                         [.] akantu_mesh::partition::build_dual_graph
+     4.89%           105  suite_setup                         [.] <alloc::collections::btree::map::entry::Entry<akantu_core::element::Element, usize>>::or_default
+     2.26%            49  suite_setup                         [.] <alloc::collections::btree::node::Handle<alloc::collections::btree::node::NodeRef<alloc::collections::btree::node::marker::Mut, akantu
+     1.47%            32  suite_setup                         [.] akantu_mesh::partition::fill_partition_information_with
+     1.42%            31  libscotch-7.0.7.so                  [.] 0x00000000000497b5
+     1.39%            30  suite_setup                         [.] <akantu_mesh::distribution::Plan>::package
+     1.25%            27  suite_setup                         [.] <std::hash::random::RandomState as core::hash::BuildHasher>::hash_one::<&usize>
+     1.25%            27  suite_setup                         [.] akantu_mesh::utils::renumber_mesh_nodes
+     1.16%            25  suite_setup                         [.] <hashbrown::raw::RawTable<(usize, alloc::vec::Vec<u32>)>>::reserve_rehash::<hashbrown::map::make_hasher<usize, alloc::vec::Vec<u32>, s
+     1.04%            24  libc.so.6                           [.] 0x000000000016288d
+     0.78%            17  suite_setup                         [.] <alloc::collections::btree::map::IntoIter<akantu_core::element::Element, usize>>::dying_next
+     0.73%            16  suite_setup                         [.] <akantu_io::mesh_io::lexer::Source>::expect_line
+     0.59%            13  libc.so.6                           [.] 0x000000000016241d
+     0.56%            12  libc.so.6                           [.] 0x000000000009eb1b
+     0.54%            12  libc.so.6                           [.] 0x00000000000a29bd
+
+## inclusive
+    30.35%     0.00%  [.] <suite_setup::suite_setup::harness::CaseOut>::phase::<core::option::Option<core::result::Result<akantu_mesh::partition::MeshPartition, akantu_core::error::Error>>, suite_setup::suite_setup::case
+    30.35%     0.00%  [.] <akantu_mesh::scotch::ScotchPartitioner>::partition_with_loads
+    30.35%     0.00%  [.] <akantu_mesh::scotch::ScotchPartitioner as akantu_mesh::partition::MeshPartitioner>::partition
+    28.14%     7.83%  [.] akantu_mesh::partition::build_dual_graph
+    17.34%     0.00%  [.] <alloc::collections::btree::map::BTreeMap<akantu_core::element::Element, usize>>::entry (inlined)
+    16.65%     0.00%  [.] <alloc::collections::btree::node::NodeRef<alloc::collections::btree::node::marker::Mut, akantu_core::element::Element, usize, alloc::collections::btree::node::marker::LeafOrInternal>>::search_tr
+    16.05%     0.00%  [.] <alloc::collections::btree::node::NodeRef<alloc::collections::btree::node::marker::Mut, akantu_core::element::Element, usize, alloc::collections::btree::node::marker::LeafOrInternal>>::search_no
+    16.05%     0.00%  [.] <alloc::collections::btree::node::NodeRef<alloc::collections::btree::node::marker::Mut, akantu_core::element::Element, usize, alloc::collections::btree::node::marker::LeafOrInternal>>::find_key_
+    11.81%    11.81%  [.] <akantu_core::element::Element as core::cmp::Ord>::cmp
+     7.21%     0.00%  [.] akantu_mesh::distribution::distribute_impl::{closure#0} (inlined)
+     7.21%     0.00%  [.] akantu_mesh::distribution::distribute_impl
+     7.20%     4.89%  [.] <alloc::collections::btree::map::entry::Entry<akantu_core::element::Element, usize>>::or_default
+     7.12%     0.00%  [.] <core::result::Result<core::option::Option<&akantu_mesh::partition::MeshPartition>, akantu_core::error::Error>>::and_then::<core::option::Option<alloc::vec::Vec<alloc::vec::Vec<u8>>>, akantu_mes
+     7.12%     0.00%  [.] akantu_mesh::distribution::distribute_impl::{closure#0}::{closure#1} (inlined)
+     7.12%     0.00%  [.] akantu_mesh::distribution::preflight (inlined)
+     6.65%     0.00%  [.] <(bool, akantu_core::element_type::GhostType, akantu_core::element_type::ElementType, i32) as core::cmp::Ord>::cmp (inlined)
+     5.55%     1.39%  [.] <akantu_mesh::distribution::Plan>::package
+     5.50%     0.00%  [.] akantu_mesh::distribution::preflight::{closure#2} (inlined)
+     4.88%     0.00%  [.] <akantu_core::element::Element>::is_null (inlined)
+     4.15%     0.00%  [.] akantu_io::mesh_io::read_mesh_from_str
+     4.15%     0.00%  [.] akantu_io::mesh_io::parse
+     4.15%     0.00%  [.] akantu_io::mesh_io::msh::read
+     3.84%     0.00%  [.] akantu_mesh::distribution::element_to_groups (inlined)
+     3.61%     0.00%  [.] <alloc::collections::btree::map::entry::VacantEntry<akantu_core::element::Element, usize>>::insert_entry (inlined)
+     3.61%     0.00%  [.] <alloc::collections::btree::map::entry::VacantEntry<akantu_core::element::Element, usize>>::insert (inlined)
+     3.46%     0.00%  [.] <akantu_io::mesh_io::msh::Reader>::run
+     3.18%     0.37%  [.] <akantu_io::mesh_io::msh::Reader>::elements_v2
+     2.79%     0.00%  [.] <akantu_core::element_type::GhostType as core::cmp::Ord>::cmp (inlined)
+     2.26%     2.26%  [.] <alloc::collections::btree::node::Handle<alloc::collections::btree::node::NodeRef<alloc::collections::btree::node::marker::Mut, akantu_core::element::Element, usize, alloc::collections::btree::n
+     2.19%     0.00%  [.] <akantu_core::element_type::ElementType as core::cmp::Ord>::cmp (inlined)
+     1.84%     1.47%  [.] akantu_mesh::partition::fill_partition_information_with
+     1.75%     0.00%  [.] <suite_setup::suite_setup::harness::CaseOut>::phase::<akantu_mesh::mesh::Mesh, suite_setup::suite_setup::cases_dist::distributed_tet4::{closure#0}>
+     1.57%     0.14%  [.] <akantu_mesh::distribution::Plan>::new
+     1.43%     1.25%  [.] akantu_mesh::utils::renumber_mesh_nodes
+     1.39%     0.00%  [.] akantu_mesh::utils::renumber_nodes_in_connectivity (inlined)
+     1.35%     0.00%  [.] <core::ptr::non_null::NonNull<akantu_core::element::Element> as core::cmp::PartialEq>::eq (inlined)
+     1.33%     0.00%  [.] <alloc::collections::btree::node::Handle<alloc::collections::btree::node::NodeRef<alloc::collections::btree::node::marker::Mut, akantu_core::element::Element, usize, alloc::collections::btree::n
+     1.00%     0.00%  [.] <akantu_io::mesh_io::msh::Reader>::element_nodes
+     0.86%     0.36%  [.] <akantu_io::mesh_io::msh::Reader>::node_index
+     0.83%     0.00%  [.] <alloc::collections::btree::map::IntoIter<akantu_core::element::Element, usize>>::dying_next (inlined)
+     0.82%     0.00%  [.] <akantu_core::element::Element as core::cmp::PartialEq>::eq (inlined)

@@ -30,8 +30,8 @@ use akantu_core::{ElementType, Error, GhostType, Result, TypeFilter};
 use akantu_mesh::data::NodalDataValues;
 use akantu_mesh::{Mesh, MeshDataValues};
 
-use super::numfmt::format_g;
 use super::tables::{akantu_to_msh, msh_read_order};
+use crate::dumper::cfmt::{push_g, push_i64, push_u64};
 
 /// Writer options.
 #[derive(Clone, Debug)]
@@ -89,9 +89,10 @@ pub(crate) fn write_msh(mesh: &Mesh, opts: &WriteOptions, flavor: Flavor) -> Res
     out.push_str("$Nodes\n");
     let _ = writeln!(out, "{}", nodes.len());
     for (i, x) in nodes.tuples().enumerate() {
-        let _ = write!(out, "{}", i + 1);
+        push_u64(&mut out, i as u64 + 1);
         for &c in x {
-            let _ = write!(out, " {}", format_g(c, p, true));
+            out.push(' ');
+            push_g(&mut out, c, p, true);
         }
         for _ in dim..3 {
             out.push_str(" 0");
@@ -133,14 +134,19 @@ pub(crate) fn write_msh(mesh: &Mesh, opts: &WriteOptions, flavor: Flavor) -> Res
         let tags = [int_tag("tag_0", ty), int_tag("tag_1", ty)];
         let order = write_order(ty, flavor);
         for (e, c) in conn.tuples().enumerate() {
-            let _ = write!(out, "{id} {code} 2");
+            push_u64(&mut out, id as u64);
+            out.push(' ');
+            push_u64(&mut out, u64::from(code));
+            out.push_str(" 2");
             for t in &tags {
                 let v = t.as_ref().and_then(|t| t.get(e).copied()).unwrap_or(0);
-                let _ = write!(out, " {v}");
+                out.push(' ');
+                push_i64(&mut out, i64::from(v));
             }
             for j in 0..c.len() {
                 let n = c[order.map_or(j, |o| o[j])];
-                let _ = write!(out, " {}", i64::from(n) + 1);
+                out.push(' ');
+                push_i64(&mut out, i64::from(n) + 1);
             }
             out.push('\n');
             id += 1;
@@ -154,9 +160,10 @@ pub(crate) fn write_msh(mesh: &Mesh, opts: &WriteOptions, flavor: Flavor) -> Res
             NodalDataValues::Real(a) => {
                 data_header(&mut out, "$NodeData", name, a.nb_component(), a.len())?;
                 for (i, v) in a.tuples().enumerate() {
-                    let _ = write!(out, "{}", i + 1);
+                    push_u64(&mut out, i as u64 + 1);
                     for &x in v {
-                        let _ = write!(out, " {}", format_g(x, p, false));
+                        out.push(' ');
+                        push_g(&mut out, x, p, false);
                     }
                     out.push('\n');
                 }
@@ -233,12 +240,14 @@ pub(crate) fn write_msh(mesh: &Mesh, opts: &WriteOptions, flavor: Flavor) -> Res
                     for j in 0..nnpe {
                         let s = order.map_or(j, |o| o[j]);
                         for &x in &v[s * nc..(s + 1) * nc] {
-                            let _ = write!(out, " {}", format_g(x, p, false));
+                            out.push(' ');
+                            push_g(&mut out, x, p, false);
                         }
                     }
                 } else {
                     for &x in v {
-                        let _ = write!(out, " {}", format_g(x, p, false));
+                        out.push(' ');
+                        push_g(&mut out, x, p, false);
                     }
                 }
                 out.push('\n');

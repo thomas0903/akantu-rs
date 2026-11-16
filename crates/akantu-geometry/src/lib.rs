@@ -40,7 +40,7 @@ pub mod segment_intersector;
 pub mod tiling;
 
 pub use factory::{MeshGeomFactory, TetrahedronPrimitives, TrianglePrimitive};
-pub use index::{LinearScan, TriangleIndex};
+pub use index::{GridIndex, LinearScan, TriangleIndex};
 pub use segment_intersector::{
     MeshSegmentIntersector, PieceAssembly, SegmentIntersectorOptions, SegmentOrder,
 };

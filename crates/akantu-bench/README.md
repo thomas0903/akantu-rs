@@ -224,6 +224,11 @@ case-specific counts (`n_facets`, `n_cohesive`, …).
   repeated until S seconds have passed (for `perf record`); the digest of a
   case whose state evolves per call (`explicit_step_dist_tet4`) then
   depends on the number of calls.
+- `explicit_step_dist_tet4` reports, since commit 26d0f8365, the
+  agreements of the collective error protocol per call and the time spent
+  in them on the fastest and the slowest rank (`agreements_per_step`,
+  `agree_us_per_step_min` / `_max`, the same for the energies), measured
+  outside the timed phases; its digest is unchanged.
 - Digest: FNV-1a (64-bit) over the case's result arrays (mesh nodes,
   connectivities and groups; partitions; exchanged values; displacements
   and velocities; dumped file bytes). The distribution cases hash each

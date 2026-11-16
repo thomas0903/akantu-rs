@@ -49,7 +49,7 @@ use akantu_core::{Error, Real, Result};
 use akantu_mesh::Mesh;
 
 use super::base::{Common, Entry, OutFile, Parallel, WriteMode, file_name, write_files};
-use super::cfmt::{format_default, format_e};
+use super::cfmt::{format_default, format_e, push_e, push_u64};
 use super::eval;
 use super::{Dumper, FieldDescriptor, FieldResolver, MeshSelection, ParallelContext};
 
@@ -109,14 +109,17 @@ impl DumperLammps {
         for (i, p) in points.chunks(dim.max(1)).take(nb).enumerate() {
             match self.style {
                 LammpsAtomStyle::Atomic => {
-                    let _ = write!(s, "{} 1 ", i + 1);
+                    push_u64(&mut s, i as u64 + 1);
+                    s.push_str(" 1 ");
                 }
                 LammpsAtomStyle::Bond => {
-                    let _ = write!(s, "{} 3 1 ", i + 1);
+                    push_u64(&mut s, i as u64 + 1);
+                    s.push_str(" 3 1 ");
                 }
             }
             for &x in p {
-                let _ = write!(s, "{} ", format_e(x, 16));
+                push_e(&mut s, x, 16);
+                s.push(' ');
             }
             s.push('\n');
         }

@@ -1,0 +1,85 @@
+# Profile of suite case contact_search_quad4
+
+binary: ~/w/contact/bin/models-g4 (bc219e8beca0be34)
+command: taskset -c 5 ~/w/contact/bin/models-g4 --case contact_search_quad4 --size m --loop-seconds 6
+perf: perf record -F 499 --call-graph dwarf,16384
+cpu: AMD EPYC 9R14
+date_utc: 2026-11-16T12:39:24Z
+commit: faf1b35c7
+
+## Phases of the profiled run (seconds, calls)
+
+mesh                         0.4304 s       1 calls
+init                         0.3343 s       1 calls
+search                       9.2117 s     120 calls
+
+## Top 25 symbols, self time
+
+     9.38%  [.] akantu_fe::eigen::product_slices
+     8.55%  [.] akantu_core::eigen_gebp::product_into::<akantu_fe::eigen::product_slices::{closure#1}, akantu_fe::eigen::product_slices::{closure#2}>
+     6.48%  [.] akantu_contact::geometry::barycenter_in
+     6.05%  [.] akantu_contact::geometry::barycenter_on
+     4.40%  [.] akantu_core::eigen_gebp::route
+     4.40%  [.] akantu_core::eigen_gebp::gemv_into::<akantu_contact::eigen_ops::gemv::{closure#0}, akantu_contact::eigen_ops::gemv::{closure#1}>
+     3.60%  [.] akantu_contact::geometry::orthogonal_projection_in
+     3.56%  [.] <akantu_core::spatial_grid::NeighborhoodItems<i32> as core::iter::traits::iterator::Iterator>::next
+     3.28%  [.] akantu_core::eigen_order::redux_tree::<akantu_core::eigen_gebp::eval_product<akantu_fe::eigen::product_slices::{closure#1}, akantu_fe::eigen::product_slices::{closure#2}>::{closure#0}>
+     2.64%  [.] <akantu_contact::detector::ContactDetector>::is_valid_self_contact_in
+     2.23%  [.] <akantu_contact::detector::ContactDetector>::local_search
+     2.01%  [.] akantu_fe::kernels::normals_on_natural::<akantu_fe::element_class::types::Cohesive2d4>
+     1.86%  [.] akantu_contact::geometry::natural_projection::{closure#0}
+     1.62%  [.] 0x00000000001986a5
+     1.61%  [.] <akantu_contact::selector::ContactSurface>::contains
+     1.55%  [.] <akantu_contact::model::ContactMechanicsModel>::compute_nodal_areas_in
+     1.51%  [.] <akantu_core::spatial_grid::SpatialGrid<i32>>::insert
+     1.50%  [.] <akantu_contact::detector::ContactDetector>::compute_maximal_detection_distance
+     1.44%  [.] 0x00000000001986ab
+     1.38%  [.] <akantu_core::array_shared::ArrayRef<i32>>::try_map_slice::<akantu_core::error::Error, <akantu_core::array_shared::ArrayRef<i32>>::into_tuple::{closure#0}>
+     1.37%  [.] akantu_contact::geometry::covariant_basis
+     1.23%  [.] akantu_fe::engine::compute_jacobians::<akantu_fe::element_class::types::Cohesive2d4>
+     1.21%  [.] <akantu_core::element_type_map_shared::SharedElementTypeMapArray<i32>>::element_ref
+     1.12%  [.] akantu_fe::engine::fast::integrate::<<akantu_fe::engine::FeEngine>::integrate::{closure#0}>
+     1.06%  [.] <akantu_contact::detector::ContactDetector>::create_contact_elements
+
+## Top 25 symbols, inclusive time (children)
+
+     9.38%     9.38%  [.] akantu_fe::eigen::product_slices
+     8.55%     8.55%  [.] akantu_core::eigen_gebp::product_into::<akantu_fe::eigen::product_slices::{closure#1}, akantu_fe::eigen::product_slices::{closure#2}>
+     6.48%     6.48%  [.] akantu_contact::geometry::barycenter_in
+     6.05%     6.05%  [.] akantu_contact::geometry::barycenter_on
+     4.40%     4.40%  [.] akantu_core::eigen_gebp::route
+     4.40%     4.40%  [.] akantu_core::eigen_gebp::gemv_into::<akantu_contact::eigen_ops::gemv::{closure#0}, akantu_contact::eigen_ops::gemv::{closure#1}>
+     3.60%     3.60%  [.] akantu_contact::geometry::orthogonal_projection_in
+     3.56%     3.56%  [.] <akantu_core::spatial_grid::NeighborhoodItems<i32> as core::iter::traits::iterator::Iterator>::next
+     3.28%     3.28%  [.] akantu_core::eigen_order::redux_tree::<akantu_core::eigen_gebp::eval_product<akantu_fe::eigen::product_slices::{closure#1}, akantu_fe::eigen::product_slices::{closure#2}>::{closure#0}>
+     2.64%     2.64%  [.] <akantu_contact::detector::ContactDetector>::is_valid_self_contact_in
+     2.23%     2.23%  [.] <akantu_contact::detector::ContactDetector>::local_search
+     2.01%     2.01%  [.] akantu_fe::kernels::normals_on_natural::<akantu_fe::element_class::types::Cohesive2d4>
+     1.86%     1.86%  [.] akantu_contact::geometry::natural_projection::{closure#0}
+     1.84%     0.15%  [.] asm_exc_page_fault
+     1.69%     0.24%  [k] exc_page_fault
+     1.64%     0.00%  [.] 0x000076a1681986a5
+     1.62%     1.62%  [.] 0x00000000001986a5
+     1.61%     1.61%  [.] <akantu_contact::selector::ContactSurface>::contains
+     1.55%     1.55%  [.] <akantu_contact::model::ContactMechanicsModel>::compute_nodal_areas_in
+     1.51%     1.51%  [.] <akantu_core::spatial_grid::SpatialGrid<i32>>::insert
+     1.50%     1.50%  [.] <akantu_contact::detector::ContactDetector>::compute_maximal_detection_distance
+     1.44%     1.44%  [.] 0x00000000001986ab
+     1.44%     0.00%  [.] 0x000076a1681986ab
+     1.42%     0.02%  [.] do_user_addr_fault
+     1.38%     1.38%  [.] <akantu_core::array_shared::ArrayRef<i32>>::try_map_slice::<akantu_core::error::Error, <akantu_core::array_shared::ArrayRef<i32>>::into_tuple::{closure#0}>
+
+## Call chains (callers of the hottest self-time symbols, entries above 2 %)
+
+     9.38%  [.] akantu_fe::eigen::product_slices
+     8.55%  [.] akantu_core::eigen_gebp::product_into::<akantu_fe::eigen::product_slices::{closure#1}, akantu_fe::eigen::product_slices::{closure#2}>
+     6.48%  [.] akantu_contact::geometry::barycenter_in
+     6.05%  [.] akantu_contact::geometry::barycenter_on
+     4.40%  [.] akantu_core::eigen_gebp::route
+     4.40%  [.] akantu_core::eigen_gebp::gemv_into::<akantu_contact::eigen_ops::gemv::{closure#0}, akantu_contact::eigen_ops::gemv::{closure#1}>
+     3.60%  [.] akantu_contact::geometry::orthogonal_projection_in
+     3.56%  [.] <akantu_core::spatial_grid::NeighborhoodItems<i32> as core::iter::traits::iterator::Iterator>::next
+     3.28%  [.] akantu_core::eigen_order::redux_tree::<akantu_core::eigen_gebp::eval_product<akantu_fe::eigen::product_slices::{closure#1}, akantu_fe::eigen::product_slices::{closure#2}>::{closure#0}>
+     2.64%  [.] <akantu_contact::detector::ContactDetector>::is_valid_self_contact_in
+     2.23%  [.] <akantu_contact::detector::ContactDetector>::local_search
+     2.01%  [.] akantu_fe::kernels::normals_on_natural::<akantu_fe::element_class::types::Cohesive2d4>
