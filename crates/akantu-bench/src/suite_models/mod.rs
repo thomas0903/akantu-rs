@@ -10,8 +10,10 @@
 
 pub mod common;
 pub mod harness;
+pub mod contact;
 pub mod heat;
 pub mod mesh;
+pub mod phase_field;
 
 use harness::Case;
 
@@ -19,7 +21,7 @@ use harness::Case;
 #[must_use]
 pub fn cases() -> Vec<Case> {
     let mut v = Vec::new();
-    for group in [heat::CASES] {
+    for group in [heat::CASES, phase_field::CASES, contact::CASES] {
         for c in group {
             v.push(Case {
                 name: c.name,

@@ -145,6 +145,13 @@ impl Msh {
         self.physicals.len()
     }
 
+    /// Rename the physical group `name` of dimension `dim` to `new_name`.
+    pub fn alias(&mut self, dim: usize, name: &str, new_name: &str) {
+        if let Some(p) = self.physicals.iter_mut().find(|(d, n)| *d == dim && n == name) {
+            p.1 = new_name.to_owned();
+        }
+    }
+
     /// Add a node, returns its index.
     pub fn node(&mut self, x: [Real; 3]) -> usize {
         self.nodes.push(x);
