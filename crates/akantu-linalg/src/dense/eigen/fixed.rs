@@ -540,6 +540,48 @@ impl<const N: usize, const COMPUTE_U: bool> State<N, COMPUTE_U> {
     }
 }
 
+/// `$f` with `$i` bound to the literal equal to `$x` (`$x < 4`; otherwise
+/// to `$x` itself).
+macro_rules! lit {
+    ($x:expr; $i:ident => $f:expr) => {
+        match $x {
+            0 => {
+                let $i = 0;
+                $f
+            }
+            1 => {
+                let $i = 1;
+                $f
+            }
+            2 => {
+                let $i = 2;
+                $f
+            }
+            3 => {
+                let $i = 3;
+                $f
+            }
+            other => {
+                let $i = other;
+                $f
+            }
+        }
+    };
+}
+
+/// One Francis double-shift step of the active window `il..=iu`
+/// (`initFrancisQRStep`, then `performFrancisQRStep`).
+#[inline(always)]
+fn francis<const N: usize, const COMPUTE_U: bool>(
+    st: &mut State<N, COMPUTE_U>,
+    il: usize,
+    iu: usize,
+    shift: &[f64; 3],
+) {
+    let (im, v) = st.init_francis_qr_step(il, iu, shift);
+    lit!(im; m => st.perform_francis_qr_step(il, m, iu, v));
+}
+
 /// [`super::real_schur::real_schur`] of a compile-time `N × N` matrix
 /// (`Storage::Fixed`, `1 ≤ N ≤ 4`): `(T, U, info)`; `U` is the identity
 /// unless `COMPUTE_U` (the general path returns `None` there).
@@ -578,7 +620,10 @@ pub(crate) fn real_schur_fixed<const N: usize, const COMPUTE_U: bool>(
     if norm != 0.0 {
         while iu >= 0 {
             let iuu = iu as usize;
-            let il = st.find_small_subdiag_entry(iuu, consider_as_zero);
+            // `iu < N ≤ 4`: each call below is made with literal indices
+            // (`lit!`), so that the always-inlined steps unroll; the calls
+            // and their arguments are those of the general loop
+            let il = lit!(iuu; i => st.find_small_subdiag_entry(i, consider_as_zero));
             if il == iuu {
                 let v = st.t.at(iuu, iuu) + exshift;
                 st.t.set(iuu, iuu, v);
@@ -588,18 +633,23 @@ pub(crate) fn real_schur_fixed<const N: usize, const COMPUTE_U: bool>(
                 iu -= 1;
                 iter = 0;
             } else if il + 1 == iuu {
-                st.split_off_two_rows(iuu, exshift);
+                lit!(iuu; i => st.split_off_two_rows(i, exshift));
                 iu -= 2;
                 iter = 0;
             } else {
-                let shift = st.compute_shift(iuu, iter, &mut exshift);
+                let shift = lit!(iuu; i => st.compute_shift(i, iter, &mut exshift));
                 iter += 1;
                 total_iter += 1;
                 if total_iter > max_iters {
                     break;
                 }
-                let (im, v) = st.init_francis_qr_step(il, iuu, &shift);
-                st.perform_francis_qr_step(il, im, iuu, v);
+                // `il + 2 ≤ iu ≤ 3`: (0, 2), (0, 3), (1, 3)
+                match (il, iuu) {
+                    (0, 2) => francis(&mut st, 0, 2, &shift),
+                    (0, 3) => francis(&mut st, 0, 3, &shift),
+                    (1, 3) => francis(&mut st, 1, 3, &shift),
+                    _ => francis(&mut st, il, iuu, &shift),
+                }
             }
         }
     }
