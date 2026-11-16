@@ -5,7 +5,7 @@
 //! Cost of a parallel region after a serial stretch.
 //!
 //! ```text
-//! cargo run --release -p akantu-core --example exec_region_gap -- THREADS
+//! cargo run --release -p akantu-core --example exec_region_gap -- THREADS [ITEMS_5US]
 //! ```
 //!
 //! For serial gaps of 0, 50, 200, 1000 and 2000 µs (busy work on the calling
@@ -88,7 +88,12 @@ fn main() {
         );
     }
     // distribution of ~5 µs regions back to back
-    let items = ((5.0 * per_us) as usize).max(threads);
+    // a fixed amount of work when given (second argument), so that two
+    // builds time the same regions
+    let items = std::env::args()
+        .nth(2)
+        .and_then(|s| s.parse().ok())
+        .unwrap_or(((5.0 * per_us) as usize).max(threads));
     let mut out = vec![0.0; items];
     let mut t5 = Vec::with_capacity(4000);
     for _ in 0..4000 {
@@ -102,7 +107,7 @@ fn main() {
     t5.sort_by(f64::total_cmp);
     let q = |f: f64| t5[((t5.len() - 1) as f64 * f) as usize];
     println!(
-        "{{\"threads\":{threads},\"regions_5us\":{},\"p50_us\":{:.2},\"p99_us\":{:.2},\"max_us\":{:.2}}}",
+        "{{\"threads\":{threads},\"items\":{items},\"regions_5us\":{},\"p50_us\":{:.2},\"p99_us\":{:.2},\"max_us\":{:.2}}}",
         t5.len(),
         q(0.5),
         q(0.99),

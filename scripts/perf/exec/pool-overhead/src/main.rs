@@ -7,7 +7,8 @@
 // For every thread count and amount of work (the serial time of the region's
 // loop, calibrated on this machine), the median time of one region with:
 //   serial   the loop on the calling thread (the reference, threads = 1)
-//   exec     `akantu_core::exec::Exec::for_each` (rayon pool, 4 parts per thread)
+//   exec     `akantu_core::exec::Exec::for_each` (the execution policy's own
+//            pool, `exec/spin.rs`; 4 parts per thread)
 //   rayon-b  `rayon::ThreadPool::broadcast` (one call per thread, static split)
 //   spin     a hand-written pool: workers spin on a generation counter (then
 //            park), the caller takes part 0 (static split)

@@ -2200,7 +2200,31 @@ tests against the default path.
   region; 7 sites in `crates/akantu-core/UNSAFE.md`) and workers that spin
   briefly after each region. A region started while the pool runs
   another (another thread, or a nested region) runs serially on its
-  caller, which gives the same results. Each MPI rank has its own pool.
+  caller, which gives the same results: two models with the same thread
+  count stepped from two OS threads share one pool, and whichever starts
+  a region second runs it serially. Pools are never shut down: the
+  process keeps one parked pool per thread count it ever used (a failed
+  pool creation joins the workers it started). After `fork` the child
+  starts new pools for the executors it creates (the table is keyed by
+  process id); an executor created before the fork runs its regions
+  serially in the child (no worker exists there), and a fork while
+  another thread holds the pool table's lock or a worker holds the
+  parking lock deadlocks the child at its next pool creation or region:
+  Python `multiprocessing` should use `spawn` or `forkserver` with more
+  than one thread. Each MPI rank has its own pool.
+- **Wait policy.** Idle workers spin for the policy's spin time
+  (`AKANTU_EXEC_SPIN_US`, `ExecPolicy::with_spin_us`; default 5 ms, or 0
+  when the threads outnumber `std::thread::available_parallelism`, with
+  a one-time warning in the debug output) and then park; 0 parks them as
+  soon as a region ends. The caller's wait for the workers inside a
+  region yields the core after 2048 polls. Spinning costs cores: with
+  more than one thread, each MPI rank keeps up to `threads − 1` cores busy
+  for the spin time after every region, also while it waits in MPI or
+  writes output, and on SMT the spinning workers share their cores'
+  pipelines with the siblings. Recommendation: `ranks × threads ≤ cores`
+  (physical cores), otherwise `AKANTU_EXEC_SPIN_US=0`. Measured on an
+  8-core cloud VM (`docs/benchmarks/perf-campaign/exec/README.md`,
+  "Wait policy"): M1_NUMBERS.
   The library does not pin threads: a rank's threads inherit the rank's
   CPU mask, so with `mpirun --bind-to core` all threads of a rank share
   one core; run `ranks × threads ≤ cores` with a binding that gives each

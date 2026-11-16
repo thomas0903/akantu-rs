@@ -1011,11 +1011,22 @@ every supported level against the scalar bits. Fast-mode kernels: marked
 `akantu_validation::fast_mode::check_fast_mode` against the bitwise run with
 a rule of `fixtures/fast_mode/<area>/tolerances.json`.
 
+Wait policy: idle workers spin for `ExecPolicy::spin` (`AKANTU_EXEC_SPIN_US`;
+default 5 ms, 0 when the threads outnumber the available cores, with a
+one-time warning), then park; the caller's wait for the workers inside a
+region yields after 2048 polls. A pool is shared by every executor of its
+thread count in the process: a region started while another runs (another
+OS thread, or nested) runs serially. Pools live until the process ends;
+after `fork` the child creates its own (D-123 lists the limits).
+
 Threads and MPI: each rank has its own pool. The library does not bind
 threads to cores; they inherit the rank's CPU mask. Run
 `ranks × threads ≤ cores` with a binding that gives each rank its
 `threads` cores (Open MPI `--map-by slot:PE=<threads>` or `--bind-to none`);
-with `--bind-to core` all threads of a rank share one core.
+with `--bind-to core` all threads of a rank share one core. Spinning workers
+keep `threads − 1` cores busy after each region, also during MPI waits and
+output, and share SMT siblings' pipelines: with more ranks × threads than
+physical cores set `AKANTU_EXEC_SPIN_US=0`.
 
 ## Where `unsafe` lives
 

@@ -15,7 +15,8 @@ change of default results or of a public API raises the minor version.
   `Exec` (a shared thread pool per thread count), `NodeScatter` and the
   SIMD dispatch convention. Environment variables `AKANTU_NUM_THREADS`
   (default 1), `AKANTU_PRECISION` (`bitwise`), `AKANTU_SIMD` (`auto`),
-  `AKANTU_EXEC_GRAIN` (`auto`). Rust API:
+  `AKANTU_EXEC_GRAIN` (`auto`), `AKANTU_EXEC_SPIN_US` (5000; 0 when the
+  threads outnumber the cores). Rust API:
   `SolidMechanicsModel::{exec_policy, set_exec_policy}`,
   `FeEngine::{exec, set_exec}`, `FeEngineRegistry::{exec, set_exec}`,
   `DofManager::{exec, set_exec}`, `ModelServices::exec` (default serial),
