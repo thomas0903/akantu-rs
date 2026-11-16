@@ -505,6 +505,7 @@ pub(crate) enum DfsTarget<'a> {
 }
 
 /// Work arrays shared by the symbolic routines.
+#[derive(Clone, Debug, Default)]
 pub(crate) struct Work {
     pub segrep: Vec<i64>,
     pub parent: Vec<i64>,
@@ -516,6 +517,50 @@ pub(crate) struct Work {
     /// The panel's dense accumulator, `m × SPA_W` row-major ([`SPA_W`]).
     pub dense: Vec<f64>,
     pub tempv: Vec<f64>,
+}
+
+/// `v = [value; len]`, reusing `v`'s allocation.
+fn refill<T: Copy>(v: &mut Vec<T>, len: usize, value: T) {
+    v.clear();
+    v.resize(len, value);
+}
+
+impl Work {
+    /// The arrays of `SparseLU::factorize` for an `m × n` matrix, in
+    /// their initial state (`segrep`, `parent`, `xplore`, `xprune` 0;
+    /// `repfnz`, `panel_lsub`, `marker` `emptyIdxLU`; `dense`, `tempv` 0),
+    /// reusing the allocations of an earlier factorisation.
+    pub(crate) fn reset(&mut self, m: usize, n: usize, panel: usize, maxsuper: usize) {
+        let maxpanel = panel * m;
+        refill(&mut self.segrep, m, 0);
+        refill(&mut self.parent, m, 0);
+        refill(&mut self.xplore, m, 0);
+        refill(&mut self.repfnz, maxpanel, EMPTY);
+        refill(&mut self.panel_lsub, maxpanel, EMPTY);
+        refill(&mut self.xprune, n, 0);
+        refill(&mut self.marker, m * 3, EMPTY);
+        refill(&mut self.dense, maxpanel, 0.0);
+        // LUnumTempV(m, panel_size, maxsuper, rowblk = m)
+        refill(&mut self.tempv, m.max((maxsuper + m) * panel), 0.0);
+    }
+}
+
+impl Glu {
+    /// The factor storage for `n` columns: the index arrays `xsup`, `supno`,
+    /// `xlsub`, `xlusup`, `xusub` zeroed (`n + 1` entries, `supno[0] =
+    /// emptyIdxLU`); `lusup`, `lsub`, `ucol`, `usub` keep the allocation and
+    /// contents of an earlier factorisation (Eigen's `expand` leaves new
+    /// entries uninitialised: every entry is written before it is read).
+    pub(crate) fn reset(&mut self, n: usize) {
+        refill(&mut self.xsup, n + 1, 0);
+        refill(&mut self.supno, n + 1, 0);
+        refill(&mut self.xlsub, n + 1, 0);
+        refill(&mut self.xlusup, n + 1, 0);
+        refill(&mut self.xusub, n + 1, 0);
+        if n > 0 {
+            self.supno[0] = EMPTY;
+        }
+    }
 }
 
 /// `dfs_kernel`: `repfnz_off` / `marker_off` locate `repfnz_col` and the
