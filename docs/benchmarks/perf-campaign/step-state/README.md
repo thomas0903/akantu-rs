@@ -233,7 +233,7 @@ option, which only records a number, was not used, so the JSON lines read
 | explicit_hex8_ss | 4 | 32.84 [31.31, 33.56] | 22.08 [21.44, 22.49] | 0.673 [0.670, 0.685] | 5.12 → 0.00 |
 | explicit_hex8_fd | 4 | 40.35 [37.89, 41.05] | 25.07 [24.31, 25.35] | 0.619 [0.614, 0.642] | 7.16 → 0.00 |
 
-The history copy is serial: with four threads it was 15–22 % of the
+The history copy is serial: with four threads it was 16–22 % of the
 base's step, and removing it gives more than at one thread. Every run of
 a case printed the same digest; at size `s` all 74 cases of the three
 suites have the base's digests at 1 and at 4 threads.
