@@ -325,54 +325,93 @@ impl SolidMechanicsPhysics {
             reducer.finish()?;
         }
         // _smm_stress: owners send the stresses of the elements that are
-        // ghosts elsewhere (upstream asynchronousSynchronize before the
-        // local assembly, waitEndSynchronize before the ghost one; the
-        // values and the assembly order are the same done in one step),
-        // through the running operation's scope (ARCHITECTURE.md, "DOF manager")
-        if let Some(es) = &mesh.synchronizers().element {
-            let fe = self.base.fems.get("")?;
-            let nb_quad = nb_quad_map(fe, &mesh, self.base.spatial_dimension)?;
-            let mut acc = super::parallel::StressAccessor {
-                materials: &mut self.materials,
-                nb_quad: &nb_quad,
-                dim: self.base.spatial_dimension,
-            };
-            es.synchronize_in(
-                &mut *dofs.phases()?,
-                &mut acc,
-                akantu_core::enums::SynchronizationTag::SmmStress,
-            )?;
-        }
+        // ghosts elsewhere, posted before the not-ghost assembly and
+        // completed before the ghost one (upstream asynchronousSynchronize
+        // / waitEndSynchronize; the unpacked ghost stresses are read by the
+        // ghost pass only, so the values and the assembly order are those of
+        // one blocking exchange), through the running operation's scope
+        // (ARCHITECTURE.md, "DOF manager")
+        let dim = self.base.spatial_dimension;
+        let es = mesh.synchronizers().element.as_ref();
+        let nb_quad = match es {
+            Some(_) => Some(nb_quad_map(self.base.fems.get("")?, &mesh, dim)?),
+            None => None,
+        };
+        let mut posted = match (es, &nb_quad) {
+            (Some(es), Some(nb_quad)) => {
+                let acc = super::parallel::StressAccessor {
+                    materials: &mut self.materials,
+                    nb_quad,
+                    dim,
+                };
+                Some(es.post_in(
+                    &mut *dofs.phases()?,
+                    &acc,
+                    akantu_core::enums::SynchronizationTag::SmmStress,
+                )?)
+            }
+            _ => None,
+        };
         let fe = self.base.fems.get("")?;
-        let mut f_int = self
+        let f_int = self
             .internal_force
             .as_mut()
             .ok_or_else(|| not_allocated("internal_force"))?
-            .write()?;
-        for ghost in GhostType::ALL {
-            for law in self.materials.laws() {
-                // laws with their own residual (cohesive laws)
-                // assemble at their position in the loop (upstream virtual
-                // `Material::assembleInternalForces`)
-                if let Some(r) = law.assemble_internal_forces_custom(
-                    &self.base.fems,
-                    &mesh,
-                    ghost,
-                    f_int.view_mut(),
-                ) {
-                    r?;
-                    continue;
-                }
-                assemble_internal_forces_of(
-                    law.as_ref(),
-                    fe,
-                    &mesh,
-                    self.base.spatial_dimension,
-                    ghost,
-                    &mut f_int,
-                    &mut self.assembly_scratch[ghost.index()],
-                )?;
+            .write();
+        let mut f_int = match (f_int, posted.take(), es, &nb_quad) {
+            (Ok(f), p, _, _) => {
+                posted = p;
+                f
             }
+            (Err(e), Some(p), Some(es), Some(nb_quad)) => {
+                // the posted exchange is completed on every path
+                let mut acc = super::parallel::StressAccessor {
+                    materials: &mut self.materials,
+                    nb_quad,
+                    dim,
+                };
+                return es.wait_in(&mut *dofs.phases()?, p, &mut acc, Err(e));
+            }
+            (Err(e), ..) => return Err(e),
+        };
+        for ghost in GhostType::ALL {
+            let pass = (|| -> Result<()> {
+                for law in self.materials.laws() {
+                    // laws with their own residual (cohesive laws)
+                    // assemble at their position in the loop (upstream virtual
+                    // `Material::assembleInternalForces`)
+                    if let Some(r) = law.assemble_internal_forces_custom(
+                        &self.base.fems,
+                        &mesh,
+                        ghost,
+                        f_int.view_mut(),
+                    ) {
+                        r?;
+                        continue;
+                    }
+                    assemble_internal_forces_of(
+                        law.as_ref(),
+                        fe,
+                        &mesh,
+                        dim,
+                        ghost,
+                        &mut f_int,
+                        &mut self.assembly_scratch[ghost.index()],
+                    )?;
+                }
+                Ok(())
+            })();
+            if let (Some(p), Some(es), Some(nb_quad)) = (posted.take(), es, &nb_quad) {
+                // after the not-ghost pass, whatever its outcome
+                let mut acc = super::parallel::StressAccessor {
+                    materials: &mut self.materials,
+                    nb_quad,
+                    dim,
+                };
+                es.wait_in(&mut *dofs.phases()?, p, &mut acc, pass)?;
+                continue;
+            }
+            pass?;
         }
         let (len, nbc) = (f_int.len(), f_int.nb_component());
         // On a distributed periodic mesh through the running
