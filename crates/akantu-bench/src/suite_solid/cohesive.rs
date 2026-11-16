@@ -182,7 +182,7 @@ const INTRINSIC_BULK: &str =
 /// Model errors.
 pub fn intrinsic(ctx: &mut Ctx<'_>, law: &str) -> Result<Outcome> {
     let n = ctx.pick(3, 20, 40);
-    let steps = ctx.pick(4, 100, 100);
+    let steps = ctx.pick(4, 300, 300);
     let dat = format!(
         "model solid_mechanics_model_cohesive [\n  cohesive_inserter [\n    bounding_box = \
          [[0.4, 0.6], [-1, 2], [-1, 2]]\n  ]\n{INTRINSIC_BULK}{law}]\n"
@@ -254,7 +254,7 @@ pub fn intrinsic_exponential(ctx: &mut Ctx<'_>) -> Result<Outcome> {
 /// # Errors
 /// Model and solver errors.
 pub fn intrinsic_implicit(ctx: &mut Ctx<'_>) -> Result<Outcome> {
-    let n = ctx.pick(3, 40, 80);
+    let n = ctx.pick(3, 30, 60);
     let steps = ctx.pick(3, 30, 30);
     let h = 1.0 / n as Real;
     let dat = format!(
@@ -359,7 +359,7 @@ pub fn benchmark_dat(sigma_c: &str) -> String {
 /// Model errors; an insertion (the case measures the pre-insertion cost).
 pub fn extrinsic_check(ctx: &mut Ctx<'_>) -> Result<Outcome> {
     let n = ctx.pick(3, 24, 48);
-    let steps = ctx.pick(3, 30, 30);
+    let steps = ctx.pick(3, 100, 100);
     let spec = BoxSpec::unit(ElementType::Tetrahedron4, n);
     let mesh = ctx.once("mesh", || box_mesh(&spec, None, true))?;
     let mut m = ctx.once("init", || {
@@ -420,8 +420,12 @@ fn extrinsic_step(
 pub struct InsertionRun {
     /// Cells per axis at sizes s, m, l.
     pub n: [usize; 3],
-    /// Steps before the timed loop (strain `1e-3` at their end).
+    /// Steps before the timed loop.
     pub preload: [usize; 3],
+    /// Imposed strain at the end of the preload (`1e-3` is the lowest
+    /// strength in a static stretch; the dynamic overshoot breaks facets
+    /// earlier).
+    pub preload_strain: Real,
     /// Timed steps.
     pub steps: [usize; 3],
 }
@@ -430,6 +434,7 @@ pub struct InsertionRun {
 pub const INSERTION: InsertionRun = InsertionRun {
     n: [3, 16, 32],
     preload: [4, 60, 60],
+    preload_strain: 1e-3,
     steps: [3, 12, 12],
 };
 
@@ -442,7 +447,8 @@ pub const INSERTION: InsertionRun = InsertionRun {
 /// Phases: `init`, `preload` (steps with checks), `step` (check and solve)
 /// split into `check_insertion` (stress interpolation, criterion, the
 /// insertion itself: facet doubling, mesh events, model updates) and
-/// `solve_step`. Extra fields: `inserted` (timed steps), `inserted_preload`.
+/// `solve_step`. Extra fields: `inserted` (timed steps), `inserted_preload`
+/// (preload and warm-up), `inserted_per_step`.
 ///
 /// # Errors
 /// Model errors.
@@ -463,18 +469,22 @@ pub fn insertion_run(
     ctx.comm().all_reduce(&mut dt, akantu_comm::ReduceOp::Min)?;
     let dt = 0.1 * dt[0];
     m.set_time_step(dt, None)?;
-    let rate = 1e-3 / (preload as Real * dt);
+    let rate = cfg.preload_strain / (preload as Real * dt);
     let mut ramp = Ramp::new(&mut m, 0.0, 1.0, rate)?;
     let mut inserted_preload = 0;
+    let mut trace: Vec<String> = Vec::new();
     ctx.once("preload", || {
         for _ in 0..preload {
-            inserted_preload += extrinsic_step(&mut m, &mut ramp)?.0;
+            let k = extrinsic_step(&mut m, &mut ramp)?.0;
+            inserted_preload += k;
+            trace.push(k.to_string());
         }
         Ok(())
     })?;
     let (mut inserted, mut check_s, mut solve_s) = (0, 0.0, 0.0);
     let calls = ctx.repeat_primary("step", steps, |timed| {
         let (k, c, s) = extrinsic_step(&mut m, &mut ramp)?;
+        trace.push(k.to_string());
         if timed {
             inserted += k;
             check_s += c;
@@ -488,6 +498,8 @@ pub fn insertion_run(
     ctx.record("solve_step", calls, solve_s);
     ctx.extra("inserted", Extra::Int(inserted as i64));
     ctx.extra("inserted_preload", Extra::Int(inserted_preload as i64));
+    // insertions per step: preload, warm-up, timed steps
+    ctx.extra("inserted_per_step", Extra::Text(trace.join(" ")));
     Ok(m)
 }
 

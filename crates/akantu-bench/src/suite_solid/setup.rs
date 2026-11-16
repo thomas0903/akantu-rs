@@ -91,7 +91,7 @@ pub fn tet4(ctx: &mut Ctx<'_>) -> Result<Outcome> {
 /// # Errors
 /// Model errors.
 pub fn tet10(ctx: &mut Ctx<'_>) -> Result<Outcome> {
-    run(ctx, ElementType::Tetrahedron10, [2, 18, 36])
+    run(ctx, ElementType::Tetrahedron10, [2, 12, 24])
 }
 
 /// Set-up on hexahedron_8.
@@ -99,5 +99,5 @@ pub fn tet10(ctx: &mut Ctx<'_>) -> Result<Outcome> {
 /// # Errors
 /// Model errors.
 pub fn hex8(ctx: &mut Ctx<'_>) -> Result<Outcome> {
-    run(ctx, ElementType::Hexahedron8, [3, 40, 80])
+    run(ctx, ElementType::Hexahedron8, [3, 24, 48])
 }

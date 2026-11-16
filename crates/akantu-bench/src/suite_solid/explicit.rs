@@ -321,7 +321,7 @@ pub mod laws {
     /// # Errors
     /// Model errors.
     pub fn marigo(ctx: &mut Ctx<'_>) -> Result<Outcome> {
-        ramp_case(ctx, marigo_dat(), 3e-3, 120)
+        ramp_case(ctx, marigo_dat(), 3e-3, 200)
     }
 
     /// Mazars damage.
@@ -329,7 +329,7 @@ pub mod laws {
     /// # Errors
     /// Model errors.
     pub fn mazars(ctx: &mut Ctx<'_>) -> Result<Outcome> {
-        ramp_case(ctx, mazars_dat(), 1e-3, 120)
+        ramp_case(ctx, mazars_dat(), 1e-3, 80)
     }
 
     /// Standard linear solid (deviatoric viscoelasticity).
@@ -357,7 +357,7 @@ pub mod laws {
                 common::NU
             ),
         );
-        ramp_case(ctx, dat, 1e-3, 120)
+        ramp_case(ctx, dat, 1e-3, 40)
     }
 
     /// Neo-Hookean hyperelasticity (finite deformation).
@@ -379,7 +379,7 @@ pub mod laws {
              E2 = 10e9\n  E3 = 10e9\n  nu12 = 0.3\n  nu13 = 0.3\n  nu23 = 0.4\n  G12 = 5e9\n  \
              G13 = 5e9\n  G23 = 3.5e9\n",
         );
-        ramp_case(ctx, dat, 1e-3, 150)
+        ramp_case(ctx, dat, 1e-3, 200)
     }
 
     /// Isotropic elasticity with a thermal strain (`alpha`, `delta_T`).
@@ -391,7 +391,7 @@ pub mod laws {
             "elastic",
             &elastic_params("  alpha = 1e-5\n  delta_T = 50\n"),
         );
-        ramp_case(ctx, dat, 1e-3, 150)
+        ramp_case(ctx, dat, 1e-3, 300)
     }
 
     /// Three laws in one mesh (elastic, plastic, Mazars) by slabs of x:
@@ -438,7 +438,7 @@ pub mod laws {
             &Explicit {
                 ty: ElementType::Tetrahedron4,
                 n: [4, 20, 40],
-                steps: [4, 60, 60],
+                steps: [4, 40, 40],
                 dat,
                 load: Load::Ramp(1e-3),
                 slabs: None,

@@ -142,7 +142,7 @@ pub fn static_linear(ctx: &mut Ctx<'_>, sparse: SparseSolverType) -> Result<Outc
         let rhs: Vec<Real> = (0..a.size()).map(|i| ((i % 7) as Real) - 3.0).collect();
         let mut x = vec![0.0; rhs.len()];
         ctx.once("analysis", || solver.analysis(a))?;
-        ctx.repeat("factorize", k, |_| solver.factorize(a))?;
+        ctx.repeat("factorize", ctx.pick(1, 2, 2), |_| solver.factorize(a))?;
         ctx.repeat("back_substitution", ctx.pick(2, 20, 20), |_| {
             solver.solve(&rhs, &mut x)
         })?;
@@ -206,8 +206,8 @@ pub fn static_newton_plastic(ctx: &mut Ctx<'_>) -> Result<Outcome> {
     common::set_counts(ctx, &m)?;
     {
         let nls = m.solver.non_linear_solver_mut(None)?;
-        nls.set_param("max_iterations", ParamValue::Int(100))?;
-        nls.set_param("threshold", ParamValue::Real(1e-8))?;
+        nls.set_param("max_iterations", ParamValue::Int(200))?;
+        nls.set_param("threshold", ParamValue::Real(1e-7))?;
         nls.set_param("convergence_type", ParamValue::Enum("solution".into()))?;
     }
     // the yield strain is 50e6 / 70e9 ≈ 7e-4: total strain 4e-3 over all
@@ -252,7 +252,7 @@ pub fn static_newton_plastic(ctx: &mut Ctx<'_>) -> Result<Outcome> {
 /// Model and solver errors.
 pub fn implicit_dynamic(ctx: &mut Ctx<'_>) -> Result<Outcome> {
     let n = ctx.pick(TET_N[0], TET_N[1], TET_N[2]);
-    let steps = ctx.pick(3, 20, 20);
+    let steps = ctx.pick(3, 60, 60);
     let spec = BoxSpec::unit(ElementType::Tetrahedron4, n);
     let mesh = ctx.once("mesh", || box_mesh(&spec, None, true))?;
     let mut m = ctx.once("init", || {
