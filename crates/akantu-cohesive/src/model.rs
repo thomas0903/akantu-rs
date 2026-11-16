@@ -721,7 +721,7 @@ fn patch_stress_plan(
         if moved.is_empty() {
             continue;
         }
-        let mut fused_block = match &mut fused {
+        let fused_block = match &mut fused {
             Some(f) => match f[b].as_mut() {
                 Some(v) if v.len() == block.pairs.len() => Some(v),
                 Some(_) => return false,
@@ -752,7 +752,7 @@ fn patch_stress_plan(
             !is_moved[i - 1]
         });
         block.pairs.extend_from_slice(&new_pairs);
-        if let Some(v) = fused_block.as_deref_mut() {
+        if let Some(v) = fused_block {
             let mut i = 0;
             v.retain(|_| {
                 i += 1;

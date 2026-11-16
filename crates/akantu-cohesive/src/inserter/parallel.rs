@@ -218,7 +218,7 @@ impl CohesiveElementInserter {
         // exchanges below would write false over false and number nothing;
         // the result is known after one reduction (performance; the result
         // and the flags are those of steps 1-3)
-        let local = (|| -> Result<[u64; 2]> {
+        let count_flags = || -> Result<[u64; 2]> {
             let mut flagged = 0u64;
             let mut ghost_flagged = 0u64;
             for (ty, ghost, flags) in self.insertion_facets.as_map().iter_all() {
@@ -234,8 +234,8 @@ impl CohesiveElementInserter {
                 }
             }
             Ok([flagged, ghost_flagged])
-        })();
-        let any = ph.run_collective("ce:insertion_any", local, |c, mut v| {
+        };
+        let any = ph.run_collective("ce:insertion_any", count_flags(), |c, mut v| {
             c.all_reduce(&mut v, ReduceOp::Sum)?;
             Ok(v)
         })?;
