@@ -110,7 +110,11 @@ impl SparseMatrixAij {
                     && p.slots == slots
             });
         if !planned {
-            if has_repeated_slot(slots)
+            // one thread: the serial loop checks and stores the slots as
+            // cheaply as these passes (the caller then builds the plan,
+            // `BlockPositionCache::plan_after_serial_round`)
+            if !exec.is_parallel()
+                || has_repeated_slot(slots)
                 || !self.verify_and_resolve(exec, cache, slots, nb_eq, equations, mode)
             {
                 return false;
@@ -260,7 +264,7 @@ pub(super) struct ScatterPlan {
 impl ScatterPlan {
     /// The plan of `slots` (every slot stored in `cache`) for `nnz`
     /// entries split into `parts` even entry ranges.
-    fn new(
+    pub(super) fn new(
         cache: &BlockPositionCache,
         slots: &[usize],
         nnz: usize,
@@ -316,7 +320,7 @@ impl ScatterPlan {
 /// executor splits a batch into (tests of the invariant), otherwise one per
 /// thread, of at least 16,384 entries each (contiguous entry ranges of
 /// equal size: balanced writes, few blocks visited by two parts).
-fn scatter_parts(exec: &Exec, nb: usize, nnz: usize) -> usize {
+pub(super) fn scatter_parts(exec: &Exec, nb: usize, nnz: usize) -> usize {
     if exec.policy().grain() == akantu_core::exec::Grain::Finest {
         exec.nb_parts(nb, 1)
     } else {
@@ -366,7 +370,7 @@ fn scatter_list(
 }
 
 /// `true` if a slot occurs twice in `slots`.
-fn has_repeated_slot(slots: &[usize]) -> bool {
+pub(super) fn has_repeated_slot(slots: &[usize]) -> bool {
     if slots.windows(2).all(|w| w[0] < w[1]) {
         return false;
     }

@@ -1795,6 +1795,35 @@ impl BlockPositionCache {
         self.equations_key = Some(key);
     }
 
+    /// After a serial loop of `add_values_cached` that added every block
+    /// of `slots` to `matrix` without error (each block's equations
+    /// checked against, or stored into, its slot), build the threaded
+    /// scatter's plan for the next batch with the equations `key` the
+    /// caller vouches for (nothing when a slot is not stored, e.g. in the
+    /// first rounds, or without a key). Returns whether a plan was built.
+    pub fn plan_after_serial_round(
+        &mut self,
+        exec: &akantu_core::exec::Exec,
+        matrix: &SparseMatrixAij,
+        slots: &[usize],
+        key: Option<EquationsKey>,
+    ) -> bool {
+        let nnz = matrix.a.len();
+        if key.is_none()
+            || slots.is_empty()
+            || self.stamp != matrix.position_epoch.0
+            || !self.rows_only
+            || !u32::try_from(slots.len()).is_ok_and(|n| n < (1 << 31))
+            || slots.iter().any(|&s| self.filled.get(s) != Some(&true))
+            || threaded::has_repeated_slot(slots)
+        {
+            return false;
+        }
+        let parts = threaded::scatter_parts(exec, slots.len(), nnz);
+        self.plan = Some(threaded::ScatterPlan::new(self, slots, nnz, parts, key));
+        true
+    }
+
     /// Number of blocks whose positions were looked up and stored since
     /// the cache was created (diagnostic: a round that finds every block
     /// stored adds none).

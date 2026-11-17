@@ -2016,6 +2016,19 @@ impl DofManager {
         // round's `begin` is the one the serial loop below would make; when
         // the batch declines (it changed nothing) the serial loop runs with
         // that cache.
+        // The equations of an element depend on its connectivity row and on
+        // the DOF numbering only: unchanged while the mesh revision, the
+        // numbering generation and the connectivity's storage are, unless
+        // foreign code may write the connectivity (exported).
+        let vouch = (!mesh.connectivities().shared(ty, ghost)?.is_exported()).then(|| {
+            [
+                mesh.revision(),
+                self.numbering_generation,
+                conn.as_slice().as_ptr() as u64,
+                conn.len() as u64,
+                nnodes as u64,
+            ]
+        });
         let mut begun = None;
         if self.assembly_cache_enabled
             && elements.len() > 1
@@ -2028,18 +2041,8 @@ impl DofManager {
         {
             let mut cache = self.assembly_caches.remove(&key).unwrap_or_default();
             self.backend.begin_cached_assembly(matrix_id, &mut cache);
-            // The equations of an element depend on its connectivity row and
-            // on the DOF numbering only: unchanged while the mesh revision,
-            // the numbering generation and the connectivity's storage are,
-            // unless foreign code may write the connectivity (exported).
-            if !mesh.connectivities().shared(ty, ghost)?.is_exported() {
-                cache.vouch_equations([
-                    mesh.revision(),
-                    self.numbering_generation,
-                    conn.as_slice().as_ptr() as u64,
-                    conn.len() as u64,
-                    nnodes as u64,
-                ]);
+            if let Some(k) = vouch {
+                cache.vouch_equations(k);
             }
             let view = ElementEquations::new(f, &self.layout);
             let elements = &elements;
@@ -2159,6 +2162,13 @@ impl DofManager {
             }
         }
         if self.assembly_cache_enabled {
+            // every block was checked against, or stored into, its slot:
+            // the plan of the next (planned) batch
+            if result.is_ok()
+                && let Ok(m) = self.backend.aij(matrix_id)
+            {
+                cache.plan_after_serial_round(&self.exec, m, &elements, vouch);
+            }
             self.assembly_caches.insert(key, cache);
         }
         result
