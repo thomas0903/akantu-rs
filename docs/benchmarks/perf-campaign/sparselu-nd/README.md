@@ -156,12 +156,92 @@ The fill matches a geometric dissection that knows the grid coordinates
 
 ## `Auto`
 
-`SparseOrdering::Auto` keeps COLAMD below 2,000 unknowns, and when a
-column's diagonal entry is zero or smaller in magnitude than another entry
-of its column; otherwise it computes both orderings, predicts their work
-(`Σ c_j²` over the column counts `c_j` of the symmetric factor of the
-permuted `A + Aᵀ`, `cholesky_counts`, `O(|L|)`) and takes nested dissection
-when its work is at most 0.8 of COLAMD's and its predicted size not larger.
+`SparseOrdering::Auto` (fix round of the review):
+
+1. COLAMD below 2,000 unknowns or 100,000 stored entries, and when a
+   column's diagonal entry is zero or smaller in magnitude than another
+   entry of its column (below);
+2. otherwise COLAMD's predicted work (`Σ c_j²` over the column counts of
+   the symmetric factor of the permuted `A + Aᵀ`, `cholesky_counts`: the
+   algorithm of Gilbert, Ng and Peyton, almost linear in the nonzeros);
+   the dissection is computed only when that work reaches 5·10⁷ and 3,000
+   times the edges of the supervariable graph (the dissection's own cost
+   grows with that graph, the factorisation's with the work: a scalar 2-D
+   grid of 40,000 unknowns has the work but not the ratio, and nested
+   dissection is 1.17 times slower there);
+3. nested dissection when its predicted work is at most 0.8 of COLAMD's
+   and its predicted size not larger;
+4. after the first factorisation with nested dissection: nnz(L + U) above
+   twice COLAMD's predicted size, or off-diagonal pivots above 1 % of the
+   order, send the pattern back to COLAMD, which it keeps (an indefinite
+   matrix with a unit diagonal passes step 1 and pivots off the diagonal
+   throughout);
+5. the analysis records the effective ordering; a factorisation after a
+   switch of the precision mode analyses again, and the AIJ back-end
+   factorises again when `factorization_stale` says so, so that a bitwise
+   solve after a fast one is COLAMD's (`sparse_ordering_precision_switch.rs`).
+
+Analysis and factorisation with a fresh analysis each time (the cost when
+the pattern changes at every solve), one thread, best of 9
+(`examples/auto_ordering_cost.rs`, `auto_cost.md`; the review's four small
+systems first, then the indefinite grids, then a sweep):
+
+| system | n | COLAMD predicted work | COLAMD | ND / COLAMD | auto / COLAMD | auto chose | fallback |
+|---|---|---|---|---|---|---|---|
+| strip 4 x 600, c 1 | 2400 | – | 0.0015 s | 4.413 | 1.003 | colamd | false |
+| strip 6 x 400, c 2 | 4800 | – | 0.0062 s | 2.548 | 0.997 | colamd | false |
+| square 30 x 30, c 3 | 2700 | – | 0.0138 s | 0.856 | 0.994 | colamd | false |
+| square 50 x 50, c 1 | 2500 | – | 0.0091 s | 1.627 | 0.999 | colamd | false |
+| square 50 x 50, c 3 | 7500 | 1.02e8 | 0.0688 s | 0.610 | 0.827 | nested_dissection | false |
+| indefinite 16^3 | 4096 | – | 0.1164 s | 2.302 | 1.003 | colamd | false |
+| indefinite 20^3 | 8000 | – | 0.4725 s | 2.340 | 3.419 | colamd | true |
+| square 70 x 70, c 1 | 4900 | – | 0.0200 s | 1.400 | 1.003 | colamd | false |
+| square 100 x 100, c 1 | 10000 | – | 0.0461 s | 1.435 | 0.999 | colamd | false |
+| square 140 x 140, c 1 | 19600 | 1.33e8 | 0.0991 s | 1.345 | 1.042 | colamd | false |
+| square 200 x 200, c 1 | 40000 | 4.22e8 | 0.2625 s | 1.168 | 1.000 | colamd | false |
+| square 70 x 70, c 2 | 9800 | 1.54e8 | 0.0946 s | 0.527 | 0.699 | nested_dissection | false |
+| square 100 x 100, c 2 | 20000 | 4.32e8 | 0.2358 s | 0.506 | 0.654 | nested_dissection | false |
+| square 70 x 70, c 3 | 14700 | 3.22e8 | 0.1762 s | 0.510 | 0.678 | nested_dissection | false |
+| square 100 x 100, c 3 | 30000 | 1.93e9 | 0.7462 s | 0.289 | 0.378 | nested_dissection | false |
+| cube 12^3, c 1 | 1728 | – | 0.0265 s | 0.832 | 1.000 | colamd | false |
+| cube 15^3, c 1 | 3375 | – | 0.0618 s | 0.787 | 1.001 | colamd | false |
+| cube 18^3, c 1 | 5832 | 6.65e8 | 0.1740 s | 0.546 | 0.785 | nested_dissection | false |
+| cube 22^3, c 1 | 10648 | 3.92e9 | 0.8520 s | 0.276 | 0.387 | nested_dissection | false |
+| cube 26^3, c 1 | 17576 | 2.11e10 | 4.5780 s | 0.110 | 0.144 | nested_dissection | false |
+| cube 8^3, c 3 | 1536 | – | 0.0354 s | 0.447 | 1.001 | colamd | false |
+| cube 10^3, c 3 | 3000 | 3.23e8 | 0.1086 s | 0.398 | 0.575 | nested_dissection | false |
+| cube 12^3, c 3 | 5184 | 1.20e9 | 0.2470 s | 0.425 | 0.561 | nested_dissection | false |
+| cube 14^3, c 3 | 8232 | 1.74e9 | 0.4286 s | 0.544 | 0.684 | nested_dissection | false |
+
+Where `auto` keeps COLAMD its checks cost at most 4.2 % (1.042 on the
+140 × 140 scalar grid, whose dissection it computes and rejects by the
+edge test; the review's four systems 0.994–1.003). The indefinite 20³
+grid pays one nested-dissection factorisation before the fallback (3.4
+times COLAMD's analysis and factorisation, once per pattern). On the suite
+(5 repetitions, one thread, `series-fix/`; `--ordering auto` against
+`--ordering colamd`, both with the bitwise kernels):
+
+| case | auto / COLAMD | auto chose |
+|---|---|---|
+| static_linear_eigen solve_step | 0.631 [0.616, 0.641] | ND |
+| static_linear_eigen analysis | 1.733 [1.729, 1.739] | ND (both orderings) |
+| static_newton_plastic | 0.792 [0.786, 0.798] | ND |
+| implicit_dynamic | 0.710 [0.709, 0.714] | ND |
+| cohesive_intrinsic_implicit | 0.655 [0.643, 0.659] | ND |
+| cohesive_extrinsic_insertion (explicit) | 1.000 [0.994, 1.003] | no solve |
+| heat_static_tri6 | 0.507 [0.498, 0.509] | ND |
+| heat_implicit_hex8_kvar (50,653 entries) | 1.005 [0.998, 1.009] | COLAMD |
+| structural_beam3_frame_static | 0.578 [0.573, 0.579] | ND |
+| structural_beam3_frame_dynamic | 0.996 [0.991, 1.000] | COLAMD |
+| structural_dkt18_plate_static | 1.000 [0.987, 1.004] | COLAMD |
+| phasefield_staggered_tri3 solid / phase | 0.469 / 0.610 | ND |
+| phasefield_staggered_tet4 solid / phase | 0.592 / 0.998 | ND / COLAMD |
+| contact_implicit_static_quad4 (pattern changes) | 0.993 [0.990, 1.000] | COLAMD |
+| embedded_rebar_tri3 / tet4 | 0.879 / 0.566 | ND |
+
+`heat_implicit_hex8_kvar` lost its gain (0.58 with nested dissection):
+its 2,197 unknowns and 50,653 entries are below the nonzero threshold that
+keeps the review's small systems within 5 %.
 
 Why the diagonal test: the threshold partial pivoting
 (`diagpivotthresh = 1`) takes the diagonal entry only when it is the
@@ -263,39 +343,51 @@ nonzeros in L + U at h = 0.12, 380 M and 156 M at h = 0.06.
 
 ## Threads over the elimination tree
 
-Not implemented. With a dissection the elimination tree has independent
-subtrees, but the left-looking supernodal factorisation of Eigen's
-SparseLU cannot factorise them concurrently without a different
-algorithm:
+Not implemented in this round. Eigen's SparseLU factorises along the
+column elimination tree of `AᵀA`. Independent subtrees of that tree touch
+disjoint rows: their pivot choices cannot interact, and every update a
+column receives comes from its own subtree. A concurrent factorisation of
+independent subtrees (private factor buffers and work arrays, the buffers
+stitched in column order, then the columns above them serially) would
+therefore give the same bits for a given ordering, with no new pivoting
+rule. What it needs:
 
-- **Pivoting couples the subtrees.** A column's pivot row is chosen among
-  the rows not yet pivoted (`perm_r` is global). The rows of separator
-  unknowns adjacent to two subtrees are candidates in columns of both: if
-  one subtree pivots on such a row, the other may not. The result would
-  depend on which subtree runs first, unless the candidate rows of a
-  subtree are restricted to its own unknowns, which is another pivoting
-  rule (other results, weaker stability), not the same algorithm on more
-  threads.
-- **The factor storage is appended in column order** (`xlusup`, `xlsub`,
-  `xusub` are prefix offsets), and a subtree's storage is known only after
-  its factorisation, because the structure follows the pivots. Concurrent
-  subtrees need their own buffers stitched in column order afterwards, or
-  a symbolic pre-pass that bounds each subtree's storage through the
-  structure of `AᵀA`.
-- **The work arrays are global**: the panel and column depth-first
-  searches use `marker`, `repfnz`, `parent`, `xplore` and the panel
-  accumulator over all `m` rows, and walk the pruned graph of every
-  earlier supernode; panels (16 columns) and relaxed supernodes cross
-  subtree roots.
+- **Storage and work arrays.** The factor storage is appended in column
+  order (`xlusup`, `xlsub`, `xusub` are prefix offsets), and a subtree's
+  storage is known only after its factorisation: per-subtree buffers,
+  offsets shifted when they are stitched. The depth-first searches and the
+  panel accumulator (`marker`, `repfnz`, `parent`, `xplore`, `dense`) span
+  all `m` rows: per-thread copies. Panels (16 columns) and relaxed
+  supernodes must stop at the subtree roots.
+- **An ordering whose subtrees are independent in that tree.** The
+  dissection of `A + Aᵀ` does not give them: the separator rows couple the
+  two halves in the graph of `AᵀA` (two columns with a nonzero in the same
+  separator row are adjacent there). Measured on the factors
+  (`diag/tree.txt`: work per column = the updates it receives; the
+  heaviest subtree split greedily, the subtrees assigned to threads by
+  longest processing time, the split columns serial):
 
-The smallest restructuring that would give bit-identical results at every
-thread count for a given ordering: (1) pivots restricted to the subtree's
-own rows below a chosen tree level (a new pivoting rule with its own
-tolerance and stability evidence); (2) per-subtree factor buffers and
-work arrays, the buffers concatenated in column order after the subtrees;
-(3) panels and relaxed supernodes cut at the subtree roots. That is a
-rewrite of the factorisation driver (SuperLU_MT's design), not a change of
-this module.
+| matrix | ordering | share of the work in independent subtrees of the column tree | speed-up bound, 2 / 4 / 8 threads | the same on the tree of `A + Aᵀ` |
+|---|---|---|---|---|
+| `static_linear_eigen` l (73,167) | nested dissection | 0.000 | 1.00 / 1.00 / 1.00 | 1.79 / 1.85 / 1.85 |
+| cohesive h = 0.06 (97,551) | nested dissection | 0.001 | 1.00 / 1.00 / 1.00 | 1.71 / 1.83 / 1.83 |
+| cohesive h = 0.06 | COLAMD | 0.000 | 1.00 / 1.00 / 1.00 | 1.17 / 1.18 / 1.20 |
+
+  With this ordering a subtree-parallel factorisation gains nothing: no
+  split of the column tree does better than one thread. Separators
+  widened to the graph of `AᵀA` (the dissection's separator plus the
+  unknowns of the rows that couple the halves, about twice as wide) would
+  give subtrees like those of the tree of `A + Aᵀ`, whose bound is 1.8 at
+  4 and 8 threads (the columns above the subtrees, about 31 % of the work,
+  stay serial there) before the extra fill of the wider separators, and where
+  the panel threads already work on those top separators.
+
+Estimate: the widened dissection (a vertex separator of the distance-2
+graph, a variant of `nested_dissection.rs`), the subtree driver (buffers,
+per-thread work arrays, stitching, panels cut at subtree roots; about the
+size of `SparseLu::factorize` and `kernels::panel_dfs` together) and its
+bitwise thread-invariance tests: a round of its own, for at most 1.8× on
+the subtree part of large 3-D factorisations.
 
 What the existing threads give under the new ordering (the panel updates
 of at least 65,536 multiply-adds, `kernels::panel_bmod`): the thread
