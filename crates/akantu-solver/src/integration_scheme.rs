@@ -1056,6 +1056,33 @@ impl IntegrationScheme for NewmarkBeta {
 mod tests {
     use super::*;
 
+    /// The parts of the store / restore copy give the serial copy at every
+    /// thread count and grain.
+    #[test]
+    fn threaded_copy_equals_the_serial_copy() {
+        use akantu_core::exec::{Exec, ExecPolicy, Grain};
+        let src: Vec<Real> = (0..20_011).map(|k| (k as Real * 0.3).cos()).collect();
+        for threads in [1, 2, 3, 4, 8] {
+            for grain in [Grain::Finest, Grain::Auto] {
+                let exec = Exec::new(
+                    ExecPolicy::serial()
+                        .with_threads(threads)
+                        .unwrap()
+                        .with_grain(grain),
+                )
+                .unwrap();
+                let mut dst = vec![0.0; src.len()];
+                copy_values(&exec, &mut dst, &src);
+                assert!(
+                    dst.iter()
+                        .zip(&src)
+                        .all(|(a, b)| a.to_bits() == b.to_bits()),
+                    "threads {threads} {grain:?}"
+                );
+            }
+        }
+    }
+
     #[test]
     fn solution_type_names_and_values() {
         assert_eq!(

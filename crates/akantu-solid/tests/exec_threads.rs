@@ -606,6 +606,10 @@ fn law_state(m: &mut SolidMechanicsModel) -> State {
         ("a".into(), bits(m.acceleration().unwrap().as_slice())),
         ("f_int".into(), bits(m.internal_force().unwrap().as_slice())),
     ];
+    // the displacement increment of the last step, when the model keeps one
+    if let Ok(inc) = m.increment() {
+        out.push(("increment".into(), bits(inc.as_slice())));
+    }
     for (i, law) in m.physics.materials.laws().iter().enumerate() {
         let types = law.base().filter_types(GhostType::NotGhost);
         assert!(!types.is_empty(), "law {i} has elements");
