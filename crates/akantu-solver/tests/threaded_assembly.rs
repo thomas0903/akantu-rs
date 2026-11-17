@@ -133,8 +133,8 @@ fn snapshot(dm: &DofManager, ids: &[&str]) -> Snapshot {
 
 /// A sequence of implicit-step-like operations; returns the matrices after
 /// every round, the products and the number of threaded assemblies.
-fn run(exec: &Exec, symmetric: bool) -> (Vec<Snapshot>, Vec<Vec<u64>>, u64) {
-    let mesh = cube(4);
+fn run(exec: &Exec, symmetric: bool, cached: bool) -> (Vec<Snapshot>, Vec<Vec<u64>>, u64) {
+    let mut mesh = cube(4);
     let g = GhostType::NotGhost;
     let ty_k = if symmetric {
         MatrixType::Symmetric
@@ -143,6 +143,7 @@ fn run(exec: &Exec, symmetric: bool) -> (Vec<Snapshot>, Vec<Vec<u64>>, u64) {
     };
     let mut dm = DofManager::new("dm", Communicator::serial());
     dm.set_exec(exec.clone());
+    dm.set_assembly_cache(cached);
     dm.register_nodal_dofs(&mesh, "u", 3).unwrap();
     dm.register_blocked_dofs("u").unwrap();
     dm.new_matrix("K", ty_k).unwrap();
@@ -161,6 +162,19 @@ fn run(exec: &Exec, symmetric: bool) -> (Vec<Snapshot>, Vec<Vec<u64>>, u64) {
         (0..nb_dofs).map(|_| r.value()).collect()
     };
     for round in 0..6u64 {
+        if round == 4 {
+            // a mesh event: the node order of a tetrahedron and of a
+            // hexahedron permuted (the same pairs, other equations per
+            // local index): the stored slots and the scatter plan must not
+            // be trusted after it
+            let mut a = MeshAccessor::new(&mut mesh);
+            a.connectivity_mut(ElementType::Tetrahedron4, g)
+                .tuple_mut(7)
+                .swap(0, 2);
+            a.connectivity_mut(ElementType::Hexahedron8, g)
+                .tuple_mut(1)
+                .rotate_left(3);
+        }
         dm.zero_matrix("K").unwrap();
         let assemble = |dm: &mut DofManager, matrix: &str, seed: u64| {
             for (k, filter) in [&mat_a, &mat_b].into_iter().enumerate() {
@@ -195,8 +209,9 @@ fn run(exec: &Exec, symmetric: bool) -> (Vec<Snapshot>, Vec<Vec<u64>>, u64) {
             dm.zero_matrix("M").unwrap();
             assemble(&mut dm, "M", 777);
         }
-        if round == 3 {
-            // contact couplings: entries appended to K's profile
+        if round == 2 {
+            // contact couplings: entries appended to K's profile (the next
+            // round's batch must not reuse the plan of the shorter profile)
             let mut t = TermsToAssemble::new("u", "u");
             t.term(0, (nb_dofs - 1) as Idx).value = 2.5;
             t.term(5, (nb_dofs - 7) as Idx).value = -1.25;
@@ -224,23 +239,25 @@ fn run(exec: &Exec, symmetric: bool) -> (Vec<Snapshot>, Vec<Vec<u64>>, u64) {
 #[test]
 fn matrix_assembly_and_operations_are_bitwise_for_every_thread_count() {
     for symmetric in [true, false] {
-        let (reference, ref_products, serial_batches) = run(&Exec::serial(), symmetric);
+        // the reference: the uncached loop (`add_values` per element)
+        let (reference, ref_products, serial_batches) = run(&Exec::serial(), symmetric, false);
         assert_eq!(serial_batches, 0, "no threaded batch on one thread");
-        for threads in [2, 3, 4, 8] {
+        for threads in [1, 2, 3, 4, 8] {
             for grain in [Grain::Finest, Grain::Auto] {
                 let p = ExecPolicy::serial()
                     .with_threads(threads)
                     .unwrap()
                     .with_grain(grain);
                 let exec = Exec::new(p).unwrap();
-                let (snaps, products, batches) = run(&exec, symmetric);
+                let (snaps, products, batches) = run(&exec, symmetric, true);
                 let what = format!("symmetric {symmetric} threads {threads} {grain:?}");
                 // every assembly from the second round on is threaded (3
                 // per round: two materials and the hexahedra), and in the
                 // first round the second material of K and of M (it
                 // continues the position cache of the first, as the serial
                 // loop does: its positions are stored in that round)
-                assert_eq!(batches, 5 * 3 + 2, "{what}: threaded assemblies");
+                let expected = if threads == 1 { 0 } else { 5 * 3 + 2 };
+                assert_eq!(batches, expected, "{what}: threaded assemblies");
                 assert_eq!(products, ref_products, "{what}: products");
                 for (round, (a, b)) in reference.iter().zip(&snaps).enumerate() {
                     for (ma, mb) in a.iter().zip(b) {

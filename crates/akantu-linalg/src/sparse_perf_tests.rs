@@ -998,3 +998,108 @@ fn threaded_product_after_a_reordered_profile_of_equal_size() {
         }
     }
 }
+
+/// The scatter plan follows the cache: a caller that vouches for the
+/// equations with a key gets the planned scatter, and the plan is rebuilt
+/// when the key changes (equations changed), when the profile grows, when
+/// it is rebuilt in another order, and when the batch's slots change (one
+/// material of two): every round bit for bit `add_values`, at 1, 2, 3, 4
+/// and 8 threads, finest and automatic grain.
+#[test]
+fn threaded_batch_plan_follows_the_cache() {
+    use akantu_core::exec::{Exec, ExecPolicy, Grain};
+    let mut execs = Vec::new();
+    for n in [1, 2, 3, 4, 8] {
+        for g in [Grain::Finest, Grain::Auto] {
+            execs.push(
+                Exec::new(ExecPolicy::serial().with_threads(n).unwrap().with_grain(g)).unwrap(),
+            );
+        }
+    }
+    for ty in [MatrixType::Symmetric, MatrixType::Unsymmetric] {
+        for exec in &execs {
+            let mut rng = Rng(0x5eed_f00d | 1, 0);
+            let n: GlobalIdx = 60;
+            let nb = 4;
+            let mut elems: Vec<Vec<GlobalIdx>> =
+                (0..120).map(|_| element_of(&mut rng, n - 3, nb)).collect();
+            let mut plain = SparseMatrixAij::new("K", n, ty);
+            for e in &elems {
+                plain.add_block_to_profile(e, e).unwrap();
+            }
+            let mut planned = plain.clone();
+            let mut cache = BlockPositionCache::new();
+            let all: Vec<usize> = (0..elems.len()).collect();
+            let odd: Vec<usize> = all.iter().copied().filter(|k| k % 2 == 1).collect();
+            let mut key = [1, 0, 0, 0, 0];
+            for round in 0..9 {
+                let slots: &[usize] = if round == 7 { &odd } else { &all };
+                match round {
+                    3 => {
+                        // equations changed: the caller's key changes
+                        elems.swap(4, 9);
+                        elems[11].reverse();
+                        key[0] += 1;
+                    }
+                    4 => {
+                        // the profile grows (appended entries)
+                        plain.add(1, n - 1, 0.5).unwrap();
+                        planned.add(1, n - 1, 0.5).unwrap();
+                    }
+                    6 => {
+                        // the profile rebuilt in another order
+                        for m in [&mut plain, &mut planned] {
+                            m.clear_profile();
+                            for e in elems.iter().rev() {
+                                m.add_block_to_profile(e, e).unwrap();
+                            }
+                        }
+                    }
+                    _ => {}
+                }
+                let values: Vec<Real> = (0..slots.len() * nb * nb).map(|_| rng.value()).collect();
+                for (k, &s) in slots.iter().enumerate() {
+                    plain
+                        .add_values(
+                            &elems[s],
+                            &elems[s],
+                            &values[k * nb * nb..(k + 1) * nb * nb],
+                            ty,
+                        )
+                        .unwrap();
+                }
+                cache.begin(&planned);
+                cache.vouch_equations(key);
+                let eqs = |k: usize, out: &mut Vec<GlobalIdx>| -> Result<()> {
+                    out.clear();
+                    out.extend_from_slice(&elems[slots[k]]);
+                    Ok(())
+                };
+                if !planned.add_values_cached_batch(exec, &mut cache, slots, nb, &eqs, &values, ty)
+                {
+                    for (k, &s) in slots.iter().enumerate() {
+                        planned
+                            .add_values_cached(
+                                &mut cache,
+                                s,
+                                &elems[s],
+                                &elems[s],
+                                &values[k * nb * nb..(k + 1) * nb * nb],
+                                ty,
+                            )
+                            .unwrap();
+                    }
+                }
+                same_state(
+                    &plain,
+                    &planned,
+                    &format!(
+                        "{ty:?} threads {} {:?} round {round}",
+                        exec.threads(),
+                        exec.policy().grain()
+                    ),
+                );
+            }
+        }
+    }
+}
