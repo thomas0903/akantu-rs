@@ -37,6 +37,10 @@ MUT = [
  ("per-element connectivity check skips the last element", "crates/akantu-fe/src/engine/fast.rs", [
    ("let e = id_index(ids[k]);", "if k + 1 == ids.len() { return false; } let e = id_index(ids[k]);")],
    ("akantu-fe", "--lib"), "threaded_per_element"),
+ ("parallel consecutive test drops the last part", "crates/akantu-fe/src/engine/fast.rs", [
+   ("!ok.contains(&false)", "!ok[..parts - 1].contains(&false)")], ("akantu-fe", "--lib"), "threaded_consecutive"),
+ ("Mazars kept buffer reused without the copy", "crates/akantu-solid/src/materials/mazars.rs", [
+   ("Some(b) if b.len() == len => b,", "Some(b) if b.len() == len => return Array::from_vec(b, a.nb_component()),")], S, "mazars_law_is"),
  ("deferred save copy skips a value per part", "crates/akantu-model/src/internal_field.rs", [
    ("d.as_mut_slice().clone_from_slice(s.as_slice());", "if d.as_mut_slice().len() > 1 { d.as_mut_slice()[1..].clone_from_slice(&s.as_slice()[1..]); }")],
    ("akantu-model", "--lib"), "get_mut_with"),

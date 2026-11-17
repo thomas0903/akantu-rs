@@ -77,6 +77,31 @@ fn consecutive(ids: &[Idx]) -> bool {
     })
 }
 
+/// [`consecutive`] on `exec`'s threads: each part tests its own ids
+/// against `ids[0] + k` (a logical and: the same answer for every split).
+fn consecutive_with(exec: &Exec, ids: &[Idx]) -> bool {
+    let parts = exec.nb_parts(ids.len(), 8_192);
+    if parts <= 1 {
+        return consecutive(ids);
+    }
+    let first = ids[0];
+    let bounds: Vec<usize> = (0..=parts).map(|p| p * ids.len() / parts).collect();
+    let mut ok = vec![true; parts];
+    let per_part: Vec<usize> = (0..=parts).collect();
+    exec.for_each_bounds(&per_part, Tuples::new(&mut ok, 1), |p, mut o| {
+        let (a, b) = (bounds[p], bounds[p + 1]);
+        // the offsets of the serial pass (`ids` longer than the index
+        // range are not consecutive ids of a block)
+        o.as_mut_slice()[0] = Idx::try_from(a).is_ok_and(|a0| {
+            ids[a..b]
+                .iter()
+                .zip(a0..)
+                .fold(true, |ok, (&e, k)| ok & (e == first.wrapping_add(k)))
+        });
+    });
+    !ok.contains(&false)
+}
+
 /// `true` when every node of the elements `ids` is a valid index of a
 /// nodal field of `nb_nodes` tuples (`conn` holds `nnpe` nodes per element
 /// and every id is an element of the block, checked by the caller). One
@@ -89,7 +114,7 @@ fn nodes_valid(conn: &[Idx], nnpe: usize, ids: &[Idx], nb_nodes: usize) -> bool 
 /// or the per-element passes, on `exec`'s threads.
 fn nodes_valid_with(exec: &Exec, conn: &[Idx], nnpe: usize, ids: &[Idx], nb_nodes: usize) -> bool {
     match (ids.first(), ids.last()) {
-        (Some(&a), Some(&b)) if consecutive(ids) => {
+        (Some(&a), Some(&b)) if consecutive_with(exec, ids) => {
             let (a, b) = (id_index(a), id_index(b));
             conn.get(a * nnpe..(b + 1) * nnpe)
                 .is_some_and(|r| max_unsigned_with(exec, r).is_none_or(|m| m < nb_nodes))
@@ -1030,6 +1055,47 @@ mod tests {
                             "len {len} case {case} threads {threads} {grain:?}"
                         );
                     }
+                }
+            }
+        }
+    }
+
+    /// The threaded test of consecutive ids gives the serial answer at
+    /// every thread count and grain: consecutive ids from 0 and from 7, one
+    /// id changed at the start, the middle or the end of the list, a
+    /// negative first id with wrapping.
+    #[test]
+    fn threaded_consecutive_equals_the_serial_one() {
+        let n = 100_001usize;
+        let mut cases: Vec<Vec<Idx>> = vec![
+            vec![],
+            vec![5],
+            (0..n as Idx).collect(),
+            (7..7 + n as Idx).collect(),
+            (-3..-3 + n as Idx).collect(),
+        ];
+        for k in [1usize, n / 2, n - 1, 3 * n / 4 + 1] {
+            let mut v: Vec<Idx> = (0..n as Idx).collect();
+            v[k] += 1;
+            cases.push(v);
+        }
+        for (c, ids) in cases.iter().enumerate() {
+            let serial = consecutive(ids);
+            assert_eq!(serial, c < 5, "case {c}");
+            for threads in [1, 2, 3, 4, 8] {
+                for grain in [Grain::Finest, Grain::Auto] {
+                    let exec = Exec::new(
+                        ExecPolicy::serial()
+                            .with_threads(threads)
+                            .unwrap()
+                            .with_grain(grain),
+                    )
+                    .unwrap();
+                    assert_eq!(
+                        consecutive_with(&exec, ids),
+                        serial,
+                        "case {c} threads {threads} {grain:?}"
+                    );
                 }
             }
         }
