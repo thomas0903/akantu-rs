@@ -35,6 +35,16 @@ material elastic [
 ]
 ```
 
+The parsed file is a tree, as upstream's: the root is the `global`
+section, which holds the parameters written outside any section; every
+section holds its parameters and its sub-sections and knows its parent
+section. An expression may use the parameters of its own section and of
+the sections that enclose it, which is how `E` above reads
+`lactostatic_p` from the root ([Reading parameters](#reading-parameters)).
+
+![The tree of the file above: the global root section with spatial_dimension and lactostatic_p, and its two sub-sections user parameters and material elastic with their parameters; an arrow shows that E = 2*lactostatic_p finds lactostatic_p in the parent section](figures/input-files-tree.svg)
+*Figure: the sections and parameters of the example file as a tree, and the lookup of a parameter in an enclosing section.*
+
 Rules (all reproduced from upstream):
 
 * Section header: the type is one of the keywords below (matched
@@ -49,6 +59,12 @@ Rules (all reproduced from upstream):
   and the rest of the line is a syntax error.
 * Comments start with `#` and run to the end of the line.
 * There is no `include` directive.
+* Vectors and matrices are written in NumPy's notation, a matrix as a
+  list of its rows: the Cauchy stress
+  $\boldsymbol{\sigma}$ of a 2-D problem is
+  `[[s_xx, s_xy], [s_yx, s_yy]]` for the components
+  $\sigma_{xx}$, $\sigma_{xy}$, $\sigma_{yx}$, $\sigma_{yy}$ (each
+  entry an expression, `s_xx` here a parameter of the file).
 
 Section types:
 
@@ -203,8 +219,8 @@ its stack overflows (UD-080).
 
 A referenced variable is evaluated again at each reference, with no cache,
 as upstream does. A chain of k definitions in which each one references the
-previous one twice (`a1 = a0 + a0`, `a2 = a1 + a1`, …) therefore takes 2^k
-evaluations: 4.7 s for k = 24 in a release build on an Apple M4 Pro, and each further line
+previous one twice (`a1 = a0 + a0`, `a2 = a1 + a1`, …) therefore takes $2^k$
+evaluations: 4.7 s for $k = 24$ in a release build on an Apple M4 Pro, and each further line
 doubles the time. Input files written by hand never come close; parse an
 untrusted file only with a time limit (`SECURITY.md`).
 
@@ -259,6 +275,43 @@ the port was measured on; an upstream build with its default flags
 (contraction) or on x86_64 glibc differs in some draws
 (`docs/NUMERICAL_VALIDATION.md`). The seed is set as described in
 [Command-line and environment options](command-line.md#random-seed).
+
+A random parameter $x_0$ `distribution [p1, p2]` gives at every draw
+
+$$
+x = x_0 + D,
+$$
+
+where $D$ is a draw of the distribution, computed from canonical
+uniform numbers $u \in [0, 1)$ of the generator (upstream
+`std::default_random_engine`) with the expressions of libstdc++, in the
+same order of operations and with the glibc mathematical functions
+(`crates/akantu-core/src/random/CLEANROOM_LOG.md`):
+
+| Distribution | Draw $D$ |
+|---|---|
+| `uniform [a, b]` | $D = u\,(b - a) + a$ |
+| `exponential [λ]` | $D = -\ln(1 - u)/\lambda$ |
+| `weibull [a, b]` | $D = a\,\bigl(-\ln(1 - u)\bigr)^{1/b}$ |
+| `extreme_value [a, b]` | $D = a - b\,\ln\bigl(-\ln(1 - u)\bigr)$ |
+| `cauchy [a, b]` | $D = a + b\,\tan(\pi u)$ ($u = \tfrac{1}{2}$ is drawn again) |
+| `normal [mean, σ]` | $D = \mu + \sigma z$, $z$ standard normal from Marsaglia's polar method (one value of each pair kept for the next draw) |
+| `lognormal [m, s]` | $D = e^{s z + m}$, $z$ standard normal |
+| `gamma [α, β]` | Marsaglia and Tsang's method, density $\dfrac{x^{\alpha - 1} e^{-x/\beta}}{\Gamma(\alpha)\,\beta^{\alpha}}$ for $x > 0$ |
+| `chi_squared [n]` | $D = 2G$, $G$ a gamma draw with $\alpha = n/2$, $\beta = 1$ |
+| `fisher_f [m, n]` | $D = \dfrac{X n}{Y m}$, $X$ and $Y$ gamma draws with $\alpha = m/2$ and $n/2$, $\beta = 1$ |
+| `student_t [n]` | $D = Z \sqrt{n/G}$, $Z$ standard normal, $G$ a gamma draw with $\alpha = n/2$, $\beta = 2$ |
+
+The Weibull draw inverts the distribution function of scale $a$ and
+shape $b$, whose density is
+
+$$
+f(x) = \frac{b}{a} \left( \frac{x}{a} \right)^{b - 1} e^{-(x/a)^{b}}, \qquad x \ge 0,
+$$
+
+so `sigma_c = 300e6 weibull [30e6, 5]` gives strengths
+$\sigma_c = 300 \times 10^{6} + D$ with $D \ge 0$ of scale
+$30 \times 10^{6}$ and shape $5$.
 
 ```rust
 use akantu::parser::{Parser, RandomDistribution, SearchScope};

@@ -8,10 +8,33 @@ code (element tables of `akantu-core`, kernels and quadrature rules of
 `akantu-fe`) by `cargo test -p akantu --test manual`, which also checks:
 
 * the node coordinates: every shape function is 1 at its node and 0 at
-  the others (`N_j(ξ_i) = δ_ij`, evaluated with the port's kernels);
-* the shape-function formulas: they are evaluated and compared with the
-  kernels at the nodes, at the quadrature points and at 50 points of the
-  reference box (`shape_formulas_match_the_kernels`).
+  the others ($N_j(\boldsymbol{\xi}_i) = \delta_{ij}$, evaluated with the
+  port's kernels);
+* the shape-function formulas and their derivatives: they are evaluated
+  and compared with the kernels (`compute_shapes`, `compute_dnds`) at the
+  nodes, at the quadrature points and at 50 points of the reference box
+  (`shape_formulas_match_the_kernels`).
+
+Each shape function has one source, a formula written in the test; the
+derivatives are derived from it exactly (rational arithmetic), and the
+formulas shown below are rendered from the same expressions, so what the
+page shows is what the test evaluates.
+
+For each element type the tables give the coordinates of the nodes in the
+reference element, the shape functions $N_i$ and their derivatives with
+respect to the natural coordinates, the facets, and the points and
+weights of the default quadrature rule. The element is mapped to the
+mesh by the same shape functions,
+$\boldsymbol{x}(\boldsymbol{\xi}) = \sum_i N_i(\boldsymbol{\xi})\,\boldsymbol{x}_i$
+(iso-parametric elements); the derivatives with respect to $\boldsymbol{x}$
+and the integration weights follow from the Jacobian of this map
+([Basic types](../basic-types.md#the-finite-element-engine)). A
+quadrature rule integrates
+$\int f \,\mathrm{d}\Omega \approx \sum_q w_q\, f(\boldsymbol{\xi}_q)$
+over the reference element, which is why the weights of a rule add up,
+to rounding, to the measure of the reference element (2 for the segment, $\tfrac{1}{2}$
+for the triangle, 4 for the quadrangle, $\tfrac{1}{6}$ for the
+tetrahedron, 1 for the prism, 8 for the hexahedron).
 
 The kernels and the quadrature rules themselves are verified bit for bit
 against the upstream library (parity rows ELEM-*, QUAD-*). Local node
@@ -64,21 +87,39 @@ Notes:
   `_hexadedron_8`.
 * The structural element types have their kernels, their FE engine
   (`StructuralFeEngine`) and their model, but no per-type section below
-  ([Structural mechanics model](../models/structural.md)). The IGFEM
+  ([Structural mechanics model](../models/structural.md)). The Bernoulli
+  beams have two nodes and are of mixed order: the axial displacement
+  is interpolated linearly, the transverse displacements with cubic
+  Hermite functions of the nodal displacements and rotations.
+
+  ![A two-node Bernoulli beam element of length 2a with its quadrature points](../figures/upstream/elements/bernoulli_2.svg)
+  *Figure: a Bernoulli beam element (`_bernoulli_beam_2`,
+  `_bernoulli_beam_3`) of length $2a$, nodes numbered from 1; the drawing
+  shows three quadrature points, the default rule of the port's
+  structural engine has two (table above) (figure of the Akantu
+  manual).*
+ The IGFEM
   types have their kernels and their engine in the IGFEM crate
   ([IGFEM](../models/igfem.md)); their quadrature follows the
   sub-elements of the interface.
 
 ## Regular elements
 
-Natural coordinates: `ξ` (1-D), `(ξ, η)` (2-D), `(ξ, η, ζ)` (3-D).
-Segments, quadrangles and hexahedra use `[-1, 1]` per coordinate,
-triangles and tetrahedra the unit simplex, pentahedra (prisms)
-`ξ ∈ [-1, 1]` times the unit triangle in `(η, ζ)`.
+Natural coordinates: $\xi$ (1-D), $(\xi, \eta)$ (2-D),
+$(\xi, \eta, \zeta)$ (3-D). Segments, quadrangles and hexahedra use
+$[-1, 1]$ per coordinate, triangles and tetrahedra the unit simplex,
+pentahedra (prisms) $\xi \in [-1, 1]$ times the unit triangle in
+$(\eta, \zeta)$. Most types are Lagrange elements (each $N_i$ is a
+product of one-dimensional Lagrange polynomials, or the barycentric
+equivalent on a simplex); `_quadrangle_8`, `_hexahedron_20` and
+`_pentahedron_15` are serendipity elements, without the interior nodes of
+the full quadratic Lagrange elements. The drawings below number the nodes
+from 1, as upstream's manual; the tables number them from 0, as the code.
 
 The node numbering of `_tetrahedron_4` is a permutation of that of the
-vertices of `_tetrahedron_10` (`N = (1 − ξ − η − ζ, η, ζ, ξ)`, upstream
-behaviour kept on purpose, UD-041).
+vertices of `_tetrahedron_10`
+($\boldsymbol{N} = (1 - \xi - \eta - \zeta,\ \eta,\ \zeta,\ \xi)$,
+upstream behaviour kept on purpose, UD-041).
 
 <!-- BEGIN GENERATED: element-appendix-regular -->
 ### point_1
@@ -93,9 +134,9 @@ behaviour kept on purpose, UD-041).
 | Linear (P1) type | `_point_1` |
 | Cohesive type on its facets | `_cohesive_1d_2` |
 
-| Node | — | N |
+| Node | — | $N_i$ |
 |---|---|---|
-| 0 | — | `1` |
+| 0 | — | $1$ |
 
 | Facet type | Local nodes |
 |---|---|
@@ -109,6 +150,9 @@ Default quadrature: 1 point(s), weights sum to 1.
 
 ### segment_2
 
+![The reference segments of _segment_2 and _segment_3 with their nodes and quadrature points](../figures/upstream/elements/segments.svg)
+*Figure: the 1-D elements `_segment_2` (left) and `_segment_3` (right), nodes numbered from 1 (the tables number from 0) and quadrature points in grey (figure of the Akantu manual).*
+
 | Property | Value |
 |---|---|
 | Rust name | `ElementType::Segment2` (upstream `_segment_2`) |
@@ -119,10 +163,10 @@ Default quadrature: 1 point(s), weights sum to 1.
 | Linear (P1) type | `_segment_2` |
 | Cohesive type on its facets | `_cohesive_2d_4` |
 
-| Node | ξ | N |
-|---|---|---|
-| 0 | (-1) | `(1 - ξ)/2` |
-| 1 | (1) | `(1 + ξ)/2` |
+| Node | $\xi$ | $N_i$ | $\partial N_i / \partial \xi$ |
+|---|---|---|---|
+| 0 | (-1) | $\frac{1}{2}\left(1 - \xi\right)$ | $-\frac{1}{2}$ |
+| 1 | (1) | $\frac{1}{2}\left(1 + \xi\right)$ | $\frac{1}{2}$ |
 
 | Facet type | Local nodes |
 |---|---|
@@ -131,7 +175,7 @@ Default quadrature: 1 point(s), weights sum to 1.
 
 Default quadrature: 1 point(s), weights sum to 2.
 
-| Point | ξ | Weight |
+| Point | $\xi$ | Weight |
 |---|---|---|
 | 0 | (0) | 2 |
 
@@ -147,11 +191,11 @@ Default quadrature: 1 point(s), weights sum to 2.
 | Linear (P1) type | `_segment_2` |
 | Cohesive type on its facets | `_cohesive_2d_6` |
 
-| Node | ξ | N |
-|---|---|---|
-| 0 | (-1) | `ξ·(ξ - 1)/2` |
-| 1 | (1) | `ξ·(ξ + 1)/2` |
-| 2 | (0) | `1 - ξ²` |
+| Node | $\xi$ | $N_i$ | $\partial N_i / \partial \xi$ |
+|---|---|---|---|
+| 0 | (-1) | $\frac{1}{2}\xi\left(\xi - 1\right)$ | $\xi - \frac{1}{2}$ |
+| 1 | (1) | $\frac{1}{2}\xi\left(\xi + 1\right)$ | $\xi + \frac{1}{2}$ |
+| 2 | (0) | $1 - \xi^{2}$ | $-2\xi$ |
 
 | Facet type | Local nodes |
 |---|---|
@@ -160,12 +204,15 @@ Default quadrature: 1 point(s), weights sum to 2.
 
 Default quadrature: 2 point(s), weights sum to 2.
 
-| Point | ξ | Weight |
+| Point | $\xi$ | Weight |
 |---|---|---|
 | 0 | (-0.5773502691896258) | 1 |
 | 1 | (0.5773502691896258) | 1 |
 
 ### triangle_3
+
+![The reference triangles and quadrangles with their nodes and quadrature points](../figures/upstream/elements/elements_2d.svg)
+*Figure: the 2-D elements `_triangle_3`, `_triangle_6` (top), `_quadrangle_4` and `_quadrangle_8` (bottom), nodes numbered from 1 (the tables number from 0) and quadrature points in grey; the drawing shows 9 points for `_quadrangle_8`, whose default rule has 4 (figure of the Akantu manual).*
 
 | Property | Value |
 |---|---|
@@ -177,11 +224,11 @@ Default quadrature: 2 point(s), weights sum to 2.
 | Linear (P1) type | `_triangle_3` |
 | Cohesive type on its facets | `_cohesive_3d_6` |
 
-| Node | (ξ, η) | N |
-|---|---|---|
-| 0 | (0, 0) | `1 - ξ - η` |
-| 1 | (1, 0) | `ξ` |
-| 2 | (0, 1) | `η` |
+| Node | $(\xi, \eta)$ | $N_i$ | $\partial N_i / \partial \xi$ | $\partial N_i / \partial \eta$ |
+|---|---|---|---|---|
+| 0 | (0, 0) | $1 - \xi - \eta$ | $-1$ | $-1$ |
+| 1 | (1, 0) | $\xi$ | $1$ | $0$ |
+| 2 | (0, 1) | $\eta$ | $0$ | $1$ |
 
 | Facet type | Local nodes |
 |---|---|
@@ -191,7 +238,7 @@ Default quadrature: 2 point(s), weights sum to 2.
 
 Default quadrature: 1 point(s), weights sum to 0.5.
 
-| Point | (ξ, η) | Weight |
+| Point | $(\xi, \eta)$ | Weight |
 |---|---|---|
 | 0 | (0.3333333333333333, 0.3333333333333333) | 0.5 |
 
@@ -207,14 +254,14 @@ Default quadrature: 1 point(s), weights sum to 0.5.
 | Linear (P1) type | `_triangle_3` |
 | Cohesive type on its facets | `_cohesive_3d_12` |
 
-| Node | (ξ, η) | N |
-|---|---|---|
-| 0 | (0, 0) | `(1 - ξ - η)·(1 - 2·ξ - 2·η)` |
-| 1 | (1, 0) | `ξ·(2·ξ - 1)` |
-| 2 | (0, 1) | `η·(2·η - 1)` |
-| 3 | (0.5, 0) | `4·ξ·(1 - ξ - η)` |
-| 4 | (0.5, 0.5) | `4·ξ·η` |
-| 5 | (0, 0.5) | `4·η·(1 - ξ - η)` |
+| Node | $(\xi, \eta)$ | $N_i$ | $\partial N_i / \partial \xi$ | $\partial N_i / \partial \eta$ |
+|---|---|---|---|---|
+| 0 | (0, 0) | $\left(1 - \xi - \eta\right)\left(1 - 2\xi - 2\eta\right)$ | $4\xi + 4\eta - 3$ | $4\xi + 4\eta - 3$ |
+| 1 | (1, 0) | $\xi\left(2\xi - 1\right)$ | $4\xi - 1$ | $0$ |
+| 2 | (0, 1) | $\eta\left(2\eta - 1\right)$ | $0$ | $4\eta - 1$ |
+| 3 | (0.5, 0) | $4\xi\left(1 - \xi - \eta\right)$ | $-8\xi - 4\eta + 4$ | $-4\xi$ |
+| 4 | (0.5, 0.5) | $4\xi\eta$ | $4\eta$ | $4\xi$ |
+| 5 | (0, 0.5) | $4\eta\left(1 - \xi - \eta\right)$ | $-4\eta$ | $-4\xi - 8\eta + 4$ |
 
 | Facet type | Local nodes |
 |---|---|
@@ -224,7 +271,7 @@ Default quadrature: 1 point(s), weights sum to 0.5.
 
 Default quadrature: 3 point(s), weights sum to 0.5.
 
-| Point | (ξ, η) | Weight |
+| Point | $(\xi, \eta)$ | Weight |
 |---|---|---|
 | 0 | (0.16666666666666666, 0.16666666666666666) | 0.16666666666666666 |
 | 1 | (0.6666666666666666, 0.16666666666666666) | 0.16666666666666666 |
@@ -242,12 +289,12 @@ Default quadrature: 3 point(s), weights sum to 0.5.
 | Linear (P1) type | `_quadrangle_4` |
 | Cohesive type on its facets | `_cohesive_3d_8` |
 
-| Node | (ξ, η) | N |
-|---|---|---|
-| 0 | (-1, -1) | `(1 - ξ)·(1 - η)/4` |
-| 1 | (1, -1) | `(1 + ξ)·(1 - η)/4` |
-| 2 | (1, 1) | `(1 + ξ)·(1 + η)/4` |
-| 3 | (-1, 1) | `(1 - ξ)·(1 + η)/4` |
+| Node | $(\xi, \eta)$ | $N_i$ | $\partial N_i / \partial \xi$ | $\partial N_i / \partial \eta$ |
+|---|---|---|---|---|
+| 0 | (-1, -1) | $\frac{1}{4}\left(1 - \xi\right)\left(1 - \eta\right)$ | $-\frac{1}{4}\left(1 - \eta\right)$ | $-\frac{1}{4}\left(1 - \xi\right)$ |
+| 1 | (1, -1) | $\frac{1}{4}\left(1 + \xi\right)\left(1 - \eta\right)$ | $\frac{1}{4}\left(1 - \eta\right)$ | $-\frac{1}{4}\left(1 + \xi\right)$ |
+| 2 | (1, 1) | $\frac{1}{4}\left(1 + \xi\right)\left(1 + \eta\right)$ | $\frac{1}{4}\left(1 + \eta\right)$ | $\frac{1}{4}\left(1 + \xi\right)$ |
+| 3 | (-1, 1) | $\frac{1}{4}\left(1 - \xi\right)\left(1 + \eta\right)$ | $-\frac{1}{4}\left(1 + \eta\right)$ | $\frac{1}{4}\left(1 - \xi\right)$ |
 
 | Facet type | Local nodes |
 |---|---|
@@ -258,7 +305,7 @@ Default quadrature: 3 point(s), weights sum to 0.5.
 
 Default quadrature: 4 point(s), weights sum to 4.
 
-| Point | (ξ, η) | Weight |
+| Point | $(\xi, \eta)$ | Weight |
 |---|---|---|
 | 0 | (-0.5773502691896258, -0.5773502691896258) | 1 |
 | 1 | (0.5773502691896258, -0.5773502691896258) | 1 |
@@ -277,16 +324,16 @@ Default quadrature: 4 point(s), weights sum to 4.
 | Linear (P1) type | `_quadrangle_4` |
 | Cohesive type on its facets | `_cohesive_3d_16` |
 
-| Node | (ξ, η) | N |
-|---|---|---|
-| 0 | (-1, -1) | `(1 - ξ)·(1 - η)·(-1 - ξ - η)/4` |
-| 1 | (1, -1) | `(1 + ξ)·(1 - η)·(-1 + ξ - η)/4` |
-| 2 | (1, 1) | `(1 + ξ)·(1 + η)·(-1 + ξ + η)/4` |
-| 3 | (-1, 1) | `(1 - ξ)·(1 + η)·(-1 - ξ + η)/4` |
-| 4 | (0, -1) | `(1 - ξ²)·(1 - η)/2` |
-| 5 | (1, 0) | `(1 + ξ)·(1 - η²)/2` |
-| 6 | (0, 1) | `(1 - ξ²)·(1 + η)/2` |
-| 7 | (-1, 0) | `(1 - ξ)·(1 - η²)/2` |
+| Node | $(\xi, \eta)$ | $N_i$ | $\partial N_i / \partial \xi$ | $\partial N_i / \partial \eta$ |
+|---|---|---|---|---|
+| 0 | (-1, -1) | $\frac{1}{4}\left(1 - \xi\right)\left(1 - \eta\right)\left(-1 - \xi - \eta\right)$ | $-\frac{\xi\eta}{2} - \frac{\eta^{2}}{4} + \frac{\xi}{2} + \frac{\eta}{4}$ | $-\frac{\xi^{2}}{4} - \frac{\xi\eta}{2} + \frac{\xi}{4} + \frac{\eta}{2}$ |
+| 1 | (1, -1) | $\frac{1}{4}\left(1 + \xi\right)\left(1 - \eta\right)\left(-1 + \xi - \eta\right)$ | $-\frac{\xi\eta}{2} + \frac{\eta^{2}}{4} + \frac{\xi}{2} - \frac{\eta}{4}$ | $-\frac{\xi^{2}}{4} + \frac{\xi\eta}{2} - \frac{\xi}{4} + \frac{\eta}{2}$ |
+| 2 | (1, 1) | $\frac{1}{4}\left(1 + \xi\right)\left(1 + \eta\right)\left(-1 + \xi + \eta\right)$ | $\frac{\xi\eta}{2} + \frac{\eta^{2}}{4} + \frac{\xi}{2} + \frac{\eta}{4}$ | $\frac{\xi^{2}}{4} + \frac{\xi\eta}{2} + \frac{\xi}{4} + \frac{\eta}{2}$ |
+| 3 | (-1, 1) | $\frac{1}{4}\left(1 - \xi\right)\left(1 + \eta\right)\left(-1 - \xi + \eta\right)$ | $\frac{\xi\eta}{2} - \frac{\eta^{2}}{4} + \frac{\xi}{2} - \frac{\eta}{4}$ | $\frac{\xi^{2}}{4} - \frac{\xi\eta}{2} - \frac{\xi}{4} + \frac{\eta}{2}$ |
+| 4 | (0, -1) | $\frac{1}{2}\left(1 - \xi^{2}\right)\left(1 - \eta\right)$ | $-\xi\left(1 - \eta\right)$ | $-\frac{1}{2}\left(1 - \xi^{2}\right)$ |
+| 5 | (1, 0) | $\frac{1}{2}\left(1 + \xi\right)\left(1 - \eta^{2}\right)$ | $\frac{1}{2}\left(1 - \eta^{2}\right)$ | $-\eta\left(1 + \xi\right)$ |
+| 6 | (0, 1) | $\frac{1}{2}\left(1 - \xi^{2}\right)\left(1 + \eta\right)$ | $-\xi\left(1 + \eta\right)$ | $\frac{1}{2}\left(1 - \xi^{2}\right)$ |
+| 7 | (-1, 0) | $\frac{1}{2}\left(1 - \xi\right)\left(1 - \eta^{2}\right)$ | $-\frac{1}{2}\left(1 - \eta^{2}\right)$ | $-\eta\left(1 - \xi\right)$ |
 
 | Facet type | Local nodes |
 |---|---|
@@ -297,7 +344,7 @@ Default quadrature: 4 point(s), weights sum to 4.
 
 Default quadrature: 4 point(s), weights sum to 4.
 
-| Point | (ξ, η) | Weight |
+| Point | $(\xi, \eta)$ | Weight |
 |---|---|---|
 | 0 | (-0.5773502691896258, -0.5773502691896258) | 1 |
 | 1 | (0.5773502691896258, -0.5773502691896258) | 1 |
@@ -305,6 +352,9 @@ Default quadrature: 4 point(s), weights sum to 4.
 | 3 | (0.5773502691896258, 0.5773502691896258) | 1 |
 
 ### tetrahedron_4
+
+![The reference tetrahedra and hexahedron with their nodes and quadrature points](../figures/upstream/elements/elements_3d.svg)
+*Figure: the 3-D elements `_tetrahedron_4`, `_tetrahedron_10` (top) and `_hexahedron_8` (bottom), nodes numbered from 1 (the tables number from 0) and quadrature points in grey; the drawing numbers the vertices of `_tetrahedron_4` like those of `_tetrahedron_10`, the kernel takes them in another order (table below, UD-041) (figure of the Akantu manual).*
 
 | Property | Value |
 |---|---|
@@ -315,12 +365,12 @@ Default quadrature: 4 point(s), weights sum to 4.
 | Default integration order | 1 |
 | Linear (P1) type | `_tetrahedron_4` |
 
-| Node | (ξ, η, ζ) | N |
-|---|---|---|
-| 0 | (0, 0, 0) | `1 - ξ - η - ζ` |
-| 1 | (0, 1, 0) | `η` |
-| 2 | (0, 0, 1) | `ζ` |
-| 3 | (1, 0, 0) | `ξ` |
+| Node | $(\xi, \eta, \zeta)$ | $N_i$ | $\partial N_i / \partial \xi$ | $\partial N_i / \partial \eta$ | $\partial N_i / \partial \zeta$ |
+|---|---|---|---|---|---|
+| 0 | (0, 0, 0) | $1 - \xi - \eta - \zeta$ | $-1$ | $-1$ | $-1$ |
+| 1 | (0, 1, 0) | $\eta$ | $0$ | $1$ | $0$ |
+| 2 | (0, 0, 1) | $\zeta$ | $0$ | $0$ | $1$ |
+| 3 | (1, 0, 0) | $\xi$ | $1$ | $0$ | $0$ |
 
 | Facet type | Local nodes |
 |---|---|
@@ -331,7 +381,7 @@ Default quadrature: 4 point(s), weights sum to 4.
 
 Default quadrature: 1 point(s), weights sum to 0.16666666666666666.
 
-| Point | (ξ, η, ζ) | Weight |
+| Point | $(\xi, \eta, \zeta)$ | Weight |
 |---|---|---|
 | 0 | (0.25, 0.25, 0.25) | 0.16666666666666666 |
 
@@ -346,18 +396,18 @@ Default quadrature: 1 point(s), weights sum to 0.16666666666666666.
 | Default integration order | 2 |
 | Linear (P1) type | `_tetrahedron_4` |
 
-| Node | (ξ, η, ζ) | N |
-|---|---|---|
-| 0 | (0, 0, 0) | `(1 - ξ - η - ζ)·(1 - 2·ξ - 2·η - 2·ζ)` |
-| 1 | (1, 0, 0) | `ξ·(2·ξ - 1)` |
-| 2 | (0, 1, 0) | `η·(2·η - 1)` |
-| 3 | (0, 0, 1) | `ζ·(2·ζ - 1)` |
-| 4 | (0.5, 0, 0) | `4·ξ·(1 - ξ - η - ζ)` |
-| 5 | (0.5, 0.5, 0) | `4·ξ·η` |
-| 6 | (0, 0.5, 0) | `4·η·(1 - ξ - η - ζ)` |
-| 7 | (0, 0, 0.5) | `4·ζ·(1 - ξ - η - ζ)` |
-| 8 | (0.5, 0, 0.5) | `4·ξ·ζ` |
-| 9 | (0, 0.5, 0.5) | `4·η·ζ` |
+| Node | $(\xi, \eta, \zeta)$ | $N_i$ | $\partial N_i / \partial \xi$ | $\partial N_i / \partial \eta$ | $\partial N_i / \partial \zeta$ |
+|---|---|---|---|---|---|
+| 0 | (0, 0, 0) | $\left(1 - \xi - \eta - \zeta\right)\left(1 - 2\xi - 2\eta - 2\zeta\right)$ | $4\xi + 4\eta + 4\zeta - 3$ | $4\xi + 4\eta + 4\zeta - 3$ | $4\xi + 4\eta + 4\zeta - 3$ |
+| 1 | (1, 0, 0) | $\xi\left(2\xi - 1\right)$ | $4\xi - 1$ | $0$ | $0$ |
+| 2 | (0, 1, 0) | $\eta\left(2\eta - 1\right)$ | $0$ | $4\eta - 1$ | $0$ |
+| 3 | (0, 0, 1) | $\zeta\left(2\zeta - 1\right)$ | $0$ | $0$ | $4\zeta - 1$ |
+| 4 | (0.5, 0, 0) | $4\xi\left(1 - \xi - \eta - \zeta\right)$ | $-8\xi - 4\eta - 4\zeta + 4$ | $-4\xi$ | $-4\xi$ |
+| 5 | (0.5, 0.5, 0) | $4\xi\eta$ | $4\eta$ | $4\xi$ | $0$ |
+| 6 | (0, 0.5, 0) | $4\eta\left(1 - \xi - \eta - \zeta\right)$ | $-4\eta$ | $-4\xi - 8\eta - 4\zeta + 4$ | $-4\eta$ |
+| 7 | (0, 0, 0.5) | $4\zeta\left(1 - \xi - \eta - \zeta\right)$ | $-4\zeta$ | $-4\zeta$ | $-4\xi - 4\eta - 8\zeta + 4$ |
+| 8 | (0.5, 0, 0.5) | $4\xi\zeta$ | $4\zeta$ | $0$ | $4\xi$ |
+| 9 | (0, 0.5, 0.5) | $4\eta\zeta$ | $0$ | $4\zeta$ | $4\eta$ |
 
 | Facet type | Local nodes |
 |---|---|
@@ -368,7 +418,7 @@ Default quadrature: 1 point(s), weights sum to 0.16666666666666666.
 
 Default quadrature: 4 point(s), weights sum to 0.16666666666666666.
 
-| Point | (ξ, η, ζ) | Weight |
+| Point | $(\xi, \eta, \zeta)$ | Weight |
 |---|---|---|
 | 0 | (0.1381966011250105, 0.1381966011250105, 0.1381966011250105) | 0.041666666666666664 |
 | 1 | (0.5854101966249685, 0.1381966011250105, 0.1381966011250105) | 0.041666666666666664 |
@@ -386,14 +436,14 @@ Default quadrature: 4 point(s), weights sum to 0.16666666666666666.
 | Default integration order | 1 |
 | Linear (P1) type | `_pentahedron_6` |
 
-| Node | (ξ, η, ζ) | N |
-|---|---|---|
-| 0 | (-1, 1, 0) | `η·(1 - ξ)/2` |
-| 1 | (-1, 0, 1) | `ζ·(1 - ξ)/2` |
-| 2 | (-1, 0, 0) | `(1 - η - ζ)·(1 - ξ)/2` |
-| 3 | (1, 1, 0) | `η·(1 + ξ)/2` |
-| 4 | (1, 0, 1) | `ζ·(1 + ξ)/2` |
-| 5 | (1, 0, 0) | `(1 - η - ζ)·(1 + ξ)/2` |
+| Node | $(\xi, \eta, \zeta)$ | $N_i$ | $\partial N_i / \partial \xi$ | $\partial N_i / \partial \eta$ | $\partial N_i / \partial \zeta$ |
+|---|---|---|---|---|---|
+| 0 | (-1, 1, 0) | $\frac{1}{2}\eta\left(1 - \xi\right)$ | $-\frac{\eta}{2}$ | $\frac{1}{2}\left(1 - \xi\right)$ | $0$ |
+| 1 | (-1, 0, 1) | $\frac{1}{2}\zeta\left(1 - \xi\right)$ | $-\frac{\zeta}{2}$ | $0$ | $\frac{1}{2}\left(1 - \xi\right)$ |
+| 2 | (-1, 0, 0) | $\frac{1}{2}\left(1 - \eta - \zeta\right)\left(1 - \xi\right)$ | $-\frac{1}{2}\left(1 - \eta - \zeta\right)$ | $-\frac{1}{2}\left(1 - \xi\right)$ | $-\frac{1}{2}\left(1 - \xi\right)$ |
+| 3 | (1, 1, 0) | $\frac{1}{2}\eta\left(1 + \xi\right)$ | $\frac{\eta}{2}$ | $\frac{1}{2}\left(1 + \xi\right)$ | $0$ |
+| 4 | (1, 0, 1) | $\frac{1}{2}\zeta\left(1 + \xi\right)$ | $\frac{\zeta}{2}$ | $0$ | $\frac{1}{2}\left(1 + \xi\right)$ |
+| 5 | (1, 0, 0) | $\frac{1}{2}\left(1 - \eta - \zeta\right)\left(1 + \xi\right)$ | $\frac{1}{2}\left(1 - \eta - \zeta\right)$ | $-\frac{1}{2}\left(1 + \xi\right)$ | $-\frac{1}{2}\left(1 + \xi\right)$ |
 
 | Facet type | Local nodes |
 |---|---|
@@ -405,7 +455,7 @@ Default quadrature: 4 point(s), weights sum to 0.16666666666666666.
 
 Default quadrature: 6 point(s), weights sum to 0.9999999999999999.
 
-| Point | (ξ, η, ζ) | Weight |
+| Point | $(\xi, \eta, \zeta)$ | Weight |
 |---|---|---|
 | 0 | (-0.5773502691896258, 0.16666666666666666, 0.16666666666666666) | 0.16666666666666666 |
 | 1 | (-0.5773502691896258, 0.6666666666666666, 0.16666666666666666) | 0.16666666666666666 |
@@ -425,23 +475,23 @@ Default quadrature: 6 point(s), weights sum to 0.9999999999999999.
 | Default integration order | 2 |
 | Linear (P1) type | `_pentahedron_6` |
 
-| Node | (ξ, η, ζ) | N |
-|---|---|---|
-| 0 | (-1, 1, 0) | `η·(1 - ξ)·(2·η - 2 - ξ)/2` |
-| 1 | (-1, 0, 1) | `ζ·(1 - ξ)·(2·ζ - 2 - ξ)/2` |
-| 2 | (-1, 0, 0) | `(ξ - 1)·(1 - η - ζ)·(ξ + 2·η + 2·ζ)/2` |
-| 3 | (1, 1, 0) | `η·(1 + ξ)·(2·η - 2 + ξ)/2` |
-| 4 | (1, 0, 1) | `ζ·(1 + ξ)·(2·ζ - 2 + ξ)/2` |
-| 5 | (1, 0, 0) | `(-ξ - 1)·(1 - η - ζ)·(-ξ + 2·η + 2·ζ)/2` |
-| 6 | (-1, 0.5, 0.5) | `2·η·ζ·(1 - ξ)` |
-| 7 | (-1, 0, 0.5) | `2·ζ·(1 - η - ζ)·(1 - ξ)` |
-| 8 | (-1, 0.5, 0) | `2·η·(1 - ξ)·(1 - η - ζ)` |
-| 9 | (0, 1, 0) | `η·(1 - ξ²)` |
-| 10 | (0, 0, 1) | `ζ·(1 - ξ²)` |
-| 11 | (0, 0, 0) | `(1 - η - ζ)·(1 - ξ²)` |
-| 12 | (1, 0.5, 0.5) | `2·η·ζ·(1 + ξ)` |
-| 13 | (1, 0, 0.5) | `2·ζ·(1 - η - ζ)·(1 + ξ)` |
-| 14 | (1, 0.5, 0) | `2·η·(1 - η - ζ)·(1 + ξ)` |
+| Node | $(\xi, \eta, \zeta)$ | $N_i$ | $\partial N_i / \partial \xi$ | $\partial N_i / \partial \eta$ | $\partial N_i / \partial \zeta$ |
+|---|---|---|---|---|---|
+| 0 | (-1, 1, 0) | $\frac{1}{2}\eta\left(1 - \xi\right)\left(2\eta - 2 - \xi\right)$ | $\xi\eta - \eta^{2} + \frac{\eta}{2}$ | $\frac{\xi^{2}}{2} - 2\xi\eta + \frac{\xi}{2} + 2\eta - 1$ | $0$ |
+| 1 | (-1, 0, 1) | $\frac{1}{2}\zeta\left(1 - \xi\right)\left(2\zeta - 2 - \xi\right)$ | $\xi\zeta - \zeta^{2} + \frac{\zeta}{2}$ | $0$ | $\frac{\xi^{2}}{2} - 2\xi\zeta + \frac{\xi}{2} + 2\zeta - 1$ |
+| 2 | (-1, 0, 0) | $\frac{1}{2}\left(\xi - 1\right)\left(1 - \eta - \zeta\right)\left(\xi + 2\eta + 2\zeta\right)$ | $\frac{1}{2}\left(1 - \eta - \zeta\right)\left(\xi + 2\eta + 2\zeta\right) + \frac{1}{2}\left(\xi - 1\right)\left(1 - \eta - \zeta\right)$ | $-\frac{\xi^{2}}{2} - 2\xi\eta - 2\xi\zeta + \frac{3\xi}{2} + 2\eta + 2\zeta - 1$ | $-\frac{\xi^{2}}{2} - 2\xi\eta - 2\xi\zeta + \frac{3\xi}{2} + 2\eta + 2\zeta - 1$ |
+| 3 | (1, 1, 0) | $\frac{1}{2}\eta\left(1 + \xi\right)\left(2\eta - 2 + \xi\right)$ | $\xi\eta + \eta^{2} - \frac{\eta}{2}$ | $\frac{\xi^{2}}{2} + 2\xi\eta - \frac{\xi}{2} + 2\eta - 1$ | $0$ |
+| 4 | (1, 0, 1) | $\frac{1}{2}\zeta\left(1 + \xi\right)\left(2\zeta - 2 + \xi\right)$ | $\xi\zeta + \zeta^{2} - \frac{\zeta}{2}$ | $0$ | $\frac{\xi^{2}}{2} + 2\xi\zeta - \frac{\xi}{2} + 2\zeta - 1$ |
+| 5 | (1, 0, 0) | $\frac{1}{2}\left(-\xi - 1\right)\left(1 - \eta - \zeta\right)\left(-\xi + 2\eta + 2\zeta\right)$ | $-\xi\eta - \xi\zeta + \eta^{2} + 2\eta\zeta + \zeta^{2} + \xi - \frac{3\eta}{2} - \frac{3\zeta}{2} + \frac{1}{2}$ | $-\frac{\xi^{2}}{2} + 2\xi\eta + 2\xi\zeta - \frac{3\xi}{2} + 2\eta + 2\zeta - 1$ | $-\frac{\xi^{2}}{2} + 2\xi\eta + 2\xi\zeta - \frac{3\xi}{2} + 2\eta + 2\zeta - 1$ |
+| 6 | (-1, 0.5, 0.5) | $2\eta\zeta\left(1 - \xi\right)$ | $-2\eta\zeta$ | $2\zeta\left(1 - \xi\right)$ | $2\eta\left(1 - \xi\right)$ |
+| 7 | (-1, 0, 0.5) | $2\zeta\left(1 - \eta - \zeta\right)\left(1 - \xi\right)$ | $-2\zeta\left(1 - \eta - \zeta\right)$ | $-2\zeta\left(1 - \xi\right)$ | $2\xi\eta + 4\xi\zeta - 2\xi - 2\eta - 4\zeta + 2$ |
+| 8 | (-1, 0.5, 0) | $2\eta\left(1 - \xi\right)\left(1 - \eta - \zeta\right)$ | $-2\eta\left(1 - \eta - \zeta\right)$ | $4\xi\eta + 2\xi\zeta - 2\xi - 4\eta - 2\zeta + 2$ | $-2\eta\left(1 - \xi\right)$ |
+| 9 | (0, 1, 0) | $\eta\left(1 - \xi^{2}\right)$ | $-2\xi\eta$ | $\left(1 - \xi^{2}\right)$ | $0$ |
+| 10 | (0, 0, 1) | $\zeta\left(1 - \xi^{2}\right)$ | $-2\xi\zeta$ | $0$ | $\left(1 - \xi^{2}\right)$ |
+| 11 | (0, 0, 0) | $\left(1 - \eta - \zeta\right)\left(1 - \xi^{2}\right)$ | $-2\xi\left(1 - \eta - \zeta\right)$ | $-\left(1 - \xi^{2}\right)$ | $-\left(1 - \xi^{2}\right)$ |
+| 12 | (1, 0.5, 0.5) | $2\eta\zeta\left(1 + \xi\right)$ | $2\eta\zeta$ | $2\zeta\left(1 + \xi\right)$ | $2\eta\left(1 + \xi\right)$ |
+| 13 | (1, 0, 0.5) | $2\zeta\left(1 - \eta - \zeta\right)\left(1 + \xi\right)$ | $2\zeta\left(1 - \eta - \zeta\right)$ | $-2\zeta\left(1 + \xi\right)$ | $2\left(1 - \eta - \zeta\right)\left(1 + \xi\right) - 2\zeta\left(1 + \xi\right)$ |
+| 14 | (1, 0.5, 0) | $2\eta\left(1 - \eta - \zeta\right)\left(1 + \xi\right)$ | $2\eta\left(1 - \eta - \zeta\right)$ | $2\left(1 - \eta - \zeta\right)\left(1 + \xi\right) - 2\eta\left(1 + \xi\right)$ | $-2\eta\left(1 + \xi\right)$ |
 
 | Facet type | Local nodes |
 |---|---|
@@ -453,7 +503,7 @@ Default quadrature: 6 point(s), weights sum to 0.9999999999999999.
 
 Default quadrature: 6 point(s), weights sum to 0.9999999999999999.
 
-| Point | (ξ, η, ζ) | Weight |
+| Point | $(\xi, \eta, \zeta)$ | Weight |
 |---|---|---|
 | 0 | (-0.5773502691896258, 0.16666666666666666, 0.16666666666666666) | 0.16666666666666666 |
 | 1 | (-0.5773502691896258, 0.6666666666666666, 0.16666666666666666) | 0.16666666666666666 |
@@ -473,16 +523,16 @@ Default quadrature: 6 point(s), weights sum to 0.9999999999999999.
 | Default integration order | 2 |
 | Linear (P1) type | `_hexahedron_8` |
 
-| Node | (ξ, η, ζ) | N |
-|---|---|---|
-| 0 | (-1, -1, -1) | `(1 - ξ)·(1 - η)·(1 - ζ)/8` |
-| 1 | (1, -1, -1) | `(1 + ξ)·(1 - η)·(1 - ζ)/8` |
-| 2 | (1, 1, -1) | `(1 + ξ)·(1 + η)·(1 - ζ)/8` |
-| 3 | (-1, 1, -1) | `(1 - ξ)·(1 + η)·(1 - ζ)/8` |
-| 4 | (-1, -1, 1) | `(1 - ξ)·(1 - η)·(1 + ζ)/8` |
-| 5 | (1, -1, 1) | `(1 + ξ)·(1 - η)·(1 + ζ)/8` |
-| 6 | (1, 1, 1) | `(1 + ξ)·(1 + η)·(1 + ζ)/8` |
-| 7 | (-1, 1, 1) | `(1 - ξ)·(1 + η)·(1 + ζ)/8` |
+| Node | $(\xi, \eta, \zeta)$ | $N_i$ | $\partial N_i / \partial \xi$ | $\partial N_i / \partial \eta$ | $\partial N_i / \partial \zeta$ |
+|---|---|---|---|---|---|
+| 0 | (-1, -1, -1) | $\frac{1}{8}\left(1 - \xi\right)\left(1 - \eta\right)\left(1 - \zeta\right)$ | $-\frac{1}{8}\left(1 - \eta\right)\left(1 - \zeta\right)$ | $-\frac{1}{8}\left(1 - \xi\right)\left(1 - \zeta\right)$ | $-\frac{1}{8}\left(1 - \xi\right)\left(1 - \eta\right)$ |
+| 1 | (1, -1, -1) | $\frac{1}{8}\left(1 + \xi\right)\left(1 - \eta\right)\left(1 - \zeta\right)$ | $\frac{1}{8}\left(1 - \eta\right)\left(1 - \zeta\right)$ | $-\frac{1}{8}\left(1 + \xi\right)\left(1 - \zeta\right)$ | $-\frac{1}{8}\left(1 + \xi\right)\left(1 - \eta\right)$ |
+| 2 | (1, 1, -1) | $\frac{1}{8}\left(1 + \xi\right)\left(1 + \eta\right)\left(1 - \zeta\right)$ | $\frac{1}{8}\left(1 + \eta\right)\left(1 - \zeta\right)$ | $\frac{1}{8}\left(1 + \xi\right)\left(1 - \zeta\right)$ | $-\frac{1}{8}\left(1 + \xi\right)\left(1 + \eta\right)$ |
+| 3 | (-1, 1, -1) | $\frac{1}{8}\left(1 - \xi\right)\left(1 + \eta\right)\left(1 - \zeta\right)$ | $-\frac{1}{8}\left(1 + \eta\right)\left(1 - \zeta\right)$ | $\frac{1}{8}\left(1 - \xi\right)\left(1 - \zeta\right)$ | $-\frac{1}{8}\left(1 - \xi\right)\left(1 + \eta\right)$ |
+| 4 | (-1, -1, 1) | $\frac{1}{8}\left(1 - \xi\right)\left(1 - \eta\right)\left(1 + \zeta\right)$ | $-\frac{1}{8}\left(1 - \eta\right)\left(1 + \zeta\right)$ | $-\frac{1}{8}\left(1 - \xi\right)\left(1 + \zeta\right)$ | $\frac{1}{8}\left(1 - \xi\right)\left(1 - \eta\right)$ |
+| 5 | (1, -1, 1) | $\frac{1}{8}\left(1 + \xi\right)\left(1 - \eta\right)\left(1 + \zeta\right)$ | $\frac{1}{8}\left(1 - \eta\right)\left(1 + \zeta\right)$ | $-\frac{1}{8}\left(1 + \xi\right)\left(1 + \zeta\right)$ | $\frac{1}{8}\left(1 + \xi\right)\left(1 - \eta\right)$ |
+| 6 | (1, 1, 1) | $\frac{1}{8}\left(1 + \xi\right)\left(1 + \eta\right)\left(1 + \zeta\right)$ | $\frac{1}{8}\left(1 + \eta\right)\left(1 + \zeta\right)$ | $\frac{1}{8}\left(1 + \xi\right)\left(1 + \zeta\right)$ | $\frac{1}{8}\left(1 + \xi\right)\left(1 + \eta\right)$ |
+| 7 | (-1, 1, 1) | $\frac{1}{8}\left(1 - \xi\right)\left(1 + \eta\right)\left(1 + \zeta\right)$ | $-\frac{1}{8}\left(1 + \eta\right)\left(1 + \zeta\right)$ | $\frac{1}{8}\left(1 - \xi\right)\left(1 + \zeta\right)$ | $\frac{1}{8}\left(1 - \xi\right)\left(1 + \eta\right)$ |
 
 | Facet type | Local nodes |
 |---|---|
@@ -495,7 +545,7 @@ Default quadrature: 6 point(s), weights sum to 0.9999999999999999.
 
 Default quadrature: 8 point(s), weights sum to 8.
 
-| Point | (ξ, η, ζ) | Weight |
+| Point | $(\xi, \eta, \zeta)$ | Weight |
 |---|---|---|
 | 0 | (-0.5773502691896258, -0.5773502691896258, -0.5773502691896258) | 1 |
 | 1 | (0.5773502691896258, -0.5773502691896258, -0.5773502691896258) | 1 |
@@ -517,28 +567,28 @@ Default quadrature: 8 point(s), weights sum to 8.
 | Default integration order | 3 |
 | Linear (P1) type | `_hexahedron_8` |
 
-| Node | (ξ, η, ζ) | N |
-|---|---|---|
-| 0 | (-1, -1, -1) | `(1 - ξ)·(1 - η)·(1 - ζ)·(-2 - ξ - η - ζ)/8` |
-| 1 | (1, -1, -1) | `(1 + ξ)·(1 - η)·(1 - ζ)·(-2 + ξ - η - ζ)/8` |
-| 2 | (1, 1, -1) | `(1 + ξ)·(1 + η)·(1 - ζ)·(-2 + ξ + η - ζ)/8` |
-| 3 | (-1, 1, -1) | `(1 - ξ)·(1 + η)·(1 - ζ)·(-2 - ξ + η - ζ)/8` |
-| 4 | (-1, -1, 1) | `(1 - ξ)·(1 - η)·(1 + ζ)·(-2 - ξ - η + ζ)/8` |
-| 5 | (1, -1, 1) | `(1 + ξ)·(1 - η)·(1 + ζ)·(-2 + ξ - η + ζ)/8` |
-| 6 | (1, 1, 1) | `(1 + ξ)·(1 + η)·(1 + ζ)·(-2 + ξ + η + ζ)/8` |
-| 7 | (-1, 1, 1) | `(1 - ξ)·(1 + η)·(1 + ζ)·(-2 - ξ + η + ζ)/8` |
-| 8 | (0, -1, -1) | `(1 - ξ²)·(1 - η)·(1 - ζ)/4` |
-| 9 | (1, 0, -1) | `(1 - η²)·(1 + ξ)·(1 - ζ)/4` |
-| 10 | (0, 1, -1) | `(1 - ξ²)·(1 + η)·(1 - ζ)/4` |
-| 11 | (-1, 0, -1) | `(1 - η²)·(1 - ξ)·(1 - ζ)/4` |
-| 12 | (-1, -1, 0) | `(1 - ζ²)·(1 - ξ)·(1 - η)/4` |
-| 13 | (1, -1, 0) | `(1 - ζ²)·(1 + ξ)·(1 - η)/4` |
-| 14 | (1, 1, 0) | `(1 - ζ²)·(1 + ξ)·(1 + η)/4` |
-| 15 | (-1, 1, 0) | `(1 - ζ²)·(1 - ξ)·(1 + η)/4` |
-| 16 | (0, -1, 1) | `(1 - ξ²)·(1 - η)·(1 + ζ)/4` |
-| 17 | (1, 0, 1) | `(1 - η²)·(1 + ξ)·(1 + ζ)/4` |
-| 18 | (0, 1, 1) | `(1 - ξ²)·(1 + η)·(1 + ζ)/4` |
-| 19 | (-1, 0, 1) | `(1 - η²)·(1 - ξ)·(1 + ζ)/4` |
+| Node | $(\xi, \eta, \zeta)$ | $N_i$ | $\partial N_i / \partial \xi$ | $\partial N_i / \partial \eta$ | $\partial N_i / \partial \zeta$ |
+|---|---|---|---|---|---|
+| 0 | (-1, -1, -1) | $\frac{1}{8}\left(1 - \xi\right)\left(1 - \eta\right)\left(1 - \zeta\right)\left(-2 - \xi - \eta - \zeta\right)$ | $-\frac{1}{8}\left(1 - \eta\right)\left(1 - \zeta\right)\left(-2 - \xi - \eta - \zeta\right) - \frac{1}{8}\left(1 - \xi\right)\left(1 - \eta\right)\left(1 - \zeta\right)$ | $-\frac{1}{8}\left(1 - \xi\right)\left(1 - \zeta\right)\left(-2 - \xi - \eta - \zeta\right) - \frac{1}{8}\left(1 - \xi\right)\left(1 - \eta\right)\left(1 - \zeta\right)$ | $-\frac{1}{8}\left(1 - \xi\right)\left(1 - \eta\right)\left(-2 - \xi - \eta - \zeta\right) - \frac{1}{8}\left(1 - \xi\right)\left(1 - \eta\right)\left(1 - \zeta\right)$ |
+| 1 | (1, -1, -1) | $\frac{1}{8}\left(1 + \xi\right)\left(1 - \eta\right)\left(1 - \zeta\right)\left(-2 + \xi - \eta - \zeta\right)$ | $\frac{1}{8}\left(1 - \eta\right)\left(1 - \zeta\right)\left(-2 + \xi - \eta - \zeta\right) + \frac{1}{8}\left(1 + \xi\right)\left(1 - \eta\right)\left(1 - \zeta\right)$ | $-\frac{1}{8}\left(1 + \xi\right)\left(1 - \zeta\right)\left(-2 + \xi - \eta - \zeta\right) - \frac{1}{8}\left(1 + \xi\right)\left(1 - \eta\right)\left(1 - \zeta\right)$ | $-\frac{1}{8}\left(1 + \xi\right)\left(1 - \eta\right)\left(-2 + \xi - \eta - \zeta\right) - \frac{1}{8}\left(1 + \xi\right)\left(1 - \eta\right)\left(1 - \zeta\right)$ |
+| 2 | (1, 1, -1) | $\frac{1}{8}\left(1 + \xi\right)\left(1 + \eta\right)\left(1 - \zeta\right)\left(-2 + \xi + \eta - \zeta\right)$ | $\frac{1}{8}\left(1 + \eta\right)\left(1 - \zeta\right)\left(-2 + \xi + \eta - \zeta\right) + \frac{1}{8}\left(1 + \xi\right)\left(1 + \eta\right)\left(1 - \zeta\right)$ | $\frac{1}{8}\left(1 + \xi\right)\left(1 - \zeta\right)\left(-2 + \xi + \eta - \zeta\right) + \frac{1}{8}\left(1 + \xi\right)\left(1 + \eta\right)\left(1 - \zeta\right)$ | $-\frac{1}{8}\left(1 + \xi\right)\left(1 + \eta\right)\left(-2 + \xi + \eta - \zeta\right) - \frac{1}{8}\left(1 + \xi\right)\left(1 + \eta\right)\left(1 - \zeta\right)$ |
+| 3 | (-1, 1, -1) | $\frac{1}{8}\left(1 - \xi\right)\left(1 + \eta\right)\left(1 - \zeta\right)\left(-2 - \xi + \eta - \zeta\right)$ | $-\frac{1}{8}\left(1 + \eta\right)\left(1 - \zeta\right)\left(-2 - \xi + \eta - \zeta\right) - \frac{1}{8}\left(1 - \xi\right)\left(1 + \eta\right)\left(1 - \zeta\right)$ | $\frac{1}{8}\left(1 - \xi\right)\left(1 - \zeta\right)\left(-2 - \xi + \eta - \zeta\right) + \frac{1}{8}\left(1 - \xi\right)\left(1 + \eta\right)\left(1 - \zeta\right)$ | $-\frac{1}{8}\left(1 - \xi\right)\left(1 + \eta\right)\left(-2 - \xi + \eta - \zeta\right) - \frac{1}{8}\left(1 - \xi\right)\left(1 + \eta\right)\left(1 - \zeta\right)$ |
+| 4 | (-1, -1, 1) | $\frac{1}{8}\left(1 - \xi\right)\left(1 - \eta\right)\left(1 + \zeta\right)\left(-2 - \xi - \eta + \zeta\right)$ | $-\frac{1}{8}\left(1 - \eta\right)\left(1 + \zeta\right)\left(-2 - \xi - \eta + \zeta\right) - \frac{1}{8}\left(1 - \xi\right)\left(1 - \eta\right)\left(1 + \zeta\right)$ | $-\frac{1}{8}\left(1 - \xi\right)\left(1 + \zeta\right)\left(-2 - \xi - \eta + \zeta\right) - \frac{1}{8}\left(1 - \xi\right)\left(1 - \eta\right)\left(1 + \zeta\right)$ | $\frac{1}{8}\left(1 - \xi\right)\left(1 - \eta\right)\left(-2 - \xi - \eta + \zeta\right) + \frac{1}{8}\left(1 - \xi\right)\left(1 - \eta\right)\left(1 + \zeta\right)$ |
+| 5 | (1, -1, 1) | $\frac{1}{8}\left(1 + \xi\right)\left(1 - \eta\right)\left(1 + \zeta\right)\left(-2 + \xi - \eta + \zeta\right)$ | $\frac{1}{8}\left(1 - \eta\right)\left(1 + \zeta\right)\left(-2 + \xi - \eta + \zeta\right) + \frac{1}{8}\left(1 + \xi\right)\left(1 - \eta\right)\left(1 + \zeta\right)$ | $-\frac{1}{8}\left(1 + \xi\right)\left(1 + \zeta\right)\left(-2 + \xi - \eta + \zeta\right) - \frac{1}{8}\left(1 + \xi\right)\left(1 - \eta\right)\left(1 + \zeta\right)$ | $\frac{1}{8}\left(1 + \xi\right)\left(1 - \eta\right)\left(-2 + \xi - \eta + \zeta\right) + \frac{1}{8}\left(1 + \xi\right)\left(1 - \eta\right)\left(1 + \zeta\right)$ |
+| 6 | (1, 1, 1) | $\frac{1}{8}\left(1 + \xi\right)\left(1 + \eta\right)\left(1 + \zeta\right)\left(-2 + \xi + \eta + \zeta\right)$ | $\frac{1}{8}\left(1 + \eta\right)\left(1 + \zeta\right)\left(-2 + \xi + \eta + \zeta\right) + \frac{1}{8}\left(1 + \xi\right)\left(1 + \eta\right)\left(1 + \zeta\right)$ | $\frac{1}{8}\left(1 + \xi\right)\left(1 + \zeta\right)\left(-2 + \xi + \eta + \zeta\right) + \frac{1}{8}\left(1 + \xi\right)\left(1 + \eta\right)\left(1 + \zeta\right)$ | $\frac{1}{8}\left(1 + \xi\right)\left(1 + \eta\right)\left(-2 + \xi + \eta + \zeta\right) + \frac{1}{8}\left(1 + \xi\right)\left(1 + \eta\right)\left(1 + \zeta\right)$ |
+| 7 | (-1, 1, 1) | $\frac{1}{8}\left(1 - \xi\right)\left(1 + \eta\right)\left(1 + \zeta\right)\left(-2 - \xi + \eta + \zeta\right)$ | $-\frac{1}{8}\left(1 + \eta\right)\left(1 + \zeta\right)\left(-2 - \xi + \eta + \zeta\right) - \frac{1}{8}\left(1 - \xi\right)\left(1 + \eta\right)\left(1 + \zeta\right)$ | $\frac{1}{8}\left(1 - \xi\right)\left(1 + \zeta\right)\left(-2 - \xi + \eta + \zeta\right) + \frac{1}{8}\left(1 - \xi\right)\left(1 + \eta\right)\left(1 + \zeta\right)$ | $\frac{1}{8}\left(1 - \xi\right)\left(1 + \eta\right)\left(-2 - \xi + \eta + \zeta\right) + \frac{1}{8}\left(1 - \xi\right)\left(1 + \eta\right)\left(1 + \zeta\right)$ |
+| 8 | (0, -1, -1) | $\frac{1}{4}\left(1 - \xi^{2}\right)\left(1 - \eta\right)\left(1 - \zeta\right)$ | $-\frac{1}{2}\xi\left(1 - \eta\right)\left(1 - \zeta\right)$ | $-\frac{1}{4}\left(1 - \xi^{2}\right)\left(1 - \zeta\right)$ | $-\frac{1}{4}\left(1 - \xi^{2}\right)\left(1 - \eta\right)$ |
+| 9 | (1, 0, -1) | $\frac{1}{4}\left(1 - \eta^{2}\right)\left(1 + \xi\right)\left(1 - \zeta\right)$ | $\frac{1}{4}\left(1 - \eta^{2}\right)\left(1 - \zeta\right)$ | $-\frac{1}{2}\eta\left(1 + \xi\right)\left(1 - \zeta\right)$ | $-\frac{1}{4}\left(1 - \eta^{2}\right)\left(1 + \xi\right)$ |
+| 10 | (0, 1, -1) | $\frac{1}{4}\left(1 - \xi^{2}\right)\left(1 + \eta\right)\left(1 - \zeta\right)$ | $-\frac{1}{2}\xi\left(1 + \eta\right)\left(1 - \zeta\right)$ | $\frac{1}{4}\left(1 - \xi^{2}\right)\left(1 - \zeta\right)$ | $-\frac{1}{4}\left(1 - \xi^{2}\right)\left(1 + \eta\right)$ |
+| 11 | (-1, 0, -1) | $\frac{1}{4}\left(1 - \eta^{2}\right)\left(1 - \xi\right)\left(1 - \zeta\right)$ | $-\frac{1}{4}\left(1 - \eta^{2}\right)\left(1 - \zeta\right)$ | $-\frac{1}{2}\eta\left(1 - \xi\right)\left(1 - \zeta\right)$ | $-\frac{1}{4}\left(1 - \eta^{2}\right)\left(1 - \xi\right)$ |
+| 12 | (-1, -1, 0) | $\frac{1}{4}\left(1 - \zeta^{2}\right)\left(1 - \xi\right)\left(1 - \eta\right)$ | $-\frac{1}{4}\left(1 - \zeta^{2}\right)\left(1 - \eta\right)$ | $-\frac{1}{4}\left(1 - \zeta^{2}\right)\left(1 - \xi\right)$ | $-\frac{1}{2}\zeta\left(1 - \xi\right)\left(1 - \eta\right)$ |
+| 13 | (1, -1, 0) | $\frac{1}{4}\left(1 - \zeta^{2}\right)\left(1 + \xi\right)\left(1 - \eta\right)$ | $\frac{1}{4}\left(1 - \zeta^{2}\right)\left(1 - \eta\right)$ | $-\frac{1}{4}\left(1 - \zeta^{2}\right)\left(1 + \xi\right)$ | $-\frac{1}{2}\zeta\left(1 + \xi\right)\left(1 - \eta\right)$ |
+| 14 | (1, 1, 0) | $\frac{1}{4}\left(1 - \zeta^{2}\right)\left(1 + \xi\right)\left(1 + \eta\right)$ | $\frac{1}{4}\left(1 - \zeta^{2}\right)\left(1 + \eta\right)$ | $\frac{1}{4}\left(1 - \zeta^{2}\right)\left(1 + \xi\right)$ | $-\frac{1}{2}\zeta\left(1 + \xi\right)\left(1 + \eta\right)$ |
+| 15 | (-1, 1, 0) | $\frac{1}{4}\left(1 - \zeta^{2}\right)\left(1 - \xi\right)\left(1 + \eta\right)$ | $-\frac{1}{4}\left(1 - \zeta^{2}\right)\left(1 + \eta\right)$ | $\frac{1}{4}\left(1 - \zeta^{2}\right)\left(1 - \xi\right)$ | $-\frac{1}{2}\zeta\left(1 - \xi\right)\left(1 + \eta\right)$ |
+| 16 | (0, -1, 1) | $\frac{1}{4}\left(1 - \xi^{2}\right)\left(1 - \eta\right)\left(1 + \zeta\right)$ | $-\frac{1}{2}\xi\left(1 - \eta\right)\left(1 + \zeta\right)$ | $-\frac{1}{4}\left(1 - \xi^{2}\right)\left(1 + \zeta\right)$ | $\frac{1}{4}\left(1 - \xi^{2}\right)\left(1 - \eta\right)$ |
+| 17 | (1, 0, 1) | $\frac{1}{4}\left(1 - \eta^{2}\right)\left(1 + \xi\right)\left(1 + \zeta\right)$ | $\frac{1}{4}\left(1 - \eta^{2}\right)\left(1 + \zeta\right)$ | $-\frac{1}{2}\eta\left(1 + \xi\right)\left(1 + \zeta\right)$ | $\frac{1}{4}\left(1 - \eta^{2}\right)\left(1 + \xi\right)$ |
+| 18 | (0, 1, 1) | $\frac{1}{4}\left(1 - \xi^{2}\right)\left(1 + \eta\right)\left(1 + \zeta\right)$ | $-\frac{1}{2}\xi\left(1 + \eta\right)\left(1 + \zeta\right)$ | $\frac{1}{4}\left(1 - \xi^{2}\right)\left(1 + \zeta\right)$ | $\frac{1}{4}\left(1 - \xi^{2}\right)\left(1 + \eta\right)$ |
+| 19 | (-1, 0, 1) | $\frac{1}{4}\left(1 - \eta^{2}\right)\left(1 - \xi\right)\left(1 + \zeta\right)$ | $-\frac{1}{4}\left(1 - \eta^{2}\right)\left(1 + \zeta\right)$ | $-\frac{1}{2}\eta\left(1 - \xi\right)\left(1 + \zeta\right)$ | $\frac{1}{4}\left(1 - \eta^{2}\right)\left(1 - \xi\right)$ |
 
 | Facet type | Local nodes |
 |---|---|
@@ -551,7 +601,7 @@ Default quadrature: 8 point(s), weights sum to 8.
 
 Default quadrature: 8 point(s), weights sum to 8.
 
-| Point | (ξ, η, ζ) | Weight |
+| Point | $(\xi, \eta, \zeta)$ | Weight |
 |---|---|---|
 | 0 | (-0.5773502691896258, -0.5773502691896258, -0.5773502691896258) | 1 |
 | 1 | (0.5773502691896258, -0.5773502691896258, -0.5773502691896258) | 1 |
@@ -567,11 +617,30 @@ Default quadrature: 8 point(s), weights sum to 8.
 ## Cohesive elements
 
 A cohesive element has two faces of the type of the facet on which it is
-inserted; nodes `0 … n/2 − 1` are the first face and `n/2 … n − 1` the
-second, node `i` facing node `i + n/2`. Both faces use the shape functions
-of the facet; the opening is interpolated from the difference of the two
-faces. The cohesive model that inserts and uses them is described in
+inserted; nodes $0, \dots, n/2 - 1$ are the first face and
+$n/2, \dots, n - 1$ the second, node $i$ facing node $i + n/2$. Both
+faces use the shape functions of the facet; the opening is interpolated
+from the difference of the two faces. The cohesive model that inserts and
+uses them is described in
 [Cohesive elements and fragmentation](../models/cohesive.md).
+
+With $N_i$ the shape functions of the facet (tables below) and
+$\boldsymbol{u}_i$ the nodal displacements, the FE engine computes the
+opening and the mid-surface value of a field at a point $\boldsymbol{\xi}$
+of the facet as
+
+$$
+\boldsymbol{\Delta}(\boldsymbol{\xi}) = \sum_{i=0}^{n/2-1} N_i(\boldsymbol{\xi})
+\left(\boldsymbol{u}_i - \boldsymbol{u}_{i+n/2}\right) ,
+\qquad
+\bar{\boldsymbol{u}}(\boldsymbol{\xi}) = \sum_{i=0}^{n/2-1} N_i(\boldsymbol{\xi})\,
+\tfrac{1}{2}\left(\boldsymbol{u}_i + \boldsymbol{u}_{i+n/2}\right)
+$$
+
+(upstream's reductions `CohesiveReduceFunctionOpening` and
+`CohesiveReduceFunctionMean`); the normals and the quadrature points are
+those of the mid-surface. The cohesive elements follow the work of Ortiz
+and Pandolfi (1999).
 
 <!-- BEGIN GENERATED: element-appendix-cohesive -->
 ### cohesive_1d_2
@@ -585,9 +654,9 @@ faces. The cohesive model that inserts and uses them is described in
 | Default integration order | 1 |
 | Linear (P1) type | `_cohesive_1d_2` |
 
-| Nodes (side 1, side 2) | — | N |
+| Nodes (side 1, side 2) | — | $N_i$ |
 |---|---|---|
-| 0, 1 | — | `1` |
+| 0, 1 | — | $1$ |
 
 | Facet type | Local nodes |
 |---|---|
@@ -611,10 +680,10 @@ Default quadrature: 1 point(s), weights sum to 1.
 | Default integration order | 2 |
 | Linear (P1) type | `_cohesive_2d_4` |
 
-| Nodes (side 1, side 2) | ξ | N |
-|---|---|---|
-| 0, 2 | (-1) | `(1 - ξ)/2` |
-| 1, 3 | (1) | `(1 + ξ)/2` |
+| Nodes (side 1, side 2) | $\xi$ | $N_i$ | $\partial N_i / \partial \xi$ |
+|---|---|---|---|
+| 0, 2 | (-1) | $\frac{1}{2}\left(1 - \xi\right)$ | $-\frac{1}{2}$ |
+| 1, 3 | (1) | $\frac{1}{2}\left(1 + \xi\right)$ | $\frac{1}{2}$ |
 
 | Facet type | Local nodes |
 |---|---|
@@ -623,12 +692,15 @@ Default quadrature: 1 point(s), weights sum to 1.
 
 Default quadrature: 2 point(s), weights sum to 2.
 
-| Point | ξ | Weight |
+| Point | $\xi$ | Weight |
 |---|---|---|
 | 0 | (-0.5773502691896258) | 1 |
 | 1 | (0.5773502691896258) | 1 |
 
 ### cohesive_2d_6
+
+![A quadratic cohesive element between two six-node triangles](../figures/upstream/elements/cohesive_2d_6.svg)
+*Figure: a `_cohesive_2d_6` element between two `_triangle_6` elements, nodes numbered from 1: one side holds nodes 1 to 3, the other nodes 4 to 6, node 3 (and 6) in the middle (figure of the Akantu manual).*
 
 | Property | Value |
 |---|---|
@@ -639,11 +711,11 @@ Default quadrature: 2 point(s), weights sum to 2.
 | Default integration order | 3 |
 | Linear (P1) type | `_cohesive_2d_4` |
 
-| Nodes (side 1, side 2) | ξ | N |
-|---|---|---|
-| 0, 3 | (-1) | `ξ·(ξ - 1)/2` |
-| 1, 4 | (1) | `ξ·(ξ + 1)/2` |
-| 2, 5 | (0) | `1 - ξ²` |
+| Nodes (side 1, side 2) | $\xi$ | $N_i$ | $\partial N_i / \partial \xi$ |
+|---|---|---|---|
+| 0, 3 | (-1) | $\frac{1}{2}\xi\left(\xi - 1\right)$ | $\xi - \frac{1}{2}$ |
+| 1, 4 | (1) | $\frac{1}{2}\xi\left(\xi + 1\right)$ | $\xi + \frac{1}{2}$ |
+| 2, 5 | (0) | $1 - \xi^{2}$ | $-2\xi$ |
 
 | Facet type | Local nodes |
 |---|---|
@@ -652,7 +724,7 @@ Default quadrature: 2 point(s), weights sum to 2.
 
 Default quadrature: 2 point(s), weights sum to 2.
 
-| Point | ξ | Weight |
+| Point | $\xi$ | Weight |
 |---|---|---|
 | 0 | (-0.5773502691896258) | 1 |
 | 1 | (0.5773502691896258) | 1 |
@@ -668,14 +740,14 @@ Default quadrature: 2 point(s), weights sum to 2.
 | Default integration order | 3 |
 | Linear (P1) type | `_cohesive_3d_6` |
 
-| Nodes (side 1, side 2) | (ξ, η) | N |
-|---|---|---|
-| 0, 6 | (0, 0) | `(1 - ξ - η)·(1 - 2·ξ - 2·η)` |
-| 1, 7 | (1, 0) | `ξ·(2·ξ - 1)` |
-| 2, 8 | (0, 1) | `η·(2·η - 1)` |
-| 3, 9 | (0.5, 0) | `4·ξ·(1 - ξ - η)` |
-| 4, 10 | (0.5, 0.5) | `4·ξ·η` |
-| 5, 11 | (0, 0.5) | `4·η·(1 - ξ - η)` |
+| Nodes (side 1, side 2) | $(\xi, \eta)$ | $N_i$ | $\partial N_i / \partial \xi$ | $\partial N_i / \partial \eta$ |
+|---|---|---|---|---|
+| 0, 6 | (0, 0) | $\left(1 - \xi - \eta\right)\left(1 - 2\xi - 2\eta\right)$ | $4\xi + 4\eta - 3$ | $4\xi + 4\eta - 3$ |
+| 1, 7 | (1, 0) | $\xi\left(2\xi - 1\right)$ | $4\xi - 1$ | $0$ |
+| 2, 8 | (0, 1) | $\eta\left(2\eta - 1\right)$ | $0$ | $4\eta - 1$ |
+| 3, 9 | (0.5, 0) | $4\xi\left(1 - \xi - \eta\right)$ | $-8\xi - 4\eta + 4$ | $-4\xi$ |
+| 4, 10 | (0.5, 0.5) | $4\xi\eta$ | $4\eta$ | $4\xi$ |
+| 5, 11 | (0, 0.5) | $4\eta\left(1 - \xi - \eta\right)$ | $-4\eta$ | $-4\xi - 8\eta + 4$ |
 
 | Facet type | Local nodes |
 |---|---|
@@ -684,7 +756,7 @@ Default quadrature: 2 point(s), weights sum to 2.
 
 Default quadrature: 4 point(s), weights sum to 0.5.
 
-| Point | (ξ, η) | Weight |
+| Point | $(\xi, \eta)$ | Weight |
 |---|---|---|
 | 0 | (0.2, 0.2) | 0.2604166666666667 |
 | 1 | (0.6, 0.2) | 0.2604166666666667 |
@@ -702,16 +774,16 @@ Default quadrature: 4 point(s), weights sum to 0.5.
 | Default integration order | 3 |
 | Linear (P1) type | `_cohesive_3d_8` |
 
-| Nodes (side 1, side 2) | (ξ, η) | N |
-|---|---|---|
-| 0, 8 | (-1, -1) | `(1 - ξ)·(1 - η)·(-1 - ξ - η)/4` |
-| 1, 9 | (1, -1) | `(1 + ξ)·(1 - η)·(-1 + ξ - η)/4` |
-| 2, 10 | (1, 1) | `(1 + ξ)·(1 + η)·(-1 + ξ + η)/4` |
-| 3, 11 | (-1, 1) | `(1 - ξ)·(1 + η)·(-1 - ξ + η)/4` |
-| 4, 12 | (0, -1) | `(1 - ξ²)·(1 - η)/2` |
-| 5, 13 | (1, 0) | `(1 + ξ)·(1 - η²)/2` |
-| 6, 14 | (0, 1) | `(1 - ξ²)·(1 + η)/2` |
-| 7, 15 | (-1, 0) | `(1 - ξ)·(1 - η²)/2` |
+| Nodes (side 1, side 2) | $(\xi, \eta)$ | $N_i$ | $\partial N_i / \partial \xi$ | $\partial N_i / \partial \eta$ |
+|---|---|---|---|---|
+| 0, 8 | (-1, -1) | $\frac{1}{4}\left(1 - \xi\right)\left(1 - \eta\right)\left(-1 - \xi - \eta\right)$ | $-\frac{\xi\eta}{2} - \frac{\eta^{2}}{4} + \frac{\xi}{2} + \frac{\eta}{4}$ | $-\frac{\xi^{2}}{4} - \frac{\xi\eta}{2} + \frac{\xi}{4} + \frac{\eta}{2}$ |
+| 1, 9 | (1, -1) | $\frac{1}{4}\left(1 + \xi\right)\left(1 - \eta\right)\left(-1 + \xi - \eta\right)$ | $-\frac{\xi\eta}{2} + \frac{\eta^{2}}{4} + \frac{\xi}{2} - \frac{\eta}{4}$ | $-\frac{\xi^{2}}{4} + \frac{\xi\eta}{2} - \frac{\xi}{4} + \frac{\eta}{2}$ |
+| 2, 10 | (1, 1) | $\frac{1}{4}\left(1 + \xi\right)\left(1 + \eta\right)\left(-1 + \xi + \eta\right)$ | $\frac{\xi\eta}{2} + \frac{\eta^{2}}{4} + \frac{\xi}{2} + \frac{\eta}{4}$ | $\frac{\xi^{2}}{4} + \frac{\xi\eta}{2} + \frac{\xi}{4} + \frac{\eta}{2}$ |
+| 3, 11 | (-1, 1) | $\frac{1}{4}\left(1 - \xi\right)\left(1 + \eta\right)\left(-1 - \xi + \eta\right)$ | $\frac{\xi\eta}{2} - \frac{\eta^{2}}{4} + \frac{\xi}{2} - \frac{\eta}{4}$ | $\frac{\xi^{2}}{4} - \frac{\xi\eta}{2} - \frac{\xi}{4} + \frac{\eta}{2}$ |
+| 4, 12 | (0, -1) | $\frac{1}{2}\left(1 - \xi^{2}\right)\left(1 - \eta\right)$ | $-\xi\left(1 - \eta\right)$ | $-\frac{1}{2}\left(1 - \xi^{2}\right)$ |
+| 5, 13 | (1, 0) | $\frac{1}{2}\left(1 + \xi\right)\left(1 - \eta^{2}\right)$ | $\frac{1}{2}\left(1 - \eta^{2}\right)$ | $-\eta\left(1 + \xi\right)$ |
+| 6, 14 | (0, 1) | $\frac{1}{2}\left(1 - \xi^{2}\right)\left(1 + \eta\right)$ | $-\xi\left(1 + \eta\right)$ | $\frac{1}{2}\left(1 - \xi^{2}\right)$ |
+| 7, 15 | (-1, 0) | $\frac{1}{2}\left(1 - \xi\right)\left(1 - \eta^{2}\right)$ | $-\frac{1}{2}\left(1 - \eta^{2}\right)$ | $-\eta\left(1 - \xi\right)$ |
 
 | Facet type | Local nodes |
 |---|---|
@@ -720,7 +792,7 @@ Default quadrature: 4 point(s), weights sum to 0.5.
 
 Default quadrature: 4 point(s), weights sum to 4.
 
-| Point | (ξ, η) | Weight |
+| Point | $(\xi, \eta)$ | Weight |
 |---|---|---|
 | 0 | (-0.5773502691896258, -0.5773502691896258) | 1 |
 | 1 | (0.5773502691896258, -0.5773502691896258) | 1 |
@@ -738,11 +810,11 @@ Default quadrature: 4 point(s), weights sum to 4.
 | Default integration order | 2 |
 | Linear (P1) type | `_cohesive_3d_6` |
 
-| Nodes (side 1, side 2) | (ξ, η) | N |
-|---|---|---|
-| 0, 3 | (0, 0) | `1 - ξ - η` |
-| 1, 4 | (1, 0) | `ξ` |
-| 2, 5 | (0, 1) | `η` |
+| Nodes (side 1, side 2) | $(\xi, \eta)$ | $N_i$ | $\partial N_i / \partial \xi$ | $\partial N_i / \partial \eta$ |
+|---|---|---|---|---|
+| 0, 3 | (0, 0) | $1 - \xi - \eta$ | $-1$ | $-1$ |
+| 1, 4 | (1, 0) | $\xi$ | $1$ | $0$ |
+| 2, 5 | (0, 1) | $\eta$ | $0$ | $1$ |
 
 | Facet type | Local nodes |
 |---|---|
@@ -751,7 +823,7 @@ Default quadrature: 4 point(s), weights sum to 4.
 
 Default quadrature: 3 point(s), weights sum to 0.5.
 
-| Point | (ξ, η) | Weight |
+| Point | $(\xi, \eta)$ | Weight |
 |---|---|---|
 | 0 | (0.16666666666666666, 0.16666666666666666) | 0.16666666666666666 |
 | 1 | (0.6666666666666666, 0.16666666666666666) | 0.16666666666666666 |
@@ -768,12 +840,12 @@ Default quadrature: 3 point(s), weights sum to 0.5.
 | Default integration order | 2 |
 | Linear (P1) type | `_cohesive_3d_8` |
 
-| Nodes (side 1, side 2) | (ξ, η) | N |
-|---|---|---|
-| 0, 4 | (-1, -1) | `(1 - ξ)·(1 - η)/4` |
-| 1, 5 | (1, -1) | `(1 + ξ)·(1 - η)/4` |
-| 2, 6 | (1, 1) | `(1 + ξ)·(1 + η)/4` |
-| 3, 7 | (-1, 1) | `(1 - ξ)·(1 + η)/4` |
+| Nodes (side 1, side 2) | $(\xi, \eta)$ | $N_i$ | $\partial N_i / \partial \xi$ | $\partial N_i / \partial \eta$ |
+|---|---|---|---|---|
+| 0, 4 | (-1, -1) | $\frac{1}{4}\left(1 - \xi\right)\left(1 - \eta\right)$ | $-\frac{1}{4}\left(1 - \eta\right)$ | $-\frac{1}{4}\left(1 - \xi\right)$ |
+| 1, 5 | (1, -1) | $\frac{1}{4}\left(1 + \xi\right)\left(1 - \eta\right)$ | $\frac{1}{4}\left(1 - \eta\right)$ | $-\frac{1}{4}\left(1 + \xi\right)$ |
+| 2, 6 | (1, 1) | $\frac{1}{4}\left(1 + \xi\right)\left(1 + \eta\right)$ | $\frac{1}{4}\left(1 + \eta\right)$ | $\frac{1}{4}\left(1 + \xi\right)$ |
+| 3, 7 | (-1, 1) | $\frac{1}{4}\left(1 - \xi\right)\left(1 + \eta\right)$ | $-\frac{1}{4}\left(1 + \eta\right)$ | $\frac{1}{4}\left(1 - \xi\right)$ |
 
 | Facet type | Local nodes |
 |---|---|
@@ -782,7 +854,7 @@ Default quadrature: 3 point(s), weights sum to 0.5.
 
 Default quadrature: 4 point(s), weights sum to 4.
 
-| Point | (ξ, η) | Weight |
+| Point | $(\xi, \eta)$ | Weight |
 |---|---|---|
 | 0 | (-0.5773502691896258, -0.5773502691896258) | 1 |
 | 1 | (0.5773502691896258, -0.5773502691896258) | 1 |
@@ -790,3 +862,10 @@ Default quadrature: 4 point(s), weights sum to 4.
 | 3 | (0.5773502691896258, 0.5773502691896258) | 1 |
 
 <!-- END GENERATED: element-appendix-cohesive -->
+
+## References
+
+Ortiz, M. and Pandolfi, A. (1999). Finite-deformation irreversible
+cohesive elements for three-dimensional crack-propagation analysis.
+*International Journal for Numerical Methods in Engineering*, 44(9),
+1267–1282.

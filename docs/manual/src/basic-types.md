@@ -78,12 +78,13 @@ assert!(position.find(&1.5).is_err());
 position (decision D-061):
 
 * Comparison (as upstream). Upstream's `Array<Real>::find` matches the
-  first stored `a` with `|a − value| ≤ ε`, `ε = DBL_EPSILON`
+  first stored $a$ with $\lvert a - v \rvert \le \varepsilon$, where $v$
+  is the searched `value` and $\varepsilon$ = `DBL_EPSILON`
   (`aka_array.cc:35-44`), and so does the port for `f64`: `find(&0.3)` on
   `[0.1 + 0.2]` finds the value. The bound is absolute: `find(&0.0)`
-  matches `1e-300`, `find(&1.0)` matches `1 + ε` but not `1 + 2ε`, and a
-  large value matches only itself; NaN and ±∞ are never found (`∞ − ∞` is
-  NaN). Every other element type (integers, `bool`, `f32`, …) compares
+  matches `1e-300`, `find(&1.0)` matches $1 + \varepsilon$ but not
+  $1 + 2\varepsilon$, and a large value matches only itself; NaN and
+  $\pm\infty$ are never found ($\infty - \infty$ is NaN). Every other element type (integers, `bool`, `f32`, …) compares
   with `==`, as upstream's generic `Array<T>::find`
   (`aka_array_tmpl.hh:639-645`).
 * Return value (UD-042, corrected). Upstream's generic `find` returns
@@ -158,7 +159,9 @@ Small tensors are fixed-size Rust arrays (`akantu::core::tensor`):
 * `Vector<N>` = `[f64; N]`;
 * `Matrix<R, C>` = `[[f64; R]; C]`, column-major: `m[j][i]` is row
   `i`, column `j`, Eigen's storage order. Use `at(i, j)` and `at_mut(i, j)`
-  to avoid confusion;
+  to avoid confusion. In the flat storage (`as_flat()`), the entry
+  $A_{ij}$ of a matrix with $M$ rows is at position $k = i + jM$, as in
+  upstream's `A[k]`;
 * `MatrixX` is the dynamically sized column-major matrix.
 
 The operations are provided by the traits `VectorExt`, `MatrixExt` and
@@ -195,6 +198,27 @@ assert_eq!(a.double_dot(&Matrix::<2, 2>::identity()), 5.0);
 | `A * B`, `A.transpose() * B` | `a.matmul(&b)`, `a.tr_matmul(&b)` |
 | `Matrix<Real>::Identity(n, n)` | `Matrix::<N, N>::identity()`, `MatrixX::identity(n)` |
 | `A.eig(…)`, `A.eigh(…)` | `akantu::linalg::dense::{eig, eig_vectors, eigh, eigh_vectors}` |
+
+The norms and products are the usual ones: `norm()` is the Euclidean
+norm $\lVert \boldsymbol{v} \rVert = \left(\sum_i v_i^2\right)^{1/2}$ of
+a vector and the Frobenius norm
+$\lVert \boldsymbol{A} \rVert = \left(\sum_{i,j} A_{ij}^2\right)^{1/2}$
+of a matrix (upstream's default `norm()`); `double_dot` is
+$\boldsymbol{A} : \boldsymbol{B} = \sum_{i,j} A_{ij} B_{ij}$;
+`matmul` and `tr_matmul` give $\boldsymbol{A}\boldsymbol{B}$ and
+$\boldsymbol{A}^T\boldsymbol{B}$; `scale` and `div` multiply or divide
+every component by a scalar, `add` and `sub` act component by component.
+Each sum is taken in the order of the Eigen expression it replaces
+(a halving tree for `dot`, `squared_norm` and `sum`), which is why these
+are methods rather than generic iterator folds.
+
+Upstream's `Vector` and `Matrix` also offer the $L_N$ norms
+$\left(\sum_i \lvert v_i \rvert^N\right)^{1/N}$ (`norm<N>()`),
+`distance`, `crossProduct`, `outerProduct` ($\boldsymbol{v}_1
+\boldsymbol{v}_2^T$), `solve` and the generic `mul<t_A, t_B>` with
+transposition flags. The port's `akantu::core::tensor` traits have no
+counterpart of these: the code that needs one computes it in place, in
+upstream's operation order.
 
 ## Element types and elements
 
@@ -253,3 +277,66 @@ let segments = mesh.elements(TypeFilter::new().dim(1)).count();
 assert_eq!(segments, 8);
 # Ok::<(), akantu::core::Error>(())
 ```
+
+## The finite-element engine
+
+The finite-element engine, `akantu::fe::FeEngine` (upstream `FEEngine`
+with the `IntegratorGauss` and `ShapeLagrange` policies), holds the
+quadrature rules of the element types of a mesh and the values of the
+shape functions, of their derivatives and of the Jacobians at the
+quadrature points. A model creates the engines it needs and constitutive
+laws reach them by name (`ModelServices::fe_engine`), so a simulation
+seldom builds one itself; a standalone engine is built with
+`FeEngine::with_precomputation(mesh, None, ElementKind::Regular,
+ShapeFamily::Lagrange, id)` (`None`: the elements of the mesh's
+dimension). Structural elements have their own engine,
+`StructuralFeEngine` ([Structural mechanics model](models/structural.md)).
+
+Every element is the image of a reference element (the [element
+appendix](appendix/elements.md) lists them, with their shape functions
+$N_i$ in the natural coordinates $\boldsymbol{\xi}$ and their quadrature
+points $\boldsymbol{\xi}_q$ and weights $w_q$). The geometry is
+interpolated with the same shape functions as the fields
+(iso-parametric elements):
+
+$$
+\boldsymbol{x}(\boldsymbol{\xi}) = \sum_i N_i(\boldsymbol{\xi})\, \boldsymbol{x}_i ,
+\qquad
+\boldsymbol{J}(\boldsymbol{\xi}) = \sum_i \frac{\partial N_i}{\partial \boldsymbol{\xi}} \otimes \boldsymbol{x}_i ,
+\quad J_{ab} = \frac{\partial x_b}{\partial \xi_a} ,
+$$
+
+where $\boldsymbol{x}_i$ are the coordinates of the element's nodes
+($\boldsymbol{J}$ has one row per natural coordinate, as upstream's
+`computeJacobian`). The
+three basic operations of the engine are then, for a nodal field with
+values $\boldsymbol{u}_i$ (`nb_dof` components per node):
+
+| Operation | Formula at the quadrature point $\boldsymbol{\xi}_q$ of an element | Output |
+|---|---|---|
+| `interpolate_on_integration_points` | $\boldsymbol{u}(\boldsymbol{\xi}_q) = \sum_i N_i(\boldsymbol{\xi}_q)\, \boldsymbol{u}_i$ | one tuple of `nb_dof` per quadrature point |
+| `gradient_on_integration_points` | $\dfrac{\partial u_k}{\partial x_j}(\boldsymbol{\xi}_q) = \sum_i \dfrac{\partial N_i}{\partial x_j}(\boldsymbol{\xi}_q)\, u_{ik}$ | one tuple of `nb_dof` $\times$ dimension per quadrature point, column-major ($\partial u_k / \partial x_j$ at $k + j \cdot$ `nb_dof`) |
+| `integrate` | $\displaystyle\int_{\Omega_e} \boldsymbol{f} \,\mathrm{d}\Omega \approx \sum_q \boldsymbol{f}(\boldsymbol{\xi}_q)\, w_q \det \boldsymbol{J}(\boldsymbol{\xi}_q)$ | one tuple of `nb_dof` per element |
+
+The derivatives with respect to $\boldsymbol{x}$ are
+$\partial N_i / \partial \boldsymbol{x} = \boldsymbol{J}^{-1}\,
+\partial N_i / \partial \boldsymbol{\xi}$. For an element of lower
+dimension than the space (a segment in 2-D or 3-D, a surface element in
+3-D), $\det \boldsymbol{J}$ in the integral stands for
+$\lVert \boldsymbol{J} \rVert$ (segment) or
+$\lVert \boldsymbol{J}_0 \times \boldsymbol{J}_1 \rVert$ (surface,
+$\boldsymbol{J}_0$ and $\boldsymbol{J}_1$ the two rows of
+$\boldsymbol{J}$), the length or area ratio of the map. The engine stores them (`shapes_derivatives`) together with the shape
+values (`shapes`) and the products $w_q \det \boldsymbol{J}$
+(`jacobians`), so that each operation is a loop over stored values.
+`integrate_scalar` adds the integrals of a scalar field over all the
+elements of a type with upstream's sorted pairwise sum (`Math::reduce`).
+All these functions take the element type, the ghost type and an
+optional filter (a list of element indices, upstream's `filter_elements`),
+as upstream; the cohesive engine interpolates on the mid-surface of the
+two faces ([element appendix](appendix/elements.md#cohesive-elements)).
+
+Upstream's second example integrates the strain and stress of the
+elements of one material: in the port, a constitutive law's internal
+fields hold the values per quadrature point of its own elements, and
+`integrate` with the law's element filter gives the integral of each.

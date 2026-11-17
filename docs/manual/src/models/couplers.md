@@ -52,7 +52,7 @@ order:
 * explicit dynamics (`ExplicitLumpedMass`): every `solve_step`
   runs the solid's predictor; then, for the residual, the positions of
   the contact detector are set to the solid's current positions
-  (`X + u`), the contact search runs, the solid's and the contact
+  ($\boldsymbol{X} + \boldsymbol{u}$), the contact search runs, the solid's and the contact
   model's internal forces are assembled and the contact forces enter the
   solid's residual; then the solid's corrector;
 * statics and implicit dynamics: the stiffness is the solid's plus
@@ -64,6 +64,23 @@ order:
   step does not converge: UD-374;
   `SolidContactCompat::per_iteration_friction_history`, set with
   `set_upstream_compat`, reproduces it).
+
+In equations, with the solid's internal force $\boldsymbol{f}_\text{int}$
+(the sign convention of the solid model, in which the residual adds it)
+and the contact model's `internal_force` $\boldsymbol{f}_c$, the sum of
+the normal and the tangential forces of the contact elements of the
+current search ([Contact mechanics](contact.md#the-node-to-segment-discretisation)),
+the coupler solves
+
+$$
+\boldsymbol{r}(\boldsymbol{u}) = \boldsymbol{f}_\text{ext} + \boldsymbol{f}_\text{int}(\boldsymbol{u}) + \boldsymbol{f}_c(\boldsymbol{u}) - \boldsymbol{M} \ddot{\boldsymbol{u}} = \boldsymbol{0}
+$$
+
+(without the inertia term in statics), and in a static or implicit step
+Newton–Raphson iterates with the tangent
+$\boldsymbol{K} = \boldsymbol{K}_\text{solid} + \boldsymbol{K}_c$, the
+contact part being the stiffness of the contact elements of the last
+search.
 
 The search before the first residual is a correction of the port
 (UD-1291). Upstream searches in the Newton corrector only, and Newton
@@ -85,7 +102,8 @@ the last increment and never tests the residual of the contact set that
 the last correction's search found, so prefer `convergence_type =
 residual` with contact (UD-1293); and the `residual` criterion tests later
 iterations relative to the first residual, so a step whose first residual
-is tiny but above the threshold may not reach `threshold × ‖r₀‖` above
+is tiny but above the threshold may not reach
+$\text{threshold} \times \lVert \boldsymbol{r}_0 \rVert$ above
 the rounding floor (UD-1294). The `linear` non-linear solver is not a contact
 solver: the couplers never compute a contact force inside its step, in either
 code (UD-1295), so use Newton–Raphson. The couplers are serial in both codes.
@@ -186,6 +204,49 @@ for n in [4, 5] {
 assert_eq!(coupler.contact.internal_force().tuple(2), &[0.0, 0.0]);
 # Ok::<(), akantu::core::Error>(())
 ```
+
+### A worked set-up: Hertz contact
+
+Upstream's Hertz example (`examples/c++/contact_mechanics_model/hertz`)
+is ported as the examples `contact_explicit_static` and
+`contact_explicit_dynamic` of the crate `akantu`
+(`crates/akantu/examples/`): a quarter disc (the upper body, slave
+surface `contact_top`) is pressed onto a rectangular block (master
+surface `contact_bottom`); its input file `material.dat` has two
+elastic materials, a `contact_detector` section and a `penalty_linear`
+resolution with $\epsilon_n = 4 \times 10^5$, no friction and a rigid
+master. The static version applies 100 increments of $10^{-4}$ downward
+on the `loading` edge, blocks the `fixed` edge and the horizontal
+displacement of the `loading` and `symmetry` edges, and solves each step
+with `CouplerSolidContact` and Newton–Raphson; its tests compare the
+Newton path and every dump with upstream's run, bit for bit
+(`crates/akantu/tests/examples_contact_explicit_static.rs`).
+
+![The Hertz set-up: a quarter disc above a rectangular block, the disc's
+vertical edge and the block's left edge on vertical rollers, the block's
+bottom edge on supports, the disc's top edge loaded
+downward](../figures/upstream/examples/hertz.svg)
+*Figure: the geometry and the boundary conditions of the Hertz example
+(figure of the Akantu manual).*
+
+![The half-disc pressed on the block, coloured by the vertical stress, with
+the contact forces as arrows](../figures/examples/contact_explicit_static.png)
+*Figure: the Hertz example `contact_explicit_static` after the 100th load
+increment: the stress $\sigma_{yy}$, the contact forces as arrows near the
+axis of symmetry and the undeformed outline in grey (true scale; computed
+with akantu-rs).*
+
+Upstream's Python example `compression.py`
+(`python/examples/contact_mechanics_model/compression/`) couples the same
+two models in explicit dynamics for two blocks pressed against each other:
+the upper edge is moved down and the lower edge up by increments, and the
+sides are blocked horizontally. It runs with the port's Python package
+([Python](python.md)).
+
+![Two stacked blocks; arrows push the top edge down, and the vertical
+sides rest on rollers](../figures/upstream/examples/compression.svg)
+*Figure: the set-up of the compression example, upper block and the top
+of the lower block (figure of the Akantu manual).*
 
 ## Contact between cohesive crack faces
 

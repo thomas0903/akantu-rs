@@ -34,24 +34,116 @@ partition that separates them (UD-1105).
 
 ## Formulation
 
-For every pair (slave node `s` on one surface, master node `m` on the
-other) with the normal `n` of the slave surface, lumped boundary areas
-`A_s`, `A_m` and lumped masses `m_s`, `m_m`, the impedance is
+![Two meshes with matching nodes along their interface; in the close-up,
+the normals of the two surfaces and the normal and frictional forces on a
+pair of matching nodes, with the area of influence A of the
+pair](../figures/upstream/node_to_node.png)
+*Figure: the interface between a bottom body ($-$, black) and a top body
+($+$, brown) with matching nodes; the normal forces
+$\boldsymbol{f}_{N,\pm}$ and the frictional forces
+$\boldsymbol{f}_{T,\pm}$ act on each pair, whose area of influence is $A$
+(figure of the Akantu manual).*
 
-```text
-Z = 2 / ( Δt (A_m/m_m + A_s/m_s) )
-```
+The contact forces enter the explicit central-difference scheme through
+the residual. For a node of the interface, the acceleration of step $i$
+is
 
-At each residual assembly the free interpenetration of the pair,
-`I = [x]_N + Δt [v]_N + Δt² [a_free]_N − ½ Δt² [a_old]_N` (relative normal
-gap, velocity, acceleration of the residual without contact forces, previous
-acceleration), decides the contact: the pair is in contact when `I ≤ 0`
-and then gets the normal traction `T_N = Z I / (2Δt)`, applied as `−A_s T_N`
-on the slave and `+A_m T_N` on the master. The tangential traction that
-keeps the pair stuck is `T_T = ½ Z (v_t + Δt a_t,free − ½ Δt a_t,old)`; if
-it exceeds the frictional strength `S` of the friction law the pair slides
-and the traction is scaled to `S`. These are the expressions of the
-upstream manual (its `Z⁻¹ = Δt/2 (M₊⁻¹A₊ + M₋⁻¹A₋)`); the port's code is
+$$
+\ddot{\boldsymbol{u}}^{i} = \boldsymbol{M}^{-1} \left( \boldsymbol{f}_\text{ext}^{i} - \boldsymbol{f}_\text{int}^{i} + \boldsymbol{f}_N^{i} + \boldsymbol{f}_T^{i} \right),
+$$
+
+with $\boldsymbol{f}_N$ and $\boldsymbol{f}_T$ the contact and the
+frictional forces, zero on the nodes that are not on the interface.
+Below, $[\![\cdot]\!]$ is the jump of a field between a node of the top
+body and its matching node of the bottom body, the subscript $N$ its
+normal and $T$ its tangential part.
+
+### Contact forces
+
+The pair must not overlap at the next step,
+$[\![\boldsymbol{x}]\!]_N^{i+1} \geq 0$. Expanding the next position with
+the central-difference update, replacing the velocity by the predicted
+velocity $\dot{\boldsymbol{u}}^P$ plus the acceleration increment, and the
+acceleration by the residual above, gives
+
+$$
+[\![\boldsymbol{x}]\!]_N + [\![\boldsymbol{u}]\!]_N^{i} + \Delta t \, [\![\dot{\boldsymbol{u}}^P]\!]_N^{i} - \frac{\Delta t^2}{2} [\![\ddot{\boldsymbol{u}}]\!]_N^{i-1} + \Delta t^2 [\![\ddot{\boldsymbol{u}}^\text{free}]\!]_N^{i} - 2 \Delta t \, Z^{-1} T_N^{i} \geq 0,
+$$
+
+where $[\![\ddot{\boldsymbol{u}}^\text{free}]\!]^{i} = \boldsymbol{M}^{-1} \big( [\![\boldsymbol{f}_\text{ext}]\!]^{i} - [\![\boldsymbol{f}_\text{int}]\!]^{i} \big)$
+is the acceleration of the bodies without the contact forces, the contact
+forces are written $\boldsymbol{f}_N = A \, \boldsymbol{T}_N$ with the
+areas of the contact nodes, the tractions on the two nodes of a pair are
+equal and opposite ($[\![\boldsymbol{T}]\!]_N = -2 \boldsymbol{T}_N$), and
+the *impedance* $Z$ of the pair is
+
+$$
+Z^{-1} = \frac{\Delta t}{2} \left( \frac{A_+}{m_+} + \frac{A_-}{m_-} \right).
+$$
+
+All terms but the last one are independent of the contact; together they
+are the *free interpenetration* $I^\text{free}$. If
+$I^\text{free} \geq 0$ no contact traction is needed; otherwise the
+traction that closes the gap exactly is
+
+$$
+T_N^{i} = \frac{Z \, I^\text{free}}{2 \Delta t} .
+$$
+
+In the port's notation: for every pair (slave node $s$ on one surface,
+master node $m$ on the other) with the normal $\boldsymbol{n}$ of the
+slave surface, lumped boundary areas $A_s$, $A_m$ and lumped masses
+$m_s$, $m_m$, the impedance is
+
+$$
+Z = \frac{2}{\Delta t \left( \dfrac{A_m}{m_m} + \dfrac{A_s}{m_s} \right)}
+$$
+
+and, at each residual assembly, the free interpenetration of the pair
+
+$$
+I = [x]_N + \Delta t \, [v]_N + \Delta t^2 [a^\text{free}]_N - \tfrac12 \Delta t^2 [a^\text{old}]_N
+$$
+
+(relative normal position, velocity, acceleration of the residual without
+contact forces, previous acceleration) decides the contact: the pair is in
+contact when $I \leq 0$ and then gets the normal traction
+$T_N = Z I / (2 \Delta t)$, applied as $-A_s T_N$ on the slave and
+$+A_m T_N$ on the master. Against a rigid plane (`new_ntrf`) the impedance
+has the slave term only, $Z = 2 / (\Delta t \, A_s / m_s)$, and the
+mode-II antisymmetric contact (`new_miiasym`) takes half of that
+(`NtnBaseContact::update_impedance`).
+
+### Friction forces
+
+The tangential condition is that the friction holds the pair together, so
+that the relative tangential velocity at the mid-step vanishes,
+$[\![\dot{\boldsymbol{u}}]\!]_T^{i+1/2} = 0$, with
+$\dot{\boldsymbol{u}}^{i+1/2} = \dot{\boldsymbol{u}}^{i} + \tfrac{\Delta t}{2} \ddot{\boldsymbol{u}}^{i}$.
+The same substitutions give the traction that keeps the pair stuck,
+
+$$
+\boldsymbol{T}_T^{i} = \frac{Z \, \boldsymbol{R}^\text{free}}{2},
+\qquad
+\boldsymbol{R}^\text{free} = [\![\dot{\boldsymbol{u}}^P]\!]_T^{i} - \frac{\Delta t}{2} [\![\ddot{\boldsymbol{u}}]\!]_T^{i-1} + \Delta t \, [\![\ddot{\boldsymbol{u}}^\text{free}]\!]_T^{i},
+$$
+
+that is, in the port's notation,
+$\boldsymbol{T}_T = \tfrac12 Z \big( \boldsymbol{v}_t + \Delta t \, \boldsymbol{a}_t^\text{free} - \tfrac12 \Delta t \, \boldsymbol{a}_t^\text{old} \big)$.
+The interface can carry this traction only up to its frictional strength
+$S$, given by the friction law (below): with
+
+$$
+\boldsymbol{T}_T \leftarrow
+\begin{cases}
+\boldsymbol{T}_T, & \lVert \boldsymbol{T}_T \rVert \leq S \quad \text{(stick)},\\
+\dfrac{S}{\lVert \boldsymbol{T}_T \rVert} \, \boldsymbol{T}_T, & \lVert \boldsymbol{T}_T \rVert > S \quad \text{(slip)},
+\end{cases}
+$$
+
+a pair whose stick traction exceeds the strength slides, and its traction
+is scaled to $S$. These are the expressions of the
+upstream manual (its $Z^{-1} = \frac{\Delta t}{2} \big( \boldsymbol{M}_+^{-1} A_+ + \boldsymbol{M}_-^{-1} A_- \big)$); the port's code is
 `NtnBaseContact::update_impedance`, `compute_contact_pressure` and
 `NtnFriction::compute_friction_traction`, checked against hand
 computations (tests `independent_checks.rs::contact_quantities_hand_computed`,
@@ -163,10 +255,12 @@ assert!(contacts > 0);
 ```
 
 The forces act through the residual of the explicit step, which first
-predicts the displacement (`u + Δt v + ½ Δt² a`) and then assembles the
+predicts the displacement
+($\boldsymbol{u} + \Delta t \, \dot{\boldsymbol{u}} + \tfrac12 \Delta t^2 \ddot{\boldsymbol{u}}$)
+and then assembles the
 residual: the contact forces computed in a step close the gap of the
 *next* predicted state. In the example the first step therefore leaves
-the slider `Δt · v` inside the base; from the second step on no pair
+the slider $\Delta t \, v$ inside the base; from the second step on no pair
 interpenetrates beyond rounding.
 
 Other contact kinds of the package: a surface against a rigid plane
@@ -203,7 +297,21 @@ friction rate_and_state:dieterich:ageing rubin_ampuero [
 Regularisations: `no_regularisation` (the default), `rubin_ampuero` (the
 frictional pressure relaxes towards the contact pressure over the time
 scale `t_star`) and `simplified_prakash_clifton` (the strength itself
-relaxes); both take `t_star`. Registered laws and their parameters (with
+relaxes); both take `t_star`. With $\alpha = \Delta t / t^*$, at every
+step, Rubin–Ampuero updates the frictional pressure $\tilde p$ of a pair
+in contact from the norm of its contact pressure $p$, and simplified
+Prakash–Clifton updates the strength $S$ from the strength $S^\text{law}$
+that the friction law gives:
+
+$$
+\tilde p \leftarrow \frac{\tilde p + \alpha \, p}{1 + \alpha} \quad (\texttt{rubin\_ampuero}),
+\qquad
+S \leftarrow \frac{S + \alpha \, S^\text{law}}{1 + \alpha} \quad (\texttt{simplified\_prakash\_clifton}).
+$$
+
+With $t^* = 0$ (to the package's tolerance) both take the unregularised
+value, $\tilde p = p$ and $S = S^\text{law}$ (UD-397 for the latter);
+a pair out of contact has $\tilde p = 0$. Registered laws and their parameters (with
 `no_regularisation`; generated from the code):
 
 <!-- BEGIN GENERATED: ntn-friction-laws -->
@@ -217,13 +325,37 @@ relaxes); both take `t_star`. Registered laws and their parameters (with
 <!-- END GENERATED: ntn-friction-laws -->
 
 The legacy keys `rate_and_state_n_shaped_<state>` are aliases of
-`rate_and_state:n_shaped:<state>`. Strengths: Coulomb `μ p`; linear slip
-weakening `μ = μ_k + (1 − s/d_c)(μ_s − μ_k)` on a sliding node until the
-slip `s` reaches `d_c`, then `μ_k`, while a sticking node gets `μ_s` and
-its slip restarts from 0 (healing); the `_no_healing` variant uses the
-cumulative slip, which a sticking node keeps; linear cohesive `max(τ_c − (τ_c − τ_r)² s/(2G_c), τ_r)`;
-rate and state `μ(V, θ) p` with `V` the slip velocity and `θ` the state
-(`friction_state` is its initial value). The closed forms are checked by
+`rate_and_state:n_shaped:<state>`. Strengths, with $p$ the frictional
+contact pressure (the norm of the contact pressure of a pair in contact,
+or its regularised value below) and $S = 0$ on a pair that is not in
+contact:
+
+* Coulomb (`coulomb`, $\mu$ = `mu`): $S = \mu \, p$;
+* linear slip weakening (`linear_slip_weakening`, $\mu_s$ = `mu_s`,
+  $\mu_k$ = `mu_k`, $d_c$ = `d_c`): $S = \mu \, p$ with, on a sliding node
+  of slip $s$,
+  $$
+  \mu =
+  \begin{cases}
+  \mu_k + \left( 1 - \dfrac{s}{d_c} \right) (\mu_s - \mu_k), & s < d_c,\\
+  \mu_k, & s \geq d_c,
+  \end{cases}
+  $$
+  while a sticking node gets $\mu_s$ and its slip restarts from 0
+  (healing); the `_no_healing` variant uses the cumulative slip, which a
+  sticking node keeps, and evaluates the formula on sticking nodes too;
+* linear cohesive (`linear_cohesive`, $G_c$ = `G_c`, $\tau_c$ = `tau_c`,
+  $\tau_r$ = `tau_r`), a strength that does not depend on the pressure,
+  with $s$ the cumulative slip:
+  $$
+  S = \max\!\left( \tau_c - \frac{(\tau_c - \tau_r)^2}{2 G_c} \, s, \; \tau_r \right)
+  $$
+  ($S = \tau_r$ when $G_c = 0$);
+* rate and state: $S = \mu(V, \theta) \, p$ with $V$ the norm of the
+  slip velocity and $\theta$ the state (`friction_state` is its initial
+  value), below.
+
+The closed forms are checked by
 `independent_checks.rs::{linear_slip_weakening_closed_form_with_and_without_healing,
 linear_cohesive_closed_form, rate_and_state_steady_state_closed_forms,
 rubin_ampuero_relaxation_closed_form}`.
@@ -234,34 +366,51 @@ rubin_ampuero_relaxation_closed_form}`.
 with one of three state evolution laws (the code of upstream and of the
 port, `akantu_ntn_contact::friction::{RsCoefficient, RsState}`):
 
-| Coefficient | `μ(V, θ)` |
+| Coefficient | $\mu(V, \theta)$ |
 |---|---|
-| `dieterich` | `μ₀ + a ln(V/V*) + b ln(θ/θ*)` |
-| `revised_dieterich` | `μ₀ + a ln(1 + V/V*) + b μ₀ ln(θ/θ*)` |
-| `regularized_dieterich` | `μ₀ + a ln(1 + V/V*) + b μ₀ ln(1 + θ/θ*)` |
-| `n_shaped` | `(1 + b ln(1 + θ/θ*)) (μ₀/√(1 + (V/V*)²) + a ln(V/V*))` |
-| `revised_n_shaped` | `(1 + b ln(1 + θ/θ*)) (μ₀/√(1 + (V*/V)²) + a ln(1 + V/V*))` |
+| `dieterich` | $\mu_0 + a \ln(V/V^*) + b \ln(\theta/\theta^*)$ |
+| `revised_dieterich` | $\mu_0 + a \ln(1 + V/V^*) + b \mu_0 \ln(\theta/\theta^*)$ |
+| `regularized_dieterich` | $\mu_0 + a \ln(1 + V/V^*) + b \mu_0 \ln(1 + \theta/\theta^*)$ |
+| `n_shaped` | $\big(1 + b \ln(1 + \theta/\theta^*)\big) \left( \dfrac{\mu_0}{\sqrt{1 + (V/V^*)^2}} + a \ln(V/V^*) \right)$ |
+| `revised_n_shaped` | $\big(1 + b \ln(1 + \theta/\theta^*)\big) \left( \dfrac{\mu_0}{\sqrt{1 + (V^*/V)^2}} + a \ln(1 + V/V^*) \right)$ |
 
-| State law | `dθ/dt` |
+| State law | $\mathrm{d}\theta/\mathrm{d}t$ |
 |---|---|
-| `ageing` | `1 − Vθ/d_c` |
-| `slip` | `−(Vθ/d_c) ln(Vθ/d_c)` |
-| `ageing_regularized` | `1 − (θ/d_c) √(V² + v0²)` |
+| `ageing` | $1 - V\theta/d_c$ |
+| `slip` | $-(V\theta/d_c) \ln(V\theta/d_c)$ |
+| `ageing_regularized` | $1 - (\theta/d_c) \sqrt{V^2 + v_0^2}$ |
 
-(`V* = v_star`, `θ* = phi_star`, `μ₀ = mu_0`.) The upstream manual prints
-the `n_shaped` coefficient with `√(1 + (V*/V)²)`; upstream's code, which
-the port follows, uses `√(1 + (V/V*)²)` for `n_shaped` and `(V*/V)²` only
+($V^*$ = `v_star`, $\theta^*$ = `phi_star`, $\mu_0$ = `mu_0`, $v_0$ = `v0`.)
+The upstream manual prints
+the `n_shaped` coefficient with $\sqrt{1 + (V^*/V)^2}$; upstream's code, which
+the port follows, uses $\sqrt{1 + (V/V^*)^2}$ for `n_shaped` and $(V^*/V)^2$ only
 for `revised_n_shaped`. The `dieterich` and `n_shaped` coefficients are
-singular at rest (`ln 0`); the three others are finite at `V = 0` (unit
+singular at rest ($\ln 0$); the three others are finite at $V = 0$ (unit
 test `friction::laws::tests::dieterich_steady_state_matches_the_test_data`).
 
+The flash-heating law `rate_and_state:flashheating` (parameters $\mu_w$ =
+`mu_w`, $v_w$ = `v_w` in addition) weakens the Dieterich coefficient
+towards $\mu_w$ at high slip velocity. A sticking node gets
+$\mu = \mu_0$; on a slipping node with $V < V^*$ the state is set to
+$\theta = d_c / V^*$ and $\mu = \mu_0 + a \ln(V^*/V^*) + b \ln(\theta/\theta^*)$
+(the first logarithm is kept as upstream writes it); otherwise the state
+takes one ageing step and
+
+$$
+\theta \leftarrow \theta + \left( 1 - \frac{\theta V}{d_c} \right) \Delta t,
+\qquad
+\mu_\text{rs} = \mu_0 + a \ln(V/V^*) + b \ln(\theta/\theta^*),
+\qquad
+\mu = \mu_w + \frac{\mu_\text{rs} - \mu_w}{1 + d_c / (\theta \, v_w)} .
+$$
+
 The state is advanced by one explicit Euler step per time step,
-`θ ← θ + Δt · dθ/dt`, on slipping nodes. For the ageing law this is
-`θ ← θ (1 − VΔt/d_c) + Δt`: with `VΔt/d_c ≤ 1` the new state is at
-least `Δt > 0` whatever the old one; with `VΔt/d_c > 1` a large enough
+$\theta \leftarrow \theta + \Delta t \, \mathrm{d}\theta/\mathrm{d}t$, on slipping nodes. For the ageing law this is
+$\theta \leftarrow \theta (1 - V\Delta t/d_c) + \Delta t$: with $V\Delta t/d_c \leq 1$ the new state is at
+least $\Delta t > 0$ whatever the old one; with $V\Delta t/d_c > 1$ a large enough
 state becomes negative and the logarithms of the coefficient are no longer
 defined. Upstream's manual only recommends small time steps (a safety
-factor `O(0.01)`, citing Rezakhani 2020); the condition above is what the
+factor $\alpha_F = \mathcal{O}(0.01)$, citing Rezakhani et al., 2020); the condition above is what the
 explicit update needs:
 
 ```rust
@@ -282,7 +431,7 @@ category B): upstream lets the non-finite value through, and a NaN
 strength silently makes the node stick; the port stops with
 `Error::Numerical` naming the node and the cause: a zero slip velocity
 with a coefficient singular at rest, or a negative state with the value
-of `VΔt/d_c` (tests `independent_checks.rs::ud039_singular_rate_and_state_at_rest`,
+of $V\Delta t/d_c$ (tests `independent_checks.rs::ud039_singular_rate_and_state_at_rest`,
 `ud039_error_names_the_negative_state_of_an_unstable_update`; oracle case
 `adv_3d_ras_reversal`, where upstream's strengths turn NaN from step 96,
 `oracle_ntn_adversarial.rs::oracle_adv_3d_ras_reversal_corrected_mode`).
@@ -329,3 +478,9 @@ conversions), UD-403 (`InclinedFlatDirichlet` does not compile upstream;
 the port implements its body), UD-404 (inverted position filters), UD-406
 (impedances before the time step is set are infinite). Each entry and its
 tests are in [`docs/UPSTREAM_DEFECTS.md`](../../../UPSTREAM_DEFECTS.md).
+
+## References
+
+* Rezakhani, R., Barras, F., Brun, M. and Molinari, J.-F. (2020). Finite
+  element modeling of dynamic frictional rupture with rate and state
+  friction. *Journal of the Mechanics and Physics of Solids*, 141, 103967.

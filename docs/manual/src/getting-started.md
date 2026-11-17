@@ -41,8 +41,16 @@ The test tiers (fast, medium with golden fixtures and MPI ranks,
 expensive) and the scripts that run the MPI tiers inside Docker are
 described in [`docs/TESTING.md`](../../TESTING.md).
 
-The manual itself is an [mdBook](https://rust-lang.github.io/mdBook/):
-`mdbook build docs/manual` writes the HTML book to `docs/manual/book`.
+The manual itself is an [mdBook](https://rust-lang.github.io/mdBook/)
+whose formulas are rendered at build time, so it needs mdBook 0.4.40 and
+the preprocessor mdbook-katex 0.9.4;
+`mdbook build docs/manual` then writes the HTML book to `docs/manual/book`:
+
+```sh
+cargo install mdbook --version 0.4.40 --locked
+cargo install mdbook-katex --version 0.9.4 --locked
+mdbook build docs/manual
+```
 
 ## The facade crate `akantu`
 
@@ -177,6 +185,20 @@ let exact = 0.5 * 210e9 / (1.0 - 0.09) * 1e-4;
 assert!((energy - exact).abs() <= 1e-12 * exact);
 # Ok::<(), akantu::core::Error>(())
 ```
+
+The program checks the closed-form solution of a uniaxial stretch in
+plane strain with free lateral faces ($\sigma_{yy} = 0$,
+$\varepsilon_{zz} = 0$): for the imposed strain
+$\varepsilon_{xx} = 0.01$ and the Young modulus $E$ (`E`) and Poisson
+ratio $\nu$ (`nu`) of `elastic.dat`,
+
+$$
+u_y(x, 1) = -\frac{\nu}{1 - \nu}\, 0.01, \qquad
+\sigma_{xx} = \frac{E}{1 - \nu^2}\, \varepsilon_{xx}, \qquad
+W = \tfrac{1}{2}\, \boldsymbol{\sigma} : \boldsymbol{\varepsilon}\, V = \tfrac{1}{2}\, \frac{E}{1 - \nu^2}\, \varepsilon_{xx}^2\, V,
+$$
+
+with $V = 1$ the area of the square.
 
 Bilinear quadrangles reproduce this linear displacement field exactly (a
 patch test), so the only differences from the analytical values are

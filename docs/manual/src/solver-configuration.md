@@ -104,7 +104,7 @@ rights (`p` = may be set in the input file, `w` = may be set from code,
 | `threshold` | `1e-10` | rwp | convergence threshold |
 | `max_iterations` | `10` | rwp | iteration limit; not converging is an error (`Error::NotConverged`) |
 | `convergence_type` | `solution` | rwp | `solution` (norm of the increment), `residual` (norm of the residual, the threshold becoming relative after the first test) |
-| `force_linear_recompute` | `true` | rw- | re-assemble the Jacobian of the `linear` solver at the next solve |
+| `force_linear_recompute` | `true` | rw- | re-assemble the Jacobian of the `linear` solver at the next solve (without effect on the solver that `non_linear_solver linear` creates, which assembles the Jacobian at every solve, as upstream's `NonLinearSolverLinear`) |
 | `verbose_iteration` | `false` | rw- | print the error at every iteration (rank 0) |
 | `error`, `nb_iterations`, `converged` | — | r-- | results of the last solve |
 
@@ -195,6 +195,49 @@ manual belong to the PETSc back-end (opt-in feature `petsc`), which a
 model uses once it runs on the PETSc DOF manager
 ([The PETSc back-end](petsc.md)).
 
+### Iterations and convergence criteria
+
+At iteration $k$ the solver assembles the residual
+$\boldsymbol{r}^{(k)}$ of the model (and, depending on the variant, the
+Jacobian $\boldsymbol{J}$ of the integration scheme), solves
+
+$$
+\boldsymbol{J}\,\delta\boldsymbol{x}^{(k)} = \boldsymbol{r}^{(k)}
+$$
+
+and passes the increment $\delta\boldsymbol{x}^{(k)}$ to the corrector of
+the integration scheme. `newton_raphson` assembles $\boldsymbol{J}$ at
+every iteration and `newton_raphson_modified` once at the start of each
+solve; `linear` makes a single linear solve per step and tests no
+criterion (its `error`, `nb_iterations` and `converged` keep their
+values). There is no line search.
+
+Both criteria use the Euclidean norm over the free degrees of freedom,
+each counted once over all processes,
+
+$$
+\lVert \boldsymbol{x} \rVert = \sqrt{\sum_{i \in \mathcal{F}} x_i^2},
+$$
+
+where $\mathcal{F}$ holds the degrees of freedom that are not blocked
+and whose node the process owns (local or master nodes; slave, pure
+ghost and periodic slave nodes are left out); the sums of the processes
+are added into one. With $\varepsilon$ the `threshold`:
+
+* `solution`: the solve stops after the first iteration $k$ with
+  $\lVert \delta\boldsymbol{x}^{(k)} \rVert < \varepsilon$;
+* `residual`: the residual of the predictor is tested first, and the
+  solve does no iteration when
+  $\lVert \boldsymbol{r}^{(0)} \rVert < \varepsilon$. Otherwise the
+  threshold becomes relative, and the solve stops after the first
+  iteration with
+  $\lVert \boldsymbol{r}^{(k)} \rVert < \varepsilon\,\lVert \boldsymbol{r}^{(0)} \rVert$,
+  $\boldsymbol{r}^{(k)}$ being reassembled after the corrector.
+
+The value $\lVert \cdot \rVert$ of the last test is the parameter
+`error`; a solve that reaches `max_iterations` iterations without
+passing the test ends with `Error::NotConverged`.
+
 ## `integration_scheme <type> [ … ]`
 
 | Parameter | Default | Meaning |
@@ -207,30 +250,93 @@ The schemes are those of upstream: `pseudo_time` (static),
 `generalized_trapezoidal` (first order), `central_difference`,
 `fox_goodwin`, `trapezoidal_rule_2`, `linear_acceleration` and
 `newmark_beta` (second order). The Newmark parameters keep upstream's
-names and meaning, which are not the textbook ones (UD-017): the textbook
-β is Akantu's `alpha · beta` and the textbook γ is Akantu's `beta`, i.e.
+names and meaning, which are not the textbook ones (UD-017): with
+$\alpha$ (`alpha`) and $\beta$ (`beta`) Akantu's parameters, the textbook
+$\beta_\mathrm{N}$ is Akantu's $\alpha\beta$ (`alpha · beta`) and the
+textbook $\gamma_\mathrm{N}$ is Akantu's $\beta$ (`beta`), i.e.
 
-* `u(n+1) = u(n) + Δt u̇(n) + Δt² [(½ − alpha·beta) ü(n) + alpha·beta ü(n+1)]`,
-* `u̇(n+1) = u̇(n) + Δt [(1 − beta) ü(n) + beta ü(n+1)]`
+$$
+\begin{aligned}
+\boldsymbol{u}_{n+1} &= \boldsymbol{u}_n + \Delta t\,\dot{\boldsymbol{u}}_n + \Delta t^2 \left[ \left(\tfrac{1}{2} - \alpha\beta\right) \ddot{\boldsymbol{u}}_n + \alpha\beta\, \ddot{\boldsymbol{u}}_{n+1} \right], \\
+\dot{\boldsymbol{u}}_{n+1} &= \dot{\boldsymbol{u}}_n + \Delta t \left[ (1 - \beta)\, \ddot{\boldsymbol{u}}_n + \beta\, \ddot{\boldsymbol{u}}_{n+1} \right]
+\end{aligned}
+$$
 
-(upstream `newmark-beta.cc`: the predictor is `u + Δt u̇ + ½ Δt² ü`,
-`u̇ + Δt ü`, `ü`; an acceleration increment `δü` then changes `u̇` by
-`beta·Δt·δü` and `u` by `alpha·beta·Δt²·δü`). The presets:
+(upstream `newmark-beta.cc`: the predictor is
+$\tilde{\boldsymbol{u}} = \boldsymbol{u}_n + \Delta t\,\dot{\boldsymbol{u}}_n + \tfrac{1}{2}\Delta t^2\,\ddot{\boldsymbol{u}}_n$,
+$\tilde{\dot{\boldsymbol{u}}} = \dot{\boldsymbol{u}}_n + \Delta t\,\ddot{\boldsymbol{u}}_n$,
+$\tilde{\ddot{\boldsymbol{u}}} = \ddot{\boldsymbol{u}}_n$; an acceleration
+increment $\delta\ddot{\boldsymbol{u}}$ then changes $\dot{\boldsymbol{u}}$ by
+$\beta\,\Delta t\,\delta\ddot{\boldsymbol{u}}$ and $\boldsymbol{u}$ by
+$\alpha\beta\,\Delta t^2\,\delta\ddot{\boldsymbol{u}}$). The presets:
 
-| Scheme | Akantu `alpha`, `beta` | Textbook β, γ |
+| Scheme | Akantu `alpha`, `beta` | Textbook $\beta_\mathrm{N}$, $\gamma_\mathrm{N}$ |
 |---|---|---|
-| `central_difference` | 0, ½ | 0, ½ |
-| `fox_goodwin` | 1/6, ½ | 1/12, ½ |
-| `trapezoidal_rule_2` (average acceleration) | ½, ½ | ¼, ½ |
-| `linear_acceleration` | 1/3, ½ | 1/6, ½ |
-| `newmark_beta` (generic) | 0, 0 (set them) | `alpha·beta`, `beta` |
+| `central_difference` | $0$, $\tfrac{1}{2}$ | $0$, $\tfrac{1}{2}$ |
+| `fox_goodwin` | $\tfrac{1}{6}$, $\tfrac{1}{2}$ | $\tfrac{1}{12}$, $\tfrac{1}{2}$ |
+| `trapezoidal_rule_2` (average acceleration) | $\tfrac{1}{2}$, $\tfrac{1}{2}$ | $\tfrac{1}{4}$, $\tfrac{1}{2}$ |
+| `linear_acceleration` | $\tfrac{1}{3}$, $\tfrac{1}{2}$ | $\tfrac{1}{6}$, $\tfrac{1}{2}$ |
+| `newmark_beta` (generic) | 0, 0 (set them) | $\alpha\beta$, $\beta$ |
+
+The `solution_type` of the section chooses the unknown
+$\delta\boldsymbol{x}$ of the linear systems: an increment of
+acceleration, of velocity or of displacement. The corrector adds
+$c\,\delta\boldsymbol{x}$ to $\ddot{\boldsymbol{u}}$,
+$d\,\delta\boldsymbol{x}$ to $\dot{\boldsymbol{u}}$ and
+$e\,\delta\boldsymbol{x}$ to $\boldsymbol{u}$ at the free degrees of
+freedom, and the Jacobian is
+
+$$
+\boldsymbol{J} = c\,\boldsymbol{M} + d\,\boldsymbol{C} + e\,\boldsymbol{K}
+$$
+
+with the coefficients (the damping matrix $\boldsymbol{C}$ only when the
+model has one, and $\boldsymbol{K}$ not read when $e = 0$, as for
+`central_difference` with `solution_type = acceleration`):
+
+| `solution_type` | $c$ | $d$ | $e$ |
+|---|---|---|---|
+| `acceleration` | $1$ | $\beta\,\Delta t$ | $\alpha\beta\,\Delta t^2$ |
+| `velocity` | $\dfrac{1}{\beta\,\Delta t}$ | $1$ | $\alpha\,\Delta t$ |
+| `displacement` | $\dfrac{1}{\alpha\beta\,\Delta t^2}$ | $\dfrac{1}{\alpha\,\Delta t}$ | $1$ |
+
+A `displacement` unknown therefore needs $\alpha \neq 0$ and
+$\beta \neq 0$, a `velocity` unknown $\beta \neq 0$:
+`central_difference` ($\alpha = 0$) is used with `acceleration` or
+`velocity`.
+
+The first-order schemes integrate a variable $u$ and its rate $\dot{u}$
+(for example the temperature of the heat model)
+with the generalised trapezoidal rule of parameter $\alpha$ (`alpha`):
+
+$$
+u_{n+1} = u_n + \Delta t \left[ (1 - \alpha)\, \dot{u}_n + \alpha\, \dot{u}_{n+1} \right],
+$$
+
+with $\alpha = 0$ for `forward_euler`, $\tfrac{1}{2}$ for
+`trapezoidal_rule_1`, $1$ for `backward_euler`, and $0$ by default for
+`generalized_trapezoidal`. The predictor is
+$\tilde{u} = u_n + (1 - \alpha)\,\Delta t\,\dot{u}_n$; for
+$\alpha \neq 0$ the port then resets the free rates to $0$, so that the
+corrector (which adds $e\,\delta x$ to $u$ and $d\,\delta x$ to
+$\dot{u}$, with $e = 1$, $d = 1/(\alpha\,\Delta t)$ for a
+`displacement` unknown and $e = \alpha\,\Delta t$, $d = 1$ for a
+`velocity` unknown) gives the rule above. The Jacobian is
+$\boldsymbol{J} = d\,\boldsymbol{M} + e\,\boldsymbol{K}$ (for forward
+Euler with a rate unknown, $e = 0$ and $\boldsymbol{K}$ is not read).
+Upstream keeps the rate in the predictor, which for $\alpha > 0$ solves
+$\dot{u}_{n+1} = \dot{u}_n + (u_{n+1} - \tilde{u})/(\alpha\,\Delta t)$
+instead (UD-287, UD-195; `akantu::solver::UpstreamCompat`
+`generalized_trapezoidal_keeps_rate_in_predictor` and
+`generalized_trapezoidal_reads_k_when_e_is_zero` reproduce upstream).
 
 The doc comment of upstream's `NewmarkBeta` (`newmark-beta.hh:36-40`)
 states a different update; the code, which both libraries follow, is the
 one above. Checked by `doc002_newmark_parameters_are_akantus`
 (`crates/akantu/tests/manual_claims.rs`: the presets' `alpha`/`beta` and
 one step of `trapezoidal_rule_2` on a one-degree-of-freedom oscillator
-against the closed-form Newmark update with β = ¼, γ = ½).
+against the closed-form Newmark update with $\beta_\mathrm{N} = \tfrac{1}{4}$,
+$\gamma_\mathrm{N} = \tfrac{1}{2}$).
 
 ```rust
 use akantu::core::enums::{AnalysisMethod, IntegrationSchemeType, MeshIoType, TimeStepSolverType};
