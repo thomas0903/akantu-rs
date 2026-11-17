@@ -299,10 +299,6 @@ fn check_len(context: &'static str, got: usize, expected: usize) -> Result<()> {
     }
 }
 
-/// Upstream increment update of `TimeStepSolverDefault::corrector`:
-/// `increment = solution` (`from_solution`, displacement-type solutions)
-/// or `u − u_previous`; skipped with upstream's warning without a previous
-/// array. Array lengths are validated.
 /// `increment = u − previous` for one part of the equations (no-alias
 /// parameters).
 #[inline(never)]
@@ -312,6 +308,10 @@ fn increment_part(inc: &mut [Real], u: &[Real], prev: &[Real]) {
     }
 }
 
+/// Upstream increment update of `TimeStepSolverDefault::corrector`:
+/// `increment = solution` (`from_solution`, displacement-type solutions)
+/// or `u − u_previous`; skipped with upstream's warning without a previous
+/// array. Array lengths are validated.
 fn update_increment(dofs: &mut DofManager, dof_id: &str, from_solution: bool) -> Result<()> {
     if !dofs.has_dofs_increment(dof_id)? {
         return Ok(());
