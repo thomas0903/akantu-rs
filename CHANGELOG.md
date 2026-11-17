@@ -62,6 +62,27 @@ change of default results or of a public API raises the minor version.
   corrector, lumped solve, residual scatter and solution gather (the
   per-node and per-equation loops only for parts of at least 131,072
   nodes / 262,144 equations).
+- Matrix assembly, second round (bitwise at every thread count): the
+  position cache keeps per-slot spans and one scatter plan per element
+  filter (entry-sized parts, exact per-part block lists), and the DOF
+  manager vouches for unchanged equations so a repeated assembly skips
+  the per-block check (`BlockPositionCache::{vouch_equations,
+  plan_ready, plan_after_serial_round}`, `akantu_linalg::sparse::EquationsKey`);
+  on one thread the elemental matrices are produced and scattered chunk
+  by chunk (`DofManager::assemble_elemental_matrices_by_chunks`,
+  `akantu_solver::ElementalProducer`,
+  `SparseMatrixAij::add_values_planned_chunk`). The cached repeated
+  assembly of 162,000 four-node tetrahedra takes 25.5 ms on one thread
+  (35.3 before) and 4.5 ms on 8 (Intel Xeon Platinum 8581C). Phase-field elemental matrices on
+  threads (`FeEngine::compute_ntbn_integrated`), structural elemental
+  stiffness and consistent mass on threads (`StructuralFeEngine::{exec,
+  set_exec}`). Memory: 12 bytes more per stored slot (span and count),
+  and per plan 4 bytes per block visit, 8 per slot and one per slot of
+  the type; the solid model no longer keeps its whole-type elemental
+  array once its assemblies are chunked (one thread).
+  After a failed assembly the matrix is partly assembled (the chunks or
+  element types before the failure are added), as it already was across
+  laws.
 - Threads in the per-point loops of more constitutive laws, bitwise equal
   to one thread for every thread count, also on the error path (the same
   error and the same law state as the serial loop):

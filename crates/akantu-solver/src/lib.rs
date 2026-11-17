@@ -58,8 +58,8 @@ pub use backend::{
 };
 pub use callback::SolverCallback;
 pub use dof_manager::{
-    ConvergenceVector, DofData, DofManager, FamilyArray, LumpedBlockCouplings, ScopeGuard,
-    UpstreamCompat,
+    ConvergenceVector, DofData, DofManager, ElementalProducer, FamilyArray, LumpedBlockCouplings,
+    ScopeGuard, UpstreamCompat,
 };
 pub use integration_scheme::{
     GeneralizedTrapezoidal, IntegrationScheme, NewmarkBeta, PseudoTime, SolutionType,

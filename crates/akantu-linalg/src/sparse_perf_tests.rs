@@ -766,7 +766,6 @@ fn threaded_batch_assembly_is_add_values() {
                         .add_values_cached_batch(exec, &mut cache, &slots, nb, &eqs, &values, vt)
                     {
                         batched += 1;
-                        assert!(exec.is_parallel(), "{what}: batch on one thread");
                     } else {
                         // the caller's serial loop
                         let mut serial_cache = cache.clone();
@@ -996,6 +995,206 @@ fn threaded_product_after_a_reordered_profile_of_equal_size() {
             m.mat_vec_mul_with(exec, &layout, &NoReduction, &x, &mut y2, 1.25, 0.5)
                 .unwrap();
             assert_eq!(bits(&y1), bits(&y2), "{ty:?} threads {}", exec.threads());
+        }
+    }
+}
+
+/// The scatter plan follows the cache: a caller that vouches for the
+/// equations with a key gets the planned scatter, and the plan is rebuilt
+/// when the key changes (equations changed), when the profile grows, when
+/// it is rebuilt in another order, and when the batch's slots change (one
+/// material of two): every round bit for bit `add_values`, at 1, 2, 3, 4
+/// and 8 threads, finest and automatic grain.
+#[test]
+fn threaded_batch_plan_follows_the_cache() {
+    use akantu_core::exec::{Exec, ExecPolicy, Grain};
+    let mut execs = Vec::new();
+    for n in [1, 2, 3, 4, 8] {
+        for g in [Grain::Finest, Grain::Auto] {
+            execs.push(
+                Exec::new(ExecPolicy::serial().with_threads(n).unwrap().with_grain(g)).unwrap(),
+            );
+        }
+    }
+    for ty in [MatrixType::Symmetric, MatrixType::Unsymmetric] {
+        for exec in &execs {
+            let mut rng = Rng(0x5eed_f00d | 1, 0);
+            let n: GlobalIdx = 60;
+            let nb = 4;
+            let mut elems: Vec<Vec<GlobalIdx>> =
+                (0..120).map(|_| element_of(&mut rng, n - 3, nb)).collect();
+            let mut plain = SparseMatrixAij::new("K", n, ty);
+            for e in &elems {
+                plain.add_block_to_profile(e, e).unwrap();
+            }
+            let mut planned = plain.clone();
+            let mut cache = BlockPositionCache::new();
+            let all: Vec<usize> = (0..elems.len()).collect();
+            let odd: Vec<usize> = all.iter().copied().filter(|k| k % 2 == 1).collect();
+            let mut key = [1, 0, 0, 0, 0];
+            for round in 0..9 {
+                let slots: &[usize] = if round == 7 { &odd } else { &all };
+                match round {
+                    3 => {
+                        // equations changed: the caller's key changes
+                        elems.swap(4, 9);
+                        elems[11].reverse();
+                        key[0] += 1;
+                    }
+                    4 => {
+                        // the profile grows (appended entries)
+                        plain.add(1, n - 1, 0.5).unwrap();
+                        planned.add(1, n - 1, 0.5).unwrap();
+                    }
+                    6 => {
+                        // the profile rebuilt in another order
+                        for m in [&mut plain, &mut planned] {
+                            m.clear_profile();
+                            for e in elems.iter().rev() {
+                                m.add_block_to_profile(e, e).unwrap();
+                            }
+                        }
+                    }
+                    _ => {}
+                }
+                let values: Vec<Real> = (0..slots.len() * nb * nb).map(|_| rng.value()).collect();
+                for (k, &s) in slots.iter().enumerate() {
+                    plain
+                        .add_values(
+                            &elems[s],
+                            &elems[s],
+                            &values[k * nb * nb..(k + 1) * nb * nb],
+                            ty,
+                        )
+                        .unwrap();
+                }
+                cache.begin(&planned);
+                cache.vouch_equations(key);
+                let eqs = |k: usize, out: &mut Vec<GlobalIdx>| -> Result<()> {
+                    out.clear();
+                    out.extend_from_slice(&elems[slots[k]]);
+                    Ok(())
+                };
+                if !planned.add_values_cached_batch(exec, &mut cache, slots, nb, &eqs, &values, ty)
+                {
+                    for (k, &s) in slots.iter().enumerate() {
+                        planned
+                            .add_values_cached(
+                                &mut cache,
+                                s,
+                                &elems[s],
+                                &elems[s],
+                                &values[k * nb * nb..(k + 1) * nb * nb],
+                                ty,
+                            )
+                            .unwrap();
+                    }
+                }
+                same_state(
+                    &plain,
+                    &planned,
+                    &format!(
+                        "{ty:?} threads {} {:?} round {round}",
+                        exec.threads(),
+                        exec.policy().grain()
+                    ),
+                );
+            }
+        }
+    }
+}
+
+/// A store drops the plans that list the stored slot: batch A (all slots)
+/// is planned under key K; a batch of the odd slots without a key (as a
+/// connectivity foreign code edited in place) stores their changed
+/// equations; A comes back with K and must not use its plan's former
+/// spans and inside flags. 2, 3 and 8 threads, finest grain; every round
+/// bit for bit `add_values`.
+#[test]
+fn a_store_drops_the_plans_listing_the_slot() {
+    use akantu_core::exec::{Exec, ExecPolicy, Grain};
+    for threads in [2, 3, 8] {
+        let exec = Exec::new(
+            ExecPolicy::serial()
+                .with_threads(threads)
+                .unwrap()
+                .with_grain(Grain::Finest),
+        )
+        .unwrap();
+        let mut rng = Rng(0x0bad_cafe | 1, 0);
+        let n: GlobalIdx = 70;
+        let nb = 4;
+        let mut elems: Vec<Vec<GlobalIdx>> =
+            (0..100).map(|_| element_of(&mut rng, n - 3, nb)).collect();
+        let mut plain = SparseMatrixAij::new("K", n, MatrixType::Symmetric);
+        for e in &elems {
+            plain.add_block_to_profile(e, e).unwrap();
+        }
+        let mut planned = plain.clone();
+        let mut cache = BlockPositionCache::new();
+        let all: Vec<usize> = (0..elems.len()).collect();
+        let odd: Vec<usize> = all.iter().copied().filter(|k| k % 2 == 1).collect();
+        let key = [7, 0, 0, 0, 0];
+        for round in 0..5 {
+            let (slots, vouch): (&[usize], bool) = match round {
+                3 => {
+                    // the odd elements' equations change in place to those
+                    // of their even neighbours (pairs in the profile, other
+                    // spans)
+                    for &k in &odd {
+                        elems[k] = elems[k - 1].clone();
+                    }
+                    (&odd, false)
+                }
+                _ => (&all, true),
+            };
+            let values: Vec<Real> = (0..slots.len() * nb * nb).map(|_| rng.value()).collect();
+            for (k, &s) in slots.iter().enumerate() {
+                plain
+                    .add_values(
+                        &elems[s],
+                        &elems[s],
+                        &values[k * nb * nb..(k + 1) * nb * nb],
+                        MatrixType::Symmetric,
+                    )
+                    .unwrap();
+            }
+            cache.begin(&planned);
+            if vouch {
+                cache.vouch_equations(key);
+            }
+            let eqs = |k: usize, out: &mut Vec<GlobalIdx>| -> Result<()> {
+                out.clear();
+                out.extend_from_slice(&elems[slots[k]]);
+                Ok(())
+            };
+            if !planned.add_values_cached_batch(
+                &exec,
+                &mut cache,
+                slots,
+                nb,
+                &eqs,
+                &values,
+                MatrixType::Symmetric,
+            ) {
+                for (k, &s) in slots.iter().enumerate() {
+                    planned
+                        .add_values_cached(
+                            &mut cache,
+                            s,
+                            &elems[s],
+                            &elems[s],
+                            &values[k * nb * nb..(k + 1) * nb * nb],
+                            MatrixType::Symmetric,
+                        )
+                        .unwrap();
+                }
+            }
+            same_state(
+                &plain,
+                &planned,
+                &format!("threads {threads} round {round}"),
+            );
         }
     }
 }

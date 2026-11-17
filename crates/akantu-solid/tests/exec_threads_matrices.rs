@@ -354,11 +354,12 @@ fn repeated_stiffness_assembly_of_two_laws_is_bitwise_for_every_thread_count() {
 }
 
 /// The arrays the model keeps between stiffness assemblies stay bounded:
-/// after two assemblies (the pool filled), six more change neither the
-/// number of pooled arrays nor the bytes held, for a small-strain law, a
-/// finite-deformation law (whose blocks the pool must not keep), two laws
-/// of both kinds, at one and at three threads; `release_static_solver`
-/// frees them, and assembling again comes back to the same footprint.
+/// after two assemblies (the pool filled) a third, planned and chunked,
+/// keeps at most as much, and six more change neither the number of pooled
+/// arrays nor the bytes held, for a small-strain law, a finite-deformation
+/// law (whose blocks the pool must not keep), two laws of both kinds, at
+/// one and at three threads; `release_static_solver` frees them, and
+/// assembling again stays within the first footprint.
 #[test]
 fn kept_assembly_arrays_stay_bounded() {
     let small = "material elastic [\n  name = a\n  rho = 2500\n  E = 70e9\n  nu = 0.22\n]\n";
@@ -398,13 +399,18 @@ fn kept_assembly_arrays_stay_bounded() {
                 name != "finite deformation",
                 "{what}: {filled:?}"
             );
+            // the third assembly is planned (chunked): the whole-type
+            // arrays are no longer kept, only the chunk buffer
+            m.assemble_stiffness_matrix(true).unwrap();
+            let steady = m.assembly_scratch_footprint();
+            assert!(steady.1 <= filled.1, "{what}: {steady:?} > {filled:?}");
             for _ in 0..6 {
                 m.assemble_stiffness_matrix(true).unwrap();
             }
             assert_eq!(
                 m.assembly_scratch_footprint(),
-                filled,
-                "{what}: the kept arrays grew"
+                steady,
+                "{what}: the kept arrays changed"
             );
             m.release_static_solver().unwrap();
             assert_eq!(
@@ -412,14 +418,50 @@ fn kept_assembly_arrays_stay_bounded() {
                 (0, 0),
                 "{what}: not released"
             );
-            for _ in 0..3 {
+            for _ in 0..4 {
                 m.assemble_stiffness_matrix(true).unwrap();
             }
-            assert_eq!(
-                m.assembly_scratch_footprint(),
-                filled,
-                "{what}: after the release"
-            );
+            let again = m.assembly_scratch_footprint();
+            assert!(again.1 <= filled.1, "{what}: after the release {again:?}");
         }
+    }
+}
+
+/// Repeated stiffness assemblies of two laws on one thread (where the
+/// chunked assembly runs) with chunks of one, two and seven elements:
+/// `K` after every assembly bit for bit that of the uncached assembly,
+/// and the chunked steady state keeps no whole-type array.
+#[test]
+fn chunked_stiffness_assembly_with_many_chunks_is_the_uncached_one() {
+    let dat = "material elastic [\n  name = a\n  rho = 2500\n  E = 70e9\n  nu = 0.22\n]\n\
+               material elastic [\n  name = b\n  rho = 2000\n  E = 30e9\n  nu = 0.3\n]\n";
+    let run = |chunk: Option<usize>| {
+        let parser = Parser::parse_str(dat, "material.dat").unwrap();
+        let mut m =
+            SolidMechanicsModel::with_parser(SharedMesh::new(mixed_cube(3)), None, "smm", parser)
+                .unwrap();
+        m.set_exec_policy(ExecPolicy::serial()).unwrap();
+        m.set_material_selector(Box::new(EveryThird));
+        m.init_full(&options(AnalysisMethod::Static, None)).unwrap();
+        match chunk {
+            // values of one elemental matrix of a tetrahedron (12²) times
+            // the number of elements per chunk
+            Some(n) => m.solver.dof_manager.set_assembly_chunk_values(144 * n),
+            None => m.solver.dof_manager.set_assembly_cache(false),
+        }
+        let mut out = Vec::new();
+        for _ in 0..5 {
+            m.assemble_stiffness_matrix(true).unwrap();
+            out.push(state(&m, &["K"]));
+        }
+        (out, m.assembly_scratch_footprint())
+    };
+    let (reference, _) = run(None);
+    for n in [1, 2, 7] {
+        let (s, footprint) = run(Some(n));
+        for (round, (r, o)) in reference.iter().zip(&s).enumerate() {
+            compare(r, o, &format!("chunks of {n} elements, assembly {round}"));
+        }
+        assert_eq!(footprint.0, 0, "chunks of {n}: whole-type arrays kept");
     }
 }
