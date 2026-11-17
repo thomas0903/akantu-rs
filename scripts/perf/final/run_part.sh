@@ -456,7 +456,7 @@ coh_run() { # series h steps np rep variant attempt
   rm -rf "${D:?}/runs/${camp}"
   local partopt=()
   [ "$np" = 1 ] || partopt=(--partitions "$D/partitions/h$h")
-  local cmd=(env OUT="$D/runs" PIN_CPUS_FROM=0 C1PREP_LOCK="$D/c1.lock" FNTE=joss CPP_CONFIG=strict C1_CONTAINER_PREFIX=final
+  local cmd=(env OUT="$D/runs" PIN_CPUS_FROM=0 C1PREP_LOCK="$D/c1.lock" FNTE=joss CPP_CONFIG=strict C1_CONTAINER_PREFIX=final PERF_MPI_BIND=core
     bash "$CAMPAIGN_TOOL" --memory "$memory" --cpus "$NCORES" ${partopt[@]+"${partopt[@]}"} ${opts[@]+"${opts[@]}"}
     ${extra[@]+"${extra[@]}"} "$camp" "$h" "$steps" "$np" 1 "$c")
   fin_cmdlog "$D" "${cmd[@]}"

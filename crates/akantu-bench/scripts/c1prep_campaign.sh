@@ -45,6 +45,8 @@
 #                    (--map-by slot:PE=T --bind-to core), so give the run P x T cores
 #                    (PIN_CPUS_FROM, the container's cpuset, takes P x T)
 #   --rust-precision bitwise|fast  AKANTU_PRECISION of the Rust runs (default unset = bitwise)
+#   PERF_MPI_BIND=core (environment) binds rank r of both codes to the r-th core of
+#                    its container's cpuset (default: the ranks share the cpuset)
 #   --full-export    let the partition-export run finish (default: it is stopped as soon
 #                    as partition.csv is complete, before the static solve; see below)
 # env: CPP_CONFIG (strict), FNTE (joss: JOSS-patch emulation of the C++
@@ -135,6 +137,10 @@ if [ "${1:-}" = "--rust-run" ]; then # inside the Rust image: dir np steps mesh 
     exec_opts+=(-x AKANTU_NUM_THREADS)
     [ "${AKANTU_NUM_THREADS}" -le 1 ] || exec_opts+=(--map-by "slot:PE=${AKANTU_NUM_THREADS}" --bind-to core)
   fi
+  # PERF_MPI_BIND=core: one rank per core (as the C++ harness's run-one.sh)
+  if [ "${PERF_MPI_BIND:-}" = core ] && [ "${AKANTU_NUM_THREADS:-1}" -le 1 ]; then
+    exec_opts+=(--map-by core --bind-to core)
+  fi
   [ -z "${AKANTU_PRECISION:-}" ] || exec_opts+=(-x AKANTU_PRECISION)
   t0=$(date +%s.%N)
   mpirun -np "${np}" -x OMP_NUM_THREADS -x OPENBLAS_NUM_THREADS -x OPENBLAS_CORETYPE \
@@ -203,6 +209,7 @@ for kv in ${rust_extra[@]+"${rust_extra[@]}"}; do perf_check_kv "${kv}" || exit 
 rust_env=()
 [ -z "${rust_threads}" ] || rust_env+=(-e "AKANTU_NUM_THREADS=${rust_threads}")
 [ -z "${rust_precision}" ] || rust_env+=(-e "AKANTU_PRECISION=${rust_precision}")
+[ -z "${PERF_MPI_BIND:-}" ] || rust_env+=(-e "PERF_MPI_BIND=${PERF_MPI_BIND}")
 cfg="${CPP_CONFIG:-strict}"
 perf_check_config "${cfg}" || exit 2
 export AKANTU_RS_FILL_NODES_TO_ELEMENTS="${FNTE:-joss}"
@@ -267,7 +274,7 @@ if [ "${mode}" = campaign ]; then
     echo "mesh=${cpp_mesh} sha256=${mesh_sha} elements=${n_elements}"
     echo "cpp_image=${PERF_IMAGE} $(perf_image_digest) config=${cfg} fnte=${AKANTU_RS_FILL_NODES_TO_ELEMENTS} memory=${memory} cpus=unlimited"
     echo "rust_image=${rust_image} $(docker image inspect --format '{{.Id}}' "${rust_image}") rust_bin=${rust_bin} sha256=${rust_sha} volume=${tvol} memory=${memory} cpus=${cpus} rust_extra=${rust_extra[*]:-}"
-    echo "pin_cpus_from=${PIN_CPUS_FROM:-none} rust_threads=${rust_threads:-unset} rust_precision=${rust_precision:-unset}"
+    echo "pin_cpus_from=${PIN_CPUS_FROM:-none} rust_threads=${rust_threads:-unset} rust_precision=${rust_precision:-unset} mpi_bind=${PERF_MPI_BIND:-none}"
     echo "threads: OMP_NUM_THREADS=1 OPENBLAS_NUM_THREADS=1 SCOTCH_PTHREAD_NUMBER=1 OPENBLAS_CORETYPE=Haswell (image ENV) AKA_SEED=1"
   } | tee -a "${out}/provenance.txt"
 fi
