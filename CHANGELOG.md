@@ -138,6 +138,12 @@ change of default results or of a public API raises the minor version.
   writes `chrono_rank<r>.csv` (the phase times of every rank) and, for the
   cohesive model, `insertion_stats_rank<r>.csv` (the split of the
   insertion check) on every rank.
+- Benchmark records of the execution policy: the suites' JSON lines carry
+  `precision` (`bitwise` or `fast`), the cohesive driver's `summary.json`
+  carries `rust_exec` (threads per rank, precision, SIMD level). The
+  cohesive campaign tools take `--rust-threads`, `--rust-precision`,
+  `PIN_CPUS_LIST` and `PERF_MPI_BIND=core` (one rank per core, both codes);
+  the final measurement campaign's driver is `scripts/perf/final/`.
 - `akantu_comm::Synchronizer::post_in` / `wait_in` and
   `akantu_comm::PostedExchange`: an owner → ghost exchange posted inside a
   running collective scope and completed later, with one agreement on the
