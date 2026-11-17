@@ -306,6 +306,51 @@ pub struct MaterialMazars<const DIM: usize, P> {
     /// plastic parents only, internal `effective_stress`): the stress
     /// history of the J2 return by default (UD-139).
     pub effective_stress: Option<InternalField<Real>>,
+    /// Buffers of the block copies of the threaded points, kept from one
+    /// step to the next (not cloned).
+    buffers: BlockBuffers,
+}
+
+/// Buffers of the copies of [`MaterialMazars`]' blocks per element type
+/// and ghost type. A fresh allocation of a block's size is filled with
+/// zeros serially by the allocator once it comes from the heap (after the
+/// first free of such a block): kept buffers are only copied into, in
+/// parts. A clone starts without buffers.
+#[derive(Default)]
+struct BlockBuffers(Vec<(BlockKey, Vec<Vec<Real>>)>);
+
+/// A block of internal values: element type and ghost type.
+type BlockKey = (ElementType, GhostType);
+
+impl Clone for BlockBuffers {
+    fn clone(&self) -> Self {
+        Self::default()
+    }
+}
+
+impl std::fmt::Debug for BlockBuffers {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        write!(f, "BlockBuffers({} blocks)", self.0.len())
+    }
+}
+
+impl BlockBuffers {
+    /// The buffers of block `(ty, ghost)` (empty the first time).
+    fn take(&mut self, ty: ElementType, ghost: GhostType) -> Vec<Vec<Real>> {
+        self.0
+            .iter_mut()
+            .find(|(b, _)| *b == (ty, ghost))
+            .map(|(_, v)| std::mem::take(v))
+            .unwrap_or_default()
+    }
+
+    /// Keep `bufs` for block `(ty, ghost)`.
+    fn put(&mut self, ty: ElementType, ghost: GhostType, bufs: Vec<Vec<Real>>) {
+        match self.0.iter_mut().find(|(b, _)| *b == (ty, ghost)) {
+            Some((_, v)) => *v = bufs,
+            None => self.0.push(((ty, ghost), bufs)),
+        }
+    }
 }
 
 /// `mazars`: Mazars damage on `elastic`.
@@ -350,6 +395,7 @@ impl<const DIM: usize, P: DamageParent<DIM>> MaterialMazars<DIM, P> {
             params: MazarsParams::default(),
             damage_in_compute_stress: true,
             effective_stress,
+            buffers: BlockBuffers::default(),
         })
     }
 
@@ -398,24 +444,27 @@ impl<const DIM: usize, P: DamageParent<DIM>> MaterialMazars<DIM, P> {
         let committed = self.options_ref().committed_trial_state;
         let alpha = self.parent.elastic().thermal.alpha;
         // the copies of the blocks the points work on, made in parts of the
-        // executor's threads (the same values)
-        let delta_t = clone_with(exec, &*self.parent.elastic().delta_t.get(ty, ghost)?)?;
+        // executor's threads (the same values) into the buffers of the
+        // previous step
+        let mut bufs = self.buffers.take(ty, ghost);
+        let b = &mut bufs;
+        let delta_t = clone_with(exec, &*self.parent.elastic().delta_t.get(ty, ghost)?, b)?;
         let inel = self
             .parent
             .inelastic_strain()
-            .map(|f| f.get(ty, ghost).and_then(|a| clone_with(exec, &a)))
+            .map(|f| f.get(ty, ghost).and_then(|a| clone_with(exec, &a, b)))
             .transpose()?;
-        let k0 = clone_with(exec, &*self.k0.get(ty, ghost)?)?;
+        let k0 = clone_with(exec, &*self.k0.get(ty, ghost)?, b)?;
         // the damage's deferred save, if any, in parts too
         drop(self.damage.damage.get_mut_with(exec, ty, ghost)?);
         let (mut dam, prev_dam) = {
             let (c, p) = self.damage.damage.current_and_previous_mut(ty, ghost)?;
-            (clone_with(exec, &c)?, clone_with(exec, p)?)
+            (clone_with(exec, &c, b)?, clone_with(exec, p, b)?)
         };
-        let mut ehat = clone_with(exec, &*self.ehat.get(ty, ghost)?)?;
+        let mut ehat = clone_with(exec, &*self.ehat.get(ty, ghost)?, b)?;
         let base = self.parent.base();
-        let mut grad_u = clone_with(exec, &*base.grad_u.get(ty, ghost)?)?;
-        let mut sigma = clone_with(exec, &*base.sigma_field()?.get(ty, ghost)?)?;
+        let mut grad_u = clone_with(exec, &*base.grad_u.get(ty, ghost)?, b)?;
+        let mut sigma = clone_with(exec, &*base.sigma_field()?.get(ty, ghost)?, b)?;
         let nq = grad_u.len();
         if [
             sigma.len(),
@@ -521,20 +570,35 @@ impl<const DIM: usize, P: DamageParent<DIM>> MaterialMazars<DIM, P> {
             &dam,
         )?;
         copy_back(exec, self.ehat.get_mut_with(exec, ty, ghost)?, &ehat)?;
+        if exec.is_parallel() {
+            // back in the reverse order of the takes: the next step takes
+            // each buffer for a block of its size
+            let mut kept: Vec<Array<Real>> = vec![sigma, grad_u, ehat, prev_dam, dam, k0];
+            kept.extend(inel);
+            kept.push(delta_t);
+            bufs.extend(kept.into_iter().map(Array::into_vec));
+            self.buffers.put(ty, ghost, bufs);
+        }
         Ok(())
     }
 }
 
 /// A copy of `a` made in parts of `exec`'s threads (the same values as
-/// `Array::clone`; the id is not needed by the local copies).
-fn clone_with(exec: &Exec, a: &Array<Real>) -> Result<Array<Real>> {
+/// `Array::clone`; the id is not needed by the local copies), into the
+/// last buffer of `bufs` when it has the size of `a`.
+fn clone_with(exec: &Exec, a: &Array<Real>, bufs: &mut Vec<Vec<Real>>) -> Result<Array<Real>> {
     if !exec.is_parallel() {
         // one thread: the copy as before
         return Ok(a.clone());
     }
-    // `vec!` of zeros takes zeroed pages from the allocator without a
-    // write pass; the parts then touch (and copy into) their own pages
-    let mut c = Array::from_vec(vec![0.0; a.as_slice().len()], a.nb_component())?;
+    let len = a.as_slice().len();
+    let buf = match bufs.pop() {
+        Some(b) if b.len() == len => b,
+        // first step or another size: a new buffer (`vec!` of zeros takes
+        // zeroed pages from the allocator while the heap has none to reuse)
+        _ => vec![0.0; len],
+    };
+    let mut c = Array::from_vec(buf, a.nb_component())?;
     let items = (
         Tuples::new(c.as_mut_slice(), 1),
         akantu_core::exec::TuplesRef::new(a.as_slice(), 1),
