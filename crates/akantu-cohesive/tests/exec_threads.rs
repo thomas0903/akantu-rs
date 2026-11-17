@@ -96,8 +96,9 @@ fn grid(dim: usize, n: usize) -> Mesh {
     m
 }
 
-/// The material input: an elastic bulk and one cohesive law.
-fn dat(law: &str) -> String {
+/// The material input: an elastic bulk and one cohesive law, inserted on
+/// the facets whose barycentre lies in the band `y_lo < y < y_hi`.
+fn dat(law: &str, y_lo: Real, y_hi: Real) -> String {
     let cohesive = match law {
         "cohesive_linear" => "    sigma_c = 4e5\n    beta = 1\n    G_c = 2\n".to_owned(),
         "cohesive_bilinear" => "    sigma_c = 4e5\n    beta = 1\n    G_c = 2\n    \
@@ -111,7 +112,7 @@ fn dat(law: &str) -> String {
     format!(
         "model solid_mechanics_model_cohesive [\n  material elastic [\n    name = body\n    \
          rho = 2500\n    E = 7e9\n    nu = 0.22\n  ]\n  material {law} [\n    name = coh\n\
-         {cohesive}  ]\n  cohesive_inserter [\n    bounding_box = [[-1, 2], [-1, 2], [-1, 2]]\n  \
+         {cohesive}  ]\n  cohesive_inserter [\n    bounding_box = [[-1, 2], [{y_lo}, {y_hi}], [-1, 2]]\n  \
          ]\n]\n"
     )
 }
@@ -126,7 +127,15 @@ fn model(
     extrinsic: bool,
     policy: ExecPolicy,
 ) -> SolidMechanicsModelCohesive {
-    let parser = Parser::parse_str(&dat(law), "material.dat").unwrap();
+    // extrinsic: a wide band (many checked facets, insertions spread over
+    // the run); intrinsic: the facets of the grid line y = 1/2 only
+    let (y_lo, y_hi) = if extrinsic {
+        (0.3, 0.7)
+    } else {
+        let h = 1.0 / n as Real;
+        (0.5 - 0.25 * h, 0.5 + 0.25 * h)
+    };
+    let parser = Parser::parse_str(&dat(law, y_lo, y_hi), "material.dat").unwrap();
     let mut m = SolidMechanicsModelCohesive::with_parser(
         SharedMesh::new(grid(dim, n)),
         None,
@@ -170,7 +179,7 @@ fn model(
 }
 
 /// Amplitude of the initial velocity field.
-const SPEED: Real = 0.3;
+const SPEED: Real = 1.5;
 
 fn bits(v: &[Real]) -> Vec<u64> {
     v.iter().map(|x| x.to_bits()).collect()
