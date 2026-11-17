@@ -1166,8 +1166,10 @@ each point's state to a sequential sink used by the non-local variant),
 `vreepeerlings` and `reinforcement` (embedded). The thermal pre-step of `thermal.rs` is the
 elastic law's (`MaterialElastic::compute_thermal_with`).
 
-The cohesive model (`akantu-cohesive`, bitwise at every thread count,
-`akantu-cohesive/tests/exec_threads.rs`) runs on the solid model's
+The cohesive model (`akantu-cohesive`, bitwise at every thread count:
+`akantu-cohesive/tests/exec_threads.rs`, serial and on the in-process local
+world at 2 and 4 ranks; the par tier runs `mpi_cohesive` with two threads
+per rank) runs on the solid model's
 executor (`SolidMechanicsModelCohesive::{exec_policy, set_exec_policy}`;
 the facet FE engine follows it). The cohesive laws do not declare
 `independent_points` and do not use `points_exec`: their loops take the
