@@ -399,23 +399,23 @@ impl<const DIM: usize, P: DamageParent<DIM>> MaterialMazars<DIM, P> {
         let alpha = self.parent.elastic().thermal.alpha;
         // the copies of the blocks the points work on, made in parts of the
         // executor's threads (the same values)
-        let delta_t = clone_with(exec, &*self.parent.elastic().delta_t.get(ty, ghost)?);
+        let delta_t = clone_with(exec, &*self.parent.elastic().delta_t.get(ty, ghost)?)?;
         let inel = self
             .parent
             .inelastic_strain()
-            .map(|f| f.get(ty, ghost).map(|a| clone_with(exec, &a)))
+            .map(|f| f.get(ty, ghost).and_then(|a| clone_with(exec, &a)))
             .transpose()?;
-        let k0 = clone_with(exec, &*self.k0.get(ty, ghost)?);
+        let k0 = clone_with(exec, &*self.k0.get(ty, ghost)?)?;
         // the damage's deferred save, if any, in parts too
         drop(self.damage.damage.get_mut_with(exec, ty, ghost)?);
         let (mut dam, prev_dam) = {
             let (c, p) = self.damage.damage.current_and_previous_mut(ty, ghost)?;
-            (clone_with(exec, &c), clone_with(exec, p))
+            (clone_with(exec, &c)?, clone_with(exec, p)?)
         };
-        let mut ehat = clone_with(exec, &*self.ehat.get(ty, ghost)?);
+        let mut ehat = clone_with(exec, &*self.ehat.get(ty, ghost)?)?;
         let base = self.parent.base();
-        let mut grad_u = clone_with(exec, &*base.grad_u.get(ty, ghost)?);
-        let mut sigma = clone_with(exec, &*base.sigma_field()?.get(ty, ghost)?);
+        let mut grad_u = clone_with(exec, &*base.grad_u.get(ty, ghost)?)?;
+        let mut sigma = clone_with(exec, &*base.sigma_field()?.get(ty, ghost)?)?;
         let nq = grad_u.len();
         if [
             sigma.len(),
@@ -527,8 +527,10 @@ impl<const DIM: usize, P: DamageParent<DIM>> MaterialMazars<DIM, P> {
 
 /// A copy of `a` made in parts of `exec`'s threads (the same values as
 /// `Array::clone`; the id is not needed by the local copies).
-fn clone_with(exec: &Exec, a: &Array<Real>) -> Array<Real> {
-    let mut c = Array::zeros(a.len(), a.nb_component());
+fn clone_with(exec: &Exec, a: &Array<Real>) -> Result<Array<Real>> {
+    // `vec!` of zeros takes zeroed pages from the allocator without a
+    // write pass; the parts then touch (and copy into) their own pages
+    let mut c = Array::from_vec(vec![0.0; a.as_slice().len()], a.nb_component())?;
     let items = (
         Tuples::new(c.as_mut_slice(), 1),
         akantu_core::exec::TuplesRef::new(a.as_slice(), 1),
@@ -536,7 +538,7 @@ fn clone_with(exec: &Exec, a: &Array<Real>) -> Array<Real> {
     exec.for_each(items, 65_536, |_, (mut d, s)| {
         d.as_mut_slice().copy_from_slice(s.as_slice());
     });
-    c
+    Ok(c)
 }
 
 /// `dst.copy_from(src)` with the copy in parts of `exec`'s threads (the
