@@ -48,8 +48,9 @@ pub(super) fn max_unsigned(v: &[Idx]) -> Option<usize> {
 /// the maximum of those (an integer maximum: the same value for every
 /// split).
 pub(super) fn max_unsigned_with(exec: &Exec, v: &[Idx]) -> Option<usize> {
-    // parts of at least 65,536 indices (tens of microseconds)
-    let parts = exec.nb_parts(v.len(), 65_536);
+    // parts of at least 8,192 indices (a few microseconds: the check runs
+    // once per batch, between threaded kernels)
+    let parts = exec.nb_parts(v.len(), 8_192);
     if parts <= 1 {
         return max_unsigned(v);
     }
@@ -821,7 +822,7 @@ pub(super) fn integrate<'j>(
     {
         return None;
     }
-    if any_with(exec, nb_element, 65_536, |pos| jac(pos).len() < nq) {
+    if any_with(exec, nb_element, 8_192, |pos| jac(pos).len() < nq) {
         return None;
     }
     let min = (4096 / (nq * nb_dof).max(1)).max(1);
@@ -979,7 +980,7 @@ mod tests {
                         )
                         .unwrap();
                         assert_eq!(
-                            any_with(&exec, n, 65_536, pred),
+                            any_with(&exec, n, 8_192, pred),
                             serial,
                             "n {n} hit {hit:?} threads {threads} {grain:?}"
                         );

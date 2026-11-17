@@ -228,6 +228,48 @@ impl<T: Clone> History<T> {
         }
     }
 
+    /// [`History::materialize`] with the copy in parts of `exec`'s threads
+    /// (the same values: a copy).
+    fn materialize_with(
+        &mut self,
+        exec: &akantu_core::exec::Exec,
+        current: &SharedElementTypeMapArray<T>,
+        ty: ElementType,
+        ghost: GhostType,
+    ) where
+        T: Send + Sync,
+    {
+        let threaded = exec.is_parallel()
+            && self.pending.contains(&(ty, ghost))
+            && matches!(
+                (current.shared(ty, ghost), self.values.as_map().get(ty, ghost)),
+                (Ok(src), Some(dst)) if dst.len() == src.len()
+                    && dst.nb_component() == src.nb_component()
+            );
+        if !threaded {
+            return self.materialize(current, ty, ghost);
+        }
+        let Some(i) = self.pending.iter().position(|&b| b == (ty, ghost)) else {
+            return;
+        };
+        self.pending.swap_remove(i);
+        let (Ok(src), Some(dst)) = (
+            current.shared(ty, ghost),
+            self.values.as_map_mut().get_mut(ty, ghost),
+        ) else {
+            return; // not reachable: checked above
+        };
+        // not exported while pending: the guard counts nothing
+        let src = src.borrow();
+        let items = (
+            akantu_core::exec::Tuples::new(dst.as_mut_slice(), 1),
+            akantu_core::exec::TuplesRef::new(src.as_slice(), 1),
+        );
+        exec.for_each(items, 65_536, |_, (mut d, s)| {
+            d.as_mut_slice().clone_from_slice(s.as_slice());
+        });
+    }
+
     /// Perform every deferred save.
     fn materialize_all(&mut self, current: &SharedElementTypeMapArray<T>) {
         while let Some(&(ty, ghost)) = self.pending.last() {
@@ -595,6 +637,26 @@ impl<T: Clone> InternalField<T> {
     /// first).
     pub fn get_mut(&mut self, ty: ElementType, ghost: GhostType) -> Result<ArrayMut<'_, T>> {
         self.materialize(ty, ghost);
+        self.values.get_mut(ty, ghost)
+    }
+
+    /// [`InternalField::get_mut`] with the deferred save of the block, if
+    /// any, copied in parts of `exec`'s threads (the same values).
+    ///
+    /// # Errors
+    /// As [`InternalField::get_mut`].
+    pub fn get_mut_with(
+        &mut self,
+        exec: &akantu_core::exec::Exec,
+        ty: ElementType,
+        ghost: GhostType,
+    ) -> Result<ArrayMut<'_, T>>
+    where
+        T: Send + Sync,
+    {
+        if let Some(p) = &mut self.previous {
+            p.materialize_with(exec, &self.values, ty, ghost);
+        }
         self.values.get_mut(ty, ghost)
     }
 
@@ -1747,6 +1809,50 @@ mod tests {
     /// the caller's array; an unchanged block is not copied again. (In the
     /// test-only export-all mode every block counts as exported: the saves
     /// are copies, with the same values.)
+    #[test]
+    fn get_mut_with_copies_a_deferred_save_in_parts() {
+        use akantu_core::exec::{Exec, ExecPolicy, Grain};
+        let n = 100_003;
+        let run = |exec: &Exec| {
+            let mut f: InternalField<f64> = InternalField::new("stress", 2, 0.0).unwrap();
+            f.resize(TRI, NG, n).unwrap();
+            f.initialize_history();
+            for (k, v) in f
+                .get_mut(TRI, NG)
+                .unwrap()
+                .as_mut_slice()
+                .iter_mut()
+                .enumerate()
+            {
+                *v = (k as f64 * 0.7).sin();
+            }
+            f.save_current_values().unwrap(); // deferred where possible
+            let mut cur = f.get_mut_with(exec, TRI, NG).unwrap();
+            for v in cur.as_mut_slice() {
+                *v = -*v * 3.0;
+            }
+            drop(cur);
+            let bits = |v: &[f64]| v.iter().map(|x| x.to_bits()).collect::<Vec<u64>>();
+            (
+                bits(f.get(TRI, NG).unwrap().as_slice()),
+                bits(f.previous(TRI, NG).unwrap().as_slice()),
+            )
+        };
+        let reference = run(Exec::serial_ref());
+        for threads in [1, 2, 3, 4, 8] {
+            for grain in [Grain::Finest, Grain::Auto] {
+                let exec = Exec::new(
+                    ExecPolicy::serial()
+                        .with_threads(threads)
+                        .unwrap()
+                        .with_grain(grain),
+                )
+                .unwrap();
+                assert!(run(&exec) == reference, "threads {threads} {grain:?}");
+            }
+        }
+    }
+
     #[test]
     fn deferred_save_and_overwrite() {
         let lazy = !akantu_core::array_shared::export_all::ENABLED;

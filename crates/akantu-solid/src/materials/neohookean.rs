@@ -615,7 +615,7 @@ impl<const DIM: usize> Material for MaterialNeohookean<DIM> {
         if self.plane_stress_active()
             && let Some(t) = &mut self.third_axis_deformation
         {
-            let mut c33 = t.get_mut(ty, ghost)?;
+            let mut c33 = t.get_mut_with(exec, ty, ghost)?;
             if c33.len() != nq {
                 return Err(Error::DimensionMismatch {
                     context: "MaterialNeohookean::computeThirdAxisDeformation",
@@ -665,7 +665,9 @@ impl<const DIM: usize> Material for MaterialNeohookean<DIM> {
         } else {
             &mut self.base.stress
         };
-        let mut sigma = sigma_field.get_mut(ty, ghost)?;
+        // the deferred history save of the block, if any, in parts of the
+        // threads (no announcement: a point can fail)
+        let mut sigma = sigma_field.get_mut_with(exec, ty, ghost)?;
         if sigma.len() != nq || c33.len() != nq {
             return Err(Error::DimensionMismatch {
                 context: "MaterialNeohookean::computeStress",

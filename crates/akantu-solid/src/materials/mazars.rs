@@ -397,21 +397,25 @@ impl<const DIM: usize, P: DamageParent<DIM>> MaterialMazars<DIM, P> {
         let damage_in_cs = self.damage_in_compute_stress;
         let committed = self.options_ref().committed_trial_state;
         let alpha = self.parent.elastic().thermal.alpha;
-        let delta_t = self.parent.elastic().delta_t.get(ty, ghost)?.clone();
+        // the copies of the blocks the points work on, made in parts of the
+        // executor's threads (the same values)
+        let delta_t = clone_with(exec, &*self.parent.elastic().delta_t.get(ty, ghost)?);
         let inel = self
             .parent
             .inelastic_strain()
-            .map(|f| f.get(ty, ghost).map(|a| Array::clone(&a)))
+            .map(|f| f.get(ty, ghost).map(|a| clone_with(exec, &a)))
             .transpose()?;
-        let k0 = self.k0.get(ty, ghost)?.clone();
+        let k0 = clone_with(exec, &*self.k0.get(ty, ghost)?);
+        // the damage's deferred save, if any, in parts too
+        drop(self.damage.damage.get_mut_with(exec, ty, ghost)?);
         let (mut dam, prev_dam) = {
             let (c, p) = self.damage.damage.current_and_previous_mut(ty, ghost)?;
-            (c.clone(), p.clone())
+            (clone_with(exec, &c), clone_with(exec, p))
         };
-        let mut ehat = self.ehat.get(ty, ghost)?.clone();
+        let mut ehat = clone_with(exec, &*self.ehat.get(ty, ghost)?);
         let base = self.parent.base();
-        let mut grad_u = base.grad_u.get(ty, ghost)?.clone();
-        let mut sigma = base.sigma_field()?.get(ty, ghost)?.clone();
+        let mut grad_u = clone_with(exec, &*base.grad_u.get(ty, ghost)?);
+        let mut sigma = clone_with(exec, &*base.sigma_field()?.get(ty, ghost)?);
         let nq = grad_u.len();
         if [
             sigma.len(),
@@ -505,14 +509,54 @@ impl<const DIM: usize, P: DamageParent<DIM>> MaterialMazars<DIM, P> {
         );
         exec.try_for_each(items, 512, part)?;
         let base = self.parent.base_mut();
-        base.grad_u.get_mut(ty, ghost)?.copy_from(&grad_u)?;
-        base.sigma_field_mut()?
-            .get_mut(ty, ghost)?
-            .copy_from(&sigma)?;
-        self.damage.damage.get_mut(ty, ghost)?.copy_from(&dam)?;
-        self.ehat.get_mut(ty, ghost)?.copy_from(&ehat)?;
+        copy_back(exec, base.grad_u.get_mut_with(exec, ty, ghost)?, &grad_u)?;
+        copy_back(
+            exec,
+            base.sigma_field_mut()?.get_mut_with(exec, ty, ghost)?,
+            &sigma,
+        )?;
+        copy_back(
+            exec,
+            self.damage.damage.get_mut_with(exec, ty, ghost)?,
+            &dam,
+        )?;
+        copy_back(exec, self.ehat.get_mut_with(exec, ty, ghost)?, &ehat)?;
         Ok(())
     }
+}
+
+/// A copy of `a` made in parts of `exec`'s threads (the same values as
+/// `Array::clone`; the id is not needed by the local copies).
+fn clone_with(exec: &Exec, a: &Array<Real>) -> Array<Real> {
+    let mut c = Array::zeros(a.len(), a.nb_component());
+    let items = (
+        Tuples::new(c.as_mut_slice(), 1),
+        akantu_core::exec::TuplesRef::new(a.as_slice(), 1),
+    );
+    exec.for_each(items, 65_536, |_, (mut d, s)| {
+        d.as_mut_slice().copy_from_slice(s.as_slice());
+    });
+    c
+}
+
+/// `dst.copy_from(src)` with the copy in parts of `exec`'s threads (the
+/// same checks and errors first).
+fn copy_back(
+    exec: &Exec,
+    mut dst: akantu_core::array_shared::ArrayMut<'_, Real>,
+    src: &Array<Real>,
+) -> Result<()> {
+    if dst.len() != src.len() || dst.nb_component() != src.nb_component() {
+        return dst.copy_from(src);
+    }
+    let items = (
+        Tuples::new(dst.as_mut_slice(), 1),
+        akantu_core::exec::TuplesRef::new(src.as_slice(), 1),
+    );
+    exec.for_each(items, 65_536, |_, (mut d, s)| {
+        d.as_mut_slice().copy_from_slice(s.as_slice());
+    });
+    Ok(())
 }
 
 /// Name of the effective-stress internal of `plastic_mazars` (UD-139).
