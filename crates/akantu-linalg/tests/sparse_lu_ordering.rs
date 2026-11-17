@@ -368,6 +368,23 @@ fn auto_chooses_by_predicted_work_and_never_in_the_bitwise_default() {
         analyse(&small, None, bitwise).perm_c(),
         "below the threshold Auto is COLAMD"
     );
+    // a matrix that needs off-diagonal pivots keeps COLAMD: zero diagonal
+    // entries (saddle point), or one column whose diagonal is not its
+    // largest entry
+    let sp = saddle(14);
+    assert!(sp.n() >= AUTO_MIN_ORDER);
+    let lu = analyse(&sp, Some(SparseOrdering::Auto), bitwise);
+    assert_eq!(lu.ordering_report().used, SparseOrdering::Colamd);
+    assert!(lu.ordering_report().predicted.is_none());
+    let (n, cp, ri, mut v) = big.clone().into_parts();
+    for q in cp[7]..cp[8] {
+        if ri[q] == 7 {
+            v[q] = 1e-3;
+        }
+    }
+    let weak = CscMatrix::try_new(n, cp, ri, v).unwrap();
+    let lu = analyse(&weak, Some(SparseOrdering::Auto), bitwise);
+    assert_eq!(lu.ordering_report().used, SparseOrdering::Colamd);
 }
 
 #[test]

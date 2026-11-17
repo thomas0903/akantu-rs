@@ -125,11 +125,16 @@ pub enum SparseOrdering {
     /// (this crate's partitioner, deterministic): less fill and work than
     /// COLAMD on large 3-D problems.
     NestedDissection,
-    /// The ordering of smaller predicted factorisation work: COLAMD below
-    /// [`AUTO_MIN_ORDER`] unknowns; above, both orderings are computed and
-    /// nested dissection is used when its predicted work (`Σ c_j²` over the
-    /// column counts of the symmetric factor) is at most
-    /// [`AUTO_WORK_RATIO`] of COLAMD's and its predicted size not larger.
+    /// Nested dissection where it is predicted to pay, else COLAMD:
+    /// COLAMD below [`AUTO_MIN_ORDER`] unknowns, and whenever a column's
+    /// diagonal entry (in the matrix given to the analysis) is zero or
+    /// smaller in magnitude than another entry of its column (the threshold
+    /// partial pivoting would then pick off-diagonal pivots, whose fill
+    /// COLAMD bounds through the structure of `AᵀA` and nested dissection
+    /// does not); otherwise both orderings are computed and nested
+    /// dissection is used when its predicted work (`Σ c_j²` over the column
+    /// counts of the symmetric factor) is at most [`AUTO_WORK_RATIO`] of
+    /// COLAMD's and its predicted size not larger.
     Auto,
 }
 
@@ -750,12 +755,30 @@ fn perm_of_order(order: &[usize]) -> Vec<i64> {
     perm
 }
 
+/// Whether every column has a nonzero diagonal entry at least as large in
+/// magnitude as every other entry of the column (no off-diagonal pivot is
+/// forced at the first elimination step).
+fn diagonal_leads_every_column(a: &CscMatrix) -> bool {
+    (0..a.n()).all(|j| {
+        let (mut d, mut m) = (0.0f64, 0.0f64);
+        for q in a.col_ptr()[j]..a.col_ptr()[j + 1] {
+            let v = a.values()[q].abs();
+            if a.row_idx()[q] == j {
+                d = v;
+            } else {
+                m = m.max(v);
+            }
+        }
+        d > 0.0 && d >= m
+    })
+}
+
 /// [`SparseOrdering::Auto`]: COLAMD, or nested dissection when it is
 /// predicted to need clearly less work (see the variant).
 fn auto_ordering(a: &CscMatrix) -> Result<(Vec<i64>, OrderingReport)> {
     let n = a.n();
     let colamd = colamd::colamd_ordering(n, n, a.col_ptr(), a.row_idx())?;
-    if n < AUTO_MIN_ORDER {
+    if n < AUTO_MIN_ORDER || !diagonal_leads_every_column(a) {
         return Ok((colamd, OrderingReport::default()));
     }
     let nd = nested_dissection::nested_dissection_order(n, a.col_ptr(), a.row_idx());
