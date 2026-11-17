@@ -554,7 +554,10 @@ fn cloud_host_names_are_found() {
     assert!(cloud_host_names(concat!("ip-x.", "ec2.internal")).is_empty());
     // the bare AWS form, a whole word
     let bare = ["ip", "10", "1", "2", "3"].join("-");
-    assert_eq!(cloud_host_names(&format!("host={bare} cpu=x")), [bare.clone()]);
+    assert_eq!(
+        cloud_host_names(&format!("host={bare} cpu=x")),
+        [bare.clone()]
+    );
     assert_eq!(cloud_host_names(&format!("{bare}\n")), [bare.clone()]);
     assert_eq!(cloud_host_names(&format!("({bare}).")), [bare.clone()]);
     // not names: too few or too many parts, four-digit parts, inside a word
