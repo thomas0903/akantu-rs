@@ -1094,13 +1094,19 @@ mod tests {
                 }
             }
             let w = |s: u8| -> u64 {
-                (0..g.n()).filter(|&v| side[v] == s).map(|v| g.vwgt[v]).sum()
+                (0..g.n())
+                    .filter(|&v| side[v] == s)
+                    .map(|v| g.vwgt[v])
+                    .sum()
             };
             let (w0, w1, ws) = (w(0), w(1), w(2));
             // a plane of the grid has p² nodes; the cover of a cut through a
             // 26-neighbour grid needs at most about two planes
             assert!(ws <= (2 * p * p * c) as u64, "separator {ws} for p {p}");
-            assert!(w0.max(w1) <= (0.62 * (w0 + w1 + ws) as f64) as u64, "{w0} {w1} {ws}");
+            assert!(
+                w0.max(w1) <= (0.62 * (w0 + w1 + ws) as f64) as u64,
+                "{w0} {w1} {ws}"
+            );
         }
     }
 
