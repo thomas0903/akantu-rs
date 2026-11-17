@@ -1054,18 +1054,26 @@ impl<const DIM: usize> MaterialAnisotropicDamage<DIM> {
         let mut el_out = vec![0.0; nq * n];
         let mut t_out = vec![0.0; nq];
         let mut e_out = vec![0.0; nq];
-        if grad_u.nb_component() != n || d_prev.nb_component() != n || t_prev.len() != nq {
+        // The serial loop reads the committed damage and trace of the
+        // gradient's points only: longer blocks have their extra values
+        // ignored (as before); a shorter block is an error (before, an index
+        // panic)
+        if grad_u.nb_component() != n
+            || d_prev.nb_component() != n
+            || d_prev.len() < nq
+            || t_prev.len() < nq
+        {
             return Err(Error::DimensionMismatch {
                 context: "anisotropic_damage: computeStress",
                 expected: nq,
-                got: t_prev.len(),
+                got: d_prev.len().min(t_prev.len()),
             });
         }
         let items = (
             (
                 TuplesRef::new(grad_u.as_slice(), n),
-                TuplesRef::new(d_prev.as_slice(), n),
-                TuplesRef::new(t_prev.as_slice(), 1),
+                TuplesRef::new(&d_prev.as_slice()[..nq * n], n),
+                TuplesRef::new(&t_prev.as_slice()[..nq], 1),
             ),
             Tuples::new(&mut sigma_out, n),
             Tuples::new(&mut d_out, n),
