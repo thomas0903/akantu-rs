@@ -160,7 +160,12 @@ fn effective_norm_fixed<const D: usize>(
     let s1 = &fs[..D * D];
     let s2 = &fs[D * D..2 * D * D];
     let normal = &normal[..D];
-    let nt = &mut normal_traction[..D];
+    // a local array, copied out at the end: once the function is inlined
+    // its stores cannot alias the inputs, so the products of two rows are
+    // computed in the two lanes of one register (each lane the scalar
+    // sequence); stored through `normal_traction`, they compile to scalar
+    // code wherever the caller's slices are not known to be disjoint
+    let mut nt = [0.0; D];
     for i in 0..D {
         let coeff = |k: usize| (s1[i + D * k] + s2[i + D * k]) / 2. * normal[k];
         let mut r = coeff(0);
@@ -169,6 +174,7 @@ fn effective_norm_fixed<const D: usize>(
         }
         nt[i] = r;
     }
+    normal_traction[..D].copy_from_slice(&nt);
     let dot = |b: &[Real]| {
         let mut r = nt[0] * b[0];
         for k in 1..D {
