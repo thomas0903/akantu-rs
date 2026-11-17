@@ -324,9 +324,12 @@ change of default results or of a public API raises the minor version.
   h = 0.04 is 0.77–0.80× upstream's. The measurements of 11 to 14
   November stay as dated records. The statement on run-to-run
   repeatability is corrected: with MUMPS the port is not bit-repeatable
-  at 2 ranks and more; with its SparseLU it is. The full-size run, the
-  nested-dissection ordering and the multi-node run of the final campaign
-  are measured separately and have marked places.
+  at 2 ranks and more; with its SparseLU it is. With the opt-in
+  nested-dissection ordering the SparseLU static solve takes 0.305× and
+  0.170× upstream's SparseLU at one thread (h = 0.12, 0.06; part D's
+  second pass, `docs/benchmarks/perf-campaign/final/D-nd/`). The full-size
+  run and the multi-node run of the final campaign are measured separately
+  and have marked places.
 - `DamageParent::parent_potential_energy` takes the calling law's executor
   as its first argument.
 - `akantu_solid::materials::damage::DamageParent::{stress_kernel,

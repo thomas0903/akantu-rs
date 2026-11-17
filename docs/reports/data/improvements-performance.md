@@ -587,7 +587,7 @@ advised before items 1.2, 2.1 and 4.1.
 
 ### 4.5 A faster pure-Rust sparse factorisation
 
-*Performance campaign (the final campaign, 2026-11-17 UTC, AWS `m7a.2xlarge`):* partly (tiles and threads; an opt-in nested-dissection ordering, D-125); as P1.7; the nested-dissection ordering is measured separately (not yet in this revision).
+*Performance campaign (the final campaign, 2026-11-17 UTC, AWS `m7a.2xlarge`):* partly (tiles and threads; an opt-in nested-dissection ordering, D-125); as P1.7; with nested dissection the SparseLU static solve takes 0.412 and 0.186 of COLAMD's at one thread (h = 0.12, 0.06), 0.305 and 0.170 of upstream's SparseLU (part D, second pass).
 
 Without MUMPS the port uses its translation of Eigen's SparseLU. Upstream's
 own SparseLU takes 314.6 s and 7.5 GiB at h = 0.06 (97,551 DOFs), 18 times
