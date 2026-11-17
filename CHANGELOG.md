@@ -73,7 +73,7 @@ change of default results or of a public API raises the minor version.
   kept from one step to the next with threads: a second copy of the
   law's blocks, 184 bytes per quadrature point in 3-D, 104 in 2-D); all
   bitwise equal to one thread for every thread count. The non-local
-  average runs on threads from 4 threads (at 2 and 3 the serial loop is
+  average runs on threads from 5 threads (up to 4 the serial loop is
   faster). New: `InternalField::get_mut_with`,
   `NonLocalManagerCallback::exec` (default serial),
   `MaterialMazarsNonLocal::compute_non_local_stress_with`,

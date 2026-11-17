@@ -629,7 +629,7 @@ impl NonLocalNeighborhood {
     /// nb_component, ghost_type)` over per-slot arrays of `nb_component`
     /// values.
     ///
-    /// With at least 4 threads and more than one part of `exec`, and when
+    /// With at least 5 threads and more than one part of `exec`, and when
     /// the slots increase with the points (the manager's layout), every
     /// point's slot receives its
     /// contributions in pair order from the point's own list
@@ -647,13 +647,14 @@ impl NonLocalNeighborhood {
         let g = gi(ghost);
         let n = nb_component;
         let np = self.points.len();
-        // from 4 threads: the per-point gather visits every pair twice, so
-        // at 2 and 3 threads it is slower than the serial half-pair loop
-        // with the rest of the step on the threads
-        // (`explicit_mazars_non_local`, one-thread base = 1: gather 1.085
-        // at 2 threads and 0.794 at 3, serial average 0.720 at 2)
+        // from 5 threads: the per-point gather visits every pair twice, so
+        // up to 4 threads the serial half-pair loop, with the rest of the
+        // step on the threads, is faster (`explicit_mazars_non_local`,
+        // one-thread base = 1, serial average / gather: 2 threads 0.721 /
+        // 1.085, 4 threads 0.599 / 0.633, 5 threads 0.572 / 0.534,
+        // 8 threads 0.534 / 0.366)
         let threaded = n > 0
-            && exec.threads() >= 4
+            && exec.threads() >= 5
             && self.pair_list[g].len() < (u32::MAX / 2) as usize
             && exec.nb_parts(self.pair_list[g].len(), PAIRS_PER_PART) > 1
             && self.slots.len() == np
@@ -1050,7 +1051,7 @@ mod tests {
                 let mut reference: Vec<Real> = (0..len).map(|k| k as Real * 1e-3).collect();
                 let start = reference.clone();
                 n.weighted_average(Exec::serial_ref(), &v, &mut reference, nb, ghost);
-                for threads in [1, 2, 3, 4, 8] {
+                for threads in [1, 2, 3, 4, 5, 8] {
                     for grain in [Grain::Finest, Grain::Auto] {
                         let exec = Exec::new(
                             ExecPolicy::serial()
