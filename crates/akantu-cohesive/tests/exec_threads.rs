@@ -26,7 +26,7 @@ use akantu_model::ModelOptions;
 use akantu_parser::Parser;
 
 /// An `n^dim` grid of the unit square (cube), each cell split into two
-/// triangles (six tetrahedra); a slightly irregular interior.
+/// triangles (five tetrahedra); a slightly irregular interior.
 fn grid(dim: usize, n: usize) -> Mesh {
     let mut m = Mesh::new(dim, "grid").unwrap();
     {
@@ -84,7 +84,6 @@ fn grid(dim: usize, n: usize) -> Mesh {
                             [1, 3, 4, 6],
                             [1, 4, 5, 6],
                             [3, 4, 6, 7],
-                            [2, 3, 6, 7],
                         ] {
                             conn.push_tuple(&t.map(|v| c[v]));
                         }
