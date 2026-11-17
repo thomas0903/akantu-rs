@@ -474,14 +474,55 @@ fn newmark_corrector_part(
 }
 
 /// Equations per part of a threaded integration-scheme update (D-123). The
-/// update streams a few arrays that the step just touched: short parts cost
-/// more than they save (screening on 8 cores: with parts of 16,384
-/// equations the steps of meshes with 0.1–0.6 million equations ran slower
-/// with threads), so a family is split only into parts of at least this
-/// many equations.
-const EQUATIONS_PER_PART: usize = 262_144;
+/// update streams a few arrays that the step's threaded kernels (the
+/// residual scatter by node ranges, the lumped solve) have just written:
+/// with those kernels on threads, parts of 4,096 equations made the steps
+/// of meshes with 0.1–0.35 million equations faster at 2, 4 and 8 threads
+/// (8 threads: 0.70–0.91 of the step with parts of 262,144 equations; the
+/// same with idle workers parked at once, so not a wake-up effect).
+/// An earlier screening, when those kernels were serial, found the
+/// opposite: the arrays then sat in the calling thread's caches.
+pub(crate) const EQUATIONS_PER_PART: usize = 4_096;
 
 // ------------------------------------------------- generalized trapezoidal
+
+/// The generalized-trapezoidal predictor of one part of the equations
+/// (`[α, Δt]`; no-alias parameters).
+#[inline(never)]
+fn trapezoidal_predictor_part(
+    [alpha, delta_t]: [Real; 2],
+    reset_rate: bool,
+    u: &mut [Real],
+    u_dot: &mut [Real],
+    blocked: &[bool],
+) {
+    for ((u, u_dot), &bld) in u.iter_mut().zip(u_dot).zip(blocked) {
+        if !bld {
+            *u += (1.0 - alpha) * delta_t * *u_dot;
+            if reset_rate {
+                *u_dot = 0.0;
+            }
+        }
+    }
+}
+
+/// The generalized-trapezoidal corrector of one part of the equations
+/// (`[e, d]`; no-alias parameters).
+#[inline(never)]
+fn trapezoidal_corrector_part(
+    [e, d]: [Real; 2],
+    u: &mut [Real],
+    u_dot: &mut [Real],
+    solution: &[Real],
+    blocked: &[bool],
+) {
+    for (((u, u_dot), &delta), &bld) in u.iter_mut().zip(u_dot).zip(solution).zip(blocked) {
+        if !bld {
+            *u += e * delta;
+            *u_dot += d * delta;
+        }
+    }
+}
 
 /// Generalized trapezoidal rule (upstream `GeneralizedTrapezoidal`, first
 /// order, needs `K`, `M`):
@@ -586,6 +627,7 @@ impl IntegrationScheme for GeneralizedTrapezoidal {
             && !dofs
                 .upstream_compat()
                 .generalized_trapezoidal_keeps_rate_in_predictor;
+        let exec = dofs.exec().clone();
         let f = dofs.family_mut(&self.dof_id)?;
         {
             // both guards scoped explicitly (D-071); the rate is written
@@ -596,19 +638,26 @@ impl IntegrationScheme for GeneralizedTrapezoidal {
                 .ok_or_else(|| Error::not_found("dof derivative", "order 1"))?
                 .write()?;
             let mut u = f.dofs.write()?;
-            for ((u, u_dot), &bld) in u
-                .as_mut_slice()
-                .iter_mut()
-                .zip(v.as_mut_slice())
-                .zip(&blocked)
-            {
-                if !bld {
-                    *u += (1.0 - alpha) * delta_t * *u_dot;
-                    if reset_rate {
-                        *u_dot = 0.0;
-                    }
-                }
-            }
+            // the equations the zipped loop visits (the shortest array);
+            // every equation from its own values: parts on the DOF
+            // manager's threads (D-123)
+            let n = (u.as_slice().len())
+                .min(v.as_slice().len())
+                .min(blocked.len());
+            let items = (
+                Tuples::new(&mut u.as_mut_slice()[..n], 1),
+                Tuples::new(&mut v.as_mut_slice()[..n], 1),
+                TuplesRef::new(&blocked[..n], 1),
+            );
+            exec.for_each(items, EQUATIONS_PER_PART, |_, (mut u, mut v, b)| {
+                trapezoidal_predictor_part(
+                    [alpha, delta_t],
+                    reset_rate,
+                    u.as_mut_slice(),
+                    v.as_mut_slice(),
+                    b.as_slice(),
+                );
+            });
         }
         Ok(())
     }
@@ -617,6 +666,7 @@ impl IntegrationScheme for GeneralizedTrapezoidal {
         let d = self.temperature_rate_coefficient(ty, delta_t)?;
         check_family(dofs, &self.dof_id, &[1])?;
         let blocked = blocked_of(dofs, &self.dof_id)?;
+        let exec = dofs.exec().clone();
         let f = dofs.family_mut(&self.dof_id)?;
         let crate::dof_manager::DofData {
             dofs: u,
@@ -629,18 +679,27 @@ impl IntegrationScheme for GeneralizedTrapezoidal {
             .ok_or_else(|| Error::not_found("dof derivative", "order 1"))?
             .write()?;
         let mut u = u.write()?;
-        for (((u, u_dot), &delta), &bld) in u
-            .as_mut_slice()
-            .iter_mut()
-            .zip(v.as_mut_slice())
-            .zip(solution.as_slice())
-            .zip(&blocked)
-        {
-            if !bld {
-                *u += e * delta;
-                *u_dot += d * delta;
-            }
-        }
+        let sol = solution.as_slice();
+        // the equations the zipped loop visits (the shortest array)
+        let n = (u.as_slice().len())
+            .min(v.as_slice().len())
+            .min(sol.len())
+            .min(blocked.len());
+        let items = (
+            Tuples::new(&mut u.as_mut_slice()[..n], 1),
+            Tuples::new(&mut v.as_mut_slice()[..n], 1),
+            TuplesRef::new(&sol[..n], 1),
+            TuplesRef::new(&blocked[..n], 1),
+        );
+        exec.for_each(items, EQUATIONS_PER_PART, |_, (mut u, mut v, sol, b)| {
+            trapezoidal_corrector_part(
+                [e, d],
+                u.as_mut_slice(),
+                v.as_mut_slice(),
+                sol.as_slice(),
+                b.as_slice(),
+            );
+        });
         Ok(())
     }
     fn assemble_jacobian(

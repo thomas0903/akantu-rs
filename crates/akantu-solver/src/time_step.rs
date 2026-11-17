@@ -60,6 +60,7 @@
 use std::collections::BTreeMap;
 
 use akantu_core::enums::{IntegrationSchemeType, MatrixType, TimeStepSolverType};
+use akantu_core::exec::{Tuples, TuplesRef};
 use akantu_core::{Error, Id, Real, Result};
 
 use crate::callback::SolverCallback;
@@ -302,6 +303,15 @@ fn check_len(context: &'static str, got: usize, expected: usize) -> Result<()> {
 /// `increment = solution` (`from_solution`, displacement-type solutions)
 /// or `u − u_previous`; skipped with upstream's warning without a previous
 /// array. Array lengths are validated.
+/// `increment = u − previous` for one part of the equations (no-alias
+/// parameters).
+#[inline(never)]
+fn increment_part(inc: &mut [Real], u: &[Real], prev: &[Real]) {
+    for ((i, &x), &p) in inc.iter_mut().zip(u).zip(prev) {
+        *i = x - p;
+    }
+}
+
 fn update_increment(dofs: &mut DofManager, dof_id: &str, from_solution: bool) -> Result<()> {
     if !dofs.has_dofs_increment(dof_id)? {
         return Ok(());
@@ -313,6 +323,7 @@ fn update_increment(dofs: &mut DofManager, dof_id: &str, from_solution: bool) ->
         );
         return Ok(());
     }
+    let exec = dofs.exec().clone();
     let crate::dof_manager::DofData {
         dofs: u,
         increment,
@@ -326,19 +337,28 @@ fn update_increment(dofs: &mut DofManager, dof_id: &str, from_solution: bool) ->
     let (mut inc, prev, u) = (inc.write()?, prev.read()?, u.read()?);
     let n = u.as_slice().len();
     check_len("increment of a DOF family", inc.as_slice().len(), n)?;
+    // every equation from its own values: parts on the DOF manager's
+    // threads (D-123)
+    let part = crate::integration_scheme::EQUATIONS_PER_PART;
     if from_solution {
         check_len("solution of a DOF family", solution.as_slice().len(), n)?;
-        inc.as_mut_slice().copy_from_slice(solution.as_slice());
+        let items = (
+            Tuples::new(inc.as_mut_slice(), 1),
+            TuplesRef::new(solution.as_slice(), 1),
+        );
+        exec.for_each(items, part, |_, (mut i, s)| {
+            i.as_mut_slice().copy_from_slice(s.as_slice());
+        });
     } else {
         check_len("previous values of a DOF family", prev.as_slice().len(), n)?;
-        for ((i, &x), &p) in inc
-            .as_mut_slice()
-            .iter_mut()
-            .zip(u.as_slice())
-            .zip(prev.as_slice())
-        {
-            *i = x - p;
-        }
+        let items = (
+            Tuples::new(inc.as_mut_slice(), 1),
+            TuplesRef::new(u.as_slice(), 1),
+            TuplesRef::new(prev.as_slice(), 1),
+        );
+        exec.for_each(items, part, |_, (mut i, x, p)| {
+            increment_part(i.as_mut_slice(), x.as_slice(), p.as_slice());
+        });
     }
     Ok(())
 }

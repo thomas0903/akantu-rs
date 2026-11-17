@@ -2548,7 +2548,7 @@ impl DofManager {
                 akantu_core::exec::Tuples::new(&mut f.solution.as_mut_slice()[..n], 1),
                 akantu_core::exec::TuplesRef::new(&f.local_equation_numbers[..n], 1),
             );
-            exec.try_for_each(items, 262_144, |_, (mut s, eqs)| {
+            exec.try_for_each(items, assembly::EQUATIONS_PER_PART, |_, (mut s, eqs)| {
                 gather_part(s.as_mut_slice(), eqs.as_slice(), x)
             })?;
         }
