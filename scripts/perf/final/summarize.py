@@ -17,6 +17,7 @@ provenance.txt (lines "part=... size=...").
 
 import csv
 import json
+import math
 import re
 import statistics
 import sys
@@ -31,7 +32,7 @@ def sig(x, n=3):
     """n significant digits, thousands separated (as docs/BENCHMARKS.md)."""
     if x is None:
         return MISSING
-    if x != x or x in (float("inf"), float("-inf")):
+    if not math.isfinite(x):
         return str(x)
     if x == 0:
         return "0"
@@ -922,9 +923,9 @@ def mpilayer_tables(m):
                              col("raw_med_us"), col("akantu_med_us"),
                              col("calib_med_us"), col("ratio_med"),
                              col("backend_ratio_med")])
-        out += ["Table \"Method B, one job\" (`mpi_bench calibrated`, 9 "
-                "interleaved blocks per job; µs; backend ratio = (akantu − "
-                "calibration) / raw, the MPI tier's gated figure):", "",
+        out += [("Table \"Method B, one job\" (`mpi_bench calibrated`, 9 "
+                 "interleaved blocks per job; µs; backend ratio = (akantu − "
+                 "calibration) / raw, the MPI tier's gated figure):"), "",
                 table(["Transport", "Case", "variant", "raw", "akantu-comm",
                        "calibration", "akantu / raw", "backend ratio"],
                       rows)]

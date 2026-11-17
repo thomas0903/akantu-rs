@@ -104,10 +104,11 @@ def record(out, np_, comm, timeout):
             if key != last:
                 last = key
                 tmp = out + ".tmp"
-                json.dump({"utc": time.strftime("%Y-%m-%dT%H:%M:%SZ",
-                                                time.gmtime()),
-                           "comm": comm, "ranks": procs, "numa": numa},
-                          open(tmp, "w"), indent=1)
+                with open(tmp, "w") as f:
+                    json.dump({"utc": time.strftime("%Y-%m-%dT%H:%M:%SZ",
+                                                    time.gmtime()),
+                               "comm": comm, "ranks": procs, "numa": numa},
+                              f, indent=1)
                 os.replace(tmp, out)
         time.sleep(0.5)
     return 0 if last else 1
@@ -117,7 +118,8 @@ def check(path, np_, threads, core_list):
     if not os.path.exists(path):
         print(f"no binding record {path}")
         return 1
-    d = json.load(open(path))
+    with open(path) as f:
+        d = json.load(f)
     numa = {int(k): v for k, v in d.get("numa", {}).items()}
     order = [int(c) for c in core_list.split(",") if c]
     ranks = d["ranks"]
