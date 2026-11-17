@@ -653,11 +653,11 @@ impl StructuralMechanicsModel {
             let permissive = physics.base.parser.is_permissive();
             solver.init_from_section(&section, &mut physics, permissive)?;
         }
-        // the process default execution policy (D-123): the matrix
-        // assembly and the DOF manager's loops
-        solver
-            .dof_manager
-            .set_exec(Exec::new(ExecPolicy::process_default()?)?);
+        // the process default execution policy (D-123): the elemental
+        // matrices, the matrix assembly and the DOF manager's loops
+        let exec = Exec::new(ExecPolicy::process_default()?)?;
+        physics.fe.set_exec(exec.clone());
+        solver.dof_manager.set_exec(exec);
         let dumpers = StructuralDumpers::new(id, dim)?;
         physics.time_step = solver.time_step(None).unwrap_or(0.0);
         Ok(Self {
@@ -676,8 +676,8 @@ impl StructuralMechanicsModel {
         self.solver.dof_manager.exec().policy()
     }
 
-    /// Set the execution policy of the model's kernels: its matrix
-    /// assembly and the matrix operations and
+    /// Set the execution policy of the model's kernels: its elemental
+    /// matrices, its matrix assembly and the matrix operations and
     /// integration-scheme loops of its DOF manager. May be called at any
     /// time between two steps. With
     /// [`akantu_core::exec::Precision::Bitwise`] every result is bitwise
@@ -687,6 +687,7 @@ impl StructuralMechanicsModel {
     /// The operating system refuses the threads.
     pub fn set_exec_policy(&mut self, policy: ExecPolicy) -> Result<()> {
         let exec = Exec::new(policy)?;
+        self.physics.fe.set_exec(exec.clone());
         self.solver.dof_manager.set_exec(exec);
         Ok(())
     }

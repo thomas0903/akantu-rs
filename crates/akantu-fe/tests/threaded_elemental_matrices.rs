@@ -218,3 +218,61 @@ fn consistent_mass_is_the_same_at_every_thread_count() {
         }
     }
 }
+
+#[test]
+fn fused_ntbn_integration_is_ntbn_then_integrate_at_every_thread_count() {
+    let execs = execs();
+    for ty in types() {
+        let mesh = common::fe_test_mesh(ty);
+        let g = GhostType::NotGhost;
+        let ne = mesh.nb_element(ty, g);
+        let serial = engine(&mesh, &Exec::serial());
+        let nq = serial.nb_integration_points(ty, g).unwrap();
+        let nn = ty.nb_nodes_per_element();
+        let every_other: Vec<Idx> = (0..ne).rev().step_by(2).map(|e| e as Idx).collect();
+        for filter in [None, Some(every_other.as_slice())] {
+            let nb = filter.map_or(ne, <[Idx]>::len);
+            let mut vals = Values(0x51ab_cdef ^ (ne as u64) << 4);
+            let b: Vec<Real> = (0..nb * nq).map(|_| vals.next()).collect();
+            let b = Array::from_vec(b, 1).unwrap();
+            let mut tmp = Array::new(nn * nn);
+            let mut reference = Array::new(nn * nn);
+            serial
+                .compute_ntbn(b.view(), &mut tmp, ty, g, filter)
+                .unwrap();
+            serial
+                .integrate(tmp.view(), &mut reference, nn * nn, ty, g, filter)
+                .unwrap();
+            for exec in &execs {
+                let fe = engine(&mesh, exec);
+                let mut out = Array::new(nn * nn);
+                fe.compute_ntbn_integrated(b.view(), &mut out, ty, g, filter)
+                    .unwrap();
+                assert_eq!(
+                    bits(out.as_slice()),
+                    bits(reference.as_slice()),
+                    "{} filter {} threads {} {:?}",
+                    ty.name(),
+                    filter.is_some(),
+                    exec.threads(),
+                    exec.policy().grain()
+                );
+            }
+        }
+        // the errors of the two calls
+        let short = Array::from_vec(vec![1.0; (ne * nq).saturating_sub(1)], 1).unwrap();
+        let two = Array::from_vec(vec![1.0; 2 * ne * nq], 2).unwrap();
+        for bad in [&short, &two] {
+            let mut tmp = Array::new(1);
+            let r1 = serial.compute_ntbn(bad.view(), &mut tmp, ty, g, None);
+            let mut out = Array::new(1);
+            let r2 = serial.compute_ntbn_integrated(bad.view(), &mut out, ty, g, None);
+            assert_eq!(
+                r1.map_err(|e| e.to_string()),
+                r2.map_err(|e| e.to_string()),
+                "{}",
+                ty.name()
+            );
+        }
+    }
+}

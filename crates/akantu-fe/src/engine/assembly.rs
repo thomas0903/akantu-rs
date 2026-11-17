@@ -525,6 +525,134 @@ impl FeEngine {
     }
 }
 
+impl FeEngine {
+    /// `∫ Nᵀ b N` per element: the result of
+    /// [`FeEngine::compute_ntbn`]`(b, tmp, ty, ghost, filter)` followed by
+    /// [`FeEngine::integrate`]`(tmp, out, nn², ty, ghost, filter)`, bit for
+    /// bit, with the same checks and errors in the same order, without the
+    /// per-point array; elements on the engine's threads (D-123).
+    pub fn compute_ntbn_integrated(
+        &self,
+        b: ArrayView<'_, Real>,
+        out: &mut Array<Real>,
+        ty: ElementType,
+        ghost: GhostType,
+        filter: Option<&[Idx]>,
+    ) -> Result<()> {
+        // the checks of `compute_ntbn`, in its order
+        self.check_type(ty, "compute_ntbn")?;
+        if self.kind == ElementKind::Cohesive {
+            return Err(Error::NotImplemented(
+                "computeNtbN for cohesive elements (AKANTU_TO_IMPLEMENT upstream)",
+            ));
+        }
+        let shapes = self.shapes(ty, ghost)?;
+        let nq = self.nb_integration_points(ty, ghost)?;
+        let ne = shapes.len().checked_div(nq).unwrap_or(0);
+        let ids = element_ids(resolve_filter(filter, ne)?, ne);
+        let nn = shapes.nb_component();
+        check_input(
+            "compute_ntbn: b (one component)",
+            b.len(),
+            b.nb_component(),
+            ids.len() * nq,
+            1,
+        )?;
+        // the checks of `integrate`
+        self.check_type(ty, "integrate")?;
+        let jac = self.jacobians(ty, ghost)?;
+        let nq_j = self.nb_integration_points(ty, ghost)?;
+        let ne_j = jac.len().checked_div(nq_j).unwrap_or(0);
+        let ids_j = element_ids(resolve_filter(filter, ne_j)?, ne_j);
+        if nq_j != nq || ids_j != ids {
+            let mut tmp = Array::new(nn * nn);
+            self.compute_ntbn(b, &mut tmp, ty, ghost, filter)?;
+            return self.integrate(tmp.view(), out, nn * nn, ty, ghost, filter);
+        }
+        let n2 = nn * nn;
+        super::prepare_out(out, ids.len(), n2)?;
+        // N.transpose() (nn × 1, N a 1 × nn map) · b (1 × 1), then · N
+        let p_ntb = eigen::prepare(Dims::dynamic(1, nn).t(), Dims::dynamic(1, 1))?;
+        let p_ntbn = eigen::prepare(Dims::dynamic(nn, 1), Dims::dynamic(1, nn))?;
+        let p_fj = eigen::prepare(Dims::dynamic(n2, nq), Dims::new(nq, 1, false, true))?;
+        let kernel = NtbnKernel {
+            nn,
+            nq,
+            ss: shapes.as_slice(),
+            bs: b.as_slice(),
+            jac: jac.as_slice(),
+            p_ntb: &p_ntb,
+            p_ntbn: &p_ntbn,
+            p_fj: &p_fj,
+        };
+        let min = (65_536 / (nq * n2).max(1)).max(1);
+        self.exec.try_for_each(
+            (Tuples::new(out.as_mut_slice(), n2), TuplesRef::new(&ids, 1)),
+            min,
+            |first, (mut o, ids)| kernel.part(first, ids.as_slice(), o.as_mut_slice()),
+        )
+    }
+}
+
+/// The operands of [`FeEngine::compute_ntbn_integrated`].
+struct NtbnKernel<'a> {
+    nn: usize,
+    nq: usize,
+    ss: &'a [Real],
+    bs: &'a [Real],
+    jac: &'a [Real],
+    p_ntb: &'a SliceProduct,
+    p_ntbn: &'a SliceProduct,
+    p_fj: &'a SliceProduct,
+}
+
+impl NtbnKernel<'_> {
+    /// The elemental matrices of the elements `ids` (filter positions
+    /// `first..`): point matrices with the products of `compute_ntbn`,
+    /// integrals with those of `integrate` (its fixed-size loop when it
+    /// applies, else the general product), per chunk of elements.
+    #[inline(never)] // no-alias parameters (docs/benchmarks/perf-campaign/exec)
+    fn part(&self, first: usize, ids: &[usize], o: &mut [Real]) -> Result<()> {
+        let (nn, nq) = (self.nn, self.nq);
+        let n2 = nn * nn;
+        let chunk = (BTDB_CHUNK_VALUES / (nq * n2).max(1)).max(1);
+        let mut local = vec![0.0; chunk.min(ids.len()) * nq * n2];
+        let mut ntb = vec![0.0; nn];
+        for (c, cids) in ids.chunks(chunk).enumerate() {
+            let p0 = first + c * chunk;
+            for (k, &e) in cids.iter().enumerate() {
+                for q in 0..nq {
+                    let t = (p0 + k) * nq + q;
+                    let n = &self.ss[(e * nq + q) * nn..(e * nq + q + 1) * nn];
+                    self.p_ntb.eval(n, &self.bs[t..t + 1], &mut ntb)?;
+                    self.p_ntbn.eval(
+                        &ntb,
+                        n,
+                        &mut local[(k * nq + q) * n2..(k * nq + q + 1) * n2],
+                    )?;
+                }
+            }
+            let cl = cids.len();
+            let f = &local[..cl * nq * n2];
+            let oc = &mut o[c * chunk * n2..(c * chunk + cl) * n2];
+            let jac = |pos: usize| {
+                let e = cids[pos];
+                &self.jac[e * nq..(e + 1) * nq]
+            };
+            if super::fast::integrate(Exec::serial_ref(), f, n2, nq, &jac, cl, oc).is_none() {
+                for pos in 0..cl {
+                    self.p_fj.eval(
+                        &f[pos * nq * n2..(pos + 1) * nq * n2],
+                        jac(pos),
+                        &mut oc[pos * n2..(pos + 1) * n2],
+                    )?;
+                }
+            }
+        }
+        Ok(())
+    }
+}
+
 /// The operands of [`FeEngine::compute_btdb_integrated`], shared by the
 /// parts.
 struct BtdbKernel<'a> {
