@@ -14,13 +14,15 @@ their binding changed, writes for each its MPI rank (OMPI_COMM_WORLD_RANK
 from /proc/<pid>/environ when readable, else null), pid and
 Cpus_allowed_list, and the NUMA node of every host CPU
 (/sys/devices/system/node): the file holds the binding of the run's last
-complete snapshot (ranks are bound during their start-up). Runs until
-killed or the timeout.
+complete snapshot (ranks are bound during their start-up); a snapshot in
+which some rank is not readable (a process that is exiting) never replaces
+one in which every rank is known. Runs until killed or the timeout.
 
 check: the recorded binding is the planned one: NP ranks, rank r allowed on
 exactly THREADS cores, the r-th block of THREADS cores of CORE_LIST (the
 host's cores ordered NUMA node by NUMA node), every block inside one NUMA
-node. Prints the rank -> cores table; exit 1 with the reason otherwise.
+node; a process whose rank was not readable must sit on the block of a rank
+that no other process reports. Prints the rank -> cores table; exit 1 with the reason otherwise.
 """
 
 import json
@@ -93,16 +95,22 @@ def record(out, np_, comm, timeout):
     t0 = time.time()
     numa = {str(c): n for c, n in sorted(numa_of_cpus().items())}
     last = None
+    last_known = False
     while timeout is None or time.time() - t0 < timeout:
         procs = snapshot(comm)
         if len(procs) == np_:
-            if all(p["rank"] is not None for p in procs):
+            known = all(p["rank"] is not None for p in procs)
+            if known:
                 procs.sort(key=lambda p: p["rank"])
             else:
                 procs.sort(key=lambda p: p["pid"])
             key = [(p["pid"], p["rank"], p["cpus"]) for p in procs]
-            if key != last:
+            # a process that is exiting has no readable environment any more:
+            # such a snapshot (the end of the run) never replaces one in
+            # which every rank is known
+            if key != last and (known or not last_known):
                 last = key
+                last_known = known
                 tmp = out + ".tmp"
                 with open(tmp, "w") as f:
                     json.dump({"utc": time.strftime("%Y-%m-%dT%H:%M:%SZ",
@@ -126,14 +134,31 @@ def check(path, np_, threads, core_list):
     bad = []
     if len(ranks) != np_:
         bad.append(f"{len(ranks)} processes recorded, {np_} expected")
-    for i, p in enumerate(ranks):
-        r = p["rank"] if p["rank"] is not None else i
+    # A process whose rank could not be read (it was exiting at the snapshot:
+    # no environment any more) must sit on the planned block of one of the
+    # ranks that no other process reports, each such block once.
+    seen = {p["rank"] for p in ranks if p["rank"] is not None}
+    free = {r: sorted(order[r * threads:(r + 1) * threads])
+            for r in range(np_) if r not in seen}
+    for p in ranks:
+        r = p["rank"]
         got = sorted(cpulist(p["cpus"]))
-        want = sorted(order[r * threads:(r + 1) * threads])
         nodes = sorted({numa.get(c, -1) for c in got})
-        print(f"rank {r}: cores {p['cpus']} (NUMA {','.join(map(str, nodes))})")
-        if got != want:
-            bad.append(f"rank {r}: cores {got}, planned {want}")
+        if r is None:
+            match = [q for q, blk in free.items() if blk == got]
+            if match:
+                del free[match[0]]
+                print(f"rank {match[0]} (rank not readable, matched by its cores): "
+                      f"cores {p['cpus']} (NUMA {','.join(map(str, nodes))})")
+            else:
+                print(f"rank unknown: cores {p['cpus']} (NUMA {','.join(map(str, nodes))})")
+                bad.append(f"a process of unknown rank on cores {got}: not the planned "
+                           f"block of a rank without a record")
+        else:
+            want = sorted(order[r * threads:(r + 1) * threads])
+            print(f"rank {r}: cores {p['cpus']} (NUMA {','.join(map(str, nodes))})")
+            if got != want:
+                bad.append(f"rank {r}: cores {got}, planned {want}")
         if len(nodes) > 1:
             bad.append(f"rank {r}: cores on NUMA nodes {nodes}")
     for b in bad:
