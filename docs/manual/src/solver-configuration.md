@@ -126,21 +126,35 @@ when diagonal entries are small next to the other entries of their column:
 on the suite's plate of DKT18 elements, whose rotational unknowns have such
 columns, it takes 3.1 times COLAMD's time.
 
-`auto` keeps COLAMD below 2,000 unknowns and whenever a column's diagonal
-entry is not its largest entry, and otherwise compares the two orderings'
-predicted work; it takes nested dissection when that needs at most 0.8 of
-COLAMD's. Its analysis costs about twice COLAMD's.
+`auto` keeps COLAMD below 2,000 unknowns or 100,000 stored entries and
+whenever a column's diagonal entry is not its largest entry. Otherwise it
+predicts COLAMD's work and computes the nested dissection only when that
+work is large next to the size of the mesh's graph; it takes nested
+dissection when the dissection's predicted work is at most 0.8 of
+COLAMD's. If the first factorisation with nested dissection then pivots
+off the diagonal in more than 1 % of the columns or fills more than twice
+COLAMD's predicted size (an indefinite matrix can do so), it factorises
+again with COLAMD and keeps COLAMD for that pattern. Where it keeps COLAMD,
+its checks cost at most 5 % of the analysis and factorisation; where it
+chooses nested dissection, it pays the dissection and two predictions on
+top of COLAMD's analysis, less than the factorisation gains. `auto`
+decides at every analysis from the matrix of that moment: a solver whose
+pattern changes at every solve (contact, cohesive insertion) pays this
+analysis at every solve, and its ordering can change from one step to the
+next.
 
 The results of `nested_dissection` (and of `auto` when it chooses nested
 dissection) differ from the default in the last digits: the unknowns are
 eliminated in another order, so the rounding differs. The difference is of
 the order of the condition number of `A` times the machine precision,
 relative to the largest entry of the solution (the rule and its evidence:
-`docs/NUMERICAL_VALIDATION.md`, "SparseLU orderings"). In the default
-(bitwise) precision an unset ordering is always COLAMD; in the fast
-precision (`AKANTU_PRECISION=fast`) it is `auto`. The environment variable
-`AKANTU_SPARSE_ORDERING` sets the ordering of every solver whose ordering
-is not set. The ordering depends only on the matrix's pattern: it is the
+`docs/NUMERICAL_VALIDATION.md`, "SparseLU orderings"). The environment
+variable `AKANTU_SPARSE_ORDERING` sets the ordering of every solver whose
+ordering is not set, in either precision. With neither the option nor the
+variable set, the ordering is COLAMD in the default (bitwise) precision and
+`auto` in the fast precision (`AKANTU_PRECISION=fast`); a model switched
+from the fast to the bitwise precision factorises with COLAMD again. Each
+time-step solver keeps its own `sparse_solver_ordering`. The ordering depends only on the matrix's pattern: it is the
 same on every machine and for every number of threads (test
 `sparse_lu_ordering.rs::the_permutation_depends_on_the_pattern_only`).
 

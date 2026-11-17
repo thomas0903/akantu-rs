@@ -985,8 +985,11 @@ threads. Each FMA instance equals its portable body with `f64::mul_add`
 strict build's semantics.
 
 **SparseLU orderings** (opt-in, D-125: `SparseOrdering::NestedDissection`,
-or `Auto` where it chooses it; an unset ordering is `Auto` in precision
-`Fast`): the columns are eliminated in another order, so each factor entry
+or `Auto` where it chooses it; with neither the option nor
+`AKANTU_SPARSE_ORDERING` set the ordering is `Auto` in precision `Fast`,
+and a switch back to `Bitwise` factorises with COLAMD again,
+`the_ordering_follows_a_switch_of_the_precision_mode`,
+`sparse_ordering_precision_switch.rs`): the columns are eliminated in another order, so each factor entry
 is another sum of rounded products and the threshold pivoting may choose
 other rows. Both factorisations are backward stable with backward errors
 of order `u` (`u = 2⁻⁵³`) times the growth, so the two solutions differ by

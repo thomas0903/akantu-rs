@@ -2344,22 +2344,36 @@ parameter `sparse_solver_ordering`, the Python keyword of
 `ModelSolverOptions`) or for a process (`AKANTU_SPARSE_ORDERING`). Values:
 `colamd` (the default), `nested_dissection`, `auto`.
 
-- COLAMD stays the default and gives the oracle's factors bit for bit. In
-  the bitwise precision an unset ordering is always COLAMD.
+- COLAMD stays the default and gives the oracle's factors bit for bit.
+  With neither the option nor `AKANTU_SPARSE_ORDERING` set, the ordering
+  is COLAMD in the bitwise precision. A factorisation analyses the pattern
+  again when the effective ordering changed since the analysis (a switch
+  of the precision mode), and the solver stack factorises again when the
+  factors no longer match the mode (`factorization_stale`), so a bitwise
+  solve after a fast one is COLAMD's, bit for bit.
 - Another ordering eliminates the unknowns in another order. The factors,
   the pivots and the last digits of the solutions differ from the default;
   by D-122 this is a fast-mode change. Rule
   `fast_mode/linalg/sparse_lu_ordering` of
   `fixtures/fast_mode/linalg/tolerances.json` (`docs/NUMERICAL_VALIDATION.md`,
   "SparseLU orderings").
-- `auto` chooses per analysis: COLAMD below 2,000 unknowns, and whenever
-  a column's diagonal entry is zero or smaller in magnitude than another
-  entry of its column (the threshold partial pivoting would then pivot off
-  the diagonal: COLAMD bounds that fill through the structure of `AᵀA`,
-  the dissection of `A + Aᵀ` does not); otherwise nested dissection when
-  its predicted work (`Σ c_j²` over the column counts of the symmetric
-  factor) is at most 0.8 of COLAMD's and its predicted size not larger.
-  An unset ordering is `auto` in the fast precision (D-123).
+- `auto` chooses per analysis, from the values at that moment: COLAMD
+  below 2,000 unknowns or 100,000 stored entries, and whenever a column's
+  diagonal entry is zero or smaller in magnitude than another entry of its
+  column (the threshold partial pivoting would then pivot off the
+  diagonal: COLAMD bounds that fill through the structure of `AᵀA`, the
+  dissection of `A + Aᵀ` does not). Otherwise it predicts COLAMD's work
+  (`Σ c_j²` over the column counts of the symmetric factor, computed in
+  almost linear time) and computes the dissection only when that work
+  reaches 5·10⁷ and 3,000 times the edges of the supervariable graph (the
+  dissection's own cost grows with that graph); it takes nested dissection
+  when its predicted work is at most 0.8 of COLAMD's and its predicted
+  size not larger. After the first factorisation with nested dissection,
+  nnz(L + U) above twice COLAMD's predicted size or off-diagonal pivots
+  above 1 % of the order send the pattern back to COLAMD, which it keeps
+  (an indefinite matrix can pass the diagonal test). With neither the
+  option nor `AKANTU_SPARSE_ORDERING` set, the ordering is `auto` in the
+  fast precision (D-123).
 - The ordering is deterministic: the same pattern gives the same
   permutation on every machine and for every thread count. Ties go to the
   smaller index, no hash-map order and no random number are involved; it
@@ -2382,8 +2396,14 @@ dissection loses where the threshold pivoting chooses many off-diagonal
 pivots (the DKT plate of the suite: 3.1 times COLAMD's time); `auto`
 detects that case and keeps COLAMD.
 
-Consequence: `auto` analyses cost about twice COLAMD's analysis (both
-orderings and their predictions). A Scotch ordering was not added: the
+Consequence: where `auto` keeps COLAMD its checks cost at most 5 % of an
+analysis and factorisation (none below 100,000 entries); where it computes
+the dissection it pays the dissection and two predictions on top of
+COLAMD, and chooses it only where the factorisation gains more. A pattern
+that changes at every solve (contact, cohesive insertion) pays that at
+every solve; `auto` can choose differently from one step to the next. The
+fallback costs one factorisation with nested dissection, once per
+pattern. A Scotch ordering was not added: the
 crate's dissection already reaches the fill of a geometric dissection on
 the grids measured, and Scotch would be a second, optional code path.
 

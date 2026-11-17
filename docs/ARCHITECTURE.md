@@ -580,9 +580,17 @@ Fiduccia–Mattheyses refinement of the edge cut), the separator as the
 minimum-weight vertex cover of the cut edges (maximum flow), minimum
 degree on parts of at most 64 supervariables. It is deterministic and
 serial; the factorisation that follows is the same supernodal code with
-the same threaded panel updates. `SparseOrdering::Auto` predicts the work
-of both orderings from the column counts of the symmetric factor and keeps
-COLAMD when the matrix would need off-diagonal pivots. Options reach the
+the same threaded panel updates. `SparseOrdering::Auto` predicts COLAMD's
+work from the column counts of the symmetric factor (Gilbert, Ng and
+Peyton's algorithm), computes the dissection only when that work is large
+next to the supervariable graph, keeps COLAMD when the matrix would need
+off-diagonal pivots, and goes back to COLAMD for a pattern whose first
+nested-dissection factorisation pivots off the diagonal or fills beyond
+the prediction. `SparseLu::factorize` analyses again when the effective
+ordering changed (a switch of the precision mode); the solver stack
+factorises again when `SparseDirectSolver::factorization_stale` says so.
+Each Newton–Raphson solver keeps its own ordering and re-applies it before
+solving (`LinearSystemBackend::solver_option`). Options reach the
 solver through `LinearSystemBackend::set_solver_option` (the AIJ back-end
 forwards them to `SparseDirectSolver::set_option` and applies them again
 to a solver installed later).

@@ -1,8 +1,8 @@
 diff --git a/crates/akantu-linalg/src/eigen_sparse_lu/mod.rs b/crates/akantu-linalg/src/eigen_sparse_lu/mod.rs
-index 324633041..92663dfaf 100644
+index 8433b3abf..0c6319f20 100644
 --- a/crates/akantu-linalg/src/eigen_sparse_lu/mod.rs
 +++ b/crates/akantu-linalg/src/eigen_sparse_lu/mod.rs
-@@ -799,6 +799,77 @@ fn solve_u(mode: Mode, n: usize, g: &Glu, x: &mut [f64]) {
+@@ -930,6 +930,163 @@ fn solve_u(mode: Mode, n: usize, g: &Glu, x: &mut [f64]) {
      }
  }
  
@@ -77,10 +77,96 @@ index 324633041..92663dfaf 100644
 +    }
 +}
 +
- /// `perm[c]` = position of column `c`, from an elimination order.
- fn perm_of_order(order: &[usize]) -> Vec<i64> {
-     let mut perm = vec![0i64; order.len()];
-@@ -873,6 +944,8 @@ fn auto_ordering(a: &CscMatrix) -> Result<(Vec<i64>, OrderingReport)> {
++/// Diagnostic (ND_TREE): the share of the left-looking factorisation's work
++/// in independent subtrees of the column elimination tree, and a bound of
++/// the speed-up of a subtree-parallel factorisation at P threads (greedy
++/// splitting of the heaviest subtree, LPT assignment, the top serial).
++fn diag_tree(lu: &SparseLu) {
++    let Some((_, g)) = &lu.factors else { return };
++    let n = lu.n;
++    // |L(:,k)| with the diagonal, per column
++    let mut lcol = vec![0f64; n];
++    let nsuper = usize::try_from(g.supno[n]).unwrap_or(0) + 1;
++    for s in 0..nsuper {
++        let (f0, f1) = (g.xsup[s] as usize, (g.xsup[s + 1] as usize).min(n));
++        if f0 >= n {
++            break;
++        }
++        let rows = (g.xlsub[f0 + 1] - g.xlsub[f0]) as f64;
++        for j in f0..f1 {
++            lcol[j] = rows - (j - f0) as f64;
++        }
++    }
++    // work received by column j: the updates by the columns k of U(:, j)
++    // (outside and inside the supernode)
++    let mut work = vec![0f64; n];
++    for j in 0..n {
++        let mut w = 0.0;
++        for q in g.xusub[j] as usize..g.xusub[j + 1] as usize {
++            let k = g.usub[q] as usize;
++            if k < n {
++                w += (lcol[k] - 1.0).max(0.0);
++            }
++        }
++        let f0 = g.xsup[g.supno[j] as usize] as usize;
++        for k in f0..j {
++            w += (lcol[k] - 1.0).max(0.0);
++        }
++        work[j] = w + lcol[j];
++    }
++    let parent: Vec<usize> = (0..n).map(|j| lu.etree[j] as usize).collect();
++    let mut sub = work.clone();
++    let mut children: Vec<Vec<usize>> = vec![Vec::new(); n];
++    // postordered tree: children before parents
++    for j in 0..n {
++        if parent[j] < n {
++            sub[parent[j]] += sub[j];
++            children[parent[j]].push(j);
++        }
++    }
++    let total: f64 = work.iter().sum();
++    let roots: Vec<usize> = (0..n).filter(|&j| parent[j] >= n).collect();
++    let mut line = format!("ND_TREE ordering {} n {} work {:.3e} roots {}", lu.report.used, n, total, roots.len());
++    for p in [2usize, 4, 8] {
++        let mut frontier = roots.clone();
++        let mut top = 0.0;
++        let mut best = (1.0f64, 0.0f64);
++        for _ in 0..20000 {
++            // LPT assignment of the frontier's subtrees to p threads
++            let mut w: Vec<f64> = frontier.iter().map(|&r| sub[r]).collect();
++            w.sort_by(|a, b| b.partial_cmp(a).unwrap());
++            let mut loads = vec![0f64; p];
++            for x in &w {
++                let i = (0..p).min_by(|&a, &b| loads[a].partial_cmp(&loads[b]).unwrap()).unwrap();
++                loads[i] += x;
++            }
++            let make = loads.iter().copied().fold(0.0, f64::max);
++            let bound = total / (top + make);
++            if bound > best.0 {
++                best = (bound, 1.0 - top / total);
++            }
++            // split the heaviest subtree that has children
++            let Some((pos, _)) = frontier
++                .iter()
++                .enumerate()
++                .filter(|(_, r)| !children[**r].is_empty())
++                .max_by(|a, b| sub[*a.1].partial_cmp(&sub[*b.1]).unwrap())
++            else {
++                break;
++            };
++            let r = frontier.swap_remove(pos);
++            top += work[r];
++            frontier.extend(children[r].iter().copied());
++        }
++        line += &format!(" | P {p}: bound {:.2} share_in_subtrees {:.3}", best.0, best.1);
++    }
++    eprintln!("{line}");
++}
++
+ /// `perm[c]` = position of column `c`, from an elimination order; an
+ /// error when `order` is not a permutation of `0..order.len()`.
+ fn perm_of_order(order: &[usize]) -> Result<Vec<i64>> {
+@@ -1023,6 +1180,8 @@ fn auto_ordering(a: &CscMatrix) -> Result<(Vec<i64>, OrderingReport)> {
  #[derive(Debug, Default)]
  pub struct EigenSparseLuSolver {
      lu: SparseLu,
@@ -89,7 +175,7 @@ index 324633041..92663dfaf 100644
      analysed: Option<(u64, MatrixType)>,
      /// Scratch of the solves ([`SparseLu::solve_with`]).
      scratch: Vec<f64>,
-@@ -935,11 +1008,19 @@ impl SparseDirectSolver for EigenSparseLuSolver {
+@@ -1085,11 +1244,22 @@ impl SparseDirectSolver for EigenSparseLuSolver {
          // failed refactorisation, whatever step fails.
          self.lu.invalidate();
          let c = CscMatrix::from_aij(a)?;
@@ -106,6 +192,9 @@ index 324633041..92663dfaf 100644
 +        self.lu.solve_with(b, x, &mut self.scratch)?;
 +        if let Some(a) = &self.diag_a {
 +            diag_report(&self.lu, a, b, x);
++            if std::env::var_os("ND_TREE").is_some() {
++                diag_tree(&self.lu);
++            }
 +        }
 +        Ok(())
      }
