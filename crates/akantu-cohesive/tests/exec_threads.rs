@@ -33,6 +33,7 @@ fn grid(dim: usize, n: usize) -> Mesh {
         let mut a = MeshAccessor::new(&mut m);
         let h = 1.0 / n as Real;
         let nk = if dim == 3 { n } else { 0 };
+        let mut xs: Vec<Real> = Vec::new();
         for k in 0..=nk {
             for j in 0..=n {
                 for i in 0..=n {
@@ -48,6 +49,7 @@ fn grid(dim: usize, n: usize) -> Mesh {
                         k as Real * h + 0.5 * w,
                     ];
                     a.push_node(&x[..dim]).unwrap();
+                    xs.extend_from_slice(&x[..dim]);
                 }
             }
         }
@@ -78,14 +80,19 @@ fn grid(dim: usize, n: usize) -> Mesh {
                         ];
                         let mut conn =
                             a.connectivity_mut(ElementType::Tetrahedron4, GhostType::NotGhost);
+                        // the six Kuhn tetrahedra around the diagonal 0-6
+                        // (conforming between neighbouring cells)
                         for t in [
-                            [0, 1, 3, 4],
-                            [1, 2, 3, 6],
-                            [1, 3, 4, 6],
-                            [1, 4, 5, 6],
-                            [3, 4, 6, 7],
+                            [0, 1, 2, 6],
+                            [0, 2, 3, 6],
+                            [0, 3, 7, 6],
+                            [0, 7, 4, 6],
+                            [0, 4, 5, 6],
+                            [0, 5, 1, 6],
                         ] {
-                            conn.push_tuple(&t.map(|v| c[v]));
+                            let mut t = t.map(|v| c[v]);
+                            orient(&mut t, &xs);
+                            conn.push_tuple(&t);
                         }
                     }
                 }
@@ -94,6 +101,23 @@ fn grid(dim: usize, n: usize) -> Mesh {
     }
     m.compute_bounding_box().unwrap();
     m
+}
+
+/// Positive orientation of a tetrahedron (two nodes swapped otherwise).
+fn orient(t: &mut [i32; 4], xs: &[Real]) {
+    let p = |k: usize| {
+        let n = t[k] as usize * 3;
+        [xs[n], xs[n + 1], xs[n + 2]]
+    };
+    let (a, b, c, d) = (p(0), p(1), p(2), p(3));
+    let u = [b[0] - a[0], b[1] - a[1], b[2] - a[2]];
+    let v = [c[0] - a[0], c[1] - a[1], c[2] - a[2]];
+    let w = [d[0] - a[0], d[1] - a[1], d[2] - a[2]];
+    let det = u[0] * (v[1] * w[2] - v[2] * w[1]) - u[1] * (v[0] * w[2] - v[2] * w[0])
+        + u[2] * (v[0] * w[1] - v[1] * w[0]);
+    if det < 0.0 {
+        t.swap(2, 3);
+    }
 }
 
 /// The material input: an elastic bulk and one cohesive law, inserted on
