@@ -182,12 +182,13 @@ struct Store {
 
 impl Store {
     fn store(&mut self, dofs: &DofManager, dof_id: &str, order: usize) -> Result<()> {
+        let exec = dofs.exec();
         self.u.resize(order + 1, None);
         for (o, slot) in self.u.iter_mut().enumerate() {
             let src = dofs.dofs_derivative(dof_id, o)?;
             match slot {
                 Some(a) if a.len() == src.len() && a.nb_component() == src.nb_component() => {
-                    a.as_mut_slice().copy_from_slice(src.as_slice());
+                    copy_values(exec, a.as_mut_slice(), src.as_slice());
                 }
                 _ => *slot = Some(src.clone()),
             }
@@ -196,6 +197,7 @@ impl Store {
     }
 
     fn restore(&self, dofs: &mut DofManager, dof_id: &str, order: usize) -> Result<()> {
+        let exec = dofs.exec().clone();
         for o in 0..=order {
             let saved = self.u.get(o).and_then(Option::as_ref).ok_or_else(|| {
                 Error::invalid(format!("no stored values of '{dof_id}' to restore"))
@@ -208,10 +210,18 @@ impl Store {
                     got: saved.as_slice().len(),
                 });
             }
-            dst.as_mut_slice().copy_from_slice(saved.as_slice());
+            copy_values(&exec, dst.as_mut_slice(), saved.as_slice());
         }
         Ok(())
     }
+}
+
+/// `dst ← src` (equal lengths) in parts of `exec`'s threads.
+fn copy_values(exec: &akantu_core::exec::Exec, dst: &mut [Real], src: &[Real]) {
+    let items = (Tuples::new(dst, 1), TuplesRef::new(src, 1));
+    exec.for_each(items, EQUATIONS_PER_PART, |_, (mut d, s)| {
+        d.as_mut_slice().copy_from_slice(s.as_slice());
+    });
 }
 
 /// Every array of family `dof_id` a scheme reads in a

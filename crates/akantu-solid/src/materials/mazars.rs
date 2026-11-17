@@ -766,8 +766,12 @@ where
         )
     }
 
-    fn compute_potential_energy(&mut self, _ctx: &LawContext<'_>, ty: ElementType) -> Result<()> {
-        self.parent.parent_potential_energy(&self.damage.damage, ty)
+    /// The densities on the model's threads (computed at every step by the
+    /// energy update).
+    fn compute_potential_energy(&mut self, ctx: &LawContext<'_>, ty: ElementType) -> Result<()> {
+        let exec = crate::material::points_exec(self, ctx);
+        self.parent
+            .parent_potential_energy(exec, &self.damage.damage, ty)
     }
 
     fn energy_of(&mut self, ctx: &LawContext<'_>, energy_id: &str) -> Result<Real> {

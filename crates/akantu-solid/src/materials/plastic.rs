@@ -1355,9 +1355,12 @@ impl<const DIM: usize> DamageParent<DIM> for MaterialLinearIsotropicHardening<DI
 
     fn parent_potential_energy(
         &mut self,
+        exec: &akantu_core::exec::Exec,
         damage: &InternalField<Real>,
         ty: ElementType,
     ) -> Result<()> {
+        // the plastic densities stay serial (not on the profile)
+        let _ = exec;
         plastic_potential_energy(
             &mut self.elastic,
             &self.plastic.inelastic_strain,

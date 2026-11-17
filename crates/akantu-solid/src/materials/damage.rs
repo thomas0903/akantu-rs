@@ -793,8 +793,11 @@ pub trait DamageParent<const DIM: usize>: Material + Clone {
     ///
     /// # Errors
     /// Missing blocks or size mismatches.
+    /// The densities may split over `exec`'s threads (the calling law's
+    /// [`crate::material::points_exec`]).
     fn parent_potential_energy(
         &mut self,
+        exec: &Exec,
         damage: &InternalField<Real>,
         ty: ElementType,
     ) -> Result<()>;
@@ -910,10 +913,11 @@ impl<const DIM: usize> DamageParent<DIM> for MaterialElastic<DIM> {
 
     fn parent_potential_energy(
         &mut self,
+        exec: &Exec,
         damage: &InternalField<Real>,
         ty: ElementType,
     ) -> Result<()> {
-        elastic_damage_potential_energy(self, damage, ty)
+        elastic_damage_potential_energy_with(exec, self, damage, ty)
     }
 
     fn parent_energy_densities(

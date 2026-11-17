@@ -12,7 +12,7 @@
 use std::path::{Path, PathBuf};
 
 use akantu_core::enums::MatrixType;
-use akantu_core::{Error, GlobalIdx, NodeFlag, Real, Result};
+use akantu_core::{Error, GlobalIdx, Idx, NodeFlag, Real, Result};
 use akantu_linalg::matrix_market::MatrixMarketOptions;
 use akantu_linalg::{SolverVector, SparseMatrixAij};
 use akantu_mesh::Mesh;
@@ -35,13 +35,28 @@ impl DofManager {
         for f in self.families.values() {
             let Some(bl) = &f.blocked else { continue };
             let bl = bl.borrow();
-            for (&eq, &is) in f.local_equation_numbers.iter().zip(bl.as_slice()) {
-                if is
-                    && eq != -1
-                    && let Ok(e) = usize::try_from(eq)
-                {
-                    self.blocked_indexes.push(e);
-                }
+            let n = f.local_equation_numbers.len().min(bl.as_slice().len());
+            let (eqs, bl) = (&f.local_equation_numbers[..n], &bl.as_slice()[..n]);
+            // the blocked equations of each part, appended in part order:
+            // the list of the serial scan (sorted below anyway)
+            let parts = self.exec.nb_parts(n, super::assembly::EQUATIONS_PER_PART);
+            if parts <= 1 {
+                blocked_part(eqs, bl, &mut self.blocked_indexes);
+                continue;
+            }
+            let bounds: Vec<usize> = (0..=parts).map(|p| p * n / parts).collect();
+            let mut lists: Vec<Vec<usize>> = vec![Vec::new(); parts];
+            let per_part: Vec<usize> = (0..=parts).collect();
+            self.exec.for_each_bounds(
+                &per_part,
+                akantu_core::exec::Tuples::new(&mut lists, 1),
+                |p, mut l| {
+                    let r = bounds[p]..bounds[p + 1];
+                    blocked_part(&eqs[r.clone()], &bl[r], &mut l.as_mut_slice()[0]);
+                },
+            );
+            for l in lists {
+                self.blocked_indexes.extend(l);
             }
         }
         self.blocked_indexes.sort_unstable();
@@ -389,5 +404,17 @@ impl DofManager {
     #[must_use]
     pub fn declared_matrix_type(&self, name: &str) -> Option<MatrixType> {
         self.declared.get(name).copied()
+    }
+}
+
+/// The equations of `eqs` whose flag is set, appended to `out` in order.
+fn blocked_part(eqs: &[Idx], blocked: &[bool], out: &mut Vec<usize>) {
+    for (&eq, &is) in eqs.iter().zip(blocked) {
+        if is
+            && eq != -1
+            && let Ok(e) = usize::try_from(eq)
+        {
+            out.push(e);
+        }
     }
 }
