@@ -22,7 +22,7 @@ use akantu_core::exec::{FastToken, SimdToken};
 use akantu_core::{ElementKind, ElementType, Error, GhostType, Idx, Real, Result};
 use akantu_mesh::Mesh;
 
-use super::{Block, FeEngine, batch_ids, check_input, check_precomputed, fast};
+use super::{Block, FeEngine, batch_ids_with, check_input, check_precomputed, fast};
 use crate::element_class::{ElementClass, LagrangeElement};
 use crate::with_element_class;
 
@@ -234,7 +234,7 @@ impl FeEngine {
         }
         check_input("", u.len(), u.nb_component(), mesh.nb_nodes(), nb_dof).ok()?;
         let block = Block::new(mesh, ty, ghost).ok()?;
-        batch_ids(Some(filter), block.nb_element).ok()?;
+        batch_ids_with(&self.exec, Some(filter), block.nb_element).ok()?;
         let dshapes = self.shapes_derivatives(ty, ghost).ok()?;
         let nq = self.nb_integration_points(ty, ghost).ok()?;
         check_precomputed("", dshapes.len(), block.nb_element, nq).ok()?;
@@ -277,7 +277,7 @@ impl FeEngine {
         let dsh = self.shapes_derivatives(ty, ghost).ok()?;
         let nq = self.nb_integration_points(ty, ghost).ok()?;
         let ne = dsh.len().checked_div(nq)?;
-        batch_ids(Some(filter), ne).ok()?;
+        batch_ids_with(&self.exec, Some(filter), ne).ok()?;
         let nn = ty.nb_nodes_per_interpolation_element();
         let sdim = dsh.nb_component().checked_div(nn)?;
         if sdim == 0 || !nb_component.is_multiple_of(sdim) {
@@ -289,8 +289,8 @@ impl FeEngine {
             return None;
         }
         let bs = dsh.as_slice();
-        fast::btd_integrate_supported(r, sdim, nn, filter, nq, bs, jac.as_slice()).then_some(
-            BtdIntegratePlan {
+        fast::btd_integrate_supported(&self.exec, r, sdim, nn, filter, nq, bs, jac.as_slice())
+            .then_some(BtdIntegratePlan {
                 filter,
                 bs,
                 jac: jac.as_slice(),
@@ -300,7 +300,6 @@ impl FeEngine {
                 sdim,
                 simd: self.exec.simd_token(),
                 fast: self.exec.fast_token(),
-            },
-        )
+            })
     }
 }

@@ -293,12 +293,16 @@ pub(crate) fn element_ids(filter: Option<Vec<usize>>, nb_element: usize) -> Vec<
 /// itself once every entry is checked (the errors of [`resolve_filter`], in
 /// its order), or `0..nb_element` when there is none. Every returned id is
 /// in `0..nb_element`.
-pub(crate) fn batch_ids(
-    filter: Option<&[Idx]>,
+///
+/// The check of the filter's maximum runs on `exec`'s threads (an integer
+/// maximum: the same answer for every split).
+pub(crate) fn batch_ids_with<'f>(
+    exec: &akantu_core::exec::Exec,
+    filter: Option<&'f [Idx]>,
     nb_element: usize,
-) -> Result<std::borrow::Cow<'_, [Idx]>> {
+) -> Result<std::borrow::Cow<'f, [Idx]>> {
     match filter {
-        Some(f) if fast::max_unsigned(f).is_none_or(|m| m < nb_element) => {
+        Some(f) if fast::max_unsigned_with(exec, f).is_none_or(|m| m < nb_element) => {
             Ok(std::borrow::Cow::Borrowed(f))
         }
         Some(f) => {
@@ -331,7 +335,7 @@ pub(crate) fn batch_ids(
     }
 }
 
-/// Index of a checked id of [`batch_ids`] (never negative).
+/// Index of a checked id of [`batch_ids_with`] (never negative).
 #[inline(always)]
 pub(crate) fn id_index(e: Idx) -> usize {
     usize::try_from(e).unwrap_or(usize::MAX)

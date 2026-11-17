@@ -334,8 +334,25 @@ impl<E: LagrangeElement, const NBD: usize, const MINUS: bool, const FMA: bool> S
 
 /// `true` when `ids` (elements of a block of `nb_element`, checked by the
 /// caller) can index `nq` shape-derivative tuples of `bsz` values each.
-fn derivatives_cover(ids: &[Idx], nq: usize, bsz: usize, bs: &[Real]) -> bool {
-    max_unsigned(ids).is_none_or(|m| (m + 1).saturating_mul(nq * bsz) <= bs.len())
+fn derivatives_cover(exec: &Exec, ids: &[Idx], nq: usize, bsz: usize, bs: &[Real]) -> bool {
+    max_unsigned_with(exec, ids).is_none_or(|m| (m + 1).saturating_mul(nq * bsz) <= bs.len())
+}
+
+/// `true` when `pred(k)` holds for some `k` in `0..n`: the parts of
+/// `exec` each test their range (a logical or: the same answer for every
+/// split).
+fn any_with(exec: &Exec, n: usize, min: usize, pred: impl Fn(usize) -> bool + Sync) -> bool {
+    let parts = exec.nb_parts(n, min);
+    if parts <= 1 {
+        return (0..n).any(pred);
+    }
+    let bounds: Vec<usize> = (0..=parts).map(|p| p * n / parts).collect();
+    let mut found = vec![false; parts];
+    let per_part: Vec<usize> = (0..=parts).collect();
+    exec.for_each_bounds(&per_part, Tuples::new(&mut found, 1), |p, mut f| {
+        f.as_mut_slice()[0] = (bounds[p]..bounds[p + 1]).any(&pred);
+    });
+    found.contains(&true)
 }
 
 /// `D·B` per quadrature point (upstream `computeBtD`): `D` dynamic
@@ -370,7 +387,7 @@ pub(super) fn btd(
     if ds.len() != np * r * sdim || os.len() != np * r * nn {
         return None;
     }
-    if !derivatives_cover(ids, nq, sdim * nn, bs) {
+    if !derivatives_cover(exec, ids, nq, sdim * nn, bs) {
         return None;
     }
     let run: BtdPart = match (r, sdim) {
@@ -528,7 +545,7 @@ pub(super) fn btd_integrate(
     os: &mut [Real],
 ) -> Option<()> {
     let nb_dof = r * nn;
-    if !btd_integrate_supported(r, sdim, nn, ids, nq, bs, jac)
+    if !btd_integrate_supported(exec, r, sdim, nn, ids, nq, bs, jac)
         || ds.len() != ids.len() * nq * r * sdim
         || os.len() != ids.len() * nb_dof
     {
@@ -560,7 +577,9 @@ pub(super) fn btd_integrate(
 
 /// `true` when [`btd_integrate`] takes its kernel for the elements `ids`
 /// (both routes, sizes, the shape derivatives and Jacobians of `ids`).
+#[allow(clippy::too_many_arguments)] // the fused kernel's operands and its executor
 pub(super) fn btd_integrate_supported(
+    exec: &Exec,
     r: usize,
     sdim: usize,
     nn: usize,
@@ -583,8 +602,8 @@ pub(super) fn btd_integrate_supported(
         && nn > 0
         && nn <= TREE_MAX
         && btd_integrate_kernel(r, sdim).is_some()
-        && derivatives_cover(ids, nq, sdim * nn, bs)
-        && derivatives_cover(ids, nq, 1, jac)
+        && derivatives_cover(exec, ids, nq, sdim * nn, bs)
+        && derivatives_cover(exec, ids, nq, 1, jac)
 }
 
 /// The fused kernel of `(r, sdim)`.
@@ -802,7 +821,7 @@ pub(super) fn integrate<'j>(
     {
         return None;
     }
-    if (0..nb_element).any(|pos| jac(pos).len() < nq) {
+    if any_with(exec, nb_element, 65_536, |pos| jac(pos).len() < nq) {
         return None;
     }
     let min = (4096 / (nq * nb_dof).max(1)).max(1);
@@ -934,6 +953,41 @@ mod tests {
     use akantu_core::array_shared::ArrayRef;
     use akantu_core::exec::{ExecPolicy, Grain, SimdLevel};
     use akantu_core::{Array, ElementType, GhostType, Idx};
+
+    /// The threaded `any` of the plans' checks equals the serial one at
+    /// every thread count and grain, wherever the matching index lies.
+    #[test]
+    fn threaded_any_equals_the_serial_one() {
+        for n in [0usize, 1, 5, 70_000, 300_001] {
+            let hits: Vec<Option<usize>> = vec![
+                None,
+                Some(0),
+                Some(n / 2),
+                n.checked_sub(1),
+                Some(n / 3 + 1),
+            ];
+            for hit in hits {
+                let pred = |k: usize| Some(k) == hit && k < n;
+                let serial = (0..n).any(pred);
+                for threads in [1, 2, 3, 4, 8] {
+                    for grain in [Grain::Finest, Grain::Auto] {
+                        let exec = Exec::new(
+                            ExecPolicy::serial()
+                                .with_threads(threads)
+                                .unwrap()
+                                .with_grain(grain),
+                        )
+                        .unwrap();
+                        assert_eq!(
+                            any_with(&exec, n, 65_536, pred),
+                            serial,
+                            "n {n} hit {hit:?} threads {threads} {grain:?}"
+                        );
+                    }
+                }
+            }
+        }
+    }
 
     /// The threaded maximum of the connectivity check equals the serial
     /// one at every thread count and grain, negative indices (huge as

@@ -33,8 +33,8 @@ use akantu_core::{Array, ElementKind, ElementType, Error, GhostType, Idx, Real, 
 use akantu_mesh::Mesh;
 
 use super::{
-    Block, FeEngine, batch_ids, check_input, check_precomputed, element_ids, id_index, prepare_out,
-    resolve_filter,
+    Block, FeEngine, batch_ids_with, check_input, check_precomputed, element_ids, id_index,
+    prepare_out, resolve_filter,
 };
 use crate::eigen::{self, Dims};
 use crate::element_class::LagrangeElement;
@@ -310,7 +310,7 @@ impl FeEngine {
             nb_dof,
         )?;
         let block = Block::new(mesh, ty, ghost)?;
-        let ids = batch_ids(filter, block.nb_element)?;
+        let ids = batch_ids_with(&self.exec, filter, block.nb_element)?;
         let dshapes = self.shapes_derivatives(ty, ghost).map_err(|_| {
             Error::invalid(format!(
                 "no shape derivatives for {} (natural dimension differs from the mesh dimension, \
@@ -346,7 +346,7 @@ impl FeEngine {
         let jac = self.jacobians(ty, ghost)?;
         let nq = self.nb_integration_points(ty, ghost)?;
         let ne = jac.len().checked_div(nq).unwrap_or(0);
-        let ids = batch_ids(filter, ne)?;
+        let ids = batch_ids_with(&self.exec, filter, ne)?;
         check_input(
             "integrate: quadrature field",
             f.len(),
@@ -516,7 +516,7 @@ impl FeEngine {
         let dsh = self.shapes_derivatives(ty, ghost)?;
         let nq = self.nb_integration_points(ty, ghost)?;
         let ne = dsh.len().checked_div(nq).unwrap_or(0);
-        let ids = batch_ids(filter, ne)?;
+        let ids = batch_ids_with(&self.exec, filter, ne)?;
         let nn = ty.nb_nodes_per_interpolation_element();
         let sdim = dsh.nb_component().checked_div(nn).unwrap_or(0);
         if sdim == 0 || d.nb_component() % sdim != 0 {
