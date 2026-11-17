@@ -132,7 +132,14 @@ prepare_meshes() {
           < "${FIN_BASELINE}/meshes/cohesive/cube-h${h}.msh"
       else
         say "meshes: generating h = ${h} (gen-meshes.sh, Gmsh of the oracle image)"
+        local before_files
+        before_files=$(git -C "${FIN_REPO}" ls-files --others --exclude-standard)
         (cd "${FIN_REPO}" && bash benchmarks/cohesive-perf/scripts/gen-meshes.sh "${h}") >> "$log" 2>&1
+        # gen-meshes.sh records new statistics and freezes small meshes in the
+        # checkout: the campaign needs only the mesh in the volume, and the
+        # checkout must stay clean (its state is recorded with every run)
+        git -C "${FIN_REPO}" ls-files --others --exclude-standard | grep -vxF "${before_files:-/}" \
+          | (cd "${FIN_REPO}" && xargs -r rm -f --)
       fi
       sha=$(docker run --rm -v akantu-perf-cohesive:/perf:ro "${FIN_ORACLE_IMAGE}" sha256sum "/perf/meshes/cube-h${h}.msh" | cut -d' ' -f1)
       [ "$sha" = "$want_sha" ] || fin_die "mesh h = ${h}: SHA-256 ${sha} differs from the recorded ${want_sha}"
