@@ -45,7 +45,7 @@
 # Every variant gets VARIANT.json (revision, toolchain, image ids, binary
 # digests, whether its SparseLU factorisation uses threads).
 set -euo pipefail
-# shellcheck source=lib.sh
+# shellcheck source=scripts/perf/final/lib.sh
 . "$(dirname "$0")/lib.sh"
 
 before="" head="" only="cpp,meshes,raw,host,mpi,python" joss="" keep=0

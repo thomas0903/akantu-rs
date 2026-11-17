@@ -48,7 +48,7 @@
 # under nohup (no terminal needed). Run one part at a time on a machine,
 # nothing else running.
 set -uo pipefail
-# shellcheck source=lib.sh
+# shellcheck source=scripts/perf/final/lib.sh
 . "$(dirname "$0")/lib.sh"
 
 part=${1:-}
@@ -611,14 +611,14 @@ part_d() {
   threaded=$(fin_variant_key "$HEAD" sparselu_threaded)
   fin_progress "$D" "D: the head's SparseLU factorisation uses threads: ${threaded}"
   echo "sparselu_threaded=${threaded}" >> "$D/provenance.txt"
-  local eigv="cppeig before-eig head-eig" h pts=""
+  local eigv="cppeig before-eig head-eig" h plist=""
   [ "$threaded" = true ] && eigv="${eigv} head-eig-t2 head-eig-t4 head-eig-t8"
   [ "$threaded" = true ] && labels+=(head-t2 head-t4 head-t8)
-  for h in $hs; do pts="${pts} ${h}:1"; done
-  coh_series eig1 10 "${pts# }" "$eigv"
-  pts=""
-  for h in $hs; do pts="${pts} ${h}:1 ${h}:2 ${h}:4"; done
-  coh_series mumps 10 "${pts# }" "cpp before head"
+  for h in $hs; do plist="${plist} ${h}:1"; done
+  coh_series eig1 10 "${plist# }" "$eigv"
+  plist=""
+  for h in $hs; do plist="${plist} ${h}:1 ${h}:2 ${h}:4"; done
+  coh_series mumps 10 "${plist# }" "cpp before head"
   if want_series suite; then
     for ((r = 0; r < reps; r++)); do
       for l in static_linear_eigen static_linear_faer; do

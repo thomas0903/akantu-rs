@@ -20,7 +20,9 @@
 FIN_HERE="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 FIN_REPO="$(cd "${FIN_HERE}/../../.." && pwd)"
 FINAL_ROOT="${FINAL_ROOT:-${HOME}/final}"
+# shellcheck disable=SC2034 # read by the scripts that source this file
 FIN_BASELINE="${FINAL_BASELINE:-${HOME}/baseline}"
+# shellcheck disable=SC2034 # likewise
 FIN_TVOL="${FINAL_TARGET_VOLUME:-akantu-rs-mpi-target}"
 FIN_MPI_IMAGE="${FINAL_MPI_IMAGE:-akantu-rs-mumps:dev}"
 FIN_ORACLE_IMAGE="${FINAL_ORACLE_IMAGE:-akantu-oracle:dev}"
