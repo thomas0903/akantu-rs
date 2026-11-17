@@ -630,8 +630,10 @@ Built-in laws describe parameters in static `ParamDescriptor` tables,
 runtime laws (Python subclasses, user Rust laws) own `DynamicParameters`;
 both are `Parsable`, so `.dat` sections fill them byte for byte.
 `InternalField<T>` covers the law's filtered elements with a default value
-and optional history; history copies are in place, so foreign views stay
-attached. The cohesive laws' maximal openings
+and optional history. A history save of a block that is not exported is
+deferred until the block is written (and becomes an exchange of the two
+allocations when the writer rewrites the whole block); an exported block is
+copied in place, so foreign views stay attached. The cohesive laws' maximal openings
 are committed at the end of a converged step, not at step entry (D-052).
 An internal field with a random default (upstream's `RandomInternalField`)
 draws through `akantu_core::random`, which reproduces libstdc++'s engine
@@ -995,11 +997,61 @@ and the solution gather (`dof_manager/assembly.rs`, `dof_manager.rs`); in
 `akantu-linalg`, the large panel updates of the Eigen SparseLU
 translation (at least 65,536 multiply-adds: the product over strips of
 rows, the scatter over blocks of accumulator rows,
-`eigen_sparse_lu/kernels.rs`; the solver gets the DOF manager's executor
-before every solve, `SparseDirectSolver::set_exec`, and a new DOF manager
-takes the process default policy, `model_solver::new_dof_manager`).
+`eigen_sparse_lu/kernels.rs`; the AIJ backend hands the DOF manager's
+executor to the solver of every solve, `SparseDirectSolver::set_exec`; a
+DOF manager starts with the process default policy until its model sets
+its own).
 The per-node and per-equation loops split only into parts of at least
 131,072 nodes or 262,144 equations; below, they run serially.
+
+Matrix assembly and the matrix operations of implicit steps (bitwise at
+every thread count; `akantu-solver/tests/threaded_assembly.rs`,
+`akantu-solid/tests/exec_threads_matrices.rs`,
+`akantu-fe/tests/threaded_elemental_matrices.rs`, the heat and
+structural `tests/exec_threads.rs`):
+
+- Elemental matrices on the FE engine's executor:
+  `FeEngine::compute_btdb_integrated` (`∫ BᵀDB` per element, the products
+  of `compute_btdb` and of `integrate`, without the per-point array; the
+  solid stiffness and the heat conductivity) and the consistent mass
+  (`field_matrix_elemental`: Jacobians, point matrices and integrals per
+  part of elements). A law's tangent is called once per block as before
+  (on threads only inside a law that declared `independent_points`). The
+  solid model keeps its stiffness and mass arrays between assemblies
+  (`StiffnessScratch`, boxed in the model: one elemental-matrix array
+  per element type, shared by stiffness and mass, the tangent, the
+  gradient and the density values; 187 + 46 MB for 162,000 four-node
+  tetrahedra), so that repeated assemblies map and fault no fresh arrays;
+  only arrays taken from its pool return to it (a law's own blocks and
+  the finite-deformation blocks are dropped). `release_static_solver`
+  frees them. The mass goes through
+  `FeEngine::field_matrix_elemental_into` (caller-owned arrays).
+- The scatter of a repeated element assembly
+  (`DofManager::assemble_elemental_matrices_to_matrix` →
+  `SparseMatrixAij::add_values_cached_batch`): when the round continues
+  a `BlockPositionCache` of the current entry positions, the blocks'
+  equations are checked against the stored slots (and missing slots
+  resolved, without touching the matrix) in parallel; then the entries
+  are split into contiguous ranges and every part visits, in element
+  order, the elements whose smallest-to-largest stored position meets its
+  range, adding only the contributions inside it. Every entry receives
+  its contributions in element order. The first assembly of a matrix
+  (its profile, in first-insertion order) and any batch the matrix
+  declines (a promotion, an equation the cache does not hold, a missing
+  entry, a repeated slot) run the serial loop.
+- Whole-matrix operations of the AIJ backend on the DOF manager's
+  executor (`LinearSystemBackend::set_exec`): zeroing, entry-wise sums of
+  matrices with the same entries (`J += c·K`), the profile copy of `J`,
+  Dirichlet rows, and the matrix-vector product on serial layouts, which
+  gathers per row the terms of its entries and of the mirrors of
+  symmetric storage in storage order (`RowGather`, built once per entry
+  positions, 8 bytes per term) so that every row adds its terms in the
+  order of the serial pass. Parts of at least 32,768 entries.
+- `HeatTransferModel`, `PhaseFieldModel` and `StructuralMechanicsModel`
+  take the process default policy and have `exec_policy` /
+  `set_exec_policy`; the structural engine's elemental matrices and the
+  phase-field elemental matrices (`compute_btdb`, `compute_ntbn`) stay
+  serial.
 
 A law opts in with `Material::independent_points() -> true` and uses
 `material::points_exec(self, ctx)` in its per-point loop. Declared: the
@@ -1026,6 +1078,38 @@ every supported level against the scalar bits. Fast-mode kernels: marked
 `FAST MODE`, selected by `precision() == Fast` once per batch, validated by
 `akantu_validation::fast_mode::check_fast_mode` against the bitwise run with
 a rule of `fixtures/fast_mode/<area>/tolerances.json`.
+
+Bitwise lane kernels (`exec::with_simd`, `exec::Lanes4`): a kernel body
+written once over `Lanes4` (four `f64` lanes, each operation per lane, no
+FMA) implements `SimdTask`; `with_simd(token, task)` compiles it inside an
+`#[target_feature(enable = "avx2")]` entry point on `Avx2` and `Avx512`
+tokens and for the baseline otherwise, so every level gives the same bits
+and the crates that write such kernels (`akantu-fe`, `akantu-solid`) stay
+free of `unsafe` (the one dispatch site is in `akantu-core`, `UNSAFE.md`
+CO-19, CO-20). Lane layouts of the explicit step: the gradient has one
+lane per row of `∇u`, the integrated `BᵀD` one lane per row of `D`, the
+integrated finite-deformation residual one lane per node of a group of
+four (component `k` fixed per vector; the `B_L0` selections then depend on
+`k` only). Lanes are not a promise of packed instructions: the compiler
+packs the integrated `BᵀD` and residual, about half of the plain gradient
+and none of the gradient with the `eigen_grad_u` subtraction (scalar AVX
+instructions; a packed variant was not faster,
+`docs/benchmarks/perf-campaign/explicit/README.md`). No AVX-512 instance: three-component lanes do not fill 512-bit
+vectors, and the compiler's AVX-512 code for the gradient was slower.
+
+Element-block pass of the internal forces
+(`MaterialElastic::stress_and_element_forces`, called by
+`assemble_internal_forces`): for a model with one elastic law on one
+element type of a mesh without ghosts and without non-local laws, one
+threaded region runs, per block of elements of about 192 KiB of
+per-element data, the gradient minus `eigen_grad_u`
+(`FeEngine::gradient_plan`), the thermal pre-step, the stress (or second
+Piola–Kirchhoff stress) and the integrated `BᵀD` (`btd_integrate_plan`)
+or residual (`assembly::ResidualPlan`); the scatter follows. The plans run
+the batch kernels on element ranges after checking the whole filter once,
+and `grad_u`, the stress fields and the thermal fields receive the values
+of the separate passes. Any other model, or a plan that cannot be made,
+runs the separate passes.
 
 Wait policy: idle workers spin for `ExecPolicy::spin` (`AKANTU_EXEC_SPIN_US`;
 default 5 ms, 0 when the threads outnumber the available cores, with a

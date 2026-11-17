@@ -11,13 +11,14 @@ during a run: 4 threads with `AKANTU_NUM_THREADS=4`, 1 with `1`.
 
 ## What changed
 
-- **Threads (bitwise at every thread count).** The DOF manager hands its
-  executor to the sparse solver before every solve
-  (`SparseDirectSolver::set_exec`, `LinearSystemBackend::set_sparse_solver_exec`,
-  like the compatibility switches); a new DOF manager takes the process
-  default policy (`model_solver::new_dof_manager`), so every model's
-  solves follow `AKANTU_NUM_THREADS`; `SparseLu::set_exec` for a solver
-  outside a model. A panel update of at least 2¹⁶ multiply-adds runs in
+- **Threads (bitwise at every thread count).** The AIJ backend hands the
+  DOF manager's executor (`LinearSystemBackend::set_exec`, the model's
+  policy) to the sparse solver of every solve
+  (`SparseDirectSolver::set_exec`); a DOF manager built without a model
+  starts with the process default policy; `SparseLu::set_exec` for a
+  solver outside a model. (Before the merge with the threaded assembly,
+  this branch had its own `set_sparse_solver_exec` and made
+  `new_dof_manager` set the process default: both removed.) A panel update of at least 2¹⁶ multiply-adds runs in
   two regions: the product over strips of whole 16-row tiles (each part
   writes its own contiguous chunk of `L`), then the scatter over blocks
   of accumulator rows (each part applies the `L` rows that land in its

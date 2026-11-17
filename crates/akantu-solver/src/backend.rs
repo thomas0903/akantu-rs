@@ -199,6 +199,35 @@ pub trait LinearSystemBackend: std::fmt::Debug + Send {
     ) -> Result<()> {
         self.add_values(id, rows, cols, values, values_type)
     }
+    /// The serial loop of [`LinearSystemBackend::add_values_cached`] over a
+    /// batch of square blocks (slot `slots[k]`, equations `equations(k, ·)`,
+    /// values `values[k·n²..(k+1)·n²]`, `n = nb_eq`) on the threads of
+    /// `exec`, with the same results
+    /// ([`SparseMatrixAij::add_values_cached_batch`]). `false` when not done
+    /// (nothing changed but the cache's configuration): the caller runs the
+    /// serial loop. Default: `false`.
+    #[allow(clippy::too_many_arguments)] // the serial loop's arguments, batched
+    fn add_values_cached_batch(
+        &mut self,
+        _id: &str,
+        _exec: &akantu_core::exec::Exec,
+        _cache: &mut BlockPositionCache,
+        _slots: &[usize],
+        _nb_eq: usize,
+        _equations: &(dyn Fn(usize, &mut Vec<GlobalIdx>) -> Result<()> + Sync),
+        _values: &[Real],
+        _values_type: MatrixType,
+    ) -> bool {
+        false
+    }
+    /// Run the whole-matrix operations (zeroing, sums, Dirichlet rows,
+    /// products) on the threads of `exec`, with the results of one thread
+    /// (D-123), and hand `exec` to the sparse solver of every solve
+    /// (`SparseDirectSolver::set_exec`: threads, SIMD level, fast mode).
+    /// Default: ignored.
+    fn set_exec(&mut self, exec: &akantu_core::exec::Exec) {
+        let _ = exec;
+    }
     /// Add individual terms (pre-assembled matrices), creating entries.
     fn add_terms(&mut self, id: &str, terms: &[(GlobalIdx, GlobalIdx, Real)]) -> Result<()>;
     /// Collective end of an assembly phase of `id` (PETSc
@@ -334,13 +363,6 @@ pub trait LinearSystemBackend: std::fmt::Debug + Send {
     /// solver, nothing to apply.
     fn set_sparse_solver_compat(&mut self, compat: SparseSolverCompat) {
         let _ = compat;
-    }
-    /// The DOF manager's executor (D-123), passed before every solve like
-    /// the compatibility switches: the backend hands it to the solver of
-    /// every solve (`SparseDirectSolver::set_exec`). Default: nothing to
-    /// apply.
-    fn set_sparse_solver_exec(&mut self, exec: &akantu_core::exec::Exec) {
-        let _ = exec;
     }
     /// `true` if the backend solves a multi-rank system with a serial
     /// sparse direct solver by centralising it on rank 0 inside the solve's
@@ -798,7 +820,9 @@ pub struct AijBackend {
     /// Manager-wide sparse-solver compatibility switches, applied to the
     /// solver of every solve (D-041 (4)).
     sparse_compat: SparseSolverCompat,
-    /// The manager's executor, handed to the solver of every solve.
+    /// Executor of the whole-matrix operations (zeroing, sums, Dirichlet
+    /// rows, products) and of the sparse solver of every solve
+    /// (`SparseDirectSolver::set_exec`): the DOF manager's (D-123).
     exec: akantu_core::exec::Exec,
 }
 
@@ -1039,6 +1063,24 @@ impl LinearSystemBackend for AijBackend {
         self.get_mut(id)?
             .add_values_cached(cache, slot, rows, cols, values, values_type)
     }
+    fn set_exec(&mut self, exec: &akantu_core::exec::Exec) {
+        self.exec = exec.clone();
+    }
+    fn add_values_cached_batch(
+        &mut self,
+        id: &str,
+        exec: &akantu_core::exec::Exec,
+        cache: &mut BlockPositionCache,
+        slots: &[usize],
+        nb_eq: usize,
+        equations: &(dyn Fn(usize, &mut Vec<GlobalIdx>) -> Result<()> + Sync),
+        values: &[Real],
+        values_type: MatrixType,
+    ) -> bool {
+        self.get_mut(id).is_ok_and(|m| {
+            m.add_values_cached_batch(exec, cache, slots, nb_eq, equations, values, values_type)
+        })
+    }
     fn add_terms(&mut self, id: &str, terms: &[(GlobalIdx, GlobalIdx, Real)]) -> Result<()> {
         let m = self.get_mut(id)?;
         // Validate every coordinate first: no partial insertion on error.
@@ -1058,7 +1100,8 @@ impl LinearSystemBackend for AijBackend {
         self.get(id).map(|_| ())
     }
     fn zero(&mut self, id: &str) -> Result<()> {
-        self.get_mut(id)?.zero();
+        let exec = self.exec.clone();
+        self.get_mut(id)?.zero_with(&exec);
         Ok(())
     }
     fn apply_boundary(
@@ -1068,7 +1111,9 @@ impl LinearSystemBackend for AijBackend {
         blocked: &[bool],
         block_val: Real,
     ) -> Result<()> {
-        self.get_mut(id)?.apply_boundary(layout, blocked, block_val)
+        let exec = self.exec.clone();
+        self.get_mut(id)?
+            .apply_boundary_on(&exec, layout, blocked, block_val)
     }
     fn mat_vec(
         &self,
@@ -1081,7 +1126,7 @@ impl LinearSystemBackend for AijBackend {
         beta: Real,
     ) -> Result<()> {
         self.get(id)?
-            .mat_vec_mul(layout, reduction, x, y, alpha, beta)
+            .mat_vec_mul_with(&self.exec, layout, reduction, x, y, alpha, beta)
     }
     /// Solve through the matrix's [`SparseDirectSolver`]: analysis when the
     /// profile release **or the effective symmetry** changed, factorisation
@@ -1228,7 +1273,7 @@ impl LinearSystemBackend for AijBackend {
             .matrices
             .remove(dst)
             .ok_or_else(|| Error::not_found("matrix", dst))?;
-        d.copy_profile(&self.matrices[src]);
+        d.copy_profile_with(&self.exec, &self.matrices[src]);
         self.matrices.insert(dst.into(), d);
         Ok(())
     }
@@ -1253,8 +1298,8 @@ impl LinearSystemBackend for AijBackend {
         let r = {
             let s = &self.matrices[src];
             match self.add_policy {
-                MatrixAddPolicy::MirrorSymmetricSource => d.add_matrix(s, alpha),
-                MatrixAddPolicy::Upstream => d.add_matrix_upstream(s, alpha),
+                MatrixAddPolicy::MirrorSymmetricSource => d.add_matrix_with(&self.exec, s, alpha),
+                MatrixAddPolicy::Upstream => d.add_matrix_upstream_with(&self.exec, s, alpha),
             }
         };
         self.matrices.insert(dst.into(), d);
@@ -1293,9 +1338,6 @@ impl LinearSystemBackend for AijBackend {
     }
     fn set_sparse_solver_compat(&mut self, compat: SparseSolverCompat) {
         self.sparse_compat = compat;
-    }
-    fn set_sparse_solver_exec(&mut self, exec: &akantu_core::exec::Exec) {
-        self.exec = exec.clone();
     }
     fn centralizes_sparse_solves(&self) -> bool {
         true

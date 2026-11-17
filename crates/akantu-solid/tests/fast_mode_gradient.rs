@@ -1,14 +1,14 @@
 // SPDX-License-Identifier: LGPL-3.0-or-later
 // Part of akantu-rs, a Rust port of Akantu (EPFL/LSMS). No upstream test:
-// the fast-mode harness of D-123 run end to end on its demonstrator (the FMA
-// gradient kernel) in the explicit step of
-// examples/c++/solid_mechanics_model/explicit.
+// the fast-mode harness of D-123 run end to end on the fast kernels of the
+// explicit step of examples/c++/solid_mechanics_model/explicit.
 
-//! The explicit step in `Precision::Fast` (the gradient kernel with fused
-//! multiply-adds, `akantu_fe` FAST MODE) against `Precision::Bitwise`,
-//! through `akantu_validation::fast_mode` and the rule of
-//! `fixtures/fast_mode/solid/tolerances.json`; also at several thread counts
-//! (the fast kernel's results do not depend on them either).
+//! The explicit step in `Precision::Fast` (the gradient, the integrated
+//! `BᵀD` and the integrated finite-deformation residual with fused
+//! multiply-adds, `FAST MODE` in `akantu_fe` and `akantu_solid`) against
+//! `Precision::Bitwise`, through `akantu_validation::fast_mode` and the rule
+//! of `fixtures/fast_mode/solid/tolerances.json`; also at several thread
+//! counts (the fast kernels' results do not depend on them either).
 
 use akantu_core::enums::AnalysisMethod;
 use akantu_core::exec::{ExecPolicy, Grain, Precision};
@@ -19,11 +19,12 @@ use akantu_parser::Parser;
 use akantu_solid::SolidMechanicsModel;
 use akantu_validation::fast_mode::{ModeQuantity, check_fast_mode};
 
-const CASE: &str = "fast_mode/solid/explicit_fma_gradient";
+const CASE: &str = "fast_mode/solid/explicit_fma_kernels";
 const STEPS: usize = 20;
 
-/// An `n³` grid of tetrahedra (six per cell), slightly irregular.
-fn cube(n: usize) -> Mesh {
+/// An `n³` grid of tetrahedra (six per cell) or hexahedra, slightly
+/// irregular.
+fn cube(n: usize, hex: bool) -> Mesh {
     let mut m = Mesh::new(3, "cube").unwrap();
     {
         let mut a = MeshAccessor::new(&mut m);
@@ -56,6 +57,11 @@ fn cube(n: usize) -> Mesh {
                         id(i + 1, j + 1, k + 1),
                         id(i, j + 1, k + 1),
                     ];
+                    if hex {
+                        a.connectivity_mut(ElementType::Hexahedron8, GhostType::NotGhost)
+                            .push_tuple(&c);
+                        continue;
+                    }
                     for t in [
                         [0, 1, 3, 4],
                         [1, 2, 3, 6],
@@ -75,14 +81,15 @@ fn cube(n: usize) -> Mesh {
     m
 }
 
-fn run(fd: bool, policy: ExecPolicy) -> Vec<ModeQuantity> {
+fn run(fd: bool, hex: bool, policy: ExecPolicy) -> Vec<ModeQuantity> {
     let dat = format!(
         "material elastic [\n  name = body\n  rho = 2500\n  E = 70e9\n  nu = 0.22\n  \
          finite_deformation = {fd}\n]\n"
     );
     let parser = Parser::parse_str(&dat, "material.dat").unwrap();
     let mut m =
-        SolidMechanicsModel::with_parser(SharedMesh::new(cube(5)), None, "smm", parser).unwrap();
+        SolidMechanicsModel::with_parser(SharedMesh::new(cube(5, hex)), None, "smm", parser)
+            .unwrap();
     m.set_exec_policy(policy).unwrap();
     m.init_full(&ModelOptions::new(AnalysisMethod::ExplicitLumpedMass))
         .unwrap();
@@ -124,27 +131,27 @@ fn run(fd: bool, policy: ExecPolicy) -> Vec<ModeQuantity> {
 
 #[test]
 fn fast_mode_explicit_step_within_its_rule() {
-    for fd in [false, true] {
-        let bitwise = run(fd, ExecPolicy::serial());
+    for (fd, hex) in [(false, false), (true, false), (false, true), (true, true)] {
+        let bitwise = run(fd, hex, ExecPolicy::serial());
         let fast_policy = ExecPolicy::serial().with_precision(Precision::Fast);
-        let fast = run(fd, fast_policy);
+        let fast = run(fd, hex, fast_policy);
         for r in check_fast_mode(CASE, &bitwise, &fast, true) {
             let w = r.worst.as_ref().map_or(0.0, |w| w.ratio);
             eprintln!(
-                "fd={fd} {}: {} entries, {} exact, worst ratio {w:.3e}, max rel {:?}",
+                "fd={fd} hex={hex} {}: {} entries, {} exact, worst ratio {w:.3e}, max rel {:?}",
                 r.quantity,
                 r.n_compared,
                 r.n_exact,
                 r.max_rel_err.as_ref().map(|d| d.rel_err)
             );
         }
-        // the fast kernel's results do not depend on the thread count
+        // the fast kernels' results do not depend on the thread count
         for threads in [2, 4] {
             let p = fast_policy
                 .with_threads(threads)
                 .unwrap()
                 .with_grain(Grain::Finest);
-            assert_eq!(run(fd, p), fast, "fd={fd} threads={threads}");
+            assert_eq!(run(fd, hex, p), fast, "fd={fd} hex={hex} threads={threads}");
         }
     }
 }

@@ -429,13 +429,8 @@ mod serial_mesh_world {
 /// ([`check_dof_manager_type`], upstream's message), the communicator
 /// chosen by [`dof_manager_communicator`], then
 /// [`DofManager::of_type`] with upstream's id
-/// `<model_id>:dof_manager_<type>`, with the executor of
-/// `ExecPolicy::process_default()` (D-123; a model with its own policy sets
-/// it afterwards). `petsc` is collective over the job's processes (PETSc
-/// session, `PetscBackend::new`).
-///
-/// # Errors
-/// As above, and an invalid `AKANTU_*` execution variable.
+/// `<model_id>:dof_manager_<type>`. `petsc` is collective over the job's
+/// processes (PETSc session, `PetscBackend::new`).
 pub fn new_dof_manager(
     dof_manager_type: &str,
     model_id: &str,
@@ -443,18 +438,11 @@ pub fn new_dof_manager(
 ) -> Result<DofManager> {
     check_dof_manager_type(dof_manager_type)?;
     let comm = dof_manager_communicator(dof_manager_type, mesh_communicator)?;
-    let mut dm = DofManager::of_type(
+    DofManager::of_type(
         dof_manager_type,
         format!("{model_id}:dof_manager_{dof_manager_type}"),
         comm,
-    )?;
-    // D-123: the process default execution policy (threads, precision, SIMD
-    // level) for the manager's loops and its sparse solver, for every model;
-    // a model with its own policy (the solid model) sets it afterwards
-    dm.set_exec(akantu_core::exec::Exec::new(
-        akantu_core::exec::ExecPolicy::process_default()?,
-    )?);
-    Ok(dm)
+    )
 }
 
 impl ModelSolver {

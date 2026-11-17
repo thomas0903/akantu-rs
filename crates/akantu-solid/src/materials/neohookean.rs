@@ -552,7 +552,9 @@ impl<const DIM: usize> Material for MaterialNeohookean<DIM> {
         }
         let n = DIM * DIM;
         let (lambda, mu) = (self.lambda, self.mu);
-        let grad_u = self.base.grad_u.get(ty, ghost)?.clone();
+        // a guard on the stored gradient instead of a per-step copy (the
+        // stress field is reached through its own field below)
+        let grad_u = self.base.grad_u.get(ty, ghost)?;
         let nq = grad_u.len();
         // plane stress: C33 first (upstream PlaneStressToolbox<2>::computeStress
         // then computeThirdAxisDeformation, then the stress loop)
@@ -573,7 +575,16 @@ impl<const DIM: usize> Material for MaterialNeohookean<DIM> {
             }
         }
         let c33 = self.c33_values(ty, ghost, nq)?;
-        let mut sigma = self.base.sigma_field_mut()?.get_mut(ty, ghost)?;
+        let sigma_field = if self.base.finite_deformation {
+            self.base.piola_kirchhoff_2.as_mut().ok_or_else(|| {
+                Error::invalid(
+                    "finite_deformation: piola_kirchhoff_2 is not registered (init the material first)",
+                )
+            })?
+        } else {
+            &mut self.base.stress
+        };
+        let mut sigma = sigma_field.get_mut(ty, ghost)?;
         if sigma.len() != nq || c33.len() != nq {
             return Err(Error::DimensionMismatch {
                 context: "MaterialNeohookean::computeStress",

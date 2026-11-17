@@ -10,7 +10,7 @@
 //! ```text
 //! suite_models --list
 //! suite_models --case <name>[,<name>...]|all --size s|m|l [--reps N] [--out FILE]
-//!              [--loop-seconds S] [--threads N]
+//!              [--loop-seconds S] [--threads N] [--grain finest|auto]
 //! ```
 
 #[path = "../suite_models/mod.rs"]

@@ -214,6 +214,44 @@ impl Clone for ProfileStamp {
     }
 }
 
+/// A [`ProfileStamp`] drawn when it is first read after a change (`0`:
+/// not drawn yet), so that the profile construction, which changes the
+/// profile at every new entry, does not draw one per entry from the
+/// process-wide counter. Unique as a drawn stamp: a change discards the
+/// stamp, the next read draws a new one.
+#[derive(Debug, Default)]
+struct LazyStamp(AtomicU64);
+
+impl LazyStamp {
+    /// Discard the stamp (the profile changed).
+    fn invalidate(&mut self) {
+        *self.0.get_mut() = 0;
+    }
+
+    /// The stamp, drawn now if it was discarded.
+    fn get(&self) -> u64 {
+        let s = self.0.load(Ordering::Relaxed);
+        if s != 0 {
+            return s;
+        }
+        let new = ProfileStamp::fresh().0;
+        match self
+            .0
+            .compare_exchange(0, new, Ordering::Relaxed, Ordering::Relaxed)
+        {
+            Ok(_) => new,
+            Err(current) => current,
+        }
+    }
+}
+
+impl Clone for LazyStamp {
+    /// A clone is another matrix object: it draws its own identity.
+    fn clone(&self) -> Self {
+        Self::default()
+    }
+}
+
 /// Global sparse matrix in coordinate (COO) storage (0-based coordinates, with
 /// 1-based accessors for the solvers) with
 /// a first-insertion-order profile (upstream `SparseMatrixAIJ`,
@@ -244,7 +282,7 @@ pub struct SparseMatrixAij {
     value_release: u64,
     /// Process-unique identity of the current profile (port extension;
     /// see [`SparseMatrixAij::profile_identity`]).
-    profile_stamp: ProfileStamp,
+    profile_stamp: LazyStamp,
     /// Identity of the current *entry positions*: drawn afresh whenever an
     /// existing entry may move or change its key (construction, clone,
     /// `clear_profile`, `copy_profile`, promotion), but not when entries
@@ -259,6 +297,9 @@ pub struct SparseMatrixAij {
     /// Values and lookup map released, coordinates kept
     /// ([`SparseMatrixAij::release_values`]); revived by the next mutation.
     released: bool,
+    /// Row-gathered terms of the threaded matrix-vector product (built on
+    /// first use, keyed by the entry positions).
+    row_gather: threaded::RowGatherCache,
 }
 
 impl SparseMatrixAij {
@@ -278,11 +319,12 @@ impl SparseMatrixAij {
             profile: IntHashMap::default(),
             profile_release: 1,
             value_release: 1,
-            profile_stamp: ProfileStamp::fresh(),
+            profile_stamp: LazyStamp::default(),
             position_epoch: ProfileStamp::fresh(),
             scratch: Vec::new(),
             max_coord: -1,
             released: false,
+            row_gather: threaded::RowGatherCache::default(),
         }
     }
 
@@ -380,7 +422,7 @@ impl SparseMatrixAij {
     /// unchanged values. Local information (each process draws its own).
     #[must_use]
     pub fn profile_identity(&self) -> u64 {
-        self.profile_stamp.0
+        self.profile_stamp.get()
     }
 
     /// Raw COO data `(irn, jcn, a)`, 0-based global coordinates.
@@ -409,7 +451,7 @@ impl SparseMatrixAij {
 
     fn bump_profile(&mut self) {
         self.profile_release = self.profile_release.wrapping_add(1);
-        self.profile_stamp = ProfileStamp::fresh();
+        self.profile_stamp.invalidate();
     }
 
     fn bump_values(&mut self, n: u64) {
@@ -1041,7 +1083,7 @@ impl SparseMatrixAij {
         }
         self.size = other.size;
         self.profile_release = other.profile_release;
-        self.profile_stamp = ProfileStamp::fresh();
+        self.profile_stamp.invalidate();
         self.position_epoch = ProfileStamp::fresh();
         self.bump_values(1);
     }
@@ -1718,6 +1760,14 @@ impl BlockPositionCache {
         }
     }
 
+    /// `true` when [`BlockPositionCache::begin`] with `matrix` continues
+    /// this cache (the entry positions it was filled for are still
+    /// `matrix`'s), so that the round can take positions from it.
+    #[must_use]
+    pub fn continues(&self, matrix: &SparseMatrixAij) -> bool {
+        self.stamp != 0 && self.stamp == matrix.position_epoch.0
+    }
+
     /// Number of blocks whose positions were looked up and stored since
     /// the cache was created (diagnostic: a round that finds every block
     /// stored adds none).
@@ -1808,19 +1858,29 @@ impl BlockPositionCache {
     }
 
     fn store(&mut self, slot: usize, positions: &[u32]) {
+        let key = std::mem::take(&mut self.key);
+        self.store_with_key(slot, &key, positions);
+        self.key = key;
+    }
+
+    /// [`BlockPositionCache::store`] with the encoded equations `key`.
+    fn store_with_key(&mut self, slot: usize, key: &[u32], positions: &[u32]) {
         let w = self.eq_len();
-        debug_assert_eq!(self.key.len(), w);
+        debug_assert_eq!(key.len(), w);
         debug_assert_eq!(positions.len(), self.stride);
         if slot >= self.filled.len() {
             self.filled.resize(slot + 1, false);
             self.equations.resize((slot + 1) * w, 0);
             self.positions.resize((slot + 1) * self.stride, SKIP);
         }
-        self.equations[slot * w..(slot + 1) * w].copy_from_slice(&self.key);
+        self.equations[slot * w..(slot + 1) * w].copy_from_slice(key);
         self.positions[slot * self.stride..(slot + 1) * self.stride].copy_from_slice(positions);
         self.filled[slot] = true;
     }
 }
+
+#[path = "sparse_threaded.rs"]
+mod threaded;
 
 #[cfg(test)]
 #[path = "sparse_perf_tests.rs"]

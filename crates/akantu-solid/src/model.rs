@@ -37,7 +37,7 @@
 //! `DofManager::collective` operation whose local part is agreed before the
 //! reduction, so a rank-specific failure surfaces as an error on every rank.
 
-mod assembly;
+pub(crate) mod assembly;
 mod energy;
 mod io;
 mod non_local;
@@ -306,6 +306,12 @@ pub struct SolidMechanicsPhysics {
     /// different block sizes, and one shared set would be shrunk and grown
     /// back (zero-filled) twice per step.
     assembly_scratch: [assembly::AssemblyScratch; 2],
+    /// Reused buffers of the stiffness and mass assembly (the elemental
+    /// matrices of the last assembly are kept: a fresh array of that size
+    /// costs a page fault per 4 KiB at every assembly). Boxed: the model
+    /// is moved by value in debug constructors, its inline size is stack
+    /// (`akantu-couplers/tests/constructor_stack.rs`).
+    stiffness_scratch: Box<assembly::StiffnessScratch>,
 }
 
 /// Handle of a user event handler, returned by
@@ -551,6 +557,7 @@ impl SolidMechanicsModel {
             handlers: Vec::new(),
             next_handler_id: 0,
             assembly_scratch: Default::default(),
+            stiffness_scratch: Box::default(),
         };
         // upstream initDOFManager(dof_manager) (`model_solver.cc:78-95`):
         // the section's dof_manager_type (`default`; `petsc` with the opt-in
@@ -2128,7 +2135,17 @@ impl SolidMechanicsModel {
             dm.release_matrix_values("K")?;
             self.physics.need_to_reassemble_stiffness = true;
         }
+        *self.physics.stiffness_scratch = assembly::StiffnessScratch::default();
         Ok(())
+    }
+
+    /// Arrays in the pool of elemental matrices kept between stiffness and
+    /// mass assemblies, and bytes held by the kept arrays (diagnostic, for
+    /// tests: the pool must stay bounded over repeated assemblies).
+    #[doc(hidden)]
+    #[must_use]
+    pub fn assembly_scratch_footprint(&self) -> (usize, usize) {
+        self.physics.stiffness_scratch.footprint()
     }
 
     /// Upstream `assembleStiffnessMatrix(need_to_reassemble)`.

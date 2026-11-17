@@ -37,7 +37,7 @@
 use std::sync::Arc;
 
 use akantu_core::enums::MatrixType;
-use akantu_core::exec::{Tuples, TuplesRef};
+use akantu_core::exec::{Split, Tuples, TuplesRef};
 use akantu_core::tensor::{Matrix, MatrixExt, SquareMatrixExt, as_matrix, as_matrix_mut};
 use akantu_core::{
     Array, Element, ElementType, ElementTypeMapArray, Error, GhostType, Idx, Real, Result,
@@ -48,6 +48,7 @@ use akantu_model::constitutive_law::{
 };
 use akantu_parser::param::{ParamDescriptor, ParamKind, ParamValue, ParameterAccess};
 
+use super::scratch::ScratchBlocks;
 use super::thermal::{ThermalEnergy, ThermalParams, thermal_energy_correction, thermal_on_quad};
 use crate::material::{
     LawOptions, Material, MaterialBase, MaterialFactory, MaterialParams, check_tangent,
@@ -80,6 +81,9 @@ pub struct MaterialElastic<const DIM: usize> {
     mu: Real,
     kpa: Real,
     was_stiffness_assembled: bool,
+    /// The potential energy density of a block before it is committed
+    /// (`compute_potential_energy`; kept between calls).
+    energy_scratch: ScratchBlocks<1>,
 }
 
 impl<const DIM: usize> MaterialElastic<DIM> {
@@ -119,6 +123,7 @@ impl<const DIM: usize> MaterialElastic<DIM> {
             mu: 0.0,
             kpa: 0.0,
             was_stiffness_assembled: false,
+            energy_scratch: ScratchBlocks::default(),
         })
     }
 
@@ -311,6 +316,286 @@ impl<const DIM: usize> MaterialElastic<DIM> {
             );
         });
         Ok(())
+    }
+}
+
+/// Bytes of per-element data one block of the fused internal-force pass
+/// should touch (shape derivatives, gradients, stresses, thermal values,
+/// Jacobians, element vectors): about a quarter to a half of the private
+/// L2 cache of current x86-64 and aarch64 cores (512 KiB – 2 MiB), so that
+/// the second read of the shape derivatives (by `BᵀD`) and every
+/// intermediate array come from that cache.
+const FUSED_BLOCK_BYTES: usize = 192 * 1024;
+
+impl<const DIM: usize> MaterialElastic<DIM> {
+    /// The stresses of the not-ghost elements of `ty` and their element
+    /// vectors `∫ Bᵀσ` (small strain) or `∫ (B_L0 + B_L1)ᵀ S` (finite
+    /// deformation; into `r_e`, one tuple of `DIM·nn` per element of the
+    /// filter) in one pass per block of elements: per block the gradient of
+    /// `u` minus `eigen_grad_u` into `grad_u`, the thermal strain and
+    /// stress, the stress (or the second Piola–Kirchhoff stress), and its
+    /// integral over each element, while the block's data is in the cache. Every value is the
+    /// one of the separate passes (`computeAllStresses` of the law, then
+    /// `computeBtD` and `integrate` of the assembly) and every array other
+    /// code reads (`grad_u`, `stress`, `epsilon_th`, `sigma_th`) receives
+    /// the same values; the blocks of one thread follow each other in
+    /// element order and every element's results depend on its own data
+    /// only, so the bits are the same for every thread count and block
+    /// size.
+    ///
+    /// `Ok(false)`, with nothing written, when the arrays or the FE kernels
+    /// are not the ones this pass implements (a shape check of the separate passes that would fail, a product route
+    /// without a fixed-size kernel, a bad connectivity): the caller then
+    /// runs the separate passes, which report their errors.
+    ///
+    /// # Errors
+    /// The stress kernel's (none for checked shapes).
+    pub(crate) fn stress_and_element_forces(
+        &mut self,
+        fe: &akantu_fe::FeEngine,
+        mesh: &akantu_mesh::Mesh,
+        u: akantu_core::array::ArrayView<'_, Real>,
+        ty: ElementType,
+        r_e: &mut Array<Real>,
+    ) -> Result<bool> {
+        let ghost = GhostType::NotGhost;
+        if DIM == 0 {
+            return Ok(false);
+        }
+        let constants = self.constants();
+        let (thermal, plane_stress, thermal_strain) = (
+            &self.thermal,
+            self.plane_stress,
+            self.options.thermal_strain,
+        );
+        let MaterialBase {
+            element_filter,
+            grad_u,
+            eigen_grad_u,
+            stress,
+            piola_kirchhoff_2,
+            finite_deformation,
+            ..
+        } = &mut self.base;
+        let finite = *finite_deformation;
+        let filter = element_filter.get(ty, ghost)?;
+        let filter = filter.as_slice();
+        let d2 = DIM * DIM;
+        let Some(gp) = fe.gradient_plan(mesh, u, DIM, ty, ghost, filter) else {
+            return Ok(false);
+        };
+        let nq = gp.nb_points_per_element();
+        // the assembly of the block: `BᵀD` integrated (small strain) or the
+        // total-Lagrangian residual integrated (finite deformation)
+        let assembly = if finite {
+            match crate::model::assembly::ResidualPlan::new(fe, DIM, ty, ghost, filter) {
+                Some(p) if p.nb_points_per_element() == nq => Assembly::Residual(p),
+                _ => return Ok(false),
+            }
+        } else {
+            match fe.btd_integrate_plan(d2, ty, ghost, filter) {
+                Some(p) if p.operand_size() == nq * d2 => Assembly::Btd(p),
+                _ => return Ok(false),
+            }
+        };
+        let n = filter.len() * nq;
+        // finite deformation: the law's stress is the second
+        // Piola–Kirchhoff stress (an error of the separate passes when it is
+        // not registered)
+        let sigma_field = if finite {
+            match piola_kirchhoff_2.as_mut() {
+                Some(p) => p,
+                None => return Ok(false),
+            }
+        } else {
+            stress
+        };
+        // the shapes of the written blocks from their metadata (no guard,
+        // nothing saved or written yet)
+        let shape = |f: &InternalField<Real>| {
+            f.values()
+                .shared(ty, ghost)
+                .map(|a| (a.len(), a.nb_component()))
+                .ok()
+        };
+        let (Some(gu_s), Some(sigma_s), Some(eps_s), Some(sig_s)) = (
+            shape(grad_u),
+            shape(sigma_field),
+            shape(&self.epsilon_th),
+            shape(&self.sigma_th),
+        ) else {
+            return Ok(false);
+        };
+        let (Ok(eigen), Ok(dt)) = (eigen_grad_u.get(ty, ghost), self.delta_t.get(ty, ghost)) else {
+            return Ok(false);
+        };
+        // the shape checks of the separate passes (grad_u_in_place,
+        // MaterialThermal::computeStress, MaterialElastic::computeStress,
+        // computeBtD or the residual's field checks), all passing
+        let shapes_ok = n > 0
+            && gp.tuple_size() == d2
+            && gu_s == (n, d2)
+            && eigen.len() == n
+            && eigen.as_slice().len() == n * d2
+            && dt.len() == n
+            && eps_s.0 == n
+            && sig_s.0 == n
+            && dt.as_slice().len() == n
+            && sigma_s == (n, d2);
+        if !shapes_ok {
+            return Ok(false);
+        }
+        // Every value of `grad_u` and of the stress block is written below,
+        // and of the thermal blocks when they hold one value per point: a
+        // deferred history save of them becomes an exchange of allocations
+        // (announced here, on the caller, before the threaded region; undone
+        // below if the pass fails)
+        let thermal_full = eps_s.1 == 1 && sig_s.1 == 1;
+        let swapped = [
+            grad_u.prepare_overwrite(ty, ghost),
+            sigma_field.prepare_overwrite(ty, ghost),
+            thermal_full && self.epsilon_th.prepare_overwrite(ty, ghost),
+            thermal_full && self.sigma_th.prepare_overwrite(ty, ghost),
+        ];
+        let guards = match (
+            grad_u.get_mut(ty, ghost),
+            sigma_field.get_mut(ty, ghost),
+            self.epsilon_th.get_mut(ty, ghost),
+            self.sigma_th.get_mut(ty, ghost),
+        ) {
+            (Ok(a), Ok(b), Ok(c), Ok(d)) => Some((a, b, c, d)),
+            _ => None,
+        };
+        if guards.is_none() {
+            drop((guards, eigen, dt));
+            undo_overwrites(
+                [
+                    grad_u,
+                    sigma_field,
+                    &mut self.epsilon_th,
+                    &mut self.sigma_th,
+                ],
+                swapped,
+                ty,
+                ghost,
+            )?;
+            return Ok(false);
+        }
+        // (`{ guards }` moves the guards out, so no borrow outlives them)
+        let Some((mut gu, mut sigma, mut eps, mut sig_th)) = ({ guards }) else {
+            return Ok(false); // checked above
+        };
+        let es = assembly.element_size();
+        // the output preparation of `integrate` (`prepare_out`)
+        if r_e.nb_component() != es {
+            *r_e = Array::with_id(es, r_e.id().to_owned());
+        }
+        r_e.try_resize(filter.len(), 0.0)?;
+        let per_element =
+            8 * nq * (fe.shapes_derivatives(ty, ghost)?.nb_component() + 3 * d2 + 4) + 8 * es;
+        // `Grain::Finest` (the split of the thread-count tests): one element
+        // per block, so that every block boundary of a test case is exercised
+        let block = match fe.exec().policy().grain() {
+            akantu_core::exec::Grain::Finest => 1,
+            akantu_core::exec::Grain::Auto => (FUSED_BLOCK_BYTES / per_element.max(1)).max(1),
+        };
+        let items = (
+            (
+                Tuples::new(gu.as_mut_slice(), nq * d2),
+                TuplesRef::new(eigen.as_slice(), nq * d2),
+                TuplesRef::new(dt.as_slice(), nq),
+            ),
+            (
+                Tuples::new(eps.as_mut_slice(), nq),
+                Tuples::new(sig_th.as_mut_slice(), nq),
+                Tuples::new(sigma.as_mut_slice(), nq * d2),
+                Tuples::new(r_e.as_mut_slice(), es),
+            ),
+        );
+        let min = (2048 / nq).max(1);
+        let result = fe.exec().try_for_each(items, min, |first, part| {
+            let (mut rest, mut at) = (part, first);
+            while !rest.is_empty() {
+                let k = rest.len().min(block);
+                let (head, tail) = rest.split_at(k);
+                let ((mut g, e, dt), (mut eps, mut sig_th, mut sigma, mut r)) = head;
+                gp.run(at, e.as_slice(), g.as_mut_slice())?;
+                thermal_part::<DIM>(
+                    thermal,
+                    plane_stress,
+                    thermal_strain,
+                    dt.as_slice(),
+                    eps.as_mut_slice(),
+                    sig_th.as_mut_slice(),
+                );
+                stress_part::<DIM>(
+                    &constants,
+                    finite,
+                    g.as_mut_slice(),
+                    sigma.as_mut_slice(),
+                    sig_th.as_mut_slice(),
+                )?;
+                match &assembly {
+                    Assembly::Btd(p) => p.run(at, sigma.as_mut_slice(), r.as_mut_slice())?,
+                    Assembly::Residual(p) => {
+                        p.run(at, g.as_mut_slice(), sigma.as_mut_slice(), r.as_mut_slice());
+                    }
+                }
+                (rest, at) = (tail, at + k);
+            }
+            Ok(())
+        });
+        if result.is_err() {
+            // the values of the last save back in the exchanged blocks (a
+            // failure of the region comes from its plans' element accesses;
+            // the shapes were checked above)
+            drop((gu, sigma, eps, sig_th, eigen, dt));
+            undo_overwrites(
+                [
+                    grad_u,
+                    sigma_field,
+                    &mut self.epsilon_th,
+                    &mut self.sigma_th,
+                ],
+                swapped,
+                ty,
+                ghost,
+            )?;
+        }
+        result.map(|()| true)
+    }
+}
+
+/// [`InternalField::undo_overwrite`] of the blocks whose history
+/// [`InternalField::prepare_overwrite`] exchanged.
+fn undo_overwrites(
+    fields: [&mut InternalField<Real>; 4],
+    swapped: [bool; 4],
+    ty: ElementType,
+    ghost: GhostType,
+) -> Result<()> {
+    for (f, s) in fields.into_iter().zip(swapped) {
+        if s {
+            f.undo_overwrite(ty, ghost)?;
+        }
+    }
+    Ok(())
+}
+
+/// The assembly step of a block of the fused internal-force pass.
+enum Assembly<'a> {
+    /// `∫ BᵀD` (small strain).
+    Btd(akantu_fe::engine::BtdIntegratePlan<'a>),
+    /// `∫ (B_L0 + B_L1)ᵀ S` (finite deformation).
+    Residual(crate::model::assembly::ResidualPlan<'a>),
+}
+
+impl Assembly<'_> {
+    fn element_size(&self) -> usize {
+        match self {
+            Self::Btd(p) => p.element_size(),
+            Self::Residual(p) => p.element_size(),
+        }
     }
 }
 
@@ -683,10 +968,13 @@ impl<const DIM: usize> Material for MaterialElastic<DIM> {
     fn compute_potential_energy(&mut self, _ctx: &LawContext<'_>, ty: ElementType) -> Result<()> {
         let g = GhostType::NotGhost;
         let n = DIM * DIM;
-        let grad_u = self.base.grad_u.get(ty, g)?.clone();
-        let sigma = self.base.sigma_field()?.get(ty, g)?.clone();
-        let sigma_th = self.sigma_th.get(ty, g)?.clone();
-        let delta_t = self.delta_t.get(ty, g)?.clone();
+        // the inputs read in place, the densities into the law's scratch
+        // block (every value written), committed by exchange
+        let mut scratch = std::mem::take(&mut self.energy_scratch);
+        let grad_u = self.base.grad_u.get(ty, g)?;
+        let sigma = self.base.sigma_field()?.get(ty, g)?;
+        let sigma_th = self.sigma_th.get(ty, g)?;
+        let delta_t = self.delta_t.get(ty, g)?;
         let nq = grad_u.len();
         if sigma.len() != nq || sigma_th.len() != nq || delta_t.len() != nq {
             return Err(Error::DimensionMismatch {
@@ -695,17 +983,21 @@ impl<const DIM: usize> Material for MaterialElastic<DIM> {
                 got: sigma.len().min(sigma_th.len()).min(delta_t.len()),
             });
         }
-        let mut density = Vec::with_capacity(nq);
-        for (((gu, s), &th), &dt) in grad_u
+        let [density] = scratch.sized([(nq, 1)])?;
+        let mut written = 0;
+        for ((((gu, s), &th), &dt), d) in grad_u
             .as_slice()
             .chunks_exact(n)
             .zip(sigma.as_slice().chunks_exact(n))
             .zip(sigma_th.as_slice())
             .zip(delta_t.as_slice())
+            .zip(density.as_mut_slice())
         {
-            density.push(self.point_energy(as_matrix(gu)?, as_matrix(s)?, th, dt));
+            *d = self.point_energy(as_matrix(gu)?, as_matrix(s)?, th, dt);
+            written += 1;
         }
-        let mut epot = self.base.potential_energy.get_mut(ty, g)?;
+        drop((grad_u, sigma, sigma_th, delta_t));
+        let epot = self.base.potential_energy.get(ty, g)?;
         if epot.len() != nq {
             return Err(Error::DimensionMismatch {
                 context: "MaterialElastic::computePotentialEnergy: potential_energy",
@@ -713,8 +1005,21 @@ impl<const DIM: usize> Material for MaterialElastic<DIM> {
                 got: epot.len(),
             });
         }
-        epot.as_mut_slice().copy_from_slice(&density);
-        Ok(())
+        if written != nq || epot.nb_component() != 1 {
+            // blocks of inconsistent widths (one density per point)
+            return Err(Error::DimensionMismatch {
+                context: "MaterialElastic::computePotentialEnergy: densities",
+                expected: epot.as_slice().len(),
+                got: written,
+            });
+        }
+        drop(epot);
+        let result = self
+            .base
+            .potential_energy
+            .commit_overwrite(ty, g, scratch.get_mut(0));
+        self.energy_scratch = scratch;
+        result
     }
 
     fn potential_energy_by_element(
@@ -786,6 +1091,25 @@ impl<const DIM: usize> Material for MaterialElastic<DIM> {
         Some(&mut self.options)
     }
 
+    /// `compute_stress` writes every `epsilon_th`, `sigma_th` and stress
+    /// (PK2) value of the block from `delta_T`, `grad_u` and `sigma_th`
+    /// before reading it, and fails only on the shapes checked here.
+    fn prepare_stress_overwrite(&mut self, ty: ElementType, ghost: GhostType) {
+        if !self.prepare_thermal_overwrite(ty, ghost) {
+            return;
+        }
+        let n = shape(&self.base.grad_u, ty, ghost);
+        if shape(&self.sigma_th, ty, ghost).0 != n.0 {
+            return;
+        }
+        if let Ok(sigma) = self.base.sigma_field_mut()
+            && n.1 == DIM * DIM
+            && shape(sigma, ty, ghost) == n
+        {
+            let _ = sigma.prepare_overwrite(ty, ghost);
+        }
+    }
+
     /// 2-D plane stress: upstream `PlaneStressToolbox<2>::computeAllCauchyStresses`
     /// calls the (empty) `computeCauchyStressPlaneStress` for `elastic`.
     fn compute_all_cauchy_stresses(&mut self, ghost: GhostType) -> Result<()> {
@@ -798,6 +1122,33 @@ impl<const DIM: usize> Material for MaterialElastic<DIM> {
             return Ok(());
         }
         self.base.compute_all_cauchy_stresses(ghost)
+    }
+}
+
+/// `(tuples, components)` of a block (`(usize::MAX, 0)` if missing).
+fn shape(f: &InternalField<Real>, ty: ElementType, ghost: GhostType) -> (usize, usize) {
+    f.values()
+        .shared(ty, ghost)
+        .map_or((usize::MAX, 0), |a| (a.len(), a.nb_component()))
+}
+
+impl<const DIM: usize> MaterialElastic<DIM> {
+    /// [`InternalField::prepare_overwrite`] of the `epsilon_th` and
+    /// `sigma_th` blocks before [`Self::compute_thermal`], which writes every
+    /// value of both from `delta_T` when the three blocks have the same
+    /// length and one component (checked here; `false`, nothing done,
+    /// otherwise).
+    pub(crate) fn prepare_thermal_overwrite(&mut self, ty: ElementType, ghost: GhostType) -> bool {
+        let n = shape(&self.delta_t, ty, ghost);
+        if n.1 != 1
+            || shape(&self.epsilon_th, ty, ghost) != n
+            || shape(&self.sigma_th, ty, ghost) != n
+        {
+            return false;
+        }
+        let _ = self.epsilon_th.prepare_overwrite(ty, ghost);
+        let _ = self.sigma_th.prepare_overwrite(ty, ghost);
+        true
     }
 }
 
