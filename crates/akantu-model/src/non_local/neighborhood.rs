@@ -309,6 +309,7 @@ impl NonLocalNeighborhood {
             });
         }
         self.weight_memo = None;
+        self.contributions = Default::default();
         let index = self.points.len();
         self.grid.insert(index, coords)?;
         self.points.push(q);
@@ -628,8 +629,9 @@ impl NonLocalNeighborhood {
     /// nb_component, ghost_type)` over per-slot arrays of `nb_component`
     /// values.
     ///
-    /// With more than one part of `exec`, and when the slots increase with
-    /// the points (the manager's layout), every point's slot receives its
+    /// With at least 3 threads and more than one part of `exec`, and when
+    /// the slots increase with the points (the manager's layout), every
+    /// point's slot receives its
     /// contributions in pair order from the point's own list
     /// ([`PointContributions`]): the additions of the serial loop to that
     /// slot, in their order, so the same bits for every thread count; the
@@ -645,7 +647,12 @@ impl NonLocalNeighborhood {
         let g = gi(ghost);
         let n = nb_component;
         let np = self.points.len();
+        // from 3 threads: the per-point gather visits every pair twice, so
+        // at 2 threads it is slower than the serial half-pair loop
+        // (`explicit_mazars_non_local`: 1.085 of the one-thread step
+        // against 0.884 for the serial average at 2 threads)
         let threaded = n > 0
+            && exec.threads() >= 3
             && self.pair_list[g].len() < (u32::MAX / 2) as usize
             && exec.nb_parts(self.pair_list[g].len(), PAIRS_PER_PART) > 1
             && self.slots.len() == np
@@ -654,9 +661,13 @@ impl NonLocalNeighborhood {
                 (s + 1) * n <= accumulated.len() && (s + 1) * n <= to_accumulate.len()
             })
             && self.pair_weight[g].len() == self.pair_list[g].len();
-        if threaded {
-            let table = self.contributions[g]
-                .get_or_init(|| PointContributions::build(&self.pair_list[g], np, ghost));
+        let table = threaded.then(|| {
+            self.contributions[g]
+                .get_or_init(|| PointContributions::build(&self.pair_list[g], np, ghost))
+        });
+        // a table built for another number of points (a point inserted
+        // since): the serial loop
+        if let Some(table) = table.filter(|t| t.offsets.len() == np + 1) {
             let parts = exec.nb_parts(self.pair_list[g].len(), PAIRS_PER_PART);
             // point boundaries with balanced numbers of contributions, then
             // the slot ranges they own in `accumulated` (contiguous: the
