@@ -65,7 +65,11 @@ fn tets(n: usize) -> SimplexModel {
         ]);
         conn.push(vec![b, b + 1, b + 2, b + 3]);
     }
-    SimplexModel::new(3, &nodes, &conn)
+    // serial services: the allocation counts below assume the serial point
+    // loops (a thread pool allocates its parts)
+    let mut m = SimplexModel::new(3, &nodes, &conn);
+    m.serial = true;
+    m
 }
 
 /// `n` disjoint triangles.
@@ -79,7 +83,11 @@ fn tris(n: usize) -> SimplexModel {
         nodes.extend([vec![o, 0.], vec![o + 1.1, 0.2], vec![o + 0.3, 0.9]]);
         conn.push(vec![b, b + 1, b + 2]);
     }
-    SimplexModel::new(2, &nodes, &conn)
+    // serial services: the allocation counts below assume the serial point
+    // loops (a thread pool allocates its parts)
+    let mut m = SimplexModel::new(2, &nodes, &conn);
+    m.serial = true;
+    m
 }
 
 /// Allocations of one `computeStress` (after a first, warm-up step).

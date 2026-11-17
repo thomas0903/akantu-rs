@@ -80,6 +80,7 @@ use std::sync::Arc;
 
 use akantu_core::eigen_order as eo;
 use akantu_core::enums::MatrixType;
+use akantu_core::exec::{Tuples, TuplesRef};
 use akantu_core::glibc_libm;
 use akantu_core::tensor::{Matrix, MatrixExt, SquareMatrixExt, Vector, VectorExt, as_matrix};
 use akantu_core::voigt::{matrix_to_voigt, voigt_to_matrix};
@@ -612,8 +613,17 @@ impl<const DIM: usize> MaterialDruckerPrager<DIM> {
         }
     }
 
-    /// The projection over one block (after the thermal refresh).
-    fn dp_block(&mut self, ty: ElementType, ghost: GhostType) -> Result<()> {
+    /// The projection over one block (after the thermal refresh). The
+    /// points split over `exec`'s threads on copies of the blocks, written
+    /// back only when every point succeeded: an error is the first failing
+    /// point's and leaves the state unchanged at every split, as the serial
+    /// loop.
+    fn dp_block(
+        &mut self,
+        exec: &akantu_core::exec::Exec,
+        ty: ElementType,
+        ghost: GhostType,
+    ) -> Result<()> {
         let v = tangent_stiffness_voigt_size(DIM);
         let mut de = vec![0.; v * v];
         self.elastic.tangent_on_quad(&mut de);
@@ -662,26 +672,57 @@ impl<const DIM: usize> MaterialDruckerPrager<DIM> {
                 got: sigma.len().min(inel.len()),
             });
         }
-        let data = DpBlock {
-            de: &de,
-            grad_u: grad_u.as_slice(),
-            previous_grad_u: prev_grad_u.as_slice(),
-            previous_sigma: prev_sigma.as_slice(),
-            previous_inelastic_strain: prev_inel.as_slice(),
-            sigma_th: sigma_th.as_slice(),
-            previous_sigma_th: prev_sigma_th.as_slice(),
-        };
-        match DIM {
-            1 => {
-                dp_block_kernel::<1, 1>(&scalars, &data, sigma.as_mut_slice(), inel.as_mut_slice())?
-            }
-            2 => {
-                dp_block_kernel::<2, 3>(&scalars, &data, sigma.as_mut_slice(), inel.as_mut_slice())?
-            }
-            _ => {
-                dp_block_kernel::<3, 6>(&scalars, &data, sigma.as_mut_slice(), inel.as_mut_slice())?
-            }
+        let n = DIM * DIM;
+        if [
+            &grad_u,
+            &prev_grad_u,
+            &prev_sigma,
+            &sigma,
+            &inel,
+            &prev_inel,
+        ]
+        .iter()
+        .any(|a| a.nb_component() != n)
+        {
+            return Err(Error::DimensionMismatch {
+                context: "MaterialDruckerPrager::computeStress: components",
+                expected: n,
+                got: sigma.nb_component(),
+            });
         }
+        let items = (
+            (
+                TuplesRef::new(grad_u.as_slice(), n),
+                TuplesRef::new(prev_grad_u.as_slice(), n),
+                TuplesRef::new(prev_sigma.as_slice(), n),
+                TuplesRef::new(prev_inel.as_slice(), n),
+            ),
+            TuplesRef::new(sigma_th.as_slice(), 1),
+            TuplesRef::new(prev_sigma_th.as_slice(), 1),
+            Tuples::new(sigma.as_mut_slice(), n),
+            Tuples::new(inel.as_mut_slice(), n),
+        );
+        exec.try_for_each(
+            items,
+            512,
+            |_, ((g, pg, ps, pe), th, pth, mut sigma, mut inel)| {
+                let data = DpBlock {
+                    de: &de,
+                    grad_u: g.as_slice(),
+                    previous_grad_u: pg.as_slice(),
+                    previous_sigma: ps.as_slice(),
+                    previous_inelastic_strain: pe.as_slice(),
+                    sigma_th: th.as_slice(),
+                    previous_sigma_th: pth.as_slice(),
+                };
+                let (sigma, inel) = (sigma.as_mut_slice(), inel.as_mut_slice());
+                match DIM {
+                    1 => dp_block_kernel::<1, 1>(&scalars, &data, sigma, inel),
+                    2 => dp_block_kernel::<2, 3>(&scalars, &data, sigma, inel),
+                    _ => dp_block_kernel::<3, 6>(&scalars, &data, sigma, inel),
+                }
+            },
+        )?;
         self.elastic
             .base_mut()
             .sigma_field_mut()?
@@ -884,7 +925,7 @@ impl<const DIM: usize> Material for MaterialDruckerPrager<DIM> {
     /// point.
     fn compute_stress(
         &mut self,
-        _ctx: &LawContext<'_>,
+        ctx: &LawContext<'_>,
         ty: ElementType,
         ghost: GhostType,
     ) -> Result<()> {
@@ -893,8 +934,17 @@ impl<const DIM: usize> Material for MaterialDruckerPrager<DIM> {
                 "computeStress : not implemented yet !",
             ));
         }
-        self.elastic.compute_thermal(ty, ghost)?;
-        self.dp_block(ty, ghost)
+        let exec = crate::material::points_exec(self, ctx);
+        self.elastic.compute_thermal_with(exec, ty, ghost)?;
+        self.dp_block(exec, ty, ghost)
+    }
+
+    /// The projection of a point reads only that point's gradients,
+    /// stresses, inelastic strains and thermal stresses (copies of the
+    /// blocks, written back when every point succeeded) and the law's
+    /// constants; the plastic work is per point too.
+    fn independent_points(&self) -> bool {
+        true
     }
 
     /// Upstream `MaterialElastic::computeTangentModuli` (not overridden).
@@ -937,8 +987,10 @@ impl<const DIM: usize> Material for MaterialDruckerPrager<DIM> {
         )
     }
 
-    fn update_energies(&mut self, _ctx: &LawContext<'_>, ty: ElementType) -> Result<()> {
-        self.plastic.update_energies::<DIM>(self.elastic.base(), ty)
+    fn update_energies(&mut self, ctx: &LawContext<'_>, ty: ElementType) -> Result<()> {
+        let exec = crate::material::points_exec(self, ctx);
+        self.plastic
+            .update_energies::<DIM>(exec, self.elastic.base(), ty)
     }
 
     fn push_wave_speed(&self, element: Element) -> Result<Real> {

@@ -309,6 +309,13 @@ impl<const DIM: usize> MaterialBrittle<DIM> {
     }
 
     /// Upstream `computeStress(type, ghost)`.
+    /// Not declared: the point loop hands each point's state to a
+    /// sequential sink (the non-local variant stores it); the loop could be
+    /// split once the sink writes per-point arrays.
+    pub(crate) fn points_are_independent(&self) -> bool {
+        false
+    }
+
     pub(crate) fn stress_impl(
         &mut self,
         ctx: &LawContext<'_>,
