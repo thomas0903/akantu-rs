@@ -100,6 +100,10 @@ const DIAG_PIVOT_THRESH: f64 = 1.0;
 /// [`SparseOrdering::Auto`]: below this order COLAMD is kept without
 /// computing the nested dissection.
 pub const AUTO_MIN_ORDER: usize = 2000;
+/// [`SparseOrdering::Auto`]: below this number of stored entries COLAMD is
+/// kept without any prediction (the prediction's own cost would exceed 5 %
+/// of a factorisation this small).
+pub const AUTO_MIN_NNZ: usize = 100_000;
 /// [`SparseOrdering::Auto`]: when COLAMD's predicted work (`Σ c_j²`) is
 /// below this, COLAMD is kept without computing the nested dissection,
 /// whose own cost the gain would not cover.
@@ -967,7 +971,7 @@ fn diagonal_leads_every_column(a: &CscMatrix) -> bool {
 fn auto_ordering(a: &CscMatrix) -> Result<(Vec<i64>, OrderingReport)> {
     let n = a.n();
     let colamd = colamd::colamd_ordering(n, n, a.col_ptr(), a.row_idx())?;
-    if n < AUTO_MIN_ORDER || !diagonal_leads_every_column(a) {
+    if n < AUTO_MIN_ORDER || a.nnz() < AUTO_MIN_NNZ || !diagonal_leads_every_column(a) {
         return Ok((colamd, OrderingReport::default()));
     }
     let (xadj, adj) = nested_dissection::symmetric_pattern(n, a.col_ptr(), a.row_idx());

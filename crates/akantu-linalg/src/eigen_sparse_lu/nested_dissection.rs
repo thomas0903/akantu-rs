@@ -929,8 +929,9 @@ impl Compressed {
 /// Predicted size of the factors for the elimination order `order` of the
 /// symmetric pattern (`xadj`, `adj`): `(Σ c_j, Σ c_j²)` over the column
 /// counts `c_j` (diagonal included) of the Cholesky factor of the
-/// permuted `A + Aᵀ` (elimination tree, then the row subtrees; `O(|L|)`
-/// work). With diagonal pivots the LU factors of a structurally symmetric
+/// permuted `A + Aᵀ` (elimination tree, then the column counts of
+/// Gilbert, Ng and Peyton from the row subtrees' skeletons; almost linear
+/// in the nonzeros). With diagonal pivots the LU factors of a structurally symmetric
 /// matrix have this structure in both triangles.
 pub(crate) fn cholesky_counts(xadj: &[usize], adj: &[usize], order: &[usize]) -> (f64, f64) {
     let n = order.len();
@@ -944,9 +945,6 @@ pub(crate) fn cholesky_counts(xadj: &[usize], adj: &[usize], order: &[usize]) ->
     for (k, &v) in order.iter().enumerate() {
         for &x in &adj[xadj[v]..xadj[v + 1]] {
             let mut i = pinv[x];
-            if i >= k {
-                continue;
-            }
             while i != NONE && i < k {
                 let next = anc[i];
                 anc[i] = k;
@@ -958,36 +956,154 @@ pub(crate) fn cholesky_counts(xadj: &[usize], adj: &[usize], order: &[usize]) ->
             }
         }
     }
-    // column counts: row k of L is the union of the tree paths from its
-    // nonzeros below the diagonal up to k
-    let mut count = vec![1u64; n];
-    let mut mark = vec![NONE; n];
-    for k in 0..n {
-        mark[k] = k;
-        let v = order[k];
-        for &x in &adj[xadj[v]..xadj[v + 1]] {
-            let mut j = pinv[x];
-            if j >= k {
-                continue;
-            }
-            while mark[j] != k {
-                count[j] += 1;
-                mark[j] = k;
-                j = parent[j];
-                if j == NONE {
-                    break;
-                }
+    // postorder of the tree (children in increasing order)
+    let mut head = vec![NONE; n];
+    let mut next = vec![NONE; n];
+    for j in (0..n).rev() {
+        if parent[j] != NONE {
+            next[j] = head[parent[j]];
+            head[parent[j]] = j;
+        }
+    }
+    let mut post = Vec::with_capacity(n);
+    let mut stack = Vec::new();
+    for root in 0..n {
+        if parent[root] != NONE {
+            continue;
+        }
+        stack.push(root);
+        while let Some(&j) = stack.last() {
+            let c = head[j];
+            if c == NONE {
+                stack.pop();
+                post.push(j);
+            } else {
+                head[j] = next[c];
+                stack.push(c);
             }
         }
     }
-    let nnz: f64 = count.iter().map(|&c| c as f64).sum();
-    let flops: f64 = count.iter().map(|&c| (c as f64) * (c as f64)).sum();
+    // column counts (Gilbert, Ng and Peyton): the skeleton of each row
+    // subtree through first descendants and least common ancestors
+    // (`ancestor` as a disjoint-set forest with path compression)
+    let mut first = vec![NONE; n];
+    let mut delta = vec![0i64; n];
+    for (k, &j) in post.iter().enumerate() {
+        delta[j] = i64::from(first[j] == NONE);
+        let mut q = j;
+        while q != NONE && first[q] == NONE {
+            first[q] = k;
+            q = parent[q];
+        }
+    }
+    let mut ancestor: Vec<usize> = (0..n).collect();
+    let mut maxfirst = vec![NONE; n];
+    let mut prevleaf = vec![NONE; n];
+    for &j in &post {
+        if parent[j] != NONE {
+            delta[parent[j]] -= 1;
+        }
+        let v = order[j];
+        for &x in &adj[xadj[v]..xadj[v + 1]] {
+            let i = pinv[x];
+            // row i's subtree has j as a leaf when j is not inside the
+            // subtree of the previous leaf found for i
+            if i <= j || (maxfirst[i] != NONE && first[j] <= maxfirst[i]) {
+                continue;
+            }
+            maxfirst[i] = first[j];
+            let jprev = prevleaf[i];
+            prevleaf[i] = j;
+            delta[j] += 1;
+            if jprev != NONE {
+                let mut q = jprev;
+                while q != ancestor[q] {
+                    q = ancestor[q];
+                }
+                let mut s = jprev;
+                while s != q {
+                    let sp = ancestor[s];
+                    ancestor[s] = q;
+                    s = sp;
+                }
+                delta[q] -= 1;
+            }
+        }
+        if parent[j] != NONE {
+            ancestor[j] = parent[j];
+        }
+    }
+    for &j in &post {
+        if parent[j] != NONE {
+            delta[parent[j]] += delta[j];
+        }
+    }
+    let nnz: f64 = delta.iter().map(|&c| c as f64).sum();
+    let flops: f64 = delta.iter().map(|&c| (c as f64) * (c as f64)).sum();
     (nnz, flops)
 }
 
 #[cfg(test)]
 mod tests {
     use super::*;
+
+    /// The counts by walking every row subtree (`O(|L|)`), the reference.
+    fn cholesky_counts_by_row_subtrees(
+        xadj: &[usize],
+        adj: &[usize],
+        order: &[usize],
+    ) -> (f64, f64) {
+        let n = order.len();
+        let mut pinv = vec![0usize; n];
+        for (k, &v) in order.iter().enumerate() {
+            pinv[v] = k;
+        }
+        // elimination tree (Liu, with path compression through `anc`)
+        let mut parent = vec![NONE; n];
+        let mut anc = vec![NONE; n];
+        for (k, &v) in order.iter().enumerate() {
+            for &x in &adj[xadj[v]..xadj[v + 1]] {
+                let mut i = pinv[x];
+                if i >= k {
+                    continue;
+                }
+                while i != NONE && i < k {
+                    let next = anc[i];
+                    anc[i] = k;
+                    if next == NONE {
+                        parent[i] = k;
+                        break;
+                    }
+                    i = next;
+                }
+            }
+        }
+        // column counts: row k of L is the union of the tree paths from its
+        // nonzeros below the diagonal up to k
+        let mut count = vec![1u64; n];
+        let mut mark = vec![NONE; n];
+        for k in 0..n {
+            mark[k] = k;
+            let v = order[k];
+            for &x in &adj[xadj[v]..xadj[v + 1]] {
+                let mut j = pinv[x];
+                if j >= k {
+                    continue;
+                }
+                while mark[j] != k {
+                    count[j] += 1;
+                    mark[j] = k;
+                    j = parent[j];
+                    if j == NONE {
+                        break;
+                    }
+                }
+            }
+        }
+        let nnz: f64 = count.iter().map(|&c| c as f64).sum();
+        let flops: f64 = count.iter().map(|&c| (c as f64) * (c as f64)).sum();
+        (nnz, flops)
+    }
 
     /// The pattern of a 3-D grid, `c` unknowns per node, 26 neighbours.
     pub(crate) fn grid(p: usize, c: usize) -> (usize, Vec<usize>, Vec<usize>) {
@@ -1133,6 +1249,34 @@ mod tests {
             assert!(
                 w0.max(w1) <= (0.62 * (w0 + w1 + ws) as f64) as u64,
                 "{w0} {w1} {ws}"
+            );
+        }
+    }
+
+    #[test]
+    fn column_counts_equal_the_row_subtree_walk() {
+        for (p, c) in [(6, 1), (5, 3), (9, 1)] {
+            let (n, cp, ri) = grid(p, c);
+            let (x, a) = symmetric_pattern(n, &cp, &ri);
+            let nd = nested_dissection_order(n, &cp, &ri);
+            let natural: Vec<usize> = (0..n).collect();
+            // a scrambled order (deterministic)
+            let mut scrambled = natural.clone();
+            scrambled.sort_by_key(|&v| (v * 7919) % n);
+            for order in [&nd, &natural, &scrambled] {
+                assert_eq!(
+                    cholesky_counts(&x, &a, order),
+                    cholesky_counts_by_row_subtrees(&x, &a, order)
+                );
+            }
+        }
+        // a forest (two components) and a matrix with isolated vertices
+        let x = vec![0, 1, 2, 2, 3, 4];
+        let a = vec![1, 0, 4, 3];
+        for order in [vec![0, 1, 2, 3, 4], vec![4, 2, 0, 3, 1]] {
+            assert_eq!(
+                cholesky_counts(&x, &a, &order),
+                cholesky_counts_by_row_subtrees(&x, &a, &order)
             );
         }
     }
