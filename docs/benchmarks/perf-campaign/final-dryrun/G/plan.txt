@@ -1,0 +1,24 @@
+Part G plan: mesh 0.06, 2 run(s) per point, 8 cores, memory limit 29g per run
+Runs one at a time, so the machine time is the sum of the runs whatever their order;
+the order removes waste: the partition exports of every rank count first (each run then
+replays its file); the port at the largest rank count first (the shortest full-size run,
+and it measures the memory of that rank count before the C++ run, whose peak was within
+8 % of the port's at 32 and 64 ranks); the longest and least needed run (8 ranks) last,
+so a short budget drops it, not a comparison.
+
+Pinning: rank r of a run with T threads per rank on the r-th block of T entries of the
+host's cores ordered NUMA node by NUMA node (this host: 0,1,2,3,4,5,6,7);
+each run's actual rank -> cores is recorded from /proc and checked (runs/*.bindings.txt).
+
+step                   cores used               expected peak GiB  expected wall  cumulative
+export np8             C++, partition only                    1.0          0 min       0.01h
+export np4             C++, partition only                    1.0          0 min       0.02h
+8:head                 8 (8 ranks x 1)                        3.2          0 min       0.02h
+8:cpp                  8 (8 ranks x 1)                        4.0          0 min       0.03h
+4x2:head               8 (4 ranks x 2)                        3.0          0 min       0.03h
+8:head                 8 (8 ranks x 1)                        3.2          0 min       0.03h
+8:cpp                  8 (8 ranks x 1)                        4.0          0 min       0.04h
+4x2:head               8 (4 ranks x 2)                        3.0          0 min       0.04h
+
+Expected machine time of part G: 0.0 h (plus the set-up of the machine and prepare.sh);
+estimates and their basis: scripts/perf/final/g-estimates.txt. A '?' has no estimate.

@@ -761,10 +761,10 @@ part_f_mpilayer() {
 }
 
 part_g() {
-  local mesh=joss steps=5000 pts="${gpoints}" pt np t vs v r
-  if [ "$size" = dry ]; then mesh=0.06; steps=200; [ -n "$pts" ] || pts="8:head 8:cpp 4x2:head"
-  else [ -n "$pts" ] || pts="128:head 128:cpp 64:head 64:cpp 32:head 32:cpp 64x2:head 32x4:head 16x8:head 8:head"; fi
-  g_plan "$mesh" "$pts" | tee "$D/plan.txt"
+  local mesh=joss steps=5000 gpts="${gpoints}" pt np t vs v r
+  if [ "$size" = dry ]; then mesh=0.06; steps=200; [ -n "$gpts" ] || gpts="8:head 8:cpp 4x2:head"
+  else [ -n "$gpts" ] || gpts="128:head 128:cpp 64:head 64:cpp 32:head 32:cpp 64x2:head 32x4:head 16x8:head 8:head"; fi
+  g_plan "$mesh" "$gpts" | tee "$D/plan.txt"
   [ "$planonly" = 1 ] && return 0
   if [ "$mesh" = joss ]; then
     docker run --rm -v akantu-perf-cohesive:/perf:ro "${FIN_ORACLE_IMAGE}" test -f /perf/meshes/cube-joss.msh \
@@ -774,7 +774,7 @@ part_g() {
   # the partitions first, once per rank count (C++ export runs, stopped once
   # partition.csv is complete); every run replays them
   local done_np=" "
-  for pt in $pts; do
+  for pt in $gpts; do
     np=${pt%%:*}; t=1
     case "$np" in *x*) t=${np#*x}; np=${np%%x*} ;; esac
     [ $((np * t)) -le "$NCORES" ] || continue
@@ -783,7 +783,7 @@ part_g() {
     done_np="${done_np}${np} "
   done
   for ((r = 1; r <= reps; r++)); do
-    for pt in $pts; do
+    for pt in $gpts; do
       np=${pt%%:*}; t=1
       case "$np" in *x*) t=${np#*x}; np=${np%%x*} ;; esac
       IFS=, read -r -a vs <<< "${pt#*:}"
