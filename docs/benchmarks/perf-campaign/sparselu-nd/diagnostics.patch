@@ -1,8 +1,8 @@
 diff --git a/crates/akantu-linalg/src/eigen_sparse_lu/mod.rs b/crates/akantu-linalg/src/eigen_sparse_lu/mod.rs
-index 8433b3abf..0c6319f20 100644
+index 8433b3abf..b83fe0882 100644
 --- a/crates/akantu-linalg/src/eigen_sparse_lu/mod.rs
 +++ b/crates/akantu-linalg/src/eigen_sparse_lu/mod.rs
-@@ -930,6 +930,163 @@ fn solve_u(mode: Mode, n: usize, g: &Glu, x: &mut [f64]) {
+@@ -930,6 +930,239 @@ fn solve_u(mode: Mode, n: usize, g: &Glu, x: &mut [f64]) {
      }
  }
  
@@ -124,28 +124,44 @@ index 8433b3abf..0c6319f20 100644
 +            children[parent[j]].push(j);
 +        }
 +    }
++    let line = format!("ND_TREE column etree (AtA) ordering {} n {}", lu.report.used, n)
++        + &greedy_subtrees(&parent, &work);
++    eprintln!("{line}");
++}
++
++/// Greedy split of the heaviest subtree, LPT assignment to P threads, the
++/// top serial: the best speed-up bound and its share of work in subtrees.
++fn greedy_subtrees(parent: &[usize], work: &[f64]) -> String {
++    let n = work.len();
++    let mut sub = work.to_vec();
++    let mut children: Vec<Vec<usize>> = vec![Vec::new(); n];
++    for j in 0..n {
++        if parent[j] < n {
++            sub[parent[j]] += sub[j];
++            children[parent[j]].push(j);
++        }
++    }
 +    let total: f64 = work.iter().sum();
 +    let roots: Vec<usize> = (0..n).filter(|&j| parent[j] >= n).collect();
-+    let mut line = format!("ND_TREE ordering {} n {} work {:.3e} roots {}", lu.report.used, n, total, roots.len());
++    let mut line = format!(" work {total:.3e} roots {}", roots.len());
 +    for p in [2usize, 4, 8] {
 +        let mut frontier = roots.clone();
 +        let mut top = 0.0;
 +        let mut best = (1.0f64, 0.0f64);
-+        for _ in 0..20000 {
-+            // LPT assignment of the frontier's subtrees to p threads
++        for _ in 0..200000 {
 +            let mut w: Vec<f64> = frontier.iter().map(|&r| sub[r]).collect();
 +            w.sort_by(|a, b| b.partial_cmp(a).unwrap());
 +            let mut loads = vec![0f64; p];
-+            for x in &w {
++            for x in w.iter().take(4096) {
 +                let i = (0..p).min_by(|&a, &b| loads[a].partial_cmp(&loads[b]).unwrap()).unwrap();
 +                loads[i] += x;
 +            }
-+            let make = loads.iter().copied().fold(0.0, f64::max);
++            let rest: f64 = w.iter().skip(4096).sum();
++            let make = loads.iter().copied().fold(0.0, f64::max) + rest / p as f64;
 +            let bound = total / (top + make);
 +            if bound > best.0 {
 +                best = (bound, 1.0 - top / total);
 +            }
-+            // split the heaviest subtree that has children
 +            let Some((pos, _)) = frontier
 +                .iter()
 +                .enumerate()
@@ -158,15 +174,75 @@ index 8433b3abf..0c6319f20 100644
 +            top += work[r];
 +            frontier.extend(children[r].iter().copied());
 +        }
-+        line += &format!(" | P {p}: bound {:.2} share_in_subtrees {:.3}", best.0, best.1);
++        line += &format!(" | P {p}: bound {:.3} share_in_subtrees {:.3}", best.0, best.1);
 +    }
-+    eprintln!("{line}");
++    line
++}
++
++/// Diagnostic (ND_TREE): the same estimate on the elimination tree of the
++/// symmetric pattern `A + Aᵀ` in the analysed order (the tree of a
++/// dissection whose halves are independent), per-column work `c_j²`.
++fn diag_tree_sym(lu: &SparseLu, a: &CscMatrix) {
++    let n = a.n();
++    let (xadj, adj) = nested_dissection::symmetric_pattern(n, a.col_ptr(), a.row_idx());
++    let mut order = vec![0usize; n];
++    for (c, &p) in lu.perm_c.iter().enumerate() {
++        order[p as usize] = c;
++    }
++    let mut pinv = vec![0usize; n];
++    for (k, &v) in order.iter().enumerate() {
++        pinv[v] = k;
++    }
++    let none = usize::MAX;
++    let mut parent = vec![none; n];
++    let mut anc = vec![none; n];
++    for (k, &v) in order.iter().enumerate() {
++        for &x in &adj[xadj[v]..xadj[v + 1]] {
++            let mut i = pinv[x];
++            while i != none && i < k {
++                let next = anc[i];
++                anc[i] = k;
++                if next == none {
++                    parent[i] = k;
++                    break;
++                }
++                i = next;
++            }
++        }
++    }
++    let mut count = vec![1f64; n];
++    let mut mark = vec![none; n];
++    for (k, &v) in order.iter().enumerate() {
++        mark[k] = k;
++        for &x in &adj[xadj[v]..xadj[v + 1]] {
++            let mut j = pinv[x];
++            if j >= k {
++                continue;
++            }
++            while mark[j] != k {
++                count[j] += 1.0;
++                mark[j] = k;
++                j = parent[j];
++                if j == none {
++                    break;
++                }
++            }
++        }
++    }
++    let work: Vec<f64> = count.iter().map(|c| c * c).collect();
++    let par: Vec<usize> = parent.iter().map(|&p| if p == none { n } else { p }).collect();
++    eprintln!(
++        "ND_TREE symmetric etree ordering {} n {}{}",
++        lu.report.used,
++        n,
++        greedy_subtrees(&par, &work)
++    );
 +}
 +
  /// `perm[c]` = position of column `c`, from an elimination order; an
  /// error when `order` is not a permutation of `0..order.len()`.
  fn perm_of_order(order: &[usize]) -> Result<Vec<i64>> {
-@@ -1023,6 +1180,8 @@ fn auto_ordering(a: &CscMatrix) -> Result<(Vec<i64>, OrderingReport)> {
+@@ -1023,6 +1256,8 @@ fn auto_ordering(a: &CscMatrix) -> Result<(Vec<i64>, OrderingReport)> {
  #[derive(Debug, Default)]
  pub struct EigenSparseLuSolver {
      lu: SparseLu,
@@ -175,7 +251,7 @@ index 8433b3abf..0c6319f20 100644
      analysed: Option<(u64, MatrixType)>,
      /// Scratch of the solves ([`SparseLu::solve_with`]).
      scratch: Vec<f64>,
-@@ -1085,11 +1244,22 @@ impl SparseDirectSolver for EigenSparseLuSolver {
+@@ -1085,11 +1320,23 @@ impl SparseDirectSolver for EigenSparseLuSolver {
          // failed refactorisation, whatever step fails.
          self.lu.invalidate();
          let c = CscMatrix::from_aij(a)?;
@@ -194,6 +270,7 @@ index 8433b3abf..0c6319f20 100644
 +            diag_report(&self.lu, a, b, x);
 +            if std::env::var_os("ND_TREE").is_some() {
 +                diag_tree(&self.lu);
++                diag_tree_sym(&self.lu, a);
 +            }
 +        }
 +        Ok(())
