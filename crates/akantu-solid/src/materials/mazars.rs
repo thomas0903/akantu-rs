@@ -528,6 +528,10 @@ impl<const DIM: usize, P: DamageParent<DIM>> MaterialMazars<DIM, P> {
 /// A copy of `a` made in parts of `exec`'s threads (the same values as
 /// `Array::clone`; the id is not needed by the local copies).
 fn clone_with(exec: &Exec, a: &Array<Real>) -> Result<Array<Real>> {
+    if !exec.is_parallel() {
+        // one thread: the copy as before
+        return Ok(a.clone());
+    }
     // `vec!` of zeros takes zeroed pages from the allocator without a
     // write pass; the parts then touch (and copy into) their own pages
     let mut c = Array::from_vec(vec![0.0; a.as_slice().len()], a.nb_component())?;
@@ -548,7 +552,7 @@ fn copy_back(
     mut dst: akantu_core::array_shared::ArrayMut<'_, Real>,
     src: &Array<Real>,
 ) -> Result<()> {
-    if dst.len() != src.len() || dst.nb_component() != src.nb_component() {
+    if !exec.is_parallel() || dst.len() != src.len() || dst.nb_component() != src.nb_component() {
         return dst.copy_from(src);
     }
     let items = (
