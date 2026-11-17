@@ -183,7 +183,83 @@ columns with COLAMD, 68 with ND in its first solve, where ND still pays).
 
 ## Validation
 
-@VALIDATION@
+Rule `fast_mode/linalg/sparse_lu_ordering`
+(`fixtures/fast_mode/linalg/tolerances.json`,
+`tests/sparse_lu_ordering.rs`): `|ND − COLAMD| ≤ 1e-12·max|x|` on three
+matrices (3-D grids with 1 and 3 unknowns per node, a saddle-point matrix);
+measured at most 2.1e-15 of max|x|. The other tests of that file: the
+residuals `‖Ax − b‖/‖b‖` of both orderings (below 2.5e-15 on its
+matrices), the off-diagonal pivots of both (the saddle-point matrix: 1,157
+with COLAMD, 1,231 with ND; a diagonally dominant matrix: none with
+either), the same kind of error for a structurally singular matrix (an
+empty row), a column of stored zeros and a rank-one block, factors and
+solutions identical at 1, 2, 3, 4 and 8 threads (both grains, every update
+threshold), and a permutation that depends on the pattern only.
+
+**Suite** (diagnostic build, `diag/summary.md`): per solver case, the
+first solve's residual and 1-norm condition estimate, and the difference
+between the two orderings' digested states (`--dump-state`, every value
+the digest absorbs), relative to the largest value:
+
+| case | condition estimate | residual COLAMD / ND | state difference |
+|---|---|---|---|
+| cohesive_intrinsic_implicit | 1.85e+05 | 3.157e-15 / 2.652e-15 | 2.58e-13 |
+| contact_implicit_static_quad4 | 7.42e+03 | 9.677e-16 / 7.405e-16 | 1.39e-17 |
+| embedded_rebar_tet4 | 2.54e+10 | 6.197e-14 / 4.550e-14 | 1.01e-13 |
+| embedded_rebar_tri3 | 2.52e+11 | 4.892e-13 / 3.477e-13 | 3.49e-13 |
+| heat_implicit_hex8_kvar | 1.80e+02 | 5.374e-16 / 4.685e-16 | 4.48e-16 |
+| heat_static_tri6 | 3.07e+04 | 2.336e-15 / 1.590e-15 | 2.66e-14 |
+| implicit_dynamic | 9.69e+01 | 1.668e-15 / 1.232e-15 | 1.64e-15 |
+| phasefield_staggered_tet4 | 2.15e+03 | 1.940e-15 / 1.489e-15 | 1.88e-15 |
+| phasefield_staggered_tri3 | 1.42e+05 | 4.328e-15 / 3.126e-15 | 2.62e-14 |
+| static_linear_eigen | 6.85e+10 | 2.823e-15 / 2.052e-15 | 3.32e-14 |
+| static_newton_plastic | 9.59e+10 | 1.734e-15 / 1.331e-15 | 4.29e-15 |
+| structural_beam3_frame_dynamic | 9.74e+10 | 1.095e-15 / 1.418e-15 | 1.14e-13 |
+| structural_beam3_frame_static | 8.65e+09 | 2.449e-12 / 1.613e-12 | 1.53e-13 |
+| structural_dkt18_plate_static | 1.85e+10 | 6.647e-11 / 1.258e-10 | 4.84e-12 |
+
+The differences grow with the condition number and stay far below the
+worst-case `κ·u`; the residuals of the two orderings are of the same size
+(nested dissection's mostly smaller: less fill, shorter sums). The plate
+is the outlier: it pivots off the diagonal in 45 % of its columns, and its
+residuals (6.6e-11, 1.3e-10) are the largest of the suite with either
+ordering.
+
+**Cohesive static solve** (diagnostic build, `diag/cohesive.txt`): the
+displacements differ by 9.1e-14 of max|u| at h = 0.12 (condition estimate
+2.4e11; residuals 1.2e-13 COLAMD, 8.5e-14 ND) and 9.7e-14 at h = 0.06
+(1.3e11; 5.3e-13, 3.1e-13). After the 10 explicit steps of the series
+(`c1/SUMMARY.md`) the energies differ by 6e-16 (potential) and 5e-13
+(kinetic) relatively at h = 0.12, 3e-14 and 7e-13 at h = 0.06; COLAMD's
+equal C++'s in every printed digit.
+
+**Fragmentation** (`c1ins/`, h = 0.12, 1,200 steps of the full schedule,
+one run each): C++, the port with COLAMD and the port with ND insert the
+same 129 cohesive elements in the same 113 insertion steps, the first at
+step 710 (identical `insertions.csv`). COLAMD's energy history equals
+C++'s in every printed digit; ND's differs at most by 1.2e-9 relatively in
+the dissipated energy (growing with the cracks, largest at the last
+step), 4.7e-11 in the external work, 5.4e-13 in the kinetic, 1.3e-14 in
+the potential and 7.2e-15 in the total energy. Over longer runs the
+dissipated energy's difference keeps growing and a different insertion
+sequence is to be expected, as between two solvers (the baseline's
+MUMPS / SparseLU comparison, `../baseline/summary.md`).
+
+## Against C++: the cohesive static solve, Eigen's SparseLU on both sides
+
+`c1_nd.sh` (c1prep cases `cppeig` / `rusteig`, one rank, the oracle's
+strict build on the C++ side; 3 repetitions at h = 0.12, 2 at h = 0.06;
+the variants of a repetition in a rotated order). `static_solve` median
+[min, max] and the paired ratios; peak RSS of the run; raw data `c1/`,
+`c1/SUMMARY.md` (`c1_summary.py`).
+
+| h | unknowns | C++ | COLAMD 1 thread | ND 1 | ND 2 | ND 4 | ND 8 | COLAMD 8 | peak RSS C++ / COLAMD / ND (MiB) |
+|---|---|---|---|---|---|---|---|---|---|
+| 0.12 | 14,472 | 2.908 s | 2.062 s (0.708) | 0.869 s (0.299) | 0.769 s (0.265) | 0.697 s (0.239) | 0.670 s (0.230) | 1.270 s (0.437) | 526 / 418 / 348 |
+| 0.06 | 97,551 | 245.6 s | 206.0 s (0.839) | 38.3 s (0.156) | 25.5 s (0.104) | 17.8 s (0.072) | 14.2 s (0.058) | 56.7 s (0.231) | 7,624 / 5,335 / 3,163 |
+
+(ratio to C++ per repetition in parentheses). Fill: 16.4 M and 9.4 M
+nonzeros in L + U at h = 0.12, 380 M and 156 M at h = 0.06.
 
 ## Threads over the elimination tree
 
