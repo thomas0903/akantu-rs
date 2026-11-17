@@ -305,6 +305,14 @@ pub trait SparseDirectSolver: std::fmt::Debug + Send {
     fn set_upstream_compat(&mut self, compat: SparseSolverCompat) {
         let _ = compat;
     }
+    /// The executor of the factorisations and solves that follow (the DOF
+    /// manager's, D-123: threads, SIMD level, precision). The solver stack
+    /// calls it before every solve; in [`akantu_core::exec::Precision::Bitwise`]
+    /// every result is the same for every thread count. Default: ignored
+    /// (a solver without threaded kernels).
+    fn set_exec(&mut self, exec: &akantu_core::exec::Exec) {
+        let _ = exec;
+    }
     /// Diagnostic statistics of the last solve as `(name, value)` pairs in a
     /// fixed order (MUMPS: ordering, memory and flop figures of its
     /// `INFOG`/`RINFOG` arrays, workspace retries, for the

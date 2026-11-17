@@ -104,7 +104,7 @@ bit on one process; on 2 and 4 processes PETSc's default preconditioner is
 block Jacobi instead of ILU(0), so the result moves within the solver's
 tolerances (upstream's own criterion holds); with a preconditioner that
 does not depend on the partition (the solver's option `pc_type none`) the
-distributed and one-process results agree within `1e-14`.
+distributed and one-process results agree within $10^{-14}$.
 
 The phase-field model's bounded `petsc_tao` solve is described in
 [The phase-field model](models/phase-field.md#bounded-tao-solve). The

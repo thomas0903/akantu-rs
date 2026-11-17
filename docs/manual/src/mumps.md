@@ -141,7 +141,7 @@ accepted. The backend clears its pointers to the distributed matrix entries
 5.7.3 reads the distributed matrix during the solve phase when these
 controls are set was not established. The tests that set `ICNTL(10) = 2`
 or `ICNTL(11) = 2` (`crates/akantu-linalg/tests/mumps_mpi.rs`) check only
-that the residual is below 1e-10, which holds whether or not MUMPS
+that the residual is below $10^{-10}$, which holds whether or not MUMPS
 refines.
 
 ## Rules a program must follow (D-054)
@@ -194,9 +194,10 @@ the analysis, factorisation and solve are redone, up to `ICNTL(14) = 90`.
 
 Upstream's retry has a defect (UD-216, category B): after a retry during
 the factorisation its outer solve uses the *solution* of the inner solve
-as right-hand side, so after `k` retries it returns `A^-(k+1) b` without
-any error (confirmed on the oracle: relative error 1.4e23 after 8
-retries). The port starts every solve from the original right-hand side.
+as right-hand side, so after $k$ retries it returns
+$\boldsymbol{A}^{-(k+1)}\boldsymbol{b}$ instead of
+$\boldsymbol{A}^{-1}\boldsymbol{b}$ without any error (confirmed on the
+oracle: relative error $1.4 \times 10^{23}$ after 8 retries). The port starts every solve from the original right-hand side.
 The switch `mumps_retry_with_solution_rhs` of the DOF manager's
 `akantu::solver::UpstreamCompat` reproduces upstream; it applies to every
 sparse solver of that manager, also after the non-linear solver
@@ -216,7 +217,7 @@ assert!(upstream.sparse_solver().mumps_retry_with_solution_rhs);
 
 Tests: `crates/akantu-solver/tests/mumps_mpi_solver.rs::ud216_manager_compat`
 (corrected: bitwise equal to the solve without retry; compat: upstream's
-`A^-(k+1) b`) and
+$\boldsymbol{A}^{-(k+1)}\boldsymbol{b}$) and
 `review_v54_regressions.rs::mu06_manager_wide_ud216_switch_reaches_every_solver`.
 
 ## Bitwise reproducibility

@@ -60,6 +60,8 @@
 #      PIN_CPUS_LIST (optional comma list of host CPUs, e.g. ordered NUMA node
 #      by NUMA node: a run on N ranks x T threads gets its first N x T entries;
 #      takes precedence over PIN_CPUS_FROM).
+#      RUST_THREADS (default unset = 1): the default of --rust-threads (threads per
+#      rank of the Rust runs).
 #      The former environment variables MEMORY, CPUS, RUST_IMAGE, RUST_BIN are
 #      still read as defaults of the options.
 #
@@ -163,7 +165,7 @@ fi
 
 usage() { sed -n '12,/^# Problem:/p' "$0" | sed '$d'; exit 2; }
 memory="${MEMORY:-14g}" cpus="${CPUS:-8}" partitions="" full_export=0 rust_extra=()
-rust_threads="" rust_precision=""
+rust_threads="${RUST_THREADS:-}" rust_precision=""
 rust_image="${RUST_IMAGE:-akantu-rs-mumps:dev}"
 rust_bin="${RUST_BIN:-/target/c1/release/cohesive_extrinsic}"
 tvol="${RUST_VOLUME:-akantu-rs-mpi-target}"

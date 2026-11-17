@@ -107,7 +107,8 @@ precedence:
 3. the global input-file parameter `seed`,
 4. the current time (`time(nullptr)`),
 
-and the value is multiplied by `rank + 1`, so every MPI rank draws a
+and the value $s$ is multiplied by $r + 1$ on the rank $r$
+(`rank + 1`), so every MPI rank draws a
 different sequence (random fields therefore depend on the number of
 ranks, as upstream). `initial_seed` implements this policy:
 

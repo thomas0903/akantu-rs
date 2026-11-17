@@ -222,7 +222,9 @@ pub trait LinearSystemBackend: std::fmt::Debug + Send {
     }
     /// Run the whole-matrix operations (zeroing, sums, Dirichlet rows,
     /// products) on the threads of `exec`, with the results of one thread
-    /// (D-123). Default: ignored.
+    /// (D-123), and hand `exec` to the sparse solver of every solve
+    /// (`SparseDirectSolver::set_exec`: threads, SIMD level, fast mode).
+    /// Default: ignored.
     fn set_exec(&mut self, exec: &akantu_core::exec::Exec) {
         let _ = exec;
     }
@@ -819,7 +821,8 @@ pub struct AijBackend {
     /// solver of every solve (D-041 (4)).
     sparse_compat: SparseSolverCompat,
     /// Executor of the whole-matrix operations (zeroing, sums, Dirichlet
-    /// rows, products): the DOF manager's (D-123).
+    /// rows, products) and of the sparse solver of every solve
+    /// (`SparseDirectSolver::set_exec`): the DOF manager's (D-123).
     exec: akantu_core::exec::Exec,
 }
 
@@ -1153,6 +1156,7 @@ impl LinearSystemBackend for AijBackend {
             // it was (re)allocated; identical on every rank (and part of a
             // MUMPS solve's agreed options descriptor).
             solver.set_upstream_compat(self.sparse_compat);
+            solver.set_exec(&self.exec);
         }
         if let Some(solver) = self.solvers.get_mut(id)
             && solver.capabilities().matrix == MatrixDistribution::DistributedAssembled

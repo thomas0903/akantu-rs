@@ -10,6 +10,7 @@
 
 mod solver_oracle;
 
+use akantu_core::exec::{Exec, ExecPolicy, Grain};
 use akantu_linalg::direct::{CscMatrix, SparseDirectSolver};
 use akantu_linalg::eigen_sparse_lu::{EigenSparseLuSolver, SparseLu};
 use akantu_validation::Fixture;
@@ -31,10 +32,39 @@ fn check_reals(f: &Fixture, name: &str, got: &[f64]) {
     );
 }
 
+/// The executors of the thread-invariance runs: 2, 3, 4 and 8 threads,
+/// automatic and finest grain (D-123).
+fn threaded_execs() -> Vec<Exec> {
+    let mut v = Vec::new();
+    for threads in [2, 3, 4, 8] {
+        for grain in [Grain::Auto, Grain::Finest] {
+            let policy = ExecPolicy::serial()
+                .with_threads(threads)
+                .unwrap()
+                .with_grain(grain);
+            v.push(Exec::new(policy).unwrap());
+        }
+    }
+    v
+}
+
 /// Analyse, factorise and solve `a`, comparing everything the probe stored
 /// under `lu/`. Returns the number of compared values.
 fn check_lu(f: &Fixture, a: &CscMatrix, b: &[f64]) -> usize {
+    let mut n = check_lu_with(f, a, b, None);
+    // the same bits with every panel update on threads
+    for exec in threaded_execs() {
+        n += check_lu_with(f, a, b, Some(exec));
+    }
+    n
+}
+
+fn check_lu_with(f: &Fixture, a: &CscMatrix, b: &[f64], exec: Option<Exec>) -> usize {
     let mut lu = SparseLu::default();
+    if let Some(exec) = exec {
+        lu.set_exec(exec);
+        lu.set_threaded_update_min(Some(0));
+    }
     lu.analyze_pattern(a).unwrap();
     check_ints(f, "lu/perm_c", lu.perm_c());
     check_ints(f, "lu/etree", lu.etree());

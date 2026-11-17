@@ -37,41 +37,178 @@ What this release does not contain:
 
 ## Theory
 
-The crack is represented by a nodal damage field `d(x)` (`0` intact, `1`
-broken) regularised over the length scale `l0`. For a given strain field,
-`d` solves the stationarity condition of the sum of the degraded elastic
-energy and the regularised fracture energy. The port registers the two laws that
+### Variational formulation of brittle fracture
+
+Francfort and Marigo (1998) recast Griffith's theory as the minimisation
+of a total energy. A body $\Omega$ with a crack $\Gamma$ and the
+displacement $\boldsymbol{u}$ has the elastic energy and the surface
+energy
+
+$$
+\Phi_e(\boldsymbol{u}, \Gamma) = \int_{\Omega \setminus \Gamma} \psi(\boldsymbol{\varepsilon}(\boldsymbol{u})) \, \mathrm{d}\Omega,
+\qquad
+\Phi_s(\Gamma) = \int_\Gamma \mathcal{G}_c \, \mathrm{d}\mathcal{H}^{d-1},
+$$
+
+with $\mathcal{H}^{d-1}$ the $(d-1)$-dimensional Hausdorff measure (the
+length of a curve in 2-D, the area of a surface in 3-D), $\mathcal{G}_c$
+the critical energy release rate and, for small strains and linear
+elasticity, the energy density
+
+$$
+\psi(\boldsymbol{\varepsilon}) = \frac{1}{2} \lambda (\operatorname{tr} \boldsymbol{\varepsilon})^2
++ \mu \, \boldsymbol{\varepsilon} : \boldsymbol{\varepsilon} .
+$$
+
+The crack path is the one that minimises $\Phi_e + \Phi_s$ under the
+loading, which needs no criterion for the initiation, the direction or the
+branching of a crack.
+
+### Regularised crack and the two laws
+
+Bourdin, Francfort and Marigo (2000) approximate the sharp crack by a
+nodal damage field $d(\boldsymbol{x})$ ($0$ intact, $1$ broken) spread
+over the length scale $l_0$ (parameter `l0`), and the energy by
+
+$$
+E(\boldsymbol{u}, d) = \int_\Omega g(d) \, \psi^+(\boldsymbol{\varepsilon})
++ \psi^-(\boldsymbol{\varepsilon}) \, \mathrm{d}\Omega
++ \int_\Omega \frac{g_c}{c_w} \left( \frac{w(d)}{l_0} + l_0 \, \nabla d \cdot \nabla d \right) \mathrm{d}\Omega ,
+$$
+
+with the degradation function $g(d) = (1 - d)^2$, the split
+$\psi = \psi^+ + \psi^-$ of the elastic energy (below), $g_c$ the
+critical energy release rate (parameter `gc`) and a local dissipation
+$w(d)$ normalised by $c_w$: $w = d^2$, $c_w = 2$ for the `quadratic` law
+(AT2) and $w = d$, $c_w = 8/3$ for the `linear` law (AT1). As $l_0 \to 0$
+the second integral tends to the crack length times $g_c$. In one
+dimension, a crack at $x = 0$ ($d(0) = 1$) without load has the profile
+$d = e^{-|x|/l_0}$ with AT2 and, when the damage is bounded to
+$[0, 1]$ (the `tao` irreversibility below),
+$d = (1 - |x|/(2 l_0))^2$ for $|x| \le 2 l_0$ and $0$ beyond with AT1;
+the ports of upstream's tests check both
+(`test_phase_field_model.rs`, `petsc_models.rs::test_phase_field_optimal_linear`).
+
+![Damage profiles of AT2 and AT1 around a crack at x = 0, compared with the sharp crack](../figures/phase-field-crack-profile.svg)
+*Figure: one-dimensional damage profiles around a crack at $x = 0$: AT2 decays exponentially over $l_0$, AT1 (with bounds) vanishes beyond $2 l_0$; the sharp crack is the limit $l_0 \to 0$.*
+
+For a given strain field, $d$ solves the stationarity condition of $E$
+with respect to $d$. The port registers the two laws that
 upstream's code registers (`instantiatePhaseField<…>("quadratic")` and
 `("linear")`):
 
 | | `quadratic` (AT2) | `linear` (AT1) |
 |---|---|---|
-| fracture energy density | `g_c d²/(2 l0) + ½ g_c l0 ∇d·∇d` | `3 g_c d/(8 l0) + ⅜ g_c l0 ∇d·∇d` |
-| driving force (per point) | `−2φ + d (2φ + g_c/l0)` | `−2φ + 3 g_c/(8 l0) + d · 2φ` |
-| gradient coefficient (`damage_energy`) | `g_c l0 I` | `¾ g_c l0 I` |
-| initial history `φ_prev` | `0` | `3 g_c/(16 l0)` |
+| fracture energy density | $\frac{g_c d^2}{2 l_0} + \frac{1}{2} g_c l_0 \nabla d \cdot \nabla d$ | $\frac{3 g_c d}{8 l_0} + \frac{3}{8} g_c l_0 \nabla d \cdot \nabla d$ |
+| driving force (per point) | $-2\phi + d \left(2\phi + \frac{g_c}{l_0}\right)$ | $-2\phi + \frac{3 g_c}{8 l_0} + 2\phi \, d$ |
+| gradient coefficient (`damage_energy`) | $g_c l_0 \boldsymbol{I}$ | $\frac{3}{4} g_c l_0 \boldsymbol{I}$ |
+| initial history $\phi_\text{prev}$ | $0$ | $\frac{3 g_c}{16 l_0}$ |
 
-Here `φ` is the driving energy density computed from the strain by the
-energy split (below) and `g_c` the critical energy release rate (parameter
-`gc`). The model assembles, per element,
+Here $\phi$ is the driving energy density computed from the strain by the
+energy split (below) and $g_c$ the critical energy release rate (parameter
+`gc`). The driving force is the derivative of the point's energy
+$(1 - d)^2 \phi + \frac{g_c}{c_w l_0} w(d)$ with respect to $d$, and the
+gradient coefficient twice the factor of $\nabla d \cdot \nabla d$.
+
+### Energy split and degradation
+
+The energy split decides which part of the elastic energy drives the
+damage and is degraded by it. It is the option of the `phasefield`
+section ([Using the model](#using-the-model)) and computes, from the
+strain $\boldsymbol{\varepsilon}$ of each quadrature point, the driving
+energy density $\phi = \psi^+$:
+
+$$
+\begin{aligned}
+\texttt{no\_split}: \quad & \phi = \frac{1}{2} \lambda (\operatorname{tr} \boldsymbol{\varepsilon})^2 + \mu \, \boldsymbol{\varepsilon} : \boldsymbol{\varepsilon} \\
+\texttt{volumetric\_deviatoric}: \quad & \phi = \frac{1}{2} \kappa \langle \operatorname{tr} \boldsymbol{\varepsilon} \rangle_+^2
++ \mu \left( \boldsymbol{\varepsilon} : \boldsymbol{\varepsilon} - \frac{(\operatorname{tr} \boldsymbol{\varepsilon})^2}{3} \right)
+\end{aligned}
+$$
+
+with the Lamé constants $\lambda$, $\mu$ of `E`, `nu` and `Plane_Stress`
+and the bulk modulus $\kappa = \lambda + \frac{2}{3}\mu$. With
+`volumetric_deviatoric` a volumetric compression
+($\operatorname{tr} \boldsymbol{\varepsilon} < 0$) does not drive the
+damage. The second formula is the port's default in 1-D and 2-D (UD-387,
+[Differences from upstream](#differences-from-upstream)); in 3-D it is
+upstream's.
+
+The degradation of the stress is the solid's side: the material
+`phasefield` computes
+$\boldsymbol{\sigma} = \left((1 - d)^2 + \eta\right) \boldsymbol{\sigma}^+ + \boldsymbol{\sigma}^-$
+with the same split and a residual stiffness $\eta$ (parameter `eta`)
+that keeps the broken material from losing all stiffness; its formulas
+are on the page [The phase-field material](../laws/phasefield.md). The
+phase-field laws use $g(d) = (1 - d)^2$ without $\eta$.
+
+### History field and strong form
+
+The damage must not heal when the load decreases. With the default
+`irreversibility_type = history` the laws replace $\phi$ by the history
+field
+
+$$
+\mathcal{H}(\boldsymbol{x}, t) = \max\left(\phi(\boldsymbol{x}, t), \ \phi_\text{prev}(\boldsymbol{x})\right),
+$$
+
+where $\phi_\text{prev}$ is the largest $\phi$ saved by
+`save_previous_state()` (Miehe, Hofacker and Welschinger, 2010); the
+other choices are described in [Irreversibility](#irreversibility). The
+stationarity of $E$ with $\phi$ replaced by $\mathcal{H}$ gives the strong
+forms
+
+$$
+\begin{aligned}
+\text{AT2}: \quad & 2 (1 - d) \mathcal{H} = \frac{g_c}{l_0} \left( d - l_0^2 \Delta d \right) \\
+\text{AT1}: \quad & 2 (1 - d) \mathcal{H} = \frac{3 g_c}{8 l_0} \left( 1 - 2 l_0^2 \Delta d \right)
+\end{aligned}
+\qquad \text{in } \Omega, \qquad \nabla d \cdot \boldsymbol{n} = 0 \ \text{on } \partial\Omega .
+$$
+
+For AT1 the right-hand side is positive at $d = 0$: the damage starts only
+when $\mathcal{H}$ exceeds $3 g_c/(16 l_0)$, which is why the initial
+history of the `linear` law is that value (it keeps $d = 0$ below the
+elastic limit, without bounds on $d$).
+
+### Discretisation
+
+The model assembles, per element,
+
+$$
+\begin{aligned}
+\boldsymbol{f}^\text{int} &= -\int_{\Omega_e} \boldsymbol{N}^T f_d \, \mathrm{d}\Omega
+- \int_{\Omega_e} \boldsymbol{B}^T \left( \boldsymbol{D}_d \nabla d \right) \mathrm{d}\Omega \\
+\boldsymbol{K} &= \int_{\Omega_e} \boldsymbol{N}^T k_d \boldsymbol{N} \, \mathrm{d}\Omega
++ \int_{\Omega_e} \boldsymbol{B}^T \boldsymbol{D}_d \boldsymbol{B} \, \mathrm{d}\Omega
+\end{aligned}
+$$
+
+with the driving force $f_d$, the gradient coefficient
+$\boldsymbol{D}_d$ (`damage_energy`) and the density $k_d$
+(`damage_energy_density`) of the table, in the names of the code:
 
 ```text
 f_int = −∫ Nᵀ · driving_force − ∫ Bᵀ · (damage_energy · ∇d)
 K     =  ∫ Nᵀ · damage_energy_density · N + ∫ Bᵀ · damage_energy · B
 ```
 
-with `damage_energy_density = 2φ + g_c/l0` (AT2) or `2φ` (AT1), and solves
-`f_ext + f_int = 0` for `d`. For the `quadratic` law this is the weak form
+with $k_d$ = `damage_energy_density` $= 2\phi + g_c/l_0$ (AT2) or $2\phi$ (AT1), and solves
+$\boldsymbol{f}^\text{ext} + \boldsymbol{f}^\text{int} = \boldsymbol{0}$ for $d$. For the `quadratic` law this is the weak form
 of the strong form given by the upstream manual,
-`2(1 − d)φ = (g_c/l0)(d − l0² Δd)` with `∇d · n = 0` on the boundary.
+$2(1 - d)\phi = (g_c/l_0)(d - l_0^2 \Delta d)$ with $\nabla d \cdot \boldsymbol{n} = 0$ on the boundary.
 
-Under a homogeneous strain the damage is uniform (`∇d = 0`) and the two
+### Homogeneous solutions
+
+Under a homogeneous strain the damage is uniform ($\nabla d = 0$) and the two
 laws have closed forms, which the example below checks:
 
-* AT2: `d = 2φ / (2φ + g_c/l0)`, damage at any load;
-* AT1: `d = 1 − 3 g_c / (16 l0 φ)` once `φ` exceeds the elastic limit
-  `3 g_c/(16 l0)`, and `d = 0` below it (the initial history `φ_prev`
-  keeps `φ` at that limit).
+* AT2: $d = 2\phi / (2\phi + g_c/l_0)$, damage at any load;
+* AT1: $d = 1 - 3 g_c / (16 l_0 \phi)$ once $\phi$ exceeds the elastic limit
+  $3 g_c/(16 l_0)$, and $d = 0$ below it (the initial history $\phi_\text{prev}$
+  keeps $\phi$ at that limit).
+
+### Differences from the upstream manual
 
 Differences from the upstream manual (the code of upstream is the
 reference, D-003):
@@ -79,13 +216,13 @@ reference, D-003):
 * the manual describes an "exponential" law (`phasefield exponential`);
   upstream's code has no such law and refuses the keyword, as the port
   does (test `manual_claims_2.rs::doc014_upstream_law_names`);
-* the manual's strong form prints `d − l0² d`; the Laplacian `Δd` is
+* the manual's strong form prints $d - l_0^2 d$; the Laplacian $\Delta d$ is
   meant (it is what both codes assemble);
 * the manual says the default solver "is of linear type": the default
   solver of the `static` method is a Newton–Raphson solver with the
   pseudo-time scheme (upstream `getDefaultSolverOptions`; test
   `manual_claims_2.rs::doc014_default_solver`). With `history`
-  irreversibility the residual is linear in `d` and `K` is its exact
+  irreversibility the residual is linear in $d$ and $\boldsymbol{K}$ is its exact
   Jacobian (test
   `phase_field_checks.rs::stiffness_is_the_exact_jacobian_of_the_residual`),
   so the first Newton correction gives the solution.
@@ -135,7 +272,7 @@ Defaults: `l0 = gc = E = nu = 0`, `irreversibility_type = history`,
 `manual_claims_2.rs::doc014_phase_field_defaults_of_e_and_nu`). `gc` is a random
 parameter (`gc = 5e-3 uniform [0, 1e-3]` draws one value per quadrature
 point, see [Random parameters](../input-files.md#random-parameters)); the
-penalties `γ` and `ρ_rec` below use its base value.
+penalties $\gamma$ and $\rho_\text{rec}$ below use its base value.
 
 The model has the usual life cycle. Driving the two models by hand (the
 coupler of [Model couplers](couplers.md) does it for a whole
@@ -225,9 +362,9 @@ for law in ["quadratic", "linear"] {
 ```
 
 With `eps = 4e-3` the `linear` law stays below its elastic limit
-(`φ < 3 g_c/(16 l0)`, `d = 0`, no fracture energy) while the `quadratic`
+($\phi < 3 g_c/(16 l_0)$, $d = 0$, no fracture energy) while the `quadratic`
 one is already damaged. The fracture energy is the integral of the
-densities of the table above (`∇d = 0` here).
+densities of the table above ($\nabla d = 0$ here).
 
 Model functions (upstream name in parentheses):
 
@@ -268,14 +405,14 @@ the law whose `name` equals the element's physical name. Tests:
 
 `irreversibility_type` selects how the damage is kept from decreasing:
 
-* `history` (default): `φ ← max(φ, φ_prev)` at every point, with
-  `φ_prev` updated by `save_previous_state()`; without that call the
+* `history` (default): $\phi \leftarrow \max(\phi, \phi_\text{prev})$ at every point, with
+  $\phi_\text{prev}$ updated by `save_previous_state()`; without that call the
   damage follows the load (test
   `phase_field_checks.rs::history_keeps_the_damage_of_the_maximum_load`);
-* `penalization`: the driving force gains `γ · min(0, d − d_prev)` with
-  `γ = g_c/l0 · (1/tol² − 1)` (AT2) or `g_c/l0 · 27/(64 tol²)` (AT1),
-  `tol = irreversibility_tol`; AT1 also penalises negative damage with
-  `ρ_rec = g_c/l0 · 9 (diam/l0 − 2)/(64 recovery_tol)`, `diam` the
+* `penalization`: the driving force gains $\gamma \min(0, d - d_\text{prev})$ with
+  $\gamma = \frac{g_c}{l_0} \left(\frac{1}{\text{tol}^2} - 1\right)$ (AT2) or $\frac{g_c}{l_0} \frac{27}{64\, \text{tol}^2}$ (AT1),
+  tol = `irreversibility_tol`; AT1 also penalises negative damage with
+  $\rho_\text{rec} = \frac{g_c}{l_0} \frac{9 (\text{diam}/l_0 - 2)}{64\, \text{tol}_\text{rec}}$ (tol<sub>rec</sub> = `recovery_tol`), diam the
   diagonal of the mesh bounding box (tests
   `phase_field_checks.rs::linear_penalization_point_problem` and
   `review_v67_regressions.rs`);
@@ -295,8 +432,8 @@ the law whose `name` equals the element's physical name. Tests:
   `NonLinearSolverTAO::setBounds`), so a staggered loop rebuilds them
   after every step from the new damage, as above (the lower bound 0 makes
   the damage irreversible, the upper bound keeps it below 1). Upstream's
-  TAO objective is exact only when the increment `δ = 0` satisfies the
-  bounds, which `0 ≤ δ ≤ 1 − d` always does; other bounds are refused
+  TAO objective is exact only when the increment $\delta = 0$ satisfies the
+  bounds, which $0 \le \delta \le 1 - d$ always does; other bounds are refused
   (UD-1022, see below). A serial mesh can use the PETSc DOF manager in a
   job of one MPI process only (the manager runs on `MPI_COMM_WORLD`, as
   upstream's; on more processes the request is refused), a distributed
@@ -327,21 +464,21 @@ Any other value is refused ("Unknown irreversibility type"; test
 The PETSc DOF manager is selected before `init_full`, then the default
 solver is `petsc_tao` with the `petsc` sparse solver (upstream
 `initDOFManager("petsc")` and `ModelSolverOptions{_petsc_tao, _petsc}`);
-before every step the bounds `0 ≤ δ ≤ 1 − d` of the damage increment are
+before every step the bounds $0 \le \delta \le 1 - d$ of the damage increment are
 built from the current damage as upstream's tests do
 (`assembleToGlobalArray("damage", d, upper, -1.)`). Without the feature
 `init_dof_manager("petsc")` is refused.
 
 The bounds must allow a zero increment: a solve whose bounds exclude
-`δ = 0` on some row (`lower > 0` or `upper < 0`) is refused with
+$\delta = 0$ on some row (`lower > 0` or `upper < 0`) is refused with
 `Error::Unsupported` naming UD-1022, on every process alike and before
 anything of the solve runs, so the model is unchanged and the next step
 can be solved with other bounds (decision D-088). Upstream accepts such
 bounds and returns a wrong result: its TAO objective is exact only at
-`δ = 0`, and TAO's GPCG evaluates it once, at the projection of `0` onto
+$\delta = 0$, and TAO's GPCG evaluates it once, at the projection of $0$ onto
 the bounds, so it minimises a shifted functional (32 % off on the
-project's test bar). The phase field's `0 ≤ δ ≤ 1 − d` always contains
-`0`. The DOF manager's upstream-compatibility switch
+project's test bar). The phase field's $0 \le \delta \le 1 - d$ always contains
+$0$. The DOF manager's upstream-compatibility switch
 `UpstreamCompat::tao_bounds_excluding_zero_increment` reproduces
 upstream's result (tests `petsc_mpi.rs` scenarios
 `petsc_tao_ud1022_refused` and `petsc_tao_ud1022`, 1, 2 and 4
@@ -403,10 +540,10 @@ model solid_mechanics_model [
 ]
 ```
 
-`σ = ((1 − d)² + η) σ⁺ + σ⁻`, where `σ⁺`/`σ⁻` come from the split (with
-`no_split`, `σ⁻ = 0`) and `η` (parameter `eta`) keeps a residual
+$\boldsymbol{\sigma} = \left((1 - d)^2 + \eta\right) \boldsymbol{\sigma}^+ + \boldsymbol{\sigma}^-$, where $\boldsymbol{\sigma}^+$/$\boldsymbol{\sigma}^-$ come from the split (with
+`no_split`, $\boldsymbol{\sigma}^- = \boldsymbol{0}$) and $\eta$ (parameter `eta`) keeps a residual
 stiffness; `degrade_mass = true` also scales the density of each point by
-`min(1, (1 − d)² + η)`. The damage is the material's `damage` internal,
+$\min\left(1, (1 - d)^2 + \eta\right)$. The damage is the material's `damage` internal,
 written by the coupler. Tests: `crates/akantu-solid/tests/test_material_phasefield.rs`
 (material-point checks: degradation bounds, split, energies, tangents,
 degraded mass) and the material replays of parity rows MAT-030/031.
@@ -420,7 +557,7 @@ That coupler is `akantu::couplers::CouplerSolidPhaseField` ([Model
 couplers](couplers.md)). Its data contract, which a program can also
 follow with the functions above, is described in the crate
 documentation of `akantu::phase_field` (section *Coupling with solid
-mechanics*): the strain `½(∇u + ∇uᵀ) − ε_th I` of every solid point goes
+mechanics*): the strain $\frac{1}{2}(\nabla \boldsymbol{u} + \nabla \boldsymbol{u}^T) - \varepsilon_\text{th} \boldsymbol{I}$ of every solid point goes
 into the `strain` internal of the phase-field laws (as in the example), and
 the nodal damage interpolated on the solid's quadrature points goes into
 the `damage` internal of the material with the same name. The phase-field
@@ -429,6 +566,49 @@ analytical damage and tolerances: `test_phase_field_model.rs::{test_phase_solid_
 test_phase_field_deviatoric_split_phase_field,
 test_phase_field_anisotropic_phase_field, test_penalization_phase_field,
 test_phase_field_linear_phase_field}`.
+
+### Staggered scheme
+
+The coupled problem is solved by alternate minimisation (Bourdin,
+Francfort and Marigo, 2000): the energy $E(\boldsymbol{u}, d)$ is convex
+in $\boldsymbol{u}$ for a fixed $d$ and in $d$ for a fixed
+$\boldsymbol{u}$, though not in both together, so the two fields are
+solved one after the other. At a load step with the boundary conditions
+of that step, iteration $k$ computes
+
+$$
+\begin{aligned}
+\boldsymbol{u}^k &: \ \text{equilibrium of the solid with the damage } d^{k-1}, \\
+d^k &: \ \text{stationarity of } E(\boldsymbol{u}^k, d) \text{ with the history } \mathcal{H}(\boldsymbol{\varepsilon}(\boldsymbol{u}^k)),
+\end{aligned}
+$$
+
+which is one call of `CouplerSolidPhaseField::solve(solid_id,
+phase_id)`: `solid.solve_step`, the strain transfer to the phase-field
+laws, `phase.solve_step`, the damage transfer to the solid's material
+and the solid's internal forces with the new damage. The coupler does not
+iterate by itself. A quasi-static program repeats `solve` within each load
+step, either a fixed number of times (upstream's `phase_field_notch`
+example and its port make 10 iterations) or until
+`check_convergence(u_new, u_old, d_new, d_old)` returns `true`:
+
+$$
+\max\left( \lVert \boldsymbol{u}^k - \boldsymbol{u}^{k-1} \rVert_2, \
+\lVert \boldsymbol{d}^k - \boldsymbol{d}^{k-1} \rVert_2 \right) < 10^{-8},
+$$
+
+the first norm over the solid's free DOFs (the caller keeps the copies of
+the previous iterate). Under `history` irreversibility,
+`phase.save_previous_state()` after a load step makes its history
+$\phi_\text{prev}$ the reference of the next steps.
+
+In a dynamic simulation the solid is integrated explicitly
+(`ExplicitLumpedMass`) and the phase field solved statically, with one
+`solve` per time step and no convergence check, as in upstream's
+`phasefield-dynamic.py`.
+
+![Damage field of a notched plate in which the crack has propagated from the notch and branched](../figures/upstream/phasefield-dynamic.png)
+*Figure: dynamic crack propagation and branching in a pre-strained notched plate, damage field (computed with the C++ library; figure of the Akantu manual).*
 
 ## Differences from upstream
 
@@ -443,9 +623,9 @@ model with `PhaseFieldModel::set_upstream_compat`,
 | UD-378 | stiffness assembly stops at the first element type without elements of the law | the empty type is skipped | `stiffness_stops_at_empty_filter` |
 | UD-379 | per-element energy uses the first point's `g_c` for every point | each point's `g_c` | `element_energy_first_point_gc` |
 | UD-380 | per-element energy integrates over the law-local index taken as a mesh index | the element's own Jacobians | `element_energy_local_index_as_mesh_index` |
-| UD-385 | AT1 with `penalization` accepts `ρ_rec ≤ 0` (mesh diagonal `≤ 2 l0`): anti-penalty, Newton can diverge | refused at initialisation | `accept_nonpositive_recovery_penalty` |
-| UD-387 | `volumetric_deviatoric` driving energy in 1-D/2-D uses the deviator of the 1×1 / 2×2 block (`tr ε / 3`, out-of-plane components dropped): `φ⁺` is not the potential of the degraded stress `σ⁺`, and `φ⁺ + φ⁻` is not the unsplit energy | `φ⁺ = ½κ⟨tr ε⟩₊² + μ(ε:ε − (tr ε)²/3)`, the potential of `σ⁺` (plane strain / uniaxial strain kinematics; 3-D unchanged) | `in_block_deviator_energy` |
-| UD-388 | AT1 penalisation tangent `γ [d < d_prev]` is singular on full unloading | one-sided derivative `γ [d ≤ d_prev]` | `at1_strict_irreversibility_indicator` |
+| UD-385 | AT1 with `penalization` accepts $\rho_\text{rec} \le 0$ (mesh diagonal $\le 2 l_0$): anti-penalty, Newton can diverge | refused at initialisation | `accept_nonpositive_recovery_penalty` |
+| UD-387 | `volumetric_deviatoric` driving energy in 1-D/2-D uses the deviator of the 1×1 / 2×2 block ($\operatorname{tr} \boldsymbol{\varepsilon} / 3$, out-of-plane components dropped): $\phi^+$ is not the potential of the degraded stress $\boldsymbol{\sigma}^+$, and $\phi^+ + \phi^-$ is not the unsplit energy | $\phi^+ = \frac{1}{2}\kappa\langle \operatorname{tr} \boldsymbol{\varepsilon} \rangle_+^2 + \mu\left(\boldsymbol{\varepsilon}:\boldsymbol{\varepsilon} - (\operatorname{tr} \boldsymbol{\varepsilon})^2/3\right)$, the potential of $\boldsymbol{\sigma}^+$ (plane strain / uniaxial strain kinematics; 3-D unchanged) | `in_block_deviator_energy` |
+| UD-388 | AT1 penalisation tangent $\gamma \, [d < d_\text{prev}]$ is singular on full unloading | one-sided derivative $\gamma \, [d \le d_\text{prev}]$ | `at1_strict_irreversibility_indicator` |
 
 Each row is pinned by a regression test of the default and of the switch
 (the tests named in [`docs/UPSTREAM_DEFECTS.md`](../../../UPSTREAM_DEFECTS.md)),
@@ -455,8 +635,21 @@ x86_64 strict oracle) are replayed bit for bit in upstream mode
 exactly the quantities its case declares
 (`phase_field_fixtures.rs::phase_field_fixtures_bitwise`).
 Kept on purpose (category C): stale per-element energies (UD-386). With
-the UD-387 correction a uniaxial plane strain `ε` drives the damage with
-`φ⁺ = ½κε² + (2/3)με²` (upstream: `(5/9)με²`); the port of upstream's
+the UD-387 correction a uniaxial plane strain $\varepsilon$ drives the damage with
+$\phi^+ = \frac{1}{2}\kappa\varepsilon^2 + \frac{2}{3}\mu\varepsilon^2$ (upstream: $\frac{5}{9}\mu\varepsilon^2$); the port of upstream's
 `test_phase_field_deviatoric_split` checks both values to upstream's
 `1e-8`. The degraded stress, the tangent and the solid `phasefield`
 material are the same in both modes.
+
+## References
+
+* Bourdin, B., Francfort, G. A. and Marigo, J.-J. (2000). Numerical
+  experiments in revisited brittle fracture. *Journal of the Mechanics and
+  Physics of Solids*, 48(4), 797–826.
+* Francfort, G. A. and Marigo, J.-J. (1998). Revisiting brittle fracture
+  as an energy minimization problem. *Journal of the Mechanics and Physics
+  of Solids*, 46(8), 1319–1342.
+* Miehe, C., Hofacker, M. and Welschinger, F. (2010). A phase field model
+  for rate-independent crack propagation: Robust algorithmic
+  implementation based on operator splits. *Computer Methods in Applied
+  Mechanics and Engineering*, 199(45–48), 2765–2778.

@@ -200,3 +200,103 @@ fn structural_matrices_and_steps_are_bitwise_for_every_thread_count() {
         }
     }
 }
+
+/// A plate of discrete Kirchhoff triangles (edges clamped, drilling
+/// rotations blocked, a transverse load): repeated stiffness assemblies
+/// (the threaded elemental matrices and scatter) and a static solve, `K`
+/// and `u` bit for bit the one-thread run.
+fn plate(policy: ExecPolicy) -> (State, u64) {
+    let n = 6;
+    let ty = ElementType::DiscreteKirchhoffTriangle18;
+    let mut mesh = Mesh::new(3, "plate").unwrap();
+    {
+        let id = |i: usize, j: usize| (j * (n + 1) + i) as Idx;
+        let mut acc = MeshAccessor::new(&mut mesh);
+        let h = 1.0 / n as Real;
+        for j in 0..=n {
+            for i in 0..=n {
+                // slightly irregular inside
+                let w = if i > 0 && j > 0 && i < n && j < n {
+                    0.05 * h * (((3 * i + 5 * j) % 7) as Real / 7.0 - 0.5)
+                } else {
+                    0.0
+                };
+                acc.push_node(&[i as Real * h + w, j as Real * h - w, 0.0])
+                    .unwrap();
+            }
+        }
+        let mut c = acc.connectivity_mut(ty, GhostType::NotGhost);
+        for j in 0..n {
+            for i in 0..n {
+                c.push_tuple(&[id(i, j), id(i + 1, j), id(i + 1, j + 1)]);
+                c.push_tuple(&[id(i, j), id(i + 1, j + 1), id(i, j + 1)]);
+            }
+        }
+        drop(c);
+        acc.make_ready().unwrap();
+    }
+    let coords = mesh.nodes().as_slice().to_vec();
+    let mut m = StructuralMechanicsModel::new(SharedMesh::new(mesh), None, "plate").unwrap();
+    m.set_exec_policy(policy).unwrap();
+    m.add_material(
+        StructuralMaterial {
+            e: 2.1e11,
+            nu: 0.3,
+            t: 0.01,
+            ..StructuralMaterial::default()
+        },
+        "",
+    )
+    .unwrap();
+    m.init_full(
+        &ModelOptions::new(AnalysisMethod::Static).with_solver_options(ModelSolverOptions {
+            sparse_solver_type: Some(SparseSolverType::Eigen),
+            ..ModelSolverOptions::default()
+        }),
+    )
+    .unwrap();
+    {
+        let mut b = m.blocked_dofs_mut().unwrap();
+        let b = b.as_mut_slice();
+        for (node, x) in coords.as_chunks::<3>().0.iter().enumerate() {
+            if x[0] == 0.0 || x[1] == 0.0 || x[0] == 1.0 || x[1] == 1.0 {
+                b[node * NDOF..(node + 1) * NDOF].fill(true);
+            }
+            b[node * NDOF + 5] = true;
+        }
+    }
+    {
+        let mut f = m.external_force_mut().unwrap();
+        let f = f.as_mut_slice();
+        for (node, x) in coords.as_chunks::<3>().0.iter().enumerate() {
+            f[node * NDOF + 2] = -1.0 - x[0];
+        }
+    }
+    for _ in 0..3 {
+        m.invalidate_matrices();
+        m.assemble_stiffness_matrix().unwrap();
+    }
+    m.solve_step(None).unwrap();
+    (
+        state(&m, &["K"], false),
+        m.dof_manager().threaded_assemblies(),
+    )
+}
+
+#[test]
+fn plate_matrices_and_solve_are_bitwise_for_every_thread_count() {
+    let (reference, batches) = plate(ExecPolicy::serial());
+    assert_eq!(batches, 0);
+    for threads in [2, 3, 4, 8] {
+        for grain in [Grain::Finest, Grain::Auto] {
+            let p = ExecPolicy::serial()
+                .with_threads(threads)
+                .unwrap()
+                .with_grain(grain);
+            let what = format!("plate threads={threads} {grain:?}");
+            let (s, batches) = plate(p);
+            assert!(batches > 0, "{what}: the cached assembly ran on threads");
+            compare(&reference, &s, &what);
+        }
+    }
+}

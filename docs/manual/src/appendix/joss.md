@@ -19,6 +19,41 @@ statuses are the matrix's own: *Verified* means that an independent review
 accepted the row on reproducible evidence; the matrix's header explains
 the others.
 
+## How to cite
+
+The paper was published in 2024; it is the reference upstream asks its
+users to cite (`doc/dev-doc/manual/cite-akantu.rst`). The port asks the
+same, and to cite the port's software record as well when a text refers
+to the Rust port itself (its `README.md` and the machine-readable
+`CITATION.cff` at the root of the repository):
+
+Richart, N., Anciaux, G., Gallyamov, E., Frérot, L., Kammer, D.,
+Pundir, M., Vocialta, M., Ramos, A. C., Corrado, M., Müller, P.,
+Barras, F., Zhang, S., Ferry, R., Durussel, S. and Molinari, J.-F.
+(2024). Akantu: an HPC finite-element library for contact and dynamic
+fracture simulations. *Journal of Open Source Software*, 9(94), 5253.
+[doi:10.21105/joss.05253](https://doi.org/10.21105/joss.05253)
+
+In BibTeX (upstream's `cite-akantu.bib`):
+
+```text
+@article{richart_akantu_2024,
+  title = {Akantu: an {HPC} finite-element library for contact and
+           dynamic fracture simulations},
+  author = {Richart, Nicolas and Anciaux, Guillaume and Gallyamov, Emil
+            and Frérot, Lucas and Kammer, David and Pundir, Mohit and
+            Vocialta, Marco and Ramos, Aurelia Cuba and Corrado, Mauro
+            and Müller, Philip and Barras, Fabian and Zhang, Shenghan and
+            Ferry, Roxane and Durussel, Shad and Molinari, Jean-François},
+  journal = {Journal of Open Source Software},
+  volume = {9},
+  number = {94},
+  pages = {5253},
+  year = {2024},
+  doi = {10.21105/joss.05253},
+}
+```
+
 ## Features
 
 The paper's summary lists six capabilities:
@@ -29,7 +64,7 @@ The paper's summary lists six capabilities:
 | Non-local damage models | NL-001, NL-003, MAT-012, MAT-014, MAT-016, MAT-027 | `crates/akantu-solid/tests/upstream_material_non_local.rs::test_material_damage_non_local`, `crates/akantu-solid/tests/non_local_materials.rs::non_local_laws_follow_their_local_law_under_uniform_strain` | [Non-local laws](../laws/non-local.md). What the named tests cover: `test_material_damage_non_local` runs with singleton neighbourhoods (its radius is below the element size, as the test says) and the second test averages a uniform field; neither averages over a real neighbourhood, which the cited rows' evidence does |
 | Plastic and visco-plastic constitutive laws | MAT-019, MAT-020, MAT-022, XMAT-012 | `crates/akantu-solid/tests/inelastic_properties.rs::j2_return_mapping_unloading_and_plastic_work`, `crates/akantu-extra-materials/tests/point_laws.rs::viscoplastic_explicit_update_from_committed_state` | [Plasticity](../laws/plasticity.md); the law `visco_plastic` is one of the extra materials (feature `extra-materials`, [Extra materials](../models/extra-materials.md)) |
 | Large deformations | SMM-023, MAT-005, MAT-021, MAT-025, MAT-026 | `crates/akantu-solid/tests/model_finite_deformation.rs::fd_tangent_is_the_derivative_of_the_internal_force`, `crates/akantu-solid/tests/model_finite_deformation.rs::rigid_rotation_is_stress_free`, `crates/akantu-solid/tests/model_neohookean.rs::assembled_tangent_is_the_derivative_of_the_internal_force`, `crates/akantu-solid/tests/inelastic_properties.rs::ud030_finite_strain_plasticity_is_unsupported_by_default` | the total-Lagrangian formulation and the Neo-Hookean law ([Neo-Hookean hyperelasticity](../laws/neohookean.md)); plasticity with `finite_deformation = true` is refused by default and reproduces upstream behind a switch (UD-030, [Plasticity](../laws/plasticity.md)) |
-| Contact constraints, including rate-and-state friction | CONT-001, CONT-004, CONT-015, CONT-016, CPL-001, TASN-002, TASN-003, TASN-016, TASN-025, TASN-034 | `crates/akantu-contact/tests/contact_explicit.rs::test_explicit_dynamic`, `crates/akantu-ntn-contact/tests/independent_checks.rs::rate_and_state_steady_state_closed_forms` | the contact mechanics model with its penalty resolutions and Coulomb friction ([Contact mechanics](../models/contact.md)); the rate-and-state friction laws belong to split-node contact (feature `ntn-contact`, [Split-node contact](../models/ntn-contact.md)), as in upstream's package `traction_at_split_node_contact`. What the named tests cover: the first is upstream's explicit contact test (σ_yy ≈ 7e5 within 1 %); the second checks the steady state of the rate-and-state laws against closed forms and skips the flash-heating law, for which TASN-034 is cited: its evidence is in the row, not in this test |
+| Contact constraints, including rate-and-state friction | CONT-001, CONT-004, CONT-015, CONT-016, CPL-001, TASN-002, TASN-003, TASN-016, TASN-025, TASN-034 | `crates/akantu-contact/tests/contact_explicit.rs::test_explicit_dynamic`, `crates/akantu-ntn-contact/tests/independent_checks.rs::rate_and_state_steady_state_closed_forms` | the contact mechanics model with its penalty resolutions and Coulomb friction ([Contact mechanics](../models/contact.md)); the rate-and-state friction laws belong to split-node contact (feature `ntn-contact`, [Split-node contact](../models/ntn-contact.md)), as in upstream's package `traction_at_split_node_contact`. What the named tests cover: the first is upstream's explicit contact test ($\sigma_{yy} \approx 7 \times 10^5$ within 1 %); the second checks the steady state of the rate-and-state laws against closed forms and skips the flash-heating law, for which TASN-034 is cited: its evidence is in the row, not in this test |
 | Interaction between contact and cohesive elements (residual crack shear strength) | CPL-003, CPL-004, CMAT-005, EX-003 | `crates/akantu-couplers/tests/cohesive_contact.rs::cohesive_contact_penalty_limits_crack_face_penetration`, `crates/akantu-couplers/tests/coupler_fixtures.rs::coupler_solid_cohesive_contact_fixtures`, `crates/akantu-cohesive/tests/cohesive_fixtures.rs::va3_oracle_cases` | the coupler `CouplerSolidCohesiveContact` ([Model couplers](../models/couplers.md)) and the law [`cohesive_linear_friction`](../models/cohesive.md#cohesive_linear_friction). Covered: the friction of the cohesive law (stick, slip and reverse sliding), by the friction case of `va3_oracle_cases` (`va3_friction_prescribed_quadrangle_4`, bitwise against the C++ reference). The two coupler tests check the normal contact only: the penalty limits the penetration of the crack faces, and two oracle cases whose inputs have a friction coefficient `mu = 0` replay. Not covered: the coupler with Coulomb friction on the faces of a new crack (`mu > 0`); the coupler's runs, upstream's example included, use `mu = 0`, so no test runs the frictional contact of crack faces through the coupler |
 
 ## High-performance design

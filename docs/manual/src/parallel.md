@@ -93,7 +93,11 @@ Partitioners (`akantu::mesh::distribution`):
 Upstream's optional edge and vertex weight functions of
 `mesh.distribute(...)` are given to the Scotch partitioner with
 `ScotchPartitioner::with_loads`; without them it uses unit weights, which
-is what upstream's `distribute()` passes by default.
+is what upstream's `distribute()` passes by default. As upstream, the
+vertex weight of an element stands for its computational cost and the
+edge weight between two neighbouring elements for the cost of the
+communication between them; Scotch balances the first over the parts and
+minimises the sum of the second over the cut.
 
 The mesh must be distributed before a model uses it: distributing a
 `SharedMesh` that already has a model registered is refused (upstream
@@ -104,7 +108,12 @@ a facet mesh, element types without partition data; UD-235).
 After distribution every rank holds its elements, one layer of ghost
 elements, the nodes they use with their global numbers and flags (normal,
 master, slave, pure ghost), the element and node synchronizers, the groups
-and the mesh data. Models exchange ghost data through the synchronizers;
+and the mesh data.
+
+![Two ranks of a 6 by 3 quadrangle mesh cut between its third and fourth columns: each rank holds three columns of its own elements and, as hatched ghost elements, the column of the other rank that touches them; the nodes on the cut are shared, the nodes on the outer side of the ghost column are pure ghost nodes](figures/parallel-ghost-layer.svg)
+*Figure: a mesh split between two ranks, each with its own elements and one layer of ghost elements; the nodes on the cut are shared (master on one rank, slave on the other).*
+
+Models exchange ghost data through the synchronizers;
 the model's global quantities (the energies of the model or of a group,
 the stable time step, solver norms) are reduced over all ranks, while
 per-element values (`energy_of_element`) stay local.
@@ -131,8 +140,8 @@ adds the ghost elements within the radius of the owned integration points
 points, removes the added ghost elements no pair needs, and every
 averaging exchanges the averaged variables and the weight-function data at
 the ghost points (parity rows MPI-048…050). The averages of the owned
-points then equal the serial ones up to the order of the sums (≤ 1e-14
-relative in the tests). Four upstream defects of that path are corrected
+points then equal the serial ones up to the order of the sums
+($\le 10^{-14}$ relative in the tests). Four upstream defects of that path are corrected
 by default, each with a switch reproducing upstream (`docs/UPSTREAM_DEFECTS.md`
 UD-1100…1103): upstream hands the added ghost elements their law only
 after the ghost points were inserted, so its averages miss every
@@ -179,10 +188,11 @@ master node on a rank that sees only one slave node of the surface;
 mesh and refuses such a partition with `Error::Unsupported` on every
 process, before anything is exchanged (`docs/UPSTREAM_DEFECTS.md` UD-1105).
 This check gathers every rank's interface nodes on every rank and pairs the
-whole interface with upstream's quadratic rule, `O(N_s² + N_s·N_m)` distance
-evaluations for `N_s` slave and `N_m` master nodes per surface pair, once at
-`init_parallel`: negligible for interfaces of tens or thousands of nodes,
-about 5·10⁹ evaluations on every rank for 10⁵ slave nodes.
+whole interface with upstream's quadratic rule, $O(N_s^2 + N_s N_m)$
+distance evaluations for $N_s$ slave and $N_m$ master nodes per surface
+pair, once at `init_parallel`: negligible for interfaces of tens or
+thousands of nodes, about $5 \times 10^{9}$ evaluations on every rank for
+$10^{5}$ slave nodes.
 
 ## Running under MPI
 
@@ -202,6 +212,9 @@ With the `mpi` feature the world communicator is created with
 `crates/akantu-solid/tests/mpi_smm.rs` (function `world_with`), run on 1,
 2 and 4 ranks by `scripts/mpi/run-par-tests.sh` inside the project's
 Docker image ([`docs/TESTING.md`](../../TESTING.md), MPI tier).
+
+![The square split into four parts, next to the horizontal displacement field](figures/examples/parallel_2d.png)
+*Figure: the example `parallel_2d` ([Examples](examples.md)): its partition on four ranks (left) and the displacement $u_x$ after 10 000 steps of the one-rank run (right) (computed with akantu-rs).*
 
 ## Sparse solvers on several ranks
 
@@ -233,7 +246,8 @@ a one-process job ([The PETSc back-end](petsc.md)).
   partitions. The port records the seed, the partitioner and the Scotch
   thread setting in the partition metadata, and its fixtures use a fixed
   seed with `SCOTCH_PTHREAD_NUMBER=1`.
-* Random parameters are seeded with `seed × (rank + 1)`: random fields
+* Random parameters are seeded with $s\,(r + 1)$ for the seed $s$ and
+  the rank $r$ (`seed × (rank + 1)`): random fields
   depend on the number of ranks, as upstream
   ([Command-line options](command-line.md#random-seed)).
 * The ParaView dumper writes one `.vtu` piece per rank
