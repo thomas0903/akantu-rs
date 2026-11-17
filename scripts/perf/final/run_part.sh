@@ -86,7 +86,6 @@ NCORES=$(lscpu -p=CORE 2> /dev/null | grep -v '^#' | sort -u | wc -l)
 [ "$NCORES" -ge 1 ] || NCORES=$(nproc)
 [ -n "$memory" ] || memory="$(( $(awk '/MemTotal/ {print $2}' /proc/meminfo) / 1048576 - 3 ))g"
 CAMPAIGN_TOOL="${FIN_REPO}/crates/akantu-bench/scripts/c1prep_campaign.sh"
-PYSUITE="${FIN_REPO}/python/benchmarks/suite_python.py"
 X="${FIN_REPO}/scripts/perf/explicit-step"
 exec 8> "${D}/.lock"
 flock -n 8 || fin_die "another run_part.sh holds ${D}/.lock"
@@ -373,22 +372,25 @@ part_b() {
   if want_series python; then
     local out="$D/python" pcases
     mkdir -p "$out/.done"
-    mapfile -t pcases < <("${HEAD}/venv/bin/python" -I "$PYSUITE" --list 2> /dev/null | awk '{print $1}')
+    mapfile -t pcases < <("${HEAD}/venv/bin/python" -I "${HEAD}/suite_python.py" --list 2> /dev/null | awk '{print $1}')
+    "${BEFORE}/venv/bin/python" -I "${BEFORE}/suite_python.py" --list 2> /dev/null | awk '{print $1}' > "$out/.list-before"
     for ((r = 0; r < reps; r++)); do
       for c in "${pcases[@]}"; do
         [ -e "$out/.done/$c.r$r" ] && continue
         local rc=0 order
-        read -r -a order <<< "$(fin_rotate "$r" before head)"
+        local vs=(head)
+        grep -qx "$c" "$out/.list-before" && vs=(before head)
+        read -r -a order <<< "$(fin_rotate "$r" "${vs[@]}")"
         for l in "${order[@]}"; do
           mkdir -p "$out/$l"
-          fin_cmdlog "$D" env OPENBLAS_NUM_THREADS=1 OMP_NUM_THREADS=1 taskset -c "$pin" "$(vdir "$l")/venv/bin/python" -I "$PYSUITE" \
+          fin_cmdlog "$D" env OPENBLAS_NUM_THREADS=1 OMP_NUM_THREADS=1 taskset -c "$pin" "$(vdir "$l")/venv/bin/python" -I "$(vdir "$l")/suite_python.py" \
             --case "$c" --size "$sz" --reps 1 --out "$out/$l/$c.r$r.jsonl"
           rm -f "$out/$l/$c.r$r.jsonl"
-          env OPENBLAS_NUM_THREADS=1 OMP_NUM_THREADS=1 MKL_NUM_THREADS=1 taskset -c "$pin" "$(vdir "$l")/venv/bin/python" -I "$PYSUITE" \
+          env OPENBLAS_NUM_THREADS=1 OMP_NUM_THREADS=1 MKL_NUM_THREADS=1 taskset -c "$pin" "$(vdir "$l")/venv/bin/python" -I "$(vdir "$l")/suite_python.py" \
             --case "$c" --size "$sz" --reps 1 --out "$out/$l/$c.r$r.jsonl" > /dev/null 2> "$out/$l/$c.r$r.err" || rc=1
         done
         if [ "$rc" = 0 ]; then
-          check_suite_group "$out" "$c" "$r" "" "" before head && touch "$out/.done/$c.r$r"
+          check_suite_group "$out" "$c" "$r" "" "" "${vs[@]}" && touch "$out/.done/$c.r$r"
           fin_progress "$D" "python ${c} r${r}: done"
         else
           echo "$(fin_utc) python $c r$r" >> "$D/FAILED"; fin_progress "$D" "python ${c} r${r}: FAILED"

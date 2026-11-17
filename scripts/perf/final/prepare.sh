@@ -233,6 +233,8 @@ build_python() { # variant src
   (cd "$s/python" && VIRTUAL_ENV="$venv" PATH="$venv/bin:$PATH" CARGO_TARGET_DIR="${FINAL_ROOT}/target/$v-py" \
     maturin develop --release -q) >> "$log" 2>&1
   "$venv/bin/python" -c 'import akantu' || fin_die "python: ${v}: import akantu failed"
+  # the variant's own Python suite (its case list is the variant's)
+  cp "$s/python/benchmarks/suite_python.py" "${FIN_BIN}/$v/suite_python.py"
 }
 
 write_variant_json() { # variant src
