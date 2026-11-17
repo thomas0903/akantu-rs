@@ -132,10 +132,12 @@ for a in "${addrs[@]:1}"; do   # through the head, as on AWS (the workers have n
 done
 
 echo "== 4. start the session on the head (detached) ($((SECONDS - t0)) s)"
+meshes=()   # the plan uses h = 0.12 only; the test mesh tarball is passed when the set has one
+[ -f "${dir}/akantu-mn-meshes-test.tar.gz" ] && meshes=(--meshes mn/akantu-mn-meshes-test.tar.gz)
 "${ssh_[@]}" "${head}" bash mn/crates/akantu-bench/scripts/mn_session.sh start '$HOME/mn-session' '$HOME/mn-results' 1 \
   --deadline "${deadline}" \
   --plan mn/plan.txt --image-tarball mn/akantu-rs-bench-mn.tar.gz --images-txt mn/images.txt \
-  --meshes mn/akantu-mn-meshes-test.tar.gz --partitions mn/parts --fail-host "h012-stop:${n}:stop:8" \
+  ${meshes[@]+"${meshes[@]}"} --partitions mn/parts --fail-host "h012-stop:${n}:stop:8" \
   || die "session start"
 while "${ssh_[@]}" "${head}" 'kill -0 $(cat mn-results/session.pid)' 2>/dev/null; do sleep 10; done
 "${ssh_[@]}" "${head}" bash mn/crates/akantu-bench/scripts/mn_session.sh status mn-results | tee "${work}/status.txt"

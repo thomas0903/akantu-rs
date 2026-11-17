@@ -7,6 +7,7 @@
 # /proc/self/status). Docker, SSH and the hosts are not used.
 #
 #   python3 -I -m unittest discover -s crates/akantu-bench/scripts/tests
+import hashlib
 import os
 import shutil
 import subprocess
@@ -18,7 +19,11 @@ from pathlib import Path
 HERE = Path(__file__).resolve().parent
 sys.path.insert(0, str(HERE.parent))
 import mn_cluster  # noqa: E402
+import mn_compare  # noqa: E402
 import mn_session  # noqa: E402
+
+sys.path.insert(0, str(HERE))
+from test_mn_fix import make_run, pair  # noqa: E402
 
 REPO = HERE.parent.parent.parent.parent
 BIND_RANK = REPO / "benchmarks" / "cohesive-perf" / "scripts" / "in-container" / "bind-rank.sh"
@@ -136,6 +141,56 @@ class RunRecords(unittest.TestCase):
         b[1] = ["h1", "1", "4-7"]
         self.assertTrue(any("expected one" in p for p in mn_cluster.binding_problems(b, 4, "self")))
         self.assertEqual(mn_cluster.binding_problems({}, 4, "none"), [])
+
+
+def campaign_ref(root, np_=2, mesh="/target/c1prep/meshes/frozen-cube-h0.12.msh", part=b"elem,rank\n0,0\n"):
+    """A Rust run directory of c1prep_campaign.sh: <campaign>/rust/np<N>/rep1 with its own
+    status.txt (no placement record, no exported partition) and <campaign>/partition-np<N>.csv."""
+    d = make_run(Path(root) / "camp" / "rust" / f"np{np_}" / "rep1", np_=np_, hosts=("x",), mesh=mesh)
+    mn_cluster.write_status(d / "status.txt", {"case": "rust", "np": np_, "exit": 0, "oom_kills": 0,
+                                               "wall_s": 3.3, "outcome": "ok"})
+    if part is not None:
+        (Path(root) / "camp" / f"partition-np{np_}.csv").write_bytes(part)
+    return d
+
+
+class CampaignReference(unittest.TestCase):
+    def multi(self, root, part=b"elem,rank\n0,0\n"):
+        d = make_run(Path(root) / "mn", np_=2, hosts=("h1", "h2"), mesh="/mn/work/meshes/cube-h0.12.msh")
+        st = mn_cluster.read_status(d / "status.txt")
+        st.update(partition="file:/mn/work/partitions/partition-np2.csv", partition_matches=True,
+                  partition_sha256=hashlib.sha256(part).hexdigest())
+        mn_cluster.write_status(d / "status.txt", st)
+        return d
+
+    def test_accepted_with_the_frozen_mesh_name_and_its_partition(self):
+        with tempfile.TemporaryDirectory() as tmp:
+            out, fails = pair(campaign_ref(tmp), self.multi(tmp))
+            self.assertEqual(fails, [], out)
+            self.assertTrue(any("partition = " in ln for ln in out), out)
+            self.assertTrue(mn_compare.is_foreign(mn_compare.Run(Path(tmp) / "camp" / "rust" / "np2" / "rep1")))
+
+    def test_another_partition_or_mesh_fails(self):
+        with tempfile.TemporaryDirectory() as tmp:
+            _, fails = pair(campaign_ref(tmp), self.multi(tmp, part=b"elem,rank\n0,1\n"))
+            self.assertTrue(any("partition.csv" in f for f in fails), fails)
+        with tempfile.TemporaryDirectory() as tmp:
+            ref = campaign_ref(tmp, mesh="/target/c1prep/meshes/cube-h0.06.msh")
+            _, fails = pair(ref, self.multi(tmp))
+            self.assertTrue(any("mesh" in f for f in fails), fails)
+
+    def test_without_the_campaign_partition_file_it_says_so(self):
+        with tempfile.TemporaryDirectory() as tmp:
+            out, fails = pair(campaign_ref(tmp, part=None), self.multi(tmp))
+            self.assertEqual(fails, [])
+            self.assertTrue(any("not checked" in ln for ln in out), out)
+
+    def test_another_binary_fails(self):
+        with tempfile.TemporaryDirectory() as tmp:
+            ref = campaign_ref(tmp)
+            (ref / "binary.sha256").write_text("ef" * 32 + "  /usr/local/bin/cohesive_extrinsic\n")
+            _, fails = pair(ref, self.multi(tmp))
+            self.assertTrue(any("not the same driver" in f for f in fails), fails)
 
 
 class FinalPlan(unittest.TestCase):

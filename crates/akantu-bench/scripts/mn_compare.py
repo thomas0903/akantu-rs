@@ -10,6 +10,11 @@
     python3 -I mn_compare.py --pair A B  # two run directories (status.txt, summary.json, ...)
     python3 -I mn_compare.py --pair REF RUN --d108   # joss64x8 against the full-size rerun's
                                          # single-node run of the same binary and partition
+    REF may be a run directory of c1prep_campaign.sh (<campaign>/rust/np<N>/rep<k>/: no
+    placement record, the partition not exported by the run): A then checks the
+    partition against <campaign>/partition-np<N>.csv when that file exists (else
+    it says that the partition was not checked) and compares the mesh by file
+    name without the `frozen-` prefix the campaign tool gives the h = 0.12 mesh.
     python3 -I mn_compare.py --smoke RESULTS IMAGES_TXT   # the AWS smoke session's verdict
 
 What is compared and how (docs/TESTING.md):
@@ -69,6 +74,7 @@ the preflight clean, Eigen 1 vs 8 hosts A + B, MUMPS 1 vs 8 hosts A + C, the
 recorded by every run, every binary.sha256 = rust_bin_sha256 of images.txt).
 """
 
+import hashlib
 import json
 import sys
 from pathlib import Path
@@ -138,6 +144,33 @@ class Run:
         return [] if t is None else [ln for ln in t.decode().splitlines()[1:] if ln and not ln.startswith("#")]
 
 
+def is_foreign(ref):
+    """A reference written by another tool (c1prep_campaign.sh): no placement record."""
+    return "rank_hosts" not in ref.st
+
+
+def mesh_name(path):
+    """File name of a summary's mesh; the campaign tool copies the frozen h = 0.12 mesh
+    as frozen-cube-h0.12.msh (the same bytes as the session's cube-h0.12.msh)."""
+    n = Path(path or "").name
+    return n[len("frozen-"):] if n.startswith("frozen-") else n
+
+
+def foreign_partition(ref, run):
+    """For a c1prep_campaign.sh reference at P > 1: (failures, note). The partition the
+    reference replayed is <campaign>/partition-np<P>.csv (the run directory is
+    <campaign>/<case>/np<P>/rep<k>); the run's exported partition must equal it."""
+    if not is_foreign(ref) or ref.np <= 1:
+        return [], None
+    f = ref.d.parent.parent.parent / f"partition-np{ref.np}.csv"
+    if not f.exists():
+        return [], f"partition of the reference not checked: no {f}"
+    h = hashlib.sha256(f.read_bytes()).hexdigest()
+    if h != run.st.get("partition_sha256"):
+        return [f"partition.csv {run.st.get('partition_sha256')} != the reference's {f} ({h})"], None
+    return [], f"partition = {f} (sha256 {h[:16]}…)"
+
+
 def rel(a, b):
     m = max(abs(a), abs(b))
     return abs(a - b) / m if m else 0.0
@@ -158,7 +191,7 @@ def check_a(ref, run):
     # a reference written by another tool (a C1 campaign run directory: no
     # placement record, the replayed partition not exported) is compared
     # without the partition record; the distribution checks below still apply
-    foreign = "rank_hosts" not in ref.st
+    foreign = is_foreign(ref)
     if ref.np > 1 and not foreign:
         if ref.st.get("partition_sha256") is None or ref.st.get("partition_sha256") != run.st.get("partition_sha256"):
             bad.append(f"partition.csv {ref.st.get('partition_sha256')} vs {run.st.get('partition_sha256')}")
@@ -176,9 +209,10 @@ def check_a(ref, run):
         if a is None:   # never pass on a key that neither run recorded
             bad.append(f"summary {k}: missing in the reference")
         if k == "mesh":   # the same file under another directory (a C1 campaign reference)
-            a, b = Path(a or "").name, Path(b or "").name
+            a, b = mesh_name(a), mesh_name(b)
         if a != b:
             bad.append(f"summary {k}: {a} vs {b}")
+    bad += foreign_partition(ref, run)[0]
     for rk in range(ref.np):
         a, b = ref.rank(rk), run.rank(rk)
         if not a or not b:
@@ -338,6 +372,9 @@ def compare_pair(ref, run, label, out, fails, d108=False):
     out.append(f"  A exact ({'placement, partition, distribution, matrix' + (', MUMPS nb_proc/sym/ordering' if solver == 'auto' else '')}): "
                + ("ok" if not a else "FAIL: " + "; ".join(a[:6])))
     fails += [f"{label} A: {x}" for x in a]
+    note = foreign_partition(ref, run)[1]
+    if note:
+        out.append(f"  reference of c1prep_campaign.sh: {note}")
     if a:
         return
     if solver == "eigen":
