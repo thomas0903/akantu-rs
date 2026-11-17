@@ -336,7 +336,9 @@ impl Linear {
     /// Upstream `computeEffectiveNorm` ([`effective_norm`]) at one facet
     /// quadrature point, `fs` holding the two sides' stresses
     /// (`2·dim²` values): the fixed-size form for `dim` 2 and 3.
-    #[inline]
+    // always: the check's serial loop and the threaded decision both call
+    // it, and a call per point costs 16 % of the check at one thread
+    #[inline(always)]
     fn effective_norm_at(
         &self,
         dim: usize,
