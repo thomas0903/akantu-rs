@@ -8,10 +8,10 @@ described in `scripts/perf/final/README.md`.
 - Machines: four AWS `m7a.2xlarge` of the same type (AMD EPYC 9R14, 8
   cores, one thread per core, one NUMA node, Ubuntu 24.04.5, kernel
   7.0.0-1014-aws), one session each, nothing else running.
-- Date: 2026-11-17, sessions from 10:33 to 18:59 UTC.
+- Date: 2026-11-17, sessions from 10:33 to 20:20 UTC.
 - Revisions: C++ reference `35a851780d0b` (strict install, JOSS emulation in
   the cohesive runs), port before `b6f56c2f0` (branch `perf/final-before`),
-  port head `53de1eeef`.
+  port head `53de1eeef` (`D-nd/`: `4d974854d`).
 - Size `full`, 5 repetitions (one in part C's series `eig`).
 - Every group of every part is complete and passed its checks; each
   `summary.md` gives the counts.
@@ -25,6 +25,7 @@ described in `scripts/perf/final/README.md`.
 | `D/` | static solves: SparseLU, MUMPS, the sparse solvers' phases | 3 | 13:14 to 16:06 |
 | `E/` | memory on h = 0.04 | 4 | 10:42 to 14:07 |
 | `F/` | set-up, distribution, the MPI layer | 4 | 14:07 to 15:53 |
+| `D-nd/` | part D's second pass at `4d974854d`: every variant of the first pass, and the orderings `head-nd`, `head-auto` | 3 | 17:06 to 20:20 |
 
 Part C was split over two machines with `--only` to fit the day: `C/` holds
 every series but `reh6`, `C-reh6/` holds `reh6`. Each directory's plan has
@@ -35,7 +36,16 @@ them as "missing", and that puts a blank line between the weak and strong
 scaling tables. No number changed: the regenerated summaries differ from
 the first ones only in those lines and in the progress log's last line
 (the raw log gained one line when the first summary was written). The other
-parts' summaries are the ones written at the end of each part.
+parts' summaries are the ones written at the end of each part, except
+`D-nd/summary.md`: it was regenerated after `summarize.py` stopped
+comparing the digests of the timed-only orderings (`head-nd`, `head-auto`)
+with the bitwise variants, which had printed "DIFFER" in the digest column
+of `static_linear_eigen`; the bitwise variants' digests are all equal and
+no other line changed. In `D-nd/runs.jsonl`,
+`summary.rust_static_solver_stats.ordering` records the ordering each
+SparseLU run used (0 COLAMD, 1 nested dissection); the suites' recorded
+`ordering` was checked by the driver and is not kept in
+`suite-records.tsv`.
 
 ## What each directory holds
 
@@ -84,8 +94,6 @@ compact files with `extract.py DATA/<PART> OUTDIR`.
 Measured separately, not yet in this revision; their places in
 `docs/BENCHMARKS.md` are marked `PLACEHOLDER`:
 
-- part D's SparseLU series at `4d974854d` with the nested-dissection
-  ordering (`head-nd`) and the `auto` ordering (`head-auto`);
 - part G: the JOSS mesh on one 128-core node at 128, 64 and 32 ranks, both
   codes;
 - the multi-node run: 128 ranks over 4 hosts, the port only.

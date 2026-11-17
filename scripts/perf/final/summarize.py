@@ -403,9 +403,14 @@ def suite_tables(base, title, serial=True):
         recs = data.get((v, np_, c, ph), {})
         return next(iter(recs.values()))["calls"] if recs else None
 
+    def bitwise_variant(v):
+        # fast precision and the other orderings (head-nd, head-auto) are
+        # timed only, never digested as bitwise (run_part.sh's check)
+        return "fast" not in v and not v.endswith(("-nd", "-auto"))
+
     def digest_ok(c, np_):
         ds = {(v, o.get("digest")) for (v, n, cc, _), recs in data.items()
-              if cc == c and n == np_ and "fast" not in v
+              if cc == c and n == np_ and bitwise_variant(v)
               for o in recs.values()}
         if not ds:
             return MISSING
