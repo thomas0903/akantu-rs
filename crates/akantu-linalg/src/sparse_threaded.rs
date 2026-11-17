@@ -102,11 +102,15 @@ impl SparseMatrixAij {
         // those the plan was built with (`equations_key`), the plan was
         // built for these slots, this profile size and this split, and no
         // slot was stored since (a store drops the plan).
+        let found = cache.plans.iter().position(|p| p.slots == slots);
         let planned = equations_key.is_some()
-            && cache.plan_for(slots).is_some_and(|p| {
+            && found.is_some_and(|i| {
+                let p = &cache.plans[i];
                 p.equations_key == equations_key && p.nnz == nnz && p.parts == parts
             });
-        if !planned {
+        let plan_index = if planned {
+            found
+        } else {
             // one thread: the serial loop checks and stores the slots as
             // cheaply as these passes (the caller then builds the plan,
             // `BlockPositionCache::plan_after_serial_round`)
@@ -118,8 +122,10 @@ impl SparseMatrixAij {
             }
             let plan = ScatterPlan::new(cache, slots, nnz, parts, equations_key);
             cache.set_plan(plan);
-        }
-        let Some(plan) = cache.plan_for(slots) else {
+            // `set_plan` pushes the new plan last
+            cache.plans.len().checked_sub(1)
+        };
+        let Some(plan) = plan_index.and_then(|i| cache.plans.get(i)) else {
             return false;
         };
         let vidx = value_indices(mode, nb_eq);
@@ -864,7 +870,8 @@ fn boundary_part(
 impl SparseMatrixAij {
     /// The planned scatter of the blocks `first..first + n` of a batch
     /// (`n = values.len() / nb_eq²`; `slots` is the whole batch's), with
-    /// the plan [`BlockPositionCache::plan_ready`] confirmed: each part
+    /// the plan whose handle [`BlockPositionCache::plan_ready`] returned
+    /// for these slots (the cache unchanged since): each part
     /// adds, in block order, the contributions of those blocks whose
     /// positions lie in its entries. Called for consecutive chunks of the
     /// batch in order, every entry receives its contributions in block
@@ -876,6 +883,7 @@ impl SparseMatrixAij {
         &mut self,
         exec: &Exec,
         cache: &BlockPositionCache,
+        plan: usize,
         slots: &[usize],
         first: usize,
         nb_eq: usize,
@@ -883,7 +891,7 @@ impl SparseMatrixAij {
         values_type: MatrixType,
     ) -> bool {
         let n2 = nb_eq * nb_eq;
-        let Some(plan) = cache.plan_for(slots) else {
+        let Some(plan) = cache.plans.get(plan) else {
             return false;
         };
         let mode = match (self.matrix_type, values_type) {
@@ -896,7 +904,7 @@ impl SparseMatrixAij {
             || n2 == 0
             || n * n2 != values.len()
             || first + n > slots.len()
-            || plan.slots != slots
+            || plan.slots.len() != slots.len()
             || plan.nnz != self.a.len()
             || cache.stamp != self.position_epoch.0
             || cache.mode != Some(mode)

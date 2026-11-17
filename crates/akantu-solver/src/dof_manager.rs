@@ -2337,9 +2337,12 @@ impl DofManager {
                 elemental_matrix_type,
                 vouch,
             ),
-            _ => false,
+            _ => None,
         };
-        if !ready || elements.len() < 2 {
+        let Some(plan) = ready else {
+            return Ok(false);
+        };
+        if elements.len() < 2 {
             return Ok(false);
         }
         let mut cache = self.assembly_caches.remove(&key).unwrap_or_default();
@@ -2366,6 +2369,7 @@ impl DofManager {
                 m.add_values_planned_chunk(
                     &self.exec,
                     &cache,
+                    plan,
                     &elements,
                     start,
                     nb_eq,

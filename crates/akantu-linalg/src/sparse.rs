@@ -1801,11 +1801,6 @@ impl BlockPositionCache {
         self.equations_key = Some(key);
     }
 
-    /// The plan built for the batch of `slots`, if any.
-    fn plan_for(&self, slots: &[usize]) -> Option<&threaded::ScatterPlan> {
-        self.plans.iter().find(|p| p.slots == slots)
-    }
-
     /// Keep `plan`, replacing the plan of the same slots (the oldest plan
     /// goes when [`MAX_PLANS`] are kept).
     fn set_plan(&mut self, plan: threaded::ScatterPlan) {
@@ -1816,11 +1811,12 @@ impl BlockPositionCache {
         self.plans.push(plan);
     }
 
-    /// `true` when a batch of `slots` into `matrix` (square blocks of
-    /// `nb_eq` equations of type `values_type`) has a plan built with the
-    /// equations `key` the caller vouches for, for the current entry
-    /// positions, profile size and split of `exec`: the batch can then be
-    /// added chunk by chunk ([`SparseMatrixAij::add_values_planned_chunk`]).
+    /// The plan of a batch of `slots` into `matrix` (square blocks of
+    /// `nb_eq` equations of type `values_type`) built with the equations
+    /// `key` the caller vouches for, for the current entry positions,
+    /// profile size and split of `exec`, as a handle: the batch can then be
+    /// added chunk by chunk ([`SparseMatrixAij::add_values_planned_chunk`]
+    /// with this handle, valid until the cache changes).
     /// Asked before the round is begun: [`BlockPositionCache::begin`] then
     /// continues the cache (same entry positions) and keeps the plan.
     #[must_use]
@@ -1832,24 +1828,26 @@ impl BlockPositionCache {
         nb_eq: usize,
         values_type: MatrixType,
         key: Option<EquationsKey>,
-    ) -> bool {
+    ) -> Option<usize> {
         let mode = match (matrix.matrix_type, values_type) {
             (MatrixType::Symmetric, MatrixType::Symmetric) => Selection::LocalUpper,
             (MatrixType::Symmetric, _) => Selection::GlobalUpper,
             _ => Selection::All,
         };
         let nnz = matrix.a.len();
-        key.is_some()
-            && !matrix.released
-            && self.stamp == matrix.position_epoch.0
-            && self.mode == Some(mode)
-            && self.shape == (nb_eq, nb_eq)
-            && self.size == matrix.size
-            && self.plan_for(slots).is_some_and(|p| {
-                p.equations_key == key
-                    && p.nnz == nnz
-                    && p.parts == threaded::scatter_parts(exec, slots.len(), nnz)
-            })
+        if key.is_none()
+            || matrix.released
+            || self.stamp != matrix.position_epoch.0
+            || self.mode != Some(mode)
+            || self.shape != (nb_eq, nb_eq)
+            || self.size != matrix.size
+        {
+            return None;
+        }
+        let parts = threaded::scatter_parts(exec, slots.len(), nnz);
+        self.plans.iter().position(|p| {
+            p.equations_key == key && p.nnz == nnz && p.parts == parts && p.slots == slots
+        })
     }
 
     /// After a serial loop of `add_values_cached` that added every block
