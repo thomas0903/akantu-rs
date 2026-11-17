@@ -590,6 +590,99 @@ What remains (shares of the profiles after the change, not times):
   schemes and the global ids could follow the doubled nodes instead of
   being rebuilt over all nodes.
 
+### The cohesive model on threads (performance campaign, 2026-11-17)
+
+The cohesive model's per-step kernels run on the execution policy's
+threads (D-123; `docs/ARCHITECTURE.md`, "Execution policy", "The cohesive
+model"): the facet stresses and the insertion decision of the check, the
+cohesive normals, openings and tractions (`cohesive_linear`,
+`cohesive_bilinear`), the cohesive residual and the energy update. Every
+digest is identical at every thread count, grain and rank count
+(serial: the h = 0.12 full schedule and h = 0.06, energies of every step,
+insertions and the nodal state of the last step, at 1, 2, 4 and 8
+threads; 2 ranks × 1, 2, 4 threads, 4 × 1, 2 and 8 × 1 with
+`rust_sparse_solver = eigen`; the `suite_solid` cohesive cases at 1 to 8
+threads), and equal to the base's. Machine: the AWS `m7a.2xlarge` (AMD
+EPYC 9R14, 8 cores), timing on cores 0–3 (`tjob`) or the whole machine
+(`xjob`), 5 interleaved repetitions (3 for the MPI series); before is
+`perf/wave2-base` at `d404f4c70`. Raw data and scripts:
+`docs/benchmarks/perf-campaign/cohesive-threads/`.
+
+The benchmark driver, h = 0.12 (23,156 tetrahedra), full schedule (5000
+steps, 11,736 cohesive elements), ms per step, against the base at one
+thread:
+
+| threads | `check_cohesive_stress` | facet stresses | laws' checks | insertion | `solve_step` |
+|---|---|---|---|---|---|
+| base, 1 | 6.416 [6.331, 6.453] | 2.994 [2.945, 3.011] | 2.421 [2.390, 2.435] | 0.995 [0.994, 1.008] | 4.931 [4.913, 4.948] |
+| 1 | 6.445 (×1.005 [1.001, 1.015]) | 2.882 (×0.970 [0.957, 0.982]) | 2.545 (×1.051 [1.049, 1.059]) | 1.008 (×1.007 [1.001, 1.018]) | 4.853 (×0.984 [0.981, 0.989]) |
+| 2 | 4.054 (×0.588) | 1.624 (×0.468) | 1.413 (×0.589) | 1.021 (×0.985) | 3.837 (×0.767) |
+| 4 | 2.932 (×0.404) | 0.959 (×0.260) | 0.929 (×0.378) | 1.048 (×1.007) | 3.198 (×0.644) |
+| 8 | 2.167 (×0.344) | 0.519 (×0.177) | 0.595 (×0.255) | 1.048 (×1.065) | 2.967 (×0.605) |
+
+(2 and 4 threads: same series as the base row's first measurement, base
+check 7.030 and solve 4.987 ms per step; 8 threads: whole machine, base
+6.296 and 4.909; ratios paired per repetition; the one-thread rows: the
+final binaries.) Before insertion (500 steps) at one thread: check ×1.006 [0.999, 1.011]
+(facet stresses ×0.975, laws' checks ×1.047), `solve_step` ×0.999. The
+laws' checks at one thread run the loop of the base unchanged in a
+function of its own; they stay 4–5 % slower, the facet stresses before
+them 2.5–3 % faster, the check within 0.6 %: a code-layout effect of the
+latency-bound loop (two dependent square roots per point) that was not
+removed.
+
+The `suite_solid` cohesive cases (size `m`), seconds per phase, ratio to
+the base at one thread (paired):
+
+| case | phase | 1 thread | 2 | 4 | 8 |
+|---|---|---|---|---|---|
+| `cohesive_extrinsic_check` | `check_insertion` | ×1.010 [1.001, 1.032] | ×0.561 | ×0.357 | ×0.326 |
+| `cohesive_extrinsic_check` | `solve_step` | ×0.997 [0.991, 1.010] | ×0.745 | ×0.603 | ×0.547 |
+| `cohesive_extrinsic_insertion` | `check_insertion` | ×1.001 [0.976, 1.004] | ×0.956 | ×0.943 | ×0.933 |
+| `cohesive_extrinsic_insertion` | `solve_step` | ×0.979 [0.970, 0.998] | ×0.789 | ×0.681 | ×0.623 |
+
+The mid-size mesh (h = 0.06, 177,328 tetrahedra, 500 steps, without the
+static preload, the C++ Scotch partitions), 8 cores in every
+configuration but the 1 × 1 base, slowest rank, ms per step:
+
+| ranks × threads | check | of which insertion | `solve_step` | step | step / base 8 × 1 |
+|---|---|---|---|---|---|
+| base 8 × 1 | 16.122 | 2.510 | 10.334 | 26.449 | 1 |
+| 8 × 1 | 16.029 | 2.338 | 10.336 | 26.375 | 0.997 [0.995, 0.998]; final commit 1.000 [0.989, 1.000] |
+| 4 × 2 | 17.626 | 2.987 | 11.285 | 28.911 | 1.093 |
+| 2 × 4 | 19.359 | 4.198 | 13.757 | 33.116 | 1.253 |
+| 1 × 8 | 17.761 | 3.101 | 17.705 | 35.480 | 1.341 |
+| base 1 × 1 | 58.147 | 3.088 | 26.451 | 84.684 | 3.203 |
+
+Against the C++ strict build: at one rank and one thread (h = 0.12, 500
+steps, 3 repetitions) the port's check takes 4.69 against 20.7 ms per
+step (C++ / port 4.4) and its step 2.56 against 8.15 (3.19); at 8 ranks
+(h = 0.06, 500 steps, the MUMPS static solve, `c1prep_campaign.sh`, the
+port at 8 × 1) the check 14.1 against 47.1 ms (port / C++ 0.299), the
+step 8.91 against 19.6 (0.453), 1.04 against 3.01 core-µs per element and
+step (0.344).
+
+What limits the scaling:
+
+- The insertion stays serial (the transaction, the inserter's searches,
+  the flags and parameters in filter order): about 1 ms per step at
+  h = 0.12, half of the check at 8 threads, and the whole difference
+  between the threads in the insertion-heavy suite case.
+- The facet stresses write `facet_stress` (about 26 MB per step at
+  h = 0.12) and the law check streams it with the normals and tangents:
+  memory traffic; 0.177 at 8 threads.
+- The solve: the bulk residual is threaded by the base; the cohesive
+  part scales; what remains is serial per-node and per-equation work
+  below the solver's part sizes and the bulk Cauchy stresses after the
+  step (`akantu-solid`, not part of this work): 0.605 at 8 threads.
+- Ranks against threads at 8 cores (mid-size): ranks win (8 × 1 is 1.34
+  times faster than 1 × 8) because everything above stays serial within
+  a rank while it is split between ranks; 4 × 2 is within 10 % of 8 × 1.
+- At 8 ranks the transaction's agreements (one per stage and per
+  dispatched event, consumer and level, with the ranks' waits) are about
+  8 % of all samples of a call-graph profile (`profiles/np8-*`); fewer
+  agreements need a change of the transaction protocol (`akantu-mesh`).
+
 ### Distribution and the communication layer (performance campaign, 2026-11-17)
 
 Measured on an 8-vCPU AMD EPYC Milan development machine, before
