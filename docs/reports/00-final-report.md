@@ -8,14 +8,18 @@ matrix, 1,019 are Verified and 26 are approved exceptions; no row is open.
 A row is Verified when
 it has Rust tests, a golden fixture from the C++ library or an analytical
 reference, a justified tolerance and an independent review. Most
-comparisons with the C++ library are bit for bit. On the JOSS cohesive
-benchmark at full size (4.39 million tetrahedra, 64 cores) the port took
-0.875 times the C++ run time (one run each). Comparing the two codes
+comparisons with the C++ library are bit for bit. In the final measurement
+campaign (8-core AWS machines, 17 November 2026) the port's cohesive
+benchmark loop took 0.22 to 0.36 times the C++ time at 1 to 8 ranks; at
+full size (4.39 million tetrahedra, 64 cores, 12 November, before the
+performance campaign) the port took 0.875 times the C++ run time (one run
+each). Comparing the two codes
 produced a register of 596 defects and quirks of the C++ library. AI coding
 agents, directed by Thomas Molinari, wrote the port in six days (9 to 14
 November 2026). The Akantu developers have not reviewed or endorsed the
-port. Apart from one round on the explicit step it has not been optimised,
-it has no C API, and it refuses a few configurations on several ranks.
+port. A performance campaign (16 and 17 November) made it faster without
+changing a result bit in its default mode; it has no C API, and it refuses
+a few configurations on several ranks.
 
 ## What was asked and what was delivered
 
@@ -93,24 +97,29 @@ rows became Verified.
 
 All ratios are the port's time over the C++ time on the same x86_64
 machine, with the same meshes, partitions and MUMPS
-(`02-benchmarks-and-performance.md`):
+(`02-benchmarks-and-performance.md`). The final campaign ran on four AWS
+`m7a.2xlarge` (8 cores) on 17 November 2026; its full-size and multi-node
+runs are measured separately, so the full-size rows are still the
+measurements of 12 November, made before the performance campaign:
 
 | Measurement | Port time / C++ time |
 |---|---|
-| Explicit step on one core, five meshes of three element types | 0.31 to 0.60 |
-| Cohesive benchmark loop, 1 to 8 ranks | 0.39 to 0.59 |
-| Full-size JOSS run, whole wall time, at 64 and 32 ranks (one run each) | 0.875 and 0.851 |
-| Full-size mesh distribution from rank 0 | 1.26 to 1.86 |
-| Static MUMPS solve phase, paired series | about 1.1 |
-| Port's SparseLU translation against upstream's SparseLU | 1.6 to 2.0 |
+| Explicit step on one core, five meshes of three element types | 0.15 to 0.40 |
+| Cohesive benchmark loop, 1 to 8 ranks | 0.22 to 0.36 |
+| Static MUMPS solve phase, 1 to 8 ranks | 0.79 to 1.11 |
+| Port's SparseLU translation against upstream's SparseLU, one thread (opt-in nested-dissection ordering) | 0.74 to 0.91 (0.17 to 0.31) |
+| Sum of the ranks' memory peaks, 559 k tetrahedra, 1 to 8 ranks | 0.77 to 0.80 |
+| Full-size JOSS run, whole wall time, at 64 and 32 ranks (12 November, one run each) | 0.875 and 0.851 |
+| Full-size mesh distribution from rank 0 (12 November) | 1.26 to 1.86 |
 
 ![Full-size run, wall time by phase](figures/perf-fullsize-phases.svg)
 
-Memory is about the same, most of it held by MUMPS; at 64 ranks the port's
-largest rank needs 1.27 times upstream's. The insertion check is the
-largest phase at full size in both codes (53 % to 75 % of the port's wall
-time). Apart from one round on the explicit step, no performance work was
-done.
+At full size on 12 November memory was about the same, most of it held by
+MUMPS, and the port's largest rank needed 1.27 times upstream's at 64
+ranks; the insertion check was the largest phase in both codes (53 % to
+75 % of the port's wall time). Against the port before the performance
+campaign, the explicit step takes 0.51 to 0.72 of the time and the cohesive
+loop 0.36 to 0.62.
 
 ## What was found in the C++ library
 
@@ -207,7 +216,9 @@ its order. Items 1 to 4 keep results bit for bit; item 5 adds a switch.
 5. One switch, also available from the input file, that gives upstream's
    numbers (about a week).
 
-Tooling for following upstream commits, starting with the
+The performance campaign did items 1 and 3 and most of item 4 (item 1 as an opt-in switch;
+`04-possible-improvements.md` gives each finding's status and measured
+effect). Tooling for following upstream commits, starting with the
 `features/matrix_free` branch, comes next (item 6, about a week).
 
 ## Where everything is

@@ -230,8 +230,12 @@ and 198 GiB at 32, and the port's largest rank peaked at 6.13 GiB against
 The port's translation of Eigen's SparseLU, the default solver without
 MUMPS, takes 0.74 times (14 k DOFs) and 0.91 times (98 k DOFs) upstream's
 SparseLU at one thread, and 0.45 and 0.26 times at 8 threads. Before the
-campaign it took 1.6 to 2.0 times. An opt-in nested-dissection ordering
-(D-125) is measured separately.
+campaign it took 1.6 to 2.0 times. With the opt-in nested-dissection
+ordering (D-125; the default ordering, COLAMD, is the only bitwise one) it
+takes 0.305 and 0.170 times upstream's SparseLU at one thread, 0.412 and
+0.186 times its own time with COLAMD; under the fast precision, the
+`auto` ordering chose nested dissection on both meshes (second pass of the
+campaign's static solves, 17 November).
 
 Set-up in the cohesive driver: `init_full` (facets, model and cohesive
 set-up) takes 0.075 to 0.19 times upstream's time, the mesh distribution

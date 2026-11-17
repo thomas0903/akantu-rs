@@ -24,6 +24,10 @@ medians with [min, max]; data `docs/benchmarks/perf-campaign/final/`):
   and 0.91–1.11× at 8 ranks; the port's SparseLU takes 0.74× (h = 0.12) and
   0.91× (h = 0.06) upstream's SparseLU at one thread, 0.45× and 0.26× at 8
   threads (parts C and D).
+- With the opt-in nested-dissection ordering (D-125; COLAMD stays the
+  default) the port's SparseLU static solve takes 0.305× (h = 0.12) and
+  0.170× (h = 0.06) upstream's SparseLU at one thread, 0.412× and 0.186×
+  the port with COLAMD (part D, second pass, head `4d974854d`).
 - On h = 0.04 (558,875 tetrahedra, static solve and 300 steps) the sum of
   the ranks' memory peaks is 8,965 / 11,013 / 10,400 / 12,133 MiB for the
   port and 11,669 / 13,741 / 13,171 / 15,367 MiB for upstream at 1 / 2 / 4 /
@@ -69,6 +73,7 @@ conclusion rests on them.
 |---|---|---|---|---|
 | 4 × AWS `m7a.2xlarge` (8 cores, one thread per core, one NUMA node, 30.6 GiB visible, Ubuntu 24.04.5, kernel 7.0.0-1014-aws), one part per machine, nothing else running | AMD EPYC 9R14 | 2026-11-17 (sessions 10:33 to 18:59 UTC) | the final campaign, stage 1: machine 1 part C series `reh6`; machine 2 part C (other series); machine 3 parts B, D; machine 4 parts E, F, A | `docs/benchmarks/perf-campaign/final/` |
 | one 128-core node | — | measured separately; not yet available in this revision | the final campaign, part G (the JOSS mesh at 128 / 64 / 32 ranks, both codes) | to come |
+| AWS `m7a.2xlarge` (machine 3 again, same type) | AMD EPYC 9R14 | 2026-11-17 (17:06 to 20:20 UTC) | the final campaign, part D second pass at `4d974854d`: every variant of the first pass and the orderings `head-nd`, `head-auto` | `docs/benchmarks/perf-campaign/final/D-nd/` |
 | 4 hosts | — | measured separately; not yet available in this revision | the final campaign's multi-node run (128 ranks over 4 hosts, the port only) | to come |
 | AWS `r7a.16xlarge`, one node, 64 cores, one thread per core, one NUMA node, 493 GiB visible | AMD EPYC 9R14 | 2026-11-12, 2026-11-13 | the full-size run (both codes at 64 and 32 ranks, the port at 8); the port's rerun after UD-1280 | `docs/benchmarks/c1-2026-11-12/`, `c1-rerun-2026-11-13/` |
 | 8 × AWS `r7a.2xlarge` (8 cores, 64 GiB each), one cluster placement group | AMD EPYC 9R14 | 2026-11-13 | the multi-node runs (the port only, up to 64 ranks) | `docs/benchmarks/mn-2026-11-13/` |
@@ -721,15 +726,67 @@ Table "suite_solid static_linear_mumps at 1, 2, 4 ranks" (selected phases;
 
 ### The nested-dissection ordering (D-125)
 
-<!-- PLACEHOLDER final-D-nd: paste the tables of docs/benchmarks/perf-campaign/final/D-nd/summary.md here -->
-Measured separately; not yet available in this revision. Part D's SparseLU
-series at `4d974854d` with the variants `head-nd` (the nested-dissection
-ordering) and `head-auto` (fast precision, the `auto` ordering), timed and
-checked for precision and ordering, never digested as bitwise. Its tables
-("The SparseLU translation against upstream's SparseLU", "suite_solid, the
-sparse solvers' phases") go here as generated, from a data directory beside
-`docs/benchmarks/perf-campaign/final/D/`. The development measurements are
-in `docs/benchmarks/perf-campaign/sparselu-nd/README.md`.
+The `eigen` solver (the SparseLU translation) takes an opt-in column
+ordering (D-125): `nested_dissection`, or `auto`, which takes nested
+dissection only when its predicted work is at most 0.8 of COLAMD's and its
+predicted size not larger, and otherwise keeps COLAMD. COLAMD stays the default and is the
+only bitwise ordering; under another ordering the factors and the last
+digits of the solutions differ from the default (rule
+`fast_mode/linalg/sparse_lu_ordering`). Under the fast precision without an
+ordering set, the solver uses `auto`.
+
+Second pass of part D: AWS `m7a.2xlarge`, AMD EPYC 9R14, 2026-11-17
+17:06–20:20 UTC (machine 3 again, another session), port head `4d974854d`,
+port before `b6f56c2f0`; it repeats every variant of the first pass and adds
+`head-nd` (`AKANTU_SPARSE_ORDERING=nested_dissection`) and `head-auto`
+(`AKANTU_PRECISION=fast`, no ordering set); 65 of 65 groups complete and
+checked, 170 of 170 bindings as planned; data
+`docs/benchmarks/perf-campaign/final/D-nd/summary.md`. Its numbers are not
+mixed with the first pass's tables above.
+
+Table "The SparseLU translation against upstream's SparseLU" (second pass;
+the driver's `static_solve` phase: assembly, analysis, factorisation, solve;
+1 rank, 10 steps; s):
+
+| h | DOFs | C++ SparseLU (strict) | port before | port | port / C++ | port / port before | container memory peak (cgroup memory.peak) C++ / before / port MiB |
+|---|---|---|---|---|---|---|---|
+| 0.12 | 14,472 | 2.85 [2.85, 2.87] | 7.58 [7.58, 7.61] | 2.12 [2.09, 2.12] | 0.740 [0.729, 0.744] | 0.278 [0.276, 0.279] | 497 [497, 497] / 561 [560, 561] / 399 [399, 399] |
+| 0.12 | port, 2 threads |  |  | 1.68 [1.66, 1.71] | 0.589 [0.585, 0.596] | 0.797 [0.786, 0.817] (against 1 thread) |  |
+| 0.12 | port, 4 threads |  |  | 1.40 [1.39, 1.41] | 0.490 [0.487, 0.494] | 0.663 [0.659, 0.669] (against 1 thread) |  |
+| 0.12 | port, 8 threads |  |  | 1.27 [1.27, 1.29] | 0.446 [0.444, 0.452] | 0.603 [0.602, 0.609] (against 1 thread) |  |
+| 0.12 | port, nested dissection |  |  | 0.873 [0.857, 0.879] | 0.305 [0.301, 0.307] | 0.412 [0.407, 0.421] (against COLAMD) |  |
+| 0.12 | port, fast precision, auto ordering |  |  | 0.880 [0.876, 0.887] | 0.307 [0.306, 0.312] | 0.418 [0.414, 0.420] (against COLAMD) |  |
+| 0.06 | 97,551 | 241 [241, 242] | 781 [780, 783] | 219 [218, 220] | 0.910 [0.904, 0.912] | 0.281 [0.279, 0.281] | 7,608 [7,608, 7,608] / 6,918 [6,918, 6,918] / 5,325 [5,325, 5,325] |
+| 0.06 | port, 2 threads |  |  | 138 [137, 140] | 0.572 [0.570, 0.579] | 0.630 [0.626, 0.639] (against 1 thread) |  |
+| 0.06 | port, 4 threads |  |  | 86.5 [86.4, 86.6] | 0.359 [0.358, 0.359] | 0.394 [0.394, 0.397] (against 1 thread) |  |
+| 0.06 | port, 8 threads |  |  | 62.4 [62.3, 62.9] | 0.259 [0.258, 0.261] | 0.285 [0.284, 0.286] (against 1 thread) |  |
+| 0.06 | port, nested dissection |  |  | 40.9 [40.9, 41.0] | 0.170 [0.169, 0.170] | 0.186 [0.186, 0.188] (against COLAMD) |  |
+| 0.06 | port, fast precision, auto ordering |  |  | 34.5 [34.4, 34.5] | 0.143 [0.143, 0.143] | 0.157 [0.157, 0.158] (against COLAMD) |  |
+
+- At one thread, nested dissection takes 0.873 s (h = 0.12) and 40.9 s
+  (h = 0.06): 0.305 and 0.170 of upstream's SparseLU, 0.412 and 0.186 of
+  the port with COLAMD. The ordering was not measured with threads in this
+  pass.
+- `auto` under the fast precision chose nested dissection on both meshes
+  (`rust_static_solver_stats.ordering = 1` in every run, `runs.jsonl`; its
+  factor L held 4,703,922 entries against COLAMD's 8,222,229 at h = 0.12,
+  77,750,118 against 190,221,087 at h = 0.06, `nnz_l`) and took 0.880 s and
+  34.5 s: 0.307 and 0.143 of upstream's SparseLU, 0.418 and 0.157 of
+  COLAMD.
+- The pass's repetition of the first pass's variants agrees with it: the
+  port with COLAMD takes 2.12 [2.09, 2.12] s against 2.11 [2.11, 2.13] s in
+  the first pass (h = 0.12) and 219 [218, 220] s against 219 [218, 221] s
+  (h = 0.06); upstream's SparseLU 2.85 against 2.86 s and 241 against
+  241 s. The default path gives the same results at both heads: the
+  per-step energies and insertions of every 1-rank and SparseLU run are
+  byte-identical to the first pass's, and so are the suite digests of
+  `static_linear_eigen`, `static_linear_faer` and `static_linear_mumps` at
+  one rank (only the distributed MUMPS runs, which do not repeat, differ).
+- Where the ordering loses: on the development machine the DKT plate case
+  of `suite_solid`, whose factorisation pivots off the diagonal, took 3.09
+  times COLAMD's solve time with nested dissection
+  (`docs/benchmarks/perf-campaign/sparselu-nd/README.md`, a development
+  record, not a result of this campaign).
 
 ### Before the final campaign (11–13 November)
 
@@ -2083,8 +2140,10 @@ From the final campaign's tables:
   4 × 2 take 0.993–1.22× the loop of 8 ranks.
 - The static solve phase: the port's assembly and MUMPS hand-over are
   0.79–0.96× upstream's at 1 to 4 ranks; at 8 ranks the ratio reaches 1 and
-  its range is wide. The nested-dissection ordering of the SparseLU
-  translation (D-125) is measured separately.
+  its range is wide. Without MUMPS, the opt-in nested-dissection
+  ordering of the SparseLU translation (D-125) takes 0.186–0.412× the
+  default ordering's static solve at one thread; it was not measured with
+  threads.
 - Three phases are slower than before the campaign: the sparse backends'
   symbolic analysis (1.11–1.12×), `update_insertion_facets` (2.49×) and
   `erase_elements` (1.06×); the Python `get_stress` and built-in functor

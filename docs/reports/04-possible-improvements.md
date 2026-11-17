@@ -151,7 +151,7 @@ together.
 | P4.2 | partly (lane kernels in the explicit step, AVX2 at run time, no FMA) | inside P2.3's ratios (part A) |
 | P4.3 | not done | — |
 | P4.4 | partly (one agreement skipped; the protocol unchanged) | not measured |
-| P4.5 | partly (tiles and threads; an opt-in nested-dissection ordering, D-125) | as P1.7; the nested-dissection ordering is measured separately (not yet in this revision) |
+| P4.5 | partly (tiles and threads; an opt-in nested-dissection ordering, D-125) | as P1.7; with nested dissection the SparseLU static solve takes 0.412 and 0.186 of COLAMD's at one thread (h = 0.12, 0.06), 0.305 and 0.170 of upstream's SparseLU (part D, second pass) |
 | P4.6 | not done | — |
 
 ## Features and gaps
