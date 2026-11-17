@@ -317,7 +317,8 @@ change of default results or of a public API raises the minor version.
   the executor's SIMD level (`AKANTU_SIMD`); the environment variable
   `AKANTU_SPARSELU_ISA` is gone. A DOF manager built without a model
   (`DofManager::new`, `with_backend`) takes the process default policy
-  instead of one thread; a model sets its own as before.
+  instead of one thread, and falls back to one thread when the `AKANTU_*`
+  variables are invalid (it does not fail); a model sets its own as before.
 - Small dense products and Eigen-order reductions are faster with bitwise
   identical results: the halving-tree reduction is non-recursive and
   inlined, fixed-size tensor products select their route at compile time,

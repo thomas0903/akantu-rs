@@ -3,9 +3,13 @@
 
 Machine of every table: Google Cloud, AMD EPYC 9B14 (Zen 4, AVX-512),
 8 cores, one thread per core, Ubuntu 24.04, nothing else running.
-"Base" = `perf/wave2-base` 72337cb4 at one thread; "head" = this branch.
-The thread count of every run is set with the environment variable
-`AKANTU_NUM_THREADS` (the suites' `--threads` option is only recorded);
+"Base" = `perf/wave2-base` at one thread, at the commit each section
+names: 72337cb4 up to "Candidates measured and dropped", d404f4c70 in "On
+the merged head", 7a6ad8f42 in the last two sections; "head" = this
+branch. The thread count of every run is set with the environment variable
+`AKANTU_NUM_THREADS`; the suites' `--threads` option, which only recorded
+the count in the first sections, sets the executor's policy since the
+merge with d404f4c70 (the runs of the later sections pass both).
 `T` threads run pinned to the cores `0..T−1`. A check with `ps -L`
 during a run: 4 threads with `AKANTU_NUM_THREADS=4`, 1 with `1`.
 
@@ -95,7 +99,11 @@ bitwise triangular solve, the bitwise product in `kernel_bmod` and the
 out-of-line fast entry points recovered part. The code of the hot
 kernels is identical (`gemm_avx512` disassembles the same), the slowdown
 is spread over unchanged kernels, and two builds with a padding function
-did not move it: not identified (open problem).
+did not move it. Identified later (last two sections): the placement of
+the gemm tile's hot loop relative to the 64-byte fetch blocks, and in
+`panel_bmod` a reload of the `L` block's base pointer from the stack in
+the serial scatter loop; both fixed, one thread is now at the base's
+speed.
 
 ## Against C++: the cohesive static solve, Eigen on both sides
 
@@ -236,5 +244,39 @@ Host cohesive static solve (`timing_ab.sh`, `loop-alignment/alc/`):
 | 0.12 (5 reps) | 2.178 s | 2.112 s | 0.968 [0.961, 0.975] |
 | 0.06 (2 reps) | 226.1 s | 214.5 s | 0.948 [0.947, 0.950] |
 
-The base binary of 7a6ad8f42 happens to have the slow placement; the head
-no longer depends on it.
+These cohesive ratios below 1 are not a gain of the threaded code (one
+thread runs the serial path): the base binary of 7a6ad8f42 happens to have
+the slow placement of the gemm loop (loop head at 48 mod 64), and the
+directive gives the head the fast one. They measure that placement
+effect; the head no longer depends on where the linker puts the function.
+
+## Fix round: the serial scatter and the directive per loop (base 7a6ad8f42)
+
+- The serial product and `L` scatter of `panel_bmod` moved to an
+  out-of-line helper (`PanelUpdate::run_serial`): nothing of the caller is
+  live in the scatter loop, whose inner loop now keeps every pointer in a
+  register (it reloaded the `L` block's base from the stack before).
+- That helper alone left `structural_dkt18_plate_static` at 1.008
+  [1.000, 1.015] (`fix-round/t3m`): its inner loop sat at 48 mod 64 in
+  `suite_models`, across two fetch blocks (0 mod 64 in `suite_solid`). The
+  directive now takes a NOP count per loop (`align_next_loop::<NOPS>`):
+  16 before the k loop of the bitwise AVX-512 16 × 8 gemm tile only (no
+  longer in the 16 × 4 or the FMA instances), 48 before the inner scatter
+  loop (its padding runs once per `L` row). Three-way series
+  (`fix-round/t4m`, `t4s`): helper only 1.005, helper and aligned
+  scatter 0.995.
+- `loop_alignment_check.py BINARY ...` prints the two loop heads and
+  their offset mod 64 and fails when one is not 0 (the base: gemm loop at
+  32, no `run_serial`). **Run it on `suite_solid` and `suite_models` after
+  every toolchain bump**: the NOP counts compensate this rustc's (1.99.1)
+  preheaders.
+
+One thread against the base 7a6ad8f42 (7 repetitions, interleaved and
+rotated, core 2; head 988a8c22, `fix-round/t5m`, `t5s`; digests the same):
+
+| case | phase | base | head | head / base, median [min, max] |
+|---|---|---|---|---|
+| structural_dkt18_plate_static | solve_step | 907.5 ms | 900.3 ms | 0.998 [0.990, 1.013] |
+| static_linear_eigen | factorize (2) | 1.027 s | 1.016 s | 0.989 [0.966, 1.001] |
+| static_linear_eigen | back_substitution (20) | 128.3 ms | 127.8 ms | 0.997 [0.986, 1.004] |
+| static_linear_eigen | solve_step | 713.0 ms | 702.8 ms | 0.987 [0.944, 1.011] |

@@ -2166,9 +2166,13 @@ tests against the default path.
   `AKANTU_SIMD` (and `AKANTU_EXEC_GRAIN`), read on first use, or from
   `ExecPolicy::set_process_default` (Python: `akantu.setNumThreads`,
   `setPrecision`, `setSimdLevel`) before the models are created. An
-  invalid variable makes model creation fail. Tests set the policy on
-  their own model, never the process default, so tests running in
-  parallel threads of one process do not race.
+  invalid variable makes model creation fail. A DOF manager built
+  without a model (`DofManager::new`, `with_backend`) takes the process
+  default policy; when the `AKANTU_*` variables are invalid it falls back
+  to one thread (bitwise, detected SIMD level) instead of failing, and a
+  model that creates its DOF manager replaces that executor by its own.
+  Tests set the policy on their own model, never the process default, so
+  tests running in parallel threads of one process do not race.
 - **A kernel reads the policy once per batch**: the engine's or the
   model's `Exec` is passed to the batch, which picks its variant (fast
   mode, SIMD level) and splits its work once; nothing is read per
