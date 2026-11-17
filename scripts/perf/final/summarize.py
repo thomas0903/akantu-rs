@@ -110,19 +110,19 @@ def header(d, info, title):
     dry = info.get("size") == "dry"
     out = [f"# Final campaign, part {info.get('part', d.name)}: {title}", ""]
     if dry:
-        out += ["**Dry run on a development machine: the smallest sizes "
+        out += [("**Dry run on a development machine: the smallest sizes "
                 "and 2 repetitions, a check of the campaign's chain from "
                 "the build to the tables. These numbers are not results "
-                "and are not comparable with the published tables.**", ""]
-    out += [f"- Machine: {info.get('cpu')}, {info.get('cores', '?')} cores,"
-            f" kernel {info.get('kernel', '?')}.",
+                "and are not comparable with the published tables.**"), ""]
+    out += [(f"- Machine: {info.get('cpu')}, {info.get('cores', '?')} cores,"
+            f" kernel {info.get('kernel', '?')}."),
             f"- Sessions (UTC): {', '.join(info['dates']) or 'unknown'}.",
-            f"- Revisions: C++ reference `{info.get('cpp', '?')[:12]}`, "
+            (f"- Revisions: C++ reference `{info.get('cpp', '?')[:12]}`, "
             f"port before `{info.get('before', '?')[:12]}`, port head "
-            f"`{info.get('head', '?')[:12]}`.",
-            f"- Size `{info.get('size')}`, repetitions requested: "
+            f"`{info.get('head', '?')[:12]}`."),
+            (f"- Size `{info.get('size')}`, repetitions requested: "
             f"{info.get('reps', '?')}. Provenance: `provenance.txt`; every "
-            "command: `commands.log`; progress: `progress.log`.", ""]
+            "command: `commands.log`; progress: `progress.log`."), ""]
     for name, what in (("CHECKS_FAILED", "Failed checks"),
                        ("FAILED", "Failed runs")):
         p = d / name
@@ -211,10 +211,10 @@ def summarize_a(d, info):
                           for n in (2, 4, 8)]
                        + [ratio(v["head-fast"], v["head"], 2),
                           ratio(v["head-fast-t8"], v["head-t8"], 2)])
-    out += ["Table \"The port's step at 2, 4 and 8 threads "
+    out += [("Table \"The port's step at 2, 4 and 8 threads "
             "(`AKANTU_NUM_THREADS`, cores 0..N-1) and in fast mode "
             "(`AKANTU_PRECISION=fast`)\", ns per element and step; ratios "
-            "paired per round:", "", table(hdr, trs)]
+            "paired per round:"), "", table(hdr, trs)]
     dg = d / "digests.tsv"
     if dg.exists():
         lines = [ln.split("\t") for ln in dg.read_text().splitlines() if ln]
@@ -323,8 +323,8 @@ def suite_tables(base, title, serial=True):
                         ratio(sec("head-fast-t8", 1, c, ph),
                               sec("head-t8", 1, c, ph))]
             rows.append(row + [digest_ok(c, 1)])
-        out += [f"Table \"{title}\" (seconds of the phase over its calls, "
-                "median [min, max]; ratios paired per repetition):", "",
+        out += [(f"Table \"{title}\" (seconds of the phase over its calls, "
+                "median [min, max]; ratios paired per repetition):"), "",
                 table(hdr, rows)]
     else:
         nps = sorted({n for (_, n, _, _) in data})
@@ -347,22 +347,22 @@ def suite_tables(base, title, serial=True):
                 rows.append([c, ph, np_, med_time(list(b.values())),
                              med_time(list(h.values())), ratio(h, b), rt,
                              tt, cmp_, digest_ok(c, np_)])
-        out += [f"Table \"{title}\" (seconds of the phase, rank 0 or the "
-                "case's maximum over the ranks as the case reports it):",
+        out += [(f"Table \"{title}\" (seconds of the phase, rank 0 or the "
+                "case's maximum over the ranks as the case reports it):"),
                 "", table(hdr, rows)]
     return out
 
 
 def summarize_b(d, info):
     out = header(d, info, "the benchmark suites")
-    out += ["Cases at the baseline's sizes (`m`; `s` in a dry run), one "
+    out += [("Cases at the baseline's sizes (`m`; `s` in a dry run), one "
             "process per run pinned to one core (threads on cores "
             "0..N-1), the variants of a case adjacent and rotated per "
             "repetition (`scripts/perf/suite/run_ab.sh`). No case of the "
             "suites has a C++ twin (the suites were written for the port; "
             "`SUITE.md` of the campaign), so the C++ column of the "
             "baseline exists only for the explicit step, the cohesive "
-            "driver and the static solve (parts A, C, D).", ""]
+            "driver and the static solve (parts A, C, D)."), ""]
     for s in ("solid", "models", "setup"):
         out += suite_tables(d / f"suite-{s}", f"suite_{s}, serial cases")
     for s in ("solid", "setup", "models"):
@@ -559,10 +559,10 @@ def cohesive_series_tables(runs, series, title, steps_note=""):
                         + [eff] + [med(list(metric(reps, k).values()))
                                    for k in ("peak_max_mib",
                                              "peak_sum_mib")])
-    out += ["Table \"Points\" (rank 0's Chrono phases; core-µs per element "
+    out += [("Table \"Points\" (rank 0's Chrono phases; core-µs per element "
             "and step = (`solve_step` + check) × cores / tetrahedra / "
             "steps; loop efficiency = core-µs at 1 rank / core-µs at P, "
-            "same code; peaks of the memory sampler):", "",
+            "same code; peaks of the memory sampler):"), "",
             table(hdr, rows)]
     # paired ratios, as "Port / upstream, series ws"
     for num, den, name in (("head", "cpp", "Port / upstream"),
@@ -581,8 +581,8 @@ def cohesive_series_tables(runs, series, title, steps_note=""):
                                               "static", "init_full",
                                               "wall")])
         if rows:
-            out += [f"Table \"{name}, series {series}\" (paired: the runs "
-                    "of each repetition; median [min, max]):", "",
+            out += [(f"Table \"{name}, series {series}\" (paired: the runs "
+                    "of each repetition; median [min, max]):"), "",
                     table(hdr, rows)]
     # ranks x threads against ranks
     hdr = ["h", "configuration", "loop s", "against 8 ranks",
@@ -602,8 +602,8 @@ def cohesive_series_tables(runs, series, title, steps_note=""):
                          ratio(metric(reps, "loop"),
                                metric(vs.get(base, {}), "loop"))])
     if rows:
-        out += ["Table \"Ranks × threads\" (the port, loop = `solve_step` "
-                "+ check, paired ratios):", "", table(hdr, rows)]
+        out += [("Table \"Ranks × threads\" (the port, loop = `solve_step` "
+                "+ check, paired ratios):"), "", table(hdr, rows)]
     return out
 
 
@@ -643,7 +643,7 @@ def check_lines(d):
         n += 1
         bad += bool(o["failures"])
         cmp_ += sum(len(v) > 1 for v in o["compared"].values())
-    return [f"Checks (`checks.jsonl`): {n} points; at every point the "
+    return [(f"Checks (`checks.jsonl`): {n} points; at every point the "
             "thread count and precision of each port run (`rust_exec` of "
             "`summary.json`) against the request; per-step energies and "
             "insertions (`energies.csv`, `insertions.csv`, 17 digits) "
@@ -651,32 +651,32 @@ def check_lines(d):
             "included) and in the SparseLU series at every rank count; "
             f"{cmp_} comparisons made, {bad} points failed. The MUMPS runs "
             "at P > 1 are compared on time only (the distributed solve "
-            "does not repeat run to run).", ""]
+            "does not repeat run to run)."), ""]
 
 
 def summarize_c(d, info):
     runs = load_runs(d)
     out = header(d, info, "the cohesive benchmark at small and mid sizes, "
                  "1 to 8 ranks")
-    out += ["C++: the strict install with the JOSS emulation (`FNTE = "
+    out += [("C++: the strict install with the JOSS emulation (`FNTE = "
             "joss`), MUMPS 5.7.3; the port's MPI build (`mpi,scotch,"
             "mumps`); the same mesh and Scotch partition for both "
             "(`c1prep_campaign.sh`); ranks on cores 0..P-1; one container "
             "per run; the variants of a point adjacent, rotated per "
-            "repetition, the point order reversed every other repetition.",
+            "repetition, the point order reversed every other repetition."),
             ""]
     out += check_lines(d)
-    for s, t in (("ws", "500 steps before the first insertion (the series "
-                  "`ws` of the scaling study)"),
+    for s, t in (("ws", ("500 steps before the first insertion (the series "
+                  "`ws` of the scaling study)")),
                  ("ins", "the insertion regime on h = 0.12, 1,500 steps"),
-                 ("full12", "the full schedule on h = 0.12, 5,000 steps "
-                  "(the insertion-check tables)"),
-                 ("reh6", "the full schedule on h = 0.06 (\"The mid-size "
-                  "rehearsal\")"),
-                 ("reh4", "static solve + 300 pre-insertion steps on "
-                  "h = 0.04 (\"The mid-size rehearsal\")"),
-                 ("eig", "the port's SparseLU static solve at 1 to 8 ranks "
-                  "(bitwise check of the distributed runs)")):
+                 ("full12", ("the full schedule on h = 0.12, 5,000 steps "
+                  "(the insertion-check tables)")),
+                 ("reh6", ("the full schedule on h = 0.06 (\"The mid-size "
+                  "rehearsal\")")),
+                 ("reh4", ("static solve + 300 pre-insertion steps on "
+                  "h = 0.04 (\"The mid-size rehearsal\")")),
+                 ("eig", ("the port's SparseLU static solve at 1 to 8 ranks "
+                  "(bitwise check of the distributed runs)"))):
         out += cohesive_series_tables(runs, s, t)
     out += ["## Weak and strong scaling", ""]
     out += strong_weak(runs, ["ws"], [
@@ -697,15 +697,15 @@ def summarize_c(d, info):
 def summarize_d(d, info):
     runs = load_runs(d)
     out = header(d, info, "static solves and solvers")
-    out += [f"The head's SparseLU factorisation uses threads: "
+    out += [(f"The head's SparseLU factorisation uses threads: "
             f"{info.get('sparselu_threaded', 'unknown')} (from the "
-            "translation's source; threaded variants are timed only then).",
+            "translation's source; threaded variants are timed only then)."),
             ""]
     out += check_lines(d)
     pts = by_point(runs, "eig1")
     hdr = ["h", "DOFs", "C++ SparseLU (strict)", "port before", "port",
-           "port / C++", "port / port before", "peak RSS C++ / before / "
-           "port MiB"]
+           "port / C++", "port / port before", ("peak RSS C++ / before / "
+           "port MiB")]
     rows = []
     for (h, np_) in sorted(pts, key=lambda k: hkey(k[0])):
         vs = pts[(h, np_)]
@@ -728,9 +728,9 @@ def summarize_d(d, info):
                              ratio(metric(x, "static"), metric(c, "static")),
                              ratio(metric(x, "static"), metric(p, "static"))
                              + " (against 1 thread)", ""])
-    out += ["Table \"The SparseLU translation against upstream's "
+    out += [("Table \"The SparseLU translation against upstream's "
             "SparseLU\" (the driver's `static_solve` phase: assembly, "
-            "analysis, factorisation, solve; 1 rank, 10 steps; s):", "",
+            "analysis, factorisation, solve; 1 rank, 10 steps; s):"), "",
             table(hdr, rows) if rows else "missing\n"]
     pts = by_point(runs, "mumps")
     hdr = ["h", "ranks", "C++", "port before", "port", "port / C++",
@@ -743,8 +743,8 @@ def summarize_d(d, info):
                                 for x in (c, b, p)]
                     + [ratio(metric(p, "static"), metric(c, "static")),
                        ratio(metric(p, "static"), metric(b, "static"))])
-    out += ["Table \"MUMPS in the cohesive benchmark\" (static solve "
-            "phase, s; the same MUMPS 5.7.3 on the same matrix, PORD):", "",
+    out += [("Table \"MUMPS in the cohesive benchmark\" (static solve "
+            "phase, s; the same MUMPS 5.7.3 on the same matrix, PORD):"), "",
             table(hdr, rows) if rows else "missing\n"]
     out += suite_tables(d / "suite-solid", "suite_solid, the sparse "
                         "solvers' phases (analysis, factorize, "
@@ -790,13 +790,13 @@ def summarize_e(d, info):
                             "container_mib")]
                         + [pair("hwm_static"), pair("rss_before_static"),
                            inf if inf else MISSING, lb])
-        out += [f"Table \"Memory, h = {h}\" (peaks of the sampler: "
+        out += [(f"Table \"Memory, h = {h}\" (peaks of the sampler: "
                 "`memsample.py`, VmHWM of every rank every 0.25 s; "
                 "container = the cgroup's `memory.peak`; the port's own "
                 "records in `summary.json`; the last column = (Σ rank "
                 "peaks − the port's `INFOG(19)`) / tetrahedra, as the "
                 "document's table \"Memory besides MUMPS\"; \"factors "
-                "released\" = `rust_release_static_solver = true`):", ""]
+                "released\" = `rust_release_static_solver = true`):"), ""]
         out += [table(hdr, rows)]
         rows = []
     return out
@@ -824,8 +824,8 @@ def summarize_f(d, info):
                                    for k in ("read_mesh", "dist_mesh",
                                              "init_full", "before_step",
                                              "static")])
-    out += ["Table \"Set-up costs\" (the cohesive driver, 1 step; rank 0's "
-            "Chrono phases):", "", table(hdr, rows)]
+    out += [("Table \"Set-up costs\" (the cohesive driver, 1 step; rank 0's "
+            "Chrono phases):"), "", table(hdr, rows)]
     if rat:
         out += ["Table \"Set-up, port / upstream\" (paired):", "",
                 table(["h", "ranks", "read_mesh", "dist_mesh", "init_full",
@@ -834,9 +834,9 @@ def summarize_f(d, info):
                         "`dist_mesh_tet4`, size `l`: 1,296,000 Tet4)",
                         serial=False)
     out += mpilayer_tables(d / "mpilayer")
-    out += ["The I/O cases (mesh reading and writing, dumpers, parser) and "
+    out += [("The I/O cases (mesh reading and writing, dumpers, parser) and "
             "the distributed exchanges are cases of `suite_setup`: their "
-            "tables are in part B.", ""]
+            "tables are in part B."), ""]
     return out
 
 
@@ -871,14 +871,14 @@ def mpilayer_tables(m):
                     + [ratio(g("head"), g("raw")),
                        ratio(g("before"), g("raw")),
                        ratio(g("head"), g("before"))])
-    out = ["Table \"Method A, separate launches\" (µs, median [min, max]; "
+    out = [("Table \"Method A, separate launches\" (µs, median [min, max]; "
            "ping-pong: half round trip; halo: one exchange with every "
-           "other rank, slowest rank):", "", table(hdr, rows)]
+           "other rank, slowest rank):"), "", table(hdr, rows)]
     cal = sorted(m.glob("calibrated.*.txt"))
     if cal:
-        out += ["Method B (`mpi_bench calibrated`, one job per transport "
+        out += [("Method B (`mpi_bench calibrated`, one job per transport "
                 "and variant): the raw output is in `mpilayer/calibrated.*`"
-                f" ({len(cal)} files); its summary lines:", "", "```text"]
+                f" ({len(cal)} files); its summary lines:"), "", "```text"]
         for f in cal:
             lines = [ln for ln in f.read_text(errors="replace").splitlines()
                      if "ratio" in ln.lower()]
@@ -931,35 +931,35 @@ def summarize_g(d, info):
                 mumps.append([f"{np_} ({code_name(v, np_)})",
                               st.get("infog7_ordering"),
                               f"{st.get('infog29_factor_entries_effective', 0):.3g}",
-                              f"{st.get('infog19_mb_sum_allocated', 0):,} / "
-                              f"{st.get('infog18_mb_max_allocated', 0):,}",
-                              f"{st.get('infog22_mb_sum_used', 0):,} / "
-                              f"{st.get('infog21_mb_max_used', 0):,}",
+                              (f"{st.get('infog19_mb_sum_allocated', 0):,} / "
+                              f"{st.get('infog18_mb_max_allocated', 0):,}"),
+                              (f"{st.get('infog22_mb_sum_used', 0):,} / "
+                              f"{st.get('infog21_mb_max_used', 0):,}"),
                               f"{st.get('rinfog3_flops_elimination', 0):.3g}",
                               st.get("retries"),
-                              f"{mx.get('nnz_sum', 0):,} / "
-                              f"{mx.get('nnz_max', 0):,}"])
+                              (f"{mx.get('nnz_sum', 0):,} / "
+                              f"{mx.get('nnz_max', 0):,}")])
         if "head" in vs and "cpp" in vs:
             a, b = vs["head"], vs["cpp"]
             rat.append([np_] + [ratio(metric(a, k), metric(b, k)) for k in
                                 ("wall", "init_full", "static", "dist_mesh",
                                  "solve_step", "check", "energies", "loop",
                                  "peak_max_mib", "peak_sum_mib")])
-    out += ["Table \"Phases\" (rank 0's Chrono totals, s; per step = total "
-            "/ steps):", "", table(hdr, rows)]
+    out += [("Table \"Phases\" (rank 0's Chrono totals, s; per step = total "
+            "/ steps):"), "", table(hdr, rows)]
     out += ["Table \"Port / upstream at the same rank count\":", "",
             table(["ranks", "wall", "`init_full`", "static solve",
                    "`dist_mesh`", "`solve_step`", "check", "energies",
                    "loop", "largest rank peak", "total peak"], rat)]
-    out += ["Table \"Memory\" (GiB; sampler = `memsample.py`, VmHWM of "
+    out += [("Table \"Memory\" (GiB; sampler = `memsample.py`, VmHWM of "
             "every rank; container = the cgroup's `memory.peak`; static = "
-            "the port's `VmHWM` at the end of the static solve):", "",
+            "the port's `VmHWM` at the end of the static solve):"), "",
             table(["code", "ranks", "largest rank", "total (sampler)",
                    "container", "static: largest rank / total",
                    "per-rank peak min / median / max"], mem)]
     if mumps:
-        out += ["Table \"MUMPS\" (the port's records; `INFOG` in MB, flops "
-                "= `RINFOG(3)`):", "",
+        out += [("Table \"MUMPS\" (the port's records; `INFOG` in MB, flops "
+                "= `RINFOG(3)`):"), "",
                 table(["ranks", "ordering `INFOG(7)`",
                        "factor entries `INFOG(29)`",
                        "allocated sum / largest rank `INFOG(19)` / `(18)`",
@@ -981,8 +981,8 @@ def machine_time(d):
     if not p.exists():
         return []
     ts = [ln.split()[0] for ln in p.read_text().splitlines() if ln]
-    out = [f"Progress log: first line {ts[0]}, last line {ts[-1]} "
-           f"({len(ts)} lines)."] if ts else []
+    out = [(f"Progress log: first line {ts[0]}, last line {ts[-1]} "
+           f"({len(ts)} lines).")] if ts else []
     idx = d / "index.jsonl"
     if idx.exists():
         w = sum(json.loads(ln)["wall_s"] for ln in
