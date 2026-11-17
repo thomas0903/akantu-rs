@@ -2386,9 +2386,6 @@ impl DofManager {
             start = end;
         }
         self.assembly_caches.insert(key, cache);
-        if self.exec.is_parallel() && result.is_ok() {
-            self.threaded_assemblies += 1;
-        }
         result.map(|()| true)
     }
 

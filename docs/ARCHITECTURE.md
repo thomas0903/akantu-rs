@@ -1077,7 +1077,14 @@ structural `tests/exec_threads.rs`):
   (`BlockPositionCache::vouch_equations`) with the mesh revision, the
   numbering generation and the connectivity's storage, never for an
   exported connectivity; with a matching key the batch skips the
-  per-block check of the equations. On one thread the batch takes only
+  per-block check of the equations. The key is consulted only after the
+  matrix order, the position epoch and the entry count have matched the
+  plan's, so what it alone guards are in-place edits of the connectivity
+  (the mesh revision and the connectivity's storage). Every operation that
+  changes the numbering generation (family registration, node addition or
+  removal, the rollback of a failed growth) also changes the order or
+  resets the profile; the generation is kept in the key as a defence
+  against a future renumbering that would keep both (one comparison). On one thread the batch takes only
   the planned path; a round without a plan runs the serial loop, after
   which the DOF manager builds the plan from the slots it has just
   checked (`plan_after_serial_round`).
