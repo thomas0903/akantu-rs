@@ -518,69 +518,144 @@ impl Linear {
                         },
                     );
                 }
-                for (k, &facet) in filter.iter().enumerate().take(nb_pairs) {
-                    let facet = if serial {
+                if serial {
+                    // the serial loop in the filter's order, unchanged
+                    for (k, &facet) in filter.iter().enumerate().take(nb_pairs) {
                         let facet = akantu_core::try_to_usize(facet)?;
                         if !facets_check.get(facet).copied().unwrap_or(false) {
                             continue;
                         }
-                        let above = facet_norms(facet, &mut stress_check, &mut normal_traction)
-                            > limit_of(k);
-                        // (`>` as the serial loop: a NaN norm is not above)
-                        if !above {
-                            continue;
-                        }
-                        facet
-                    } else {
-                        if decision[k] != 2 {
-                            if decision[k] == 3 {
-                                // the serial loop's error at this entry
-                                akantu_core::try_to_usize(facet)?;
-                            }
-                            continue;
-                        }
-                        let facet = akantu_core::try_to_usize(facet)?;
-                        // the norms of the entry again, with the same
-                        // operations
-                        let _ = facet_norms(facet, &mut stress_check, &mut normal_traction);
-                        facet
-                    };
-                    let limit_q = |q: usize| {
-                        if zipped {
-                            limits[k]
-                        } else {
-                            limits[k * nq + q]
-                        }
-                    };
-                    {
-                        inputs
-                            .insertion_facets
-                            .get_mut(type_facet, g)?
-                            .as_mut_slice()[facet] = true;
-                        if check_only {
-                            continue;
-                        }
-                        // Only the facets whose
-                        // parameters are appended below (a
-                        // textual merge puts this line after the
-                        // `facets_check` test above, which is wrong)
-                        prepared.push(Element::try_new(type_facet, facet, g)?);
                         for q in 0..nq {
-                            let new_sigma = stress_check[q];
-                            let mut nt = normal_traction[q];
-                            if dim != 3 {
-                                for x in nt.iter_mut().take(dim) {
-                                    *x *= -1.;
+                            let cq = facet * nq + q;
+                            let fs = &f_stress[cq * 2 * dim * dim..(cq + 1) * 2 * dim * dim];
+                            stress_check[q] = self.effective_norm_at(
+                                dim,
+                                fs,
+                                &normals[cq * dim..(cq + 1) * dim],
+                                &tangents[cq * ntc..(cq + 1) * ntc],
+                                &mut normal_traction[q][..dim],
+                            );
+                        }
+                        // `stress_check.mean()` (run-time size)
+                        let mut final_stress = stress_check[0];
+                        for v in &stress_check[1..] {
+                            final_stress += v;
+                        }
+                        final_stress /= nq as Real;
+                        if self.max_quad_stress_insertion {
+                            // `*std::max_element` (first maximum)
+                            let mut m = stress_check[0];
+                            for &v in &stress_check[1..] {
+                                if m < v {
+                                    m = v;
                                 }
                             }
-                            new_sigmas.push(new_sigma);
-                            new_tractions.push(nt);
-                            let new_d = if are_float_equal(core.delta_c, 0.0, self.tol) {
-                                2. * self.g_c / new_sigma
+                            final_stress = m;
+                        }
+                        // UD-040: upstream pairs facet k with strength entry k
+                        let zipped = core.compat.sigma_c_zipped_per_quad;
+                        let limit_q = |q: usize| {
+                            if zipped {
+                                sigma_limits[k]
                             } else {
-                                limit_q(q) / new_sigma * core.delta_c
-                            };
-                            new_delta.push(new_d);
+                                sigma_limits[k * nq + q]
+                            }
+                        };
+                        let limit: Real = if zipped {
+                            sigma_limits[k]
+                        } else {
+                            let lq = &sigma_limits[k * nq..(k + 1) * nq];
+                            let mut m = lq[0];
+                            for v in &lq[1..] {
+                                m += v;
+                            }
+                            m / nq as Real
+                        };
+                        if final_stress > limit {
+                            inputs
+                                .insertion_facets
+                                .get_mut(type_facet, g)?
+                                .as_mut_slice()[facet] = true;
+                            if check_only {
+                                continue;
+                            }
+                            // Only the facets whose
+                            // parameters are appended below (a
+                            // textual merge puts this line after the
+                            // `facets_check` test above, which is wrong)
+                            prepared.push(Element::try_new(type_facet, facet, g)?);
+                            for q in 0..nq {
+                                let new_sigma = stress_check[q];
+                                let mut nt = normal_traction[q];
+                                if dim != 3 {
+                                    for x in nt.iter_mut().take(dim) {
+                                        *x *= -1.;
+                                    }
+                                }
+                                new_sigmas.push(new_sigma);
+                                new_tractions.push(nt);
+                                let new_d = if are_float_equal(core.delta_c, 0.0, self.tol) {
+                                    2. * self.g_c / new_sigma
+                                } else {
+                                    limit_q(q) / new_sigma * core.delta_c
+                                };
+                                new_delta.push(new_d);
+                            }
+                        }
+                    }
+                } else {
+                    for (k, &facet) in filter.iter().enumerate().take(nb_pairs) {
+                        let facet = {
+                            if decision[k] != 2 {
+                                if decision[k] == 3 {
+                                    // the serial loop's error at this entry
+                                    akantu_core::try_to_usize(facet)?;
+                                }
+                                continue;
+                            }
+                            let facet = akantu_core::try_to_usize(facet)?;
+                            // the norms of the entry again, with the same
+                            // operations
+                            let _ = facet_norms(facet, &mut stress_check, &mut normal_traction);
+                            facet
+                        };
+                        let limit_q = |q: usize| {
+                            if zipped {
+                                limits[k]
+                            } else {
+                                limits[k * nq + q]
+                            }
+                        };
+                        {
+                            inputs
+                                .insertion_facets
+                                .get_mut(type_facet, g)?
+                                .as_mut_slice()[facet] = true;
+                            if check_only {
+                                continue;
+                            }
+                            // Only the facets whose
+                            // parameters are appended below (a
+                            // textual merge puts this line after the
+                            // `facets_check` test above, which is wrong)
+                            prepared.push(Element::try_new(type_facet, facet, g)?);
+                            for q in 0..nq {
+                                let new_sigma = stress_check[q];
+                                let mut nt = normal_traction[q];
+                                if dim != 3 {
+                                    for x in nt.iter_mut().take(dim) {
+                                        *x *= -1.;
+                                    }
+                                }
+                                new_sigmas.push(new_sigma);
+                                new_tractions.push(nt);
+                                let new_d = if are_float_equal(core.delta_c, 0.0, self.tol) {
+                                    2. * self.g_c / new_sigma
+                                } else {
+                                    limit_q(q) / new_sigma * core.delta_c
+                                };
+                                new_delta.push(new_d);
+                            }
                         }
                     }
                 }
