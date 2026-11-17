@@ -1,0 +1,113 @@
+diff --git a/crates/akantu-linalg/src/eigen_sparse_lu/mod.rs b/crates/akantu-linalg/src/eigen_sparse_lu/mod.rs
+index 324633041..92663dfaf 100644
+--- a/crates/akantu-linalg/src/eigen_sparse_lu/mod.rs
++++ b/crates/akantu-linalg/src/eigen_sparse_lu/mod.rs
+@@ -799,6 +799,77 @@ fn solve_u(mode: Mode, n: usize, g: &Glu, x: &mut [f64]) {
+     }
+ }
+ 
++/// Diagnostic (ND_DIAG): residual, symmetry, 1-norm condition estimate
++/// (Hager with solves by A only: valid for a symmetric matrix), appended
++/// solution vector (ND_DUMP_X).
++fn diag_report(lu: &SparseLu, a: &CscMatrix, b: &[f64], x: &[f64]) {
++    use std::io::Write as _;
++    let n = a.n();
++    let ax = a.mul_vec(x).unwrap_or_default();
++    let r: f64 = ax.iter().zip(b).map(|(p, q)| (p - q) * (p - q)).sum::<f64>().sqrt();
++    let nb: f64 = b.iter().map(|v| v * v).sum::<f64>().sqrt();
++    // symmetry: max |a_ij - a_ji| / max |a|
++    let mut dense_t = std::collections::BTreeMap::new();
++    let mut amax = 0.0f64;
++    for j in 0..n {
++        for q in a.col_ptr()[j]..a.col_ptr()[j + 1] {
++            dense_t.insert((a.row_idx()[q], j), a.values()[q]);
++            amax = amax.max(a.values()[q].abs());
++        }
++    }
++    let mut asym = 0.0f64;
++    for (&(i, j), &v) in &dense_t {
++        let w = dense_t.get(&(j, i)).copied().unwrap_or(0.0);
++        asym = asym.max((v - w).abs());
++    }
++    // ||A||_1
++    let mut norm1 = 0.0f64;
++    for j in 0..n {
++        let s: f64 = (a.col_ptr()[j]..a.col_ptr()[j + 1]).map(|q| a.values()[q].abs()).sum();
++        norm1 = norm1.max(s);
++    }
++    // Hager: estimate ||A^-1||_1 (A symmetric: A^-T = A^-1)
++    let mut v = vec![1.0 / n as f64; n];
++    let mut est = 0.0f64;
++    let mut y = vec![0.0; n];
++    for _ in 0..5 {
++        if lu.solve(&v, &mut y).is_err() {
++            break;
++        }
++        est = y.iter().map(|t| t.abs()).sum();
++        let xi: Vec<f64> = y.iter().map(|t| if *t >= 0.0 { 1.0 } else { -1.0 }).collect();
++        let mut z = vec![0.0; n];
++        if lu.solve(&xi, &mut z).is_err() {
++            break;
++        }
++        let (jmax, zmax) = z.iter().enumerate().fold((0, 0.0f64), |m, (k, t)| if t.abs() > m.1 { (k, t.abs()) } else { m });
++        let ztv: f64 = z.iter().zip(&v).map(|(p, q)| p * q).sum();
++        if zmax <= ztv {
++            break;
++        }
++        v = vec![0.0; n];
++        v[jmax] = 1.0;
++    }
++    let rep = lu.ordering_report();
++    let nnz = lu
++        .factors
++        .as_ref()
++        .map_or(0, |(_, g)| {
++            let (l, u) = kernels::countnz(lu.n, g);
++            l + u
++        });
++    eprintln!(
++        "ND_DIAG ordering {} n {} resid {:.3e} kappa1 {:.3e} asym {:.3e} offdiag {} nnz_lu {}",
++        rep.used, n, r / nb, norm1 * est, asym / amax, lu.off_diagonal_pivots(), nnz
++    );
++    if let Some(p) = std::env::var_os("ND_DUMP_X")
++        && let Ok(mut f) = std::fs::OpenOptions::new().create(true).append(true).open(p)
++    {
++        let bytes: Vec<u8> = x.iter().flat_map(|t| t.to_le_bytes()).collect();
++        let _ = f.write_all(&bytes);
++    }
++}
++
+ /// `perm[c]` = position of column `c`, from an elimination order.
+ fn perm_of_order(order: &[usize]) -> Vec<i64> {
+     let mut perm = vec![0i64; order.len()];
+@@ -873,6 +944,8 @@ fn auto_ordering(a: &CscMatrix) -> Result<(Vec<i64>, OrderingReport)> {
+ #[derive(Debug, Default)]
+ pub struct EigenSparseLuSolver {
+     lu: SparseLu,
++    /// diagnostic (ND_DIAG): the factorised matrix
++    diag_a: Option<CscMatrix>,
+     analysed: Option<(u64, MatrixType)>,
+     /// Scratch of the solves ([`SparseLu::solve_with`]).
+     scratch: Vec<f64>,
+@@ -935,11 +1008,19 @@ impl SparseDirectSolver for EigenSparseLuSolver {
+         // failed refactorisation, whatever step fails.
+         self.lu.invalidate();
+         let c = CscMatrix::from_aij(a)?;
+-        self.lu.factorize(&c)
++        let r = self.lu.factorize(&c);
++        if std::env::var_os("ND_DIAG").is_some() {
++            self.diag_a = Some(c);
++        }
++        r
+     }
+ 
+     fn solve(&mut self, b: &[Real], x: &mut [Real]) -> Result<()> {
+-        self.lu.solve_with(b, x, &mut self.scratch)
++        self.lu.solve_with(b, x, &mut self.scratch)?;
++        if let Some(a) = &self.diag_a {
++            diag_report(&self.lu, a, b, x);
++        }
++        Ok(())
+     }
+ 
+     fn set_exec(&mut self, exec: &Exec) {

@@ -571,6 +571,22 @@ failure.
 | `AijBackend` + `MumpsSolver` (`mumps`) | distributed assembled (`ICNTL(18)=3`) | centralised on rank 0, as upstream (a distributed right-hand side is not provided) | feature `mumps`; `auto` selects it on MPI communicators; bitwise identity with the oracle observed for a pinned configuration only (D-050, D-054) |
 | `PetscBackend` (`petsc`) | PETSc-owned, distributed, one application ordering for rows, columns and vectors (UD-006 corrected) | distributed | feature `petsc`; KSP, SNES (`newtonls`), TAO (`gpcg`) |
 
+The `eigen` solver orders the columns with Eigen's COLAMD by default. A
+nested dissection of the graph of `A + Aᵀ` is an opt-in alternative
+(`SparseOrdering`, D-125; `eigen_sparse_lu/nested_dissection.rs`):
+supervariables of equal closed neighbourhood, multilevel bisection
+(heavy-edge matching, breadth-first growth from four seeds,
+Fiduccia–Mattheyses refinement of the edge cut), the separator as the
+minimum-weight vertex cover of the cut edges (maximum flow), minimum
+degree on parts of at most 64 supervariables. It is deterministic and
+serial; the factorisation that follows is the same supernodal code with
+the same threaded panel updates. `SparseOrdering::Auto` predicts the work
+of both orderings from the column counts of the symmetric factor and keeps
+COLAMD when the matrix would need off-diagonal pivots. Options reach the
+solver through `LinearSystemBackend::set_solver_option` (the AIJ back-end
+forwards them to `SparseDirectSolver::set_option` and applies them again
+to a solver installed later).
+
 `SparseSolverFactory::create` refuses the serial-only `eigen` and `faer`
 with more than one process; multi-rank runs use `create_centralized`
 (gather, rank-0 solve, scatter). Native solver objects are bound to the

@@ -2331,6 +2331,62 @@ Numbering: this record was written as D-122 on the main branch while the
 performance work had already used D-122 and D-123 on its branch; it was
 renumbered when the two were merged.
 
+## D-125: An opt-in nested-dissection ordering for the default sparse solver
+
+2026-11-17, the project owner's choice ("yes add it as opt in"). The Eigen
+SparseLU translation (`eigen` solver) has a second column ordering next to
+Eigen's COLAMD: a nested dissection of the graph of `A + Aᵀ`, written in
+`akantu_linalg::eigen_sparse_lu::nested_dissection` (no partitioning
+library). It is selected per solver (`SparseOrdering`,
+`SparseLu::set_ordering`, the solver option `ordering`,
+`ModelSolverOptions::sparse_solver_ordering`, the `time_step_solver`
+parameter `sparse_solver_ordering`, the Python keyword of
+`ModelSolverOptions`) or for a process (`AKANTU_SPARSE_ORDERING`). Values:
+`colamd` (the default), `nested_dissection`, `auto`.
+
+- COLAMD stays the default and gives the oracle's factors bit for bit. In
+  the bitwise precision an unset ordering is always COLAMD.
+- Another ordering eliminates the unknowns in another order. The factors,
+  the pivots and the last digits of the solutions differ from the default;
+  by D-122 this is a fast-mode change. Rule
+  `fast_mode/linalg/sparse_lu_ordering` of
+  `fixtures/fast_mode/linalg/tolerances.json` (`docs/NUMERICAL_VALIDATION.md`,
+  "SparseLU orderings").
+- `auto` chooses per analysis: COLAMD below 2,000 unknowns, and whenever
+  a column's diagonal entry is zero or smaller in magnitude than another
+  entry of its column (the threshold partial pivoting would then pivot off
+  the diagonal: COLAMD bounds that fill through the structure of `AᵀA`,
+  the dissection of `A + Aᵀ` does not); otherwise nested dissection when
+  its predicted work (`Σ c_j²` over the column counts of the symmetric
+  factor) is at most 0.8 of COLAMD's and its predicted size not larger.
+  An unset ordering is `auto` in the fast precision (D-123).
+- The ordering is deterministic: the same pattern gives the same
+  permutation on every machine and for every thread count. Ties go to the
+  smaller index, no hash-map order and no random number are involved; it
+  runs on one thread.
+- The factorisation stays the left-looking supernodal code. Its panel
+  updates use the executor's threads as before, with the same bits at
+  every thread count for a given ordering. Independent subtrees of the
+  elimination tree are not factorised concurrently (the reason is in the
+  benchmark README of `docs/benchmarks/perf-campaign/sparselu-nd/`).
+- A fixture writer refuses to run when `AKANTU_SPARSE_ORDERING` names
+  another ordering than `colamd`; `non_default_ordering_used` tells a
+  program whether one of its analyses used another ordering.
+
+Reason: on the suite's 3-D and 2-D problems the dissection needs 0.46 of
+COLAMD's factorisation time on the 3-D elasticity case and 0.47–0.60 of the
+solve time on the heat, phase-field and beam cases (one thread, size m;
+the README of the benchmark directory has the tables). A user who accepts
+differences in the last digits gets that through one option. The
+dissection loses where the threshold pivoting chooses many off-diagonal
+pivots (the DKT plate of the suite: 3.1 times COLAMD's time); `auto`
+detects that case and keeps COLAMD.
+
+Consequence: `auto` analyses cost about twice COLAMD's analysis (both
+orderings and their predictions). A Scotch ordering was not added: the
+crate's dissection already reaches the fill of a geometric dissection on
+the grids measured, and Scotch would be a second, optional code path.
+
 ## Ids without a record
 
 D-044, D-045, D-072, D-075, D-084, D-098, D-102, D-103, D-110, D-112 and

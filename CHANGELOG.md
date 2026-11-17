@@ -10,6 +10,36 @@ change of default results or of a public API raises the minor version.
 
 ### Added
 
+- An opt-in nested-dissection column ordering for the `eigen` sparse
+  solver (D-125): `akantu_linalg::eigen_sparse_lu::SparseOrdering`
+  (`Colamd`, the default and bitwise; `NestedDissection`; `Auto`),
+  `SparseLu::set_ordering`, `EigenSparseLuSolver::set_ordering`, the solver
+  option `ordering` (`SparseDirectSolver::set_option`, forwarded by the AIJ
+  back-end's `set_solver_option` and kept for solvers installed later),
+  `ModelSolverOptions::sparse_solver_ordering`, the `time_step_solver`
+  parameter `sparse_solver_ordering = colamd | nested_dissection | auto`,
+  the keyword `sparse_solver_ordering` of Python's `ModelSolverOptions`, and
+  the process default `AKANTU_SPARSE_ORDERING`. Another ordering than COLAMD
+  changes the factors and the last digits of the solutions (rule
+  `fast_mode/linalg/sparse_lu_ordering`). On the benchmark suite (size m,
+  one thread) nested dissection takes 0.46 of COLAMD's factorisation time
+  on the 3-D elasticity case and 0.47 to 0.65 of the solve time of the
+  heat, phase-field, cohesive and beam cases; it is 3.1 times slower on the
+  DKT plate, whose factorisation pivots off the diagonal in 45 % of the
+  columns. `Auto` keeps COLAMD below 2,000 unknowns and when a column's
+  diagonal is not its largest entry, and otherwise takes nested dissection
+  when it is predicted to need at most 0.8 of COLAMD's work. An unset
+  ordering is COLAMD in the bitwise precision and `Auto` in the fast
+  precision.
+- `SparseLu::off_diagonal_pivots`, `SparseLu::ordering_report` and the
+  `eigen` solver's statistics (`ordering`, `nnz_l`, `nnz_u`,
+  `off_diagonal_pivots`, `Auto`'s predictions);
+  `eigen_sparse_lu::non_default_ordering_used`.
+- Benchmark suites: `--ordering` selects the ordering of the solver cases,
+  `--dump-state FILE` writes the values each digest absorbs; the cohesive
+  driver takes `--rust_sparse_ordering` / `rust_sparse_ordering`.
+  `static_linear_eigen` records `nnz_lu` and `off_diagonal_pivots`.
+
 - `akantu_geometry::GridIndex`: a uniform-grid search structure over the
   triangle primitives of the segment intersector that tests only the
   primitives near a query, in primitive order with the predicates of
