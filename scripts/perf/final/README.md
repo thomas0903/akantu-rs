@@ -14,7 +14,9 @@ machine of the same type than the other parts.
 | `run_part.sh` | one part, unattended and resumable |
 | `summarize.py` | a part's data directory → its `summary.md` (run at the end of every part) |
 | `lib.sh` | shared helpers (provenance, scrubbing, wrappers) |
-| `digest-exceptions.txt` | suite cases whose digest definition changed between the two port revisions |
+| `digest-exceptions.txt` | suite cases not digest-compared: definition changed between the revisions, or not repeatable at a rank count |
+| `bindings.py` | records and checks the rank → cores binding of every cohesive run |
+| `g-estimates.txt` | part G's expected memory and time per run, with their basis |
 
 The dry run of every part on a development machine (not results) is in
 `docs/benchmarks/perf-campaign/final-dryrun/`, with the time each part took
@@ -39,7 +41,8 @@ Variants are directories prepared by `prepare.sh`, never hard-coded:
 ## What a fresh machine needs before `prepare.sh`
 
 An 8-core x86_64 Ubuntu 24.04 host (an AWS `m7a.2xlarge`, 32 GiB; part G an
-`r7a.16xlarge`, 64 cores, 512 GiB) with, as on the campaign's machines:
+`m7a.32xlarge`, 128 cores, 512 GiB, or the `r7a.32xlarge` with 1 TiB) with,
+as on the campaign's machines:
 
 1. Docker, git, Python 3 with `pip` (`python3-pip`; `python3-venv` is not needed) (network access to PyPI for
    `maturin`, `numpy`, `scipy`), GNU `time`, `taskset`, `lscpu`, `flock`;
@@ -105,7 +108,13 @@ addresses. Copy the data directory into
 
 Method (COMMON.md section 4, `docs/BENCHMARKS.md` "Method"): nothing is
 built while a part runs; one part at a time on a machine; serial runs on
-core 2, N threads or ranks on cores 0..N−1 (one per physical core); the
+core 2, N threads on cores 0..N−1; the cohesive runs of both codes (parts
+C to G) bound one rank per core (`PERF_MPI_BIND=core` of the campaign
+tools), rank r of a run with T threads per rank on the r-th block of T
+cores of the host's cores ordered NUMA node by NUMA node (`fin_core_order`
+in `lib.sh`: ranks fill one NUMA node before the next, the threads of a
+rank sit on adjacent cores of one node); the suites' MPI runs likewise
+inside a container restricted to cores 0..P×T−1; the
 variants of a point interleaved, their order rotated per repetition; at
 least 5 repetitions in parts A to F (`--reps`); medians with [min, max];
 ratios paired per repetition. Both codes read the same mesh file and, at
@@ -131,7 +140,14 @@ call; the part exits 1):
 - a C++ run that took upstream's MUMPS retry path (UD-216; the harness
   reports it, `status.txt` outcome `ud216`): the whole point is repeated,
   at most twice;
-- fast-mode runs are timed, never digested.
+- the core binding of every cohesive run: `bindings.py` reads each rank's
+  `Cpus_allowed_list` from `/proc` while the run is on (rank from
+  `OMPI_COMM_WORLD_RANK`) and the check requires the planned binding above
+  (`runs/<run>.bindings.txt`: rank → cores, NUMA node);
+- fast-mode runs are timed, never digested; cases whose result does not
+  repeat from run to run at a rank count (the distributed MUMPS solve:
+  `static_linear_mumps` at P > 1, the cohesive MUMPS runs at P > 1) are
+  timed only (`digest-exceptions.txt`, lines starting with `!`).
 
 ## The parts
 
@@ -143,9 +159,63 @@ call; the part exits 1):
 | D | `eig1`, `mumps`, `suite` | the static solve with SparseLU (`cppeig before-eig head-eig`, threads if the head has a threaded factorisation) on h = 0.12 and 0.06 at 1 rank; MUMPS (`cpp before head`) at 1/2/4 ranks; `suite_solid` `static_linear_{eigen,faer}` phases (analysis, factorize, back substitution) and `static_linear_mumps` at 1/2/4 ranks | 5 repetitions |
 | E | `mem4` | memory on h = 0.04 (static solve + 300 steps) at 1/2/4/8 ranks: `cpp before head head-release`; per-rank peaks (sampler), sums, container peak, the port's records, `INFOG(19)` | 5 repetitions |
 | F | `setup`, `dist`, `mpilayer` | set-up phases (`read_mesh`, `dist_mesh`, `init_full`, `before_step`, static solve; 1 step on h = 0.06 and 0.04, 1/2/4/8 ranks, `cpp before head`); `dist_mesh_tet4` at size `l` (1,296,000 Tet4) at 2/4/8 ranks; the MPI layer against raw MPI (methods A and B of `docs/benchmarks/mpi-latency-2026-11-14/`) | 5 repetitions |
-| G | `full` | the JOSS mesh, 5,000 steps, one 64-core node: `--points "64:head,cpp 32:head,cpp 32x2:head 8:head"` (in this order; partitions exported first) | 1 run per point |
+| G | `full` | the JOSS mesh, 5,000 steps, one 128-core node: `--points "128:head 128:cpp 64:head 64:cpp 32:head 32:cpp 64x2:head 32x4:head 16x8:head 8:head"` (the default, in this order; the partitions of every rank count exported first by the C++ harness, replayed by every run); any other list of `RANKS[xTHREADS]:VARIANT[,VARIANT]` | 1 run per point |
 
-Part G memory per run (the 2026-11-12 run, container peaks): port 206 GiB
-at 64 ranks, 186 GiB at 32, 166 GiB at 8; C++ 192 GiB at 64, 194 GiB at
-32; 32 × 2 threads as 32 ranks. One run at a time, `--memory 480g` on the
-512 GiB node.
+### Part G
+
+Before its first run, part G prints its plan (`DATA/G/plan.txt`; without
+running anything: `run_part.sh G --plan-only`, and for another machine
+`FINAL_PLAN_CORES=128 FINAL_PLAN_MEMORY=481g run_part.sh G --plan-only`):
+the steps in their order, the cores of each run, the expected container
+memory peak and wall time from `g-estimates.txt` (where every figure's
+basis is written), the cumulative machine time. For the default points on
+a 128-core node it expects 7.0 h of runs:
+
+| step | cores | expected peak | expected wall |
+|---|---:|---:|---:|
+| partition exports, 128 / 64 / 32 / 16 / 8 ranks | | | 10 min |
+| port, 128 ranks | 128 | 250 GiB | 21 min |
+| C++, 128 ranks | 128 | 235 GiB | 38 min |
+| port, 64 ranks | 64 | 206 GiB | 26 min |
+| C++, 64 ranks | 64 | 192 GiB | 45 min |
+| port, 32 ranks | 32 | 186 GiB | 33 min |
+| C++, 32 ranks | 32 | 194 GiB | 1.05 h |
+| port, 64 × 2 threads | 128 | 206 GiB | 22 min |
+| port, 32 × 4 threads | 128 | 186 GiB | 22 min |
+| port, 16 × 8 threads | 128 | 175 GiB | 35 min |
+| port, 8 ranks | 8 | 166 GiB | 1.72 h |
+
+- Memory: the 64-, 32- and 8-rank figures are the container peaks of the
+  2026-11-12 run (port 206.2 / 185.5 / 165.9 GiB, C++ 191.7 / 194.2 GiB).
+  128 ranks were never run: MUMPS's summed allocation grew 139 → 163 → 183
+  GB from 8 to 32 to 64 ranks, and its excess over 8 ranks about doubles
+  per doubling of the ranks on the smaller meshes, so +40 GB from 64 to 128,
+  plus about 6 GiB of per-process memory and ghost layers: about 250 GiB
+  (port) and 235 GiB (C++). 512 GiB is enough for the C++ run unless its
+  allocation grows four times faster than that; the port's 128-rank run
+  comes first and measures it (the two codes' peaks were within 8 % of
+  each other at 32 and 64 ranks). Hybrids hold the memory of their rank
+  count. The limit is `--memory` (94 % of the machine by default, 481g on
+  512 GiB); an out-of-memory kill is recorded (outcome `oom`), not repeated;
+  move to the `r7a.32xlarge` (1 TiB) if the port's 128-rank peak exceeds
+  400 GiB.
+- Order: the runs go one at a time, so the machine time is their sum in any
+  order; the order removes waste: every partition is exported once, first;
+  the shortest full-size run (the port at 128 ranks) runs first and
+  measures the 128-rank memory before the C++ run pays for it; the longest
+  and least needed run (8 ranks, 1.7 h) runs last, so that a short budget
+  drops it rather than a comparison.
+- Time: the port's runs are the 2026-11-12 phases scaled by the campaign's
+  measured head / before ratios (check ×0.45, explicit step ×0.95, energies
+  ×0.8, distribution ×0.33, `init_full` ×0.5, static solve unchanged); 128
+  ranks with a loop efficiency of 0.65 from 64 ranks; the hybrids with the
+  loop ×0.8 (64 × 2), ×0.6 (32 × 4), ×0.5 (16 × 8) of their rank count's run.
+  The dry run measured 2 × 4 threads at 1.95× and 4 × 2 at 1.30× the loop
+  of 8 single-thread ranks on a small mesh, so the hybrid estimates are
+  optimistic; the 16 × 8 run takes at most as long as the 8-rank run.
+- Its summary is the strong-scaling table: per configuration (ranks ×
+  threads) the wall time, the phases, the core-µs per element and step and
+  the loop efficiency against the smallest core count of the same code,
+  then the port / upstream ratios at equal rank counts, memory (largest
+  rank, total, container, per-rank min / median / max) and MUMPS's
+  statistics.
