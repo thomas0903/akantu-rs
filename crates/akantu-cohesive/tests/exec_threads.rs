@@ -159,15 +159,18 @@ fn model(
     {
         let mut v = m.smm.velocity_mut().unwrap();
         for (vn, p) in v.as_mut_slice().chunks_mut(dim).zip(x.chunks(dim)) {
-            vn[0] = 2.0 * (p[0] - 0.5) + 0.4 * p[1];
-            vn[1] = 3.0 * (p[1] - 0.5) * (1.0 + 0.2 * p[0]);
+            vn[0] = SPEED * (0.2 * (p[0] - 0.5) + 0.04 * p[1]);
+            vn[1] = SPEED * (p[1] - 0.5) * (1.0 + 0.2 * p[0]);
             if dim == 3 {
-                vn[2] = 1.5 * (p[2] - 0.5) - 0.3 * p[0];
+                vn[2] = SPEED * (0.15 * (p[2] - 0.5) - 0.03 * p[0]);
             }
         }
     }
     m
 }
+
+/// Amplitude of the initial velocity field.
+const SPEED: Real = 0.3;
 
 fn bits(v: &[Real]) -> Vec<u64> {
     v.iter().map(|x| x.to_bits()).collect()
