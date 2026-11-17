@@ -11,9 +11,11 @@
 //!
 //! The kernels of `dense` are written once, with per-entry operation
 //! sequences that do not depend on the vector width (independent entries in
-//! the lanes, a separate multiply and add per term, no FMA: Rust never
-//! contracts `a * b + c`, and the `fma` target feature is enabled only in
-//! the explicit fast mode `gemm_into_zero_fma`). This module compiles them
+//! the lanes, a separate multiply and add per term). No contraction: Rust
+//! never fuses `a * b + c` into an FMA, whatever the target features (AVX-512F
+//! itself contains fused multiply-add instructions). FMA instructions occur
+//! only in the explicit fast-mode functions (`*_fma`: `gemm_into_zero_fma`,
+//! `gemv_fma`, `trsm_fma` and their instances). This module compiles them
 //! a second and third time with AVX and AVX-512F enabled; a call takes the
 //! executor's [`SimdToken`] (its level: `AKANTU_SIMD`, `ExecPolicy::with_simd`,
 //! else the detected one) and runs the instance of that level:
@@ -297,18 +299,19 @@ pub(crate) fn trsm_fma(
     dense::trsm_unit_lower_bitwise(size, cols, t, t_off, ldt, o, o_off, ldo);
 }
 
-/// Places the hot loop of the AVX-512 gemm tile on a 64-byte boundary,
-/// whatever address the linker gives the function: the default placement
-/// put the loop head at 16 or 48 mod 64 in some builds and at 0 in others,
+/// Places the next hot loop on a 64-byte boundary, whatever address the
+/// linker gives the function: the default placement put the AVX-512 gemm
+/// tile's loop head at 16 or 48 mod 64 in some builds and at 0 in others,
 /// and those cost the gemm 8 % (`docs/benchmarks/perf-campaign/sparselu-threads`).
 /// `.p2align 6` aligns this point (and raises the function's section to a
-/// 64-byte alignment); the 16 bytes of NOPs compensate the loop's
-/// preheader, which the compiler emits after this point (0x70 bytes with
-/// rustc 1.99.1: the loop head then sits at 0 mod 64; checked in the
-/// disassembly, see the benchmark README). Executed once per tile; no effect
-/// on any value. Nothing on other architectures.
+/// 64-byte alignment); the `NOPS` bytes of NOPs compensate the loop's
+/// preheader, which the compiler emits after this point, so that the loop
+/// head sits at 0 mod 64 (rustc 1.99.1: 16 for the gemm tile, 48 for the
+/// L-scatter loop of `PanelUpdate::run_serial`). Checked in the disassembly
+/// by `loop_alignment_check.py` of that directory, to run again after a
+/// toolchain bump. No effect on any value. Nothing on other architectures.
 #[inline(always)]
-pub(crate) fn align_next_loop() {
+pub(crate) fn align_next_loop<const NOPS: usize>() {
     #[cfg(target_arch = "x86_64")]
     // SAFETY: assembler alignment directives: they emit only NOP padding,
     // read and write no memory, registers or flags, and use no stack
@@ -316,7 +319,8 @@ pub(crate) fn align_next_loop() {
     unsafe {
         core::arch::asm!(
             ".p2align 6",
-            ".nops 16",
+            ".nops {nops}",
+            nops = const NOPS,
             options(nomem, nostack, preserves_flags)
         );
     }

@@ -1185,9 +1185,10 @@ fn gemm_tile<const MR: usize, const NR: usize, const ZERO: bool, const FMA: bool
             accj.copy_from_slice(&c[c_off + jn * ldc..][..MR]);
         }
     }
-    if MR == 16 {
-        // the AVX-512 tile: its k loop starts on a 64-byte boundary
-        super::simd::align_next_loop();
+    if MR == 16 && NR == 8 && !FMA {
+        // the bitwise AVX-512 16 x 8 tile (the one measured): its k loop
+        // starts on a 64-byte boundary
+        super::simd::align_next_loop::<16>();
     }
     for k in 0..d_end {
         let ak: &[f64; MR] = a[a_off + k * lda..][..MR]

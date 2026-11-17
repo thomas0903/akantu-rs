@@ -1146,7 +1146,8 @@ impl PanelUpdate<'_> {
     /// of `L` (one subtraction per entry; the entries are distinct, so row
     /// by row is the same arithmetic). Out of line so that nothing of the
     /// caller is live in the scatter loop (an extra live value made it
-    /// reload `tl` from the stack on every iteration).
+    /// reload `tl` from the stack on every iteration). The alignment
+    /// padding before the inner loop runs once per `L` row.
     #[inline(never)]
     fn run_serial(&self, tl: &mut [f64], dense: &mut [f64], lsub: &[i32], urows: usize) {
         let (nr, nc, ldl) = (self.nr, self.u_cols, self.nr);
@@ -1158,6 +1159,9 @@ impl PanelUpdate<'_> {
         let tl: &[f64] = tl;
         for (i, &irow) in self.lrows.iter().enumerate() {
             let row = &mut dense[spa(ru(irow), 0)..][..SPA_W];
+            // the inner loop on a 64-byte boundary (at 48 mod 64 it spans
+            // two fetch blocks: `structural_dkt18_plate_static` +0.8 %)
+            super::simd::align_next_loop::<48>();
             for (u_col, &(dc, _)) in self.ucols.iter().enumerate() {
                 row[dc] -= tl[i + u_col * ldl];
             }
