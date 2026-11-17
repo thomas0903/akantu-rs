@@ -76,9 +76,10 @@ after review):
   block, connectivity within the nodes, ids within the shape derivatives,
   consecutive ids, per-element rows): an integer maximum, a logical or or a
   logical and per part, then over the parts.
-- `akantu-model`: the non-local weighted average (per point, its
-  contributions in pair order from a per-point table built once with the
-  pair list); the deferred history save of a block reached through
+- `akantu-model`: the non-local weighted average from 5 threads (per
+  point, its contributions in pair order from a per-point table built
+  once with the pair list; below 5 threads the serial half-pair loop is
+  faster, see "After review"); the deferred history save of a block reached through
   `InternalField::get_mut_with` (a copy in parts).
 - `akantu-solid`: the non-local Mazars damage after the average; the
   energy densities of Marigo and Mazars; the stress block of the damage
@@ -134,6 +135,80 @@ With the finite-deformation filter check on threads (2188f0e2,
 | `explicit_tet4_fd` | 1.007 [1.003, 1.009] | 0.268 | 0.200 | 9.1 % |
 | `explicit_tet10_fd` | 1.007 [1.005, 1.012] | 0.333 | 0.280 | 8.1 % |
 | `explicit_hex8_fd` | 1.009 [1.004, 1.010] | 0.272 | 0.242 | 5.8 % |
+
+## After review: 2 and 4 threads, the non-local average (base 7365a08f4)
+
+The branch was merged with `perf/wave2-base` 7365a08f4; the series below
+compare the merged head with that base, size `m`, cores as above (2
+threads on cores 2–3, 3 on 1–3, 4 on 0–3, 5 on 0–4, 8 on 0–7).
+
+Non-local Mazars (`series/round/non-local-final/`, head e8061c92, 5
+repetitions; ratios to the base at one thread). The per-point gather of
+the average visits every pair twice: at 2 threads it made the step 1.085
+(the base's serial average 0.886), so it now runs from 5 threads, where
+it beats the serial average (the serial average / the gather at 4
+threads 0.599 / 0.633, 5 threads 0.572 / 0.534, 6 threads 0.555 /
+0.463, 8 threads 0.534 / 0.366: `series/round/cut4`, `cut5`, `cut68`,
+throwaway builds that moved the cutoff):
+
+| threads | 1 | 2 | 3 | 4 | 5 | 8 |
+|---|---|---|---|---|---|---|
+| base 7365a08f4 | 1 (1.671 s) | 0.885 | 0.858 | 0.834 | 0.830 | 0.815 |
+| head | 0.986 | 0.721 | 0.641 | 0.599 | 0.539 | 0.371 |
+
+Every other case at 2 and 4 threads (`series/round/t2t4/`, head
+f8babbe8, whose code on these cases equals the final head's; 3
+repetitions; median ratios to the base at one thread). No step is slower
+than the base at the same thread count. Sub-phases within a few per cent
+of the base: the SLS internal forces at 2 threads (0.547 against 0.528,
+its step 0.547 against 0.568) and the phase-field tet4 phases at 2
+threads (solid solve 0.979 against 0.973: the sparse solve of the base,
+not changed here).
+
+| case | phase | base, 2 threads | head, 2 threads | base, 4 threads | head, 4 threads |
+|---|---|---|---|---|---|
+| explicit_hex8_fd | solve_step | 0.559 | 0.542 | 0.317 | 0.290 |
+| explicit_hex8_fd | internal_forces | 0.520 | 0.518 | 0.266 | 0.262 |
+| explicit_hex8_ss | solve_step | 0.600 | 0.573 | 0.430 | 0.391 |
+| explicit_hex8_ss | internal_forces | 0.543 | 0.546 | 0.369 | 0.371 |
+| explicit_marigo | solve_step | 0.634 | 0.581 | 0.497 | 0.411 |
+| explicit_marigo | internal_forces | 0.539 | 0.529 | 0.305 | 0.292 |
+| explicit_maxwell | solve_step | 0.567 | 0.553 | 0.410 | 0.390 |
+| explicit_maxwell | internal_forces | 0.557 | 0.548 | 0.393 | 0.386 |
+| explicit_mazars | solve_step | 0.548 | 0.535 | 0.346 | 0.325 |
+| explicit_mazars | internal_forces | 0.526 | 0.523 | 0.311 | 0.305 |
+| explicit_multi_material | solve_step | 0.560 | 0.540 | 0.355 | 0.328 |
+| explicit_multi_material | internal_forces | 0.522 | 0.520 | 0.303 | 0.294 |
+| explicit_neohookean | solve_step | 0.585 | 0.567 | 0.363 | 0.341 |
+| explicit_neohookean | internal_forces | 0.531 | 0.527 | 0.281 | 0.279 |
+| explicit_orthotropic | solve_step | 0.604 | 0.581 | 0.423 | 0.375 |
+| explicit_orthotropic | internal_forces | 0.540 | 0.544 | 0.310 | 0.305 |
+| explicit_plastic | solve_step | 0.609 | 0.583 | 0.440 | 0.410 |
+| explicit_plastic | internal_forces | 0.541 | 0.532 | 0.306 | 0.304 |
+| explicit_sls | solve_step | 0.568 | 0.547 | 0.449 | 0.359 |
+| explicit_sls | internal_forces | 0.528 | 0.547 | 0.338 | 0.326 |
+| explicit_tet10_fd | solve_step | 0.648 | 0.604 | 0.400 | 0.346 |
+| explicit_tet10_fd | internal_forces | 0.572 | 0.568 | 0.303 | 0.291 |
+| explicit_tet10_ss | solve_step | 0.719 | 0.662 | 0.536 | 0.465 |
+| explicit_tet10_ss | internal_forces | 0.619 | 0.613 | 0.408 | 0.396 |
+| explicit_tet4_fd | solve_step | 0.557 | 0.520 | 0.339 | 0.282 |
+| explicit_tet4_fd | internal_forces | 0.515 | 0.498 | 0.286 | 0.261 |
+| explicit_tet4_ss | solve_step | 0.586 | 0.529 | 0.419 | 0.329 |
+| explicit_tet4_ss | internal_forces | 0.528 | 0.501 | 0.328 | 0.285 |
+| explicit_thermal | solve_step | 0.566 | 0.512 | 0.387 | 0.298 |
+| explicit_thermal | internal_forces | 0.519 | 0.491 | 0.311 | 0.265 |
+| explicit_tri3_fd | solve_step | 0.582 | 0.506 | 0.406 | 0.284 |
+| explicit_tri3_fd | internal_forces | 0.482 | 0.463 | 0.274 | 0.241 |
+| explicit_tri3_ss | solve_step | 0.628 | 0.511 | 0.514 | 0.327 |
+| explicit_tri3_ss | internal_forces | 0.481 | 0.433 | 0.308 | 0.240 |
+| heat_explicit_quad4 | solve_step | 0.631 | 0.589 | 0.549 | 0.484 |
+| heat_explicit_tet4 | solve_step | 0.595 | 0.563 | 0.406 | 0.352 |
+| phasefield_staggered_tet4 | solid_solve | 0.973 | 0.979 | 0.969 | 0.972 |
+| phasefield_staggered_tet4 | phase_solve | 0.986 | 0.990 | 0.997 | 0.994 |
+| phasefield_staggered_tet4 | internal_forces | 0.642 | 0.651 | 0.580 | 0.575 |
+| phasefield_staggered_tri3 | solid_solve | 0.955 | 0.952 | 0.998 | 0.970 |
+| phasefield_staggered_tri3 | phase_solve | 0.955 | 0.952 | 0.940 | 0.939 |
+| phasefield_staggered_tri3 | internal_forces | 0.567 | 0.538 | 0.478 | 0.447 |
 
 ## One thread
 
