@@ -34,6 +34,9 @@ MUT = [
  ("parallel maximum drops the last part", "crates/akantu-fe/src/engine/fast.rs", [
    ("let m = maxima.iter().fold(0u32, |a, &b| a.max(b));", "let m = maxima[..parts - 1].iter().fold(0u32, |a, &b| a.max(b));")],
    ("akantu-fe", "--lib"), "threaded_maximum"),
+ ("per-element connectivity check skips the last element", "crates/akantu-fe/src/engine/fast.rs", [
+   ("let e = id_index(ids[k]);", "if k + 1 == ids.len() { return false; } let e = id_index(ids[k]);")],
+   ("akantu-fe", "--lib"), "threaded_per_element"),
  ("deferred save copy skips a value per part", "crates/akantu-model/src/internal_field.rs", [
    ("d.as_mut_slice().clone_from_slice(s.as_slice());", "if d.as_mut_slice().len() > 1 { d.as_mut_slice()[1..].clone_from_slice(&s.as_slice()[1..]); }")],
    ("akantu-model", "--lib"), "get_mut_with"),

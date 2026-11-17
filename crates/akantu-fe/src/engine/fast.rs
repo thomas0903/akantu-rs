@@ -85,20 +85,22 @@ fn nodes_valid(conn: &[Idx], nnpe: usize, ids: &[Idx], nb_nodes: usize) -> bool 
     nodes_valid_with(Exec::serial_ref(), conn, nnpe, ids, nb_nodes)
 }
 
-/// [`nodes_valid`] with the pass over the connectivity of consecutive ids
-/// on `exec`'s threads.
+/// [`nodes_valid`] with the pass over the connectivity of consecutive ids,
+/// or the per-element passes, on `exec`'s threads.
 fn nodes_valid_with(exec: &Exec, conn: &[Idx], nnpe: usize, ids: &[Idx], nb_nodes: usize) -> bool {
-    let rows_ok = |rows: Option<&[Idx]>| {
-        rows.is_some_and(|r| max_unsigned_with(exec, r).is_none_or(|m| m < nb_nodes))
-    };
     match (ids.first(), ids.last()) {
         (Some(&a), Some(&b)) if consecutive(ids) => {
             let (a, b) = (id_index(a), id_index(b));
-            rows_ok(conn.get(a * nnpe..(b + 1) * nnpe))
+            conn.get(a * nnpe..(b + 1) * nnpe)
+                .is_some_and(|r| max_unsigned_with(exec, r).is_none_or(|m| m < nb_nodes))
         }
-        _ => ids.iter().all(|&e| {
-            let e = id_index(e);
-            rows_ok(conn.get(e * nnpe..(e + 1) * nnpe))
+        // one element's row is a few indices: its maximum serially, the
+        // elements in parts (a logical and)
+        _ => !any_with(exec, ids.len(), 8_192, |k| {
+            let e = id_index(ids[k]);
+            !conn
+                .get(e * nnpe..(e + 1) * nnpe)
+                .is_some_and(|r| max_unsigned(r).is_none_or(|m| m < nb_nodes))
         }),
     }
 }
@@ -1028,6 +1030,52 @@ mod tests {
                             "len {len} case {case} threads {threads} {grain:?}"
                         );
                     }
+                }
+            }
+        }
+    }
+
+    /// The connectivity check of non-consecutive ids (one pass per element)
+    /// gives the serial answer at every thread count and grain: a valid
+    /// connectivity, a node out of range in one element, a negative node,
+    /// an id past the connectivity.
+    #[test]
+    fn threaded_per_element_check_equals_the_serial_one() {
+        let (nnpe, nb_el, nb_nodes) = (4usize, 40_000usize, 50_000usize);
+        let base: Vec<Idx> = (0..nb_el * nnpe)
+            .map(|k| ((k * 7_919) % nb_nodes) as Idx)
+            .collect();
+        // every other element: not consecutive
+        let ids: Vec<Idx> = (0..nb_el as Idx).step_by(2).collect();
+        let mut cases = vec![(base.clone(), ids.clone())];
+        for e in [0usize, nb_el / 2, nb_el - 2] {
+            let mut c = base.clone();
+            c[e * nnpe + 3] = nb_nodes as Idx;
+            cases.push((c, ids.clone()));
+        }
+        let mut c = base.clone();
+        c[((nb_el / 3) & !1) * nnpe + 1] = -1;
+        cases.push((c, ids.clone()));
+        let mut far = ids.clone();
+        far.push(nb_el as Idx);
+        cases.push((base, far));
+        for (k, (conn, ids)) in cases.iter().enumerate() {
+            let serial = nodes_valid(conn, nnpe, ids, nb_nodes);
+            assert_eq!(serial, k == 0, "case {k}");
+            for threads in [1, 2, 3, 4, 8] {
+                for grain in [Grain::Finest, Grain::Auto] {
+                    let exec = Exec::new(
+                        ExecPolicy::serial()
+                            .with_threads(threads)
+                            .unwrap()
+                            .with_grain(grain),
+                    )
+                    .unwrap();
+                    assert_eq!(
+                        nodes_valid_with(&exec, conn, nnpe, ids, nb_nodes),
+                        serial,
+                        "case {k} threads {threads} {grain:?}"
+                    );
                 }
             }
         }
