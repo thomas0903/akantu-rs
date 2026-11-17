@@ -12,11 +12,14 @@
 //! pattern only, and `Auto`'s choices (never in the bitwise default).
 
 use akantu_core::Error;
+use akantu_core::enums::MatrixType;
 use akantu_core::exec::{Exec, ExecPolicy, Grain, Precision};
-use akantu_linalg::direct::CscMatrix;
+use akantu_linalg::direct::{CscMatrix, SparseDirectSolver};
 use akantu_linalg::eigen_sparse_lu::{
-    AUTO_MIN_ORDER, SparseLu, SparseOrdering, non_default_ordering_used,
+    AUTO_MIN_NNZ, AUTO_MIN_ORDER, EigenSparseLuSolver, SparseLu, SparseOrdering,
+    non_default_ordering_used,
 };
+use akantu_linalg::sparse::SparseMatrixAij;
 use akantu_validation::fast_mode::{ModeQuantity, check_fast_mode};
 
 const CASE: &str = "fast_mode/linalg/sparse_lu_ordering";
@@ -331,55 +334,109 @@ fn the_permutation_depends_on_the_pattern_only() {
     assert!(sorted.iter().enumerate().all(|(i, &v)| v == i as i64));
 }
 
+/// A 2-D grid of `nx × ny` nodes, one unknown per node, 9-point
+/// connectivity, stiffness-like values.
+fn grid2(nx: usize, ny: usize) -> CscMatrix {
+    let mut next = rng(12);
+    let mut t = Vec::new();
+    let mut diag = vec![0.0f64; nx * ny];
+    for i in 0..nx {
+        for j in 0..ny {
+            let a = i * ny + j;
+            for (di, dj) in (0..9).map(|q| (q / 3, q % 3)) {
+                let (x, y) = (i + di, j + dj);
+                if x == 0 || y == 0 || x > nx || y > ny || (di, dj) == (1, 1) {
+                    continue;
+                }
+                let v = -0.5 - 0.5 * next();
+                t.push((a, (x - 1) * ny + y - 1, v));
+                diag[a] += v.abs();
+            }
+        }
+    }
+    for (i, d) in diag.iter().enumerate() {
+        t.push((i, i, d + 0.5));
+    }
+    CscMatrix::from_triplets(nx * ny, &t).unwrap()
+}
+
+/// The indefinite 3-D grid: `p³` nodes, `c` unknowns per node, 27-point
+/// connectivity, unit diagonal, off-diagonal entries uniform in `[-1, 1]`:
+/// every diagonal entry leads its column, yet the factorisation pivots off
+/// the diagonal throughout.
+fn indefinite(p: usize, c: usize) -> CscMatrix {
+    let mut next = rng(13);
+    let g = grid(p, c, 0.0, 14);
+    let mut t = Vec::new();
+    for j in 0..g.n() {
+        for q in g.col_ptr()[j]..g.col_ptr()[j + 1] {
+            let i = g.row_idx()[q];
+            t.push((i, j, if i == j { 1.0 } else { 2.0 * next() - 1.0 }));
+        }
+    }
+    CscMatrix::from_triplets(g.n(), &t).unwrap()
+}
+
+fn analyse(a: &CscMatrix, o: Option<SparseOrdering>, p: ExecPolicy) -> SparseLu {
+    let mut lu = SparseLu::default();
+    lu.set_exec(Exec::new(p).unwrap());
+    lu.set_ordering(o);
+    lu.analyze_pattern(a).unwrap();
+    lu
+}
+
 #[test]
 fn auto_chooses_by_predicted_work_and_never_in_the_bitwise_default() {
-    let big = grid(14, 1, 0.5, 10);
+    let big = grid(10, 3, 0.5, 10);
     let small = grid(8, 1, 0.5, 11);
-    assert!(big.n() >= AUTO_MIN_ORDER && small.n() < AUTO_MIN_ORDER);
-    let analyse = |a: &CscMatrix, o: Option<SparseOrdering>, p: ExecPolicy| {
-        let mut lu = SparseLu::default();
-        lu.set_exec(Exec::new(p).unwrap());
-        lu.set_ordering(o);
-        lu.analyze_pattern(a).unwrap();
-        lu
-    };
+    assert!(big.n() >= AUTO_MIN_ORDER && big.nnz() >= AUTO_MIN_NNZ);
+    assert!(small.n() < AUTO_MIN_ORDER);
     let bitwise = ExecPolicy::serial();
     let fast = bitwise.with_precision(Precision::Fast);
     // unset ordering: COLAMD in the bitwise mode, whatever the size
     let lu = analyse(&big, None, bitwise);
     assert_eq!(lu.effective_ordering(), SparseOrdering::Colamd);
-    assert_eq!(lu.ordering_report().used, SparseOrdering::Colamd);
-    assert!(lu.ordering_report().predicted.is_none());
+    let r = lu.ordering_report();
+    assert_eq!(r.used, SparseOrdering::Colamd);
+    assert!(r.predicted_colamd.is_none() && r.predicted_nd.is_none());
     // the same as an explicit COLAMD, bit for bit
     let explicit = analyse(&big, Some(SparseOrdering::Colamd), bitwise);
     assert_eq!(lu.perm_c(), explicit.perm_c());
-    // unset ordering in the fast mode: Auto
+    // unset ordering in the fast mode: Auto, nested dissection on this grid
     let lu = analyse(&big, None, fast);
     assert_eq!(lu.effective_ordering(), SparseOrdering::Auto);
     let r = lu.ordering_report();
-    let [c, d] = r.predicted.expect("predictions above the size threshold");
+    let (c, d) = (r.predicted_colamd.unwrap(), r.predicted_nd.unwrap());
     eprintln!(
-        "auto on a 15^3 grid: predicted work COLAMD {:.3e}, ND {:.3e}",
+        "auto on a 10^3 x 3 grid: predicted work COLAMD {:.3e}, ND {:.3e}",
         c.1, d.1
     );
     assert_eq!(r.used, SparseOrdering::NestedDissection);
-    // below the size threshold Auto keeps COLAMD without predicting
+    // below the size thresholds Auto keeps COLAMD without predicting
     let lu = analyse(&small, Some(SparseOrdering::Auto), bitwise);
-    assert_eq!(lu.ordering_report().used, SparseOrdering::Colamd);
-    assert!(lu.ordering_report().predicted.is_none());
+    let r = lu.ordering_report();
+    assert_eq!(r.used, SparseOrdering::Colamd);
+    assert!(r.predicted_colamd.is_none());
     assert_eq!(
         lu.perm_c(),
         analyse(&small, None, bitwise).perm_c(),
         "below the threshold Auto is COLAMD"
     );
+    // a 2-D scalar grid: COLAMD's predicted work is too small for the
+    // edges of its graph, so the dissection is not even computed
+    let flat = grid2(120, 120);
+    assert!(flat.nnz() >= AUTO_MIN_NNZ);
+    let r = analyse(&flat, Some(SparseOrdering::Auto), bitwise).ordering_report();
+    assert_eq!(r.used, SparseOrdering::Colamd);
+    assert!(r.predicted_colamd.is_some() && r.predicted_nd.is_none());
     // a matrix that needs off-diagonal pivots keeps COLAMD: zero diagonal
     // entries (saddle point), or one column whose diagonal is not its
     // largest entry
     let sp = saddle(14);
     assert!(sp.n() >= AUTO_MIN_ORDER);
-    let lu = analyse(&sp, Some(SparseOrdering::Auto), bitwise);
-    assert_eq!(lu.ordering_report().used, SparseOrdering::Colamd);
-    assert!(lu.ordering_report().predicted.is_none());
+    let r = analyse(&sp, Some(SparseOrdering::Auto), bitwise).ordering_report();
+    assert_eq!(r.used, SparseOrdering::Colamd);
+    assert!(r.predicted_colamd.is_none());
     let (n, cp, ri, mut v) = big.clone().into_parts();
     for q in cp[7]..cp[8] {
         if ri[q] == 7 {
@@ -389,6 +446,124 @@ fn auto_chooses_by_predicted_work_and_never_in_the_bitwise_default() {
     let weak = CscMatrix::try_new(n, cp, ri, v).unwrap();
     let lu = analyse(&weak, Some(SparseOrdering::Auto), bitwise);
     assert_eq!(lu.ordering_report().used, SparseOrdering::Colamd);
+}
+
+/// Factors and solution of `lu` after `factorize` (bits).
+fn factor_bits(lu: &mut SparseLu, a: &CscMatrix) -> Vec<u64> {
+    lu.factorize(a).unwrap();
+    let b = rhs(a.n());
+    let mut x = vec![0.0; a.n()];
+    lu.solve(&b, &mut x).unwrap();
+    bits(lu, &x)
+}
+
+/// B1: the ordering follows a switch of the precision mode between the
+/// analysis and a factorisation, in both directions, through the executor
+/// and through an explicit fast token: the bitwise factorisation after a
+/// fast analysis is COLAMD's (the fresh bitwise bits), the fast one after a
+/// bitwise analysis is `auto`'s.
+#[test]
+fn the_ordering_follows_a_switch_of_the_precision_mode() {
+    let a = grid(10, 3, 0.5, 15);
+    let bitwise = ExecPolicy::serial();
+    let fast = bitwise.with_precision(Precision::Fast);
+    let want_bitwise = factor_bits(&mut analyse(&a, None, bitwise), &a);
+    let want_fast = factor_bits(&mut analyse(&a, None, fast), &a);
+    // Fast -> Bitwise through the executor
+    let mut lu = analyse(&a, None, fast);
+    assert_eq!(lu.ordering_report().used, SparseOrdering::NestedDissection);
+    lu.set_exec(Exec::new(bitwise).unwrap());
+    assert!(factor_bits(&mut lu, &a) == want_bitwise);
+    assert_eq!(lu.ordering_report().used, SparseOrdering::Colamd);
+    // Bitwise -> Fast through the executor
+    lu.set_exec(Exec::new(fast).unwrap());
+    assert!(factor_bits(&mut lu, &a) == want_fast);
+    assert_eq!(lu.ordering_report().used, SparseOrdering::NestedDissection);
+    // through an explicit token: on, then off
+    let token = Exec::new(fast).unwrap().fast_token();
+    let mut lu = analyse(&a, None, bitwise);
+    lu.set_fast_mode(token);
+    assert!(factor_bits(&mut lu, &a) == want_fast);
+    lu.set_fast_mode(None);
+    assert!(factor_bits(&mut lu, &a) == want_bitwise);
+    // an explicit ordering does not follow the mode
+    let mut lu = analyse(&a, Some(SparseOrdering::NestedDissection), bitwise);
+    lu.set_exec(Exec::new(fast).unwrap());
+    let _ = factor_bits(&mut lu, &a);
+    assert_eq!(lu.ordering_report().used, SparseOrdering::NestedDissection);
+}
+
+/// B1 as `AijBackend` drives the solver: analysis once, `set_exec` before
+/// every solve, a factorisation when the values changed or the solver says
+/// its factorisation went stale.
+#[test]
+fn the_eigen_solver_refactorises_after_a_switch_to_bitwise() {
+    let c = grid(10, 3, 0.5, 16);
+    let mut aij = SparseMatrixAij::new("J", c.n() as _, MatrixType::Unsymmetric);
+    for j in 0..c.n() {
+        for q in c.col_ptr()[j]..c.col_ptr()[j + 1] {
+            aij.add(c.row_idx()[q] as _, j as _, c.values()[q]).unwrap();
+        }
+    }
+    let b = rhs(c.n());
+    let solve = |policies: &[ExecPolicy]| -> (Vec<u64>, Vec<f64>) {
+        let mut s = EigenSparseLuSolver::default();
+        let mut x = vec![0.0; c.n()];
+        let mut used = Vec::new();
+        for (k, &p) in policies.iter().enumerate() {
+            s.set_exec(&Exec::new(p).unwrap());
+            if k == 0 {
+                s.analysis(&aij).unwrap();
+                s.factorize(&aij).unwrap();
+            } else if s.factorization_stale() {
+                // the values did not change: only a stale factorisation
+                // is factorised again
+                s.factorize(&aij).unwrap();
+            }
+            assert!(!s.factorization_stale());
+            s.solve(&b, &mut x).unwrap();
+            let st = s.statistics();
+            used.push(st.iter().find(|v| v.0 == "ordering").unwrap().1);
+        }
+        (x.iter().map(|v| v.to_bits()).collect(), used)
+    };
+    let bitwise = ExecPolicy::serial();
+    let fast = bitwise.with_precision(Precision::Fast);
+    let (want, used) = solve(&[bitwise, bitwise]);
+    assert_eq!(used, [0.0, 0.0]);
+    let (got, used) = solve(&[fast, bitwise]);
+    assert_eq!(used, [1.0, 0.0]);
+    assert!(got == want, "the bitwise solve after a fast one differs");
+    let (_, used) = solve(&[bitwise, fast]);
+    assert_eq!(used, [0.0, 1.0]);
+}
+
+/// M1: an indefinite matrix passes `auto`'s diagonal test and gets nested
+/// dissection, whose first factorisation pivots off the diagonal far beyond
+/// the bound: the pattern is factorised again with COLAMD, which it keeps
+/// (deterministically, without a loop), with COLAMD's bits.
+#[test]
+fn auto_falls_back_to_colamd_on_an_indefinite_matrix() {
+    let a = indefinite(10, 3);
+    let bitwise = ExecPolicy::serial();
+    let mut lu = analyse(&a, Some(SparseOrdering::Auto), bitwise);
+    assert_eq!(lu.ordering_report().used, SparseOrdering::NestedDissection);
+    let got = factor_bits(&mut lu, &a);
+    let r = lu.ordering_report();
+    assert!(r.fallback && r.used == SparseOrdering::Colamd, "{r:?}");
+    let want = factor_bits(&mut analyse(&a, Some(SparseOrdering::Colamd), bitwise), &a);
+    assert!(got == want);
+    eprintln!(
+        "indefinite 10^3 x 3: off-diagonal pivots with COLAMD {}",
+        lu.off_diagonal_pivots()
+    );
+    // the next factorisation of the pattern keeps COLAMD
+    assert!(factor_bits(&mut lu, &a) == want);
+    assert!(lu.ordering_report().fallback);
+    // a new analysis of the pattern tries again, with the same outcome
+    lu.analyze_pattern(&a).unwrap();
+    assert_eq!(lu.ordering_report().used, SparseOrdering::NestedDissection);
+    assert!(factor_bits(&mut lu, &a) == want);
 }
 
 #[test]
