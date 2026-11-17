@@ -8,7 +8,7 @@
     bindings.py record OUT.json NP [--comm cohesive_extrin] [--timeout S]
     bindings.py check OUT.json NP THREADS CORE_LIST
 
-record: polls /proc every 0.5 s (world-readable files; container processes
+record: polls /proc every 0.05 s (world-readable files; container processes
 are visible from the host) and, whenever NP processes named COMM exist and
 their binding changed, writes for each its MPI rank (OMPI_COMM_WORLD_RANK
 from /proc/<pid>/environ when readable, else null), pid and
@@ -110,7 +110,7 @@ def record(out, np_, comm, timeout):
                                "comm": comm, "ranks": procs, "numa": numa},
                               f, indent=1)
                 os.replace(tmp, out)
-        time.sleep(0.5)
+        time.sleep(0.05)
     return 0 if last else 1
 
 

@@ -345,9 +345,15 @@ run_suite_mpi() { # id rep labels dir bin case size np
     fin_cmdlog "$D" "${cmd[@]}"
     python3 -I "${FIN_HERE}/bindings.py" record "${f%.jsonl}.bindings.json" "$np" --comm "${bin:0:15}" > /dev/null 2>&1 &
     rec=$!
+    local t0 t1
+    t0=$(date +%s)
     "${cmd[@]}" > "$f" 2> "${f%.jsonl}.err" || rc=1
+    t1=$(date +%s)
     kill "$rec" 2> /dev/null; wait "$rec" 2> /dev/null
-    if [ -s "$f" ] && ! python3 -I "${FIN_HERE}/bindings.py" check "${f%.jsonl}.bindings.json" "$np" "$t" "$cores" > "${f%.jsonl}.bindings.txt"; then
+    if [ -s "$f" ] && [ ! -e "${f%.jsonl}.bindings.json" ] && [ $((t1 - t0)) -lt 2 ]; then
+      # a run shorter than the sampler's reach (the dry sizes): not recorded, not failed
+      echo "not recorded: the run took less than 2 s" > "${f%.jsonl}.bindings.txt"
+    elif [ -s "$f" ] && ! python3 -I "${FIN_HERE}/bindings.py" check "${f%.jsonl}.bindings.json" "$np" "$t" "$cores" > "${f%.jsonl}.bindings.txt"; then
       bad=1; echo "$(basename "$out") $c np$np r$r: $l: core binding not as planned (${f%.jsonl}.bindings.txt)" >> "$D/CHECKS_FAILED"
     fi
   done
