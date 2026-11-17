@@ -538,4 +538,24 @@ mod tests {
         };
         assert!(r.to_json().ends_with(", \"rust_static_solve\": false}\n"));
     }
+
+    #[test]
+    fn summary_records_the_execution_policy() {
+        let s = Summary {
+            exec: ExecSummary {
+                threads: 4,
+                precision: "fast".into(),
+                simd: "avx2".into(),
+            },
+            ..Summary::default()
+        };
+        assert!(s.to_json().contains(
+            "  \"rust_exec\": {\"threads\": 4, \"precision\": \"fast\", \"simd\": \"avx2\"},\n  \"rust_memory_kib\""
+        ));
+        // the process default of a test process: one thread unless the
+        // environment says otherwise, a known precision name
+        let d = ExecSummary::process_default();
+        assert!(d.threads >= 1);
+        assert!(d.precision == "bitwise" || d.precision == "fast");
+    }
 }
