@@ -637,15 +637,20 @@ impl CohesiveLaw {
         }
     }
 
+    /// The laws' tractions of `(ty, ghost)`; `cohesive_linear` and
+    /// `cohesive_bilinear` run their points on the threads of `exec` (each
+    /// point from its own data), the other laws serially
+    /// (`docs/ARCHITECTURE.md`, "Execution policy").
     pub(crate) fn compute_traction(
         &mut self,
         core: &mut CohesiveCore,
         ty: ElementType,
         ghost: GhostType,
+        exec: &akantu_core::exec::Exec,
     ) -> Result<()> {
         match self {
-            Self::Linear(l) => l.compute_traction(core, ty, ghost),
-            Self::Bilinear(b) => b.compute_traction(core, ty, ghost),
+            Self::Linear(l) => l.compute_traction(core, ty, ghost, exec),
+            Self::Bilinear(b) => b.compute_traction(core, ty, ghost, exec),
             Self::Exponential(e) => e.compute_traction(core, ty, ghost),
             Self::LinearFatigue(f) => f.compute_traction(core, ty, ghost),
             Self::LinearFriction(f) => {

@@ -38,6 +38,13 @@ use crate::vecops::{dot_fixed, dot_seq, norm_fixed, std_max, std_min};
 /// `Math::getTolerance()` (default value).
 const TOL: Real = DEFAULT_TOLERANCE;
 
+/// Filter entries per part of the threaded insertion decision (a few
+/// microseconds of work each).
+const DECISIONS_PER_PART: usize = 1024;
+
+/// Quadrature points per part of the threaded traction loops.
+const POINTS_PER_PART: usize = 512;
+
 /// Member state of upstream's linear law after one quadrature point
 /// (`normal_opening_norm`, `tangential_opening(_norm)`, `penetration`),
 /// read by derived laws (friction).
@@ -419,17 +426,15 @@ impl Linear {
                 } else {
                     filter.len()
                 };
-                // Threading candidate (the execution policy's primitives): the norms and
-                // the decision of a facet read only that facet's data and
-                // write only its own insertion flag; the appended parameters
-                // (`prepared`, `new_sigmas`, `new_tractions`, `new_delta`)
-                // must keep the filter order: per-chunk buffers concatenated
-                // in chunk order.
-                for (k, &facet) in filter.iter().enumerate().take(nb_pairs) {
-                    let facet = akantu_core::try_to_usize(facet)?;
-                    if !facets_check.get(facet).copied().unwrap_or(false) {
-                        continue;
-                    }
+                let zipped = core.compat.sigma_c_zipped_per_quad;
+                let limits: &[Real] = &sigma_limits;
+                // The facet's mean (or maximal) effective norm and the
+                // per-point norms and normal tractions: a function of the
+                // facet's data only.
+                let facet_norms = |facet: usize,
+                                   stress_check: &mut [Real],
+                                   normal_traction: &mut [[Real; 3]]|
+                 -> Real {
                     for q in 0..nq {
                         let cq = facet * nq + q;
                         let fs = &f_stress[cq * 2 * dim * dim..(cq + 1) * 2 * dim * dim];
@@ -457,26 +462,72 @@ impl Linear {
                         }
                         final_stress = m;
                     }
-                    // UD-040: upstream pairs facet k with strength entry k
-                    let zipped = core.compat.sigma_c_zipped_per_quad;
-                    let limit_q = |q: usize| {
-                        if zipped {
-                            sigma_limits[k]
-                        } else {
-                            sigma_limits[k * nq + q]
-                        }
-                    };
-                    let limit: Real = if zipped {
-                        sigma_limits[k]
+                    final_stress
+                };
+                // UD-040: upstream pairs facet k with strength entry k
+                let limit_of = |k: usize| -> Real {
+                    if zipped {
+                        limits[k]
                     } else {
-                        let lq = &sigma_limits[k * nq..(k + 1) * nq];
+                        let lq = &limits[k * nq..(k + 1) * nq];
                         let mut m = lq[0];
                         for v in &lq[1..] {
                             m += v;
                         }
                         m / nq as Real
+                    }
+                };
+                // The decision of every entry of the filter, on the threads
+                // of the facet FE engine's executor: it reads only the
+                // entry's facet data and writes only the entry's decision
+                // (0 not checked, 1 below its strength, 2 above, 3 not a
+                // facet index), the same bits for every thread count. The
+                // flags and the appended parameters follow in the filter's
+                // order below (the serial loop's order).
+                let mut decision = vec![0u8; nb_pairs];
+                inputs.facet_fe.exec().for_each(
+                    akantu_core::exec::Tuples::new(&mut decision, 1),
+                    DECISIONS_PER_PART,
+                    |first, mut part| {
+                        let mut sc = vec![0.0; nq];
+                        let mut nt = vec![[0.0; 3]; nq];
+                        for (j, d) in part.as_mut_slice().iter_mut().enumerate() {
+                            let k = first + j;
+                            *d = match akantu_core::try_to_usize(filter[k]) {
+                                Err(_) => 3,
+                                Ok(facet) if !facets_check.get(facet).copied().unwrap_or(false) => {
+                                    0
+                                }
+                                Ok(facet) => {
+                                    if facet_norms(facet, &mut sc, &mut nt) > limit_of(k) {
+                                        2
+                                    } else {
+                                        1
+                                    }
+                                }
+                            };
+                        }
+                    },
+                );
+                for (k, &facet) in filter.iter().enumerate().take(nb_pairs) {
+                    if decision[k] != 2 {
+                        if decision[k] == 3 {
+                            // the serial loop's error at this entry
+                            akantu_core::try_to_usize(facet)?;
+                        }
+                        continue;
+                    }
+                    let facet = akantu_core::try_to_usize(facet)?;
+                    // the norms of the entry again, with the same operations
+                    let _ = facet_norms(facet, &mut stress_check, &mut normal_traction);
+                    let limit_q = |q: usize| {
+                        if zipped {
+                            limits[k]
+                        } else {
+                            limits[k * nq + q]
+                        }
                     };
-                    if final_stress > limit {
+                    {
                         inputs
                             .insertion_facets
                             .get_mut(type_facet, g)?
@@ -620,17 +671,23 @@ impl Linear {
     }
 
     /// Upstream `computeTractionOnQuad` for every point of `(ty, ghost)`.
+    ///
+    /// The points run on the threads of `exec`: each point's traction,
+    /// opening, maximal opening and damage are computed from that point's
+    /// data only, and no state of the law is written, so the values do not
+    /// depend on the thread count.
     pub(crate) fn compute_traction(
         &self,
         core: &mut CohesiveCore,
         ty: ElementType,
         ghost: GhostType,
+        exec: &akantu_core::exec::Exec,
     ) -> Result<()> {
-        self.compute_traction_with(core, ty, ghost, Some(0.0), &mut |_, _| {})
+        self.compute_traction_points(core, ty, ghost, Some(0.0), exec)
     }
 
-    /// [`Linear::compute_traction`] with `after(state, traction)` called
-    /// after every point (derived laws' `computeTractionOnQuad`).
+    /// The traction loop on the threads of `exec` (see
+    /// [`Linear::compute_traction`]).
     ///
     /// **UD-241**: with `floor = Some(f)`, the `δ_max`
     /// history (UD-028 default) and without `compat.delta_max_per_iterate`,
@@ -640,26 +697,27 @@ impl Linear {
     /// leaves no damage; otherwise upstream's update of the current `δ_max`
     /// at every evaluation (`None`: `cohesive_linear_friction`, which
     /// restarts from the previous `δ_max` itself in implicit runs).
-    pub(crate) fn compute_traction_with(
+    pub(crate) fn compute_traction_points(
         &self,
         core: &mut CohesiveCore,
         ty: ElementType,
         ghost: GhostType,
         floor: Option<Real>,
-        after: &mut dyn FnMut(&QuadState, &mut [Real]),
+        exec: &akantu_core::exec::Exec,
     ) -> Result<()> {
         let converged_history = floor.is_some() && uses_converged_history(core);
-        self.compute_traction_history(
+        self.compute_traction_history_in(
             core,
             ty,
             ghost,
             floor.unwrap_or(0.0),
             converged_history,
-            after,
+            Some(exec),
+            &mut |_, _| {},
         )
     }
 
-    /// [`Linear::compute_traction_with`] with the history policy given by
+    /// [`Linear::compute_traction_points`] with the history policy given by
     /// the caller: `converged_history` (requires the `δ_max` history):
     /// `δ_max = max(max(δ_max previous, floor), δ)` and the contact branch
     /// decided from the converged damage; otherwise upstream's
@@ -675,6 +733,23 @@ impl Linear {
         ghost: GhostType,
         floor: Real,
         converged_history: bool,
+        after: &mut dyn FnMut(&QuadState, &mut [Real]),
+    ) -> Result<()> {
+        self.compute_traction_history_in(core, ty, ghost, floor, converged_history, None, after)
+    }
+
+    /// [`Linear::compute_traction_history`]; with `exec` (and then `after`
+    /// a no-op: the threaded loop does not call it) the points run on its
+    /// threads, each from its own data.
+    #[allow(clippy::too_many_arguments)] // the history policy, the executor and the hook
+    fn compute_traction_history_in(
+        &self,
+        core: &mut CohesiveCore,
+        ty: ElementType,
+        ghost: GhostType,
+        floor: Real,
+        converged_history: bool,
+        exec: Option<&akantu_core::exec::Exec>,
         after: &mut dyn FnMut(&QuadState, &mut [Real]),
     ) -> Result<()> {
         let dim = core.dim;
@@ -734,6 +809,66 @@ impl Linear {
                     got: len,
                 });
             }
+        }
+        if let Some(exec) = exec
+            && exec.nb_parts(nq, POINTS_PER_PART) > 1
+        {
+            use akantu_core::exec::Tuples;
+            let w = nq * dim;
+            let items = (
+                (
+                    Tuples::new(&mut op[..w], dim),
+                    Tuples::new(&mut tr[..w], dim),
+                    Tuples::new(&mut ct[..w], dim),
+                ),
+                (
+                    Tuples::new(&mut co[..w], dim),
+                    Tuples::new(&mut dm[..nq], 1),
+                    Tuples::new(&mut da[..nq], 1),
+                ),
+            );
+            let (n, sc, dc, is): (&[Real], &[Real], &[Real], &[Real]) = (&n, &sc, &dc, &is);
+            exec.for_each(
+                items,
+                POINTS_PER_PART,
+                |first, ((op, tr, ct), (co, dm, da))| {
+                    let (op, tr, ct) = (op.into_slice(), tr.into_slice(), ct.into_slice());
+                    let (co, dm, da) = (co.into_slice(), dm.into_slice(), da.into_slice());
+                    for j in 0..dm.len() {
+                        let q = first + j;
+                        let r = q * dim..(q + 1) * dim;
+                        let l = j * dim..(j + 1) * dim;
+                        let prev = dm_prev.map(|p| floored(p[q], floor));
+                        let contact_damage =
+                            prev.map_or(da[j], |m| committed_damage(m, dc[q], floor));
+                        macro_rules! point {
+                            ($d:expr) => {
+                                self.traction_on_quad(
+                                    $d,
+                                    &n[r.clone()],
+                                    &mut op[l.clone()],
+                                    &mut tr[l.clone()],
+                                    &mut ct[l.clone()],
+                                    &mut co[l.clone()],
+                                    &mut dm[j],
+                                    prev,
+                                    contact_damage,
+                                    &mut da[j],
+                                    sc[q],
+                                    dc[q],
+                                    &is[r.clone()],
+                                )
+                            };
+                        }
+                        let _ = match dim {
+                            2 => point!(2),
+                            3 => point!(3),
+                            _ => point!(dim),
+                        };
+                    }
+                },
+            );
+            return Ok(());
         }
         for q in 0..nq {
             let r = q * dim..(q + 1) * dim;
@@ -875,7 +1010,7 @@ impl Linear {
 
     /// [`Linear::compute_tangent_traction`] with `after(state, tangent)`
     /// called after every point. `floor`: see
-    /// [`Linear::compute_traction_with`] (UD-241: with the converged history
+    /// [`Linear::compute_traction_points`] (UD-241: with the converged history
     /// the branch is chosen with `δ_max = max(max(δ_max previous, floor),
     /// δ)`, the maximal opening the traction uses, and contact is disabled
     /// by the converged damage); `None` for a law whose
@@ -1309,23 +1444,36 @@ impl Bilinear {
 
     /// Upstream `computeTraction`: the linear law, then `d = clamp((δ_max −
     /// δ0)/(δc − δ0), 0, 1)`.
+    ///
+    /// Both loops run on the threads of `exec` (per-point values only).
     pub(crate) fn compute_traction(
         &self,
         core: &mut CohesiveCore,
         ty: ElementType,
         ghost: GhostType,
+        exec: &akantu_core::exec::Exec,
     ) -> Result<()> {
         // UD-241: the converged maximal opening starts at δ₀
         self.linear
-            .compute_traction_with(core, ty, ghost, Some(self.delta_0), &mut |_, _| {})?;
-        let dm = block(&core.delta_max, ty, ghost).to_vec();
-        let dc = block(&self.linear.delta_c_eff, ty, ghost);
+            .compute_traction_points(core, ty, ghost, Some(self.delta_0), exec)?;
+        let dm_g = block(&core.delta_max, ty, ghost);
+        let dc_g = block(&self.linear.delta_c_eff, ty, ghost);
+        let (dm, dc): (&[Real], &[Real]) = (&dm_g, &dc_g);
         let mut da_g = block_mut(&mut core.damage, ty, ghost)?;
         let da = da_g.as_mut_slice();
-        for ((d, m), c) in da.iter_mut().zip(&dm).zip(&dc) {
-            *d = std_max((m - self.delta_0) / (c - self.delta_0), 0.);
-            *d = std_min(*d, 1.);
-        }
+        let n = da.len().min(dm.len()).min(dc.len());
+        let delta_0 = self.delta_0;
+        exec.for_each(
+            akantu_core::exec::Tuples::new(&mut da[..n], 1),
+            POINTS_PER_PART,
+            |first, part| {
+                for (j, d) in part.into_slice().iter_mut().enumerate() {
+                    let (m, c) = (dm[first + j], dc[first + j]);
+                    *d = std_max((m - delta_0) / (c - delta_0), 0.);
+                    *d = std_min(*d, 1.);
+                }
+            },
+        );
         Ok(())
     }
 }
@@ -1618,7 +1766,8 @@ mod tests {
     fn traction(core: &mut CohesiveCore, l: &Linear, opening: [Real; 2]) -> [Real; 2] {
         set(&mut core.opening, &opening);
         set(&mut core.delta_max, &[0.]);
-        l.compute_traction(core, TY, G).unwrap();
+        l.compute_traction(core, TY, G, akantu_core::exec::Exec::serial_ref())
+            .unwrap();
         let t = block(&core.tractions, TY, G);
         [t[0], t[1]]
     }
@@ -1702,7 +1851,8 @@ mod tests {
             let (mut core, l) = history_state(per_iterate, 0.1);
             let _ = traction(&mut core, &l, [0.0, 0.3]); // the iterate
             set(&mut core.opening, &[0.0, 0.2]); // the converged opening
-            l.compute_traction(&mut core, TY, G).unwrap();
+            l.compute_traction(&mut core, TY, G, akantu_core::exec::Exec::serial_ref())
+                .unwrap();
             let dm = block(&core.delta_max, TY, G)[0];
             let d = block(&core.damage, TY, G)[0];
             let t = block(&core.tractions, TY, G)[1];
@@ -1780,7 +1930,8 @@ mod tests {
                 delta_0: 0.05,
             };
             set(&mut core.opening, &[0.0, 0.02]);
-            b.compute_traction(&mut core, TY, G).unwrap();
+            b.compute_traction(&mut core, TY, G, akantu_core::exec::Exec::serial_ref())
+                .unwrap();
             assert_eq!(block(&core.delta_max, TY, G), &[0.05]);
             assert_eq!(block(&core.damage, TY, G), &[0.0]);
             out.push(block(&core.tractions, TY, G).to_vec());
@@ -1794,7 +1945,8 @@ mod tests {
     /// `δ_max` and `damage` are whatever the previous trial left).
     fn total(core: &mut CohesiveCore, l: &Linear, opening: [Real; 2]) -> [Real; 2] {
         set(&mut core.opening, &opening);
-        l.compute_traction(core, TY, G).unwrap();
+        l.compute_traction(core, TY, G, akantu_core::exec::Exec::serial_ref())
+            .unwrap();
         let t = block(&core.tractions, TY, G);
         let c = block(&core.contact_tractions, TY, G);
         [t[0] + c[0], t[1] + c[1]]
@@ -1943,7 +2095,8 @@ mod tests {
         };
         let eval = |core: &mut CohesiveCore, o: [Real; 2]| -> [Real; 2] {
             set(&mut core.opening, &o);
-            b.compute_traction(core, TY, G).unwrap();
+            b.compute_traction(core, TY, G, akantu_core::exec::Exec::serial_ref())
+                .unwrap();
             let t = block(&core.tractions, TY, G);
             let c = block(&core.contact_tractions, TY, G);
             [t[0] + c[0], t[1] + c[1]]
@@ -2037,7 +2190,8 @@ mod tests {
     /// against the committed state).
     fn law_total(core: &mut CohesiveCore, law: &mut CohesiveLaw, opening: [Real; 2]) -> [Real; 2] {
         set(&mut core.opening, &opening);
-        law.compute_traction(core, TY, G).unwrap();
+        law.compute_traction(core, TY, G, akantu_core::exec::Exec::serial_ref())
+            .unwrap();
         let t = block(&core.tractions, TY, G);
         let c = block(&core.contact_tractions, TY, G);
         [t[0] + c[0], t[1] + c[1]]

@@ -475,6 +475,13 @@ struct CohesiveScratch {
     partial: Array<Real>,
     /// The elemental residual (both sides).
     int_t_n: Array<Real>,
+    /// The node-ordered scatter of the residual per cohesive block (the
+    /// threaded assembly; checked against the connectivity before use).
+    scatters: Vec<(
+        ElementType,
+        GhostType,
+        Option<akantu_core::exec::NodeScatter>,
+    )>,
 }
 
 /// `a` as `Array::try_zeros(len, nb_component)` would make it, in its
@@ -485,6 +492,55 @@ fn reset_scratch(a: &mut Array<Real>, len: usize, nb_component: usize) -> Result
     }
     a.clear();
     a.try_resize(len, 0.0)
+}
+
+/// Elements per part of the threaded per-element kernels of the cohesive
+/// laws (normals, openings, residual).
+const ELEMENTS_PER_PART: usize = 256;
+
+/// Quadrature points per part of the threaded per-point loops.
+const POINTS_PER_PART: usize = 512;
+
+/// `kernel(filter, out)` (a per-element FE kernel: `nq` points of `nbc`
+/// values per element of `filter`, each element computed from its own
+/// data) into `out`, emptied first as a fresh array: on one thread one
+/// call, as before; on several, one call per part of whole elements with
+/// the part's sub-filter, each writing its own elements' points. The values
+/// are the serial call's for every thread count.
+fn per_element_parts(
+    exec: &akantu_core::exec::Exec,
+    filter: &[Idx],
+    nq: usize,
+    nbc: usize,
+    out: &mut Array<Real>,
+    kernel: impl Fn(&[Idx], &mut Array<Real>) -> Result<()> + Sync,
+) -> Result<()> {
+    if out.nb_component() != nbc {
+        *out = Array::new(nbc);
+    }
+    out.clear();
+    if exec.nb_parts(filter.len(), ELEMENTS_PER_PART) <= 1 || nq == 0 || nbc == 0 {
+        return kernel(filter, out);
+    }
+    out.try_resize(filter.len() * nq, 0.0)?;
+    exec.try_for_each(
+        akantu_core::exec::Tuples::new(out.as_mut_slice(), nq * nbc),
+        ELEMENTS_PER_PART,
+        |first, mut part| {
+            let n = part.as_mut_slice().len() / (nq * nbc);
+            let mut local = Array::new(nbc);
+            kernel(&filter[first..first + n], &mut local)?;
+            if local.as_slice().len() != part.as_mut_slice().len() {
+                return Err(Error::DimensionMismatch {
+                    context: "cohesive per-element kernel: values of a part",
+                    expected: part.as_mut_slice().len(),
+                    got: local.as_slice().len(),
+                });
+            }
+            part.as_mut_slice().copy_from_slice(local.as_slice());
+            Ok(())
+        },
+    )
 }
 
 /// The element filter of `(ty, ghost)`, borrowed (empty if absent).
@@ -756,19 +812,18 @@ impl MaterialCohesive {
         out.as_mut_slice().fill(0.0);
         let scratch = self.scratch.get_mut();
         let tmp = &mut scratch.points;
-        if tmp.nb_component() != self.core.dim {
-            *tmp = Array::new(self.core.dim);
-        }
-        tmp.clear();
-        fe.compute_cohesive_normals(
-            mesh,
-            position.view(),
-            tmp,
-            ty,
-            ghost,
-            CohesiveReduction::Mean,
-            Some(filter),
-        )?;
+        let nq = fe.nb_integration_points(ty, ghost)?;
+        per_element_parts(fe.exec(), filter, nq, self.core.dim, tmp, |sub, part| {
+            fe.compute_cohesive_normals(
+                mesh,
+                position.view(),
+                part,
+                ty,
+                ghost,
+                CohesiveReduction::Mean,
+                Some(sub),
+            )
+        })?;
         out.copy_from(tmp)
     }
 
@@ -787,19 +842,18 @@ impl MaterialCohesive {
         let filter = filter_slice(&self.base, ty, ghost);
         let scratch = self.scratch.get_mut();
         let tmp = &mut scratch.points;
-        if tmp.nb_component() != self.core.dim {
-            *tmp = Array::new(self.core.dim);
-        }
-        tmp.clear();
-        fe.interpolate_cohesive(
-            mesh,
-            displacement.view(),
-            tmp,
-            ty,
-            ghost,
-            CohesiveReduction::Opening,
-            Some(filter),
-        )?;
+        let nq = fe.nb_integration_points(ty, ghost)?;
+        per_element_parts(fe.exec(), filter, nq, self.core.dim, tmp, |sub, part| {
+            fe.interpolate_cohesive(
+                mesh,
+                displacement.view(),
+                part,
+                ty,
+                ghost,
+                CohesiveReduction::Opening,
+                Some(sub),
+            )
+        })?;
         block_mut(&mut self.core.opening, ty, ghost)?.copy_from(tmp)
     }
 
@@ -846,7 +900,11 @@ impl MaterialCohesive {
                 })?;
                 self.with_foreign(|m, law| m.compute_traction(law, ctx, ty, ghost))?;
             } else {
-                self.law.compute_traction(&mut self.core, ty, ghost)?;
+                let exec: &akantu_core::exec::Exec = match ctx {
+                    Some(c) => c.services.exec(),
+                    None => akantu_core::exec::Exec::serial_ref(),
+                };
+                self.law.compute_traction(&mut self.core, ty, ghost, exec)?;
             }
         }
         Ok(())
@@ -910,11 +968,13 @@ impl MaterialCohesive {
         mut f_int: ArrayViewMut<'_, Real>,
     ) -> Result<()> {
         let dim = self.core.dim;
+        let exec = fems.exec();
         let mut scratch = self.scratch.lock();
         let CohesiveScratch {
             traction_shapes: cpy,
             partial,
             int_t_n,
+            scatters,
             ..
         } = &mut *scratch;
         for ty in self.cohesive_types(ghost) {
@@ -941,6 +1001,87 @@ impl MaterialCohesive {
             // every value of the work arrays below is written before it is
             // read (as the fresh zeroed arrays they replace)
             reset_scratch(cpy, nb * nq, dim * s)?;
+            let threaded = exec.nb_parts(nb, ELEMENTS_PER_PART) > 1
+                && nn * dim == 2 * dim * s
+                && filter.iter().all(|&e| {
+                    akantu_core::try_to_usize(e).is_ok_and(|e| (e + 1) * nq * s <= sh.len())
+                });
+            if threaded {
+                // per point `(t + t_c) N` on the threads (each point from
+                // its own tractions and shapes), then per element the
+                // residual of both sides, then the scatter in element order
+                // per node (`NodeScatter`): the serial values and sums
+                let (trs, cts): (&[Real], &[Real]) = (&tr, &ct);
+                exec.for_each(
+                    akantu_core::exec::Tuples::new(cpy.as_mut_slice(), dim * s),
+                    ELEMENTS_PER_PART * nq,
+                    |first, part| {
+                        for (j, out) in part.into_slice().chunks_exact_mut(dim * s).enumerate() {
+                            let p = first + j;
+                            let e = akantu_core::try_to_usize(filter[p / nq]).unwrap_or(0);
+                            let q = p % nq;
+                            let n = &sh[(e * nq + q) * s..(e * nq + q + 1) * s];
+                            let t = &trs[p * dim..(p + 1) * dim];
+                            let tc = &cts[p * dim..(p + 1) * dim];
+                            for (j, nj) in n.iter().enumerate() {
+                                for i in 0..dim {
+                                    out[i + dim * j] = (t[i] + tc[i]) * nj;
+                                }
+                            }
+                        }
+                    },
+                );
+                if partial.nb_component() != dim * s {
+                    *partial = Array::new(dim * s);
+                }
+                partial.clear();
+                fe.integrate(cpy.view(), partial, dim * s, ty, ghost, Some(filter))?;
+                let half = dim * s;
+                reset_scratch(int_t_n, nb, 2 * half)?;
+                let src = partial.as_slice();
+                exec.for_each(
+                    akantu_core::exec::Tuples::new(int_t_n.as_mut_slice(), 2 * half),
+                    ELEMENTS_PER_PART,
+                    |first, part| {
+                        for (j, to) in part.into_slice().chunks_exact_mut(2 * half).enumerate() {
+                            let el = first + j;
+                            let from = &src[el * half..(el + 1) * half];
+                            to[..half].copy_from_slice(from);
+                            to[half..2 * half].copy_from_slice(from);
+                            for v in &mut to[..half] {
+                                *v *= -1.;
+                            }
+                        }
+                    },
+                );
+                let conn = mesh.connectivity(ty, ghost)?;
+                let nb_nodes = f_int.len();
+                let k = match scatters
+                    .iter()
+                    .position(|(t, g, _)| *t == ty && *g == ghost)
+                {
+                    Some(k) => k,
+                    None => {
+                        scatters.push((ty, ghost, None));
+                        scatters.len() - 1
+                    }
+                };
+                let fresh = !scatters[k].2.as_ref().is_some_and(|sc| {
+                    sc.matches(exec, conn.as_slice(), nn, Some(filter), nb_nodes)
+                });
+                if fresh {
+                    scatters[k].2 = Some(akantu_core::exec::NodeScatter::new(
+                        conn.as_slice(),
+                        nn,
+                        Some(filter),
+                        nb_nodes,
+                    )?);
+                }
+                if let Some(sc) = &scatters[k].2 {
+                    sc.scatter_add(exec, int_t_n.as_slice(), dim, 1.0, f_int.as_mut_slice())?;
+                }
+                continue;
+            }
             {
                 let c = cpy.as_mut_slice();
                 let mut p = 0;
@@ -1099,7 +1240,11 @@ impl MaterialCohesive {
     /// Upstream `updateEnergies(type)` (cohesive types only): trapezoidal
     /// work increment `½ (δ − δ_old)·(t_old + t)` and reversible energy
     /// `½ t·δ` per quadrature point.
-    fn update_energies_impl(&mut self, ty: ElementType) -> Result<()> {
+    fn update_energies_impl(
+        &mut self,
+        ty: ElementType,
+        exec: &akantu_core::exec::Exec,
+    ) -> Result<()> {
         if ty.kind() != ElementKind::Cohesive {
             return Ok(());
         }
@@ -1128,6 +1273,38 @@ impl MaterialCohesive {
         let mut etot = block_mut(&mut self.core.total_energy, ty, g)?;
         let erev = &mut erev.as_mut_slice()[..nq];
         let etot = etot.as_mut_slice();
+        if etot.len() >= nq && exec.nb_parts(nq, POINTS_PER_PART) > 1 {
+            // per point on the threads (each point from its own values)
+            let (tr, op): (&[Real], &[Real]) = (&tr, &op);
+            exec.for_each(
+                (
+                    akantu_core::exec::Tuples::new(erev, 1),
+                    akantu_core::exec::Tuples::new(&mut etot[..nq], 1),
+                ),
+                POINTS_PER_PART,
+                |first, (erev, etot)| {
+                    let (erev, etot) = (erev.into_slice(), etot.into_slice());
+                    let mut b = [0.0; 3];
+                    let mut h = [0.0; 3];
+                    for j in 0..erev.len() {
+                        let q = first + j;
+                        for i in 0..dim {
+                            b[i] = op[q * dim + i] - op_old[q * dim + i];
+                            h[i] = tr_old[q * dim + i] + tr[q * dim + i];
+                        }
+                        let inc = 0.5 * crate::vecops::dot_seq(&b, &h, dim);
+                        erev[j] = 0.5
+                            * crate::vecops::dot_seq(
+                                &tr[q * dim..(q + 1) * dim],
+                                &op[q * dim..(q + 1) * dim],
+                                dim,
+                            );
+                        etot[j] += inc;
+                    }
+                },
+            );
+            return Ok(());
+        }
         let mut b = [0.0; 3];
         let mut h = [0.0; 3];
         for q in 0..nq {
@@ -1717,8 +1894,8 @@ impl Material for MaterialCohesive {
         }
     }
 
-    fn update_energies(&mut self, _: &LawContext<'_>, ty: ElementType) -> Result<()> {
-        self.update_energies_impl(ty)
+    fn update_energies(&mut self, ctx: &LawContext<'_>, ty: ElementType) -> Result<()> {
+        self.update_energies_impl(ty, ctx.services.exec())
     }
 
     /// Upstream `beforeSolveStep` (`savePreviousState`), except for the
