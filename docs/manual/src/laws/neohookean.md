@@ -8,35 +8,58 @@ works in finite deformation (its constructor sets
 total-Lagrangian internal forces and tangent
 ([Finite deformation](../solid-mechanics.md#finite-deformation)).
 
+The Neo-Hookean law extends Hooke's law to large deformations, and
+predicts a nonlinear stress-strain response. Under small strains it is
+very close to the linear elastic law of the same `E` and `nu` (its
+tangent at $\boldsymbol{F} = \boldsymbol{I}$ is the isotropic elastic
+tangent), and its response becomes nonlinear as the stretches grow.
+This compressible form is a modification of the law proposed by Rivlin
+(Belytschko, Liu and Moran, 2000).
+
 ## Equations
 
-With `F = I + ∇u`, `C = Fᵀ F`, `J = det F` and the Lamé constants
-`λ = νE/((1 + ν)(1 − 2ν))`, `μ = E/(2(1 + ν))` (the 3-D formulas in every
-dimension; `ν = 0` in 1-D):
+With $\boldsymbol{F} = \boldsymbol{I} + \nabla\boldsymbol{u}$,
+$\boldsymbol{C} = \boldsymbol{F}^T \boldsymbol{F}$, $J = \det\boldsymbol{F}$
+and the Lamé constants $\lambda = \nu E/((1 + \nu)(1 - 2\nu))$,
+$\mu = E/(2(1 + \nu))$ (the 3-D formulas in every dimension; $\nu = 0$ in
+1-D):
 
-```text
-Ψ(C) = λ/2 (ln J)² − μ ln J + μ/2 (tr C₃ − 3)
-S    = 2 ∂Ψ/∂C = μ I + (λ ln J − μ) C⁻¹
-ℂ_ijkl = λ C⁻¹_ij C⁻¹_kl + (μ − λ ln J)(C⁻¹_ik C⁻¹_jl + C⁻¹_il C⁻¹_kj)
-```
+$$
+\begin{aligned}
+\Psi(\boldsymbol{C}) &= \frac{\lambda}{2} (\ln J)^2 - \mu \ln J
+  + \frac{\mu}{2} \left(\operatorname{tr} \boldsymbol{C}_3 - 3\right) \\
+\boldsymbol{S} &= 2 \frac{\partial \Psi}{\partial \boldsymbol{C}}
+  = \mu \boldsymbol{I} + (\lambda \ln J - \mu)\, \boldsymbol{C}^{-1} \\
+\mathbb{C}_{ijkl} &= \lambda\, C^{-1}_{ij} C^{-1}_{kl}
+  + (\mu - \lambda \ln J) \left(C^{-1}_{ik} C^{-1}_{jl} + C^{-1}_{il} C^{-1}_{kj}\right)
+\end{aligned}
+$$
 
-`S` is the second Piola–Kirchhoff stress and `ℂ = 2 ∂S/∂C` the material
-tangent (on Voigt engineering strains, as every tangent of the port).
-`C₃` is the 3-D right Cauchy–Green tensor of the state the element
-represents: `tr C₃ = tr C + 2` in 1-D (lateral stretches 1),
-`tr C + C33` in 2-D, `tr C` in 3-D.
+$\boldsymbol{S}$ is the second Piola–Kirchhoff stress and
+$\mathbb{C} = 2\, \partial \boldsymbol{S}/\partial \boldsymbol{C}$ the
+material tangent (on Voigt engineering strains, as every tangent of the
+port). $\boldsymbol{C}_3$ is the 3-D right Cauchy–Green tensor of the state
+the element represents: $\operatorname{tr} \boldsymbol{C}_3 =
+\operatorname{tr} \boldsymbol{C} + 2$ in 1-D (lateral stretches 1),
+$\operatorname{tr} \boldsymbol{C} + C_{33}$ in 2-D,
+$\operatorname{tr} \boldsymbol{C}$ in 3-D.
 
-* 2-D plane strain (the default): `C33 = 1`.
-* 2-D plane stress (`Plane_Stress = true`): before the stress, `C33 > 0`
-  solves `S33 = 0`, i.e. `λ/2 (ln C33 + ln det C₂) + μ (C33 − 1) = 0`, by a
-  bracketed Newton iteration to machine precision (upstream: plain Newton
-  stopped at `|f| ≤ 1e-5`); `J = det F₂ √C33`, and the tangent is the
-  in-plane tangent condensed on `S33 = 0`
-  (`ℂ̃_mn = ℂ_mn − ℂ_m33 ℂ_33n / ℂ_3333`).
+![Stress-strain curve of the Neo-Hookean law](../figures/upstream/cl/stress_strain_neo.svg)
+*Figure: stress-strain curve of the Neo-Hookean law in uniaxial loading (figure of the Akantu manual).*
 
-The law's stress is `S`; the Cauchy stress `σ = F S Fᵀ / J` of the
+* 2-D plane strain (the default): $C_{33} = 1$.
+* 2-D plane stress (`Plane_Stress = true`): before the stress, $C_{33} > 0$
+  solves $S_{33} = 0$, i.e.
+  $\frac{\lambda}{2} (\ln C_{33} + \ln \det \boldsymbol{C}_2) + \mu (C_{33} - 1) = 0$,
+  by a bracketed Newton iteration to machine precision (upstream: plain
+  Newton stopped at $|f| \le 10^{-5}$); $J = \det \boldsymbol{F}_2 \sqrt{C_{33}}$,
+  and the tangent is the in-plane tangent condensed on $S_{33} = 0$
+  ($\tilde{\mathbb{C}}_{mn} = \mathbb{C}_{mn} - \mathbb{C}_{m33}\, \mathbb{C}_{33n} / \mathbb{C}_{3333}$).
+
+The law's stress is $\boldsymbol{S}$; the Cauchy stress
+$\boldsymbol{\sigma} = \boldsymbol{F} \boldsymbol{S} \boldsymbol{F}^T / J$ of the
 `stress` internal field is computed when the model is dumped, as for
-every finite-deformation law. The potential energy is `Ψ`.
+every finite-deformation law. The potential energy is $\Psi$.
 
 ## Keywords
 
@@ -51,7 +74,7 @@ The law inherits the common keywords only (not the thermal keywords of
 | `Plane_Stress` | 2-D only: plane stress (`S33 = 0`) instead of plane strain | bool | `false` |
 
 `E` must be set, and `nu` must be below `0.5` (the default `0.5` makes
-`λ` infinite, as upstream).
+$\lambda$ infinite, as upstream).
 
 Internal fields (besides the common ones):
 
@@ -62,9 +85,10 @@ always works in finite deformation).
 
 ## Example
 
-A uniaxial stretch `λ₁ = 1.2` of the unit cube (`F = diag(λ₁, 1, 1)`,
-so `C = diag(λ₁², 1, 1)` and `J = λ₁`) gives
-`S11 = μ + (λ ln λ₁ − μ)/λ₁²` and `S22 = S33 = λ ln λ₁`:
+A uniaxial stretch $\lambda_1 = 1.2$ of the unit cube
+($\boldsymbol{F} = \operatorname{diag}(\lambda_1, 1, 1)$,
+so $\boldsymbol{C} = \operatorname{diag}(\lambda_1^2, 1, 1)$ and $J = \lambda_1$) gives
+$S_{11} = \mu + (\lambda \ln \lambda_1 - \mu)/\lambda_1^2$ and $S_{22} = S_{33} = \lambda \ln \lambda_1$:
 
 ```rust
 # use akantu::core::enums::{AnalysisMethod, MeshIoType};
@@ -128,12 +152,12 @@ for s in pk2.get(ElementType::Hexahedron8, GhostType::NotGhost)?.tuples() {
 * Upstream's law does not compute. Upstream's `computeStress`,
   `computeTangentModuli` and `computePotentialEnergy` of `neohookean`
   reach `AKANTU_TO_IMPLEMENT` (UD-026), although upstream's manual
-  documents the law; its energy kernel has wrong factors and omits `C33`,
+  documents the law; its energy kernel has wrong factors and omits $C_{33}$,
   and its plane-stress tangent is not condensed (UD-057). The port
   implements the documented law. `LawOptions::neohookean =
   NeohookeanMode::UpstreamNotImplemented` reproduces upstream's errors
   (part of `LawOptions::upstream()`).
-* An inverted element (`J = det(F)·√C33 ≤ 0`, or not finite) is
+* An inverted element ($J = \det(\boldsymbol{F}) \sqrt{C_{33}} \le 0$, or not finite) is
   `Error::Numerical`; upstream's `log(J)` gives NaN.
 * Upstream's `updateInternalParameters` of this law skips the material
   base's update, so a parsed `eigen_grad_u` never reaches the internal
@@ -149,3 +173,8 @@ Tests: `crates/akantu-solid/tests/test_finite_def_materials.rs`
 `neohookean_upstream_mode_is_not_implemented`),
 `crates/akantu-solid/tests/model_neohookean.rs` (the assembled forces and
 tangent) and `neohookean_kernel_fixtures.rs` (oracle kernel fixtures).
+
+## References
+
+* Belytschko, T., Liu, W. K. and Moran, B. (2000). *Nonlinear Finite
+  Elements for Continua and Structures*. Wiley.

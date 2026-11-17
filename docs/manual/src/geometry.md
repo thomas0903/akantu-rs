@@ -64,6 +64,16 @@ assert_eq!(centre(1)?, [0.625, 0.25]); // in the lower triangle
 # Ok::<(), akantu::core::Error>(())
 ```
 
+The example cuts the unit square along its diagonal into two triangles
+and intersects it with the horizontal segment $y = 0.25$,
+$0 \le x \le 1$, which crosses the diagonal at $(0.25, 0.25)$: the
+result mesh receives two `_segment_2` pieces, $[0, 0.25]$ in the upper
+triangle and $[0.25, 1]$ in the lower one, whose centres are
+$(0.125, 0.25)$ and $(0.625, 0.25)$.
+
+![The unit square split along its diagonal into element 0 below and element 1 above, crossed by a horizontal query segment at y = 0.25 that the diagonal cuts at (0.25, 0.25) into piece 0 and piece 1](figures/geometry-segment-intersection.svg)
+*Figure: the set-up of the example above; the query segment is cut by the mesh into one piece per element it crosses.*
+
 Differences from upstream (D-003; `SegmentIntersectorOptions::upstream()`
 selects upstream's behaviour for both switches):
 

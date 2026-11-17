@@ -107,9 +107,9 @@ fill_unnamed_physical_groups: false, .. }` reproduces upstream.
 Groups are managed by the mesh's `GroupManager` (`mesh.groups()`,
 `mesh.groups_mut()`), as upstream's `GroupManager` base class of `Mesh`.
 The example below is the Rust version of the two examples of the upstream
-manual: a node group of the nodes with a positive `x` coordinate and an
-element group of the elements whose barycenter has a positive `x`
-coordinate (here: `x > 0.5`).
+manual: a node group of the nodes with a positive $x$ coordinate and an
+element group of the elements whose barycenter has a positive $x$
+coordinate (here: $x > 0.5$).
 
 ```rust
 use akantu::core::enums::MeshIoType;

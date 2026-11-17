@@ -22,7 +22,7 @@ The complete, reviewed list of upstream defects is
 | `camelCase` methods (`getDisplacement`, `applyBC`, `solveStep`) | `snake_case` (`displacement`, `apply_dirichlet_bc` / `apply_neumann_bc`, `solve_step`) |
 | `Vector`/`Matrix` (Eigen) | `[f64; N]`, column-major `[[f64; R]; C]`, `MatrixX` ([Basic types](basic-types.md)) |
 | enumerations `_static`, `_triangle_3`, … | Rust enums (`AnalysisMethod::Static`, `ElementType::Triangle3`); the upstream spellings parse (`"_triangle_3".parse()`) |
-| `Array::find` returns the index or `-1` (`Array<Real>`: the distance from the end, ε comparison); throws on several components | `Result<Option<usize>>`: the index with upstream's comparison (ε for `f64`), an error where upstream throws; `find_upstream` returns upstream's raw value (UD-042, D-061; [Basic types](basic-types.md#arrayt)) |
+| `Array::find` returns the index or `-1` (`Array<Real>`: the distance from the end, $\varepsilon$ comparison); throws on several components | `Result<Option<usize>>`: the index with upstream's comparison ($\varepsilon$ for `f64`), an error where upstream throws; `find_upstream` returns upstream's raw value (UD-042, D-061; [Basic types](basic-types.md#arrayt)) |
 
 Input files, mesh files, field names, parameter names and output files
 keep the upstream names and formats.
@@ -58,12 +58,12 @@ sets all of its switches at once.
 
 | Defect | Upstream behaviour | Port default | Switch reproducing upstream |
 |---|---|---|---|
-| UD-038 | 3-D thermal strain `(1 + ν) α ΔT` | `α ΔT` | `LawOptions::thermal_strain = ThermalStrain::Upstream` |
-| UD-109 | thermal energy `½ σ : ∇u` (not a potential) | stored elastic energy | `LawOptions::thermal_energy = ThermalEnergy::Upstream` |
+| UD-038 | 3-D thermal strain $(1 + \nu)\,\alpha\,\Delta T$ | $\alpha\,\Delta T$ | `LawOptions::thermal_strain = ThermalStrain::Upstream` |
+| UD-109 | thermal energy $\tfrac{1}{2}\,\boldsymbol{\sigma} : \nabla\boldsymbol{u}$ (not a potential) | stored elastic energy | `LawOptions::thermal_energy = ThermalEnergy::Upstream` |
 | UD-033 | anisotropic celerity from Eigen's first (unsorted) eigenvalue | Kelvin/Mandel upper bound | `LawOptions::celerity = CelerityMode::UpstreamFirstEigenvalue` |
 | UD-104 | material axes applied with the inverse rotation | axes are the directions `n1…` | `LawOptions::material_axes_as_directions = false` |
 | UD-105 | orthotropic update skips the parent's (`eigen_grad_u` ignored) | parent update runs | `LawOptions::orthotropic_parent_update = false` |
-| UD-208 | stiffness assembly stores `∇u` instead of `∇u − ε⁰` | `∇u − ε⁰` | `SmmUpstreamCompat::stiffness_grad_u_ignores_eigen_grad_u` |
+| UD-208 | stiffness assembly stores $\nabla\boldsymbol{u}$ instead of $\nabla\boldsymbol{u} - \boldsymbol{\varepsilon}^0$ | $\nabla\boldsymbol{u} - \boldsymbol{\varepsilon}^0$ | `SmmUpstreamCompat::stiffness_grad_u_ignores_eigen_grad_u` |
 | UD-010 | Newton–Raphson returns early on a step already converged, skipping the end-of-step callbacks | step completes | `NonLinearSolverNewtonRaphson::set_legacy_hooks(true)` |
 | UD-193 | a solver reuses a Jacobian another solver rebuilt | rebuilt when changed | `akantu::solver::UpstreamCompat::stale_shared_jacobian` |
 | UD-194 | `convergence_type = residual_mass_wgh` silently runs the solution criterion without residual refresh | refused (`Error::NotImplemented`) | `UpstreamCompat::residual_mass_wgh_unrefreshed` |
@@ -71,21 +71,21 @@ sets all of its switches at once.
 | UD-045 | MSH 4 groups `msh_block_<tag>` created empty | filled | `ReadOptions::fill_unnamed_physical_groups = false` |
 | UD-061 | MSH writer keeps 15 significant digits | 17 (exact round trip) | `WriteOptions::upstream_precision()` |
 | UD-110, UD-113, UD-114 | ParaView: matrix fields padded to `dim × dim` squares, inconsistent tuple lengths, invalid base64 for < 2 bytes | exact `NumberOfComponents`, checked tuples, valid base64 | `DumperParaview::set_compat_layout(true)` |
-| UD-293 | `_bernoulli_beam_3`: the θy row of the shape matrix is `+dw/ds` while the nodal rotations use `θy = −dw/ds` (wrong sign of interpolated θy and of the moment part of line loads) | corrected row `−dw/ds` | `StructuralUpstreamCompat::beam3_theta_y_legacy` (`StructuralFeEngine::new_with_compat`) |
-| UD-007, UD-507 | structural model: discrete Kirchhoff triangle bending rigidity `E t⁴/(12(1−ν²))`; `ρ A` on the torsion row of the 3-D beam consistent mass | `E t³/(12(1−ν²))`; `ρ (Iy + Iz)` | `StructuralModelUpstreamCompat::dkt_bending`, `StructuralModelUpstreamCompat::beam3_torsional_mass_rho_a` ([Structural mechanics model](models/structural.md#differences-from-upstream)) |
-| UD-343 | `_bernoulli_beam_3`: any finite `extra_normal` builds the element frame; a non-unit or skew normal silently gives a non-orthogonal frame | refused (`Error::InvalidArgument`) when `\|n·n − 1\|` or `\|n·t̂\|` exceeds `BEAM3_NORMAL_ADMISSIBILITY` = 1e-10 (input validation; admissible normals are used unchanged) | `StructuralUpstreamCompat::beam3_normal_unchecked` |
-| UD-216 | MUMPS workspace retry returns `A^-(k+1) b` after `k` retries | every solve starts from the original right-hand side | `UpstreamCompat::mumps_retry_with_solution_rhs` ([MUMPS](mumps.md#errors-and-the-workspace-retry-ud-216)) |
+| UD-293 | `_bernoulli_beam_3`: the $\theta_y$ row of the shape matrix is $+\mathrm{d}w/\mathrm{d}s$ while the nodal rotations use $\theta_y = -\mathrm{d}w/\mathrm{d}s$ (wrong sign of interpolated $\theta_y$ and of the moment part of line loads) | corrected row $-\mathrm{d}w/\mathrm{d}s$ | `StructuralUpstreamCompat::beam3_theta_y_legacy` (`StructuralFeEngine::new_with_compat`) |
+| UD-007, UD-507 | structural model: discrete Kirchhoff triangle bending rigidity $E t^4/(12(1 - \nu^2))$; $\rho A$ on the torsion row of the 3-D beam consistent mass | $E t^3/(12(1 - \nu^2))$; $\rho (I_y + I_z)$ | `StructuralModelUpstreamCompat::dkt_bending`, `StructuralModelUpstreamCompat::beam3_torsional_mass_rho_a` ([Structural mechanics model](models/structural.md#differences-from-upstream)) |
+| UD-343 | `_bernoulli_beam_3`: any finite `extra_normal` builds the element frame; a non-unit or skew normal silently gives a non-orthogonal frame | refused (`Error::InvalidArgument`) when $\lvert \boldsymbol{n} \cdot \boldsymbol{n} - 1 \rvert$ or $\lvert \boldsymbol{n} \cdot \hat{\boldsymbol{t}} \rvert$ exceeds `BEAM3_NORMAL_ADMISSIBILITY` = 1e-10 (input validation; admissible normals are used unchanged) | `StructuralUpstreamCompat::beam3_normal_unchecked` |
+| UD-216 | MUMPS workspace retry returns $\boldsymbol{A}^{-(k+1)} \boldsymbol{b}$ after $k$ retries | every solve starts from the original right-hand side | `UpstreamCompat::mumps_retry_with_solution_rhs` ([MUMPS](mumps.md#errors-and-the-workspace-retry-ud-216)) |
 | UD-407, UD-408 | segment intersector: a tetrahedron becomes one flat triangle; pieces kept in a set with an invalid comparator | four faces; exact lexicographic order, duplicates removed | `SegmentIntersectorOptions::upstream()` ([Geometry](geometry.md#akantugeometry-lgpl)) |
 | UD-377…UD-380, UD-385, UD-388 | phase field: unfiltered damage interpolation, stiffness loop stopping early, per-element energies, AT1 penalties | see the chapter | fields of `PhaseFieldUpstreamCompat` ([Phase-field fracture](models/phase-field.md#differences-from-upstream)) |
 | UD-039, UD-392, UD-394, UD-395, UD-397, UD-398 | split-node contact: regularisation fallback, non-finite rate-and-state strengths, pairing, restarts, `boundaryFix` | see the chapter | fields of `TasnUpstreamCompat` ([Split-node contact](models/ntn-contact.md#differences-from-upstream)) |
-| UD-352, UD-632 | every `initSolver` (each `initNewSolver` or `getNewSolver`) copies `X` into the current positions: after a static step followed by an explicit one, the stable time step, the cohesive normals and the contact couplers see `X` instead of `X + u` (`scalability_test`: Δt 8.54889e-07 in the oracle) | positions copied only when the first solver allocates them | `SmmUpstreamCompat::init_solver_resets_current_position` |
-| UD-137 | J2 plasticity (`plastic_linear_isotropic_hardening`, `plastic_mazars`) in 1-D and 2-D: 3-D multiplier and truncated flow, the returned stress is off the yield surface; plane strain ignores `σ33` | consistent return: 1-D `Δp = f/(E + h)`, plane strain with `σ33`, plane stress with `σ33 = 0` | `LawOptions::j2_reduced_return = J2ReducedReturn::UpstreamTruncated` ([Plasticity](laws/plasticity.md)) |
+| UD-352, UD-632 | every `initSolver` (each `initNewSolver` or `getNewSolver`) copies $\boldsymbol{X}$ into the current positions: after a static step followed by an explicit one, the stable time step, the cohesive normals and the contact couplers see $\boldsymbol{X}$ instead of $\boldsymbol{X} + \boldsymbol{u}$ (`scalability_test`: $\Delta t = 8.54889 \times 10^{-7}$ in the oracle) | positions copied only when the first solver allocates them | `SmmUpstreamCompat::init_solver_resets_current_position` |
+| UD-137 | J2 plasticity (`plastic_linear_isotropic_hardening`, `plastic_mazars`) in 1-D and 2-D: 3-D multiplier and truncated flow, the returned stress is off the yield surface; plane strain ignores $\sigma_{33}$ | consistent return: 1-D $\Delta p = f/(E + h)$, plane strain with $\sigma_{33}$, plane stress with $\sigma_{33} = 0$ | `LawOptions::j2_reduced_return = J2ReducedReturn::UpstreamTruncated` ([Plasticity](laws/plasticity.md)) |
 | UD-138 | J2, Mazars and Marigo evaluate each trial from the current (trial) hardening or damage of an earlier evaluation in the same step | every trial starts from the state committed at the last converged step | `LawOptions::committed_trial_state = false` ([Plasticity](laws/plasticity.md), [Damage](laws/damage.md)) |
-| UD-139, UD-140, UD-141 | Mazars: the plastic parent of `plastic_mazars` continues from the damaged stress; the equivalent strain uses the total strain (free heating damages); 2-D uses `ε33 = 0` and the plane-stress `λ` | effective-stress history; mechanical strain; the 3-D strain the 2-D state represents | `LawOptions::plastic_mazars_effective_stress`, `mazars_mechanical_strain`, `mazars_out_of_plane_strain` = `false` ([Damage](laws/damage.md#mazars)) |
-| UD-144, UD-145, UD-146 | Drucker–Prager: Newton projection (100 iterations, tolerance 1e-10) that can stop off the surface, give NaN or not terminate | closed-form closest-point projection | `LawOptions::drucker_prager_return = DruckerPragerReturn::UpstreamIteration` ([Plasticity](laws/plasticity.md#druckerprager-plasticity-plastic_drucker_prager)) |
-| UD-029, UD-063, UD-161, UD-329, UD-762 | `sls_deviatoric`: dissipation as the sum of a matrix product's entries, history advanced at every evaluation, energy `½ σ:∇u`, degenerate viscous parameters give NaN | tensor contraction, committed history, two-spring free energy, limits for `Ev = 0` / `Eta = 0` | `LawOptions::sls_dissipation`, `sls_committed_state`, `sls_energy`, `sls_degenerate_branch` ([Viscoelastic laws](laws/viscoelastic.md#standard-linear-solid-sls_deviatoric)) |
-| UD-029, UD-157, UD-162, UD-163 | `viscoelastic_maxwell`: the stresses of the Maxwell elements never updated, stiffness flagged changed only when Δt changes, shear strain doubled, 2-D compliance not the inverse of the stiffness | exponential recurrence after each converged step, stiffness flagged after a parameter change, tensor strains, `S = C⁻¹` | `LawOptions::maxwell_update = MaxwellUpdate::Upstream`, `maxwell_stiffness_invalidation = false` ([Viscoelastic laws](laws/viscoelastic.md#generalised-maxwell-model-viscoelastic_maxwell)) |
-| UD-038, UD-158, UD-160 | inelastic laws: thermal state not refreshed (damage laws), thermal increment with the wrong sign (plasticity); finite-strain damage work pairs the second Piola–Kirchhoff stress with `Δ∇u`; heating an undamaged body counts as dissipation | thermal pre-step, `Δσ_th = σ_th − σ_th,prev`, conjugate work `½(S_{n+1} + S_n):ΔE`, reversible thermal work excluded | `LawOptions::damage_thermal_refresh`, `plastic_thermal_increment`, `damage_thermal_work` = `false`; `finite_strain_work = FiniteStrainWork::UpstreamMixed` |
+| UD-139, UD-140, UD-141 | Mazars: the plastic parent of `plastic_mazars` continues from the damaged stress; the equivalent strain uses the total strain (free heating damages); 2-D uses $\varepsilon_{33} = 0$ and the plane-stress $\lambda$ | effective-stress history; mechanical strain; the 3-D strain the 2-D state represents | `LawOptions::plastic_mazars_effective_stress`, `mazars_mechanical_strain`, `mazars_out_of_plane_strain` = `false` ([Damage](laws/damage.md#mazars)) |
+| UD-144, UD-145, UD-146 | Drucker–Prager: Newton projection (100 iterations, tolerance $10^{-10}$) that can stop off the surface, give NaN or not terminate | closed-form closest-point projection | `LawOptions::drucker_prager_return = DruckerPragerReturn::UpstreamIteration` ([Plasticity](laws/plasticity.md#druckerprager-plasticity-plastic_drucker_prager)) |
+| UD-029, UD-063, UD-161, UD-329, UD-762 | `sls_deviatoric`: dissipation as the sum of a matrix product's entries, history advanced at every evaluation, energy $\tfrac{1}{2}\,\boldsymbol{\sigma} : \nabla\boldsymbol{u}$, degenerate viscous parameters give NaN | tensor contraction, committed history, two-spring free energy, limits for `Ev = 0` / `Eta = 0` | `LawOptions::sls_dissipation`, `sls_committed_state`, `sls_energy`, `sls_degenerate_branch` ([Viscoelastic laws](laws/viscoelastic.md#standard-linear-solid-sls_deviatoric)) |
+| UD-029, UD-157, UD-162, UD-163 | `viscoelastic_maxwell`: the stresses of the Maxwell elements never updated, stiffness flagged changed only when $\Delta t$ changes, shear strain doubled, 2-D compliance not the inverse of the stiffness | exponential recurrence after each converged step, stiffness flagged after a parameter change, tensor strains, $\boldsymbol{S} = \boldsymbol{C}^{-1}$ | `LawOptions::maxwell_update = MaxwellUpdate::Upstream`, `maxwell_stiffness_invalidation = false` ([Viscoelastic laws](laws/viscoelastic.md#generalised-maxwell-model-viscoelastic_maxwell)) |
+| UD-038, UD-158, UD-160 | inelastic laws: thermal state not refreshed (damage laws), thermal increment with the wrong sign (plasticity); finite-strain damage work pairs the second Piola–Kirchhoff stress with $\Delta\nabla\boldsymbol{u}$; heating an undamaged body counts as dissipation | thermal pre-step, $\Delta\boldsymbol{\sigma}_{\text{th}} = \boldsymbol{\sigma}_{\text{th}} - \boldsymbol{\sigma}_{\text{th,prev}}$, conjugate work $\tfrac{1}{2}(\boldsymbol{S}_{n+1} + \boldsymbol{S}_n) : \Delta\boldsymbol{E}$, reversible thermal work excluded | `LawOptions::damage_thermal_refresh`, `plastic_thermal_increment`, `damage_thermal_work` = `false`; `finite_strain_work = FiniteStrainWork::UpstreamMixed` |
 | UD-164, UD-165 | `phasefield` material tangent: `E g_h` in 1-D compression; sign test on the total trace while the stress splits on the thermally corrected one | tangent consistent with the stress | `LawOptions::phasefield_tangent = PhaseFieldTangent::Upstream` ([The phase-field material](laws/phasefield.md)) |
 | UD-558 | non-local averaging: two `mazars_non_local` laws averaging different variables share one registration, so every neighbourhood averages the same variable | one registration per neighbourhood | `VariableRegistration::UpstreamShared` (in `NonLocalOptions::upstream()`; [Non-local laws](laws/non-local.md)) |
 | UD-219 | a cohesive law listed first in the input never receives a facet (material index 0 is skipped), so extrinsic insertion is disabled without a message | index 0 skipped only when law 0 is not cohesive | `CohesiveUpstreamCompat::skip_material_index_0` ([Cohesive elements](models/cohesive.md#upstream-compatibility-switches)) |
@@ -105,7 +105,7 @@ increment and never tests the residual of the contact set that the last
 correction's search found (UD-1293; prefer `convergence_type = residual`
 with contact); the `residual` criterion is relative to the step's first
 residual, so a step whose first residual is tiny but above the threshold
-may stagnate at the rounding floor, above `threshold × ‖r₀‖`, until
+may stagnate at the rounding floor, above `threshold` $\times \lVert \boldsymbol{r}_0 \rVert$, until
 `max_iterations` (UD-1294); and
 the `linear` non-linear solver computes no contact force inside its step,
 in either code (UD-1295; use Newton–Raphson).
@@ -117,7 +117,7 @@ not update them when a cohesive insertion rewrites a boundary row, so a load
 applied after the rewrite on a non-affine boundary element with a
 multi-point rule (a four-node quadrangle that is not a parallelogram, a
 curved quadratic segment or triangle) is integrated with the jacobians of
-the old node order: 1.7e-3 of the largest nodal load on a distorted
+the old node order: $1.7 \times 10^{-3}$ of the largest nodal load on a distorted
 hexahedral test mesh (UD-1296). One-point elements (linear triangles,
 two-node segments) are not affected.
 
@@ -130,7 +130,7 @@ tangent (UD-247, `friction_upstream_implicit`); its friction force at zero
 tangential opening is zero instead of NaN (UD-225, no switch). The implicit
 tangent of the linear-family laws (`cohesive_linear`, `cohesive_bilinear`,
 `cohesive_linear_fatigue`, `cohesive_linear_friction`) is zero on a point
-failed past `δc`, the derivative of its zero traction, where upstream keeps
+failed past $\delta_c$, the derivative of its zero traction, where upstream keeps
 a negative secant (UD-1160, `tangent_failed_secant`). When the insertion
 doubles a node of a face loaded by a Neumann condition, each copy keeps the
 load of its own boundary elements, where upstream leaves the whole
@@ -166,7 +166,7 @@ mechanics](models/structural.md)).
 | UD-012 | `hasDOFsDerivatives` is off by one (`false` for the highest registered order; order 0 indexes `−1`), so a second dynamic solver on an order-1 model throws "already registered" | `DofManager::has_dofs_derivative(id, order)` answers whether that order is registered (order 0: `true`); a second dynamic solver of the diffusion model is accepted |
 | UD-890 | distributed cohesive insertion overwrites ghost boundary elements of the loaded groups with an interior facet's connectivity, and the next Neumann load reaches an interior node: the distributed run solves another load case | the ghost boundary elements stay on their faces and the Neumann load equals the serial one at every rank count |
 | UD-005, UD-518 | structural lumped mass identically zero (`node2 = conn(0)`), explicit update divided by zero masses | `m/2` per translation (rotary inertia: UD-059 below), zero masses and singular rotary blocks on free DOFs refused |
-| UD-059 | structural model: lumped rotary inertia from a disc / sphere surrogate (evaluated on upstream's zero masses, UD-005; upstream's lumped values cannot be reproduced) | HRZ coefficients; 3-D: the exact nodal 3×3 block `Σ_e Tₑᵀ diag(J_t, J_b, J_b) Tₑ` (objective); corrected without a switch, `StructuralModelUpstreamCompat::lumped_rotary_inertia` is a model option (`Block3x3` default, `IsotropicMax`: a diagonal alternative) ([Structural mechanics model](models/structural.md#lumped-mass)) |
+| UD-059 | structural model: lumped rotary inertia from a disc / sphere surrogate (evaluated on upstream's zero masses, UD-005; upstream's lumped values cannot be reproduced) | HRZ coefficients; 3-D: the exact nodal $3 \times 3$ block $\sum_e \boldsymbol{T}_e^T \operatorname{diag}(J_t, J_b, J_b)\, \boldsymbol{T}_e$ (objective); corrected without a switch, `StructuralModelUpstreamCompat::lumped_rotary_inertia` is a model option (`Block3x3` default, `IsotropicMax`: a diagonal alternative) ([Structural mechanics model](models/structural.md#lumped-mass)) |
 | UD-096, UD-098, UD-099 | FE engine: no-op or out-of-bounds paths, partial data on error | all elements / errors, nothing stored on error |
 | UD-409 | `MeshSphereIntersector` does not compile | implemented (evident intent; feature `cgal`) |
 | UD-264 | a failed MUMPS analysis surfaces as an unrelated factorisation error | reported as an analysis error |
@@ -181,8 +181,8 @@ switch that reproduces upstream, for comparisons:
 
 | Configuration | Defect | Error | Switch reproducing upstream |
 |---|---|---|---|
-| `plastic_linear_isotropic_hardening` with `finite_deformation = true` | UD-030: the finite-strain result is overwritten by the small-strain kernel on the raw `∇u` | `Error::Unsupported("plastic_linear_isotropic_hardening with finite_deformation: no reviewed finite-strain J2 formulation (UD-030); …")` from `computeStress` | `LawOptions::finite_strain_plasticity = FiniteStrainPlasticity::UpstreamLegacy` |
-| `marigo`, `mazars` and `plastic_mazars` with `finite_deformation = true` | UD-142: the small-strain kernel on the raw `∇u`, not frame indifferent (a pure rotation creates stress) | `Error::Unsupported("marigo with finite_deformation: no reviewed objective finite-strain damage formulation (UD-142); …")`, and the same for `mazars / plastic_mazars` | `LawOptions::finite_strain_damage = FiniteStrainDamage::UpstreamLegacy` |
+| `plastic_linear_isotropic_hardening` with `finite_deformation = true` | UD-030: the finite-strain result is overwritten by the small-strain kernel on the raw $\nabla\boldsymbol{u}$ | `Error::Unsupported("plastic_linear_isotropic_hardening with finite_deformation: no reviewed finite-strain J2 formulation (UD-030); …")` from `computeStress` | `LawOptions::finite_strain_plasticity = FiniteStrainPlasticity::UpstreamLegacy` |
+| `marigo`, `mazars` and `plastic_mazars` with `finite_deformation = true` | UD-142: the small-strain kernel on the raw $\nabla\boldsymbol{u}$, not frame indifferent (a pure rotation creates stress) | `Error::Unsupported("marigo with finite_deformation: no reviewed objective finite-strain damage formulation (UD-142); …")`, and the same for `mazars / plastic_mazars` | `LawOptions::finite_strain_damage = FiniteStrainDamage::UpstreamLegacy` |
 | `viscoelastic_maxwell` with `alpha ≠ 0` | UD-327: a thermal stress added to a law whose Maxwell elements and stored energy ignore the thermal strain | `Error::Unsupported("viscoelastic_maxwell: thermal expansion (alpha != 0) is not modelled: …")` at `initMaterial` and in the later calls | `LawOptions::maxwell_thermal = MaxwellThermal::Upstream` |
 | `anisotropic_damage`, any parameters | UD-031, UD-058: uninitialised entries in upstream's law, and no approved specification | `Error::Unsupported("anisotropic_damage: the default is refused (UD-031/UD-058); …")` | `LawOptions::anisotropic_damage = AnisotropicDamageModel::Upstream` (the reference code with its uninitialised entries set to zero); `Corrected` is an opt-in implementation of the UD-058 specification ([Damage](laws/damage.md#anisotropic-damage-anisotropic_damage)) |
 | `convergence_type = residual_mass_wgh` | UD-194: upstream silently runs the solution criterion without refreshing the residual | `Error::NotImplemented` | `akantu::solver::UpstreamCompat::residual_mass_wgh_unrefreshed` |
@@ -201,14 +201,14 @@ principal strains.
 
 Upstream's dumps in ParaView (UD-110, UD-111). A matrix-valued field
 (`strain`, `Green strain`, and in 2-D the stress padded by
-`addDumpFieldTensor`) is written by upstream with `c × c` values per tuple
+`addDumpFieldTensor`) is written by upstream with $c \times c$ values per tuple
 under `NumberOfComponents = c` (each tuple a zero-filled square whose
-top-left block is the tensor). ParaView takes the array's first `c × n`
-values as the tuples of the `n` cells, without a message (cell `i` shows row
-`i mod c` of the square of cell `⌊i/c⌋`), so upstream's strain and padded
+top-left block is the tensor). ParaView takes the array's first $c \times n$
+values as the tuples of the $n$ cells, without a message (cell $i$ shows row
+$i \bmod c$ of the square of cell $\lfloor i/c \rfloor$), so upstream's strain and padded
 stress cannot be inspected in ParaView; the padded 2-D
 stress also holds arbitrary values in its out-of-plane shear entries
-(UD-111, up to 8.19e227 in the oracle's `parallel_2d` dumps). The port's
+(UD-111, up to $8.19 \times 10^{227}$ in the oracle's `parallel_2d` dumps). The port's
 files hold each cell's own tensor; `DumperParaview::set_compat_layout(true)`
 writes upstream's layout, with zeros in those four entries. The
 [ParaView visual check](../../reports/2026-11-12-paraview-visual-check.md)
@@ -247,7 +247,7 @@ shows both side by side.
   order by the serial, in-process and MPI back-ends alike, so they do not
   depend on the back-end for a given rank count and partition. Upstream
   delegates them to MPI, whose association order may differ (measured:
-  explicit energies at 4 ranks differ from the oracle by ≤ 1.9e-16
+  explicit energies at 4 ranks differ from the oracle by $\le 1.9 \times 10^{-16}$
   relative); `ReductionPolicy::NativeMpi` uses MPI's own reductions
   instead (oracle comparisons).
 * Strict input checks. Mesh distribution refuses inputs upstream
@@ -263,9 +263,9 @@ shows both side by side.
 ## Known deviations of this release
 
 Differences from upstream that are not intended: none known. The 3-D
-lumped rotary inertia of the structural model is the exact nodal 3×3
-block (decision D-059); the diagonal rule `max(J_t, J_b)`, whose torsional
-frequencies are far too low on elements longer than `4.42 r`, is available
+lumped rotary inertia of the structural model is the exact nodal $3 \times 3$
+block (decision D-059); the diagonal rule $\max(J_t, J_b)$, whose torsional
+frequencies are far too low on elements longer than $4.42\, r$, is available
 as `LumpedRotaryInertia::IsotropicMax` ([Structural mechanics
 model](models/structural.md#lumped-mass)).
 
@@ -321,7 +321,7 @@ platforms themselves: `docs/PLATFORMS.md`):
     platforms, but agreement with an x86_64 oracle run is not established
     for that case;
   * results of MUMPS depend on the CPU-specific BLAS kernels (measured
-    ≤ 1.3e-13 between aarch64 and x86_64 oracle runs): with OpenBLAS pinned
+    $\le 1.3 \times 10^{-13}$ between aarch64 and x86_64 oracle runs): with OpenBLAS pinned
     (`OPENBLAS_CORETYPE=Haswell`, one thread) the port's one-process MUMPS
     solutions are bitwise equal to the x86_64 oracle's, and the aarch64
     MUMPS fixtures are kept as a platform variant
@@ -349,7 +349,7 @@ platforms themselves: `docs/PLATFORMS.md`):
   same bits on the local world and on MPI and match the oracle at the
   same rank count and partition bit for bit (the energies at 4 ranks only
   with `ReductionPolicy::NativeMpi`); static solves on several ranks use
-  a different solver from the oracle's MUMPS and agree to 1.9e-16
+  a different solver from the oracle's MUMPS and agree to $1.9 \times 10^{-16}$
   relative. Multi-rank oracle results are trusted per workload only
   (decision D-035; the oracle's parallel implicit dynamics is not used as
   a reference, UD-077). Not guaranteed (as upstream): independence of the
@@ -367,10 +367,10 @@ platforms themselves: `docs/PLATFORMS.md`):
   `computeStress` ends in `Material::computeStress`, which is not
   implemented (UD-026); the port implements the documented law, and
   `NeohookeanMode::UpstreamNotImplemented` reproduces the error.
-* `neohookean` returns an error on an inverted element. `J ≤ 0` is
+* `neohookean` returns an error on an inverted element. $J \le 0$ is
   `Error::Numerical`, where upstream's `log(J)` gives NaN.
-* `plastic_mazars` stores `(∇u − ε_p) + ε_p` as its gradient, which differs
-  from `∇u` at round-off level. This is reproduced as upstream in both modes
+* `plastic_mazars` stores $(\nabla\boldsymbol{u} - \boldsymbol{\varepsilon}_p) + \boldsymbol{\varepsilon}_p$ as its gradient, which differs
+  from $\nabla\boldsymbol{u}$ at round-off level. This is reproduced as upstream in both modes
   (UD-150).
 * The J2 tangent is the elastic one. As upstream, which makes the Newton
   solve a modified Newton (UD-079); the iteration counts equal the C++
@@ -422,19 +422,19 @@ checked by a test (doc-tests of the chapters named, or
 | `io.rst`: dump fields `force`, `residual` | `force` was renamed `external_force`; `residual` was replaced by `internal_force` (not the same quantity); both old names raise an error | [Output](output.md#field-names) |
 | `getting_started.rst`: Abaqus is a supported mesh format | no Abaqus reader exists (UD-049) | [Meshes](meshes.md#supported-formats) |
 | `basic_types.rst`: `_quadrangle_8` has 9 quadrature points; `_hexahedron_8` is cubic (spelled `_hexadedron_8`) | 4 points (order 3); trilinear, 8 points (order 2) | [Element appendix](appendix/elements.md#element-types) |
-| `basic_types.rst`: `find` returns the index of the first occurrence or -1 | true for `Array<T>`; the `Array<Real>` specialisation matches `\|a − v\| ≤ ε` and returns the distance from the end (`size − index`) when found, -1 otherwise (UD-042); the port returns `Some(index)` / `None` with upstream's comparison (D-061) | [Basic types](basic-types.md#arrayt) |
+| `basic_types.rst`: `find` returns the index of the first occurrence or -1 | true for `Array<T>`; the `Array<Real>` specialisation matches $\lvert a - v \rvert \le \varepsilon$ and returns the distance from the end (`size − index`) when found, -1 otherwise (UD-042); the port returns `Some(index)` / `None` with upstream's comparison (D-061) | [Basic types](basic-types.md#arrayt) |
 | `solidmechanicsmodel.rst`: Newton–Raphson allows 100 iterations by default | 10 (`non_linear_solver_newton_raphson.cc:73`) | [Solid mechanics](solid-mechanics.md#static-analysis) |
 | `solidmechanicsmodel.rst`: `explicitPred`, `updateResidual`, `updateAcceleration`, `explicitCorr` | removed in v5; `solveStep` does all | [Solid mechanics](solid-mechanics.md#explicit-dynamics) |
 | `phasefieldmodel.rst`: an `exponential` phase-field law (`phasefield exponential [ … ]`) | the registered laws are `quadratic` (AT2) and `linear` (AT1); `exponential` is refused | [Phase-field fracture](models/phase-field.md#theory) |
-| `phasefieldmodel.rst`: strong form `… (d − l0² d)` | the Laplacian `d − l0² Δd` is assembled | [Phase-field fracture](models/phase-field.md#theory) |
+| `phasefieldmodel.rst`: strong form $\ldots (d - l_0^2\, d)$ | the Laplacian $d - l_0^2\, \Delta d$ is assembled | [Phase-field fracture](models/phase-field.md#theory) |
 | `phasefieldmodel.rst`: the default phase-field solver "is of linear type" | the `static` default solver is Newton–Raphson with the pseudo-time scheme | [Phase-field fracture](models/phase-field.md#theory) |
 | `new-constitutive-laws.rst`: register a custom law with `model.registerNewCustomMaterials<XXX>("name")` after `initFull`, then call `initMaterials()` | neither function exists (only a commented-out binding in `python/py_solid_mechanics_model.cc`); a law is registered with `MaterialFactory::getInstance().registerAllocator("name", …)` before `initFull`: at static initialisation (`examples/c++/solid_mechanics_model/new_material/local_material_damage.cc`) or from Python (`mat_factory.registerAllocator`, `examples/python/solid_mechanics_model/custom-material/custom-material.py`); the port registers in the model's factory before `init_full` | [Writing new constitutive laws](new-constitutive-laws.md#differences-from-upstreams-procedure) |
-| `nodetonodecontact.rst`: N-shaped law with `μ₀/√(1 + (v*/v)²)` | `√(1 + (v/v*)²)` for `n_shaped`; `(v*/v)²` only for `revised_n_shaped` | [Split-node contact](models/ntn-contact.md#rate-and-state-coefficients-and-state-laws) |
+| `nodetonodecontact.rst`: N-shaped law with $\mu_0/\sqrt{1 + (v^*/v)^2}$ | $\sqrt{1 + (v/v^*)^2}$ for `n_shaped`; $(v^*/v)^2$ only for `revised_n_shaped` | [Split-node contact](models/ntn-contact.md#rate-and-state-coefficients-and-state-laws) |
 | `constitutive-laws.rst`: the examples set `Plane_stress = false` (`elastic`, `sls_deviatoric`, `viscoelastic_maxwell`, `marigo`), and the text of `sls_deviatoric` names the viscosity `eta` | parameter names are case-sensitive (`parsable.cc`); the keywords are `Plane_Stress` and `Eta`, and the manual's spellings are unknown parameters, an error (UD-1130; `manual_claims_3.rs::doc010_upstream_manual_spellings_are_refused`) | [Constitutive laws](constitutive-laws.md#reading-the-keyword-tables) |
 | `constitutive-laws.rst`: `Plane_stress` selects plane stress for `viscoelastic_maxwell` | the law's 2-D stiffness is plane strain whatever `Plane_Stress` says (UD-1131; `manual_claims_3.rs::doc010_maxwell_ignores_plane_stress`) | [Viscoelastic laws](laws/viscoelastic.md#generalised-maxwell-model-viscoelastic_maxwell) |
 | `constitutive-laws.rst`: the internal stresses of the Maxwell elements are updated at the end of each step | upstream's code discards the update (`material_viscoelastic_maxwell.cc:253-260`): the internal stresses stay at their initial zero, so its Maxwell elements keep no stress history (UD-029); the port commits it (corrected default) | [Viscoelastic laws](laws/viscoelastic.md#generalised-maxwell-model-viscoelastic_maxwell) |
 | `constitutive-laws.rst`: the Neo-Hookean law and its stress | upstream's stress, tangent and energy raise "not implemented" (UD-026); the port computes the documented law | [Neo-Hookean hyperelasticity](laws/neohookean.md#differences-from-upstream) |
-| `constitutive-laws.rst`: Mazars' weight `α_t` from "the eigenvalues of the strain if the material were undamaged", not capped | the strains of the tensile principal effective stresses, `α_t = min(…, 1)` (UD-1132) | [Damage](laws/damage.md#mazars) |
+| `constitutive-laws.rst`: Mazars' weight $\alpha_t$ from "the eigenvalues of the strain if the material were undamaged", not capped | the strains of the tensile principal effective stresses, $\alpha_t = \min(\ldots, 1)$ (UD-1132) | [Damage](laws/damage.md#mazars) |
 | `constitutive-laws.rst`: `marigo_non_local` is the non-local Marigo law | upstream registers the local `marigo` law under that keyword and ignores the `non_local` section (UD-027); the port registers the non-local law | [Non-local laws](laws/non-local.md#the-non_local-section) |
 | `constitutive-laws.rst`: the weight functions `base_weight_function`, `damaged_weight_function`, `remove_damaged_weight_function`, `remove_damaged_with_damage_rate_weight_function`, `stress_based_weight_function`; the non-local model averages the damage | the options are `base_wf`, `damage_wf` and `remove_wf` (the other two classes are not registered); only `average_on_damage = true` of the Mazars laws averages the damage (UD-1133; `manual_claims_3.rs::doc010_weight_function_options`) | [Non-local laws](laws/non-local.md#the-non_local-section) |
 | `constitutive-laws.rst`: the friction coefficient of `cohesive_linear_friction` grows linearly with the damage up to `mu` | the damage factor is commented out (`Real mu = mu_max; // * damage;`): the coefficient is `mu` at every damage (UD-1135; the friction cases of the oracle replayed bitwise in `crates/akantu-cohesive/tests/cohesive_fixtures.rs`) | [Cohesive elements](models/cohesive.md#cohesive_linear_friction) |
