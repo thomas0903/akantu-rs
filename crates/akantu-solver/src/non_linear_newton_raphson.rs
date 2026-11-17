@@ -128,6 +128,9 @@ pub struct NonLinearSolverNewtonRaphson {
     sparse_solver: Option<(SparseSolverType, bool)>,
     /// Matrix Market policy of the `dblTrace` dumps (module docs).
     trace_matrix_market: MatrixMarketOptions,
+    /// This solver's ordering of the `eigen` sparse solver (D-125; `None`:
+    /// the solver's default), applied before each solve.
+    sparse_ordering: Option<akantu_linalg::eigen_sparse_lu::SparseOrdering>,
 }
 
 /// Upstream's function-local `static bool first` of the `dblTrace` block
@@ -235,6 +238,7 @@ impl NonLinearSolverNewtonRaphson {
             matrix_id: "J".into(),
             sparse_solver,
             trace_matrix_market: MatrixMarketOptions::default(),
+            sparse_ordering: None,
         })
     }
 
@@ -264,6 +268,48 @@ impl NonLinearSolverNewtonRaphson {
             let solver = Self::allocate_sparse_solver(&factory, kind, centralized, dofs)?;
             dofs.backend_mut()?
                 .set_sparse_solver(&self.matrix_id, solver)?;
+        }
+        self.apply_sparse_ordering(dofs)
+    }
+
+    /// The ordering of this solver's `eigen` sparse solver (D-125; `None`:
+    /// the solver's default). Each Newton–Raphson solver keeps its own
+    /// choice: two solvers sharing the matrix `J` re-apply theirs before
+    /// solving (a change of the ordering means a new analysis). Other sparse
+    /// solver kinds have no ordering: `Some(_)` other than `colamd` is
+    /// refused.
+    pub fn set_sparse_solver_ordering(
+        &mut self,
+        dofs: &mut DofManager,
+        ordering: Option<akantu_linalg::eigen_sparse_lu::SparseOrdering>,
+    ) -> Result<()> {
+        use akantu_linalg::eigen_sparse_lu::SparseOrdering;
+        let kind = self.sparse_solver.map(|(k, _)| k);
+        if kind != Some(SparseSolverType::Eigen)
+            && ordering.is_some_and(|o| o != SparseOrdering::Colamd)
+        {
+            return Err(Error::invalid(format!(
+                "sparse_solver_ordering = {} needs the eigen sparse solver (solver '{}' uses {})",
+                ordering.map_or("default", |o| o.name()),
+                self.id,
+                kind.map_or_else(|| "its back-end's own solver".to_owned(), |k| k.to_string())
+            )));
+        }
+        self.sparse_ordering = ordering;
+        self.apply_sparse_ordering(dofs)
+    }
+
+    /// This solver's ordering on the backend's solver of `J`, when it
+    /// differs from what the backend holds (no change, no new analysis).
+    fn apply_sparse_ordering(&self, dofs: &mut DofManager) -> Result<()> {
+        if self.sparse_solver.map(|(k, _)| k) != Some(SparseSolverType::Eigen) {
+            return Ok(());
+        }
+        let want = self.sparse_ordering.map_or("default", |o| o.name());
+        let held = dofs.backend().solver_option(&self.matrix_id, "ordering");
+        if held.as_deref().unwrap_or("default") != want {
+            dofs.backend_mut()?
+                .set_solver_option(&self.matrix_id, "ordering", want)?;
         }
         Ok(())
     }

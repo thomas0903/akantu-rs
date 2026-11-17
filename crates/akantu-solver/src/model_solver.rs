@@ -593,33 +593,25 @@ impl ModelSolver {
         Ok(())
     }
 
-    /// D-125: the ordering option of the new solver's sparse solver (matrix
-    /// `J`, the AIJ backend). Only the `eigen` solver has orderings;
-    /// `colamd` is accepted as a no-op by any other kind, and a lumped
-    /// solver (no linear system) ignores the option.
+    /// D-125: the ordering of the new solver's `eigen` sparse solver, kept
+    /// by its Newton–Raphson solver ([`NonLinearSolverNewtonRaphson::set_sparse_solver_ordering`]:
+    /// per solver, re-applied before each solve). A lumped solver (no
+    /// linear system) ignores the option; another sparse solver kind
+    /// refuses any value but `colamd`.
     fn apply_sparse_ordering(
         &mut self,
         solver_id: &str,
-        sparse: SparseSolverType,
+        _sparse: SparseSolverType,
         ordering: SparseOrdering,
     ) -> Result<()> {
-        if self.non_linear_solver(Some(solver_id))?.kind() == NonLinearSolverType::Lumped {
-            // no linear system to order
-            return Ok(());
-        }
-        let kind = self.dof_manager.backend().sparse_solver_kind("J");
-        match kind {
-            Some(SparseSolverType::Eigen) => {
-                self.dof_manager
-                    .backend_mut()?
-                    .set_solver_option("J", "ordering", ordering.name())
-            }
-            _ if ordering == SparseOrdering::Colamd => Ok(()),
-            _ => Err(Error::invalid(format!(
-                "sparse_solver_ordering = {ordering} needs the eigen sparse solver (solver \
-                 '{solver_id}' uses {})",
-                kind.unwrap_or(sparse)
-            ))),
+        let tss = self
+            .solvers
+            .get_mut(solver_id)
+            .ok_or_else(|| Error::not_found("time step solver", solver_id))?;
+        let dofs = &mut self.dof_manager;
+        match tss.non_linear_solver.as_newton_raphson_mut() {
+            Some(nr) => nr.set_sparse_solver_ordering(dofs, Some(ordering)),
+            None => Ok(()),
         }
     }
 

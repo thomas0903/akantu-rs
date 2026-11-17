@@ -717,4 +717,5 @@ def test_sparse_solver_ordering_option():
     np.testing.assert_array_equal(_dcb_static_ordering("colamd"), default)
     nd = _dcb_static_ordering("nested_dissection")
     scale = np.abs(default).max()
-    assert np.abs(nd - default).max() <= 1e-10 * scale
+    # rule fast_mode/linalg/sparse_lu_ordering: 1e-12 of max|u|
+    assert np.abs(nd - default).max() <= 1e-12 * scale

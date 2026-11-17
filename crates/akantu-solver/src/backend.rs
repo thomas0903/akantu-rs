@@ -391,6 +391,12 @@ pub trait LinearSystemBackend: std::fmt::Debug + Send {
         let _ = (id, ctx);
         Ok(())
     }
+    /// The value of an option set with [`LinearSystemBackend::set_solver_option`]
+    /// for matrix `id` (`None`: never set). Default: `None`.
+    fn solver_option(&self, id: &str, name: &str) -> Option<String> {
+        let _ = (id, name);
+        None
+    }
     /// Set an option of the linear solver of matrix `id` (the
     /// KSP options of upstream `SparseSolverPETSc::set`, e.g. `pc_type`).
     /// Default: `Error::Unsupported`.
@@ -1338,6 +1344,13 @@ impl LinearSystemBackend for AijBackend {
     /// ([`SparseDirectSolver::set_option`]; the `eigen` solver's
     /// `ordering`, D-125). Kept for solvers installed later; the next solve
     /// analyses the matrix again.
+    fn solver_option(&self, id: &str, name: &str) -> Option<String> {
+        self.solver_options
+            .get(id)?
+            .iter()
+            .find(|(n, _)| n == name)
+            .map(|(_, v)| v.clone())
+    }
     fn set_solver_option(&mut self, id: &str, name: &str, value: &str) -> Result<()> {
         let solver = self
             .solvers

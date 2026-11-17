@@ -748,10 +748,58 @@ fn sparse_solver_ordering_from_the_section() {
             .zip(&u_colamd)
             .all(|(a, b)| a.to_bits() == b.to_bits())
     );
+    // rule fast_mode/linalg/sparse_lu_ordering: 1e-12 of max|u|
+    let scale = u_default.iter().fold(0.0f64, |m, v| m.max(v.abs()));
     for (a, b) in u_default.iter().zip(&u_nd) {
-        assert!((a - b).abs() <= 1e-12 * a.abs().max(1.0), "{a} {b}");
+        assert!((a - b).abs() <= 1e-12 * scale, "{a} {b}");
     }
     assert!(solve(Some("metis"), "eigen").is_err());
     assert!(solve(Some("nested_dissection"), "faer").is_err());
     assert!(solve(Some("colamd"), "faer").is_ok());
+}
+
+/// D-125 (m5): the ordering belongs to the solver whose section sets it. A
+/// second time-step solver on the same DOF manager without the parameter
+/// solves with the default ordering, and the first one gets its own back.
+#[test]
+fn sparse_solver_ordering_is_per_solver() {
+    let text = "model model_solver [
+  time_step_solver static [
+    name = nd
+    sparse_solver_type = eigen
+    sparse_solver_ordering = nested_dissection
+    integration_scheme pseudo_time [
+      name = disp
+    ]
+  ]
+  time_step_solver dynamic [
+    sparse_solver_type = eigen
+    integration_scheme trapezoidal_rule_2 [
+      name = disp
+      solution_type = acceleration
+    ]
+  ]
+]
+";
+    let parser = Parser::parse_str(text, "two.dat").unwrap();
+    let section = &parser.root.sub_sections[0];
+    let mut dm = DofManager::new("dm", Communicator::serial());
+    let mut model = MyModel::new(1.0, gen_mesh(40), false, &mut dm).unwrap();
+    let mut ms = ModelSolver::new(dm);
+    ms.init_from_section(section, &mut model, false).unwrap();
+    ms.set_time_step(0.01, None).unwrap();
+    let used = |ms: &ModelSolver| {
+        ms.dof_manager
+            .backend()
+            .sparse_solver_statistics("J")
+            .iter()
+            .find(|p| p.0 == "ordering")
+            .map(|p| p.1)
+    };
+    ms.solve_step(&mut model, Some("nd")).unwrap();
+    assert_eq!(used(&ms), Some(1.0));
+    ms.solve_step(&mut model, Some("dynamic")).unwrap();
+    assert_eq!(used(&ms), Some(0.0));
+    ms.solve_step(&mut model, Some("nd")).unwrap();
+    assert_eq!(used(&ms), Some(1.0));
 }
