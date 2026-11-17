@@ -1,0 +1,68 @@
+# SPDX-License-Identifier: LGPL-3.0-or-later
+# Expected wall time and memory of every run of part G (run_part.sh prints
+# them as the plan before it starts; scripts/perf/final/README.md).
+#
+# Columns: mesh  point  wall_s  container_GiB  basis
+#   point = RANKS[xTHREADS]:VARIANT (as --points); wall_s = the run's wall time
+#   (read_mesh to the end of the loop, 5,000 steps for joss); container_GiB =
+#   the container's memory peak (all ranks).
+#
+# Basis (docs/BENCHMARKS.md, the full-size run of 2026-11-12 on an AWS
+# r7a.16xlarge, EPYC 9R14, the port before the campaign):
+#   measured walls: port 2,387 s (64 ranks), 3,221 s (32), 10,967 s (8);
+#   C++ 2,729 s (64), 3,787 s (32). Container peaks: port 206.2 / 185.5 /
+#   165.9 GiB at 64 / 32 / 8 ranks, C++ 191.7 / 194.2 GiB at 64 / 32.
+# The head: phases of the full-size run scaled by the campaign's measured
+#   head / before ratios at 8 ranks (docs/BENCHMARKS.md, the insertion
+#   step and distribution sections): check x0.45, solve_step x0.95,
+#   energies x0.8, dist_mesh x0.33, init_full x0.5, static solve x1.0.
+#   64 ranks: loop 1,916 -> 1,170 s, + static 305 + dist 50 + rest 15 = 1,540 s;
+#   32: loop 2,764 -> 1,564, + 356 + 28 + 12 = 1,960 s; 8: loop 10,065 ->
+#   5,335, + 831 + 10 + 25 = 6,200 s.
+# 128 ranks (not measured): the loop gains 1/(2 x 0.65) from 64 (the loop
+#   efficiency 32 -> 64 was 0.72 for the port and 0.70 for upstream; one more
+#   doubling, two NUMA nodes, taken as 0.65), the static solve ~280 s (305 at
+#   64, 356 at 32: little gain left), dist_mesh grows with the rank count
+#   (port ~70 s, upstream ~100 s). Port 900 + 280 + 70 + 20 = 1,270 s;
+#   C++ loop 2,390 / 1.3 = 1,840, + 280 + 100 + 30 = 2,250 s.
+# Hybrids (not measured at full size): 64 x 2 = the 64-rank run with the
+#   loop x0.8 (two threads per rank help the element loops, not the
+#   exchanges): 1,290 s; 32 x 4: the 32-rank loop x0.6: 1,320 s; 16 x 8: the
+#   16-rank run (between 8 and 32: loop 2,960, static 600) with the loop x0.5:
+#   2,100 s. In the dry run (h = 0.12, 1,500 steps) 2 x 4 took 1.95x and
+#   4 x 2 1.30x the loop of 8 single-thread ranks, so these hybrid estimates
+#   are optimistic; at worst the 16 x 8 run takes as long as the 8-rank one.
+# Memory at 128 ranks (not measured): MUMPS's summed allocation INFOG(19)
+#   was 139 / 163 / 183 GB at 8 / 32 / 64 ranks (+20 GB from 32 to 64; its
+#   excess over 8 ranks roughly doubles per doubling of the ranks on the
+#   smaller meshes, docs/BENCHMARKS.md "MUMPS allocation beyond 8 ranks"):
+#   +40 GB from 64 to 128; the per-process memory (~58 MiB) and the ghost
+#   layers add ~6 GiB. Port 206 + 37 + 6 = ~250 GiB, C++ 192 + 37 + 6 =
+#   ~235 GiB (container). The largest rank: INFOG(18) 6.2 GB at 64 ranks,
+#   at most that at 128. 512 GiB is enough for both codes at 128 ranks
+#   unless MUMPS's allocation grows 4x faster than this: the limit is
+#   --memory (94 % of the machine by default, 481g on 512 GiB); an
+#   out-of-memory kill is recorded (outcome `oom`) and the run is not
+#   repeated; the port's 128-rank run comes first and measures it (its peak
+#   was within 8 % of upstream's at 32 and 64 ranks).
+# Hybrids hold the memory of their rank count (MUMPS and the mesh are per
+#   rank): 64 x 2 as 64, 32 x 4 as 32, 16 x 8 ~175 GiB (between 8 and 32).
+# Partition exports (C++ runs stopped once partition.csv is complete:
+#   reading the mesh, ~16 s, and the Scotch partition): ~2 min each, 5 rank
+#   counts.
+joss 128:head     1270  250  extrapolated from 64 ranks
+joss 128:cpp      2250  235  extrapolated from 64 ranks
+joss 64:head      1540  206  2026-11-12 port x campaign ratios
+joss 64:cpp       2729  192  measured 2026-11-12
+joss 32:head      1960  186  2026-11-12 port x campaign ratios
+joss 32:cpp       3787  194  measured 2026-11-12
+joss 64x2:head    1290  206  64 ranks, loop x0.8
+joss 32x4:head    1320  186  32 ranks, loop x0.6
+joss 16x8:head    2100  175  16 ranks, loop x0.5
+joss 8:head       6200  166  2026-11-12 port x campaign ratios
+joss export       120   60   per rank count
+# the dry run (h = 0.06, 200 steps) on the 8-core development machine
+0.06 8:head       10    3.2  dry run 2026-11-17
+0.06 8:cpp        23    4.0  dry run 2026-11-17
+0.06 4x2:head     13    3.0  dry run 2026-11-17
+0.06 export       30    1    per rank count
