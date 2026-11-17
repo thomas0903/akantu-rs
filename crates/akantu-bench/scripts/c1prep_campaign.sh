@@ -41,8 +41,8 @@
 #                    e.g. "rust_cohesive_compat=upstream rust_doubled_node_load=follows_elements"
 #                    (the full-size rerun's settings, D-105 / D-108; c1_session.py passes them)
 #   --rust-threads T threads per rank of the Rust runs (AKANTU_NUM_THREADS = T, default
-#                    unset = 1); with T > 1 mpirun maps every rank on T consecutive cores
-#                    (--map-by slot:PE=T --bind-to core), so give the run P x T cores
+#                    unset = 1); with T > 1 every rank is bound to T consecutive cores
+#                    (bind-rank.sh of the C++ harness), so give the run P x T cores
 #                    (PIN_CPUS_FROM, the container's cpuset, takes P x T)
 #   --rust-precision bitwise|fast  AKANTU_PRECISION of the Rust runs (default unset = bitwise)
 #   PERF_MPI_BIND=core (environment) binds rank r of both codes to the r-th core of
@@ -138,18 +138,21 @@ if [ "${1:-}" = "--rust-run" ]; then # inside the Rust image: dir np steps mesh 
   # the execution policy of the port (--rust-threads / --rust-precision): set
   # in the container's environment by the campaign, forwarded to every rank
   exec_opts=()
-  if [ -n "${AKANTU_NUM_THREADS:-}" ]; then
-    exec_opts+=(-x AKANTU_NUM_THREADS)
-    [ "${AKANTU_NUM_THREADS}" -le 1 ] || exec_opts+=(--map-by "slot:PE=${AKANTU_NUM_THREADS}" --bind-to core)
-  fi
-  # PERF_MPI_BIND=core: one rank per core (as the C++ harness's run-one.sh)
-  if [ "${PERF_MPI_BIND:-}" = core ] && [ "${AKANTU_NUM_THREADS:-1}" -le 1 ]; then
-    exec_opts+=(--map-by core --bind-to core)
+  # Binding: rank r on the r-th block of T cores of the container's cpuset
+  # (T = AKANTU_NUM_THREADS), by the harness's bind-rank.sh (see there why
+  # not by mpirun): always with T > 1; with T = 1 under PERF_MPI_BIND=core
+  # (as the C++ harness's run-one.sh).
+  binder=()
+  if [ -n "${AKANTU_NUM_THREADS:-}" ]; then exec_opts+=(-x AKANTU_NUM_THREADS); fi
+  if [ "${AKANTU_NUM_THREADS:-1}" -gt 1 ] || [ "${PERF_MPI_BIND:-}" = core ]; then
+    exec_opts+=(--bind-to none)
+    binder=(sh /src/benchmarks/cohesive-perf/scripts/in-container/bind-rank.sh "${AKANTU_NUM_THREADS:-1}")
   fi
   [ -z "${AKANTU_PRECISION:-}" ] || exec_opts+=(-x AKANTU_PRECISION)
   t0=$(date +%s.%N)
   mpirun -np "${np}" -x OMP_NUM_THREADS -x OPENBLAS_NUM_THREADS -x OPENBLAS_CORETYPE \
-    -x SCOTCH_PTHREAD_NUMBER ${exec_opts[@]+"${exec_opts[@]}"} "${bin}" --aka_input_file input.dat > out.txt 2> err.txt
+    -x SCOTCH_PTHREAD_NUMBER ${exec_opts[@]+"${exec_opts[@]}"} ${binder[@]+"${binder[@]}"} \
+    "${bin}" --aka_input_file input.dat > out.txt 2> err.txt
   echo $? > exit
   t1=$(date +%s.%N)
   python3 -c "print(f'{${t1}-${t0}:.3f}')" > wall.txt

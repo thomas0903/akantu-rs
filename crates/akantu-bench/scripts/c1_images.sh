@@ -130,7 +130,8 @@ if [ "${cmd}" = export-mn ]; then
   build_bench_c1 "${ctx}" "${rev}"
   mkdir -p "${ctx}/mn"
   cp docker/bench/Dockerfile.mn docker/bench/mn-entrypoint.sh docker/bench/sshd_config_mn \
-    crates/akantu-bench/scripts/memsample.py "${ctx}/mn/"
+    crates/akantu-bench/scripts/memsample.py benchmarks/cohesive-perf/scripts/in-container/bind-rank.sh \
+    "${ctx}/mn/"
   { echo "git_head=${rev}"; echo "built=$(date -u +%FT%TZ)"
     echo "base=akantu-rs-bench:c1 $(docker image inspect --format '{{.Id}}' akantu-rs-bench:c1)"
     echo "rust_bin_sha256=$(cut -d' ' -f1 "${ctx}/binary.sha256")"; } > "${ctx}/mn/mn-provenance.txt"

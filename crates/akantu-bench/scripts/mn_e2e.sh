@@ -33,10 +33,13 @@
 #   E2E_BUDGET_H (3 per session), E2E_NET (10.78: networks 10.78.<N>.0/24),
 #   E2E_EXTRA (settings added to every run: "rust_cohesive_compat=upstream
 #   rust_doubled_node_load=follows_elements", the full-size rerun's, D-108;
-#   empty for a driver without these keys)
+#   empty for a driver without these keys), E2E_BIND (self: mn_cluster.py's
+#   `bind`)
+# The h = 0.06 mesh tarball (akantu-mn-meshes-test.tar.gz) is needed only
+# without E2E_QUICK=1.
 set -uo pipefail
 die() { echo "mn_e2e.sh: $*" >&2; exit 1; }
-[ $# -eq 1 ] || { sed -n '7,36p' "$0"; exit 2; }
+[ $# -eq 1 ] || { sed -n '7,40p' "$0"; exit 2; }
 dir="$(cd "$1" && pwd)" || exit 2
 work="${WORK:-${dir}/e2e-$(date -u +%Y%m%dT%H%M%SZ)}"
 hosts_list="${E2E_HOSTS:-1 2 4 8}"
@@ -98,13 +101,18 @@ memory = ${E2E_MEMORY:-12g}
 net_cidr = ${E2E_NET:-10.78}.${n}.0/24
 network = mn-e2e-${n}
 prefix = e2e${n}
-bind = core
+bind = ${E2E_BIND:-self}
 EOF
   : > "${s}/hosts"
   for k in $(seq "${n}"); do echo "e2e${n}-h${k} slots=${per}" >> "${s}/hosts"; done
   plan "${n}" > "${s}/plan.txt"
   python3 -I "${sc}/mn_cluster.py" keygen "${s}" > /dev/null || die "keygen"
-  args=("${s}" "${r}" "${budget}" --plan "${s}/plan.txt" --meshes "${dir}/akantu-mn-meshes-test.tar.gz")
+  args=("${s}" "${r}" "${budget}" --plan "${s}/plan.txt")
+  if [ -f "${dir}/akantu-mn-meshes-test.tar.gz" ]; then
+    args+=(--meshes "${dir}/akantu-mn-meshes-test.tar.gz")
+  elif [ "${quick}" != 1 ]; then
+    die "no akantu-mn-meshes-test.tar.gz in ${dir} (needed without E2E_QUICK=1)"
+  fi
   [ "${n}" = 1 ] || args+=(--partitions "${work}/parts")
   if [ "${quick}" != 1 ]; then
     [ "${n}" = 4 ] && args+=(--fail-host h012-stop:3:stop:6 --fail-host h012-pause:2:pause:6)

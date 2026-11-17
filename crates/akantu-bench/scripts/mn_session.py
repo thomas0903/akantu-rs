@@ -73,8 +73,9 @@ Rules (each one unit-tested, tests/test_mn_session.py):
  * any other failure is recorded `failed`, not repeated;
  * every run's directory RESULTS/runs/<NAME>-a<attempt>/ holds the driver's
    outputs of all hosts (summary.json, summary_rank<r>.json, energies.csv,
-   insertions.csv, chrono.csv, partition.csv, out.txt, err.txt with the
-   binding report), the memory samples of every host (mem-h<k>.jsonl),
+   insertions.csv, chrono.csv, partition.csv, out.txt, err.txt,
+   binding_rank<r>.txt: the rank's host, local rank and CPUs, summarised
+   in status.txt `bindings`), the memory samples of every host (mem-h<k>.jsonl),
    status.txt (mn_cluster.py) and a DONE marker (JSON: outcome, hours,
    estimate); RESULTS/state.json holds the session state, session.log the
    log; `status` prints where the session is.
@@ -537,6 +538,10 @@ class Session:
                                               f"{hook_oom + 1}")) if (hook_fail or hook_oom is not None) else "")
             if st.get("error"):
                 rec["note"] = (rec["note"] + "; " if rec["note"] else "") + st["error"][:300]
+            if st.get("binding_problems"):   # mn_cluster.py: ok only without them
+                rec["binding_problems"] = st["binding_problems"]
+                rec["note"] = ((rec["note"] + "; " if rec["note"] else "") + "binding problems: "
+                               + "; ".join(st["binding_problems"][:8]))[:600]
             d = self.runs / campaign
             d.mkdir(parents=True, exist_ok=True)
             if outcome == "host-lost":

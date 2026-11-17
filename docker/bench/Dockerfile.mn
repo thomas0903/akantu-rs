@@ -18,13 +18,16 @@
 #   * sshd_config_mn: key-only logins of `akantu`, no root, no passwords, no
 #     forwarding (docker/bench/sshd_config_mn);
 #   * the memory sampler memsample.py (one per host during a run);
+#   * bind-rank.sh (benchmarks/cohesive-perf/scripts/in-container/): binds
+#     each rank to one core of its container's cpuset, chosen by the rank's
+#     index on its host (mn_cluster.py `bind = self`, the default);
 #   * /mn/work owned by `akantu`, so that a new named volume mounted there
 #     (the per-host run directories) is writable by the ranks.
 #
 # Thread and BLAS pins (D-050) come from the base image's ENV and are
 # forwarded to the remote ranks by mpirun (`-x`, mn_cluster.py), because an
 # SSH session does not inherit a container's ENV. Built by
-# crates/akantu-bench/scripts/c1_images.sh export-mn; the build context holds the four files above and
+# crates/akantu-bench/scripts/c1_images.sh export-mn; the build context holds the five files above and
 # mn-provenance.txt only.
 ARG BASE_IMAGE=akantu-rs-bench:c1
 FROM ${BASE_IMAGE}
@@ -41,11 +44,14 @@ RUN apt-get -qq update && apt-get -qq -y --no-install-recommends install \
 COPY mn-entrypoint.sh /usr/local/sbin/mn-entrypoint.sh
 COPY sshd_config_mn /etc/ssh/sshd_config_mn
 COPY memsample.py /usr/local/share/akantu-rs-bench/memsample.py
+COPY bind-rank.sh /usr/local/share/akantu-rs-bench/bind-rank.sh
 COPY mn-provenance.txt /usr/share/akantu-rs-bench/mn-provenance.txt
 # `usermod -p '*'`: an account with a locked password field ("!") is refused
 # by sshd when UsePAM is off; "*" is not locked and matches no password.
 # The configuration is checked once at build time with a throw-away key.
 RUN chmod 0755 /usr/local/sbin/mn-entrypoint.sh \
+    && chmod 0644 /usr/local/share/akantu-rs-bench/bind-rank.sh \
+    && command -v taskset > /dev/null \
     && ssh-keygen -q -t ed25519 -N '' -f /tmp/k \
     && /usr/sbin/sshd -t -f /etc/ssh/sshd_config_mn -h /tmp/k \
     && rm -f /tmp/k /tmp/k.pub \

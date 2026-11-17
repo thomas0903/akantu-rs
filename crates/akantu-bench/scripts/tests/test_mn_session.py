@@ -80,6 +80,8 @@ class FakeCluster:
               "lost_hosts": sc.get("lost", []), "oom_kills": {h: 1 for h in sc.get("oom", [])},
               "partition_sha256": "ab" * 32 if np_ > 1 and outcome == "ok" else None,
               "host_peak_kib": {self.addr(k): 1024 ** 2 for k in idx}, "wall_s": 1.0}
+        if sc.get("binding"):
+            st["binding_problems"] = list(sc["binding"])
         Path(outdir).mkdir(parents=True, exist_ok=True)
         mn_cluster.write_status(Path(outdir) / "status.txt", st)
         return st
@@ -127,7 +129,7 @@ small   h0.12 8  1  1500  auto  run:smoke 0.05
 class PureRules(unittest.TestCase):
     def test_conf_and_hosts(self):
         c = mn_cluster.parse_conf("backend = ssh\nnet_cidr = 172.31.0.0/16\nmemory = 56g\n")
-        self.assertEqual((c["backend"], c["ssh_port"], c["bind"]), ("ssh", "2222", "core"))
+        self.assertEqual((c["backend"], c["ssh_port"], c["bind"]), ("ssh", "2222", "self"))
         for bad in ("backend = ssh\n", "backend = k8s\nnet_cidr = 10.0.0.0/8\n",
                     "net_cidr = 10.0.0.0/8\nbind = socket\n", "net_cidr = 10.0.0.0/8\nfoo = 1\n",
                     "net_cidr = 10.0.0.0/8\nssh_port = 22\n"):

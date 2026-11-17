@@ -113,8 +113,11 @@ t0="$(date +%s%N)"
 sampler=$!
 launch=(mpiexec --oversubscribe -n "${ranks}" -x AKA_SEED -x SCOTCH_PTHREAD_NUMBER -x AKANTU_RS_FILL_NODES_TO_ELEMENTS)
 # PERF_MPI_BIND=core (opt-in, the final campaign): rank r bound to the r-th
-# core of the container's cpuset; unset, the ranks share the cpuset
-if [ "${PERF_MPI_BIND:-}" = core ]; then launch+=(--map-by core --bind-to core); fi
+# core of the container's cpuset (by bind-rank.sh, see there why not by
+# mpiexec); unset, the ranks share the cpuset
+if [ "${PERF_MPI_BIND:-}" = core ]; then
+  launch+=(--bind-to none sh "$(cd "$(dirname "$0")" && pwd)/bind-rank.sh" 1)
+fi
 /usr/bin/time -f '%e %M' -o time.txt \
   "${launch[@]}" "${bin}" --aka_input_file input.dat \
   > out.txt 2> err.txt &
