@@ -178,7 +178,8 @@ class RunRecords(unittest.TestCase):
 
 
 class BindingOutcome(unittest.TestCase):
-    base = {"exit": 0, "summary": True, "nb_rank_summaries": 8, "np": 8}
+    def setUp(self):
+        self.base = {"exit": 0, "summary": True, "nb_rank_summaries": 8, "np": 8}
 
     def test_binding_problems_make_the_run_fail_unless_a_host_was_lost(self):
         self.assertEqual(mn_cluster.classify(dict(self.base)), "ok")
