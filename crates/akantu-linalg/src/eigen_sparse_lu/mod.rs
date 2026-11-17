@@ -103,7 +103,11 @@ pub const AUTO_MIN_ORDER: usize = 2000;
 /// [`SparseOrdering::Auto`]: when COLAMD's predicted work (`Σ c_j²`) is
 /// below this, COLAMD is kept without computing the nested dissection,
 /// whose own cost the gain would not cover.
-pub const AUTO_MIN_WORK: f64 = 2e8;
+pub const AUTO_MIN_WORK: f64 = 5e7;
+/// [`SparseOrdering::Auto`]: likewise when COLAMD's predicted work is below
+/// this multiple of the edges of the supervariable graph (the dissection's
+/// cost grows with that graph, the factorisation's with the work).
+pub const AUTO_WORK_PER_EDGE: f64 = 3000.0;
 /// [`SparseOrdering::Auto`]: after the first factorisation with nested
 /// dissection, COLAMD is used for the pattern when nnz(L + U) exceeds this
 /// multiple of COLAMD's predicted size.
@@ -589,13 +593,10 @@ impl SparseLu {
             && self.report.used == SparseOrdering::NestedDissection
             && !self.auto_fallback;
         if first_auto_nd && let Some((size_c, _)) = self.report.predicted_colamd {
-            let nnz = self
-                .factors
-                .as_ref()
-                .map_or(0, |(_, g)| {
-                    let (l, u) = kernels::countnz(self.n, g);
-                    l + u
-                }) as f64;
+            let nnz = self.factors.as_ref().map_or(0, |(_, g)| {
+                let (l, u) = kernels::countnz(self.n, g);
+                l + u
+            }) as f64;
             let pivots = self.off_diagonal_pivots as f64;
             if nnz > AUTO_FALLBACK_FILL * size_c || pivots > AUTO_FALLBACK_PIVOTS * self.n as f64 {
                 log::debug!(
@@ -629,7 +630,9 @@ impl SparseLu {
     fn check_pattern(&self, a: &CscMatrix) -> Result<()> {
         match &self.pattern {
             Some((cp, ri))
-                if a.n() == self.n && a.col_ptr() == cp.as_slice() && a.row_idx() == ri.as_slice() =>
+                if a.n() == self.n
+                    && a.col_ptr() == cp.as_slice()
+                    && a.row_idx() == ri.as_slice() =>
             {
                 Ok(())
             }
@@ -959,7 +962,8 @@ fn diagonal_leads_every_column(a: &CscMatrix) -> bool {
 /// [`SparseOrdering::Auto`]: COLAMD, or nested dissection when it is
 /// predicted to need clearly less work (see the variant). COLAMD and its
 /// prediction come first; the nested dissection is computed only when
-/// COLAMD's predicted work reaches [`AUTO_MIN_WORK`].
+/// COLAMD's predicted work reaches [`AUTO_MIN_WORK`] and
+/// [`AUTO_WORK_PER_EDGE`] times the edges of the supervariable graph.
 fn auto_ordering(a: &CscMatrix) -> Result<(Vec<i64>, OrderingReport)> {
     let n = a.n();
     let colamd = colamd::colamd_ordering(n, n, a.col_ptr(), a.row_idx())?;
@@ -972,7 +976,10 @@ fn auto_ordering(a: &CscMatrix) -> Result<(Vec<i64>, OrderingReport)> {
         colamd_order[p as usize] = c;
     }
     let pc = nested_dissection::cholesky_counts(&xadj, &adj, &colamd_order);
-    if pc.1 < AUTO_MIN_WORK {
+    let compressed =
+        (pc.1 >= AUTO_MIN_WORK).then(|| nested_dissection::Compressed::new(n, &xadj, &adj));
+    let Some(compressed) = compressed.filter(|c| pc.1 >= AUTO_WORK_PER_EDGE * c.edges() as f64)
+    else {
         return Ok((
             colamd,
             OrderingReport {
@@ -980,8 +987,8 @@ fn auto_ordering(a: &CscMatrix) -> Result<(Vec<i64>, OrderingReport)> {
                 ..OrderingReport::default()
             },
         ));
-    }
-    let nd = nested_dissection::nested_dissection_order(n, a.col_ptr(), a.row_idx());
+    };
+    let nd = compressed.order();
     let pn = nested_dissection::cholesky_counts(&xadj, &adj, &nd);
     let report = OrderingReport {
         predicted_colamd: Some(pc),
@@ -1120,7 +1127,10 @@ impl SparseDirectSolver for EigenSparseLuSolver {
             f64::from(u8::from(r.used == SparseOrdering::NestedDissection)),
         )];
         if let Some(c) = r.predicted_colamd {
-            v.extend([("predicted_size_colamd", c.0), ("predicted_work_colamd", c.1)]);
+            v.extend([
+                ("predicted_size_colamd", c.0),
+                ("predicted_work_colamd", c.1),
+            ]);
         }
         if let Some(d) = r.predicted_nd {
             v.extend([("predicted_size_nd", d.0), ("predicted_work_nd", d.1)]);

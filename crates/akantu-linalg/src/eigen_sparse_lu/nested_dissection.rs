@@ -887,16 +887,43 @@ pub(crate) fn nested_dissection_order(
     row_idx: &[usize],
 ) -> Vec<usize> {
     let (xadj, adj) = symmetric_pattern(n, col_ptr, row_idx);
-    let (g, members) = compress(n, &xadj, &adj);
-    let all: Vec<usize> = (0..g.n()).collect();
-    let mut loc = vec![NONE; g.n()];
-    let mut corder = Vec::with_capacity(g.n());
-    dissect(&g, &all, &mut loc, &mut corder);
-    let mut order = Vec::with_capacity(n);
-    for c in corder {
-        order.extend_from_slice(&members[c]);
+    Compressed::new(n, &xadj, &adj).order()
+}
+
+/// The supervariable graph of a symmetric pattern, the input of the
+/// dissection (computed once, so that `auto` can look at its size before
+/// paying for the dissection).
+pub(crate) struct Compressed {
+    g: Graph,
+    members: Vec<Vec<usize>>,
+    n: usize,
+}
+
+impl Compressed {
+    /// Merges the vertices of equal closed neighbourhood of the pattern
+    /// (`xadj`, `adj`) of order `n`.
+    pub(crate) fn new(n: usize, xadj: &[usize], adj: &[usize]) -> Self {
+        let (g, members) = compress(n, xadj, adj);
+        Self { g, members, n }
     }
-    order
+
+    /// Edges of the compressed graph.
+    pub(crate) fn edges(&self) -> usize {
+        self.g.adj.len() / 2
+    }
+
+    /// The nested-dissection elimination order of the original columns.
+    pub(crate) fn order(&self) -> Vec<usize> {
+        let all: Vec<usize> = (0..self.g.n()).collect();
+        let mut loc = vec![NONE; self.g.n()];
+        let mut corder = Vec::with_capacity(self.g.n());
+        dissect(&self.g, &all, &mut loc, &mut corder);
+        let mut order = Vec::with_capacity(self.n);
+        for c in corder {
+            order.extend_from_slice(&self.members[c]);
+        }
+        order
+    }
 }
 
 /// Predicted size of the factors for the elimination order `order` of the

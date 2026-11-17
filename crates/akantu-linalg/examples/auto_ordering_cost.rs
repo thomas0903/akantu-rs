@@ -62,7 +62,11 @@ fn grid(nodes: &[usize], c: usize, indefinite: bool, seed: u64) -> CscMatrix {
     let mut t = Vec::new();
     let mut diag = vec![0.0f64; total * c];
     let offsets: Vec<Vec<i64>> = (0..3usize.pow(dims as u32))
-        .map(|k| (0..dims).map(|d| (k / 3usize.pow(d as u32) % 3) as i64 - 1).collect())
+        .map(|k| {
+            (0..dims)
+                .map(|d| (k / 3usize.pow(d as u32) % 3) as i64 - 1)
+                .collect()
+        })
         .collect();
     for a in 0..total {
         let x = coord(a);
@@ -122,10 +126,32 @@ fn main() {
         ("indefinite 16^3".into(), grid(&[16, 16, 16], 1, true, 6)),
         ("indefinite 20^3".into(), grid(&[20, 20, 20], 1, true, 7)),
     ];
-    for &(n, c) in &[(70, 1), (100, 1), (140, 1), (200, 1), (70, 2), (100, 2), (70, 3), (100, 3)] {
-        cases.push((format!("square {n} x {n}, c {c}"), grid(&[n, n], c, false, 8)));
+    for &(n, c) in &[
+        (70, 1),
+        (100, 1),
+        (140, 1),
+        (200, 1),
+        (70, 2),
+        (100, 2),
+        (70, 3),
+        (100, 3),
+    ] {
+        cases.push((
+            format!("square {n} x {n}, c {c}"),
+            grid(&[n, n], c, false, 8),
+        ));
     }
-    for &(p, c) in &[(12, 1), (15, 1), (18, 1), (22, 1), (26, 1), (8, 3), (10, 3), (12, 3), (14, 3)] {
+    for &(p, c) in &[
+        (12, 1),
+        (15, 1),
+        (18, 1),
+        (22, 1),
+        (26, 1),
+        (8, 3),
+        (10, 3),
+        (12, 3),
+        (14, 3),
+    ] {
         cases.push((format!("cube {p}^3, c {c}"), grid(&[p, p, p], c, false, 9)));
     }
     println!(
