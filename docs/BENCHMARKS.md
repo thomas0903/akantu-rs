@@ -5,18 +5,57 @@ reference (Akantu at `35a85178`), with the machine, date, data and command
 behind every number. The short report for the Akantu team,
 `docs/reports/02-benchmarks-and-performance.md`, summarises it.
 
-The main results: on one core the port's explicit step takes 0.31–0.60× the
-time of the C++ step built with the same arithmetic (five meshes, three
-element types). In the cohesive benchmark at 1 to 8 ranks the explicit loop
-takes 0.39–0.59× upstream's time. On the JOSS mesh (4.39 million
-tetrahedra, 5,000 steps with fracture) on one 64-core node the port's run
-took 0.875× upstream's wall time at 64 ranks and 0.851× at 32. The port is
-slower in the mesh distribution (1.26–1.86× at full size) and in the static
-MUMPS solve phase (about 1.1× in the paired series; no gap is established at
-full size). Both codes need about the same memory, most of it MUMPS's; at 64
-ranks the port's largest rank peaks at 1.27× upstream's. No performance work
-was done before parity was reached; none of the slow paths
-listed at the end was worked on.
+The results of the final campaign (stage 1, parts A to F; four AWS
+`m7a.2xlarge`, AMD EPYC 9R14, 8 cores each; 2026-11-17 UTC; port head
+`53de1eeef`, port before `b6f56c2f0`, C++ strict install; five repetitions,
+medians with [min, max]; data `docs/benchmarks/perf-campaign/final/`):
+
+- On one core the port's explicit step takes 0.29–0.40× the time of the C++
+  strict step in small strain and 0.15–0.25× in finite deformation (five
+  meshes, three element types), and 0.51–0.72× the time of the port before
+  the campaign. At 8 threads it takes 0.20–0.47× its one-thread time.
+  Every digest equals the recorded one (part A).
+- In the cohesive benchmark (h = 0.12 to 0.04, 1 to 8 ranks, MUMPS in both
+  codes) the explicit loop takes 0.22–0.30× upstream's time at 1 to 4 ranks
+  and 0.31–0.36× at 8 ranks, and 0.36–0.62× the port's time before the
+  campaign. On 8 cores, 2 ranks × 4 threads take 1.05–1.22× the loop time
+  of 8 ranks and 4 ranks × 2 threads 0.99–1.06× (part C).
+- The static MUMPS solve phase takes 0.79–0.96× upstream's at 1 to 4 ranks
+  and 0.91–1.11× at 8 ranks; the port's SparseLU takes 0.74× (h = 0.12) and
+  0.91× (h = 0.06) upstream's SparseLU at one thread, 0.45× and 0.26× at 8
+  threads (parts C and D).
+- On h = 0.04 (558,875 tetrahedra, static solve and 300 steps) the sum of
+  the ranks' memory peaks is 8,965 / 11,013 / 10,400 / 12,133 MiB for the
+  port and 11,669 / 13,741 / 13,171 / 15,367 MiB for upstream at 1 / 2 / 4 /
+  8 ranks; releasing the static solver's factors brings the port to 7,302 /
+  9,464 / 8,873 / 10,716 MiB (part E).
+- Set-up: `init_full` takes 0.075–0.19× upstream's time and the mesh
+  distribution 0.095–0.11×. The communication layer takes 6.46× raw MPI for
+  an 8-byte ping-pong over shared memory and 2.52× for 16 MiB (part F).
+
+The full-size run on the JOSS mesh and the multi-node runs of the final
+campaign are measured separately and are not yet in this revision; their
+sections keep the measurements of 12 and 13 November. Sections marked
+"before the final campaign" are the dated records of 11 to 14 November,
+measured on other machines with the port as it was then; their numbers are
+not compared with the final campaign's.
+
+The summary this document opened with before the final campaign (the
+measurements of 11 to 14 November, the port before the performance
+campaign), unchanged:
+
+> The main results: on one core the port's explicit step takes 0.31–0.60× the
+> time of the C++ step built with the same arithmetic (five meshes, three
+> element types). In the cohesive benchmark at 1 to 8 ranks the explicit loop
+> takes 0.39–0.59× upstream's time. On the JOSS mesh (4.39 million
+> tetrahedra, 5,000 steps with fracture) on one 64-core node the port's run
+> took 0.875× upstream's wall time at 64 ranks and 0.851× at 32. The port is
+> slower in the mesh distribution (1.26–1.86× at full size) and in the static
+> MUMPS solve phase (about 1.1× in the paired series; no gap is established at
+> full size). Both codes need about the same memory, most of it MUMPS's; at 64
+> ranks the port's largest rank peaks at 1.27× upstream's. No performance work
+> was done before parity was reached; none of the slow paths
+> listed at the end was worked on.
 
 ## Where the numbers come from
 
@@ -28,6 +67,9 @@ conclusion rests on them.
 
 | Machine | CPU | Dates | Measured there | Data |
 |---|---|---|---|---|
+| 4 × AWS `m7a.2xlarge` (8 cores, one thread per core, one NUMA node, 30.6 GiB visible, Ubuntu 24.04.5, kernel 7.0.0-1014-aws), one part per machine, nothing else running | AMD EPYC 9R14 | 2026-11-17 (sessions 10:33 to 18:59 UTC) | the final campaign, stage 1: machine 1 part C series `reh6`; machine 2 part C (other series); machine 3 parts B, D; machine 4 parts E, F, A | `docs/benchmarks/perf-campaign/final/` |
+| one 128-core node | — | measured separately; not yet available in this revision | the final campaign, part G (the JOSS mesh at 128 / 64 / 32 ranks, both codes) | to come |
+| 4 hosts | — | measured separately; not yet available in this revision | the final campaign's multi-node run (128 ranks over 4 hosts, the port only) | to come |
 | AWS `r7a.16xlarge`, one node, 64 cores, one thread per core, one NUMA node, 493 GiB visible | AMD EPYC 9R14 | 2026-11-12, 2026-11-13 | the full-size run (both codes at 64 and 32 ranks, the port at 8); the port's rerun after UD-1280 | `docs/benchmarks/c1-2026-11-12/`, `c1-rerun-2026-11-13/` |
 | 8 × AWS `r7a.2xlarge` (8 cores, 64 GiB each), one cluster placement group | AMD EPYC 9R14 | 2026-11-13 | the multi-node runs (the port only, up to 64 ranks) | `docs/benchmarks/mn-2026-11-13/` |
 | boat.dev `large` sandbox, 8 vCPU, 15.6 GiB, Ubuntu 24.04, kernel 6.8.0-117 | AMD EPYC 9455 | 2026-11-12, 2026-11-13 | the mid-size rehearsal and the MUMPS series; the weak and strong scaling series at 1–8 ranks | `docs/benchmarks/midsize-2026-11-12/`, `scaling-2026-11-13/` |
@@ -37,7 +79,7 @@ conclusion rests on them.
 | same type | not recorded | 2026-11-12 | the MPI performance gate measured in one job | numbers in this document only |
 | development Mac: Apple M4 Pro, 14 cores, 24 GB, natively and in an aarch64 Linux VM | Apple M4 Pro | 2026-11-10, 2026-11-11 | development records only (appendix) | `docs/benchmarks/dev-machine/` |
 
-Dates are the project's local dates (UTC+11); the provenance files of the
+The final campaign's dates are UTC dates, as its session records give them. Other dates are the project's local dates (UTC+11); the provenance files of the
 data record UTC times. boat.dev sandboxes are shared virtual machines. The
 upstream JOSS study's
 published timings (EPFL's jed cluster, Intel Xeon 8360Y) are committed
@@ -45,6 +87,88 @@ verbatim in `benchmarks/cohesive-perf/results/published-jed/`.
 `docs/benchmarks/README.md` lists every data directory.
 
 ## Method
+
+### The final campaign (2026-11-17)
+
+The final campaign measures the C++ reference, the port before the
+performance campaign and the port at the head under test on the same
+machine in the same session, for every table of this document. Its driver
+is `scripts/perf/final/` (`README.md` gives the parts, the variants, the
+checks and the commands). Seven parts (A to G) run independently, each
+alone on its machine with its own data directory. Stage 1 (parts A to F)
+ran on four AWS `m7a.2xlarge` of the same type; part C was split over two
+of them with `--only` (series `reh6` on one, the other series on the
+other), which is why it has two data directories, `C/` and `C-reh6/`.
+
+The programs (`scripts/perf/final/README.md`, "Variants"):
+
+| label | what |
+|---|---|
+| C++ strict (`cpp`) | the C++ reference `35a85178`, strict install, JOSS emulation in every cohesive run |
+| C++ default | upstream's flags (part A only) |
+| port before (`before`) | the branch `perf/final-before` at `b6f56c2f0` |
+| port (`head`) | `53de1eeef`, the default bitwise policy, one thread |
+| `head-tN`, ranks × threads | the head with `AKANTU_NUM_THREADS = N` |
+| fast | the head with `AKANTU_PRECISION=fast` |
+| SparseLU | each code's SparseLU in place of MUMPS |
+| factors released | the head with `rust_release_static_solver = true` |
+
+What changed against the earlier campaigns of 11 to 14 November:
+
+- One rank on one core at every rank count. Rank r of a run with T threads
+  per rank is bound to the r-th block of T cores, NUMA node by NUMA node
+  (`PERF_MPI_BIND=core`), in both codes; serial runs on core 2, N threads
+  on cores 0..N−1. `bindings.py` reads every rank's `Cpus_allowed_list`
+  from `/proc` during each MPI run and the run counts only if the binding
+  is the planned one: 380 + 50 cohesive runs in part C, 150 in D, 80 in E,
+  120 in F, all as planned. The earlier AWS runs were not bound and the boat
+  runs shared their vCPUs with the system.
+- Binaries identified by digest. `prepare.sh` builds every binary before
+  any timing and records its SHA-256 (`VARIANT.json`, `CPP.json`); every
+  cohesive run records the SHA-256 of what it executed and the point counts
+  only if it matches. The port's MPI driver runs from a copy named by its
+  SHA-256.
+- The variants of a point interleaved and their order rotated per
+  repetition, five repetitions of every point, on machines where nothing
+  else ran (the driver waits for an idle machine before each group). The
+  earlier AWS runs were one run per point.
+- The `before` variant. "Port before" is the library of `59dd2229` (the
+  public `main`, byte for byte in every crate but `akantu-bench`) with the
+  benchmark suites' final case definitions cherry-picked onto it. It is a
+  branch because the suites' cases and digests were fixed after `59dd2229`:
+  without the cherry-picks the same case name would measure another
+  computation in the two revisions.
+- The JOSS emulation for C++ throughout: every C++ cohesive run (parts C to
+  F) uses the strict install with the `fillNodesToElements()` rebuild
+  skipped (`FNTE = joss`), as the JOSS runs did.
+- Checks. A group counts only if the binary, the thread count and
+  precision each run recorded, the core binding and the state agree: part
+  A's state digests equal `docs/benchmarks/explicit-step/final/digests.txt`
+  for every bitwise program (90 pairs, 0 differing); every bitwise suite
+  variant's digest equals the head's; the per-step energies and insertions
+  (17 digits) are identical across the bitwise variants at 1 rank, C++
+  included, and across the two revisions in the SparseLU series at every
+  rank count. Fast-mode runs are timed, never digested. Every group of
+  stage 1 is complete and checked (each `summary.md` gives the counts).
+
+Run-to-run repeatability at more than one rank: with MUMPS, the port's
+results are not bit-repeatable at 2 ranks and more. The distributed MUMPS
+solve differs in the last digits from run to run (two runs of the same
+binary of `static_linear_mumps` at 4 ranks gave two digests in the dry
+run), so the campaign times those runs without comparing digests
+(`scripts/perf/final/digest-exceptions.txt`). With the port's own SparseLU
+the results are bit-repeatable: the per-step energies and insertions of the
+SparseLU series (part C, series `eig`) are identical at 1, 2, 4 and 8 ranks
+and at 2 × 4 and 4 × 2. Upstream's results at P > 1 vary in the last digits
+(the distributed MUMPS solve and `MPI_Waitany` orders).
+
+Times are rank 0's Chrono totals; the loop is `solve_step` plus the
+insertion check; core-µs per element and step and loop efficiency are
+defined as below. Ratios are paired per repetition, then the median
+[min, max]. A ratio column marked "unpaired" divides the medians of two
+groups.
+
+### The earlier campaigns (11–14 November)
 
 Same input. Both codes run on the same machine in the same session and read
 the same mesh file. In parallel they use the same Scotch partition: the C++
@@ -117,9 +241,10 @@ case after their first insertion touching a ghost boundary element (UD-890),
 so insertion counts at P > 1 are not compared. The drivers count inserted
 elements from the mesh (cohesive elements that are not ghosts, summed over
 the ranks); upstream's `checkCohesiveStress()` return value also counts
-ghost copies at P > 1 (UD-347). At P > 1 the port's results are identical
-from run to run with a fixed partition and solver, while upstream's vary in
-the last digits (the distributed MUMPS solve and `MPI_Waitany` orders). Upstream's MUMPS memory-retry
+ghost copies at P > 1 (UD-347). At P > 1 the port's results with MUMPS are not bit-repeatable from run to
+run (the distributed MUMPS solve; corrected after the final campaign's dry
+run, see above); with the port's SparseLU they are. Upstream's vary in the
+last digits (the distributed MUMPS solve and `MPI_Waitany` orders). Upstream's MUMPS memory-retry
 path returns a wrong static solution (UD-216); the C++ harness stops such a
 run and repeats it, so every C++ timing is conditional on a retry-free
 solve.
@@ -133,6 +258,90 @@ giving the steps. The campaign and analysis scripts named below are in
 ## Explicit dynamics
 
 ### The explicit step on one core
+
+The explicit step of `examples/c++/solid_mechanics_model/explicit` (unit
+cube, `elastic`, small strain (ss) or finite deformation (fd), the ten
+configurations of `scripts/perf/explicit-step/`), timed by the Rust harness
+`crates/akantu-solid/examples/explicit_step_timing.rs` and its C++ twin.
+Final campaign, part A: AWS `m7a.2xlarge`, AMD EPYC 9R14, 2026-11-17 UTC,
+5 rounds with the program order rotated, one process on core 2 (threads on
+cores 0..N−1); data `docs/benchmarks/perf-campaign/final/A/summary.md`.
+Nanoseconds per element and step, median [min, max]; ratios paired per
+round.
+
+Table "Explicit step (`solve_step`), ns per element and step":
+
+| mesh | type | elements | mode | C++ strict | C++ default | port before | port | port / C++ strict | port / C++ default | port / port before | port before / C++ strict |
+|---|---|---|---|---|---|---|---|---|---|---|---|
+| tet4-20k | tetrahedron_4 | 19,120 | ss | 145 [145, 145] | 227 [225, 227] | 68.2 [67.8, 68.6] | 47.0 [46.7, 47.3] | 0.32 [0.32, 0.33] | 0.21 [0.21, 0.21] | 0.69 [0.68, 0.69] | 0.47 [0.47, 0.47] |
+| tet4-200k | tetrahedron_4 | 178,772 | ss | 162 [161, 163] | 240 [238, 241] | 88.9 [88.5, 90.0] | 63.6 [63.5, 64.1] | 0.40 [0.39, 0.40] | 0.27 [0.26, 0.27] | 0.72 [0.71, 0.72] | 0.55 [0.54, 0.56] |
+| tet10-20k | tetrahedron_10 | 19,120 | ss | 810 [809, 816] | 1,213 [1,204, 1,214] | 409 [405, 411] | 269 [269, 271] | 0.33 [0.33, 0.33] | 0.22 [0.22, 0.23] | 0.66 [0.66, 0.67] | 0.50 [0.50, 0.51] |
+| hex8-20k | hexahedron_8 | 19,683 | ss | 1,251 [1,249, 1,253] | 1,914 [1,908, 1,981] | 548 [546, 555] | 367 [364, 367] | 0.29 [0.29, 0.29] | 0.19 [0.19, 0.19] | 0.67 [0.66, 0.67] | 0.44 [0.44, 0.44] |
+| hex8-200k | hexahedron_8 | 195,112 | ss | 1,198 [1,197, 1,217] | 1,862 [1,849, 1,865] | 573 [572, 576] | 380 [379, 384] | 0.32 [0.31, 0.32] | 0.20 [0.20, 0.21] | 0.66 [0.66, 0.67] | 0.48 [0.47, 0.48] |
+| tet4-20k | tetrahedron_4 | 19,120 | fd | 302 [300, 304] | 390 [385, 391] | 102 [102, 102] | 65.4 [65.1, 65.9] | 0.22 [0.22, 0.22] | 0.17 [0.17, 0.17] | 0.64 [0.64, 0.64] | 0.34 [0.34, 0.34] |
+| tet4-200k | tetrahedron_4 | 178,772 | fd | 327 [325, 328] | 412 [407, 412] | 130 [130, 131] | 81.5 [81.1, 81.6] | 0.25 [0.25, 0.25] | 0.20 [0.20, 0.20] | 0.63 [0.62, 0.63] | 0.40 [0.40, 0.40] |
+| tet10-20k | tetrahedron_10 | 19,120 | fd | 2,245 [2,230, 2,255] | 2,530 [2,524, 2,546] | 706 [703, 709] | 377 [377, 379] | 0.17 [0.17, 0.17] | 0.15 [0.15, 0.15] | 0.53 [0.53, 0.54] | 0.31 [0.31, 0.32] |
+| hex8-20k | hexahedron_8 | 19,683 | fd | 3,567 [3,559, 3,595] | 4,053 [4,038, 4,079] | 1,069 [1,063, 1,074] | 541 [539, 543] | 0.15 [0.15, 0.15] | 0.13 [0.13, 0.13] | 0.51 [0.50, 0.51] | 0.30 [0.30, 0.30] |
+| hex8-200k | hexahedron_8 | 195,112 | fd | 3,565 [3,550, 3,574] | 4,044 [4,037, 4,065] | 1,087 [1,082, 1,087] | 562 [561, 572] | 0.16 [0.16, 0.16] | 0.14 [0.14, 0.14] | 0.52 [0.52, 0.53] | 0.30 [0.30, 0.31] |
+
+Table "Internal forces (`fint`), ns per element and step":
+
+| mesh | type | elements | mode | C++ strict | C++ default | port before | port | port / C++ strict | port / C++ default | port / port before | port before / C++ strict |
+|---|---|---|---|---|---|---|---|---|---|---|---|
+| tet4-20k | tetrahedron_4 | 19,120 | ss | 124 [123, 126] | 206 [204, 208] | 58.0 [57.8, 58.1] | 41.3 [40.9, 41.6] | 0.33 [0.32, 0.34] | 0.20 [0.20, 0.20] | 0.71 [0.70, 0.72] | 0.47 [0.46, 0.47] |
+| tet4-200k | tetrahedron_4 | 178,772 | ss | 137 [136, 138] | 216 [214, 217] | 71.8 [71.1, 72.2] | 56.9 [56.6, 56.9] | 0.41 [0.41, 0.42] | 0.26 [0.26, 0.26] | 0.79 [0.79, 0.80] | 0.52 [0.52, 0.53] |
+| tet10-20k | tetrahedron_10 | 19,120 | ss | 649 [648, 655] | 1,048 [1,038, 1,051] | 320 [317, 322] | 220 [219, 221] | 0.34 [0.34, 0.34] | 0.21 [0.21, 0.21] | 0.69 [0.68, 0.70] | 0.49 [0.49, 0.50] |
+| hex8-20k | hexahedron_8 | 19,683 | ss | 1,067 [1,051, 1,069] | 1,711 [1,698, 1,715] | 413 [409, 416] | 328 [327, 329] | 0.31 [0.31, 0.31] | 0.19 [0.19, 0.19] | 0.80 [0.79, 0.80] | 0.39 [0.38, 0.39] |
+| hex8-200k | hexahedron_8 | 195,112 | ss | 1,021 [1,017, 1,032] | 1,682 [1,669, 1,692] | 439 [438, 441] | 345 [342, 346] | 0.34 [0.33, 0.34] | 0.20 [0.20, 0.21] | 0.78 [0.78, 0.79] | 0.43 [0.42, 0.43] |
+| tet4-20k | tetrahedron_4 | 19,120 | fd | 281 [280, 283] | 363 [361, 366] | 88.8 [88.7, 89.3] | 59.3 [58.9, 59.5] | 0.21 [0.21, 0.21] | 0.16 [0.16, 0.16] | 0.67 [0.66, 0.67] | 0.32 [0.31, 0.32] |
+| tet4-200k | tetrahedron_4 | 178,772 | fd | 292 [291, 294] | 373 [373, 377] | 103 [103, 104] | 72.3 [72.1, 72.4] | 0.25 [0.25, 0.25] | 0.19 [0.19, 0.19] | 0.70 [0.69, 0.70] | 0.35 [0.35, 0.36] |
+| tet10-20k | tetrahedron_10 | 19,120 | fd | 2,047 [2,040, 2,065] | 2,356 [2,336, 2,359] | 592 [590, 593] | 326 [326, 330] | 0.16 [0.16, 0.16] | 0.14 [0.14, 0.14] | 0.55 [0.55, 0.56] | 0.29 [0.29, 0.29] |
+| hex8-20k | hexahedron_8 | 19,683 | fd | 3,319 [3,295, 3,332] | 3,799 [3,787, 3,800] | 868 [866, 880] | 488 [487, 490] | 0.15 [0.15, 0.15] | 0.13 [0.13, 0.13] | 0.56 [0.56, 0.56] | 0.26 [0.26, 0.27] |
+| hex8-200k | hexahedron_8 | 195,112 | fd | 3,330 [3,327, 3,350] | 3,829 [3,802, 3,848] | 913 [910, 914] | 526 [523, 534] | 0.16 [0.16, 0.16] | 0.14 [0.14, 0.14] | 0.58 [0.57, 0.59] | 0.27 [0.27, 0.27] |
+
+Table "Stresses (`stress`), ns per element and step":
+
+| mesh | type | elements | mode | C++ strict | C++ default | port before | port | port / C++ strict | port / C++ default | port / port before | port before / C++ strict |
+|---|---|---|---|---|---|---|---|---|---|---|---|
+| tet4-20k | tetrahedron_4 | 19,120 | ss | 46.5 [46.4, 47.3] | 101 [101, 102] | 24.3 [24.3, 24.5] | 15.9 [15.8, 15.9] | 0.34 [0.34, 0.34] | 0.16 [0.16, 0.16] | 0.65 [0.65, 0.66] | 0.52 [0.51, 0.53] |
+| tet4-200k | tetrahedron_4 | 178,772 | ss | 52.8 [52.0, 53.1] | 107 [107, 108] | 30.4 [30.1, 30.5] | 24.6 [24.3, 25.5] | 0.47 [0.46, 0.49] | 0.23 [0.23, 0.24] | 0.81 [0.80, 0.84] | 0.58 [0.57, 0.58] |
+| tet10-20k | tetrahedron_10 | 19,120 | ss | 269 [268, 270] | 574 [572, 575] | 132 [131, 134] | 124 [123, 139] | 0.46 [0.46, 0.51] | 0.22 [0.21, 0.24] | 0.94 [0.92, 1.1] | 0.49 [0.49, 0.50] |
+| hex8-20k | hexahedron_8 | 19,683 | ss | 450 [450, 451] | 1,048 [1,047, 1,050] | 182 [181, 182] | 170 [163, 190] | 0.38 [0.36, 0.42] | 0.16 [0.16, 0.18] | 0.94 [0.90, 1.0] | 0.40 [0.40, 0.41] |
+| hex8-200k | hexahedron_8 | 195,112 | ss | 441 [441, 447] | 1,042 [1,041, 1,045] | 195 [195, 196] | 182 [179, 192] | 0.41 [0.40, 0.44] | 0.17 [0.17, 0.18] | 0.93 [0.91, 0.98] | 0.44 [0.44, 0.44] |
+| tet4-20k | tetrahedron_4 | 19,120 | fd | 63.3 [62.4, 63.5] | 117 [117, 117] | 30.2 [30.2, 30.3] | 19.0 [19.0, 19.1] | 0.30 [0.30, 0.31] | 0.16 [0.16, 0.16] | 0.63 [0.63, 0.63] | 0.48 [0.48, 0.49] |
+| tet4-200k | tetrahedron_4 | 178,772 | fd | 68.4 [68.2, 68.8] | 123 [123, 123] | 36.3 [36.1, 37.1] | 27.1 [26.8, 27.5] | 0.39 [0.39, 0.40] | 0.22 [0.22, 0.22] | 0.75 [0.73, 0.76] | 0.53 [0.53, 0.54] |
+| tet10-20k | tetrahedron_10 | 19,120 | fd | 347 [346, 347] | 651 [650, 652] | 156 [155, 157] | 138 [130, 139] | 0.40 [0.37, 0.40] | 0.21 [0.20, 0.21] | 0.88 [0.83, 0.89] | 0.45 [0.45, 0.45] |
+| hex8-20k | hexahedron_8 | 19,683 | fd | 562 [561, 562] | 1,152 [1,146, 1,153] | 229 [228, 230] | 188 [177, 189] | 0.34 [0.32, 0.34] | 0.16 [0.15, 0.16] | 0.82 [0.77, 0.83] | 0.41 [0.41, 0.41] |
+| hex8-200k | hexahedron_8 | 195,112 | fd | 617 [616, 619] | 1,217 [1,189, 1,219] | 262 [261, 262] | 192 [189, 202] | 0.31 [0.30, 0.33] | 0.16 [0.16, 0.17] | 0.73 [0.72, 0.77] | 0.42 [0.42, 0.43] |
+
+Table "The port's step at 2, 4 and 8 threads and in fast mode", ns per
+element and step:
+
+| mesh | mode | 1 thread | 2 | 4 | 8 | 2 / 1 | 4 / 1 | 8 / 1 | fast / bitwise (1 thread) | fast / bitwise (8) |
+|---|---|---|---|---|---|---|---|---|---|---|
+| tet4-20k | ss | 47.0 [46.7, 47.3] | 33.8 [33.7, 34.2] | 25.8 [25.8, 25.9] | 22.1 [21.9, 32.3] | 0.72 [0.71, 0.73] | 0.55 [0.54, 0.55] | 0.47 [0.47, 0.68] | 0.93 [0.93, 0.93] | 0.95 [0.64, 0.95] |
+| tet4-200k | ss | 63.6 [63.5, 64.1] | 42.6 [42.0, 42.9] | 24.6 [24.5, 24.7] | 17.6 [17.5, 17.7] | 0.66 [0.66, 0.68] | 0.39 [0.38, 0.39] | 0.28 [0.28, 0.28] | 0.94 [0.93, 0.94] | 0.99 [0.98, 0.99] |
+| tet10-20k | ss | 269 [269, 271] | 158 [155, 158] | 90.8 [89.8, 91.2] | 66.4 [66.3, 66.7] | 0.58 [0.57, 0.59] | 0.34 [0.33, 0.34] | 0.25 [0.24, 0.25] | 0.99 [0.98, 0.99] | 1.00 [0.99, 1.0] |
+| hex8-20k | ss | 367 [364, 367] | 194 [192, 195] | 117 [116, 117] | 94.6 [94.3, 95.1] | 0.53 [0.52, 0.53] | 0.32 [0.32, 0.32] | 0.26 [0.26, 0.26] | 0.93 [0.93, 0.94] | 1.00 [0.99, 1.00] |
+| hex8-200k | ss | 380 [379, 384] | 205 [204, 206] | 138 [138, 138] | 126 [125, 127] | 0.54 [0.54, 0.54] | 0.36 [0.36, 0.36] | 0.33 [0.33, 0.34] | 0.93 [0.93, 0.93] | 1.0 [0.99, 1.0] |
+| tet4-20k | fd | 65.4 [65.1, 65.9] | 44.5 [44.2, 44.7] | 32.7 [32.6, 32.8] | 26.1 [26.0, 26.2] | 0.68 [0.68, 0.68] | 0.50 [0.49, 0.50] | 0.40 [0.40, 0.40] | 0.93 [0.92, 0.93] | 0.98 [0.98, 0.99] |
+| tet4-200k | fd | 81.5 [81.1, 81.6] | 53.1 [52.7, 53.3] | 29.2 [29.1, 29.3] | 19.0 [18.9, 19.0] | 0.65 [0.65, 0.65] | 0.36 [0.36, 0.36] | 0.23 [0.23, 0.23] | 0.91 [0.90, 0.92] | 0.97 [0.96, 0.97] |
+| tet10-20k | fd | 377 [377, 379] | 216 [216, 219] | 122 [122, 122] | 77.7 [77.5, 78.9] | 0.57 [0.57, 0.58] | 0.32 [0.32, 0.32] | 0.21 [0.20, 0.21] | 0.94 [0.94, 0.95] | 0.97 [0.95, 0.97] |
+| hex8-20k | fd | 541 [539, 543] | 296 [294, 297] | 158 [157, 167] | 110 [106, 111] | 0.55 [0.54, 0.55] | 0.29 [0.29, 0.31] | 0.20 [0.19, 0.21] | 0.91 [0.90, 0.91] | 0.93 [0.93, 0.96] |
+| hex8-200k | fd | 562 [561, 572] | 321 [317, 322] | 175 [173, 176] | 135 [132, 136] | 0.57 [0.55, 0.57] | 0.31 [0.31, 0.31] | 0.24 [0.23, 0.24] | 0.89 [0.87, 0.89] | 0.95 [0.95, 0.98] |
+
+- The step: port / C++ strict 0.29–0.40 (ss) and 0.15–0.25 (fd); port /
+  C++ default 0.19–0.27 and 0.13–0.20; port / port before 0.66–0.72 and
+  0.51–0.64. The port before took 0.44–0.55 (ss) and 0.30–0.40 (fd) of the
+  strict time.
+- Threads: at 8 threads the step takes 0.20–0.47 of the one-thread time;
+  the largest ratio is the smallest mesh in small strain (tet4-20k, 0.47
+  [0.47, 0.68]).
+- Fast mode: 0.89–0.99 of the bitwise step at one thread, 0.93–1.00 at 8
+  threads (one range reaches 0.64: tet4-20k ss).
+- State digests: 90 program-configuration pairs, none differing.
+
+#### Before the final campaign (Ryzen 7 9700X, 2026-11-12)
 
 The explicit step of `examples/c++/solid_mechanics_model/explicit` (unit
 cube, `elastic` with `rho = 2500`, `E = 70e9`, `nu = 0.22`, small strain (ss)
@@ -174,8 +383,7 @@ Table "Explicit step (`solve_step`), ns per element and step":
   constitutive law) 0.36–0.59× (`summary.md`).
 - Before this work the port took 2.79–3.49× (ss) and 3.04–3.60× (fd) the
   strict time; the current code takes 0.10–0.21× of that.
-
-### What was optimised
+#### What was optimised
 
 Before the work, a profile (`perf record --call-graph dwarf`, tet4 with
 179 k elements, Ryzen 9 9950X, 2026-11-11) showed 42 % of the small-strain
@@ -211,7 +419,7 @@ subtraction 5.4 %; for hex8 in small strain `fast::btd` 22 %, the gradient
 `epsilon_th` into their history each step, as upstream's `savePreviousState`
 does.
 
-### The cohesive step and the benchmark driver
+#### The cohesive step and the benchmark driver
 
 The `akantu-cohesive` example `cohesive_step_timing` (the benchmark's
 materials: bulk `elastic` with finite deformation, extrinsic
@@ -239,9 +447,14 @@ Peak RSS grew from 456 to 464–465 MiB (the assembly buffers kept between
 steps). The insertion regime of the driver (294 insertion steps) is replayed
 bitwise by the tests but was not timed in this series.
 
-### What remains in the serial step
+#### What remained in the serial step (as of 2026-11-12)
 
-Ranked by share of the profile; none was worked on.
+Ranked by share of the profile; none was worked on before the performance
+campaign. Items 1–4, 6 and 7 were worked on in the campaign
+(`docs/benchmarks/perf-campaign/explicit/README.md`,
+`docs/benchmarks/perf-campaign/step-state/README.md`,
+`docs/benchmarks/perf-campaign/cohesive-check/README.md`); the final
+campaign's tables above measure the result.
 
 1. `D·B` for many quadrature points (22 % of hex8 ss, about 15 % of tet10):
    fusing `computeBtD` with the integration would avoid writing and reading
@@ -264,459 +477,263 @@ Ranked by share of the profile; none was worked on.
 7. The insertion check's stress interpolation used the general product per
    point; reworked in the performance campaign (next section).
 
-### The explicit step after the lane kernels and the element-block pass (2026-11-16)
+### Development records of the performance campaign
 
-Items 1–4 of the list above were worked on with bitwise identical results
-at every thread count and SIMD level
-(`docs/benchmarks/perf-campaign/explicit/README.md`): the batch kernels
-check their ids and connectivity once and run lane kernels (AVX2 at run
-time, no FMA; packed for the integrated `BᵀD` and residual, partly or not
-for the gradient), `BᵀD` and the finite-deformation residual are integrated as
-they are computed, `grad_u −= eigen_grad_u` is applied in the gradient's
-lanes, and one elastic law on one element type runs gradient, stress and
-integration per cache-sized block of elements. On an AMD EPYC 7B13 at one
-thread the step takes 0.74–0.83 (small strain) and 0.52–0.72 (finite
-deformation) of its time before this work, and 0.34–0.43 and 0.16–0.26
-of the strict C++ time; at 2–8 threads (`AKANTU_NUM_THREADS`) 0.54–0.86. The fast mode
-(`AKANTU_PRECISION=fast`) takes 0.84–0.99 of the bitwise step. Items 5 and
-6 (per-node solver loops, history copies) remain the serial part of a
-threaded step.
+The changes of the performance campaign (16 and 17 November) were measured
+branch by branch while they were made. Those records are development
+records: each compares one change with its predecessor, on development
+machines or AWS machines shared with other jobs, and the final campaign
+replaces them as results. Their summaries, moved from this document, are in
+`docs/benchmarks/perf-campaign/README.md`; the data are in the branch
+directories it lists.
 
-### The insertion check (performance campaign, 2026-11-16)
+## The benchmark suites
 
-`check_cohesive_stress` (facet stresses, the laws' insertion decision, the
-insertion) was profiled and reworked with bitwise identical results
-(D-122). Machine, unless a table says otherwise: an AWS `m7a.2xlarge` (AMD EPYC
-9R14, 8 cores, 32 GiB), one process pinned to one core of the four timing
-cores (other jobs on the other four), before and after interleaved in
-rotated order, 5 repetitions; "before" is the branch point `59dd2229`, both
-binaries built with the default release profile on the same toolchain.
-Raw data, commands and profiles: `docs/benchmarks/perf-campaign/cohesive-check/`.
+The port's own benchmark suites (`crates/akantu-bench`: `suite_solid`,
+`suite_models`, `suite_setup`, `suite_python.py`), every case at the
+baseline's size `m`, the port before against the head, five repetitions
+with the variants of a case adjacent and rotated. No suite case has a C++
+twin. Final campaign, part B: AWS `m7a.2xlarge`, AMD EPYC 9R14, 2026-11-17
+UTC; one process on core 2, N threads on cores 0..N−1; the distributed cases
+at 1 / 2 / 4 / 8 ranks, rank r on core r, recorded and checked. Seconds of
+the phase over its calls, median [min, max]; ratios paired per repetition.
+The tables below show the phases named in the cases' descriptions; every
+phase of every case is in `docs/benchmarks/perf-campaign/final/B/summary.md`
+(the sparse solvers' phases also in part D).
 
-What the profile showed (branch point, h = 0.12 driver, full schedule;
-shares of all samples of a flat profile on the AWS machine, attributed to
-callers with frame-pointer call graphs on a boat.dev development VM;
-`profiles/aws-base-flat.txt`, `profiles/base-5000.txt`): the elemental interpolation's two small products
-per element through the general product path, 31 % (the second product of
-the linear tetrahedron at its facets' 3 × 4 points takes Eigen's `gebp`
-route); the copy of the interpolated values into `facet_stress`, 14 %, and
-its plan rebuilt with a sort after every insertion step, 3.6 %; the linear
-law's check, 9 %; the mesh transaction's consistency check at each
-insertion commit, 8 %.
+Table "suite_solid, serial cases" (selected phases):
 
-Changes:
+| case | phase | calls | n | before | head | head / before | head 2 threads / 1 | 4 / 1 | 8 / 1 | fast / bitwise (1) | fast / bitwise (8) | digests |
+|---|---|---|---|---|---|---|---|---|---|---|---|---|
+| cohesive_extrinsic_check | check_insertion | 100 | 5 | 4.86 s [4.86 s, 4.88 s] | 1.41 s [1.41 s, 1.42 s] | 0.290 [0.290, 0.291] | 0.570 [0.564, 0.581] | 0.366 [0.363, 0.367] | 0.345 [0.343, 0.345] | 0.996 [0.985, 1.00] | 1.00 [0.998, 1.00] | equal |
+| cohesive_extrinsic_check | solve_step | 100 | 5 | 1.17 s [1.16 s, 1.17 s] | 829 ms [823 ms, 840 ms] | 0.712 [0.704, 0.721] | 0.697 [0.691, 0.711] | 0.562 [0.553, 0.570] | 0.513 [0.511, 0.526] | 0.962 [0.947, 0.968] | 0.985 [0.959, 1.00] | equal |
+| cohesive_extrinsic_insertion | check_insertion | 16 | 5 | 2.24 s [2.23 s, 2.25 s] | 1.58 s [1.57 s, 1.59 s] | 0.707 [0.699, 0.708] | 0.976 [0.960, 0.982] | 0.955 [0.946, 0.957] | 0.948 [0.942, 0.961] | 1.00 [0.995, 1.01] | 0.998 [0.989, 1.01] | equal |
+| cohesive_extrinsic_insertion | solve_step | 16 | 5 | 299 ms [297 ms, 301 ms] | 193 ms [190 ms, 193 ms] | 0.641 [0.640, 0.647] | 0.796 [0.792, 0.802] | 0.684 [0.670, 0.687] | 0.641 [0.631, 0.645] | 0.979 [0.969, 0.998] | 0.980 [0.977, 1.00] | equal |
+| cohesive_intrinsic_bilinear | solve_step | 300 | 5 | 6.27 s [6.23 s, 6.28 s] | 3.41 s [3.29 s, 3.46 s] | 0.548 [0.524, 0.551] | 0.576 [0.571, 0.595] | 0.401 [0.386, 0.406] | 0.325 [0.322, 0.339] | 0.990 [0.986, 1.04] | 1.01 [0.982, 1.15] | equal |
+| cohesive_intrinsic_exponential | solve_step | 300 | 5 | 7.99 s [7.96 s, 8.08 s] | 5.34 s [5.32 s, 5.39 s] | 0.670 [0.659, 0.674] | 0.785 [0.775, 0.794] | 0.691 [0.687, 0.701] | 0.646 [0.640, 0.655] | 0.999 [0.984, 1.02] | 1.00 [0.992, 1.03] | equal |
+| cohesive_intrinsic_implicit | solve_step | 30 | 5 | 9.78 s [9.77 s, 9.83 s] | 2.86 s [2.85 s, 2.90 s] | 0.292 [0.290, 0.297] | 0.986 [0.973, 1.01] | 0.881 [0.873, 0.893] | 0.876 [0.864, 0.883] | 1.00 [0.990, 1.01] | 1.01 [1.01, 1.03] | equal |
+| explicit_hex8_fd | solve_step | 30 | 5 | 3.50 s [3.50 s, 3.52 s] | 1.78 s [1.77 s, 1.81 s] | 0.508 [0.506, 0.513] | 0.534 [0.525, 0.540] | 0.307 [0.299, 0.309] | 0.248 [0.245, 0.251] | 0.910 [0.898, 0.915] | 0.986 [0.972, 0.998] | equal |
+| explicit_hex8_ss | solve_step | 50 | 5 | 3.13 s [3.12 s, 3.15 s] | 2.07 s [2.05 s, 2.07 s] | 0.658 [0.656, 0.663] | 0.549 [0.547, 0.552] | 0.372 [0.369, 0.373] | 0.342 [0.341, 0.344] | 0.937 [0.936, 0.950] | 1.01 [0.996, 1.01] | equal |
+| explicit_marigo | solve_step | 200 | 5 | 4.69 s [4.68 s, 4.71 s] | 2.02 s [2.01 s, 2.03 s] | 0.432 [0.429, 0.433] | 0.571 [0.566, 0.577] | 0.393 [0.387, 0.397] | 0.345 [0.344, 0.347] | 0.973 [0.966, 0.977] | 1.02 [1.01, 1.02] | equal |
+| explicit_maxwell | solve_step | 40 | 5 | 6.75 s [6.73 s, 6.78 s] | 654 ms [651 ms, 680 ms] | 0.0965 [0.0964, 0.101] | 0.545 [0.521, 0.547] | 0.364 [0.349, 0.367] | 0.335 [0.322, 0.339] | 0.982 [0.942, 0.992] | 1.02 [1.01, 1.02] | equal |
+| explicit_mazars | solve_step | 80 | 5 | 6.87 s [6.84 s, 7.39 s] | 3.47 s [3.46 s, 3.51 s] | 0.504 [0.470, 0.511] | 0.539 [0.536, 0.547] | 0.329 [0.326, 0.336] | 0.224 [0.222, 0.225] | 1.01 [0.998, 1.01] | 0.998 [0.981, 1.18] | equal |
+| explicit_mazars_non_local | solve_step | 40 | 5 | 7.40 s [7.39 s, 7.52 s] | 2.06 s [2.05 s, 2.07 s] | 0.277 [0.272, 0.280] | 0.749 [0.731, 0.751] | 0.623 [0.619, 0.631] | 0.376 [0.367, 0.379] | 1.00 [0.988, 1.02] | 1.000 [0.993, 1.01] | equal |
+| explicit_multi_material | solve_step | 120 | 5 | 5.35 s [5.34 s, 5.65 s] | 2.68 s [2.68 s, 2.69 s] | 0.501 [0.475, 0.502] | 0.542 [0.535, 0.546] | 0.326 [0.322, 0.329] | 0.232 [0.231, 0.248] | 0.993 [0.993, 1.01] | 1.00 [0.929, 1.01] | equal |
+| explicit_neohookean | solve_step | 100 | 5 | 3.03 s [2.97 s, 3.04 s] | 1.33 s [1.29 s, 1.34 s] | 0.440 [0.423, 0.448] | 0.528 [0.527, 0.571] | 0.311 [0.308, 0.331] | 0.222 [0.218, 0.228] | 0.975 [0.913, 1.01] | 1.00 [0.974, 1.06] | equal |
+| explicit_orthotropic | solve_step | 200 | 5 | 2.61 s [2.61 s, 2.61 s] | 1.30 s [1.30 s, 1.30 s] | 0.498 [0.497, 0.499] | 0.555 [0.554, 0.574] | 0.339 [0.338, 0.340] | 0.289 [0.284, 0.319] | 0.958 [0.957, 0.970] | 0.987 [0.901, 1.01] | equal |
+| explicit_plastic | solve_step | 120 | 5 | 6.64 s [6.55 s, 6.66 s] | 1.38 s [1.38 s, 1.38 s] | 0.208 [0.207, 0.210] | 0.561 [0.559, 0.567] | 0.369 [0.367, 0.370] | 0.328 [0.327, 0.334] | 0.978 [0.974, 0.982] | 0.989 [0.972, 0.992] | equal |
+| explicit_sls | solve_step | 120 | 5 | 5.21 s [5.14 s, 5.25 s] | 989 ms [984 ms, 994 ms] | 0.191 [0.188, 0.193] | 0.548 [0.542, 0.599] | 0.362 [0.360, 0.365] | 0.342 [0.339, 0.356] | 0.972 [0.967, 0.985] | 1.00 [0.955, 1.03] | equal |
+| explicit_tet10_fd | solve_step | 40 | 5 | 2.91 s [2.91 s, 2.92 s] | 1.58 s [1.57 s, 1.58 s] | 0.542 [0.540, 0.543] | 0.583 [0.580, 0.585] | 0.343 [0.340, 0.345] | 0.281 [0.280, 0.286] | 0.941 [0.938, 0.944] | 0.980 [0.968, 0.985] | equal |
+| explicit_tet10_ss | solve_step | 50 | 5 | 2.11 s [2.10 s, 2.13 s] | 1.44 s [1.43 s, 1.44 s] | 0.681 [0.677, 0.683] | 0.614 [0.611, 0.617] | 0.409 [0.406, 0.412] | 0.374 [0.371, 0.375] | 0.971 [0.962, 0.975] | 0.993 [0.991, 0.996] | equal |
+| explicit_tet4_fd | solve_step | 150 | 5 | 2.83 s [2.81 s, 2.84 s] | 1.66 s [1.66 s, 1.67 s] | 0.586 [0.586, 0.592] | 0.528 [0.527, 0.530] | 0.306 [0.304, 0.309] | 0.226 [0.226, 0.227] | 0.955 [0.952, 0.958] | 0.993 [0.990, 0.999] | equal |
+| explicit_tet4_ss | solve_step | 200 | 5 | 2.62 s [2.61 s, 2.64 s] | 1.76 s [1.75 s, 1.77 s] | 0.670 [0.668, 0.674] | 0.534 [0.532, 0.537] | 0.332 [0.330, 0.336] | 0.269 [0.267, 0.272] | 0.968 [0.964, 0.970] | 1.00 [0.996, 1.25] | equal |
+| explicit_thermal | solve_step | 300 | 5 | 2.50 s [2.50 s, 2.51 s] | 1.66 s [1.65 s, 1.66 s] | 0.662 [0.659, 0.665] | 0.530 [0.527, 0.550] | 0.317 [0.316, 0.318] | 0.242 [0.240, 0.246] | 0.967 [0.962, 0.992] | 0.996 [0.977, 1.00] | equal |
+| explicit_tri3_fd | solve_step | 200 | 5 | 2.48 s [2.47 s, 2.51 s] | 1.93 s [1.93 s, 1.94 s] | 0.779 [0.769, 0.782] | 0.509 [0.505, 0.510] | 0.304 [0.301, 0.307] | 0.226 [0.224, 0.226] | 0.953 [0.946, 0.977] | 0.984 [0.976, 0.987] | equal |
+| explicit_tri3_ss | solve_step | 300 | 5 | 3.26 s [3.25 s, 3.31 s] | 2.16 s [2.09 s, 2.16 s] | 0.653 [0.642, 0.665] | 0.516 [0.511, 0.529] | 0.330 [0.325, 0.342] | 0.278 [0.277, 0.283] | 0.994 [0.982, 1.01] | 0.999 [0.995, 1.01] | equal |
+| implicit_dynamic | solve_step | 60 | 5 | 2.66 s [2.66 s, 2.70 s] | 1.06 s [1.06 s, 1.06 s] | 0.396 [0.393, 0.398] | 0.921 [0.916, 0.921] | 0.898 [0.889, 0.904] | 0.889 [0.886, 0.890] | 0.991 [0.988, 0.996] | 0.997 [0.992, 1.000] | equal |
+| setup_hex8 | init_explicit | 1 | 5 | 107 ms [107 ms, 108 ms] | 60.2 ms [59.7 ms, 61.1 ms] | 0.562 [0.552, 0.570] | — | — | — | — | — | equal |
+| setup_hex8 | stiffness_assembly | 3 | 5 | 3.05 s [3.03 s, 3.08 s] | 447 ms [444 ms, 448 ms] | 0.147 [0.145, 0.148] | — | — | — | — | — | equal |
+| setup_tet10 | init_explicit | 1 | 5 | 52.3 ms [52.0 ms, 53.1 ms] | 29.9 ms [29.6 ms, 30.0 ms] | 0.570 [0.562, 0.574] | — | — | — | — | — | equal |
+| setup_tet10 | stiffness_assembly | 3 | 5 | 2.35 s [2.34 s, 2.36 s] | 253 ms [251 ms, 256 ms] | 0.107 [0.107, 0.109] | — | — | — | — | — | equal |
+| setup_tet4 | init_explicit | 1 | 5 | 125 ms [124 ms, 125 ms] | 83.0 ms [82.3 ms, 83.3 ms] | 0.663 [0.659, 0.670] | — | — | — | — | — | equal |
+| setup_tet4 | stiffness_assembly | 3 | 5 | 3.10 s [3.09 s, 3.12 s] | 299 ms [299 ms, 303 ms] | 0.0966 [0.0958, 0.0976] | — | — | — | — | — | equal |
+| static_linear_eigen | solve_step | 1 | 5 | 3.05 s [3.04 s, 3.05 s] | 685 ms [683 ms, 693 ms] | 0.225 [0.224, 0.228] | 0.893 [0.887, 0.901] | 0.825 [0.825, 0.830] | 0.789 [0.780, 0.795] | 0.954 [0.942, 0.955] | 1.01 [0.999, 1.01] | equal |
+| static_linear_eigen | stiffness_assembly | 3 | 5 | 185 ms [184 ms, 190 ms] | 29.9 ms [29.8 ms, 30.5 ms] | 0.162 [0.158, 0.163] | 0.589 [0.579, 0.595] | 0.331 [0.327, 0.339] | 0.201 [0.198, 0.203] | 0.992 [0.976, 0.999] | 1.00 [0.993, 1.01] | equal |
+| static_linear_faer | solve_step | 1 | 5 | 4.97 s [4.95 s, 5.05 s] | 4.81 s [4.79 s, 4.82 s] | 0.965 [0.954, 0.974] | 1.00 [0.997, 1.01] | 1.00 [0.998, 1.02] | 1.00 [0.998, 1.01] | 1.00 [0.999, 1.01] | 1.00 [0.995, 1.03] | equal |
+| static_linear_faer | stiffness_assembly | 3 | 5 | 248 ms [243 ms, 249 ms] | 30.1 ms [30.1 ms, 30.9 ms] | 0.122 [0.121, 0.124] | 0.583 [0.567, 0.587] | 0.331 [0.320, 0.335] | 0.198 [0.194, 0.200] | 0.987 [0.960, 0.991] | 1.01 [0.997, 1.79] | equal |
+| static_newton_plastic | solve_step | 12 | 5 | 3.02 s [3.01 s, 3.05 s] | 1.64 s [1.63 s, 1.66 s] | 0.541 [0.540, 0.550] | 0.850 [0.834, 0.851] | 0.811 [0.807, 0.838] | 0.816 [0.799, 0.825] | 0.992 [0.980, 0.999] | 0.986 [0.966, 0.993] | equal |
 
-- the facet stresses are computed directly from each bulk element's stress
-  tuple for every (facet, side) destination of the copy plan, in the
-  plan's order (`akantu_fe::engine::PointInterpolation`): the by-element
-  buffer (20 MB on this mesh) is no longer written and read per step (the
-  first check still allocates it, and it stays allocated, so the peak
-  memory is unchanged); the element's coefficients once per pair;
-- the elemental interpolation selects both products' routes once per block
-  and evaluates them with direct indexing (coefficient-based route, and the
-  depth-1 `gebp` route as `+0 + (+0 + t)`), property-tested bitwise
-  against the general product;
-- the copy plan after an insertion is ordered with a last-writer table
-  instead of a sort, and reads each facet's first neighbour once;
-- the linear law's effective norm uses fixed-size loops for 2-D and 3-D;
-- the mesh consistency check keeps the last block size it looked up.
+Table "suite_models, serial cases" (selected phases):
 
-Before insertion (h = 0.12 frozen mesh, 23,156 tetrahedra, 500 steps after
-the static preload), ms per step:
+| case | phase | calls | n | before | head | head / before | head 2 threads / 1 | 4 / 1 | 8 / 1 | fast / bitwise (1) | fast / bitwise (8) | digests |
+|---|---|---|---|---|---|---|---|---|---|---|---|---|
+| contact_cohesive_quad4 | solve_step | 300 | 5 | 8.65 s [8.59 s, 8.66 s] | 7.55 s [7.54 s, 7.58 s] | 0.873 [0.872, 0.881] | 0.880 [0.877, 0.885] | 0.850 [0.847, 0.854] | 0.842 [0.841, 0.846] | 0.991 [0.985, 0.992] | 1.00 [0.999, 1.02] | equal |
+| contact_explicit_quad4 | solve_step | 200 | 5 | 4.51 s [4.50 s, 4.53 s] | 3.37 s [3.36 s, 3.38 s] | 0.747 [0.745, 0.750] | 0.670 [0.667, 0.677] | 0.583 [0.581, 0.587] | 0.570 [0.568, 0.574] | 0.989 [0.974, 0.996] | 1.00 [0.995, 1.01] | equal |
+| contact_implicit_static_quad4 | solve_step | 5 | 5 | 2.12 s [2.12 s, 2.18 s] | 710 ms [709 ms, 710 ms] | 0.334 [0.326, 0.335] | 0.947 [0.945, 0.949] | 0.938 [0.935, 0.970] | 0.929 [0.927, 0.935] | 1.03 [1.03, 1.03] | 1.02 [1.01, 1.02] | equal |
+| contact_search_quad4 | search | 60 | 5 | 5.39 s [5.39 s, 5.41 s] | 4.00 s [3.99 s, 4.06 s] | 0.740 [0.739, 0.753] | — | — | — | — | — | equal |
+| contact_search_tet4 | search | 30 | 5 | 5.10 s [5.06 s, 5.12 s] | 3.09 s [3.08 s, 3.11 s] | 0.606 [0.605, 0.614] | — | — | — | — | — | equal |
+| embedded_rebar_tet4 | intersect | 5 | 5 | 7.05 s [7.01 s, 7.15 s] | 87.5 ms [87.4 ms, 88.2 ms] | 0.0124 [0.0122, 0.0126] | 0.998 [0.991, 1.09] | 1.00 [0.988, 1.02] | 0.999 [0.992, 1.03] | 0.999 [0.991, 1.00] | 0.998 [0.969, 0.999] | equal |
+| embedded_rebar_tet4 | solve_step | 1 | 5 | 4.21 s [4.20 s, 4.23 s] | 1.06 s [1.06 s, 1.07 s] | 0.253 [0.251, 0.254] | 0.859 [0.845, 0.869] | 0.775 [0.770, 0.786] | 0.732 [0.725, 0.735] | 0.947 [0.938, 0.952] | 0.999 [0.988, 1.01] | equal |
+| embedded_rebar_tri3 | intersect | 5 | 5 | 7.82 s [7.82 s, 7.88 s] | 62.9 ms [62.5 ms, 63.4 ms] | 0.00800 [0.00798, 0.00811] | 1.00 [0.995, 1.02] | 1.01 [0.997, 1.01] | 1.01 [1.00, 1.03] | 1.00 [0.985, 1.01] | 0.998 [0.995, 1.00] | equal |
+| embedded_rebar_tri3 | solve_step | 1 | 5 | 543 ms [543 ms, 547 ms] | 230 ms [228 ms, 232 ms] | 0.423 [0.420, 0.424] | 0.965 [0.962, 0.975] | 0.966 [0.951, 0.976] | 0.969 [0.959, 0.981] | 0.984 [0.978, 0.996] | 0.996 [0.981, 1.00] | equal |
+| heat_explicit_quad4 | solve_step | 120 | 5 | 4.61 s [4.60 s, 4.62 s] | 1.75 s [1.74 s, 1.76 s] | 0.380 [0.377, 0.380] | 0.534 [0.527, 0.537] | 0.394 [0.390, 0.395] | 0.357 [0.356, 0.359] | 1.00 [0.998, 1.01] | 1.00 [0.998, 1.01] | equal |
+| heat_explicit_tet4 | solve_step | 100 | 5 | 3.91 s [3.90 s, 3.93 s] | 1.20 s [1.19 s, 1.21 s] | 0.307 [0.306, 0.307] | 0.531 [0.527, 0.533] | 0.343 [0.342, 0.344] | 0.279 [0.277, 0.280] | 0.994 [0.985, 0.997] | 1.01 [1.01, 1.01] | equal |
+| heat_implicit_hex8_kvar | solve_step | 5 | 5 | 1.35 s [1.35 s, 1.35 s] | 536 ms [535 ms, 539 ms] | 0.397 [0.396, 0.399] | 0.952 [0.947, 0.958] | 0.947 [0.939, 0.954] | 0.932 [0.928, 0.942] | 0.971 [0.965, 0.977] | 0.985 [0.979, 0.987] | equal |
+| heat_static_tri6 | solve_step | 1 | 5 | 4.47 s [4.46 s, 4.48 s] | 1.68 s [1.67 s, 1.70 s] | 0.376 [0.375, 0.379] | 0.991 [0.989, 0.992] | 0.999 [0.993, 1.01] | 0.999 [0.984, 1.01] | 1.01 [0.997, 1.01] | 1.03 [1.01, 1.03] | equal |
+| ntn_friction_quad4 | solve_step | 100 | 5 | 3.49 s [3.48 s, 3.53 s] | 2.47 s [2.45 s, 2.50 s] | 0.710 [0.702, 0.716] | 0.645 [0.636, 0.649] | 0.547 [0.542, 0.551] | 0.530 [0.527, 0.535] | 0.984 [0.980, 0.996] | 1.00 [0.994, 1.01] | equal |
+| phasefield_staggered_tet4 | phase_solve | 4 | 5 | 141 ms [141 ms, 142 ms] | 58.6 ms [58.4 ms, 59.6 ms] | 0.414 [0.411, 0.421] | 0.984 [0.970, 0.990] | 0.992 [0.970, 1.00] | 0.992 [0.986, 1.01] | 0.987 [0.966, 0.991] | 0.978 [0.971, 0.999] | equal |
+| phasefield_staggered_tet4 | solid_solve | 4 | 5 | 2.24 s [2.24 s, 2.24 s] | 487 ms [486 ms, 494 ms] | 0.218 [0.217, 0.221] | 0.972 [0.967, 0.979] | 0.938 [0.930, 0.941] | 0.903 [0.886, 0.907] | 0.955 [0.946, 0.966] | 1.00 [0.999, 1.01] | equal |
+| phasefield_staggered_tri3 | phase_solve | 4 | 5 | 2.10 s [2.09 s, 2.10 s] | 746 ms [746 ms, 753 ms] | 0.356 [0.356, 0.360] | 0.931 [0.927, 0.934] | 0.917 [0.908, 0.917] | 0.912 [0.903, 0.924] | 0.977 [0.968, 0.979] | 0.989 [0.975, 0.990] | equal |
+| phasefield_staggered_tri3 | solid_solve | 4 | 5 | 11.4 s [11.4 s, 11.4 s] | 2.98 s [2.95 s, 3.00 s] | 0.262 [0.259, 0.263] | 0.894 [0.893, 0.897] | 0.862 [0.858, 0.876] | 0.844 [0.838, 0.861] | 0.968 [0.962, 0.984] | 0.995 [0.984, 1.00] | equal |
+| structural_beam3_frame_dynamic | solve_step | 60 | 5 | 5.05 s [5.01 s, 5.06 s] | 2.93 s [2.93 s, 2.94 s] | 0.582 [0.580, 0.585] | 0.993 [0.990, 0.997] | 0.989 [0.985, 0.996] | 0.986 [0.986, 0.988] | 0.998 [0.995, 0.999] | 0.998 [0.993, 1.00] | equal |
+| structural_beam3_frame_static | solve_step | 1 | 5 | 5.86 s [5.86 s, 5.87 s] | 1.38 s [1.37 s, 1.38 s] | 0.236 [0.234, 0.236] | 0.761 [0.756, 0.763] | 0.649 [0.644, 0.653] | 0.588 [0.584, 0.594] | 0.893 [0.887, 0.901] | 0.971 [0.965, 1.02] | equal |
+| structural_dkt18_plate_static | solve_step | 1 | 5 | 2.64 s [2.61 s, 2.65 s] | 854 ms [850 ms, 856 ms] | 0.323 [0.322, 0.328] | 0.975 [0.972, 0.991] | 0.975 [0.960, 0.988] | 0.982 [0.972, 0.987] | 0.984 [0.979, 0.986] | 0.990 [0.980, 1.00] | equal |
 
-| phase | before | after | after / before (paired) |
-|---|---|---|---|
-| `check_cohesive_stress` | 13.74 [13.65, 13.87] | 4.62 [4.62, 4.64] | 0.336 [0.333, 0.339] |
-| `solve_step` | 3.63 [3.62, 3.65] | 3.50 [3.49, 3.51] | 0.965 [0.955, 0.968] |
-| loop | 17.41 [17.32, 17.50] | 8.13 [8.12, 8.15] | 0.467 [0.464, 0.469] |
+Table "suite_solid, distributed cases at 1, 2, 4, 8 ranks" (selected
+phases; "head ranks x threads" is the head with P ranks × T threads, P × T =
+8; its last column divides the medians of two groups, so it is unpaired):
 
-The check went from 593 to 200 ns per element and step. The explicit step
-was not changed; its 3.5 % gain is consistent with the check no longer
-writing and reading the by-element buffer every step (not proven).
+| case | phase | ranks | n | before | head | head / before | head ranks x threads | time | / head on as many cores (unpaired) | digests |
+|---|---|---|---|---|---|---|---|---|---|---|
+| par_cohesive_extrinsic | check_insertion | 1 | 5 | 2.21 s [2.20 s, 2.21 s] | 1.59 s [1.59 s, 1.59 s] | 0.720 [0.719, 0.726] |  |  |  | equal |
+| par_cohesive_extrinsic | check_insertion | 2 | 5 | 1.41 s [1.41 s, 1.42 s] | 923 ms [922 ms, 927 ms] | 0.653 [0.650, 0.656] | 2 x 4 | 903 ms [900 ms, 915 ms] | 2.41 | equal |
+| par_cohesive_extrinsic | check_insertion | 4 | 5 | 821 ms [820 ms, 840 ms] | 554 ms [550 ms, 558 ms] | 0.674 [0.659, 0.680] | 4 x 2 | 555 ms [554 ms, 558 ms] | 1.48 | equal |
+| par_cohesive_extrinsic | check_insertion | 8 | 5 | 520 ms [511 ms, 521 ms] | 375 ms [363 ms, 383 ms] | 0.723 [0.712, 0.735] |  |  |  | equal |
+| par_cohesive_extrinsic | solve_step | 1 | 5 | 302 ms [301 ms, 303 ms] | 192 ms [189 ms, 194 ms] | 0.635 [0.626, 0.642] |  |  |  | equal |
+| par_cohesive_extrinsic | solve_step | 2 | 5 | 186 ms [185 ms, 187 ms] | 119 ms [118 ms, 120 ms] | 0.639 [0.635, 0.646] | 2 x 4 | 97.2 ms [93.9 ms, 101 ms] | 1.35 | equal |
+| par_cohesive_extrinsic | solve_step | 4 | 5 | 123 ms [123 ms, 124 ms] | 83.1 ms [81.8 ms, 83.8 ms] | 0.675 [0.663, 0.680] | 4 x 2 | 77.6 ms [76.3 ms, 78.4 ms] | 1.08 | equal |
+| par_cohesive_extrinsic | solve_step | 8 | 5 | 106 ms [104 ms, 116 ms] | 71.8 ms [67.6 ms, 80.9 ms] | 0.690 [0.626, 0.764] |  |  |  | equal |
+| par_explicit_tet4_ss | solve_step | 1 | 5 | 2.59 s [2.55 s, 2.62 s] | 1.75 s [1.75 s, 1.76 s] | 0.680 [0.669, 0.685] |  |  |  | equal |
+| par_explicit_tet4_ss | solve_step | 2 | 5 | 1.91 s [1.88 s, 1.95 s] | 1.08 s [1.07 s, 1.09 s] | 0.564 [0.551, 0.574] | 2 x 4 | 917 ms [910 ms, 922 ms] | 0.916 | equal |
+| par_explicit_tet4_ss | solve_step | 4 | 5 | 1.60 s [1.59 s, 1.61 s] | 919 ms [912 ms, 927 ms] | 0.576 [0.570, 0.584] | 4 x 2 | 943 ms [922 ms, 947 ms] | 0.942 | equal |
+| par_explicit_tet4_ss | solve_step | 8 | 5 | 1.67 s [1.66 s, 1.68 s] | 1.00 s [990 ms, 1.01 s] | 0.600 [0.596, 0.603] |  |  |  | equal |
 
-In the insertion regime (the same mesh, the full schedule: 5000 steps,
-insertions from step 710, 11,736 cohesive elements at the end), ms per step:
+Table "suite_models, distributed cases at 1, 2, 4, 8 ranks" (selected
+phases):
 
-| phase | before | after | after / before (paired) |
-|---|---|---|---|
-| `check_cohesive_stress` | 21.29 [21.19, 21.40] | 11.32 [11.31, 11.83] | 0.533 [0.530, 0.553] |
-| `solve_step` | 7.82 [7.80, 7.91] | 7.76 [7.74, 7.79] | 0.992 [0.978, 0.994] |
-| loop | 29.13 [29.02, 29.27] | 19.08 [19.06, 19.63] | 0.655 [0.654, 0.671] |
+| case | phase | ranks | n | before | head | head / before | head ranks x threads | time | / head on as many cores (unpaired) | digests |
+|---|---|---|---|---|---|---|---|---|---|---|
+| heat_explicit_tet4 | solve_step | 1 | 5 | 3.89 s [3.89 s, 4.02 s] | 1.19 s [1.19 s, 1.19 s] | 0.305 [0.297, 0.306] |  |  |  | equal |
+| heat_explicit_tet4 | solve_step | 2 | 5 | 2.31 s [2.29 s, 2.32 s] | 855 ms [849 ms, 855 ms] | 0.371 [0.366, 0.374] | 2 x 4 | 583 ms [574 ms, 588 ms] | 0.988 | equal |
+| heat_explicit_tet4 | solve_step | 4 | 5 | 1.42 s [1.42 s, 1.43 s] | 642 ms [638 ms, 651 ms] | 0.450 [0.446, 0.458] | 4 x 2 | 590 ms [584 ms, 599 ms] | 1.00 | equal |
+| heat_explicit_tet4 | solve_step | 8 | 5 | 1.08 s [1.06 s, 1.08 s] | 590 ms [589 ms, 606 ms] | 0.550 [0.545, 0.569] |  |  |  | equal |
+| phasefield_staggered_tri3 | phase_solve | 1 | 5 | 2.09 s [2.08 s, 2.09 s] | 749 ms [745 ms, 752 ms] | 0.359 [0.357, 0.360] |  |  |  | equal |
+| phasefield_staggered_tri3 | phase_solve | 2 | 5 | 1.86 s [1.78 s, 1.88 s] | 706 ms [701 ms, 713 ms] | 0.380 [0.378, 0.396] | 2 x 4 | 680 ms [678 ms, 683 ms] | 1.03 | equal |
+| phasefield_staggered_tri3 | phase_solve | 4 | 5 | 1.78 s [1.74 s, 1.85 s] | 677 ms [674 ms, 678 ms] | 0.380 [0.364, 0.390] | 4 x 2 | 668 ms [668 ms, 675 ms] | 1.01 | equal |
+| phasefield_staggered_tri3 | phase_solve | 8 | 5 | 1.61 s [1.59 s, 1.65 s] | 662 ms [660 ms, 666 ms] | 0.412 [0.401, 0.419] |  |  |  | equal |
+| phasefield_staggered_tri3 | solid_solve | 1 | 5 | 11.4 s [11.4 s, 11.4 s] | 2.94 s [2.92 s, 3.04 s] | 0.259 [0.257, 0.268] |  |  |  | equal |
+| phasefield_staggered_tri3 | solid_solve | 2 | 5 | 11.3 s [11.2 s, 11.3 s] | 3.09 s [3.09 s, 3.14 s] | 0.275 [0.274, 0.278] | 2 x 4 | 2.85 s [2.83 s, 2.89 s] | 0.934 | equal |
+| phasefield_staggered_tri3 | solid_solve | 4 | 5 | 11.1 s [11.1 s, 11.2 s] | 3.12 s [3.07 s, 3.14 s] | 0.281 [0.276, 0.282] | 4 x 2 | 2.96 s [2.92 s, 2.98 s] | 0.970 | equal |
+| phasefield_staggered_tri3 | solid_solve | 8 | 5 | 10.8 s [10.7 s, 10.9 s] | 3.05 s [3.04 s, 3.09 s] | 0.283 [0.282, 0.284] |  |  |  | equal |
 
-The check went from 919 to 489 ns per element and step; every run of both
-series gave the same energies, displacement norms and insertion counts.
+Table "suite_python.py (Python suite)" (selected phases; `missing`: the
+case did not exist in the port before):
 
-A larger mesh (the x86_64 `cube-h0.06.msh`, 177,328 tetrahedra, without
-the static preload, `rust_static_solve = false`, 200 steps; insertions start
-at step 133, 16 cohesive elements at step 200), measured on the screening
-machine (8-core AMD EPYC Milan, quiet, same method), ms per step:
+| case | phase | calls | n | before | head | head / before | digests |
+|---|---|---|---|---|---|---|---|
+| dirichlet_group_tri3 | python_functor | 20 | 5 | missing | 471 ms [470 ms, 502 ms] | missing | equal |
+| dirichlet_group_tri3 | python_group_functor | 200 | 5 | missing | 201 ms [200 ms, 204 ms] | missing | equal |
+| dirichlet_tri3 | builtin_functor | 200 | 5 | 58.5 ms [58.3 ms, 58.9 ms] | 56.4 ms [56.4 ms, 57.0 ms] | 0.964 [0.958, 0.975] | equal |
+| dirichlet_tri3 | python_functor | 20 | 5 | 579 ms [571 ms, 592 ms] | 470 ms [467 ms, 489 ms] | 0.819 [0.794, 0.841] | equal |
+| explicit_tri3 | solve_step | 400 | 5 | 1.85 s [1.84 s, 1.85 s] | 1.16 s [1.15 s, 1.16 s] | 0.626 [0.625, 0.628] | equal |
+| explicit_tri3 | solve_step_tiny | 300000 | 5 | 2.94 s [2.85 s, 3.09 s] | 1.84 s [1.83 s, 1.85 s] | 0.627 [0.598, 0.642] | equal |
+| fields_tri3 | get_stress | 20000 | 5 | 9.18 ms [9.13 ms, 9.54 ms] | 9.63 ms [9.55 ms, 9.86 ms] | 1.04 [1.01, 1.08] | equal |
+| import | import_akantu | 10 | 5 | 1.67 s [1.66 s, 1.67 s] | 1.67 s [1.67 s, 1.67 s] | 1.00 [0.997, 1.01] | equal |
+| material_tri3 | solve_step_builtin_law | 400 | 5 | 1.84 s [1.84 s, 1.85 s] | 1.16 s [1.15 s, 1.16 s] | 0.626 [0.624, 0.628] | equal |
+| material_tri3 | solve_step_python_law | 400 | 5 | 4.03 s [4.02 s, 4.05 s] | 3.62 s [3.60 s, 3.68 s] | 0.900 [0.892, 0.909] | equal |
+| neumann_tri3 | builtin_functor | 2000 | 5 | 870 ms [867 ms, 874 ms] | 894 ms [893 ms, 897 ms] | 1.03 [1.02, 1.03] | equal |
+| neumann_tri3 | python_functor | 200 | 5 | 250 ms [249 ms, 252 ms] | 253 ms [252 ms, 254 ms] | 1.01 [1.00, 1.02] | equal |
 
-| phase | before | after | after / before (paired) |
-|---|---|---|---|
-| `check_cohesive_stress` | 111.34 [110.51, 113.34] | 52.65 [52.44, 53.76] | 0.472 [0.465, 0.486] |
-| `solve_step` | 28.31 [27.98, 28.76] | 28.46 [28.03, 28.67] | 1.002 [0.992, 1.015] |
-
-628 → 297 ns per element and step.
-
-The check's split after the change (the after binary's
-`insertion_stats_rank0.csv`), ms per step: before insertion 2.51 stress
-interpolation and 2.12 law checks; over the full schedule 4.80 stress
-interpolation (with the copy plan rebuilt after every insertion step),
-2.42 law checks and 4.08 insertion.
-
-Remaining shares in the full schedule after the change (shares of a
-frame-pointer call-graph profile on a boat.dev development VM, not times;
-`profiles/src2-5000.txt`): stress interpolation 26.5 % of the run
-(the fused loop streams `facet_stress`, 20 MB on this mesh, about the
-memory traffic of writing it), the law check 12 %, the insertion 19 %, of
-which the mesh consistency check 11.6 % and the inserter's topology work
-the rest; the explicit step 41 %.
-
-#### At 2, 4 and 8 ranks
-
-The full schedule on h = 0.12 with the Scotch partition and the MUMPS static
-solve (project image `akantu-rs-mumps:dev`), every rank on its own core.
-Every rank now writes its phase times (`chrono_rank<r>.csv`) and the split
-of its check (`insertion_stats_rank<r>.csv`). Screening on an 8-core EPYC
-Milan machine (5 interleaved repetitions; the slowest rank), ms per step:
-
-| ranks | check before | check after | after / before (paired) | of which insertion (before → after) |
-|---|---|---|---|---|
-| 2 | 17.01 | 11.81 | 0.695 [0.685, 0.716] | 8.85 → 8.71 |
-| 4 | 8.28 | 5.89 | 0.713 [0.692, 0.717] | 4.53 → 4.46 |
-| 8 | 4.56 | 3.37 | 0.737 [0.722, 0.771] | 2.62 → 2.62 |
-
-- Per rank: the check's total and its interpolation and insertion parts
-  are the same on every rank to within 1 %; only the law checks differ
-  between ranks (0.25–0.28 ms at 8 ranks, 0.21–0.23 after). The ranks
-  therefore wait in the synchronisations that close each part (the
-  facet-stress exchange at the end of the interpolation, the insertion
-  decision), and that wait is counted in those parts; with the cheaper
-  local work the interpolation part went from 1.63 to 0.51 ms at 8 ranks.
-- The insertion part is now the larger half of the check at every rank
-  count, and it does not shrink with the change: the insertion decision
-  runs on every step (two facet-synchronizer exchanges, a scan and a
-  reduction, an order map of all facets, an agreement), and every
-  insertion step runs the distributed transaction. At 2 ranks the insertion
-  part (8.85 ms) is about twice the serial insertion phase (4.08 ms). An
-  8-rank call-graph profile of the insertion part on the 8-core EPYC Milan
-  development machine (shares, not times): MPI and kernel time
-  31 %, the mesh consistency check 27 %, the DOF manager's global-number
-  exchange 11 %.
-- A first version of the change was slower at 8 ranks (×1.05): the copy
-  plan's first-neighbour table was kept for one facet block only, and the
-  not-ghost and ghost facet blocks alternate on a distributed mesh. Fixed
-  before these measurements (one table per block).
-- The MPI runs with the MUMPS static solve are not repeatable run to run
-  (the final cohesive count varied by 11 between two runs of one binary at
-  8 ranks), so they are compared on time only. With the port's own static
-  solve (`rust_sparse_solver = eigen`) the runs are repeatable (two runs of
-  each binary at 2 ranks) and the before and after `energies.csv` (17
-  digits) and `insertions.csv` are identical at 2, 4 and 8 ranks
-  (`parallel-bitwise/`).
-
-The tables above use the baseline build. Builds with `-C target-cpu`
-(`x86-64-v2`, `-v3`, `-v4`, `znver4`), LTO, one codegen unit,
-`panic = "abort"` and PGO give the same bits (section "Build
-configuration").
-
-### The insertion step and the mesh operations under it (performance campaign, 2026-11-17)
-
-The insertion part of the check (the insertion decision and the mesh
-transaction that doubles facets and nodes), and the mesh set-up operations
-every cohesive run uses, were profiled and reworked with bitwise identical
-results (D-122). Machine: an 8-core AMD EPYC Milan (Zen 3) development
-machine, 15 GiB, alone; one process pinned to one core (MPI: rank `r` on
-core `r`, MUMPS image); before and after interleaved in rotated order, 5
-repetitions; before is `perf/wave2-base` (`0769542f6`), after is
-`74e97f334`, both with the default release profile. Raw data, scripts and
-profiles: `docs/benchmarks/perf-campaign/cohesive-insert/`.
-
-What the profile of the full serial schedule showed at the branch point
-(frame-pointer call graph, shares of samples; `profiles/serial-base-5000-*`):
-the check 54 % of the run, of which the facet stresses 23 % (their copy
-plan rebuilt after every insertion step 5.8 %), the linear law's check
-10.7 % and the insertion commit 20 %: the cross-part consistency check of
-the facet mesh at each commit 11.5 % (a walk over every adjacency row,
-`Vec` per row), the rebuild of the element groups' node lists 3.9 % (a sort
-of the 92,624 node entries of the volume group `Body`, after a copy of every
-group). At 8 ranks (`profiles/np8-p8-c8-*`, after the serial changes) the
-DOF manager's global-number exchange after node doubling took 14.6 % of all
-samples: its accessor scanned every DOF of the rank for each node of the
-node synchronizer's schemes.
-
-Changes:
-
-- **The cross-part check restricted to what a transaction touched**
-  (release builds; `SharedMesh::set_full_consistency_checks`). A
-  transaction that starts from a state that passed the check at the
-  previous commit reads the adjacency references only in the rows it
-  replaced or appended (taken from its journal). Still checked in full:
-  the node arrays of both parts (coordinates bit for bit, flags, global
-  ids, owner ranks), the index domains, the type, row count and
-  components of every adjacency block. Not re-read: the references of
-  untouched rows, which were in range at the previous check and whose
-  blocks only grew. The full check runs in debug builds (with the debug
-  reciprocity check), for the first mutation of a domain, after a set-up
-  operation that failed it, for a removal, a snapshot of a part's mesh
-  data, a facet mesh created by the transaction, or a transaction that
-  replaced more than an eighth of the `element_to_subelement` rows (a
-  whole-mesh insertion). The verdicts of both forms are compared on every
-  kind of journaled edit by `tests/restricted_consistency_check.rs`.
-- **Journals instead of snapshots**: the element groups' node lists
-  (rebuilt through a bit set: the same sorted, unique lists) and the node
-  synchronizer replaced by the distributed hook are journaled; the group
-  manager and the other synchronizers are no longer copied per insertion;
-  `CohesiveSynchronizers::element_to_prank` is shared instead of copied
-  into the staged synchronizers; journal entries keep the usual dataset
-  names without an allocation.
-- **The stress copy plan follows an insertion**: the pair that wrote side
-  1 of each doubled facet moves to side 0 of the new facet (same source,
-  same fused coefficients; new facets follow every existing one), checked
-  against the mesh; any other change rebuilds it; debug builds compare
-  every patched plan with a rebuilt one. The plan is keyed on a copy of
-  the law's filter (compared, not hashed per check).
-- **Distributed decision**: one reduction of the flagged owned and ghost
-  facets; with none on any rank the two facet-synchronizer exchanges, the
-  scan and the order array are skipped (every step before the first
-  insertion, step 710 of the serial full schedule, and every later step
-  without one).
-- **The DOF manager's global-number exchange** (`akantu-solver`, smallest
-  change): the accessor indexes the equations of every node once per
-  exchange (same equations, same order).
-- **The cohesive laws' residual and energies**: the work arrays (normals,
-  openings, `(t + t_c) N`, its integral, the elemental residual) are kept
-  between steps, the filter and the four energy arrays are read through
-  borrows instead of copies.
-- **Set-up**: `plan_facets` counts the elements shared by a facet's nodes
-  through dense element ids (one pass per facet instead of a scan per
-  element and node); `transfer_physical_names` keeps a sorted index per
-  coordinate and scans the narrowest window (the x window alone held a
-  whole face of a box, so the pre-selection was correct but slow); `fill_from_node_group`
-  tests membership through a table instead of a scan of the node list.
-
-The serial benchmark driver (h = 0.12, 23,156 tetrahedra), ms per step:
-
-| series | phase | before | after | after / before (paired) |
-|---|---|---|---|---|
-| 500 steps (no insertion) | `check_cohesive_stress` | 4.744 [4.512, 4.807] | 4.646 [4.477, 4.874] | 0.993 [0.973, 1.014] |
-| 500 steps | `solve_step` | 3.400 [3.339, 3.491] | 3.432 [3.366, 3.561] | 1.009 [0.983, 1.026] |
-| full schedule (5000 steps, 11,736 cohesive elements) | `check_cohesive_stress` | 10.782 [10.710, 10.849] | 6.056 [5.911, 6.149] | 0.558 [0.552, 0.569] |
-| full schedule | of which facet stresses and laws' checks | 6.901 [6.833, 6.936] | 5.105 [4.978, 5.210] | 0.736 [0.727, 0.754] |
-| full schedule | of which insertion | 3.879 [3.861, 3.911] | 0.949 [0.930, 0.952] | 0.243 [0.240, 0.246] |
-| full schedule | `solve_step` | 7.576 [7.566, 7.635] | 7.606 [7.504, 7.634] | 0.996 [0.987, 1.009] |
-| h = 0.06 (177,328 tetrahedra), 200 steps | `check_cohesive_stress` | 54.116 [53.895, 55.468] | 50.870 [49.723, 51.537] | 0.930 [0.919, 0.956] |
-| h = 0.06 | of which insertion | 1.522 [1.512, 1.532] | 0.312 [0.306, 0.313] | 0.204 [0.201, 0.206] |
-
-Peak RSS: 463 → 404 MiB (500 steps), 472 → 445 MiB (full schedule), 851
-→ 820 MiB (h = 0.06). Every run of both series gave the same insertion
-counts; the state digests of the serial runs (energies of every step,
-insertions, nodal state of the last step) are identical before and after
-(`bitwise/`).
-
-At 2, 4 and 8 ranks (the full schedule with the Scotch partition and the
-MUMPS static solve), ms per step of the slowest rank:
-
-| ranks | phase | before | after | after / before (paired) |
-|---|---|---|---|---|
-| 2 | `check_cohesive_stress` | 12.061 [12.029, 12.209] | 4.059 [4.041, 4.155] | 0.335 [0.332, 0.345] |
-| 2 | of which facet stresses | 2.352 [2.299, 2.418] | 1.413 [1.404, 1.477] | 0.597 [0.584, 0.643] |
-| 2 | of which insertion | 8.665 [8.641, 8.740] | 1.606 [1.603, 1.633] | 0.185 [0.184, 0.188] |
-| 2 | `solve_step` | 5.020 [5.003, 5.078] | 4.893 [4.882, 4.959] | 0.975 [0.962, 0.988] |
-| 4 | `check_cohesive_stress` | 6.217 [6.004, 6.316] | 2.378 [2.289, 2.488] | 0.383 [0.375, 0.394] |
-| 4 | of which facet stresses | 1.124 [1.037, 1.200] | 0.642 [0.592, 0.699] | 0.578 [0.548, 0.582] |
-| 4 | of which insertion | 4.605 [4.495, 4.636] | 1.277 [1.236, 1.323] | 0.277 [0.271, 0.285] |
-| 4 | `solve_step` | 3.161 [3.091, 3.242] | 3.075 [3.044, 3.180] | 0.981 [0.963, 0.995] |
-| 8 | `check_cohesive_stress` | 3.535 [3.479, 3.611] | 1.624 [1.602, 1.653] | 0.458 [0.444, 0.471] |
-| 8 | of which facet stresses | 0.556 [0.540, 0.600] | 0.332 [0.326, 0.344] | 0.598 [0.543, 0.619] |
-| 8 | of which insertion | 2.754 [2.708, 2.777] | 1.057 [1.048, 1.078] | 0.387 [0.377, 0.395] |
-| 8 | `solve_step` | 2.047 [2.025, 2.108] | 2.005 [1.994, 2.060] | 0.978 [0.955, 1.006] |
-
-The laws' checks did not change (0.96–0.99). The facet-stress part gains
-from the copy plan no longer rebuilt after each insertion step. With the
-port's own static solve (`rust_sparse_solver = eigen`, which repeats from
-run to run) the `energies.csv` (17 digits) and `insertions.csv` of before
-and after are identical at 2, 4 and 8 ranks (`bitwise/`); the MUMPS runs
-are compared on time only.
-
-The set-up suite (`suite_setup`, size `m`) and the cohesive cases of
-`suite_solid`, seconds per phase (every case's digest identical before and
-after):
-
-| case | phase | before [s] | after [s] | after / before (paired) |
-|---|---|---|---|---|
-| `facets_tet4` | `init_mesh_facets` | 1.753 [1.740, 1.915] | 0.449 [0.447, 0.468] | 0.257 [0.235, 0.264] |
-| `facets_hex8` | `init_mesh_facets` | 0.873 [0.848, 0.874] | 0.542 [0.539, 0.554] | 0.629 [0.620, 0.637] |
-| `groups_tet4` | `element_group_from_node_group` | 0.160 [0.159, 0.162] | 0.029 [0.029, 0.030] | 0.185 [0.179, 0.189] |
-| `cohesive_insert_tet4` | `init_mesh_facets` | 1.715 [1.705, 1.738] | 0.434 [0.430, 0.448] | 0.255 [0.250, 0.258] |
-| `cohesive_insert_tet4` | `insert` (every facet) | 3.963 [3.947, 4.161] | 3.479 [3.437, 3.520] | 0.879 [0.830, 0.884] |
-| `cohesive_extrinsic_check` | `init` | 1.168 [1.163, 1.177] | 0.536 [0.535, 0.554] | 0.459 [0.456, 0.474] |
-| `cohesive_extrinsic_check` | `check_insertion` | 1.372 [1.367, 1.377] | 1.369 [1.344, 1.442] | 0.994 [0.980, 1.053] |
-| `cohesive_extrinsic_insertion` | `init` | 0.634 [0.631, 0.635] | 0.273 [0.272, 0.276] | 0.432 [0.429, 0.436] |
-| `cohesive_extrinsic_insertion` | `check_insertion` | 1.685 [1.634, 1.774] | 1.391 [1.366, 1.401] | 0.832 [0.787, 0.836] |
-
-What did not pay:
-
-- A fused facet-stress computation and linear-law check per block of
-  facets (the stresses read back from the cache): equal to the two passes
-  on the driver, 7–10 % slower on `cohesive_extrinsic_check` for blocks of
-  64 to 4096 facets; removed.
-- A software prefetch of the bulk stress tuple eight pairs ahead in the
-  facet-stress loop: −3 % of the check before insertion; not worth new
-  `unsafe` in a crate that forbids it.
-- Binary searches in `plan_facets`' node rows: slower than the scans
-  (`Element::cmp` is a tuple comparison); replaced by the dense-id count.
-- An inline node synchronizer in the transaction journal enlarged every
-  entry (×1.2 on the whole-mesh insertion); boxed.
-
-What remains (shares of the profiles after the change, not times):
-
-- Serial (`profiles/serial-final-5000-*`, the full schedule): the check is
-  39 % of the run, the explicit step 60 %. The facet stresses (18.8 %) are
-  bound by gathers of each pair's bulk stress tuple and coefficients
-  (random over about 4 MiB) and by writing `facet_stress` (about 26 MB per
-  step at h = 0.12, all of it public model state); the linear law's check
-  (14.2 %) streams `facet_stress`, normals and tangents. The insertion is
-  6.0 % of the run, spread over the subfacet searches (1.6 %), the group
-  node lists (0.9 %), the event dispatch and the transaction's
-  bookkeeping.
-- 8 ranks (`profiles/np8-p8-c9-*`): the insertion is 18.6 % of all
-  samples, most of it in the transaction's agreements (one per stage and
-  one per dispatched event, consumer and level), which also absorb the
-  ranks' imbalance; then the global ids of the doubled nodes (3.2 %), the
-  insertion decision (2.9 %), the DOF manager's numbering (2.1 %), the
-  node-scheme rebuild (1.3 %). Fewer agreements need a change of the
-  transaction protocol (its error paths are gate-tested); the node
-  schemes and the global ids could follow the doubled nodes instead of
-  being rebuilt over all nodes.
-
-### The cohesive model on threads (performance campaign, 2026-11-17)
-
-The cohesive model's per-step kernels run on the execution policy's
-threads (D-123; `docs/ARCHITECTURE.md`, "Execution policy", "The cohesive
-model"): the facet stresses and the insertion decision of the check, the
-cohesive normals, openings and tractions (`cohesive_linear`,
-`cohesive_bilinear`), the cohesive residual and the energy update. For
-each rank count the state digests are identical at every thread count and
-grain, and equal to the base's at that rank count (the rank counts differ
-from each other, as on the base: the insertions follow the partition).
-Serial: the h = 0.12 full schedule and h = 0.06 (energies of every step,
-insertions, the nodal state of the last step) at 1, 2, 4 and 8 threads,
-finest and automatic grain. Distributed, h = 0.12 full schedule with
-`rust_sparse_solver = eigen` (energies and insertions): 2 ranks × 1, 2, 4
-threads (2 and 4 at both grains), 4 × 1, 2 (2 at both grains), 8 × 1.
-The `suite_solid` cohesive cases: the same digests at 1 to 8 threads.
-Machine: the AWS `m7a.2xlarge` (AMD
-EPYC 9R14, 8 cores), timing on cores 0–3 (`tjob`) or the whole machine
-(`xjob`), 5 interleaved repetitions (3 for the MPI series); before is
-`perf/wave2-base` at `d404f4c70`, after the branch at `6fb246686`. Raw data and scripts:
-`docs/benchmarks/perf-campaign/cohesive-threads/`.
-
-The benchmark driver, h = 0.12 (23,156 tetrahedra), full schedule (5000
-steps, 11,736 cohesive elements), ms per step, against the base at one
-thread:
-
-| threads | `check_cohesive_stress` | facet stresses | laws' checks | insertion | `solve_step` |
-|---|---|---|---|---|---|
-| base, 1 | 6.430 [6.337, 6.454] | 3.000 [2.942, 3.005] | 2.415 [2.393, 2.435] | 1.012 [0.999, 1.014] | 4.966 [4.951, 4.983] |
-| 1 | 6.253 (×0.976 [0.973, 0.978]) | 2.871 (×0.964 [0.957, 0.966]) | 2.376 (×0.981 [0.977, 0.984]) | 1.012 (×1.001 [0.995, 1.006]) | 4.902 (×0.987 [0.977, 0.994]) |
-| 2 | 4.055 (×0.633 [0.629, 0.636]) | 1.562 (×0.523) | 1.465 (×0.606) | 1.026 (×1.024) | 3.930 (×0.794 [0.791, 0.797]) |
-| 4 | 2.649 (×0.412 [0.411, 0.415]) | 0.794 (×0.266) | 0.807 (×0.333) | 1.046 (×1.034) | 3.252 (×0.654 [0.647, 0.656]) |
-| 8 | 2.208 (×0.344 [0.342, 0.345]) | 0.523 (×0.176) | 0.622 (×0.257) | 1.057 (×1.048) | 3.018 (×0.609 [0.603, 0.610]) |
-
-(One series on the whole machine: per repetition the base at one thread
-and the branch at 1, 2, 4 and 8 threads, order rotated; ratios paired per
-repetition. Peak memory +2.2 to +2.6 % with threads.) Before insertion
-(500 steps) at one thread: check ×0.970 [0.952, 0.980] (facet stresses
-×0.962, laws' checks ×0.982 [0.965, 0.990]), `solve_step` ×1.000.
-
-The laws' checks at one thread: with the decision on threads beside it,
-the serial loop first compiled to scalar code where the base packs two
-rows of the effective norm's products into one register (forced inlining
-lost the disjointness of the normal-traction output from the stresses it
-reads: +18.7 % instructions, 1.05 to 1.07 of the base's time). The normal
-traction is now computed into a local array, and the serial loop is
-compiled once per dimension (`check_serial_dim::<D>`, fixed sizes): the
-packed code is back and the law check takes 0.98 of the base's time (each
-lane performs the scalar sequence; the digests are unchanged).
-
-The `suite_solid` cohesive cases (size `m`), seconds per phase, ratio to
-the base at one thread (paired):
-
-| case | phase | 1 thread | 2 | 4 | 8 |
-|---|---|---|---|---|---|
-| `cohesive_extrinsic_check` | `check_insertion` | ×0.982 [0.975, 0.986] | ×0.562 | ×0.348 | ×0.321 |
-| `cohesive_extrinsic_check` | `solve_step` | ×1.000 [0.994, 1.005] | ×0.734 | ×0.610 | ×0.542 |
-| `cohesive_extrinsic_insertion` | `check_insertion` | ×0.989 [0.979, 0.996] | ×0.952 | ×0.929 | ×0.923 |
-| `cohesive_extrinsic_insertion` | `solve_step` | ×0.989 [0.980, 1.026] | ×0.792 | ×0.682 | ×0.629 |
-
-The mid-size mesh (h = 0.06, 177,328 tetrahedra, 500 steps, without the
-static preload, the C++ Scotch partitions), 8 cores in every
-configuration, slowest rank, ms per step, 3 repetitions:
-
-| ranks × threads | check | of which insertion | `solve_step` | step | step / base 8 × 1 |
-|---|---|---|---|---|---|
-| base 8 × 1 | 16.081 | 2.521 | 10.319 | 26.372 | 1 |
-| 8 × 1 | 16.145 | 2.578 | 10.270 | 26.388 | 1.001 [0.998, 1.001] |
-| 4 × 2 | 17.475 | 2.895 | 11.088 | 28.557 | 1.086 [1.083, 1.087] |
-| 2 × 4 | 19.234 | 4.070 | 13.525 | 32.759 | 1.242 [1.241, 1.258] |
-| 1 × 8 | 17.820 | 3.063 | 17.496 | 35.290 | 1.338 [1.336, 1.343] |
-
-Against the C++ strict build (the branch at `ac3b3179`, before the
-per-dimension serial loop): at one rank and one thread (h = 0.12, 500
-steps, 3 repetitions) the port's check takes 4.69 against 20.7 ms per
-step (C++ / port 4.4) and its step 2.56 against 8.15 (3.19); at 8 ranks
-(h = 0.06, 500 steps, the MUMPS static solve, `c1prep_campaign.sh`, the
-port at 8 × 1) the check 14.1 against 47.1 ms (port / C++ 0.299), the
-step 8.91 against 19.6 (0.453), 1.04 against 3.01 core-µs per element and
-step (0.344).
-
-What limits the scaling:
-
-- The insertion stays serial (the transaction, the inserter's searches,
-  the flags and parameters in filter order): about 1 ms per step at
-  h = 0.12, half of the check at 8 threads, and the whole difference
-  between the threads in the insertion-heavy suite case.
-- The facet stresses write `facet_stress` (about 26 MB per step at
-  h = 0.12) and the law check streams it with the normals and tangents:
-  memory traffic; 0.176 at 8 threads.
-- The solve: the bulk residual is threaded by the base; the cohesive
-  part scales; what remains is serial per-node and per-equation work
-  below the solver's part sizes and the bulk Cauchy stresses after the
-  step (`akantu-solid`, not part of this work): 0.609 at 8 threads.
-- Ranks against threads at 8 cores (mid-size): ranks win (8 × 1 is 1.34
-  times faster than 1 × 8) because everything above stays serial within
-  a rank while it is split between ranks; 4 × 2 is within 10 % of 8 × 1.
-- At 8 ranks the transaction's agreements (one per stage and per
-  dispatched event, consumer and level, with the ranks' waits) are about
-  8 % of all samples of a call-graph profile (`profiles/np8-*`); fewer
-  agreements need a change of the transaction protocol (`akantu-mesh`).
-
-### Distribution and the communication layer (performance campaign, 2026-11-17)
-
-Measured on an 8-vCPU AMD EPYC Milan development machine, before
-(`24f73b94e`) and after (`818a43195`), interleaved, 5 repetitions; every
-digest identical at 1, 2, 4 and 8 ranks. Details, raw data and what
-remains: `docs/benchmarks/perf-campaign/distribution/README.md`.
-
-| Case | Before | After | Ratio |
-|---|---|---|---|
-| Partition (Scotch with the dual graph), 1,296,000 Tet4, 2 / 8 ranks | 6.51 / 7.46 s | 1.92 / 2.65 s | 0.30 / 0.37 |
-| Distribution, 1,296,000 Tet4, 2 / 8 ranks | 8.48 / 11.72 s | 2.84 / 3.26 s | 0.34 / 0.28 |
-| Explicit step, 162,000 Tet4, 2 / 8 ranks | 13.2 / 8.2 ms | 10.1 / 5.7 ms | 0.88 / 0.79 |
-| Two energies, 162,000 Tet4, 1 rank | 17.4 ms | 14.7 ms | 0.79 |
-| `all_reduce` of 2 reals, 8 ranks | 10.6 µs | 6.2 µs | 0.52 |
-| Explicit step of a 32-triangle model, serial communicator | 8.1 µs | 5.1 µs | 0.63 |
-
-The part of the distributed explicit step that does not shrink with the
-rank count is memory traffic (four independent one-rank runs at once each
-slow by 1.5 to 1.7 times) and, on that machine, unequal vCPU speed under
-load; the communication and its bookkeeping were about 20 % of rank 0's
-step at 4 ranks before the changes.
+- Serial `solve_step`, head / before: the explicit cases 0.0965–0.779, the
+  explicit cohesive cases 0.548–0.712, the implicit and static cases
+  0.225–0.965 (`static_linear_faer` 0.965); in `suite_models` 0.236–0.873.
+- Threads (8 / 1, `solve_step`, `suite_solid`): the explicit cases
+  0.222–0.376; the implicit and static cases 0.789–1.00 (`static_linear_faer`, whose
+  factorisation does not use threads, 1.00).
+- Fast / bitwise at one thread: 0.893–1.03 over the cases of the two tables.
+- Slower than before (head / before with min > 1): `fields_tri3`
+  `get_stress` 1.04 [1.01, 1.08], `neumann_tri3` `builtin_functor` 1.03
+  [1.02, 1.03]; and, in `suite_setup` (section "Set-up costs"),
+  `erase_purify_tet4` `erase_elements` and `cohesive_insert_tet4`
+  `update_insertion_facets`.
+- Every bitwise digest of every case equals the head's.
 
 ## Static solves and solvers
 
-### The SparseLU translation against upstream's SparseLU
+### The final campaign (part D)
+
+AWS `m7a.2xlarge`, AMD EPYC 9R14, 2026-11-17 UTC; data
+`docs/benchmarks/perf-campaign/final/D/summary.md`. The head's SparseLU
+factorisation uses threads: `prepare.sh` measured the `factorize` phase of
+`suite_solid static_linear_eigen` at 4 threads at 0.772 of 1 thread (threshold
+0.9), so the threaded variants were timed.
+
+Table "The SparseLU translation against upstream's SparseLU" (the driver's
+`static_solve` phase: assembly, analysis, factorisation, solve; 1 rank, 10
+steps; s):
+
+| h | DOFs | C++ SparseLU (strict) | port before | port | port / C++ | port / port before | container memory peak (cgroup memory.peak) C++ / before / port MiB |
+|---|---|---|---|---|---|---|---|
+| 0.12 | 14,472 | 2.86 [2.84, 2.87] | 7.59 [7.57, 7.60] | 2.11 [2.11, 2.13] | 0.740 [0.737, 0.743] | 0.279 [0.277, 0.280] | 497 [496, 524] / 561 [560, 567] / 399 [399, 400] |
+| 0.12 | port, 2 threads |  |  | 1.70 [1.68, 1.70] | 0.595 [0.587, 0.598] | 0.803 [0.797, 0.807] (against 1 thread) |  |
+| 0.12 | port, 4 threads |  |  | 1.41 [1.40, 1.42] | 0.494 [0.489, 0.495] | 0.666 [0.663, 0.669] (against 1 thread) |  |
+| 0.12 | port, 8 threads |  |  | 1.27 [1.27, 1.29] | 0.447 [0.443, 0.452] | 0.603 [0.598, 0.613] (against 1 thread) |  |
+| 0.06 | 97,551 | 241 [240, 243] | 778 [777, 779] | 219 [218, 221] | 0.909 [0.906, 0.918] | 0.281 [0.281, 0.283] | 7,608 [7,608, 7,608] / 6,918 [6,918, 6,918] / 5,326 [5,326, 5,326] |
+| 0.06 | port, 2 threads |  |  | 136 [135, 139] | 0.566 [0.558, 0.577] | 0.622 [0.614, 0.634] (against 1 thread) |  |
+| 0.06 | port, 4 threads |  |  | 86.2 [86.0, 86.3] | 0.358 [0.355, 0.359] | 0.393 [0.391, 0.396] (against 1 thread) |  |
+| 0.06 | port, 8 threads |  |  | 62.7 [62.6, 63.0] | 0.260 [0.259, 0.261] | 0.286 [0.284, 0.288] (against 1 thread) |  |
+
+Table "MUMPS in the cohesive benchmark" (static solve phase, s; the same
+MUMPS 5.7.3 on the same matrix, PORD):
+
+| h | ranks | C++ | port before | port | port / C++ | port / port before |
+|---|---|---|---|---|---|---|
+| 0.12 | 1 | 0.622 [0.617, 0.628] | 0.792 [0.791, 0.813] | 0.520 [0.517, 0.531] | 0.832 [0.823, 0.861] | 0.658 [0.636, 0.670] |
+| 0.12 | 2 | 0.408 [0.406, 0.411] | 0.492 [0.486, 0.497] | 0.376 [0.368, 0.379] | 0.915 [0.898, 0.933] | 0.763 [0.740, 0.769] |
+| 0.12 | 4 | 0.227 [0.226, 0.232] | 0.269 [0.266, 0.271] | 0.216 [0.215, 0.218] | 0.949 [0.934, 0.965] | 0.804 [0.799, 0.813] |
+| 0.06 | 1 | 12.9 [12.8, 13.0] | 14.0 [14.0, 14.1] | 10.2 [10.1, 10.3] | 0.789 [0.785, 0.798] | 0.727 [0.725, 0.730] |
+| 0.06 | 2 | 8.60 [8.57, 8.62] | 9.18 [9.14, 9.21] | 7.39 [7.36, 7.41] | 0.859 [0.858, 0.863] | 0.805 [0.805, 0.806] |
+| 0.06 | 4 | 4.59 [4.52, 5.25] | 4.88 [4.81, 5.30] | 4.07 [4.03, 4.53] | 0.889 [0.776, 1.00] | 0.835 [0.826, 0.930] |
+
+Table "suite_solid, the sparse solvers' phases" (selected phases):
+
+| case | phase | calls | n | before | head | head / before | head 2 threads / 1 | 4 / 1 | 8 / 1 | fast / bitwise (1) | fast / bitwise (8) | digests |
+|---|---|---|---|---|---|---|---|---|---|---|---|---|
+| static_linear_eigen | analysis | 1 | 5 | 42.6 ms [42.1 ms, 43.1 ms] | 47.6 ms [47.1 ms, 47.7 ms] | 1.12 [1.09, 1.13] | 0.951 [0.945, 0.961] | 0.967 [0.964, 0.991] | 0.980 [0.972, 1.00] | — | — | equal |
+| static_linear_eigen | back_substitution | 20 | 5 | 210 ms [207 ms, 213 ms] | 134 ms [134 ms, 135 ms] | 0.642 [0.626, 0.648] | 0.990 [0.984, 1.00] | 0.995 [0.993, 1.00] | 1.00 [0.995, 1.01] | — | — | equal |
+| static_linear_eigen | factorize | 2 | 5 | 5.53 s [5.51 s, 5.55 s] | 978 ms [970 ms, 988 ms] | 0.176 [0.175, 0.179] | 0.855 [0.842, 0.861] | 0.774 [0.771, 0.783] | 0.734 [0.723, 0.737] | — | — | equal |
+| static_linear_eigen | solve_step | 1 | 5 | 3.04 s [3.03 s, 3.07 s] | 684 ms [680 ms, 689 ms] | 0.225 [0.222, 0.227] | 0.889 [0.868, 0.898] | 0.828 [0.817, 0.841] | 0.791 [0.783, 0.794] | — | — | equal |
+| static_linear_eigen | stiffness_assembly | 3 | 5 | 189 ms [181 ms, 192 ms] | 29.8 ms [29.6 ms, 29.8 ms] | 0.158 [0.155, 0.164] | 0.596 [0.571, 0.602] | 0.337 [0.330, 0.342] | 0.204 [0.202, 0.205] | — | — | equal |
+| static_linear_faer | analysis | 1 | 5 | 49.7 ms [49.4 ms, 50.2 ms] | 55.2 ms [54.9 ms, 55.6 ms] | 1.11 [1.10, 1.12] | 0.996 [0.979, 0.999] | 0.993 [0.983, 1.00] | 0.995 [0.986, 1.00] | — | — | equal |
+| static_linear_faer | back_substitution | 20 | 5 | 205 ms [204 ms, 206 ms] | 196 ms [195 ms, 197 ms] | 0.959 [0.952, 0.963] | 1.02 [1.01, 1.02] | 1.01 [1.00, 1.02] | 1.01 [1.00, 1.02] | — | — | equal |
+| static_linear_faer | factorize | 2 | 5 | 9.42 s [9.36 s, 9.47 s] | 9.38 s [9.36 s, 9.44 s] | 0.996 [0.988, 1.01] | 1.00 [0.992, 1.02] | 1.00 [0.998, 1.01] | 1.01 [0.994, 1.02] | — | — | equal |
+| static_linear_faer | solve_step | 1 | 5 | 5.01 s [4.94 s, 5.04 s] | 4.81 s [4.80 s, 4.89 s] | 0.960 [0.955, 0.990] | 1.01 [0.989, 1.02] | 1.00 [0.984, 1.03] | 1.01 [0.983, 1.03] | — | — | equal |
+| static_linear_faer | stiffness_assembly | 3 | 5 | 250 ms [248 ms, 253 ms] | 30.1 ms [30.0 ms, 30.2 ms] | 0.120 [0.119, 0.121] | 0.588 [0.583, 0.591] | 0.331 [0.329, 0.334] | 0.200 [0.199, 0.211] | — | — | equal |
+
+Table "suite_solid static_linear_mumps at 1, 2, 4 ranks" (selected phases;
+"not compared (does not repeat)": the distributed MUMPS solve, see
+"Method"):
+
+| case | phase | ranks | n | before | head | head / before | head ranks x threads | time | / head on as many cores (unpaired) | digests |
+|---|---|---|---|---|---|---|---|---|---|---|
+| static_linear_mumps | distribute | 2 | 5 | 78.4 ms [78.2 ms, 79.1 ms] | 31.3 ms [31.3 ms, 31.3 ms] | 0.399 [0.396, 0.400] |  |  |  | not compared (does not repeat) |
+| static_linear_mumps | distribute | 4 | 5 | 92.0 ms [91.8 ms, 94.2 ms] | 44.5 ms [44.5 ms, 44.5 ms] | 0.484 [0.473, 0.485] |  |  |  | not compared (does not repeat) |
+| static_linear_mumps | matrix | 1 | 5 | 154 ms [152 ms, 156 ms] | 66.8 ms [66.6 ms, 68.3 ms] | 0.434 [0.428, 0.447] |  |  |  | equal |
+| static_linear_mumps | matrix | 2 | 5 | 76.1 ms [75.1 ms, 77.5 ms] | 32.7 ms [32.5 ms, 33.4 ms] | 0.428 [0.419, 0.445] |  |  |  | not compared (does not repeat) |
+| static_linear_mumps | matrix | 4 | 5 | 37.4 ms [37.2 ms, 37.6 ms] | 17.6 ms [16.9 ms, 18.0 ms] | 0.474 [0.451, 0.480] |  |  |  | not compared (does not repeat) |
+| static_linear_mumps | solve_step | 1 | 5 | 330 ms [327 ms, 337 ms] | 209 ms [209 ms, 212 ms] | 0.634 [0.621, 0.649] |  |  |  | equal |
+| static_linear_mumps | solve_step | 2 | 5 | 225 ms [224 ms, 227 ms] | 169 ms [168 ms, 170 ms] | 0.750 [0.741, 0.756] |  |  |  | not compared (does not repeat) |
+| static_linear_mumps | solve_step | 4 | 5 | 132 ms [132 ms, 132 ms] | 107 ms [106 ms, 107 ms] | 0.807 [0.801, 0.812] |  |  |  | not compared (does not repeat) |
+| static_linear_mumps | stiffness_assembly | 1 | 5 | 242 ms [239 ms, 250 ms] | 29.7 ms [29.6 ms, 30.8 ms] | 0.124 [0.119, 0.127] |  |  |  | equal |
+| static_linear_mumps | stiffness_assembly | 2 | 5 | 122 ms [119 ms, 125 ms] | 15.3 ms [15.1 ms, 15.4 ms] | 0.127 [0.122, 0.127] |  |  |  | not compared (does not repeat) |
+| static_linear_mumps | stiffness_assembly | 4 | 5 | 47.8 ms [47.3 ms, 48.5 ms] | 8.30 ms [8.16 ms, 8.51 ms] | 0.173 [0.171, 0.178] |  |  |  | not compared (does not repeat) |
+
+- The SparseLU translation takes 0.740 (h = 0.12) and 0.909 (h = 0.06) of
+  upstream's SparseLU at one thread, 0.279 and 0.281 of the port before;
+  at 8 threads 0.447 and 0.260 of upstream's. Its container memory peak is
+  399 against 497 MiB (h = 0.12) and 5,326 against 7,608 MiB (h = 0.06).
+- MUMPS: port / C++ 0.832 / 0.915 / 0.949 at 1 / 2 / 4 ranks on h = 0.12,
+  0.789 / 0.859 / 0.889 on h = 0.06 (the last [0.776, 1.00]).
+- The symbolic `analysis` of both sparse backends is slower than before:
+  1.12 [1.09, 1.13] (`static_linear_eigen`) and 1.11 [1.10, 1.12]
+  (`static_linear_faer`). The `faer` factorisation is unchanged (0.996) and
+  does not use threads.
+
+### The nested-dissection ordering (D-125)
+
+<!-- PLACEHOLDER final-D-nd: paste the tables of docs/benchmarks/perf-campaign/final/D-nd/summary.md here -->
+Measured separately; not yet available in this revision. Part D's SparseLU
+series at `4d974854d` with the variants `head-nd` (the nested-dissection
+ordering) and `head-auto` (fast precision, the `auto` ordering), timed and
+checked for precision and ordering, never digested as bitwise. Its tables
+("The SparseLU translation against upstream's SparseLU", "suite_solid, the
+sparse solvers' phases") go here as generated, from a data directory beside
+`docs/benchmarks/perf-campaign/final/D/`. The development measurements are
+in `docs/benchmarks/perf-campaign/sparselu-nd/README.md`.
+
+### Before the final campaign (11–13 November)
+
+#### The SparseLU translation against upstream's SparseLU
 
 The default direct solver of a build without MUMPS is the port's translation
 of Eigen's SparseLU. Like for like: the C++ oracle with
@@ -747,8 +764,7 @@ marked in every output (Chrono phase `static_solve_skipped`, a first line in
 scripts keep it apart. Without the preload the cohesive problem inserts
 early (640 cohesive elements within 500 steps at h = 0.12), so its costs are
 not pre-insertion costs.
-
-### MUMPS in the cohesive benchmark
+#### MUMPS in the cohesive benchmark
 
 The port passes its rank-partial matrix to MUMPS as distributed assembled
 input (`ICNTL(18) = 3`), with the right-hand side centralised on rank 0,
@@ -811,7 +827,364 @@ campaign (`x86-baseline/`, h = 0.12 / 0.06 / 0.04 before insertion) shows
 upstream's check growing faster than the mesh: check / step at 1 rank
 2.2–2.5, 3.6–3.8 and 4.4–4.5.
 
-### Small and mid sizes at 1 to 8 ranks
+### Small and mid sizes at 1 to 8 ranks (final campaign, part C)
+
+AWS `m7a.2xlarge`, AMD EPYC 9R14, 2026-11-17 UTC, two machines of the same
+type (series `reh6` on one, the others on the other); data
+`docs/benchmarks/perf-campaign/final/C/summary.md` and
+`docs/benchmarks/perf-campaign/final/C-reh6/summary.md`. C++: the strict
+install with the JOSS emulation, MUMPS 5.7.3; the port's MPI build
+(`mpi,scotch,mumps`); the same mesh and Scotch partition for both; one rank
+per core, recorded and checked per run; one container per run; the
+variants of a point adjacent and rotated per repetition, the point order
+reversed every other repetition; five repetitions (one in series `eig`).
+Series:
+
+- `ws`: 500 steps before the first insertion, the ten points of the weak
+  and strong studies (the series `ws` of the earlier scaling study);
+- `ins`: the insertion regime on h = 0.12, 1,500 steps;
+- `full12`: the full schedule on h = 0.12, 5,000 steps;
+- `reh6`: the full schedule on h = 0.06, C++ and the head only (port
+  before → port is measured by the other series);
+- `reh4`: the static solve and 300 pre-insertion steps on h = 0.04;
+- `eig`: the port's SparseLU static solve at 1 to 8 ranks, before and head,
+  one repetition: the bitwise check of the distributed runs.
+
+Each series has a table "Points" (rank 0's Chrono phases; core-µs per
+element and step = (`solve_step` + check) × cores / tetrahedra / steps; loop
+efficiency = core-µs at 1 rank / core-µs at P, same code, "missing" where
+the series has no 1-rank point on that mesh; peaks of the memory sampler)
+and paired ratio tables. "port P x T" is the head with P ranks × T threads.
+
+#### Series `ws`: 500 steps before the first insertion
+
+Table "Points":
+
+| h | ranks | code | n | wall s | init_full s | static solve s | `solve_step` ms/step | check ms/step | core-µs/el/step | loop efficiency | largest rank peak MiB | Σ rank peaks MiB |
+|---|---|---|---|---|---|---|---|---|---|---|---|---|
+| 0.12 | 1 | C++ | 5 | 18.1 [17.9, 22.2] | 0.966 [0.964, 0.972] | 0.613 [0.611, 1.14] | 8.22 [8.14, 8.38] | 20.5 [20.3, 21.8] | 1.24 [1.24, 1.30] | 100% | 410 [410, 410] | 410 [410, 410] |
+| 0.12 | 1 | port before | 5 | 11.5 [11.5, 15.0] | 0.378 [0.375, 0.379] | 0.782 [0.773, 1.10] | 3.63 [3.55, 3.65] | 13.5 [13.4, 13.7] | 0.738 [0.737, 0.747] | 100% | 366 [366, 366] | 366 [366, 366] |
+| 0.12 | 1 | port | 5 | 4.84 [4.81, 4.85] | 0.164 [0.163, 0.167] | 0.513 [0.513, 0.522] | 2.52 [2.50, 2.55] | 4.44 [4.36, 4.47] | 0.301 [0.298, 0.301] | 100% | 307 [307, 308] | 307 [307, 308] |
+| 0.0925 | 1 | C++ | 5 | 40.4 [40.4, 41.1] | 2.39 [2.38, 2.39] | 1.69 [1.68, 1.69] | 16.8 [16.7, 16.9] | 47.8 [47.6, 49.0] | 1.36 [1.35, 1.39] | 100% | 816 [816, 816] | 816 [816, 816] |
+| 0.0925 | 1 | port before | 5 | 24.3 [24.2, 24.3] | 0.794 [0.787, 0.803] | 2.07 [2.06, 2.09] | 7.32 [7.30, 7.43] | 28.4 [28.4, 28.5] | 0.753 [0.751, 0.754] | 100% | 716 [716, 716] | 716 [716, 716] |
+| 0.0925 | 1 | port | 5 | 11.2 [11.2, 11.3] | 0.340 [0.338, 0.340] | 1.39 [1.39, 1.40] | 5.32 [5.30, 5.36] | 11.3 [11.3, 11.4] | 0.349 [0.349, 0.351] | 100% | 617 [617, 618] | 617 [617, 618] |
+| 0.0925 | 2 | C++ | 5 | 25.4 [25.3, 25.6] | 1.10 [1.10, 1.10] | 1.09 [1.09, 1.09] | 11.5 [11.5, 12.1] | 29.3 [29.0, 29.5] | 1.72 [1.72, 1.73] | 79% | 481 [481, 482] | 959 [959, 960] |
+| 0.0925 | 2 | port before | 5 | 13.9 [13.9, 13.9] | 0.445 [0.444, 0.447] | 1.24 [1.23, 1.24] | 5.11 [5.09, 5.13] | 15.3 [15.3, 15.4] | 0.860 [0.858, 0.863] | 88% | 438 [437, 438] | 867 [866, 867] |
+| 0.0925 | 2 | port | 5 | 6.98 [6.96, 7.32] | 0.197 [0.195, 0.198] | 0.950 [0.946, 0.953] | 3.60 [3.57, 3.74] | 6.52 [6.46, 7.04] | 0.426 [0.423, 0.453] | 82% | 376 [373, 376] | 744 [743, 746] |
+| 0.0756 | 2 | C++ | 5 | 52.7 [52.4, 53.1] | 2.56 [2.56, 2.58] | 2.97 [2.94, 3.45] | 22.0 [21.2, 22.4] | 62.0 [61.6, 62.6] | 1.86 [1.84, 1.89] | missing | 895 [893, 895] | 1,766 [1,765, 1,767] |
+| 0.0756 | 2 | port before | 5 | 27.2 [27.2, 27.4] | 0.848 [0.845, 0.848] | 3.33 [3.27, 3.41] | 9.48 [9.45, 9.51] | 29.0 [29.0, 29.2] | 0.856 [0.854, 0.858] | missing | 788 [782, 846] | 1,562 [1,553, 1,644] |
+| 0.0756 | 2 | port | 5 | 13.8 [13.7, 13.9] | 0.369 [0.366, 0.372] | 2.53 [2.52, 2.55] | 6.44 [6.42, 6.46] | 12.7 [12.6, 12.9] | 0.425 [0.422, 0.429] | missing | 691 [691, 695] | 1,374 [1,372, 1,377] |
+| 0.0756 | 4 | C++ | 5 | 30.9 [30.8, 30.9] | 1.12 [1.12, 1.13] | 1.87 [1.86, 1.90] | 14.5 [14.3, 14.5] | 34.7 [34.6, 34.8] | 2.19 [2.18, 2.19] | missing | 518 [515, 519] | 2,005 [2,003, 2,009] |
+| 0.0756 | 4 | port before | 5 | 17.2 [17.1, 17.2] | 0.445 [0.444, 0.446] | 1.99 [1.97, 2.02] | 6.92 [6.87, 6.93] | 18.0 [18.0, 18.1] | 1.11 [1.11, 1.11] | missing | 466 [466, 467] | 1,833 [1,830, 1,836] |
+| 0.0756 | 4 | port | 5 | 9.29 [9.20, 9.32] | 0.194 [0.194, 0.196] | 1.67 [1.66, 1.69] | 4.73 [4.70, 4.80] | 8.33 [8.19, 8.36] | 0.581 [0.573, 0.582] | missing | 413 [411, 413] | 1,609 [1,608, 1,611] |
+| 0.06 | 1 | C++ | 5 | 195 [194, 198] | 14.0 [13.9, 14.0] | 12.9 [12.8, 13.0] | 62.4 [62.1, 68.3] | 240 [239, 241] | 1.71 [1.70, 1.74] | 100% | 3,178 [3,178, 3,178] | 3,178 [3,178, 3,178] |
+| 0.06 | 1 | port before | 5 | 99.0 [98.8, 99.3] | 3.07 [3.07, 3.09] | 14.0 [14.0, 14.1] | 27.2 [27.1, 27.4] | 109 [108, 110] | 0.766 [0.765, 0.771] | 100% | 2,853 [2,853, 2,853] | 2,853 [2,853, 2,853] |
+| 0.06 | 1 | port | 5 | 50.8 [50.6, 51.1] | 1.34 [1.34, 1.35] | 10.2 [10.2, 10.3] | 19.9 [19.8, 20.0] | 50.3 [50.1, 50.6] | 0.395 [0.394, 0.398] | 100% | 2,471 [2,471, 2,471] | 2,471 [2,471, 2,471] |
+| 0.06 | 2 | C++ | 5 | 113 [112, 114] | 6.25 [5.71, 6.27] | 8.53 [8.50, 8.61] | 41.0 [40.4, 42.2] | 134 [134, 136] | 1.98 [1.96, 2.01] | 86% | 1,875 [1,874, 1,878] | 3,742 [3,740, 3,744] |
+| 0.06 | 2 | port before | 5 | 56.3 [56.2, 56.7] | 1.69 [1.69, 1.69] | 9.09 [9.07, 9.19] | 18.3 [18.3, 18.5] | 57.5 [57.3, 57.8] | 0.855 [0.853, 0.861] | 90% | 1,698 [1,696, 1,701] | 3,387 [3,386, 3,392] |
+| 0.06 | 2 | port | 5 | 30.1 [29.9, 30.2] | 0.739 [0.737, 0.741] | 7.35 [7.34, 7.39] | 12.5 [12.4, 12.5] | 26.7 [26.4, 26.8] | 0.442 [0.438, 0.443] | 89% | 1,515 [1,513, 1,519] | 3,028 [3,022, 3,037] |
+| 0.06 | 2 | port 2 x 4 | 5 | 23.1 [23.1, 23.2] | 0.743 [0.735, 0.745] | 7.12 [7.09, 7.15] | 9.72 [9.66, 9.78] | 16.0 [15.9, 16.2] | 1.16 [1.16, 1.16] | 34% | 1,520 [1,518, 1,527] | 3,036 [3,033, 3,043] |
+| 0.06 | 4 | C++ | 5 | 64.3 [63.8, 64.9] | 2.56 [2.53, 2.60] | 4.58 [4.56, 4.63] | 27.7 [27.6, 27.7] | 73.7 [72.9, 74.8] | 2.29 [2.27, 2.31] | 75% | 993 [989, 998] | 3,876 [3,865, 3,887] |
+| 0.06 | 4 | port before | 5 | 34.7 [34.6, 34.8] | 0.883 [0.883, 0.892] | 4.87 [4.82, 4.91] | 13.4 [13.2, 13.4] | 35.4 [35.3, 35.5] | 1.10 [1.10, 1.10] | 70% | 907 [902, 908] | 3,514 [3,509, 3,517] |
+| 0.06 | 4 | port | 5 | 19.0 [18.9, 19.1] | 0.382 [0.381, 0.390] | 4.03 [4.02, 4.07] | 9.13 [9.09, 9.27] | 16.8 [16.7, 16.9] | 0.586 [0.583, 0.589] | 68% | 811 [807, 813] | 3,128 [3,124, 3,133] |
+| 0.06 | 4 | port 4 x 2 | 5 | 18.0 [17.9, 18.3] | 0.383 [0.380, 0.391] | 3.93 [3.89, 4.36] | 9.08 [9.06, 9.15] | 15.0 [15.0, 15.4] | 1.09 [1.08, 1.11] | 36% | 819 [816, 831] | 3,145 [3,141, 3,166] |
+| 0.06 | 8 | C++ | 5 | 43.6 [43.3, 44.2] | 1.18 [1.17, 1.20] | 3.05 [3.01, 3.19] | 20.0 [19.6, 20.5] | 48.3 [47.9, 49.2] | 3.09 [3.05, 3.12] | 55% | 640 [613, 683] | 4,465 [4,353, 4,552] |
+| 0.06 | 8 | port before | 5 | 27.4 [27.3, 27.5] | 0.492 [0.486, 0.494] | 3.31 [3.23, 3.42] | 14.0 [13.9, 14.0] | 26.6 [26.5, 26.7] | 1.83 [1.83, 1.83] | 42% | 598 [564, 604] | 4,016 [3,972, 4,062] |
+| 0.06 | 8 | port | 5 | 16.6 [16.5, 16.7] | 0.220 [0.214, 0.230] | 2.77 [2.76, 2.98] | 9.74 [9.65, 9.88] | 14.8 [14.5, 15.0] | 1.11 [1.09, 1.12] | 36% | 527 [511, 581] | 3,679 [3,535, 3,717] |
+| 0.0476 | 8 | C++ | 5 | 91.0 [90.5, 91.8] | 2.78 [2.68, 2.85] | 9.02 [8.52, 9.41] | 38.2 [37.8, 41.2] | 99.3 [98.3, 101] | 3.11 [3.09, 3.21] | missing | 1,317 [1,289, 1,552] | 8,924 [8,719, 9,287] |
+| 0.0476 | 8 | port before | 5 | 58.8 [57.3, 63.0] | 0.971 [0.963, 0.980] | 10.9 [9.47, 15.0] | 28.0 [27.7, 28.0] | 52.2 [52.1, 52.3] | 1.82 [1.81, 1.82] | missing | 1,351 [1,193, 1,611] | 8,264 [8,153, 8,818] |
+| 0.0476 | 8 | port | 5 | 37.4 [36.9, 41.6] | 0.452 [0.445, 0.459] | 9.69 [9.20, 13.8] | 19.7 [19.6, 19.7] | 29.5 [29.4, 29.6] | 1.11 [1.11, 1.12] | missing | 1,341 [1,088, 1,543] | 7,927 [7,004, 8,538] |
+
+Table "Port / upstream, series ws":
+
+| h | ranks | loop | `solve_step` | check | static solve | `init_full` | wall |
+|---|---|---|---|---|---|---|---|
+| 0.12 | 1 | 0.241 [0.232, 0.244] | 0.306 [0.304, 0.308] | 0.215 [0.204, 0.218] | 0.837 [0.452, 0.853] | 0.170 [0.169, 0.173] | 0.268 [0.217, 0.270] |
+| 0.0925 | 1 | 0.258 [0.252, 0.259] | 0.317 [0.314, 0.320] | 0.236 [0.230, 0.239] | 0.824 [0.821, 0.834] | 0.142 [0.142, 0.143] | 0.278 [0.272, 0.279] |
+| 0.0925 | 2 | 0.247 [0.244, 0.264] | 0.313 [0.297, 0.324] | 0.222 [0.221, 0.240] | 0.869 [0.866, 0.875] | 0.179 [0.177, 0.179] | 0.274 [0.272, 0.289] |
+| 0.0756 | 2 | 0.229 [0.223, 0.231] | 0.294 [0.287, 0.302] | 0.204 [0.201, 0.208] | 0.851 [0.734, 0.867] | 0.144 [0.143, 0.144] | 0.262 [0.258, 0.263] |
+| 0.0756 | 4 | 0.266 [0.263, 0.267] | 0.328 [0.327, 0.330] | 0.240 [0.235, 0.241] | 0.889 [0.881, 0.907] | 0.173 [0.172, 0.174] | 0.301 [0.298, 0.302] |
+| 0.06 | 1 | 0.233 [0.228, 0.233] | 0.319 [0.292, 0.320] | 0.210 [0.208, 0.211] | 0.790 [0.789, 0.797] | 0.0964 [0.0962, 0.0967] | 0.261 [0.258, 0.262] |
+| 0.06 | 2 | 0.222 [0.220, 0.226] | 0.303 [0.296, 0.309] | 0.197 [0.197, 0.200] | 0.861 [0.856, 0.869] | 0.118 [0.118, 0.130] | 0.266 [0.264, 0.270] |
+| 0.06 | 4 | 0.257 [0.254, 0.257] | 0.330 [0.329, 0.334] | 0.228 [0.226, 0.230] | 0.877 [0.869, 0.892] | 0.150 [0.149, 0.152] | 0.296 [0.292, 0.297] |
+| 0.06 | 8 | 0.357 [0.354, 0.363] | 0.487 [0.474, 0.496] | 0.304 [0.301, 0.309] | 0.922 [0.864, 0.957] | 0.186 [0.183, 0.192] | 0.379 [0.375, 0.385] |
+| 0.0476 | 8 | 0.359 [0.346, 0.360] | 0.515 [0.475, 0.522] | 0.297 [0.294, 0.300] | 1.11 [0.977, 1.60] | 0.163 [0.158, 0.171] | 0.414 [0.404, 0.452] |
+
+Table "Port / port before, series ws":
+
+| h | ranks | loop | `solve_step` | check | static solve | `init_full` | wall |
+|---|---|---|---|---|---|---|---|
+| 0.12 | 1 | 0.405 [0.400, 0.409] | 0.695 [0.685, 0.716] | 0.330 [0.321, 0.331] | 0.656 [0.467, 0.675] | 0.434 [0.433, 0.443] | 0.420 [0.321, 0.423] |
+| 0.0925 | 1 | 0.464 [0.463, 0.468] | 0.726 [0.714, 0.730] | 0.398 [0.396, 0.401] | 0.674 [0.666, 0.678] | 0.429 [0.423, 0.431] | 0.461 [0.461, 0.464] |
+| 0.0925 | 2 | 0.496 [0.492, 0.527] | 0.707 [0.696, 0.731] | 0.426 [0.421, 0.459] | 0.767 [0.762, 0.769] | 0.444 [0.437, 0.444] | 0.504 [0.499, 0.527] |
+| 0.0756 | 2 | 0.495 [0.493, 0.502] | 0.678 [0.677, 0.684] | 0.434 [0.433, 0.444] | 0.758 [0.742, 0.780] | 0.435 [0.432, 0.440] | 0.504 [0.503, 0.511] |
+| 0.0756 | 4 | 0.524 [0.518, 0.525] | 0.685 [0.683, 0.692] | 0.463 [0.454, 0.464] | 0.838 [0.828, 0.860] | 0.436 [0.435, 0.440] | 0.541 [0.535, 0.543] |
+| 0.06 | 1 | 0.515 [0.513, 0.520] | 0.729 [0.726, 0.736] | 0.462 [0.458, 0.467] | 0.726 [0.724, 0.728] | 0.437 [0.436, 0.439] | 0.513 [0.511, 0.516] |
+| 0.06 | 2 | 0.515 [0.512, 0.518] | 0.679 [0.678, 0.685] | 0.462 [0.459, 0.467] | 0.808 [0.799, 0.815] | 0.437 [0.437, 0.439] | 0.534 [0.532, 0.536] |
+| 0.06 | 4 | 0.533 [0.531, 0.535] | 0.688 [0.682, 0.691] | 0.474 [0.473, 0.477] | 0.832 [0.819, 0.838] | 0.433 [0.427, 0.441] | 0.547 [0.547, 0.549] |
+| 0.06 | 8 | 0.605 [0.599, 0.614] | 0.700 [0.690, 0.708] | 0.555 [0.545, 0.564] | 0.855 [0.809, 0.878] | 0.445 [0.435, 0.467] | 0.605 [0.603, 0.613] |
+| 0.0476 | 8 | 0.612 [0.612, 0.616] | 0.703 [0.699, 0.710] | 0.566 [0.562, 0.566] | 0.891 [0.671, 1.46] | 0.465 [0.458, 0.475] | 0.636 [0.601, 0.725] |
+
+Table "Port before / upstream, series ws":
+
+| h | ranks | loop | `solve_step` | check | static solve | `init_full` | wall |
+|---|---|---|---|---|---|---|---|
+| 0.12 | 1 | 0.596 [0.568, 0.605] | 0.442 [0.424, 0.449] | 0.662 [0.616, 0.670] | 1.27 [0.968, 1.28] | 0.391 [0.389, 0.392] | 0.640 [0.615, 0.677] |
+| 0.0925 | 1 | 0.554 [0.543, 0.557] | 0.438 [0.432, 0.443] | 0.596 [0.579, 0.597] | 1.23 [1.22, 1.23] | 0.332 [0.330, 0.337] | 0.600 [0.591, 0.603] |
+| 0.0925 | 2 | 0.500 [0.496, 0.501] | 0.443 [0.421, 0.445] | 0.524 [0.520, 0.527] | 1.13 [1.13, 1.14] | 0.404 [0.403, 0.405] | 0.547 [0.541, 0.548] |
+| 0.0756 | 2 | 0.460 [0.453, 0.463] | 0.432 [0.423, 0.446] | 0.470 [0.464, 0.473] | 1.11 [0.989, 1.14] | 0.331 [0.327, 0.331] | 0.516 [0.513, 0.520] |
+| 0.0756 | 4 | 0.507 [0.506, 0.509] | 0.478 [0.477, 0.480] | 0.519 [0.517, 0.522] | 1.06 [1.03, 1.08] | 0.396 [0.395, 0.397] | 0.556 [0.554, 0.559] |
+| 0.06 | 1 | 0.449 [0.439, 0.454] | 0.438 [0.397, 0.439] | 0.451 [0.449, 0.459] | 1.09 [1.09, 1.10] | 0.220 [0.220, 0.221] | 0.508 [0.499, 0.512] |
+| 0.06 | 2 | 0.431 [0.428, 0.436] | 0.447 [0.435, 0.452] | 0.426 [0.426, 0.431] | 1.07 [1.06, 1.08] | 0.270 [0.270, 0.296] | 0.498 [0.495, 0.503] |
+| 0.06 | 4 | 0.482 [0.475, 0.484] | 0.483 [0.478, 0.484] | 0.482 [0.473, 0.485] | 1.07 [1.04, 1.07] | 0.345 [0.340, 0.352] | 0.541 [0.535, 0.542] |
+| 0.06 | 8 | 0.592 [0.586, 0.600] | 0.696 [0.683, 0.706] | 0.550 [0.541, 0.557] | 1.08 [1.04, 1.12] | 0.416 [0.408, 0.422] | 0.627 [0.621, 0.634] |
+| 0.0476 | 8 | 0.585 [0.566, 0.588] | 0.733 [0.679, 0.740] | 0.527 [0.519, 0.530] | 1.28 [1.06, 1.66] | 0.353 [0.341, 0.360] | 0.651 [0.624, 0.692] |
+
+Table "Ranks × threads", series ws:
+
+| h | configuration | loop s | against 8 ranks | against the same ranks, 1 thread |
+|---|---|---|---|---|
+| 0.06 | 2 ranks x 4 threads | 12.9 [12.8, 12.9] | 1.05 [1.04, 1.06] | 0.658 [0.654, 0.662] |
+| 0.06 | 4 ranks x 2 threads | 12.1 [12.0, 12.3] | 0.993 [0.978, 1.000] | 0.933 [0.925, 0.941] |
+
+#### Series `ins`: the insertion regime on h = 0.12, 1,500 steps
+
+Table "Points":
+
+| h | ranks | code | n | wall s | init_full s | static solve s | `solve_step` ms/step | check ms/step | core-µs/el/step | loop efficiency | largest rank peak MiB | Σ rank peaks MiB |
+|---|---|---|---|---|---|---|---|---|---|---|---|---|
+| 0.12 | 1 | C++ | 5 | 50.0 [49.8, 50.4] | 0.966 [0.964, 0.969] | 0.615 [0.612, 0.616] | 8.37 [8.36, 8.44] | 20.7 [20.6, 21.0] | 1.26 [1.25, 1.27] | 100% | 410 [410, 410] | 410 [410, 410] |
+| 0.12 | 1 | port before | 5 | 33.1 [32.9, 33.1] | 0.377 [0.376, 0.378] | 0.782 [0.780, 0.791] | 3.82 [3.75, 3.85] | 14.8 [14.7, 14.8] | 0.802 [0.798, 0.804] | 100% | 366 [366, 366] | 366 [366, 366] |
+| 0.12 | 1 | port | 5 | 12.7 [12.7, 12.8] | 0.164 [0.163, 0.165] | 0.514 [0.513, 0.517] | 2.62 [2.61, 2.62] | 4.54 [4.52, 4.57] | 0.309 [0.308, 0.311] | 100% | 308 [307, 308] | 308 [307, 308] |
+| 0.12 | 2 | C++ | 5 | 33.1 [33.0, 33.6] | 0.474 [0.473, 0.495] | 0.405 [0.402, 0.411] | 6.02 [6.00, 6.13] | 13.6 [13.5, 13.8] | 1.70 [1.69, 1.71] | 74% | 253 [252, 253] | 500 [499, 500] |
+| 0.12 | 2 | port before | 5 | 19.7 [19.7, 19.9] | 0.216 [0.216, 0.217] | 0.492 [0.484, 0.497] | 2.73 [2.70, 2.76] | 8.43 [8.38, 8.44] | 0.963 [0.962, 0.965] | 83% | 221 [221, 222] | 439 [439, 440] |
+| 0.12 | 2 | port | 5 | 8.30 [8.27, 8.34] | 0.0973 [0.0968, 0.0975] | 0.372 [0.370, 0.374] | 1.79 [1.78, 1.79] | 2.89 [2.86, 2.90] | 0.403 [0.401, 0.404] | 77% | 194 [194, 194] | 383 [383, 384] |
+| 0.12 | 2 | port 2 x 4 | 5 | 5.96 [5.94, 5.99] | 0.0977 [0.0971, 0.0984] | 0.359 [0.359, 0.361] | 1.49 [1.47, 1.51] | 1.62 [1.61, 1.64] | 1.07 [1.07, 1.08] | 29% | 195 [195, 195] | 386 [385, 386] |
+| 0.12 | 4 | C++ | 5 | 21.5 [21.3, 21.6] | 0.245 [0.242, 0.248] | 0.228 [0.225, 0.230] | 4.19 [4.18, 4.21] | 8.53 [8.45, 8.55] | 2.20 [2.18, 2.20] | 57% | 160 [159, 160] | 625 [622, 626] |
+| 0.12 | 4 | port before | 5 | 12.3 [12.2, 12.3] | 0.120 [0.119, 0.120] | 0.269 [0.265, 0.275] | 2.01 [1.99, 2.04] | 4.99 [4.98, 5.01] | 1.21 [1.21, 1.21] | 66% | 136 [135, 136] | 528 [527, 529] |
+| 0.12 | 4 | port | 5 | 5.51 [5.50, 5.53] | 0.0547 [0.0541, 0.0550] | 0.213 [0.212, 0.218] | 1.29 [1.29, 1.30] | 1.79 [1.79, 1.80] | 0.533 [0.532, 0.535] | 58% | 123 [123, 124] | 477 [476, 478] |
+| 0.12 | 4 | port 4 x 2 | 5 | 5.25 [5.22, 5.31] | 0.0549 [0.0541, 0.0554] | 0.208 [0.206, 0.217] | 1.26 [1.26, 1.27] | 1.65 [1.63, 1.67] | 1.01 [1.00, 1.02] | 31% | 124 [123, 124] | 478 [477, 480] |
+| 0.12 | 8 | C++ | 5 | 16.1 [16.1, 16.2] | 0.137 [0.130, 0.139] | 0.177 [0.168, 0.181] | 3.18 [3.04, 3.21] | 6.20 [6.16, 6.27] | 3.23 [3.19, 3.27] | 39% | 120 [120, 120] | 880 [879, 881] |
+| 0.12 | 8 | port before | 5 | 10.2 [10.1, 10.2] | 0.0703 [0.0691, 0.0756] | 0.206 [0.199, 0.211] | 1.96 [1.94, 2.00] | 3.92 [3.86, 3.94] | 2.03 [2.02, 2.04] | 39% | 97.4 [96.7, 101] | 723 [722, 727] |
+| 0.12 | 8 | port | 5 | 5.15 [5.12, 5.22] | 0.0311 [0.0308, 0.0317] | 0.171 [0.164, 0.176] | 1.28 [1.26, 1.28] | 1.66 [1.64, 1.72] | 1.01 [1.01, 1.03] | 30% | 93.0 [91.9, 93.5] | 679 [678, 683] |
+
+Table "Port / upstream, series ins":
+
+| h | ranks | loop | `solve_step` | check | static solve | `init_full` | wall |
+|---|---|---|---|---|---|---|---|
+| 0.12 | 1 | 0.245 [0.243, 0.247] | 0.313 [0.310, 0.313] | 0.219 [0.215, 0.221] | 0.840 [0.834, 0.840] | 0.169 [0.169, 0.171] | 0.254 [0.251, 0.255] |
+| 0.12 | 2 | 0.237 [0.235, 0.239] | 0.298 [0.291, 0.298] | 0.210 [0.210, 0.213] | 0.913 [0.911, 0.924] | 0.205 [0.197, 0.206] | 0.250 [0.247, 0.252] |
+| 0.12 | 4 | 0.243 [0.242, 0.244] | 0.309 [0.307, 0.311] | 0.210 [0.210, 0.212] | 0.945 [0.923, 0.961] | 0.224 [0.221, 0.224] | 0.257 [0.255, 0.259] |
+| 0.12 | 8 | 0.314 [0.309, 0.319] | 0.401 [0.392, 0.421] | 0.268 [0.263, 0.279] | 0.961 [0.920, 1.02] | 0.231 [0.224, 0.239] | 0.320 [0.316, 0.326] |
+
+Table "Port / port before, series ins":
+
+| h | ranks | loop | `solve_step` | check | static solve | `init_full` | wall |
+|---|---|---|---|---|---|---|---|
+| 0.12 | 1 | 0.386 [0.383, 0.389] | 0.685 [0.680, 0.697] | 0.308 [0.306, 0.311] | 0.656 [0.649, 0.663] | 0.435 [0.433, 0.438] | 0.384 [0.382, 0.387] |
+| 0.12 | 2 | 0.418 [0.417, 0.420] | 0.654 [0.646, 0.661] | 0.343 [0.339, 0.343] | 0.755 [0.744, 0.774] | 0.450 [0.447, 0.451] | 0.421 [0.418, 0.424] |
+| 0.12 | 4 | 0.441 [0.440, 0.442] | 0.644 [0.635, 0.651] | 0.359 [0.357, 0.360] | 0.799 [0.771, 0.822] | 0.457 [0.451, 0.462] | 0.450 [0.449, 0.451] |
+| 0.12 | 8 | 0.499 [0.495, 0.504] | 0.649 [0.630, 0.653] | 0.425 [0.417, 0.439] | 0.808 [0.789, 0.880] | 0.444 [0.408, 0.451] | 0.508 [0.504, 0.514] |
+
+Table "Ranks × threads", series ins:
+
+| h | configuration | loop s | against 8 ranks | against the same ranks, 1 thread |
+|---|---|---|---|---|
+| 0.12 | 2 ranks x 4 threads | 4.67 [4.64, 4.70] | 1.06 [1.05, 1.07] | 0.669 [0.661, 0.672] |
+| 0.12 | 4 ranks x 2 threads | 4.37 [4.35, 4.41] | 0.996 [0.981, 1.00] | 0.943 [0.938, 0.955] |
+
+#### Series `full12`: the full schedule on h = 0.12, 5,000 steps
+
+Table "Points":
+
+| h | ranks | code | n | wall s | init_full s | static solve s | `solve_step` ms/step | check ms/step | core-µs/el/step | loop efficiency | largest rank peak MiB | Σ rank peaks MiB |
+|---|---|---|---|---|---|---|---|---|---|---|---|---|
+| 0.12 | 1 | C++ | 5 | 199 [199, 200] | 0.966 [0.964, 0.968] | 0.612 [0.609, 0.618] | 11.0 [10.9, 11.0] | 25.4 [25.2, 25.6] | 1.57 [1.57, 1.58] | 100% | 411 [411, 411] | 411 [411, 411] |
+| 0.12 | 1 | port before | 5 | 156 [156, 157] | 0.377 [0.376, 0.377] | 0.785 [0.782, 0.789] | 7.69 [7.67, 7.71] | 20.8 [20.7, 20.8] | 1.23 [1.23, 1.23] | 100% | 366 [366, 366] | 366 [366, 366] |
+| 0.12 | 1 | port | 5 | 59.2 [58.9, 59.5] | 0.164 [0.163, 0.166] | 0.512 [0.511, 0.515] | 4.83 [4.82, 4.85] | 6.09 [6.04, 6.12] | 0.472 [0.469, 0.474] | 100% | 345 [343, 346] | 345 [343, 346] |
+| 0.12 | 2 | C++ | 5 | 153 [153, 153] | 0.474 [0.474, 0.493] | 0.406 [0.404, 0.408] | 8.42 [8.32, 8.53] | 20.3 [20.1, 20.3] | 2.47 [2.47, 2.49] | 63% | 264 [264, 264] | 522 [521, 522] |
+| 0.12 | 2 | port before | 5 | 116 [116, 116] | 0.216 [0.215, 0.216] | 0.487 [0.482, 0.488] | 5.11 [5.10, 5.11] | 16.6 [16.5, 16.6] | 1.87 [1.87, 1.88] | 66% | 221 [221, 222] | 440 [439, 440] |
+| 0.12 | 2 | port | 5 | 41.6 [41.4, 41.6] | 0.0970 [0.0964, 0.0977] | 0.371 [0.370, 0.377] | 3.19 [3.18, 3.20] | 4.57 [4.54, 4.58] | 0.671 [0.667, 0.671] | 70% | 215 [214, 215] | 428 [427, 429] |
+| 0.12 | 2 | port 2 x 4 | 5 | 31.9 [31.8, 32.1] | 0.0971 [0.0967, 0.0978] | 0.359 [0.358, 0.362] | 2.53 [2.51, 2.54] | 3.30 [3.28, 3.33] | 2.01 [2.01, 2.03] | 23% | 217 [216, 218] | 433 [432, 435] |
+| 0.12 | 4 | C++ | 5 | 102 [101, 102] | 0.245 [0.244, 0.246] | 0.225 [0.221, 0.226] | 6.07 [6.06, 6.09] | 12.9 [12.9, 13.0] | 3.28 [3.28, 3.29] | 48% | 199 [198, 199] | 761 [758, 762] |
+| 0.12 | 4 | port before | 5 | 69.3 [69.2, 69.4] | 0.119 [0.119, 0.119] | 0.268 [0.266, 0.273] | 3.58 [3.56, 3.58] | 9.42 [9.39, 9.44] | 2.25 [2.24, 2.25] | 55% | 136 [136, 137] | 528 [527, 529] |
+| 0.12 | 4 | port | 5 | 28.5 [28.5, 28.8] | 0.0540 [0.0537, 0.0543] | 0.212 [0.211, 0.217] | 2.24 [2.23, 2.25] | 3.11 [3.10, 3.15] | 0.923 [0.923, 0.931] | 51% | 136 [136, 137] | 522 [521, 523] |
+| 0.12 | 4 | port 4 x 2 | 5 | 27.6 [27.4, 27.9] | 0.0542 [0.0541, 0.0543] | 0.209 [0.204, 0.211] | 2.11 [2.10, 2.13] | 3.05 [3.01, 3.08] | 1.78 [1.77, 1.80] | 26% | 138 [138, 138] | 527 [526, 529] |
+| 0.12 | 8 | C++ | 5 | 82.7 [82.3, 88.0] | 0.135 [0.131, 0.137] | 0.177 [0.173, 0.183] | 4.41 [4.19, 4.57] | 11.0 [10.9, 11.7] | 5.32 [5.22, 5.61] | 29% | 169 [168, 169] | 1,252 [1,249, 1,253] |
+| 0.12 | 8 | port before | 5 | 52.4 [52.1, 52.5] | 0.0696 [0.0677, 0.0705] | 0.208 [0.205, 0.222] | 3.08 [3.06, 3.10] | 6.77 [6.74, 6.79] | 3.41 [3.38, 3.41] | 36% | 97.8 [96.4, 100] | 722 [722, 725] |
+| 0.12 | 8 | port | 5 | 25.7 [25.7, 25.7] | 0.0311 [0.0307, 0.0353] | 0.171 [0.163, 0.176] | 1.97 [1.96, 1.98] | 2.87 [2.86, 2.89] | 1.67 [1.67, 1.68] | 28% | 96.3 [96.0, 97.7] | 731 [728, 732] |
+
+Table "Port / upstream, series full12":
+
+| h | ranks | loop | `solve_step` | check | static solve | `init_full` | wall |
+|---|---|---|---|---|---|---|---|
+| 0.12 | 1 | 0.299 [0.299, 0.302] | 0.441 [0.439, 0.443] | 0.239 [0.238, 0.242] | 0.838 [0.831, 0.841] | 0.170 [0.169, 0.171] | 0.296 [0.296, 0.299] |
+| 0.12 | 2 | 0.271 [0.269, 0.272] | 0.377 [0.374, 0.385] | 0.226 [0.224, 0.227] | 0.915 [0.906, 0.929] | 0.204 [0.197, 0.206] | 0.272 [0.271, 0.273] |
+| 0.12 | 4 | 0.281 [0.281, 0.284] | 0.369 [0.367, 0.370] | 0.240 [0.240, 0.244] | 0.952 [0.936, 0.981] | 0.221 [0.220, 0.221] | 0.281 [0.280, 0.283] |
+| 0.12 | 8 | 0.315 [0.299, 0.320] | 0.445 [0.433, 0.470] | 0.262 [0.246, 0.263] | 0.988 [0.889, 1.00] | 0.230 [0.226, 0.269] | 0.310 [0.292, 0.312] |
+
+Table "Port / port before, series full12":
+
+| h | ranks | loop | `solve_step` | check | static solve | `init_full` | wall |
+|---|---|---|---|---|---|---|---|
+| 0.12 | 1 | 0.383 [0.383, 0.385] | 0.629 [0.627, 0.630] | 0.293 [0.291, 0.294] | 0.652 [0.649, 0.658] | 0.435 [0.432, 0.441] | 0.378 [0.378, 0.380] |
+| 0.12 | 2 | 0.358 [0.355, 0.359] | 0.624 [0.622, 0.627] | 0.276 [0.273, 0.277] | 0.763 [0.761, 0.774] | 0.450 [0.447, 0.454] | 0.359 [0.356, 0.360] |
+| 0.12 | 4 | 0.411 [0.410, 0.415] | 0.626 [0.623, 0.629] | 0.330 [0.329, 0.334] | 0.792 [0.784, 0.816] | 0.453 [0.451, 0.457] | 0.412 [0.411, 0.415] |
+| 0.12 | 8 | 0.492 [0.490, 0.494] | 0.642 [0.636, 0.644] | 0.424 [0.422, 0.426] | 0.794 [0.733, 0.859] | 0.449 [0.441, 0.521] | 0.491 [0.488, 0.493] |
+
+Table "Ranks × threads", series full12:
+
+| h | configuration | loop s | against 8 ranks | against the same ranks, 1 thread |
+|---|---|---|---|---|
+| 0.12 | 2 ranks x 4 threads | 29.1 [29.0, 29.4] | 1.20 [1.20, 1.21] | 0.750 [0.748, 0.756] |
+| 0.12 | 4 ranks x 2 threads | 25.8 [25.6, 26.0] | 1.06 [1.06, 1.07] | 0.965 [0.948, 0.974] |
+
+#### Series `reh6`: the full schedule on h = 0.06, 5,000 steps
+
+Table "Points":
+
+| h | ranks | code | n | wall s | init_full s | static solve s | `solve_step` ms/step | check ms/step | core-µs/el/step | loop efficiency | largest rank peak MiB | Σ rank peaks MiB |
+|---|---|---|---|---|---|---|---|---|---|---|---|---|
+| 0.06 | 1 | C++ | 5 | 1,952 [1,951, 1,974] | 13.9 [13.9, 14.0] | 13.0 [12.9, 13.1] | 82.0 [82.0, 82.5] | 278 [278, 282] | 2.03 [2.03, 2.06] | 100% | 3,180 [3,179, 3,180] | 3,180 [3,179, 3,180] |
+| 0.06 | 1 | port | 5 | 498 [498, 500] | 1.34 [1.33, 1.34] | 10.2 [10.2, 10.3] | 35.1 [35.1, 35.2] | 57.0 [56.8, 57.1] | 0.519 [0.518, 0.520] | 100% | 2,622 [2,620, 2,622] | 2,622 [2,620, 2,622] |
+| 0.06 | 2 | C++ | 5 | 1,238 [1,233, 1,242] | 6.26 [5.72, 6.27] | 8.60 [8.56, 8.72] | 55.8 [55.5, 56.0] | 175 [174, 176] | 2.60 [2.60, 2.61] | 78% | 1,875 [1,875, 1,879] | 3,743 [3,743, 3,747] |
+| 0.06 | 2 | port | 5 | 302 [301, 304] | 0.737 [0.736, 0.739] | 7.40 [7.39, 7.41] | 21.5 [21.5, 21.6] | 34.6 [34.4, 34.8] | 0.633 [0.630, 0.637] | 82% | 1,608 [1,600, 1,610] | 3,187 [3,177, 3,196] |
+| 0.06 | 2 | port 2 x 4 | 5 | 223 [222, 223] | 0.740 [0.738, 0.744] | 7.16 [7.14, 7.17] | 17.3 [17.2, 17.3] | 22.9 [22.8, 22.9] | 1.81 [1.81, 1.81] | 29% | 1,617 [1,615, 1,623] | 3,209 [3,200, 3,218] |
+| 0.06 | 4 | C++ | 5 | 736 [734, 748] | 2.56 [2.54, 2.61] | 4.62 [4.58, 4.65] | 39.9 [39.7, 40.1] | 98.4 [98.1, 101] | 3.12 [3.11, 3.18] | 65% | 989 [964, 998] | 3,878 [3,749, 3,891] |
+| 0.06 | 4 | port | 5 | 200 [200, 201] | 0.381 [0.380, 0.383] | 4.06 [4.03, 4.42] | 15.0 [14.9, 15.1] | 22.4 [22.3, 22.6] | 0.842 [0.839, 0.849] | 62% | 849 [847, 857] | 3,304 [3,299, 3,341] |
+| 0.06 | 4 | port 4 x 2 | 5 | 188 [187, 189] | 0.379 [0.378, 0.381] | 3.94 [3.92, 4.17] | 14.5 [14.4, 14.5] | 20.5 [20.4, 20.5] | 1.58 [1.57, 1.58] | 33% | 858 [854, 859] | 3,335 [3,332, 3,350] |
+| 0.06 | 8 | C++ | 5 | 496 [491, 502] | 1.19 [1.17, 1.23] | 3.23 [3.02, 3.29] | 26.1 [25.7, 26.3] | 66.2 [65.6, 67.2] | 4.16 [4.12, 4.22] | 49% | 626 [616, 689] | 4,517 [4,438, 4,570] |
+| 0.06 | 8 | port | 5 | 175 [174, 176] | 0.220 [0.218, 0.226] | 2.94 [2.89, 3.01] | 13.7 [13.6, 13.8] | 19.2 [19.0, 19.2] | 1.48 [1.47, 1.49] | 35% | 532 [517, 609] | 3,831 [3,812, 3,928] |
+
+Table "Port / upstream, series reh6":
+
+| h | ranks | loop | `solve_step` | check | static solve | `init_full` | wall |
+|---|---|---|---|---|---|---|---|
+| 0.06 | 1 | 0.255 [0.252, 0.256] | 0.428 [0.426, 0.429] | 0.205 [0.202, 0.205] | 0.787 [0.785, 0.793] | 0.0961 [0.0956, 0.0963] | 0.255 [0.252, 0.256] |
+| 0.06 | 2 | 0.243 [0.242, 0.244] | 0.385 [0.385, 0.387] | 0.198 [0.196, 0.199] | 0.860 [0.850, 0.864] | 0.118 [0.117, 0.129] | 0.244 [0.243, 0.245] |
+| 0.06 | 4 | 0.270 [0.267, 0.272] | 0.377 [0.374, 0.378] | 0.227 [0.224, 0.230] | 0.881 [0.867, 0.960] | 0.149 [0.146, 0.150] | 0.272 [0.269, 0.274] |
+| 0.06 | 8 | 0.356 [0.351, 0.359] | 0.528 [0.521, 0.531] | 0.288 [0.285, 0.292] | 0.910 [0.881, 0.995] | 0.185 [0.178, 0.194] | 0.352 [0.349, 0.356] |
+
+Table "Ranks × threads", series reh6:
+
+| h | configuration | loop s | against 8 ranks | against the same ranks, 1 thread |
+|---|---|---|---|---|
+| 0.06 | 2 ranks x 4 threads | 201 [201, 201] | 1.22 [1.21, 1.23] | 0.716 [0.711, 0.720] |
+| 0.06 | 4 ranks x 2 threads | 175 [174, 175] | 1.06 [1.06, 1.07] | 0.931 [0.930, 0.940] |
+
+#### Series `reh4`: the static solve and 300 steps on h = 0.04
+
+Table "Points":
+
+| h | ranks | code | n | wall s | init_full s | static solve s | `solve_step` ms/step | check ms/step | core-µs/el/step | loop efficiency | largest rank peak MiB | Σ rank peaks MiB |
+|---|---|---|---|---|---|---|---|---|---|---|---|---|
+| 0.04 | 1 | C++ | 5 | 519 [518, 520] | 73.6 [73.5, 73.7] | 82.0 [81.8, 82.0] | 198 [198, 200] | 875 [871, 878] | 1.92 [1.91, 1.93] | 100% | 11,670 [11,669, 11,670] | 11,670 [11,669, 11,670] |
+| 0.04 | 1 | port before | 5 | 268 [268, 268] | 10.4 [10.4, 10.4] | 84.4 [84.3, 84.6] | 89.4 [89.1, 89.6] | 353 [352, 354] | 0.791 [0.790, 0.792] | 100% | 10,271 [10,271, 10,271] | 10,271 [10,271, 10,271] |
+| 0.04 | 1 | port | 5 | 159 [159, 160] | 5.45 [5.43, 5.45] | 70.3 [70.1, 70.3] | 65.5 [65.4, 65.8] | 178 [178, 179] | 0.436 [0.436, 0.438] | 100% | 8,965 [8,965, 8,965] | 8,965 [8,965, 8,965] |
+| 0.04 | 2 | C++ | 5 | 297 [297, 301] | 32.0 [32.0, 32.0] | 57.7 [57.7, 57.8] | 126 [125, 127] | 475 [473, 487] | 2.15 [2.15, 2.19] | 89% | 6,961 [6,961, 6,962] | 13,741 [13,740, 13,744] |
+| 0.04 | 2 | port before | 5 | 149 [149, 149] | 5.70 [5.69, 5.75] | 51.0 [51.0, 51.3] | 59.2 [58.7, 59.6] | 184 [183, 184] | 0.868 [0.866, 0.871] | 91% | 5,884 [5,875, 5,885] | 11,347 [11,338, 11,348] |
+| 0.04 | 2 | port | 5 | 101 [101, 102] | 2.89 [2.88, 2.92] | 52.6 [52.5, 52.7] | 40.2 [39.9, 40.3] | 91.8 [91.5, 92.5] | 0.473 [0.471, 0.475] | 92% | 5,568 [5,551, 5,577] | 11,016 [10,986, 11,025] |
+| 0.04 | 2 | port 2 x 4 | 5 | 86.0 [85.9, 86.0] | 2.88 [2.87, 2.89] | 51.6 [51.4, 51.6] | 33.1 [33.0, 33.2] | 51.2 [51.0, 51.5] | 1.20 [1.20, 1.21] | 36% | 5,568 [5,567, 5,574] | 11,016 [11,014, 11,023] |
+| 0.04 | 4 | C++ | 5 | 158 [158, 159] | 11.8 [11.5, 12.0] | 27.8 [27.6, 28.8] | 81.6 [81.3, 81.8] | 256 [253, 260] | 2.41 [2.40, 2.44] | 80% | 3,488 [3,383, 3,510] | 13,115 [13,105, 13,157] |
+| 0.04 | 4 | port before | 5 | 89.6 [89.3, 91.2] | 2.90 [2.89, 2.91] | 28.4 [28.3, 30.1] | 43.8 [43.7, 43.8] | 112 [111, 112] | 1.11 [1.11, 1.12] | 71% | 3,126 [3,042, 3,130] | 11,688 [11,663, 11,723] |
+| 0.04 | 4 | port | 5 | 58.1 [56.3, 58.3] | 1.45 [1.44, 1.46] | 26.9 [25.1, 27.1] | 29.7 [29.6, 29.7] | 55.8 [55.8, 55.9] | 0.612 [0.611, 0.613] | 71% | 2,697 [2,693, 2,767] | 10,377 [10,352, 10,396] |
+| 0.04 | 4 | port 4 x 2 | 5 | 55.0 [54.0, 55.6] | 1.44 [1.43, 1.45] | 25.9 [24.8, 26.5] | 30.1 [29.8, 30.1] | 48.8 [48.6, 49.0] | 1.13 [1.13, 1.13] | 39% | 2,717 [2,715, 2,775] | 10,433 [10,361, 10,440] |
+| 0.04 | 8 | C++ | 5 | 103 [102, 104] | 5.09 [5.01, 5.32] | 18.2 [17.9, 20.6] | 58.4 [57.3, 59.4] | 158 [157, 161] | 3.10 [3.09, 3.15] | 62% | 2,419 [2,066, 2,884] | 14,760 [14,467, 15,038] |
+| 0.04 | 8 | port before | 5 | 67.5 [67.0, 69.1] | 1.58 [1.57, 1.59] | 19.0 [18.6, 20.6] | 43.9 [43.8, 44.5] | 82.1 [82.0, 82.2] | 1.80 [1.80, 1.81] | 44% | 1,966 [1,868, 2,226] | 13,611 [12,929, 13,654] |
+| 0.04 | 8 | port | 5 | 45.2 [44.6, 46.3] | 0.775 [0.767, 0.786] | 17.7 [17.0, 18.8] | 30.9 [30.8, 31.0] | 47.0 [46.8, 47.3] | 1.12 [1.11, 1.12] | 39% | 2,054 [1,700, 2,085] | 11,735 [11,199, 12,138] |
+
+Table "Port / upstream, series reh4":
+
+| h | ranks | loop | `solve_step` | check | static solve | `init_full` | wall |
+|---|---|---|---|---|---|---|---|
+| 0.04 | 1 | 0.227 [0.226, 0.228] | 0.330 [0.330, 0.330] | 0.204 [0.203, 0.204] | 0.857 [0.855, 0.858] | 0.0740 [0.0738, 0.0741] | 0.307 [0.306, 0.308] |
+| 0.04 | 2 | 0.219 [0.216, 0.220] | 0.320 [0.316, 0.320] | 0.193 [0.190, 0.194] | 0.911 [0.909, 0.913] | 0.0902 [0.0899, 0.0912] | 0.340 [0.338, 0.342] |
+| 0.04 | 4 | 0.254 [0.250, 0.256] | 0.364 [0.363, 0.365] | 0.218 [0.215, 0.221] | 0.959 [0.906, 0.977] | 0.123 [0.119, 0.127] | 0.367 [0.355, 0.368] |
+| 0.04 | 8 | 0.358 [0.355, 0.363] | 0.529 [0.518, 0.542] | 0.296 [0.291, 0.299] | 0.970 [0.862, 1.02] | 0.152 [0.147, 0.157] | 0.443 [0.429, 0.444] |
+
+Table "Port / port before, series reh4":
+
+| h | ranks | loop | `solve_step` | check | static solve | `init_full` | wall |
+|---|---|---|---|---|---|---|---|
+| 0.04 | 1 | 0.551 [0.550, 0.553] | 0.732 [0.731, 0.738] | 0.505 [0.504, 0.506] | 0.832 [0.831, 0.833] | 0.523 [0.522, 0.524] | 0.595 [0.594, 0.596] |
+| 0.04 | 2 | 0.544 [0.543, 0.545] | 0.678 [0.673, 0.687] | 0.501 [0.500, 0.504] | 1.03 [1.03, 1.03] | 0.507 [0.502, 0.513] | 0.682 [0.681, 0.682] |
+| 0.04 | 4 | 0.549 [0.549, 0.551] | 0.678 [0.677, 0.679] | 0.499 [0.498, 0.501] | 0.941 [0.886, 0.955] | 0.500 [0.495, 0.504] | 0.647 [0.627, 0.652] |
+| 0.04 | 8 | 0.618 [0.616, 0.621] | 0.700 [0.697, 0.707] | 0.572 [0.571, 0.575] | 0.951 [0.851, 0.983] | 0.491 [0.487, 0.499] | 0.674 [0.654, 0.685] |
+
+Table "Ranks × threads", series reh4:
+
+| h | configuration | loop s | against 8 ranks | against the same ranks, 1 thread |
+|---|---|---|---|---|
+| 0.04 | 2 ranks x 4 threads | 25.2 [25.2, 25.4] | 1.08 [1.07, 1.09] | 0.637 [0.635, 0.642] |
+| 0.04 | 4 ranks x 2 threads | 23.6 [23.6, 23.7] | 1.01 [1.01, 1.01] | 0.922 [0.919, 0.923] |
+
+#### Series `eig`: the port's SparseLU at 1 to 8 ranks (one repetition)
+
+Table "Points":
+
+| h | ranks | code | n | wall s | init_full s | static solve s | `solve_step` ms/step | check ms/step | core-µs/el/step | loop efficiency | largest rank peak MiB | Σ rank peaks MiB |
+|---|---|---|---|---|---|---|---|---|---|---|---|---|
+| 0.12 | 1 | port before SparseLU | 1 | 39.9 | 0.376 | 7.55 | 3.75 | 14.9 | 0.806 | 100% | 579 | 579 |
+| 0.12 | 1 | port SparseLU | 1 | 14.4 | 0.163 | 2.15 | 2.61 | 4.56 | 0.310 | 100% | 419 | 419 |
+| 0.12 | 2 | port before SparseLU | 1 | 26.4 | 0.216 | 7.22 | 2.73 | 8.42 | 0.963 | 84% | 445 | 617 |
+| 0.12 | 2 | port SparseLU | 1 | 9.92 | 0.0968 | 1.98 | 1.77 | 2.90 | 0.403 | 77% | 331 | 471 |
+| 0.12 | 2 | port SparseLU 2 x 4 | 1 | 6.89 | 0.0973 | 1.29 | 1.48 | 1.62 | 1.07 | 29% | 341 | 482 |
+| 0.12 | 4 | port before SparseLU | 1 | 19.2 | 0.119 | 7.15 | 2.00 | 5.00 | 1.21 | 67% | 366 | 680 |
+| 0.12 | 4 | port SparseLU | 1 | 7.19 | 0.0543 | 1.86 | 1.30 | 1.80 | 0.535 | 58% | 300 | 570 |
+| 0.12 | 4 | port SparseLU 4 x 2 | 1 | 6.51 | 0.0539 | 1.44 | 1.27 | 1.66 | 1.01 | 31% | 295 | 567 |
+| 0.12 | 8 | port before SparseLU | 1 | 16.9 | 0.0706 | 6.98 | 1.93 | 3.90 | 2.01 | 40% | 356 | 850 |
+| 0.12 | 8 | port SparseLU | 1 | 6.77 | 0.0308 | 1.81 | 1.25 | 1.67 | 1.01 | 31% | 278 | 739 |
+
+#### Weak and strong scaling
+
+Efficiency = core-µs per element and step at the study's first point over
+the core-µs at P, same code (medians):
+
+| study | ranks | code | efficiency (core-µs at the first point / at P) |
+|---|---|---|---|
+| weak A (≈ 23 k tets per rank) | 2 / 4 / 8 | port | 0.71 / 0.52 / 0.27 |
+| weak A (≈ 23 k tets per rank) | 2 / 4 / 8 | port before | 0.86 / 0.67 / 0.40 |
+| weak A (≈ 23 k tets per rank) | 2 / 4 / 8 | upstream | 0.72 / 0.57 / 0.40 |
+
+| study | ranks | code | efficiency (core-µs at the first point / at P) |
+|---|---|---|---|
+| weak B (≈ 45 k tets per rank) | 2 / 4 / 8 | port | 0.82 / 0.60 / 0.31 |
+| weak B (≈ 45 k tets per rank) | 2 / 4 / 8 | port before | 0.88 / 0.69 / 0.41 |
+| weak B (≈ 45 k tets per rank) | 2 / 4 / 8 | upstream | 0.73 / 0.59 / 0.44 |
+
+| study | ranks | code | efficiency (core-µs at the first point / at P) |
+|---|---|---|---|
+| strong, h = 0.06, before insertion | 2 / 4 / 8 | port | 0.89 / 0.68 / 0.36 |
+| strong, h = 0.06, before insertion | 2 / 4 / 8 | port before | 0.90 / 0.70 / 0.42 |
+| strong, h = 0.06, before insertion | 2 / 4 / 8 | upstream | 0.86 / 0.75 / 0.55 |
+
+| study | ranks | code | efficiency (core-µs at the first point / at P) |
+|---|---|---|---|
+| strong, h = 0.12, with insertion | 2 / 4 / 8 | port | 0.77 / 0.58 / 0.30 |
+| strong, h = 0.12, with insertion | 2 / 4 / 8 | port before | 0.83 / 0.66 / 0.39 |
+| strong, h = 0.12, with insertion | 2 / 4 / 8 | upstream | 0.74 / 0.57 / 0.39 |
+
+#### What the part C tables show
+
+- The loop, port / upstream: 0.22–0.30 at 1 to 4 ranks and 0.31–0.36 at 8
+  ranks over the series `ws`, `ins`, `full12`, `reh6` and `reh4`; the wall
+  time 0.24–0.37 at 1 to 4 ranks and 0.31–0.44 at 8.
+- The loop, port / port before: 0.36–0.62 (series `ws`, `ins`, `full12`,
+  `reh4`), highest at 8 ranks in every series (0.49–0.62).
+- `solve_step`, port / upstream: 0.29–0.44 at 1 to 4 ranks, 0.40–0.53 at 8;
+  the check 0.19–0.24 at 1 to 4 ranks, 0.26–0.30 at 8.
+- Strong scaling on h = 0.06 before insertion at 8 ranks: loop efficiency
+  0.36 (port), 0.42 (port before), 0.55 (upstream). The port's lead over
+  upstream is smallest at 8 ranks in every series.
+- Ranks × threads on 8 cores: 2 × 4 takes 1.05 / 1.06 / 1.20 / 1.22 / 1.08
+  times the loop of 8 ranks (`ws`, `ins`, `full12`, `reh6`, `reh4`), 4 × 2
+  0.993 / 0.996 / 1.06 / 1.06 / 1.01.
+- The static solve phase, port / upstream: 0.79–0.96 at 1 to 4 ranks,
+  0.91–1.11 at 8 (h = 0.0476 at 8 ranks: 1.11 [0.977, 1.60]).
+- The benchmark's 8 cores are one node of 8 cores; these series say nothing
+  about larger rank counts or several nodes.
+
+### Before the final campaign (boat.dev sandboxes, 12–13 November)
 
 Two series on one boat `large` sandbox (AMD EPYC 9455, 8 vCPU, one NUMA
 node, 2026-11-13), the port against the strict C++ install
@@ -899,8 +1272,7 @@ Reading:
   the 8-rank loss is a fixed per-step cost is not settled.
 - In the insertion series the 8-rank runs vary by about 2× in both codes
   (2,894 tetrahedra per rank, and the machine sped up during the series).
-
-### The mid-size rehearsal
+#### The mid-size rehearsal
 
 The full 5,000-step schedule on h = 0.06 and a static solve plus 300 steps
 on h = 0.04, both codes, 1 / 2 / 4 / 8 ranks (boat `large`, AMD EPYC 9455,
@@ -966,6 +1338,17 @@ none) cost the port's explicit step about 8 % at 8 ranks (10.2 against
 9.4 ms per step, 3 alternated pairs).
 
 ### The full-size run
+
+<!-- PLACEHOLDER final-G: paste the tables of docs/benchmarks/perf-campaign/final/G/summary.md here -->
+Final campaign, part G: measured separately; not yet available in this
+revision. The JOSS mesh, 5,000 steps, on one 128-core node, at 128, 64 and
+32 ranks with both codes (and the port at ranks × threads), the same
+partition per rank count, one run per point. Its tables go here as
+generated, from `docs/benchmarks/perf-campaign/final/G/`. Until then the
+full-size measurement is the run of 12 November below, made with the port
+before the performance campaign.
+
+#### Before the final campaign (AWS `r7a.16xlarge`, 2026-11-12)
 
 The JOSS mesh, 5,000 steps with insertion, on one AWS `r7a.16xlarge`
 (2026-11-12). Both codes ran in one container per run (Open MPI 5.0.7, TCP
@@ -1071,8 +1454,7 @@ put the loop's cost per element and step at 0.35–0.58 of what was measured;
 at 64 ranks the miss splits into ×1.70 before insertion and ×1.10 for the
 insertion. One rank on a sandbox does not show the parallel overhead of a
 64-rank run.
-
-### Comparison with upstream's published data
+#### Comparison with upstream's published data
 
 Upstream's JOSS study ran the same mesh and the same 5,000-step schedule
 with insertion (v5.0.4 Release with the JOSS patch, five runs per core
@@ -1117,6 +1499,14 @@ cores on (several nodes) and the paper's elastic series at full size were
 not run.
 
 ### Multi-node runs
+
+<!-- PLACEHOLDER final-multinode: paste the tables of the multi-node run here -->
+Final campaign: measured separately; not yet available in this revision.
+128 ranks over 4 hosts, the port only. Its tables go here as generated.
+Until then the multi-node measurement is that of 13 November below, made
+with the port before the performance campaign.
+
+#### Before the final campaign (8 × AWS `r7a.2xlarge`, 2026-11-13)
 
 The port only, on 8 AWS `r7a.2xlarge` in one cluster placement group
 (2026-11-13): one MPI job across the hosts (`mn_cluster.py`, SSH backend),
@@ -1212,6 +1602,49 @@ other interconnects or beyond 64 ranks.
 
 ## Memory
 
+### The final campaign (part E)
+
+h = 0.04 (558,875 tetrahedra), the static solve and 300 steps, 1 / 2 / 4 /
+8 ranks, five repetitions; AWS `m7a.2xlarge`, AMD EPYC 9R14, 2026-11-17 UTC;
+data `docs/benchmarks/perf-campaign/final/E/summary.md`. Peaks of the
+sampler (`memsample.py`, VmHWM of every rank every 0.25 s); container = the
+cgroup's `memory.peak`; the port's own records in `summary.json`; the last
+column = (Σ rank peaks − the port's `INFOG(19)`) / tetrahedra (the C++ row
+subtracts the port's `INFOG(19)` too: upstream records no MUMPS
+statistics). "Port, factors released" is the head with
+`rust_release_static_solver = true`.
+
+Table "Memory, h = 0.04":
+
+| ranks | code | n | largest rank MiB | Σ rank peaks MiB | container MiB | static: largest / Σ (port) MiB | port model before static: largest / Σ MiB | MUMPS INFOG(19) MB | besides MUMPS, bytes per tetrahedron |
+|---|---|---|---|---|---|---|---|---|---|
+| 1 | C++ | 5 | 11,669 [11,669, 11,669] | 11,669 [11,669, 11,669] | 11,659 [11,659, 11,687] | — | — | 5302 | 12,408 |
+| 1 | port before | 5 | 10,271 [10,270, 10,271] | 10,271 [10,270, 10,271] | 10,269 [10,269, 10,287] | 7,149 / 7,149 | 1,733 / 1,733 | 5302 | 9,783 |
+| 1 | port | 5 | 8,965 [8,964, 8,965] | 8,965 [8,964, 8,965] | 8,960 [8,960, 8,960] | 7,302 / 7,302 | 1,732 / 1,732 | 5302 | 7,334 |
+| 1 | port, factors released | 5 | 7,302 [7,302, 7,303] | 7,302 [7,302, 7,303] | 7,294 [7,294, 7,294] | 7,302 / 7,302 | 1,732 / 1,732 | 5302 | 4,214 |
+| 2 | C++ | 5 | 6,961 [6,961, 6,962] | 13,741 [13,740, 13,747] | 13,707 [13,707, 13,715] | — | — | 7586 | 12,207 |
+| 2 | port before | 5 | 5,885 [5,884, 5,892] | 11,352 [11,347, 11,359] | 11,323 [11,318, 11,330] | 4,333 / 8,249 | 955 / 1,878 | 7586 | 7,725 |
+| 2 | port | 5 | 5,566 [5,557, 5,576] | 11,013 [10,992, 11,023] | 10,982 [10,958, 10,992] | 4,790 / 9,458 | 955 / 1,876 | 7586 | 7,090 |
+| 2 | port, factors released | 5 | 4,792 [4,790, 4,801] | 9,464 [9,459, 9,474] | 9,430 [9,425, 9,439] | 4,792 / 9,464 | 955 / 1,878 | 7586 | 4,183 |
+| 4 | C++ | 5 | 3,489 [3,381, 3,652] | 13,171 [13,117, 13,673] | 13,045 [12,991, 13,548] | — | — | 6900 | 12,365 |
+| 4 | port before | 5 | 3,022 [2,999, 3,123] | 11,728 [11,661, 11,747] | 11,639 [11,570, 11,657] | 2,252 / 8,673 | 545 / 2,138 | 6900 | 9,658 |
+| 4 | port | 5 | 2,709 [2,687, 2,952] | 10,400 [10,339, 11,043] | 10,302 [10,239, 10,946] | 2,590 / 9,547 | 542 / 2,139 | 6900 | 7,167 |
+| 4 | port, factors released | 5 | 2,419 [2,315, 2,604] | 8,873 [8,837, 9,436] | 8,773 [8,738, 9,338] | 2,315 / 8,873 | 542 / 2,139 | 6900 | 4,301 |
+| 8 | C++ | 5 | 2,199 [2,154, 2,699] | 15,367 [13,976, 15,465] | 15,037 [13,633, 15,134] | — | — | 8051 | 14,426 |
+| 8 | port before | 5 | 2,245 [1,889, 2,439] | 13,938 [12,328, 14,463] | 13,697 [12,078, 14,212] | 1,504 / 9,913 | 313 / 2,373 | 8051 | 11,744 |
+| 8 | port | 5 | 1,843 [1,682, 2,228] | 12,133 [11,452, 12,277] | 11,878 [11,197, 12,023] | 2,086 / 10,802 | 323 / 2,389 | 8051 | 8,359 |
+| 8 | port, factors released | 5 | 1,614 [1,553, 2,134] | 10,716 [10,358, 11,170] | 10,466 [10,105, 10,918] | 1,857 / 11,170 | 323 / 2,388 | 8051 | 5,700 |
+
+- Σ rank peaks, port / C++ (ratio of the medians): 0.768 / 0.801 / 0.790 /
+  0.790 at 1 / 2 / 4 / 8 ranks; with the factors released 0.626 / 0.689 /
+  0.674 / 0.697.
+- MUMPS's `INFOG(19)` is 5,302 to 8,051 MB of these totals. Besides MUMPS
+  the port needs 7,090–8,359 bytes per tetrahedron, upstream 12,207–14,426,
+  and the port with the factors released 4,183–5,700.
+- The largest rank at 8 ranks: 1,843 MiB (port), 2,199 MiB (C++).
+
+### Before the final campaign (12–13 November)
+
 Table "Memory" of the full-size run (GiB; sampler = `memsample.py`, every
 0.25 s, VmRSS / VmHWM of every rank; container = the cgroup's `memory.peak`;
 static = the sampler's peaks up to the end of the static solve; the port's
@@ -1291,7 +1724,42 @@ and 183 GB at 64 (table "MUMPS" above).
 
 ## MPI layer
 
-### Point-to-point latency against raw MPI
+### Point-to-point latency against raw MPI (final campaign, part F)
+
+The methods of `docs/benchmarks/mpi-latency-2026-11-14/`: method A launches
+each case separately, method B runs `mpi_bench calibrated` in one job. AWS
+`m7a.2xlarge`, AMD EPYC 9R14, 2026-11-17 UTC, Open MPI 5.0.7; data
+`docs/benchmarks/perf-campaign/final/F/summary.md` (method B's table is
+there; its backend ratios at 8 B, 1 MiB and 16 MiB subtract a calibration
+larger than or close to the measured time and are not used here).
+
+Table "Method A, separate launches" (µs, median [min, max]; ping-pong: half
+round trip; halo: one exchange with every other rank, slowest rank):
+
+| Transport | Case | Raw MPI (C) | akantu-comm before | akantu-comm head | head / raw, paired | before / raw | head / before |
+|---|---|---|---|---|---|---|---|
+| shared memory | halo, 2 ranks, 8 KiB | 1.73 [1.71, 1.76] | 3.70 [3.66, 3.73] | 3.44 [3.40, 3.46] | 1.99 [1.95, 2.00] | 2.14 [2.08, 2.16] | 0.928 [0.924, 0.940] |
+| shared memory | halo, 4 ranks, 8 KiB | 5.23 [5.18, 5.27] | 10.5 [10.5, 10.7] | 9.94 [9.85, 10.0] | 1.89 [1.89, 1.93] | 2.02 [1.99, 2.06] | 0.940 [0.936, 0.948] |
+| shared memory | ping-pong 8 B | 0.130 [0.130, 0.130] | 0.860 [0.850, 0.870] | 0.840 [0.830, 0.840] | 6.46 [6.38, 6.46] | 6.62 [6.54, 6.69] | 0.966 [0.965, 0.977] |
+| shared memory | ping-pong 64 KiB | 8.54 [8.49, 8.55] | 15.0 [15.0, 15.1] | 13.3 [13.3, 13.3] | 1.56 [1.55, 1.57] | 1.76 [1.75, 1.77] | 0.885 [0.881, 0.889] |
+| shared memory | ping-pong 1 MiB | 118 [117, 118] | 218 [218, 220] | 186 [186, 186] | 1.58 [1.57, 1.58] | 1.85 [1.85, 1.87] | 0.851 [0.845, 0.852] |
+| shared memory | ping-pong 16 MiB | 2,093 [2,086, 2,098] | 7,078 [7,012, 7,111] | 5,278 [5,252, 5,325] | 2.52 [2.51, 2.54] | 3.38 [3.36, 3.40] | 0.746 [0.743, 0.752] |
+| TCP | halo, 2 ranks, 8 KiB | 13.1 [13.0, 13.2] | 16.4 [16.1, 16.6] | 16.2 [16.0, 16.3] | 1.23 [1.23, 1.24] | 1.26 [1.22, 1.27] | 0.984 [0.967, 1.01] |
+| TCP | halo, 4 ranks, 8 KiB | 32.6 [32.1, 32.6] | 43.1 [43.0, 43.4] | 42.3 [42.2, 42.4] | 1.30 [1.30, 1.32] | 1.32 [1.32, 1.35] | 0.980 [0.975, 0.983] |
+| TCP | ping-pong 8 B | 8.24 [7.98, 8.31] | 9.35 [9.32, 9.37] | 9.35 [9.33, 9.39] | 1.13 [1.12, 1.18] | 1.13 [1.12, 1.17] | 1.00 [0.999, 1.00] |
+| TCP | ping-pong 64 KiB | 40.3 [40.3, 41.3] | 48.5 [48.3, 49.1] | 46.6 [46.5, 46.7] | 1.16 [1.13, 1.16] | 1.20 [1.17, 1.22] | 0.963 [0.948, 0.964] |
+| TCP | ping-pong 1 MiB | 157 [156, 160] | 258 [258, 259] | 228 [227, 228] | 1.45 [1.43, 1.46] | 1.64 [1.62, 1.66] | 0.881 [0.876, 0.884] |
+| TCP | ping-pong 16 MiB | 3,127 [3,040, 3,152] | 8,041 [7,881, 8,101] | 6,496 [6,391, 6,527] | 2.08 [2.06, 2.10] | 2.57 [2.57, 2.59] | 0.810 [0.802, 0.811] |
+
+- Over shared memory the head takes 6.46× raw MPI for an 8-byte ping-pong,
+  1.56–1.58× for 64 KiB and 1 MiB, 2.52× for 16 MiB and 1.89–1.99× for the
+  8 KiB halos; over TCP 1.13–2.08×.
+- Head / before: 0.746 for 16 MiB and 0.851 for 1 MiB over shared memory;
+  0.928–0.966 for the halos and the 8-byte ping-pong.
+
+### Before the final campaign (2026-11-14)
+
+#### Point-to-point latency against raw MPI
 
 `crates/akantu-comm/examples/mpi_bench.rs` (release, feature `mpi`) against
 the raw-MPI C program `scripts/mpi/bench_baseline.c` (`mpicc -O2`) on x86_64:
@@ -1370,6 +1838,161 @@ measurement isolates the exchanges' share of a simulation.
 
 ## Set-up costs
 
+### The final campaign (parts F and B)
+
+The cohesive driver, one step, on h = 0.06 and 0.04 at 1 / 2 / 4 / 8 ranks,
+five repetitions; AWS `m7a.2xlarge`, AMD EPYC 9R14, 2026-11-17 UTC; data
+`docs/benchmarks/perf-campaign/final/F/summary.md`.
+
+Table "Set-up costs" (rank 0's Chrono phases, s):
+
+| h | ranks | code | read_mesh s | dist_mesh s | init_full s | before_step s | static solve s |
+|---|---|---|---|---|---|---|---|
+| 0.06 | 1 | C++ | 0.248 [0.246, 0.251] | 0.000358 [0.000357, 0.000469] | 13.9 [13.9, 13.9] | 4.02 [4.02, 4.06] | 12.9 [12.8, 12.9] |
+| 0.06 | 1 | port before | 0.140 [0.137, 0.143] | 0.00000218 [0.00000186, 0.00000242] | 3.07 [3.06, 3.07] | 4.38 [4.34, 4.41] | 14.1 [14.0, 14.1] |
+| 0.06 | 1 | port | 0.0898 [0.0890, 0.0908] | 0.00000215 [0.00000201, 0.00000248] | 1.34 [1.33, 1.35] | 1.44 [1.43, 1.46] | 10.2 [10.2, 10.3] |
+| 0.06 | 2 | C++ | 0.248 [0.247, 0.250] | 1.76 [1.76, 1.78] | 6.24 [6.24, 6.26] | 1.93 [1.90, 1.97] | 8.58 [8.52, 8.63] |
+| 0.06 | 2 | port before | 0.141 [0.140, 0.144] | 0.279 [0.274, 0.283] | 1.69 [1.69, 1.70] | 2.10 [2.09, 2.13] | 9.25 [9.19, 9.29] |
+| 0.06 | 2 | port | 0.0905 [0.0898, 0.0908] | 0.179 [0.177, 0.179] | 0.741 [0.731, 0.744] | 0.681 [0.673, 0.696] | 7.47 [7.40, 7.51] |
+| 0.06 | 4 | C++ | 0.248 [0.247, 0.249] | 1.80 [1.80, 1.81] | 2.55 [2.54, 2.59] | 0.980 [0.963, 0.985] | 4.65 [4.61, 4.98] |
+| 0.06 | 4 | port before | 0.142 [0.139, 0.143] | 0.315 [0.312, 0.325] | 0.882 [0.878, 0.889] | 1.03 [1.02, 1.04] | 4.88 [4.83, 5.31] |
+| 0.06 | 4 | port | 0.0886 [0.0878, 0.0898] | 0.173 [0.172, 0.175] | 0.385 [0.380, 0.390] | 0.331 [0.320, 0.333] | 4.06 [3.99, 4.08] |
+| 0.06 | 8 | C++ | 0.247 [0.245, 0.252] | 1.89 [1.88, 1.91] | 1.17 [1.16, 1.18] | 0.492 [0.491, 0.498] | 3.26 [3.10, 3.30] |
+| 0.06 | 8 | port before | 0.141 [0.140, 0.143] | 0.417 [0.406, 0.421] | 0.488 [0.485, 0.498] | 0.512 [0.507, 0.527] | 3.27 [3.21, 3.40] |
+| 0.06 | 8 | port | 0.0892 [0.0887, 0.0917] | 0.179 [0.178, 0.187] | 0.218 [0.214, 0.224] | 0.167 [0.166, 0.169] | 2.81 [2.58, 2.94] |
+| 0.04 | 1 | C++ | 0.838 [0.829, 0.842] | 0.00113 [0.00112, 0.00113] | 73.5 [73.5, 73.6] | 14.9 [14.9, 15.0] | 81.8 [81.6, 81.8] |
+| 0.04 | 1 | port before | 0.480 [0.467, 0.484] | 0.00000202 [0.00000187, 0.00000232] | 10.4 [10.4, 10.4] | 15.9 [15.7, 16.0] | 84.4 [84.3, 84.8] |
+| 0.04 | 1 | port | 0.280 [0.276, 0.281] | 0.00000207 [0.00000181, 0.00000220] | 5.48 [5.42, 5.52] | 5.23 [5.21, 5.31] | 70.3 [70.0, 70.5] |
+| 0.04 | 2 | C++ | 0.843 [0.823, 0.847] | 5.95 [5.87, 5.97] | 32.0 [31.9, 32.0] | 7.11 [7.10, 7.20] | 57.7 [57.6, 57.9] |
+| 0.04 | 2 | port before | 0.474 [0.470, 0.494] | 1.18 [1.13, 1.20] | 5.69 [5.68, 5.70] | 7.66 [7.60, 7.73] | 51.2 [51.0, 51.3] |
+| 0.04 | 2 | port | 0.278 [0.277, 0.292] | 0.637 [0.628, 0.644] | 2.91 [2.90, 2.92] | 2.53 [2.52, 2.57] | 52.9 [52.9, 53.2] |
+| 0.04 | 4 | C++ | 0.829 [0.821, 0.843] | 5.93 [5.90, 5.95] | 11.5 [11.3, 11.9] | 3.67 [3.64, 3.68] | 27.9 [27.7, 29.8] |
+| 0.04 | 4 | port before | 0.473 [0.469, 0.479] | 1.38 [1.37, 1.42] | 2.89 [2.88, 2.90] | 3.78 [3.74, 3.80] | 28.5 [28.4, 29.5] |
+| 0.04 | 4 | port | 0.280 [0.277, 0.281] | 0.603 [0.599, 0.613] | 1.45 [1.44, 1.47] | 1.22 [1.22, 1.23] | 25.5 [25.2, 27.3] |
+| 0.04 | 8 | C++ | 0.834 [0.826, 0.850] | 6.07 [6.04, 6.95] | 5.12 [5.05, 5.17] | 1.94 [1.92, 1.96] | 19.7 [17.7, 21.1] |
+| 0.04 | 8 | port before | 0.472 [0.464, 0.484] | 2.01 [1.95, 2.05] | 1.58 [1.57, 1.60] | 1.98 [1.97, 1.99] | 19.0 [18.4, 19.6] |
+| 0.04 | 8 | port | 0.279 [0.279, 0.283] | 0.643 [0.638, 0.653] | 0.779 [0.764, 0.780] | 0.667 [0.651, 0.682] | 18.4 [16.7, 24.5] |
+
+Table "Set-up, port / upstream" (paired):
+
+| h | ranks | read_mesh | dist_mesh | init_full | before_step | static solve |
+|---|---|---|---|---|---|---|
+| 0.06 | 1 | 0.362 [0.354, 0.366] | 0.00562 [0.00459, 0.00694] | 0.0965 [0.0959, 0.0969] | 0.359 [0.356, 0.361] | 0.795 [0.792, 0.797] |
+| 0.06 | 2 | 0.363 [0.363, 0.368] | 0.101 [0.101, 0.102] | 0.119 [0.117, 0.119] | 0.351 [0.350, 0.358] | 0.870 [0.862, 0.873] |
+| 0.06 | 4 | 0.358 [0.353, 0.363] | 0.0963 [0.0953, 0.0970] | 0.151 [0.147, 0.152] | 0.337 [0.325, 0.345] | 0.876 [0.813, 0.881] |
+| 0.06 | 8 | 0.363 [0.359, 0.363] | 0.0951 [0.0939, 0.0995] | 0.187 [0.182, 0.193] | 0.339 [0.336, 0.344] | 0.851 [0.785, 0.950] |
+| 0.04 | 1 | 0.334 [0.329, 0.339] | 0.00183 [0.00161, 0.00197] | 0.0745 [0.0737, 0.0751] | 0.349 [0.349, 0.355] | 0.859 [0.858, 0.862] |
+| 0.04 | 2 | 0.337 [0.328, 0.346] | 0.107 [0.106, 0.109] | 0.0910 [0.0906, 0.0913] | 0.356 [0.354, 0.361] | 0.918 [0.914, 0.922] |
+| 0.04 | 4 | 0.337 [0.332, 0.339] | 0.102 [0.101, 0.103] | 0.125 [0.122, 0.130] | 0.333 [0.332, 0.337] | 0.913 [0.846, 0.965] |
+| 0.04 | 8 | 0.336 [0.332, 0.338] | 0.106 [0.0933, 0.106] | 0.152 [0.151, 0.153] | 0.343 [0.332, 0.351] | 0.893 [0.850, 1.39] |
+
+Table "Distribution" (`suite_setup` `dist_mesh_tet4`, size `l`: 1,296,000
+Tet4; the port only):
+
+| case | phase | ranks | n | before | head | head / before | head ranks x threads | time | / head on as many cores (unpaired) | digests |
+|---|---|---|---|---|---|---|---|---|---|---|
+| dist_mesh_tet4 | distribute | 2 | 5 | 7.35 s [7.31 s, 7.36 s] | 2.09 s [2.08 s, 2.11 s] | 0.285 [0.284, 0.287] |  |  |  | equal |
+| dist_mesh_tet4 | distribute | 4 | 5 | 8.37 s [8.33 s, 8.39 s] | 2.34 s [2.34 s, 2.35 s] | 0.280 [0.279, 0.281] |  |  |  | equal |
+| dist_mesh_tet4 | distribute | 8 | 5 | 10.5 s [10.5 s, 10.6 s] | 2.70 s [2.69 s, 2.70 s] | 0.256 [0.255, 0.257] |  |  |  | equal |
+| dist_mesh_tet4 | mesh | 2 | 5 | 1.52 s [1.49 s, 1.54 s] | 941 ms [933 ms, 947 ms] | 0.619 [0.613, 0.627] |  |  |  | equal |
+| dist_mesh_tet4 | mesh | 4 | 5 | 1.52 s [1.51 s, 1.53 s] | 945 ms [941 ms, 946 ms] | 0.622 [0.619, 0.623] |  |  |  | equal |
+| dist_mesh_tet4 | mesh | 8 | 5 | 1.51 s [1.50 s, 1.51 s] | 941 ms [938 ms, 949 ms] | 0.625 [0.624, 0.629] |  |  |  | equal |
+| dist_mesh_tet4 | partition | 2 | 5 | 5.51 s [5.51 s, 5.52 s] | 1.48 s [1.47 s, 1.50 s] | 0.268 [0.267, 0.272] |  |  |  | equal |
+| dist_mesh_tet4 | partition | 4 | 5 | 5.87 s [5.86 s, 5.88 s] | 1.81 s [1.81 s, 1.82 s] | 0.309 [0.308, 0.310] |  |  |  | equal |
+| dist_mesh_tet4 | partition | 8 | 5 | 6.31 s [6.30 s, 6.32 s] | 2.22 s [2.21 s, 2.23 s] | 0.352 [0.351, 0.353] |  |  |  | equal |
+
+Table "suite_setup, serial cases" (part B, selected phases; the port only):
+
+| case | phase | calls | n | before | head | head / before | digests |
+|---|---|---|---|---|---|---|---|
+| cohesive_insert_tet4 | init_mesh_facets | 1 | 5 | 1.81 s [1.81 s, 1.82 s] | 514 ms [514 ms, 519 ms] | 0.284 [0.282, 0.287] | equal |
+| cohesive_insert_tet4 | insert | 1 | 5 | 4.09 s [4.08 s, 4.13 s] | 3.60 s [3.57 s, 3.65 s] | 0.880 [0.864, 0.884] | equal |
+| cohesive_insert_tet4 | update_insertion_facets | 1 | 5 | 402 µs [391 µs, 452 µs] | 998 µs [611 µs, 1.26 ms] | 2.49 [1.35, 3.21] | equal |
+| dump_paraview_ascii_tet4 | dump | 3 | 5 | 2.71 s [2.71 s, 2.72 s] | 857 ms [853 ms, 873 ms] | 0.316 [0.314, 0.322] | equal |
+| dump_paraview_tet4 | dump | 15 | 5 | 3.02 s [3.02 s, 3.06 s] | 1.44 s [1.44 s, 1.45 s] | 0.477 [0.471, 0.478] | equal |
+| dump_text_tet4 | dump | 30 | 5 | 2.22 s [2.20 s, 2.23 s] | 507 ms [506 ms, 508 ms] | 0.228 [0.228, 0.230] | equal |
+| erase_purify_tet4 | erase_elements | 1 | 5 | 10.5 ms [10.5 ms, 10.7 ms] | 11.1 ms [10.9 ms, 11.2 ms] | 1.06 [1.03, 1.06] | equal |
+| facets_hex8 | init_mesh_facets | 1 | 5 | 953 ms [952 ms, 966 ms] | 653 ms [651 ms, 656 ms] | 0.686 [0.676, 0.688] | equal |
+| facets_tet4 | init_mesh_facets | 1 | 5 | 1.80 s [1.80 s, 1.80 s] | 507 ms [505 ms, 526 ms] | 0.282 [0.280, 0.292] | equal |
+| groups_tet4 | element_group_from_node_group | 1 | 5 | 161 ms [160 ms, 162 ms] | 30.5 ms [30.3 ms, 31.2 ms] | 0.190 [0.187, 0.194] | equal |
+| msh22_read_hex8 | read | 1 | 5 | 173 ms [172 ms, 174 ms] | 98.6 ms [97.9 ms, 99.5 ms] | 0.571 [0.568, 0.576] | equal |
+| msh22_read_tet4 | read | 1 | 5 | 141 ms [140 ms, 143 ms] | 83.9 ms [83.2 ms, 84.2 ms] | 0.594 [0.588, 0.598] | equal |
+| msh41_read_tet4 | read | 1 | 5 | 113 ms [113 ms, 114 ms] | 71.8 ms [71.2 ms, 72.8 ms] | 0.638 [0.629, 0.646] | equal |
+| msh_write_tet4 | write | 1 | 5 | 54.2 ms [53.5 ms, 56.4 ms] | 24.7 ms [24.3 ms, 24.9 ms] | 0.454 [0.438, 0.463] | equal |
+| parser_chain | evaluate_last | 5 | 5 | 1.97 s [1.96 s, 1.97 s] | 33.7 µs [33.2 µs, 33.8 µs] | 0.0000171 [0.0000168, 0.0000172] | equal |
+| parser_dat | evaluate | 200 | 5 | 2.92 s [2.91 s, 2.95 s] | 2.06 s [2.05 s, 2.10 s] | 0.705 [0.700, 0.718] | equal |
+| partition_rcb_tet4 | partition | 1 | 5 | 78.5 ms [78.1 ms, 78.7 ms] | 62.4 ms [62.3 ms, 62.4 ms] | 0.795 [0.791, 0.799] | equal |
+| periodic_tet4 | make_periodic | 1 | 5 | 6.29 ms [6.27 ms, 6.30 ms] | 6.27 ms [6.26 ms, 6.29 ms] | 0.999 [0.993, 1.00] | equal |
+| py_twin_explicit_tri3 | solve_step | 400 | 5 | 1.84 s [1.84 s, 1.84 s] | 1.16 s [1.16 s, 1.16 s] | 0.630 [0.629, 0.631] | equal |
+
+Table "suite_setup, distributed cases at 1, 2, 4, 8 ranks" (part B, selected
+phases):
+
+| case | phase | ranks | n | before | head | head / before | head ranks x threads | time | / head on as many cores (unpaired) | digests |
+|---|---|---|---|---|---|---|---|---|---|---|
+| dist_mesh_tet4 | distribute | 2 | 5 | 816 ms [809 ms, 820 ms] | 274 ms [273 ms, 275 ms] | 0.337 [0.333, 0.338] |  |  |  | equal |
+| dist_mesh_tet4 | distribute | 4 | 5 | 932 ms [926 ms, 941 ms] | 344 ms [343 ms, 345 ms] | 0.368 [0.366, 0.372] |  |  |  | equal |
+| dist_mesh_tet4 | distribute | 8 | 5 | 1.09 s [1.08 s, 1.10 s] | 427 ms [425 ms, 427 ms] | 0.390 [0.389, 0.395] |  |  |  | equal |
+| dist_mesh_tet4 | partition | 2 | 5 | 676 ms [675 ms, 678 ms] | 197 ms [197 ms, 197 ms] | 0.291 [0.290, 0.292] |  |  |  | equal |
+| dist_mesh_tet4 | partition | 4 | 5 | 755 ms [754 ms, 766 ms] | 276 ms [275 ms, 277 ms] | 0.365 [0.361, 0.366] |  |  |  | equal |
+| dist_mesh_tet4 | partition | 8 | 5 | 837 ms [836 ms, 843 ms] | 355 ms [355 ms, 357 ms] | 0.425 [0.422, 0.427] |  |  |  | equal |
+| explicit_step_dist_tet4 | distribute | 2 | 5 | 817 ms [815 ms, 825 ms] | 274 ms [274 ms, 275 ms] | 0.336 [0.332, 0.337] | 2 x 4 | 274 ms [274 ms, 275 ms] | 0.641 | equal |
+| explicit_step_dist_tet4 | distribute | 4 | 5 | 936 ms [933 ms, 937 ms] | 344 ms [343 ms, 345 ms] | 0.368 [0.366, 0.370] | 4 x 2 | 344 ms [342 ms, 345 ms] | 0.805 | equal |
+| explicit_step_dist_tet4 | distribute | 8 | 5 | 1.09 s [1.08 s, 1.10 s] | 428 ms [427 ms, 432 ms] | 0.393 [0.389, 0.396] |  |  |  | equal |
+| explicit_step_dist_tet4 | energies | 1 | 5 | 3.14 s [3.12 s, 3.14 s] | 631 ms [631 ms, 635 ms] | 0.202 [0.201, 0.203] |  |  |  | equal |
+| explicit_step_dist_tet4 | energies | 2 | 5 | 1.59 s [1.58 s, 1.59 s] | 321 ms [321 ms, 323 ms] | 0.202 [0.202, 0.204] | 2 x 4 | 321 ms [318 ms, 325 ms] | 3.18 | equal |
+| explicit_step_dist_tet4 | energies | 4 | 5 | 853 ms [851 ms, 855 ms] | 163 ms [162 ms, 163 ms] | 0.191 [0.190, 0.192] | 4 x 2 | 163 ms [162 ms, 163 ms] | 1.61 | equal |
+| explicit_step_dist_tet4 | energies | 8 | 5 | 523 ms [521 ms, 527 ms] | 101 ms [97.0 ms, 101 ms] | 0.193 [0.186, 0.193] |  |  |  | equal |
+| explicit_step_dist_tet4 | partition | 2 | 5 | 675 ms [672 ms, 683 ms] | 197 ms [197 ms, 197 ms] | 0.291 [0.288, 0.294] | 2 x 4 | 197 ms [196 ms, 197 ms] | 0.552 | equal |
+| explicit_step_dist_tet4 | partition | 4 | 5 | 757 ms [755 ms, 759 ms] | 276 ms [275 ms, 276 ms] | 0.365 [0.363, 0.366] | 4 x 2 | 277 ms [275 ms, 278 ms] | 0.777 | equal |
+| explicit_step_dist_tet4 | partition | 8 | 5 | 838 ms [835 ms, 843 ms] | 357 ms [356 ms, 360 ms] | 0.425 [0.423, 0.429] |  |  |  | equal |
+| explicit_step_dist_tet4 | solve_step | 1 | 5 | 1.30 s [1.29 s, 1.31 s] | 874 ms [867 ms, 882 ms] | 0.677 [0.663, 0.678] |  |  |  | equal |
+| explicit_step_dist_tet4 | solve_step | 2 | 5 | 969 ms [944 ms, 1.14 s] | 541 ms [539 ms, 543 ms] | 0.558 [0.472, 0.571] | 2 x 4 | 456 ms [453 ms, 464 ms] | 0.911 | equal |
+| explicit_step_dist_tet4 | solve_step | 4 | 5 | 802 ms [798 ms, 807 ms] | 463 ms [459 ms, 468 ms] | 0.579 [0.572, 0.582] | 4 x 2 | 474 ms [471 ms, 479 ms] | 0.947 | equal |
+| explicit_step_dist_tet4 | solve_step | 8 | 5 | 835 ms [834 ms, 848 ms] | 501 ms [495 ms, 502 ms] | 0.597 [0.583, 0.601] |  |  |  | equal |
+| ghost_elements_tet4 | distribute | 2 | 5 | 819 ms [809 ms, 823 ms] | 274 ms [274 ms, 275 ms] | 0.336 [0.333, 0.339] |  |  |  | equal |
+| ghost_elements_tet4 | distribute | 4 | 5 | 933 ms [927 ms, 937 ms] | 345 ms [344 ms, 347 ms] | 0.370 [0.367, 0.374] |  |  |  | equal |
+| ghost_elements_tet4 | distribute | 8 | 5 | 1.08 s [1.08 s, 1.10 s] | 427 ms [425 ms, 431 ms] | 0.392 [0.390, 0.397] |  |  |  | equal |
+| ghost_elements_tet4 | partition | 2 | 5 | 676 ms [673 ms, 684 ms] | 197 ms [196 ms, 197 ms] | 0.290 [0.288, 0.292] |  |  |  | equal |
+| ghost_elements_tet4 | partition | 4 | 5 | 755 ms [754 ms, 764 ms] | 277 ms [276 ms, 279 ms] | 0.367 [0.362, 0.369] |  |  |  | equal |
+| ghost_elements_tet4 | partition | 8 | 5 | 837 ms [834 ms, 855 ms] | 356 ms [354 ms, 357 ms] | 0.424 [0.418, 0.428] |  |  |  | equal |
+| ghost_elements_tet4 | synchronize | 1 | 5 | 0.240 µs [0.230 µs, 0.260 µs] | 0.250 µs [0.240 µs, 0.260 µs] | 1.04 [0.923, 1.13] |  |  |  | equal |
+| ghost_elements_tet4 | synchronize | 2 | 5 | 779 ms [774 ms, 804 ms] | 666 ms [651 ms, 674 ms] | 0.851 [0.839, 0.855] |  |  |  | equal |
+| ghost_elements_tet4 | synchronize | 4 | 5 | 872 ms [861 ms, 888 ms] | 748 ms [727 ms, 758 ms] | 0.847 [0.834, 0.870] |  |  |  | equal |
+| ghost_elements_tet4 | synchronize | 8 | 5 | 889 ms [877 ms, 893 ms] | 754 ms [752 ms, 758 ms] | 0.849 [0.846, 0.860] |  |  |  | equal |
+| ghost_nodes_tet4 | distribute | 2 | 5 | 811 ms [806 ms, 818 ms] | 274 ms [273 ms, 275 ms] | 0.339 [0.334, 0.341] |  |  |  | equal |
+| ghost_nodes_tet4 | distribute | 4 | 5 | 931 ms [929 ms, 937 ms] | 344 ms [343 ms, 345 ms] | 0.369 [0.367, 0.371] |  |  |  | equal |
+| ghost_nodes_tet4 | distribute | 8 | 5 | 1.09 s [1.09 s, 1.11 s] | 427 ms [426 ms, 429 ms] | 0.392 [0.382, 0.394] |  |  |  | equal |
+| ghost_nodes_tet4 | partition | 2 | 5 | 675 ms [671 ms, 681 ms] | 197 ms [196 ms, 198 ms] | 0.292 [0.289, 0.295] |  |  |  | equal |
+| ghost_nodes_tet4 | partition | 4 | 5 | 758 ms [755 ms, 760 ms] | 276 ms [275 ms, 277 ms] | 0.365 [0.364, 0.365] |  |  |  | equal |
+| ghost_nodes_tet4 | partition | 8 | 5 | 841 ms [834 ms, 857 ms] | 357 ms [354 ms, 357 ms] | 0.424 [0.417, 0.428] |  |  |  | equal |
+| ghost_nodes_tet4 | reduce_synchronize | 1 | 5 | 76.2 ms [75.9 ms, 76.3 ms] | 77.0 ms [76.9 ms, 77.3 ms] | 1.01 [1.01, 1.02] |  |  |  | equal |
+| ghost_nodes_tet4 | reduce_synchronize | 2 | 5 | 310 ms [303 ms, 322 ms] | 278 ms [263 ms, 278 ms] | 0.897 [0.817, 0.916] |  |  |  | equal |
+| ghost_nodes_tet4 | reduce_synchronize | 4 | 5 | 341 ms [336 ms, 359 ms] | 295 ms [283 ms, 299 ms] | 0.834 [0.830, 0.882] |  |  |  | equal |
+| ghost_nodes_tet4 | reduce_synchronize | 8 | 5 | 377 ms [372 ms, 386 ms] | 307 ms [300 ms, 336 ms] | 0.807 [0.795, 0.895] |  |  |  | equal |
+| reduce_scalars | all_reduce_2 | 1 | 5 | 114 ms [113 ms, 118 ms] | 60.3 ms [59.6 ms, 63.2 ms] | 0.527 [0.507, 0.557] |  |  |  | equal |
+| reduce_scalars | all_reduce_2 | 2 | 5 | 268 ms [258 ms, 271 ms] | 164 ms [160 ms, 168 ms] | 0.604 [0.592, 0.652] |  |  |  | equal |
+| reduce_scalars | all_reduce_2 | 4 | 5 | 486 ms [484 ms, 494 ms] | 274 ms [271 ms, 276 ms] | 0.564 [0.548, 0.568] |  |  |  | equal |
+| reduce_scalars | all_reduce_2 | 8 | 5 | 1.03 s [1.01 s, 1.14 s] | 561 ms [551 ms, 625 ms] | 0.540 [0.507, 0.606] |  |  |  | equal |
+| reduce_scalars | all_reduce_4096 | 1 | 5 | 151 ms [151 ms, 152 ms] | 154 ms [153 ms, 154 ms] | 1.01 [1.01, 1.02] |  |  |  | equal |
+| reduce_scalars | all_reduce_4096 | 2 | 5 | 468 ms [465 ms, 470 ms] | 471 ms [469 ms, 472 ms] | 1.01 [1.000, 1.02] |  |  |  | equal |
+| reduce_scalars | all_reduce_4096 | 4 | 5 | 1.10 s [1.09 s, 1.54 s] | 1.11 s [1.10 s, 1.15 s] | 0.999 [0.719, 1.05] |  |  |  | equal |
+| reduce_scalars | all_reduce_4096 | 8 | 5 | 7.47 s [7.36 s, 7.54 s] | 7.32 s [7.21 s, 7.53 s] | 0.994 [0.975, 1.01] |  |  |  | equal |
+
+- Port / upstream: `init_full` 0.075–0.187, `dist_mesh` 0.095–0.107,
+  `read_mesh` 0.33–0.36, `before_step` 0.33–0.36, the static solve
+  0.795–0.918 (1-rank `dist_mesh` is a no-op in both codes).
+- `dist_mesh_tet4` at size `l`, head / before: 0.256–0.285 for
+  `distribute`; the head's `distribute` takes 2.09 / 2.34 / 2.70 s at
+  2 / 4 / 8 ranks.
+- Slower than before: `cohesive_insert_tet4` `update_insertion_facets`
+  2.49 [1.35, 3.21] (402 µs → 998 µs) and `erase_purify_tet4`
+  `erase_elements` 1.06 [1.03, 1.06]; at 1 rank `ghost_nodes_tet4`
+  `reduce_synchronize` and `reduce_scalars` `all_reduce_4096` 1.01 [1.01,
+  1.02].
+
+### Before the final campaign (12–13 November)
+
 - `init_full` (mesh facets, model and cohesive set-up): the port takes
   0.14–0.50× upstream's time on the mid-size meshes, 0.24–0.61× in the
   scaling series and 0.18–0.26× at full size (1.91 against 7.42 s at 64
@@ -1388,72 +2011,39 @@ measurement isolates the exchanges' share of a simulation.
 
 ## Build configuration
 
-The build configurations of the release profile and the code-generation
-flags, timed against the workspace release profile (`opt-level = 3`, no
-LTO, 16 codegen units, x86-64 baseline) and checked for bit identity.
-Machine: an AWS `m7a.2xlarge` (AMD EPYC 9R14, Zen 4, 8 cores, 32 GiB),
-2026-11-16, every run pinned to one core inside the machine's timing
-slot (builds of other jobs ran on the other four cores), 5 interleaved
-repetitions in rotated order; paired ratio variant / base, median
-[min, max]. Data, method and the full tables:
-`docs/benchmarks/perf-campaign/build-profile/`.
-
-Table "Build configurations, paired ratio to the release profile":
-
-| configuration | tet4 ss step | tet4 fd step | hex8 ss step | hex8 fd step | driver explicit step | driver insertion check | driver static solve | driver wall | facet set-up |
-|---|---|---|---|---|---|---|---|---|---|
-| `cgu1` | 1.098 [1.074, 1.103] | 1.061 [1.057, 1.073] | 1.019 [1.013, 1.031] | 0.999 [0.996, 1.009] | 1.034 [1.016, 1.037] | 0.971 [0.960, 0.988] | 0.980 [0.974, 0.993] | 0.981 [0.978, 0.993] | 0.984 [0.983, 0.984] |
-| `thin` | 0.991 [0.986, 1.013] | 0.997 [0.987, 1.003] | 0.999 [0.982, 1.006] | 0.996 [0.991, 1.002] | 1.003 [0.997, 1.010] | 0.999 [0.991, 1.012] | 0.996 [0.988, 1.016] | 0.998 [0.994, 1.013] | 0.987 [0.987, 0.989] |
-| `fat` | 1.101 [1.085, 1.112] | 1.072 [1.056, 1.080] | 1.025 [1.021, 1.032] | 1.007 [1.000, 1.024] | 1.036 [1.032, 1.060] | 0.948 [0.941, 0.970] | 0.975 [0.969, 0.989] | 0.970 [0.967, 0.981] | 0.968 [0.966, 0.970] |
-| `fat+cgu1` | 1.088 [1.077, 1.108] | 1.073 [1.060, 1.083] | 1.012 [0.984, 1.019] | 1.012 [0.992, 1.015] | 1.031 [1.027, 1.056] | 1.043 [1.030, 1.046] | 0.986 [0.978, 1.014] | 1.012 [1.008, 1.028] | 0.973 [0.971, 0.977] |
-| `v3` | 0.964 [0.960, 1.022] | 0.977 [0.969, 0.994] | 0.964 [0.959, 0.965] | 0.965 [0.934, 0.968] | 0.972 [0.949, 0.974] | 0.970 [0.958, 0.987] | 0.995 [0.973, 1.017] | 0.984 [0.973, 0.997] | 1.052 [1.051, 1.089] |
-| `v4` | 1.010 [0.983, 1.081] | 1.011 [1.006, 1.022] | 1.367 [1.356, 1.382] | 1.193 [1.177, 1.198] | 0.991 [0.987, 1.012] | 0.935 [0.932, 0.958] | 0.992 [0.985, 1.002] | 0.972 [0.966, 0.983] | 1.052 [1.050, 1.055] |
-| `znver4` | 0.968 [0.930, 0.998] | 0.981 [0.968, 1.014] | 0.962 [0.945, 0.968] | 0.967 [0.939, 0.974] | 1.011 [0.969, 1.029] | 0.940 [0.922, 0.964] | 1.023 [1.014, 1.030] | 0.984 [0.979, 1.000] | 1.029 [1.027, 1.031] |
-| `abort` | 0.996 [0.978, 1.004] | 0.995 [0.986, 1.002] | 0.996 [0.981, 1.000] | 1.003 [1.002, 1.005] | 0.995 [0.994, 1.000] | 0.978 [0.972, 0.992] | 0.997 [0.991, 1.031] | 0.988 [0.984, 1.015] | 0.977 [0.971, 1.029] |
-| `pgo2-base` | 0.950 [0.938, 0.963] | 0.962 [0.956, 0.974] | 0.981 [0.975, 1.011] | 0.975 [0.973, 0.980] | 0.854 [0.845, 0.866] | 0.887 [0.852, 0.906] | 0.957 [0.934, 0.992] | 0.917 [0.914, 0.922] | 0.958 [0.955, 0.966] |
-| `pgo2-fat` | 0.936 [0.921, 0.952] | 0.952 [0.943, 0.955] | 0.981 [0.974, 1.019] | 0.966 [0.960, 0.981] | 0.843 [0.834, 0.862] | 0.847 [0.811, 0.867] | 0.968 [0.953, 0.983] | 0.904 [0.882, 0.923] | 1.033 [1.031, 1.041] |
-| `base@mimalloc` | 1.040 [1.020, 1.070] | 1.019 [1.010, 1.030] | 1.052 [1.027, 1.062] | 1.100 [1.089, 1.106] | 1.008 [0.952, 1.035] | 1.003 [0.990, 1.045] | 1.015 [0.995, 1.026] | 1.006 [0.996, 1.033] | 0.958 [0.949, 0.963] |
-| `nobc` | 0.899 [0.880, 0.920] | 0.938 [0.934, 0.949] | 0.975 [0.971, 1.026] | 0.992 [0.981, 1.005] | 0.938 [0.919, 0.958] | 0.999 [0.995, 1.006] | 0.997 [0.994, 1.002] | 0.997 [0.986, 0.999] | 1.001 [0.994, 1.005] |
-
-- No release-profile setting gains: one codegen unit and fat LTO make the
-  explicit step 6–10 % slower on tet4, thin LTO changes nothing, and fat
-  LTO gains 2–5 % only in the insertion check, the static solve and the
-  mesh set-up. The clean build of the three timing binaries takes 1.3×
-  (thin LTO or one codegen unit) to 2.5× (fat LTO) as long. The workspace
-  profile stays as it is.
-- `x86-64-v3` and `znver4` take 0.96–0.98 of the explicit-step time and
-  0.98 of the cohesive driver's wall time, but 1.03–1.05 of the facet
-  set-up's.
-  `x86-64-v4` is 1.19–1.37 times slower on hex8: LLVM's generic v4 cost
-  model vectorises the strided loads of `fast::gradient` with AVX-512
-  gathers and scatters, which are slow on AMD Zen 4/5 (the hex8 `stress`
-  phase takes twice the time). `znver4` (the Zen 4 cost model) does not
-  slow down.
-- PGO, trained on cases disjoint from the measured ones, gains most: the
-  cohesive driver 0.92 (0.90 with fat LTO), its insertion check 0.85–0.89,
-  its explicit step 0.84–0.85, the explicit-step harness 0.95–0.98, the
-  untrained mesh set-up 0.96. A training set without the cohesive
-  material made the insertion check 1.35 times slower: PGO helps only
-  where the training covers the code.
-- `panic = "abort"` changes nothing measurable (0.98–1.00). mimalloc and
-  jemalloc (preloaded) slow the explicit step by 2–10 %; mimalloc lowers
-  the driver's peak RSS by 11 % and speeds up element removal (0.65).
-- Every configuration gives the same bits: the CI `test` and `release`
-  tiers pass when built with `x86-64-v2`, `-v3`, `-v4` and `znver4`, the
-  `release` tier with fat or thin LTO and one codegen unit; the
-  explicit-step digests, the 5,000-step fragmenting cohesive run and the
-  71 cases of the benchmark suites are identical for the configurations
-  checked, PGO included (list in the study's README). `f64::min`/`max` give the same bits at every level; only
-  the choice between two NaN operands can differ, as it already does
-  between debug and release builds. The manual states which levels keep
-  the results (`docs/manual/src/getting-started.md`).
-- Bounds checks: removing those of `fast::gradient`, `fast::btd` and the
-  internal-force scatter by hand made the tet4 explicit step 0.90 (small
-  strain) and 0.94 (finite deformation) and the driver's explicit step
-  0.94, with the same results. The kernels with the most checks are
-  listed with their restructuring in the study's README.
+The build configurations of the release profile were studied in the
+performance campaign on an AWS `m7a.2xlarge` (2026-11-16) and not adopted;
+the summary moved to `docs/benchmarks/perf-campaign/README.md`, the data
+and tables are in `docs/benchmarks/perf-campaign/build-profile/`. Every
+measurement of this document uses the workspace release profile
+(section "Method").
 
 ## Known slow paths
+
+From the final campaign's tables (2026-11-17 UTC, AWS `m7a.2xlarge`, data
+`docs/benchmarks/perf-campaign/final/`).
+
+| Slow path | Measurement | Where |
+|---|---|---|
+| The parallel overhead at 8 ranks | loop port / upstream 0.31–0.36 at 8 ranks against 0.22–0.30 at 1 to 4; loop efficiency at 8 ranks on h = 0.06 before insertion 0.36 (port), 0.42 (port before), 0.55 (upstream) | part C |
+| Threads against ranks on 8 cores | 2 ranks × 4 threads take 1.05–1.22× the loop of 8 ranks, 4 × 2 0.993–1.06× | part C |
+| The static MUMPS solve at 8 ranks | port / upstream 0.91–1.11 at 8 ranks (1.11 [0.977, 1.60] on h = 0.0476), 0.79–0.96 at 1 to 4 | parts C, D |
+| Threads in implicit and static solves | 8 threads / 1: 0.789–1.00 of the `solve_step` time of the implicit and static cases of `suite_solid`; the `faer` backend 1.00 | part B |
+| The symbolic analysis of the sparse backends | head / before 1.12 [1.09, 1.13] (`eigen`), 1.11 [1.10, 1.12] (`faer`) | part D |
+| `update_insertion_facets` | head / before 2.49 [1.35, 3.21] (402 µs → 998 µs per call, `cohesive_insert_tet4`) | part B |
+| Small messages of the communication layer | 6.46× raw MPI for an 8-byte ping-pong over shared memory; 2.52× for 16 MiB | part F |
+| The mesh distribution from rank 0 | the head's `distribute` of 1,296,000 Tet4 grows from 2.09 s at 2 ranks to 2.70 s at 8 (0.095–0.107× upstream's `dist_mesh` in the cohesive driver) | part F |
+
+Limits of the measurements:
+
+- Stage 1 of the final campaign ran on 8-core machines: no table above
+  says anything about more than 8 ranks or several nodes. The JOSS mesh
+  (part G) and the multi-node run are measured separately.
+- The suites have no C++ twin; their tables compare the port with itself.
+- No hardware counters and no per-rank timings: the causes of the parallel
+  overheads are not established.
+
+### As published before the final campaign
 
 Each is measured; none was worked on unless the row says so.
 
@@ -1480,6 +2070,29 @@ Limits of the measurements:
 - Not measured: the C++ full-size run at 8 ranks, the elastic series at full
   size, more than 64 ranks, other interconnects, a weak-scaling series on a
   dedicated node.
+
+## What remains
+
+From the final campaign's tables:
+
+- The 8-rank loop: the port's loop efficiency at 8 ranks (0.36 on h = 0.06)
+  is below upstream's (0.55), and its lead over upstream is smallest there
+  in every series of part C. Whether it holds at 32 to 128 ranks is
+  measured by part G and the multi-node run.
+- Threads inside a rank do not replace ranks on these machines: 2 × 4 and
+  4 × 2 take 0.993–1.22× the loop of 8 ranks.
+- The static solve phase: the port's assembly and MUMPS hand-over are
+  0.79–0.96× upstream's at 1 to 4 ranks; at 8 ranks the ratio reaches 1 and
+  its range is wide. The nested-dissection ordering of the SparseLU
+  translation (D-125) is measured separately.
+- Three phases are slower than before the campaign: the sparse backends'
+  symbolic analysis (1.11–1.12×), `update_insertion_facets` (2.49×) and
+  `erase_elements` (1.06×); the Python `get_stress` and built-in functor
+  cases 1.03–1.04×.
+- The communication layer's fixed cost per message (6.46× raw MPI at 8
+  bytes over shared memory).
+- Not done in the campaign: GPU kernels and distributed mesh input
+  (`docs/reports/04-possible-improvements.md`, P4.3 and P4.6).
 
 ## Appendix: development-machine records
 
