@@ -1031,11 +1031,18 @@ order, then sorted as before); the non-local weighted average
 in pair order from a per-point list built with the pair list, when the
 slots increase with the points; the manager takes the executor from its
 callback); the FE plans' and kernels' checks of the element ids and the
-connectivity (an integer maximum and a logical or per part, then over
-the parts: `fast::max_unsigned_with`, `any_with`, `batch_ids_with`); the
+connectivity (an integer maximum, a logical or or a logical and per
+part, then over the parts: `fast::max_unsigned_with`, `any_with`,
+`consecutive_with`, `nodes_valid_with`, `batch_ids_with`; one element's
+row takes the serial maximum) and the finite-deformation check of the
+material filter (`Derivatives::check_filter`: the largest id per part,
+the serial scan only to report the first element out of range); the
 deferred history save of a block reached through
 `InternalField::get_mut_with` (a copy in parts); Mazars' copies of its
-blocks. The per-node and per-equation loops split into parts of at least
+blocks (with threads into buffers kept per element type and ghost type
+from one step to the next: a fresh allocation of a block's size, once
+glibc's mmap threshold has grown past it, comes from the heap and is
+zeroed by `calloc` on the calling thread). The per-node and per-equation loops split into parts of at least
 2,048 nodes or 4,096 equations: measured with the step's other kernels on
 threads, smaller parts gave the explicit steps of 0.1 to 0.35 million
 equations 0.70 to 0.91 of the time at 8 threads (also with idle workers

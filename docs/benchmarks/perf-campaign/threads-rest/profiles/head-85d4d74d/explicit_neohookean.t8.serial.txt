@@ -1,0 +1,83 @@
+step samples of the main thread 2531, serial 188 (7.4 % of the wall time), worker samples 18623
+-- serial, self:
+  3.28 %  [unknown]
+  0.59 %  <usize as core::convert::TryFrom<i32>>::try_from
+  0.40 %  <akantu_solid::model::SolidMechanicsPhysics>::external_work_increment::{closure#7}
+  0.40 %  <core::ops::range::Range<usize> as core::iter::range::RangeIteratorImpl>::spec_next
+  0.32 %  core::ptr::write::<f64>
+  0.32 %  <core::ptr::non_null::NonNull<i32> as core::cmp::PartialEq>::eq
+  0.28 %  core::hint::select_unpredictable::<usize>
+  0.16 %  <usize>::unchecked_add
+  0.08 %  <akantu_solver::integration_scheme::NewmarkBeta>::acceleration_coefficient
+  0.08 %  <core::ops::index_range::IndexRange as core::iter::traits::iterator::Iterator>::try_fold::<(), <core::array::iter::iter_inner::PolymorphicIter<[core::mem::maybe
+  0.08 %  <akantu_solver::non_linear_newton_raphson::NonLinearSolverNewtonRaphson>::assemble_residual::{closure#2}
+  0.08 %  <akantu_bench::suite_solid::common::StepSplit as akantu_solver::callback::InterceptCallback>::assemble_lumped_matrix
+  0.04 %  <[f64] as core::slice::specialize::SpecFill<f64>>::spec_fill
+  0.04 %  pte_mkwrite
+  0.04 %  akantu_core::eigen_kernels::coeff_seq_unrolled
+  0.04 %  _raw_spin_lock
+  0.04 %  __rustc::__rust_dealloc
+  0.04 %  <core::option::Option<&mut akantu_solver::dof_manager::DofData>>::ok_or_else::<akantu_core::error::Error, <akantu_solver::dof_manager::DofManager>::family_mut::
+  0.04 %  <std::sys::sync::mutex::futex::Mutex>::lock
+  0.04 %  <core::iter::adapters::map::Map<core::ops::range::RangeInclusive<usize>, <akantu_solver::dof_manager::DofManager>::update_global_blocked_dofs::{closure#0}>>::ne
+  0.04 %  <akantu_solver::dof_manager::DofManager>::add_lumped_coupling_product
+  0.04 %  <akantu_solver::callback::Intercept as akantu_solver::callback::SolverCallback>::after_solve_step
+  0.04 %  akantu_solid::model::assembly::finite_deformation::fast::residuals_integrate_supported
+  0.04 %  <core::ptr::non_null::NonNull<usize> as core::cmp::PartialEq>::eq
+  0.04 %  akantu_solid::materials::neohookean::first_invalid_jacobian::<3>
+-- serial, inclusive (akantu frames):
+  7.43 %  <core::result::Result<(), akantu_core::error::Error> as core::ops::try_trait::Try>::branch
+  7.43 %  <akantu_solid::model::SolidMechanicsModel>::solve_step_intercepted
+  7.43 %  akantu_bench::suite::run_main
+  7.43 %  <core::result::Result<usize, akantu_core::error::Error> as core::ops::try_trait::Try>::branch
+  7.43 %  <core::result::Result<akantu_bench::suite::Outcome, akantu_core::error::Error> as core::ops::try_trait::Try>::branch
+  7.43 %  akantu_bench::suite::run_case
+  7.39 %  <akantu_solver::time_step::TimeStepSolver>::solve_step
+  7.39 %  <akantu_solver::model_solver::ModelSolver>::solve_step
+  7.39 %  <akantu_solver::model_solver::ModelSolver>::solve_step_intercepted
+  7.39 %  <akantu_solver::non_linear_lumped::NonLinearSolverLumped as akantu_solver::non_linear::NonLinearSolver>::solve
+  7.35 %  <akantu_solver::dof_manager::DofManager>::collective::<(), <akantu_solver::non_linear_lumped::NonLinearSolverLumped as akantu_solver::non_linear::NonLinearSolve
+  7.31 %  <akantu_solver::non_linear_lumped::NonLinearSolverLumped as akantu_solver::non_linear::NonLinearSolver>::solve::{closure#0}
+  5.06 %  <akantu_solver::dof_manager::DofManager>::step::<(), <akantu_solver::non_linear_lumped::NonLinearSolverLumped as akantu_solver::non_linear::NonLinearSolver>::so
+  5.02 %  <akantu_solver::non_linear_lumped::NonLinearSolverLumped as akantu_solver::non_linear::NonLinearSolver>::solve::{closure#0}::{closure#2}
+  5.02 %  <akantu_solver::time_step::Adapter as akantu_solver::callback::SolverCallback>::assemble_residual
+  4.11 %  <akantu_solver::dof_manager::DofManager>::step::<(), <akantu_solver::time_step::Adapter as akantu_solver::callback::SolverCallback>::assemble_residual::{closure
+  4.07 %  <akantu_solver::non_linear_newton_raphson::NonLinearSolverNewtonRaphson>::assemble_residual::{closure#2}
+  3.99 %  <akantu_solver::callback::Intercept as akantu_solver::callback::SolverCallback>::assemble_residual
+  3.99 %  <akantu_solid::model::SolidMechanicsPhysics as akantu_solver::callback::SolverCallback>::assemble_residual
+  3.99 %  <akantu_solid::model::SolidMechanicsPhysics>::assemble_residual
+  3.04 %  <akantu_solid::model::SolidMechanicsPhysics>::assemble_internal_forces
+  2.13 %  core::mem::replace::<core::option::Option<akantu_comm::synchronizer::PostedExchange>>
+  2.13 %  <core::option::Option<akantu_comm::synchronizer::PostedExchange>>::take
+  2.09 %  <akantu_solid::model::SolidMechanicsPhysics>::assemble_internal_forces::{closure#5}
+  2.09 %  akantu_solid::model::assembly::assemble_internal_forces_of
+  1.07 %  akantu_solid::model::assembly::scatter_block
+  0.99 %  akantu_solid::model::assembly::finite_deformation::internal_forces
+  0.91 %  <akantu_solid::model::assembly::finite_deformation::Derivatives>::check_filter
+  0.87 %  <core::slice::iter::IterMut<alloc::boxed::Box<dyn akantu_solid::material::Material>> as core::iter::traits::iterator::Iterator>::try_for_each::<<akantu_solid::m
+  0.87 %  <akantu_solid::materials::neohookean::MaterialNeohookean<3> as akantu_solid::material::Material>::compute_all_stresses
+  0.87 %  <core::slice::iter::IterMut<alloc::boxed::Box<dyn akantu_solid::material::Material>> as core::iter::traits::iterator::Iterator>::try_fold::<(), core::iter::trai
+  0.79 %  <akantu_solver::non_linear_lumped::NonLinearSolverLumped as akantu_solver::non_linear::NonLinearSolver>::solve::{closure#0}::{closure#1}
+  0.79 %  <akantu_solver::time_step::Adapter as akantu_solver::callback::SolverCallback>::predictor
+  0.79 %  <akantu_solver::dof_manager::DofManager>::step::<(), <akantu_solver::non_linear_lumped::NonLinearSolverLumped as akantu_solver::non_linear::NonLinearSolver>::so
+  0.71 %  <akantu_solid::materials::neohookean::MaterialNeohookean<3> as akantu_solid::material::Material>::compute_stress
+  0.71 %  <core::result::Result<alloc::vec::Vec<f64>, akantu_core::error::Error> as core::ops::try_trait::Try>::branch
+  0.71 %  <akantu_solid::materials::neohookean::MaterialNeohookean<1>>::c33_values
+  0.63 %  <akantu_solver::dof_manager::DofManager>::step::<(), <akantu_solver::non_linear_lumped::NonLinearSolverLumped as akantu_solver::non_linear::NonLinearSolver>::so
+  0.63 %  <akantu_solver::non_linear_lumped::NonLinearSolverLumped as akantu_solver::non_linear::NonLinearSolver>::solve::{closure#0}::{closure#3}
+  0.55 %  <core::slice::iter::Iter<f64> as core::iter::traits::iterator::Iterator>::fold::<f64, <akantu_solid::model::SolidMechanicsPhysics>::external_work_increment::{cl
+  0.55 %  <akantu_solid::model::SolidMechanicsPhysics>::external_work_increment
+  0.55 %  <core::result::Result<f64, akantu_core::error::Error> as core::ops::try_trait::Try>::branch
+  0.43 %  <akantu_solver::dof_manager::DofManager>::step::<(), <akantu_solver::non_linear_lumped::NonLinearSolverLumped as akantu_solver::non_linear::NonLinearSolver>::so
+  0.43 %  <akantu_solver::time_step::Adapter as akantu_solver::callback::SolverCallback>::corrector
+  0.43 %  <akantu_solver::non_linear_lumped::NonLinearSolverLumped as akantu_solver::non_linear::NonLinearSolver>::solve::{closure#0}::{closure#4}
+-- serial [unknown] leaves, by first akantu frame:
+  1.03 %  <core::result::Result<(), akantu_core::error::Error> as core::ops::try_trait::Try>::branch
+  0.71 %  akantu_solid::model::assembly::scatter_block
+  0.47 %  <akantu_solver::non_linear_lumped::NonLinearSolverLumped as akantu_solver::non_linear::NonLinearSolver>::solve::{closure#0}::{closure#3}
+  0.36 %  <akantu_solver::dof_manager::DofManager>::assemble_lumped_mat_mul_family_to_residual
+  0.32 %  <core::result::Result<alloc::vec::Vec<bool>, akantu_core::error::Error> as core::ops::try_trait::Try>::branch
+  0.24 %  <akantu_solver::dof_manager::DofManager>::zero_residual
+  0.08 %  akantu_solver::integration_scheme::blocked_of
+  0.04 %  <akantu_solver::non_linear_lumped::NonLinearSolverLumped as akantu_solver::non_linear::NonLinearSolver>::solve::{closure#0}
+  0.04 %  <akantu_solver::dof_manager::DofManager>::update_global_blocked_dofs

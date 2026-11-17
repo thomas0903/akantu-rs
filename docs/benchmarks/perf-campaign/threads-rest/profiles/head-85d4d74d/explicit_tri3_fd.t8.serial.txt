@@ -1,0 +1,86 @@
+step samples of the main thread 2534, serial 523 (20.6 % of the wall time), worker samples 18317
+-- serial, self:
+ 10.62 %  [unknown]
+  2.96 %  <akantu_solid::model::SolidMechanicsPhysics>::external_work_increment::{closure#7}
+  2.01 %  <usize as core::convert::TryFrom<i32>>::try_from
+  1.78 %  <core::ptr::non_null::NonNull<i32> as core::cmp::PartialEq>::eq
+  0.71 %  core::hint::select_unpredictable::<usize>
+  0.32 %  <usize>::unchecked_add
+  0.12 %  <core::fmt::Arguments>::estimated_capacity
+  0.08 %  <akantu_core::eigen_kernels::SliceProduct>::eval_sized
+  0.08 %  <akantu_fe::engine::FeEngine>::gradient_plan
+  0.08 %  <core::option::Option<akantu_core::array_shared::SharedArray<f64>>>::as_ref
+  0.04 %  _raw_spin_lock
+  0.04 %  akantu_fe::engine::assembly::fill_field_into
+  0.04 %  akantu_core::types::decode_idx
+  0.04 %  _raw_spin_unlock_irqrestore
+  0.04 %  cfree
+  0.04 %  <core::result::Result<(), akantu_core::error::Error>>::is_ok
+  0.04 %  <core::option::Option<&akantu_core::array::Array<alloc::vec::Vec<akantu_core::element::Element>>>>::ok_or_else::<akantu_core::error::Error, <akantu_core::elemen
+  0.04 %  <akantu_core::exec::pool::Exec>::for_each_bounds::<akantu_core::exec::pool::Tuples<bool>, akantu_fe::engine::fast::consecutive_with::{closure#1}>
+  0.04 %  <alloc::sync::Arc<akantu_mesh::shared::MeshDomain> as core::clone::Clone>::clone
+  0.04 %  <core::option::Option<alloc::collections::btree::node::NodeRef<alloc::collections::btree::node::marker::Owned, usize, akantu_core::array_shared::SharedArray<f64
+  0.04 %  akantu_fe::engine::fast::max_unsigned_with::{closure#0}
+  0.04 %  <akantu_solid::materials::elastic::MaterialElastic<2>>::stress_and_element_forces
+  0.04 %  <[u32]>::binary_search_by::<<[u32]>::partition_point<<akantu_core::exec::scatter::NodeScatter>::scatter_add::{closure#0}>::{closure#0}>
+  0.04 %  <akantu_comm::communicator::Communicator>::open_scope
+  0.04 %  <akantu_solver::dof_manager::DofManager>::update_global_blocked_dofs::{closure#0}
+-- serial, inclusive (akantu frames):
+ 20.64 %  <akantu_solid::model::SolidMechanicsModel>::solve_step_intercepted
+ 20.64 %  akantu_bench::suite::run_main
+ 20.64 %  <core::result::Result<usize, akantu_core::error::Error> as core::ops::try_trait::Try>::branch
+ 20.64 %  akantu_bench::suite::run_case
+ 20.64 %  <core::result::Result<(), akantu_core::error::Error> as core::ops::try_trait::Try>::branch
+ 20.64 %  <akantu_solver::model_solver::ModelSolver>::solve_step_intercepted
+ 20.64 %  <core::result::Result<akantu_bench::suite::Outcome, akantu_core::error::Error> as core::ops::try_trait::Try>::branch
+ 20.60 %  <akantu_solver::model_solver::ModelSolver>::solve_step
+ 20.56 %  <akantu_solver::time_step::TimeStepSolver>::solve_step
+ 20.56 %  <akantu_solver::non_linear_lumped::NonLinearSolverLumped as akantu_solver::non_linear::NonLinearSolver>::solve
+ 20.52 %  <akantu_solver::dof_manager::DofManager>::collective::<(), <akantu_solver::non_linear_lumped::NonLinearSolverLumped as akantu_solver::non_linear::NonLinearSolve
+ 20.40 %  <akantu_solver::non_linear_lumped::NonLinearSolverLumped as akantu_solver::non_linear::NonLinearSolver>::solve::{closure#0}
+ 16.06 %  <akantu_solver::dof_manager::DofManager>::step::<(), <akantu_solver::non_linear_lumped::NonLinearSolverLumped as akantu_solver::non_linear::NonLinearSolver>::so
+ 16.02 %  <akantu_solver::time_step::Adapter as akantu_solver::callback::SolverCallback>::assemble_residual
+ 16.02 %  <akantu_solver::non_linear_lumped::NonLinearSolverLumped as akantu_solver::non_linear::NonLinearSolver>::solve::{closure#0}::{closure#2}
+ 12.04 %  <akantu_solver::non_linear_newton_raphson::NonLinearSolverNewtonRaphson>::assemble_residual::{closure#2}
+ 12.04 %  <akantu_solver::callback::Intercept as akantu_solver::callback::SolverCallback>::assemble_residual
+ 12.04 %  <akantu_solver::dof_manager::DofManager>::step::<(), <akantu_solver::time_step::Adapter as akantu_solver::callback::SolverCallback>::assemble_residual::{closure
+ 12.00 %  <akantu_solid::model::SolidMechanicsPhysics>::assemble_residual
+ 12.00 %  <akantu_solid::model::SolidMechanicsPhysics as akantu_solver::callback::SolverCallback>::assemble_residual
+  6.63 %  <core::result::Result<bool, akantu_core::error::Error> as core::ops::try_trait::Try>::branch
+  6.63 %  <akantu_solid::model::SolidMechanicsPhysics>::fused_internal_forces
+  6.63 %  <akantu_solid::model::SolidMechanicsPhysics>::assemble_internal_forces
+  4.34 %  <akantu_solid::materials::elastic::MaterialElastic<2>>::stress_and_element_forces
+  3.79 %  <akantu_solid::model::assembly::finite_deformation::Derivatives>::check_filter
+  3.79 %  <akantu_solid::model::assembly::finite_deformation::ResidualPlan>::new
+  3.35 %  <core::result::Result<f64, akantu_core::error::Error> as core::ops::try_trait::Try>::branch
+  3.35 %  <akantu_solid::model::SolidMechanicsPhysics>::external_work_increment
+  3.28 %  <core::slice::iter::Iter<f64> as core::iter::traits::iterator::Iterator>::fold::<f64, <akantu_solid::model::SolidMechanicsPhysics>::external_work_increment::{cl
+  2.96 %  <akantu_solid::model::SolidMechanicsPhysics>::external_work_increment::{closure#7}
+  2.25 %  <akantu_solver::integration_scheme::NewmarkBeta as akantu_solver::integration_scheme::IntegrationScheme>::assemble_residual
+  2.25 %  <akantu_solver::dof_manager::DofManager>::assemble_lumped_mat_mul_family_to_residual
+  2.25 %  akantu_solver::integration_scheme::second_order_residual
+  2.21 %  akantu_solid::model::assembly::scatter_block
+  1.82 %  <akantu_solver::non_linear_lumped::NonLinearSolverLumped as akantu_solver::non_linear::NonLinearSolver>::solve::{closure#0}::{closure#1}
+  1.82 %  <akantu_solver::time_step::Adapter as akantu_solver::callback::SolverCallback>::predictor
+  1.82 %  <akantu_solver::dof_manager::DofManager>::step::<(), <akantu_solver::non_linear_lumped::NonLinearSolverLumped as akantu_solver::non_linear::NonLinearSolver>::so
+  1.70 %  <akantu_solver::dof_manager::DofManager>::step::<(), <akantu_solver::non_linear_lumped::NonLinearSolverLumped as akantu_solver::non_linear::NonLinearSolver>::so
+  1.66 %  <akantu_solver::non_linear_lumped::NonLinearSolverLumped as akantu_solver::non_linear::NonLinearSolver>::solve::{closure#0}::{closure#3}
+  1.42 %  <akantu_solver::dof_manager::DofManager>::zero_residual
+  0.79 %  <akantu_core::exec::scatter::NodeScatter>::scatter_add
+  0.75 %  <[u32]>::binary_search_by::<<[u32]>::partition_point<<akantu_core::exec::scatter::NodeScatter>::scatter_add::{closure#0}>::{closure#0}>
+  0.75 %  <[u32]>::partition_point::<<akantu_core::exec::scatter::NodeScatter>::scatter_add::{closure#0}>
+  0.55 %  <core::result::Result<alloc::vec::Vec<bool>, akantu_core::error::Error> as core::ops::try_trait::Try>::branch
+  0.47 %  <akantu_solver::integration_scheme::NewmarkBeta as akantu_solver::integration_scheme::IntegrationScheme>::predictor
+-- serial [unknown] leaves, by first akantu frame:
+  3.04 %  <core::result::Result<(), akantu_core::error::Error> as core::ops::try_trait::Try>::branch
+  2.17 %  <akantu_solver::dof_manager::DofManager>::assemble_lumped_mat_mul_family_to_residual
+  1.62 %  <akantu_solver::non_linear_lumped::NonLinearSolverLumped as akantu_solver::non_linear::NonLinearSolver>::solve::{closure#0}::{closure#3}
+  1.42 %  <akantu_solver::dof_manager::DofManager>::zero_residual
+  1.38 %  akantu_solid::model::assembly::scatter_block
+  0.55 %  <core::result::Result<alloc::vec::Vec<bool>, akantu_core::error::Error> as core::ops::try_trait::Try>::branch
+  0.24 %  <akantu_solver::non_linear_lumped::NonLinearSolverLumped as akantu_solver::non_linear::NonLinearSolver>::solve::{closure#0}
+  0.04 %  <akantu_solver::dof_manager::DofManager>::scope
+  0.04 %  <akantu_bench::suite_solid::common::StepSplit>::time::<<akantu_bench::suite_solid::common::StepSplit as akantu_solver::callback::InterceptCallback>::before_solv
+  0.04 %  <akantu_core::exec::pool::Exec>::for_each_bounds::<akantu_core::exec::pool::Tuples<u32>, akantu_fe::engine::fast::max_unsigned_with::{closure#1}>
+  0.04 %  <core::result::Result<&akantu_fe::engine::FeEngine, akantu_core::error::Error> as core::ops::try_trait::Try>::branch
+  0.04 %  <akantu_bench::suite_solid::common::StepSplit>::time::<<akantu_bench::suite_solid::common::StepSplit as akantu_solver::callback::InterceptCallback>::assemble_re

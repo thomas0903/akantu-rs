@@ -67,9 +67,11 @@ change of default results or of a public API raises the minor version.
   update, the schemes' store and restore, the blocked-DOF scan, the
   non-local weighted average and the non-local Mazars damage after it,
   the energy densities of the Marigo and Mazars laws, the FE plans' checks
-  of element ids and connectivity, the deferred history saves of the laws'
-  stress blocks and Mazars' block copies; all bitwise equal to one thread
-  for every thread count. New: `InternalField::get_mut_with`,
+  of element ids and connectivity (consecutive ids, per-element rows), the
+  finite-deformation check of the material filter, the deferred history
+  saves of the laws' stress blocks and Mazars' block copies (into buffers
+  kept from one step to the next with threads); all bitwise equal to one
+  thread for every thread count. New: `InternalField::get_mut_with`,
   `NonLocalManagerCallback::exec` (default serial),
   `MaterialMazarsNonLocal::compute_non_local_stress_with`,
   `damage::elastic_damage_energy_densities_with`,
