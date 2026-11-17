@@ -427,6 +427,17 @@ def suite_tables(base, title, serial=True):
     def mark(c, np_):
         return ST.multi(planned.get((c, np_), []))
 
+    pvars = defaultdict(set)
+    for g in ST.plan:
+        if g.get("dir") == base.name or (g["kind"] == "python" and base.name == "python"):
+            pvars[(g["case"], g.get("np", 1))].update(g["variants"])
+
+    def r_or_dash(c, np_, num, den, val):
+        """A ratio cell; "—" when the plan has no such variant for the case."""
+        if pvars and (num not in pvars[(c, np_)] or den not in pvars[(c, np_)]):
+            return "—"
+        return val
+
     def missing_rows(width_after):
         rows = []
         for (c, np_), gids in sorted(planned.items()):
@@ -454,18 +465,21 @@ def suite_tables(base, title, serial=True):
                    med_time(list(b.values())),
                    med_time(list(h.values())), ratio(h, b)]
             if threaded:
-                row += [ratio(sec(f"head-t{n}", 1, c, ph), h)
+                row += [r_or_dash(c, 1, f"head-t{n}", "head",
+                                  ratio(sec(f"head-t{n}", 1, c, ph), h))
                         for n in (2, 4, 8)]
-                row += [ratio(sec("head-fast", 1, c, ph), h),
-                        ratio(sec("head-fast-t8", 1, c, ph),
-                              sec("head-t8", 1, c, ph))]
+                row += [r_or_dash(c, 1, "head-fast", "head",
+                                  ratio(sec("head-fast", 1, c, ph), h)),
+                        r_or_dash(c, 1, "head-fast-t8", "head-t8",
+                                  ratio(sec("head-fast-t8", 1, c, ph),
+                                        sec("head-t8", 1, c, ph)))]
             rows.append(row + [digest_ok(c, 1)])
         rows += missing_rows(len(hdr) - 2)
         out += [(f"Table \"{title}\" (seconds of the phase over its calls, "
                 "median [min, max]; n = repetitions in the medians; ratios "
                 "paired per repetition; the threads and fast-mode variants run "
                 "only for the cases whose timed phases run such code, "
-                "plan.py `threaded_case`):"), "",
+                "plan.py `threaded_case`, — elsewhere):"), "",
                 table(hdr, rows)]
     else:
         nps = sorted({n for (_, n, _, _) in data})
