@@ -1027,7 +1027,9 @@ Also on threads: the generalized-trapezoidal predictor and corrector, the
 increment update (`time_step.rs`), the schemes' store and restore copies,
 the blocked-DOF scan (each part's blocked equations appended in part
 order, then sorted as before); the non-local weighted average
-(`akantu-model` `non_local/neighborhood.rs`: per point, its contributions
+(`akantu-model` `non_local/neighborhood.rs`, from 3 threads: at 2 the
+per-point gather, which visits every pair twice, is slower than the
+serial half-pair loop; per point, its contributions
 in pair order from a per-point list built with the pair list, when the
 slots increase with the points; the manager takes the executor from its
 callback); the FE plans' and kernels' checks of the element ids and the
@@ -1042,7 +1044,11 @@ deferred history save of a block reached through
 blocks (with threads into buffers kept per element type and ghost type
 from one step to the next: a fresh allocation of a block's size, once
 glibc's mmap threshold has grown past it, comes from the heap and is
-zeroed by `calloc` on the calling thread). The per-node and per-equation loops split into parts of at least
+zeroed by `calloc` on the calling thread; the cost is a permanent second
+copy of the blocks the points work on, `5 + 2·dim²` values per
+quadrature point, `5 + 3·dim²` for `plastic_mazars`: 184 bytes per point
+in 3-D, 104 in 2-D; a clone of the law starts without them). The
+per-node and per-equation loops split into parts of at least
 2,048 nodes or 4,096 equations: measured with the step's other kernels on
 threads, smaller parts gave the explicit steps of 0.1 to 0.35 million
 equations 0.70 to 0.91 of the time at 8 threads (also with idle workers

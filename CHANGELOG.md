@@ -70,8 +70,11 @@ change of default results or of a public API raises the minor version.
   of element ids and connectivity (consecutive ids, per-element rows), the
   finite-deformation check of the material filter, the deferred history
   saves of the laws' stress blocks and Mazars' block copies (into buffers
-  kept from one step to the next with threads); all bitwise equal to one
-  thread for every thread count. New: `InternalField::get_mut_with`,
+  kept from one step to the next with threads: a second copy of the
+  law's blocks, 184 bytes per quadrature point in 3-D, 104 in 2-D); all
+  bitwise equal to one thread for every thread count. The non-local
+  average runs on threads from 3 threads (at 2 the serial loop is
+  faster). New: `InternalField::get_mut_with`,
   `NonLocalManagerCallback::exec` (default serial),
   `MaterialMazarsNonLocal::compute_non_local_stress_with`,
   `damage::elastic_damage_energy_densities_with`,

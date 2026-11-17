@@ -65,7 +65,8 @@ own cores wrote. The threshold is now 4,096 equations
 
 Threaded (each with a thread-invariance test at 1, 2, 3, 4 and 8
 threads, finest and automatic grain, and a mutant the test catches:
-`mutants.py`, `mutants.log`, 17 mutants, all caught):
+`mutants.py`, `mutants.log`: 17 mutants, all caught, one of them added
+after review):
 
 - `akantu-solver`: the per-equation loops from 4,096 equations; the
   generalized-trapezoidal predictor and corrector (heat model); the
