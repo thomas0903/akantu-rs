@@ -199,7 +199,14 @@ Two rows above 1:
 ## Left
 
 - The fused kernels (`compute_btdb_integrated`, `compute_ntbn_integrated`)
-  integrate inside each part with the engine's SIMD level but in bitwise
-  precision: under `Precision::Fast` the fast-mode variant of the
-  integral is not used there. Using it needs a fast-mode check of the
-  fused stiffness under a tolerance rule of its own (a new rule).
+  integrate inside each part on the shared serial executor: the detected
+  SIMD level and bitwise precision, whatever level or precision was set on
+  the engine. Under `Precision::Fast` the fast-mode variant of the
+  integral is therefore not used there (it would need a fast-mode check of
+  the fused stiffness under a tolerance rule of its own, a new rule), and
+  a SIMD level forced on the engine (e.g. `AKANTU_SIMD=scalar`) does not
+  reach these integrals (the bits are the same at every level). Passing
+  the engine's tokens through a one-thread executor was tried and made
+  the one-thread stiffness assembly slower (`setup_hex8` 1.056 [1.041,
+  1.069], `setup_tet4` 1.013 [1.009, 1.038], 7 interleaved pairs,
+  `checks/tok/`); reverted.
