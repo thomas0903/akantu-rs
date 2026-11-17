@@ -23,6 +23,7 @@
 //!   one element.
 
 use akantu_core::eigen_order;
+use akantu_core::exec::{Tuples, TuplesRef};
 use akantu_core::tensor::MatrixX;
 use akantu_core::{Array, Element, ElementType, Error, GhostType, Real, Result};
 use akantu_linalg::dense::{Storage, eig};
@@ -84,6 +85,9 @@ impl HeatDiffusion {
         }
         let var = self.conductivity_variation;
         let t_ref = self.t_ref;
+        // the law's points are independent (every value from its own
+        // point): the loops split over the model's threads (D-123)
+        let exec = ctx.law.services.exec();
         let constant = temperature_term_vanishes(var, t_ref, cond, ctx.diffusion.as_slice());
         let base = &mut self.base;
         let mut constant_ty = false;
@@ -104,9 +108,16 @@ impl HeatDiffusion {
                         got: filter.len() * nq,
                     });
                 }
-                for c in block.as_mut_slice().chunks_exact_mut(d * d) {
-                    c.copy_from_slice(cond);
-                }
+                // every point independently: parts on the model's threads
+                exec.for_each(
+                    Tuples::new(block.as_mut_slice(), d * d),
+                    4096,
+                    |_, mut b| {
+                        for c in b.as_mut_slice().chunks_exact_mut(d * d) {
+                            c.copy_from_slice(cond);
+                        }
+                    },
+                );
                 constant_ty |= t == ty;
                 continue;
             }
@@ -130,16 +141,18 @@ impl HeatDiffusion {
                     got: tq.len(),
                 });
             }
-            for (c, &tt) in block
-                .as_mut_slice()
-                .chunks_exact_mut(d * d)
-                .zip(tq.as_slice())
-            {
-                let s = var * (tt - t_ref);
-                for (ci, &k) in c.iter_mut().zip(cond) {
-                    *ci = k + s;
+            let items = (
+                Tuples::new(block.as_mut_slice(), d * d),
+                TuplesRef::new(tq.as_slice(), 1),
+            );
+            exec.for_each(items, 4096, |_, (mut b, tq)| {
+                for (c, &tt) in b.as_mut_slice().chunks_exact_mut(d * d).zip(tq.as_slice()) {
+                    let s = var * (tt - t_ref);
+                    for (ci, &k) in c.iter_mut().zip(cond) {
+                        *ci = k + s;
+                    }
                 }
-            }
+            });
         }
         base.diffusivity_release.insert((ty, ghost), ctx.release);
         Ok(constant_ty)
@@ -490,24 +503,45 @@ impl DiffusionLaw for HeatDiffusion {
         base.d_grad_u.resize(ty, ghost, nq)?;
         let mut out = base.d_grad_u.get_mut(ty, ghost)?;
         let (g, c, o) = (grad.as_slice(), diff.as_slice(), out.as_mut_slice());
-        if constant && cond.len() == d * d {
-            // every point of the diffusivity block was just set to the
-            // conductivity: the same factors, read from the `d × d` matrix
-            // instead of from every point's copy
-            match d {
-                1 => d_grad_u_constant::<1>(g, cond, o),
-                2 => d_grad_u_constant::<2>(g, cond, o),
-                3 => d_grad_u_constant::<3>(g, cond, o),
-                _ => d_grad_u_general(d, g, c, o),
-            }
-            return Ok(());
+        if d == 0 {
+            return Err(Error::invalid(
+                "computeDiffusivityGradUOnQuadPoints: spatial dimension 0",
+            ));
         }
-        match d {
-            1 => d_grad_u_fixed::<1>(g, c, o),
-            2 => d_grad_u_fixed::<2>(g, c, o),
-            3 => d_grad_u_fixed::<3>(g, c, o),
-            _ => d_grad_u_general(d, g, c, o),
-        }
+        let constant = constant && cond.len() == d * d;
+        // every point from its own gradient and diffusivity: parts on the
+        // model's threads (D-123); `m`: the points the zip of the serial
+        // loop visits
+        let m = (g.len() / d).min(o.len() / d).min(c.len() / (d * d));
+        let items = (
+            TuplesRef::new(&g[..m * d], d),
+            TuplesRef::new(&c[..m * d * d], d * d),
+            Tuples::new(&mut o[..m * d], d),
+        );
+        ctx.law
+            .services
+            .exec()
+            .for_each(items, 4096, |_, (g, c, mut o)| {
+                let (g, c, o) = (g.as_slice(), c.as_slice(), o.as_mut_slice());
+                if constant {
+                    // every point of the diffusivity block was just set to
+                    // the conductivity: the same factors, read from the
+                    // `d × d` matrix instead of from every point's copy
+                    match d {
+                        1 => d_grad_u_constant::<1>(g, cond, o),
+                        2 => d_grad_u_constant::<2>(g, cond, o),
+                        3 => d_grad_u_constant::<3>(g, cond, o),
+                        _ => d_grad_u_general(d, g, c, o),
+                    }
+                    return;
+                }
+                match d {
+                    1 => d_grad_u_fixed::<1>(g, c, o),
+                    2 => d_grad_u_fixed::<2>(g, c, o),
+                    3 => d_grad_u_fixed::<3>(g, c, o),
+                    _ => d_grad_u_general(d, g, c, o),
+                }
+            });
         Ok(())
     }
 

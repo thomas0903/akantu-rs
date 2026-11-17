@@ -951,67 +951,80 @@ fn interp(ty: ElementType) -> Interp {
     }
 }
 
-/// Evaluate a shape-function formula of the appendix at `xi` (variables
-/// `ξ`, `η`, `ζ`; operators `+ - · /`, postfix `²`, parentheses).
-fn eval(formula: &str, xi: &[Real]) -> Real {
-    struct P<'a> {
+/// Syntax tree of a shape-function formula of the appendix (variables
+/// `ξ`, `η`, `ζ`; operators `+ - · /`, unary `-`, postfix `²`,
+/// parentheses). The same tree is evaluated ([`eval`]), differentiated
+/// ([`derivative`]) and rendered as LaTeX ([`latex`]), so the page shows
+/// exactly the formulas that [`shape_formulas_match_the_kernels`] checks.
+#[derive(Clone, Debug)]
+enum Ex {
+    Num(Real),
+    Var(usize),
+    Neg(Box<Ex>),
+    Sq(Box<Ex>),
+    Group(Box<Ex>),
+    Bin(char, Box<Ex>, Box<Ex>),
+}
+
+const VARS: [char; 3] = ['ξ', 'η', 'ζ'];
+const LATEX_VARS: [&str; 3] = ["\\xi", "\\eta", "\\zeta"];
+
+/// Parse a formula (precedence: `+ -` < `· /` < unary `-` < postfix `²`;
+/// left-associative).
+fn parse(formula: &str) -> Ex {
+    struct P {
         c: Vec<char>,
         i: usize,
-        xi: &'a [Real],
     }
-    impl P<'_> {
+    impl P {
         fn peek(&mut self) -> Option<char> {
             while self.c.get(self.i) == Some(&' ') {
                 self.i += 1;
             }
             self.c.get(self.i).copied()
         }
-        fn expr(&mut self) -> Real {
+        fn expr(&mut self) -> Ex {
             let mut v = self.term();
             while let Some(op @ ('+' | '-')) = self.peek() {
                 self.i += 1;
                 let r = self.term();
-                v = if op == '+' { v + r } else { v - r };
+                v = Ex::Bin(op, Box::new(v), Box::new(r));
             }
             v
         }
-        fn term(&mut self) -> Real {
+        fn term(&mut self) -> Ex {
             let mut v = self.unary();
             while let Some(op @ ('·' | '/')) = self.peek() {
                 self.i += 1;
                 let r = self.unary();
-                v = if op == '·' { v * r } else { v / r };
+                v = Ex::Bin(op, Box::new(v), Box::new(r));
             }
             v
         }
-        fn unary(&mut self) -> Real {
+        fn unary(&mut self) -> Ex {
             if self.peek() == Some('-') {
                 self.i += 1;
-                return -self.unary();
+                return Ex::Neg(Box::new(self.unary()));
             }
             let mut v = self.primary();
             while self.peek() == Some('²') {
                 self.i += 1;
-                v *= v;
+                v = Ex::Sq(Box::new(v));
             }
             v
         }
-        fn primary(&mut self) -> Real {
+        fn primary(&mut self) -> Ex {
             match self.peek() {
                 Some('(') => {
                     self.i += 1;
                     let v = self.expr();
                     assert_eq!(self.peek(), Some(')'), "missing )");
                     self.i += 1;
-                    v
+                    Ex::Group(Box::new(v))
                 }
-                Some(c @ ('ξ' | 'η' | 'ζ')) => {
+                Some(c) if VARS.contains(&c) => {
                     self.i += 1;
-                    self.xi[match c {
-                        'ξ' => 0,
-                        'η' => 1,
-                        _ => 2,
-                    }]
+                    Ex::Var(VARS.iter().position(|v| *v == c).unwrap())
                 }
                 Some(c) if c.is_ascii_digit() => {
                     let start = self.i;
@@ -1022,11 +1035,13 @@ fn eval(formula: &str, xi: &[Real]) -> Real {
                     {
                         self.i += 1;
                     }
-                    self.c[start..self.i]
-                        .iter()
-                        .collect::<String>()
-                        .parse()
-                        .unwrap()
+                    Ex::Num(
+                        self.c[start..self.i]
+                            .iter()
+                            .collect::<String>()
+                            .parse()
+                            .unwrap(),
+                    )
                 }
                 other => panic!("unexpected {other:?} in {:?}", self.c),
             }
@@ -1035,17 +1050,334 @@ fn eval(formula: &str, xi: &[Real]) -> Real {
     let mut p = P {
         c: formula.chars().collect(),
         i: 0,
-        xi,
     };
     let v = p.expr();
     assert_eq!(p.peek(), None, "trailing input in {formula}");
     v
 }
 
+fn eval_ex(e: &Ex, xi: &[Real]) -> Real {
+    match e {
+        Ex::Num(v) => *v,
+        Ex::Var(k) => xi[*k],
+        Ex::Neg(a) => -eval_ex(a, xi),
+        Ex::Sq(a) => {
+            let v = eval_ex(a, xi);
+            v * v
+        }
+        Ex::Group(a) => eval_ex(a, xi),
+        Ex::Bin(op, a, b) => {
+            let (l, r) = (eval_ex(a, xi), eval_ex(b, xi));
+            match op {
+                '+' => l + r,
+                '-' => l - r,
+                '·' => l * r,
+                _ => l / r,
+            }
+        }
+    }
+}
+
+/// Evaluate a formula of the appendix at `xi`.
+fn eval(formula: &str, xi: &[Real]) -> Real {
+    eval_ex(&parse(formula), xi)
+}
+
+/// The formula in the notation of the source strings (inverse of
+/// [`parse`] for the strings of [`interp`]).
+fn plain(e: &Ex) -> String {
+    match e {
+        Ex::Num(v) => format!("{v}"),
+        Ex::Var(k) => VARS[*k].to_string(),
+        Ex::Neg(a) => format!("-{}", plain(a)),
+        Ex::Sq(a) => format!("{}²", plain(a)),
+        Ex::Group(a) => format!("({})", plain(a)),
+        Ex::Bin(op @ ('+' | '-'), a, b) => format!("{} {op} {}", plain(a), plain(b)),
+        Ex::Bin(op, a, b) => format!("{}{op}{}", plain(a), plain(b)),
+    }
+}
+
+fn has_group(e: &Ex) -> bool {
+    match e {
+        Ex::Num(_) | Ex::Var(_) => false,
+        Ex::Group(_) => true,
+        Ex::Neg(a) | Ex::Sq(a) => has_group(a),
+        Ex::Bin(_, a, b) => has_group(a) || has_group(b),
+    }
+}
+
+fn latex_ex(e: &Ex) -> String {
+    match e {
+        Ex::Num(v) => format!("{v}"),
+        Ex::Var(k) => LATEX_VARS[*k].to_string(),
+        Ex::Neg(a) => format!("-{}", latex_ex(a)),
+        Ex::Sq(a) => format!("{}^{{2}}", latex_ex(a)),
+        Ex::Group(a) => format!("\\left({}\\right)", latex_ex(a)),
+        Ex::Bin(op @ ('+' | '-'), a, b) => format!("{} {op} {}", latex_ex(a), latex_ex(b)),
+        Ex::Bin('·', a, b) => {
+            let (l, r) = (latex_ex(a), latex_ex(b));
+            // juxtaposition, except between two numbers
+            let sep = if r.starts_with(|c: char| c.is_ascii_digit()) {
+                " \\cdot "
+            } else {
+                ""
+            };
+            format!("{l}{sep}{r}")
+        }
+        Ex::Bin(_, a, b) => {
+            let den = latex_ex(b);
+            let num = latex_ex(a);
+            let (sign, num) = match num.strip_prefix('-') {
+                Some(n) => ("-", n.to_string()),
+                None => ("", num),
+            };
+            if has_group(a) {
+                format!("{sign}\\frac{{1}}{{{den}}}{num}")
+            } else {
+                format!("{sign}\\frac{{{num}}}{{{den}}}")
+            }
+        }
+    }
+}
+
+/// The formula as inline LaTeX (`$...$`, no `|`, safe in a table cell).
+fn latex(formula: &str) -> String {
+    format!("${}$", latex_ex(&parse(formula)))
+}
+
+/* ---- exact polynomial arithmetic (derivatives of the formulas) ---------- */
+
+/// Rational number `(numerator, denominator)`, denominator > 0, reduced.
+type Q = (i64, i64);
+
+fn q(n: i64, d: i64) -> Q {
+    fn gcd(a: i64, b: i64) -> i64 {
+        if b == 0 { a.abs() } else { gcd(b, a % b) }
+    }
+    assert_ne!(d, 0);
+    let g = gcd(n, d).max(1) * d.signum();
+    (n / g, d / g)
+}
+
+fn q_mul(a: Q, b: Q) -> Q {
+    q(a.0 * b.0, a.1 * b.1)
+}
+
+/// Polynomial in `(ξ, η, ζ)`: exponents → coefficient (no zero entry).
+type Poly = BTreeMap<[u8; 3], Q>;
+
+fn p_add(a: &Poly, b: &Poly, sign: i64) -> Poly {
+    let mut r = a.clone();
+    for (m, c) in b {
+        let e = r.entry(*m).or_insert((0, 1));
+        *e = q(e.0 * c.1 + sign * c.0 * e.1, e.1 * c.1);
+    }
+    r.retain(|_, c| c.0 != 0);
+    r
+}
+
+fn p_mul(a: &Poly, b: &Poly) -> Poly {
+    let mut r = Poly::new();
+    for (ma, ca) in a {
+        for (mb, cb) in b {
+            let m = [ma[0] + mb[0], ma[1] + mb[1], ma[2] + mb[2]];
+            r = p_add(&r, &Poly::from([(m, q_mul(*ca, *cb))]), 1);
+        }
+    }
+    r
+}
+
+fn p_const(c: Q) -> Poly {
+    let mut r = Poly::from([([0; 3], c)]);
+    r.retain(|_, c| c.0 != 0);
+    r
+}
+
+fn poly(e: &Ex) -> Poly {
+    match e {
+        Ex::Num(v) => {
+            assert_eq!(v.fract(), 0.0, "non-integer constant {v}");
+            p_const(q(*v as i64, 1))
+        }
+        Ex::Var(k) => {
+            let mut m = [0; 3];
+            m[*k] = 1;
+            Poly::from([(m, (1, 1))])
+        }
+        Ex::Neg(a) => p_mul(&poly(a), &p_const((-1, 1))),
+        Ex::Sq(a) => p_mul(&poly(a), &poly(a)),
+        Ex::Group(a) => poly(a),
+        Ex::Bin(op, a, b) => {
+            let (l, r) = (poly(a), poly(b));
+            match op {
+                '+' => p_add(&l, &r, 1),
+                '-' => p_add(&l, &r, -1),
+                '·' => p_mul(&l, &r),
+                _ => {
+                    let c = r.get(&[0; 3]).copied().expect("division by zero");
+                    assert_eq!(r.len(), 1, "division by a non-constant");
+                    p_mul(&l, &p_const(q(c.1, c.0)))
+                }
+            }
+        }
+    }
+}
+
+fn p_diff(p: &Poly, var: usize) -> Poly {
+    let mut r = Poly::new();
+    for (m, c) in p {
+        if m[var] > 0 {
+            let mut m2 = *m;
+            m2[var] -= 1;
+            r = p_add(&r, &Poly::from([(m2, q_mul(*c, (m[var] as i64, 1)))]), 1);
+        }
+    }
+    r
+}
+
+fn monomial_text(m: &[u8; 3]) -> Vec<String> {
+    (0..3)
+        .filter(|k| m[*k] > 0)
+        .map(|k| match m[k] {
+            1 => VARS[k].to_string(),
+            2 => format!("{}²", VARS[k]),
+            e => panic!("exponent {e} not printable"),
+        })
+        .collect()
+}
+
+/// `c · f_1 · … · f_n` in the source notation, with its sign apart.
+fn term_text(c: Q, factors: &[String]) -> (bool, String) {
+    let mut s = String::new();
+    if factors.is_empty() || c.0.abs() != 1 {
+        write!(s, "{}", c.0.abs()).unwrap();
+        if !factors.is_empty() {
+            s.push('·');
+        }
+    }
+    s.push_str(&factors.join("·"));
+    if c.1 != 1 {
+        write!(s, "/{}", c.1).unwrap();
+    }
+    (c.0 < 0, s)
+}
+
+fn sum_text(terms: &[(bool, String)]) -> String {
+    if terms.is_empty() {
+        return "0".into();
+    }
+    let mut s = String::new();
+    for (i, (neg, t)) in terms.iter().enumerate() {
+        match (i, neg) {
+            (0, true) => s.push('-'),
+            (0, false) => {}
+            (_, true) => s.push_str(" - "),
+            (_, false) => s.push_str(" + "),
+        }
+        s.push_str(t);
+    }
+    s
+}
+
+/// Expanded form, highest degree first, the constant last.
+fn poly_text(p: &Poly) -> String {
+    let mut ms: Vec<(&[u8; 3], &Q)> = p.iter().collect();
+    ms.sort_by_key(|(m, _)| {
+        (
+            std::cmp::Reverse(m.iter().sum::<u8>()),
+            std::cmp::Reverse(**m),
+        )
+    });
+    let terms: Vec<(bool, String)> = ms
+        .into_iter()
+        .map(|(m, c)| term_text(*c, &monomial_text(m)))
+        .collect();
+    sum_text(&terms)
+}
+
+/// Product-rule form of the derivative of a product `c · f_1 · … · f_n`
+/// and its number of terms (`None` if the formula is not a product of at
+/// least two factors).
+fn factored_derivative(e: &Ex, var: usize) -> Option<(String, usize)> {
+    fn parts(e: &Ex, c: &mut Q, f: &mut Vec<Ex>) {
+        match e {
+            Ex::Bin('·', a, b) => {
+                parts(a, c, f);
+                parts(b, c, f);
+            }
+            Ex::Bin('/', a, b) => {
+                parts(a, c, f);
+                let Ex::Num(d) = **b else {
+                    panic!("division by a non-constant")
+                };
+                *c = q_mul(*c, q(1, d as i64));
+            }
+            Ex::Neg(a) => {
+                *c = q_mul(*c, (-1, 1));
+                parts(a, c, f);
+            }
+            Ex::Num(v) => *c = q_mul(*c, q(*v as i64, 1)),
+            other => f.push(other.clone()),
+        }
+    }
+    let mut c = (1, 1);
+    let mut factors = Vec::new();
+    match e {
+        Ex::Bin('·' | '/', ..) | Ex::Neg(_) => parts(e, &mut c, &mut factors),
+        _ => return None,
+    }
+    if factors.len() < 2 {
+        return None;
+    }
+    let mut terms = Vec::new();
+    for (i, f) in factors.iter().enumerate() {
+        let d = p_diff(&poly(f), var);
+        if d.is_empty() {
+            continue;
+        }
+        let others = factors
+            .iter()
+            .enumerate()
+            .filter(|(j, _)| *j != i)
+            .map(|(_, g)| plain(g));
+        let (coef, mut texts) = if d.len() == 1 {
+            let (m, k) = d.iter().next().unwrap();
+            (q_mul(c, *k), monomial_text(m))
+        } else {
+            (c, vec![format!("({})", poly_text(&d))])
+        };
+        texts.extend(others);
+        terms.push(term_text(coef, &texts));
+    }
+    Some((sum_text(&terms), terms.len()))
+}
+
+/// `∂N/∂(variable var)` of a formula, in the source notation: the
+/// product-rule form when a single factor depends on the variable,
+/// otherwise the shorter of it and the expanded polynomial. Exact (rational
+/// arithmetic); checked against the kernels' `compute_dnds` by
+/// [`shape_formulas_match_the_kernels`].
+fn derivative(formula: &str, var: usize) -> String {
+    let e = parse(formula);
+    let expanded = poly_text(&p_diff(&poly(&e), var));
+    match factored_derivative(&e, var) {
+        Some((f, n)) if n == 1 || f.chars().count() < expanded.chars().count() => f,
+        _ => expanded,
+    }
+}
+
 fn kernel_shapes(ty: ElementType, xi: &[Real]) -> Vec<Real> {
     let mut n = vec![0.0; ty.nb_nodes_per_interpolation_element()];
     with_element_class!(ty, E => E::compute_shapes(xi, &mut n), else panic!("no kernel for {ty}"));
     n
+}
+
+/// Kernel derivatives, column-major `natural dimension × shapes`.
+fn kernel_dnds(ty: ElementType, xi: &[Real]) -> Vec<Real> {
+    let nd = ty.natural_space_dimension();
+    let mut d = vec![0.0; nd * ty.nb_nodes_per_interpolation_element()];
+    with_element_class!(ty, E => E::compute_dnds(xi, &mut d), else panic!("no kernel for {ty}"));
+    d
 }
 
 fn lagrange_types(kind: ElementKind) -> Vec<ElementType> {
@@ -1055,13 +1387,17 @@ fn lagrange_types(kind: ElementKind) -> Vec<ElementType> {
 }
 
 /// The appendix's node coordinates satisfy `N_j(ξ_i) = δ_ij` with the
-/// port's kernels, and its shape-function formulas agree with the kernels
-/// at the nodes, the quadrature points and 50 points of `[-1, 1]^d`.
+/// port's kernels, and its shape-function formulas and their derivatives
+/// (derived exactly by [`derivative`]) agree with the kernels'
+/// `compute_shapes` and `compute_dnds` at the nodes, the quadrature points
+/// and 50 points of `[-1, 1]^d`. The LaTeX shown on the page is rendered
+/// from the same syntax trees ([`latex`]); `plain(parse(f)) == f` checks
+/// that the parser reads every source string completely and unambiguously.
 ///
 /// Tolerance 1e-13 (absolute): both sides evaluate the same polynomial
-/// (|N| ≤ 2 on the sample box, at most 5 factors) in a different operation
-/// order, so they differ by a few ulps (≤ ~1e-14); a transcription error
-/// changes values by O(0.1). This checks the documentation, not the
+/// (|N| ≤ 2 and |∂N| ≤ 4 on the sample box, at most 5 factors) in a
+/// different operation order, so they differ by a few ulps (≤ ~1e-14); a
+/// transcription error changes values by O(0.1). This checks the documentation, not the
 /// kernels (those are verified bitwise against the oracle, FE rows).
 #[test]
 fn shape_formulas_match_the_kernels() {
@@ -1097,8 +1433,18 @@ fn shape_formulas_match_the_kernels() {
             for _ in 0..50 {
                 points.push((0..nd).map(|_| next()).collect());
             }
+            for f in &it.shapes {
+                assert_eq!(&plain(&parse(f)), f, "{ty}: formula not in canonical form");
+                assert!(!latex(f).contains('|'), "{ty}: `|` breaks the table");
+            }
+            let ders: Vec<Vec<String>> = it
+                .shapes
+                .iter()
+                .map(|f| (0..nd).map(|d| derivative(f, d)).collect())
+                .collect();
             for x in &points {
                 let n = kernel_shapes(ty, x);
+                let dn = kernel_dnds(ty, x);
                 for (j, f) in it.shapes.iter().enumerate() {
                     let v = eval(f, x);
                     assert!(
@@ -1106,6 +1452,14 @@ fn shape_formulas_match_the_kernels() {
                         "{ty}: N_{j} = {f} gives {v}, kernel {} at {x:?}",
                         n[j]
                     );
+                    for (d, g) in ders[j].iter().enumerate() {
+                        let v = eval(g, x);
+                        let k = dn[j * nd + d];
+                        assert!(
+                            (v - k).abs() <= 1e-13,
+                            "{ty}: dN_{j}/dξ_{d} = {g} gives {v}, kernel {k} at {x:?}"
+                        );
+                    }
                 }
             }
         }
@@ -1184,10 +1538,73 @@ fn kind_word(kind: ElementKind) -> &'static str {
 fn coord_header(nd: usize) -> &'static str {
     match nd {
         0 => "—",
-        1 => "ξ",
-        2 => "(ξ, η)",
-        _ => "(ξ, η, ζ)",
+        1 => "$\\xi$",
+        2 => "$(\\xi, \\eta)$",
+        _ => "$(\\xi, \\eta, \\zeta)$",
     }
+}
+
+/// Header cells and separators of the shape-function columns: `N_i` and
+/// one derivative per natural coordinate.
+fn shape_columns(nd: usize) -> (String, String) {
+    let mut head = String::from(" $N_i$ |");
+    let mut sep = String::from("---|");
+    for v in LATEX_VARS.iter().take(nd) {
+        write!(head, " $\\partial N_i / \\partial {v}$ |").unwrap();
+        sep.push_str("---|");
+    }
+    (head, sep)
+}
+
+/// Shape-function cells of one node: `N_i` and its derivatives, as LaTeX.
+fn shape_cells(f: &str, nd: usize) -> String {
+    let mut s = format!(" {} |", latex(f));
+    for d in 0..nd {
+        write!(s, " {} |", latex(&derivative(f, d))).unwrap();
+    }
+    s
+}
+
+/// The upstream drawing shown at the head of a group of element types.
+fn element_figure(ty: ElementType) -> Option<&'static str> {
+    use ElementType as E;
+    Some(match ty {
+        E::Segment2 => {
+            "![The reference segments of _segment_2 and _segment_3 with their nodes \
+             and quadrature points](../figures/upstream/elements/segments.svg)\n\
+             *Figure: the 1-D elements `_segment_2` (left) and `_segment_3` \
+             (right), nodes numbered from 1 (the tables number from 0) and \
+             quadrature points in grey (figure of the Akantu manual).*\n"
+        }
+        E::Triangle3 => {
+            "![The reference triangles and quadrangles with their nodes and \
+             quadrature points](../figures/upstream/elements/elements_2d.svg)\n\
+             *Figure: the 2-D elements `_triangle_3`, `_triangle_6` (top), \
+             `_quadrangle_4` and `_quadrangle_8` (bottom), nodes numbered from 1 \
+             (the tables number from 0) and quadrature points in grey; the \
+             drawing shows 9 points for `_quadrangle_8`, whose default rule \
+             has 4 (figure of the Akantu manual).*\n"
+        }
+        E::Tetrahedron4 => {
+            "![The reference tetrahedra and hexahedron with their nodes and \
+             quadrature points](../figures/upstream/elements/elements_3d.svg)\n\
+             *Figure: the 3-D elements `_tetrahedron_4`, `_tetrahedron_10` \
+             (top) and `_hexahedron_8` (bottom), nodes numbered from 1 (the \
+             tables number from 0) and quadrature points in grey; the drawing \
+             numbers the vertices of `_tetrahedron_4` like those of \
+             `_tetrahedron_10`, the kernel takes them in another order (table \
+             below, UD-041) (figure of the Akantu manual).*\n"
+        }
+        E::Cohesive2d6 => {
+            "![A quadratic cohesive element between two six-node \
+             triangles](../figures/upstream/elements/cohesive_2d_6.svg)\n\
+             *Figure: a `_cohesive_2d_6` element between two `_triangle_6` \
+             elements, nodes numbered from 1: one side holds nodes 1 to 3, the \
+             other nodes 4 to 6, node 3 (and 6) in the middle (figure of the \
+             Akantu manual).*\n"
+        }
+        _ => return None,
+    })
 }
 
 fn element_appendix(kind: ElementKind) -> String {
@@ -1196,6 +1613,9 @@ fn element_appendix(kind: ElementKind) -> String {
         let nd = ty.natural_space_dimension();
         let it = interp(ty);
         writeln!(o, "### {}\n", ty.name().trim_start_matches('_')).unwrap();
+        if let Some(fig) = element_figure(ty) {
+            writeln!(o, "{fig}").unwrap();
+        }
         writeln!(o, "| Property | Value |\n|---|---|").unwrap();
         writeln!(
             o,
@@ -1230,21 +1650,29 @@ fn element_appendix(kind: ElementKind) -> String {
             writeln!(o, "| Cohesive type on its facets | `{}` |", c.name()).unwrap();
         }
         o.push('\n');
+        let (head, sep) = shape_columns(nd);
         if kind == ElementKind::Cohesive {
             let half = ty.nb_nodes_per_element() / 2;
             writeln!(
                 o,
-                "| Nodes (side 1, side 2) | {} | N |\n|---|---|---|",
+                "| Nodes (side 1, side 2) | {} |{head}\n|---|---|{sep}",
                 coord_header(nd)
             )
             .unwrap();
             for (i, (x, f)) in it.nodes.iter().zip(&it.shapes).enumerate() {
-                writeln!(o, "| {i}, {} | {} | `{f}` |", i + half, fmt_point(x)).unwrap();
+                writeln!(
+                    o,
+                    "| {i}, {} | {} |{}",
+                    i + half,
+                    fmt_point(x),
+                    shape_cells(f, nd)
+                )
+                .unwrap();
             }
         } else {
-            writeln!(o, "| Node | {} | N |\n|---|---|---|", coord_header(nd)).unwrap();
+            writeln!(o, "| Node | {} |{head}\n|---|---|{sep}", coord_header(nd)).unwrap();
             for (i, (x, f)) in it.nodes.iter().zip(&it.shapes).enumerate() {
-                writeln!(o, "| {i} | {} | `{f}` |", fmt_point(x)).unwrap();
+                writeln!(o, "| {i} | {} |{}", fmt_point(x), shape_cells(f, nd)).unwrap();
             }
         }
         o.push('\n');

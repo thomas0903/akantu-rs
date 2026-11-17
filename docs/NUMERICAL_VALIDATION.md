@@ -957,29 +957,32 @@ translation, and `auto` resolves as upstream (MUMPS when registered, else
 (UD-061); the port's default writes 17 digits and round-trips exactly.
 
 The dense kernels of the translation run in register tiles and, on x86-64,
-in AVX or AVX-512F instances chosen at run time (`eigen_sparse_lu::simd`):
+in AVX or AVX-512F instances selected by the executor's SIMD level (`eigen_sparse_lu::simd`, `AKANTU_SIMD`):
 every result entry keeps the strict build's sequence of separate
 multiplications and additions, so the default path stays bitwise
 (property tests of every instance against the scalar kernels by the rule
 of D-046 / D-051; the oracle tests above unchanged).
 
-**SparseLU fast mode** (opt-in, `SparseLu::set_fast_mode` /
-`EigenSparseLuSolver::set_fast_mode` with a `FastToken`, that is an
-executor in precision `Fast`): the panel products use fused multiply-adds
-(AVX-512F or AVX2 with FMA). Each term of a dot product of length `d ≤ 128`
-(the supernode width) is rounded once instead of twice, so each factor
-entry changes by at most about `d·u` relative to its terms' magnitudes
-(`u = 2⁻⁵³`), the same order as the rounding error of the bitwise
-factorisation itself; the solution then differs from the bitwise one by
-about `κ(A)·d·u` relatively. Tolerance (`tests::fma_mode_solution_within_tolerance`):
-relative 2-norm difference of the solution at most 1e-12 on a diagonally
-dominant 3-D 7-point stencil of 2,744 unknowns (`κ < 10`, so the expected
-difference is near 1e-14; the margin of about two orders covers longer
-sums and pivoting near ties); the test also checks that the FMA kernels ran
-(some bit differs) where the CPU has FMA. Each FMA instance equals a
-scalar `mul_add` reference with the same per-entry sequence bit for bit
-(`simd::tests::fma_instances_match_a_scalar_fused_reference`). Not compared
-with the oracle: the mode is outside the strict build's semantics.
+**SparseLU fast mode** (opt-in: an executor in precision `Fast`, a model's
+through `set_exec` or `SparseLu::set_fast_mode` with its `FastToken`): the
+panel products, the triangular panel solves (`gebp` updates) and the GEMV
+of the column updates and of the triangular solves use fused
+multiply-adds (AVX-512F or AVX2 with FMA; the bitwise kernels elsewhere).
+Each term of a dot product of length `d ≤ 128` (the supernode width) is
+rounded once instead of twice, so each factor entry changes by at most
+about `d·u` relative to its terms' magnitudes (`u = 2⁻⁵³`), the same order
+as the rounding error of the bitwise factorisation itself; the solution
+then differs from the bitwise one by about `κ(A)·d·u` relatively. Rule
+`fast_mode/linalg/sparse_lu_stencil` (`fixtures/fast_mode/linalg/tolerances.json`,
+`tests/fast_mode_sparse_lu.rs`, D-123's harness): `|fast − bitwise| ≤ 1e-12
+·max|x|` on a diagonally dominant 3-D 7-point stencil of 4,096 unknowns
+(`κ ≈ 27`, expected difference of order 1e-14; measured 3.8e-16 on AVX-512,
+3,268 of 4,096 entries bit-identical); the test also requires a difference
+where the CPU has an FMA instance, and identical fast results at 2 and 4
+threads. Each FMA instance equals its portable body with `f64::mul_add`
+(the correctly rounded software operation) bit for bit
+(`simd::tests`). Not compared with the oracle: the mode is outside the
+strict build's semantics.
 
 faer is a qualified extension (`SparseSolverType::Faer`), never chosen by
 `auto`. Qualification (`faer_qualification.rs`, `faer_histories.rs`):

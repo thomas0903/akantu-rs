@@ -142,6 +142,8 @@ pub fn static_linear(ctx: &mut Ctx<'_>, sparse: SparseSolverType) -> Result<Outc
     if !mumps {
         let factory = SparseSolverFactory::default();
         let mut solver = factory.create(sparse, 1)?;
+        // the model's executor, as the model's own solves get it (D-123)
+        solver.set_exec(m.dof_manager().exec());
         let backend = m.dof_manager().backend();
         let a = backend.aij("J")?;
         let rhs: Vec<Real> = (0..a.size()).map(|i| ((i % 7) as Real) - 3.0).collect();

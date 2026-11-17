@@ -141,6 +141,7 @@
 use std::sync::Arc;
 
 use akantu_core::enums::MatrixType;
+use akantu_core::exec::{Tuples, TuplesRef};
 use akantu_core::glibc_libm;
 use akantu_core::tensor::{Matrix, MatrixExt, SquareMatrixExt, as_matrix, as_matrix_mut};
 use akantu_core::{
@@ -259,6 +260,7 @@ impl SlsConstants {
     /// One quadrature point: from `grad_u` and the state `(s_old, h, e_d)`
     /// the law starts from, the stress and the new state.
     #[allow(clippy::type_complexity)] // (σ, s, h, e_d) of one point
+    #[inline(always)]
     fn on_quad<const D: usize>(
         &self,
         grad_u: &Matrix<D, D>,
@@ -313,6 +315,40 @@ impl SlsConstants {
         };
         (sigma, s, h, e_diss_old + increment)
     }
+}
+
+/// The stress and new state of a contiguous run of points (a part of
+/// `compute_stress`): `inputs` = gradient, deviatoric stress, history
+/// integral, dissipated energy of the start state. No-alias slice
+/// parameters, not inlined into the part closure.
+#[inline(never)]
+fn sls_stress_part<const DIM: usize>(
+    c: &SlsConstants,
+    inputs: [&[Real]; 4],
+    so: &mut [Real],
+    dout: &mut [Real],
+    hout: &mut [Real],
+    eout: &mut [Real],
+) -> Result<()> {
+    let n = DIM * DIM;
+    let [g, d0, h0, e0] = inputs;
+    let points = g
+        .chunks_exact(n)
+        .zip(d0.chunks_exact(n))
+        .zip(h0.chunks_exact(n))
+        .zip(e0)
+        .zip(so.chunks_exact_mut(n))
+        .zip(dout.chunks_exact_mut(n))
+        .zip(hout.chunks_exact_mut(n))
+        .zip(eout);
+    for (((((((g, d0), h0), &e0), so), dout), hout), e_q) in points {
+        let (sigma, s, h, e) = c.on_quad(as_matrix(g)?, as_matrix(d0)?, as_matrix(h0)?, e0);
+        *as_matrix_mut::<DIM, DIM>(so)? = sigma;
+        *as_matrix_mut::<DIM, DIM>(dout)? = s;
+        *as_matrix_mut::<DIM, DIM>(hout)? = h;
+        *e_q = e;
+    }
+    Ok(())
 }
 
 /// Standard linear solid with deviatoric viscosity (upstream
@@ -716,6 +752,7 @@ impl<const DIM: usize> Material for MaterialStandardLinearSolidDeviatoric<DIM> {
         let c = self.constants(ctx.services.time_step());
         let committed = self.committed();
         let n = DIM * DIM;
+        let exec = crate::material::points_exec(self, ctx);
         let Self {
             elastic,
             stress_dev,
@@ -756,17 +793,45 @@ impl<const DIM: usize> Material for MaterialStandardLinearSolidDeviatoric<DIM> {
             // every value is written below (whole matrices per point)
             let [sigma_out, dev_out, h_out, e_out] =
                 scratch.sized([(nq, n), (nq, n), (nq, n), (nq, 1)])?;
-            for (q, e_q) in e_out.as_mut_slice().iter_mut().enumerate() {
-                let r = q * n..(q + 1) * n;
-                let g: &Matrix<DIM, DIM> = as_matrix(&grad_u.as_slice()[r.clone()])?;
-                let d0: &Matrix<DIM, DIM> = as_matrix(&dev_old.as_slice()[r.clone()])?;
-                let h0: &Matrix<DIM, DIM> = as_matrix(&h_old.as_slice()[r.clone()])?;
-                let (sigma, s, h, e) = c.on_quad(g, d0, h0, e_old.as_slice()[q]);
-                *as_matrix_mut::<DIM, DIM>(&mut sigma_out.as_mut_slice()[r.clone()])? = sigma;
-                *as_matrix_mut::<DIM, DIM>(&mut dev_out.as_mut_slice()[r.clone()])? = s;
-                *as_matrix_mut::<DIM, DIM>(&mut h_out.as_mut_slice()[r])? = h;
-                *e_q = e;
+            if grad_u.nb_component() != n
+                || dev_old.nb_component() != n
+                || h_old.nb_component() != n
+            {
+                return Err(Error::DimensionMismatch {
+                    context: "MaterialStandardLinearSolidDeviatoric::computeStress: components",
+                    expected: n,
+                    got: dev_old.nb_component(),
+                });
             }
+            // every point from its own gradient and history into disjoint
+            // ranges of the scratch blocks: parts on the model's threads
+            // (D-123); the commits below run after every part
+            let items = (
+                (
+                    TuplesRef::new(grad_u.as_slice(), n),
+                    TuplesRef::new(dev_old.as_slice(), n),
+                    TuplesRef::new(h_old.as_slice(), n),
+                    TuplesRef::new(e_old.as_slice(), 1),
+                ),
+                Tuples::new(sigma_out.as_mut_slice(), n),
+                Tuples::new(dev_out.as_mut_slice(), n),
+                Tuples::new(h_out.as_mut_slice(), n),
+                Tuples::new(e_out.as_mut_slice(), 1),
+            );
+            exec.try_for_each(
+                items,
+                1024,
+                |_, ((g, d0, h0, e0), mut so, mut dout, mut hout, mut eout)| {
+                    sls_stress_part::<DIM>(
+                        &c,
+                        [g.as_slice(), d0.as_slice(), h0.as_slice(), e0.as_slice()],
+                        so.as_mut_slice(),
+                        dout.as_mut_slice(),
+                        hout.as_mut_slice(),
+                        eout.as_mut_slice(),
+                    )
+                },
+            )?;
             nq
         };
         let sigma = elastic.base_mut().sigma_field_mut()?;
@@ -783,6 +848,13 @@ impl<const DIM: usize> Material for MaterialStandardLinearSolidDeviatoric<DIM> {
         history_integral.commit_overwrite(ty, ghost, scratch.get_mut(2))?;
         dissipated_energy.commit_overwrite(ty, ghost, scratch.get_mut(3))?;
         Ok(())
+    }
+
+    /// A point's stress and history read only that point's gradient and
+    /// history (current or committed values, copies of the blocks) and the
+    /// law's constants for the time step.
+    fn independent_points(&self) -> bool {
+        true
     }
 
     fn compute_tangent_moduli(

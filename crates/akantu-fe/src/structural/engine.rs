@@ -145,6 +145,9 @@ pub struct StructuralFeEngine {
     /// Ghost types whose last [`StructuralFeEngine::refresh`] failed (their
     /// blocks were dropped), for the error message.
     rebuild_failed: [bool; 2],
+    /// Executor of the per-element loops of the elemental matrices
+    /// (D-123; serial until the model sets its own).
+    exec: akantu_core::exec::Exec,
 }
 
 /// What a precomputed block was built from.
@@ -580,6 +583,7 @@ impl StructuralFeEngine {
             stamps: ElementTypeMap::new(),
             initialised: [false; 2],
             rebuild_failed: [false; 2],
+            exec: akantu_core::exec::Exec::serial(),
             id,
         })
     }
@@ -1408,10 +1412,67 @@ impl StructuralFeEngine {
         ty: ElementType,
         ghost: GhostType,
     ) -> Result<()> {
-        let mut btdb = Array::new(1);
-        self.compute_btdb(mesh, d, &mut btdb, ty, ghost, None)?;
-        let nc2 = btdb.nb_component();
-        self.integrate(mesh, btdb.view(), out, nc2, ty, ghost, None)
+        // `compute_btdb` then `integrate`, fused per element: their checks
+        // in their order, then per element the point matrices with the
+        // products of `compute_btdb` and their integral with the product
+        // of `integrate` (the same bits), elements on the engine's threads
+        let (ns, nc) = with_structural_element!(ty, E => (E::NB_STRESS, E::NB_ELEMENT_DOFS),
+            else return Err(unsupported(ty, "structural compute_btdb")));
+        self.check_up_to_date(mesh, ty, ghost)?;
+        let (ids, nq, b) = self.per_point(self.block_dshapes(ty, ghost)?, ty, ghost, None)?;
+        check_input(
+            "structural compute_btdb: D",
+            d.len(),
+            d.nb_component(),
+            ids.len() * nq,
+            ns * ns,
+        )?;
+        let jac = self.block_jacobians(ty, ghost)?;
+        let (ids_j, nq_j, jac) = self.per_point(jac, ty, ghost, None)?;
+        if ids_j != ids || nq_j != nq {
+            let mut btdb = Array::new(1);
+            self.compute_btdb(mesh, d, &mut btdb, ty, ghost, None)?;
+            let nc2 = btdb.nb_component();
+            return self.integrate(mesh, btdb.view(), out, nc2, ty, ghost, None);
+        }
+        let nc2 = nc * nc;
+        prepare_out(out, ids.len(), nc2)?;
+        let p_btd = eigen::prepare(Dims::dynamic(ns, nc).t(), Dims::dynamic(ns, ns))?;
+        let p_btdb = eigen::prepare(Dims::dynamic(nc, ns), Dims::dynamic(ns, nc))?;
+        let p_fj = eigen::prepare(Dims::dynamic(nc2, nq), Dims::new(nq, 1, false, true))?;
+        let kernel = StiffnessParts {
+            ns,
+            nc,
+            nq,
+            bs: b.as_slice(),
+            ds: d.as_slice(),
+            js: jac.as_slice(),
+            p_btd: &p_btd,
+            p_btdb: &p_btdb,
+            p_fj: &p_fj,
+        };
+        let min = (65_536 / (nq * nc2).max(1)).max(1);
+        self.exec.try_for_each(
+            (
+                akantu_core::exec::Tuples::new(out.as_mut_slice(), nc2),
+                akantu_core::exec::TuplesRef::new(&ids, 1),
+            ),
+            min,
+            |first, (mut o, ids)| kernel.part(first, ids.as_slice(), o.as_mut_slice()),
+        )
+    }
+
+    /// Executor of the per-element loops (D-123).
+    #[must_use]
+    pub fn exec(&self) -> &akantu_core::exec::Exec {
+        &self.exec
+    }
+
+    /// Set the executor of the per-element loops of the elemental matrices
+    /// (every result is the same for every thread count in
+    /// [`akantu_core::exec::Precision::Bitwise`]).
+    pub fn set_exec(&mut self, exec: akantu_core::exec::Exec) {
+        self.exec = exec;
     }
 
     /// Element forces of a line load given in the **local** element basis
@@ -1532,7 +1593,8 @@ impl StructuralFeEngine {
             });
         }
         let compat = self.compat;
-        with_structural_element!(ty, E => consistent_mass_type::<E>(&block, &rule, r.as_slice(), compat, field, out),
+        let exec = &self.exec;
+        with_structural_element!(ty, E => consistent_mass_type::<E>(&block, &rule, r.as_slice(), compat, field, out, exec),
             else Err(unsupported(ty, "structural consistent_mass")))
     }
 }
@@ -1620,6 +1682,7 @@ fn consistent_mass_type<E: StructuralElement>(
     compat: StructuralUpstreamCompat,
     field: ArrayView<'_, Real>,
     out: &mut Array<Real>,
+    exec: &akantu_core::exec::Exec,
 ) -> Result<()> {
     if !E::HAS_SHAPES {
         return Err(Error::NotImplemented(
@@ -1637,28 +1700,105 @@ fn consistent_mass_type<E: StructuralElement>(
         ns,
     )?;
     let (shapes, mut jac) = mass_shapes_type::<E>(block, rule, rotations, compat)?;
-    let mut nt = vec![0.0; nc * ns];
-    let mut local = vec![0.0; ne * nq * nc * nc];
-    let fs = field.as_slice();
-    for s in 0..ne * nq {
-        ntbn_local(
-            &shapes[s * ns * nc..(s + 1) * ns * nc],
-            ns,
-            nc,
-            &fs[s * ns..(s + 1) * ns],
-            &mut nt,
-            &mut local[s * nc * nc..(s + 1) * nc * nc],
-        )?;
-    }
     multiply_by_weights(&mut jac, &rule.weights);
-    integrate_rows(
-        &local,
-        nc * nc,
-        nq,
-        |pos| Ok(&jac[pos * nq..(pos + 1) * nq]),
-        ne,
-        out,
+    let fs = field.as_slice();
+    let nc2 = nc * nc;
+    prepare_out(out, ne, nc2)?;
+    // per element: the point matrices (`ntbn_local`), then their integral
+    // with the product of `integrate_rows` (the same bits); elements on
+    // the executor's threads
+    let p_fj = eigen::prepare(Dims::dynamic(nc2, nq), Dims::new(nq, 1, false, true))?;
+    let min = (65_536 / (nq * nc2).max(1)).max(1);
+    exec.try_for_each(
+        akantu_core::exec::Tuples::new(out.as_mut_slice(), nc2),
+        min,
+        |first, mut o| {
+            mass_part(
+                &shapes,
+                fs,
+                &jac,
+                ns,
+                nc,
+                nq,
+                &p_fj,
+                first,
+                o.as_mut_slice(),
+            )
+        },
     )
+}
+
+/// [`consistent_mass_type`] for the elements `first..` (one `nc²` tuple of
+/// `o` each).
+#[allow(clippy::too_many_arguments)] // one part of the loop
+#[inline(never)] // no-alias parameters (docs/benchmarks/perf-campaign/exec)
+fn mass_part(
+    shapes: &[Real],
+    fs: &[Real],
+    jac: &[Real],
+    ns: usize,
+    nc: usize,
+    nq: usize,
+    p_fj: &eigen::SliceProduct,
+    first: usize,
+    o: &mut [Real],
+) -> Result<()> {
+    let nc2 = nc * nc;
+    let mut nt = vec![0.0; nc * ns];
+    let mut local = vec![0.0; nq * nc2];
+    for (p, oe) in o.chunks_exact_mut(nc2).enumerate() {
+        let e = first + p;
+        for q in 0..nq {
+            let s = e * nq + q;
+            ntbn_local(
+                &shapes[s * ns * nc..(s + 1) * ns * nc],
+                ns,
+                nc,
+                &fs[s * ns..(s + 1) * ns],
+                &mut nt,
+                &mut local[q * nc2..(q + 1) * nc2],
+            )?;
+        }
+        p_fj.eval(&local, &jac[e * nq..(e + 1) * nq], oe)?;
+    }
+    Ok(())
+}
+
+/// The operands of the fused [`StructuralFeEngine::element_stiffness`].
+struct StiffnessParts<'a> {
+    ns: usize,
+    nc: usize,
+    nq: usize,
+    bs: &'a [Real],
+    ds: &'a [Real],
+    js: &'a [Real],
+    p_btd: &'a eigen::SliceProduct,
+    p_btdb: &'a eigen::SliceProduct,
+    p_fj: &'a eigen::SliceProduct,
+}
+
+impl StiffnessParts<'_> {
+    /// The elemental matrices of the elements `ids` (positions `first..`).
+    #[inline(never)] // no-alias parameters (docs/benchmarks/perf-campaign/exec)
+    fn part(&self, first: usize, ids: &[usize], o: &mut [Real]) -> Result<()> {
+        let (ns, nc, nq) = (self.ns, self.nc, self.nq);
+        let nc2 = nc * nc;
+        let mut btd = vec![0.0; nc * ns];
+        let mut local = vec![0.0; nq * nc2];
+        for (p, (&e, oe)) in ids.iter().zip(o.chunks_exact_mut(nc2)).enumerate() {
+            let pos = first + p;
+            for q in 0..nq {
+                let (s, t) = (e * nq + q, pos * nq + q);
+                let bq = &self.bs[s * ns * nc..(s + 1) * ns * nc];
+                self.p_btd
+                    .eval(bq, &self.ds[t * ns * ns..(t + 1) * ns * ns], &mut btd)?;
+                self.p_btdb
+                    .eval(&btd, bq, &mut local[q * nc2..(q + 1) * nc2])?;
+            }
+            self.p_fj.eval(&local, &self.js[e * nq..(e + 1) * nq], oe)?;
+        }
+        Ok(())
+    }
 }
 
 impl MeshEventHandler for StructuralFeEngine {

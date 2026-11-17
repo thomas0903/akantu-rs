@@ -464,6 +464,12 @@ impl<const DIM: usize> MaterialVreePeerlings<DIM> {
     }
 
     /// Upstream `computeStress(type, ghost)`.
+    /// Not declared (not reviewed for threads: no benchmark case uses the
+    /// law).
+    pub(crate) fn points_are_independent(&self) -> bool {
+        false
+    }
+
     pub(crate) fn stress_impl(
         &mut self,
         ctx: &LawContext<'_>,

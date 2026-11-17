@@ -6,7 +6,9 @@ An index of the repository's documents, one line each.
 ## For users
 
 - [manual/](manual/): the user manual (mdBook), with the chapter on
-  differences from the C++ library; `mdbook build docs/manual` builds it.
+  differences from the C++ library; `mdbook build docs/manual` builds it
+  (mdBook 0.4.40 with the preprocessor mdbook-katex 0.9.4, which typesets
+  the formulas).
 - [../README.md](../README.md): what akantu-rs is, its state and a quick start.
 - [../CHANGELOG.md](../CHANGELOG.md): the changes of each version.
 - [PLATFORMS.md](PLATFORMS.md): the supported platforms and what holds on each.

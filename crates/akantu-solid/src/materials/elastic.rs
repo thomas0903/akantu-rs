@@ -270,13 +270,8 @@ impl<const DIM: usize> MaterialElastic<DIM> {
     }
 
     /// Upstream `MaterialThermal<dim>::computeStress` for one block (also
-    /// the thermal pre-step of the laws deriving from `MaterialElastic`).
-    pub(crate) fn compute_thermal(&mut self, ty: ElementType, ghost: GhostType) -> Result<()> {
-        self.compute_thermal_with(akantu_core::exec::Exec::serial_ref(), ty, ghost)
-    }
-
-    /// [`Self::compute_thermal`] with the per-point loop split by `exec`
-    /// (every point from its own `ΔT`).
+    /// the thermal pre-step of the laws deriving from `MaterialElastic`),
+    /// the per-point loop split by `exec` (every point from its own `ΔT`).
     pub(crate) fn compute_thermal_with(
         &mut self,
         exec: &akantu_core::exec::Exec,
@@ -445,6 +440,16 @@ impl<const DIM: usize> MaterialElastic<DIM> {
         if !shapes_ok {
             return Ok(false);
         }
+        let es = assembly.element_size();
+        // the output preparation of `integrate` (`prepare_out`); it and the
+        // shape-derivative access can fail, so they come before anything is
+        // announced: an early return here leaves no exchanged block behind
+        if r_e.nb_component() != es {
+            *r_e = Array::with_id(es, r_e.id().to_owned());
+        }
+        r_e.try_resize(filter.len(), 0.0)?;
+        let per_element =
+            8 * nq * (fe.shapes_derivatives(ty, ghost)?.nb_component() + 3 * d2 + 4) + 8 * es;
         // Every value of `grad_u` and of the stress block is written below,
         // and of the thermal blocks when they hold one value per point: a
         // deferred history save of them becomes an exchange of allocations
@@ -485,14 +490,6 @@ impl<const DIM: usize> MaterialElastic<DIM> {
         let Some((mut gu, mut sigma, mut eps, mut sig_th)) = ({ guards }) else {
             return Ok(false); // checked above
         };
-        let es = assembly.element_size();
-        // the output preparation of `integrate` (`prepare_out`)
-        if r_e.nb_component() != es {
-            *r_e = Array::with_id(es, r_e.id().to_owned());
-        }
-        r_e.try_resize(filter.len(), 0.0)?;
-        let per_element =
-            8 * nq * (fe.shapes_derivatives(ty, ghost)?.nb_component() + 3 * d2 + 4) + 8 * es;
         // `Grain::Finest` (the split of the thread-count tests): one element
         // per block, so that every block boundary of a test case is exercised
         let block = match fe.exec().policy().grain() {
@@ -548,7 +545,10 @@ impl<const DIM: usize> MaterialElastic<DIM> {
         if result.is_err() {
             // the values of the last save back in the exchanged blocks (a
             // failure of the region comes from its plans' element accesses;
-            // the shapes were checked above)
+            // the shapes were checked above, so no test reaches this: after
+            // it the exchanged blocks hold the saved values where a run
+            // whose blocks are saved by copy would hold partial ones, the
+            // same documented difference as after a failed gradient)
             drop((gu, sigma, eps, sig_th, eigen, dt));
             undo_overwrites(
                 [

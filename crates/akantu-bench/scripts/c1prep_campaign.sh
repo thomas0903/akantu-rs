@@ -50,6 +50,8 @@
 #      can stop them), C1PREP_LOCK (/tmp/c1prep-campaign.lock), PIN_CPUS_FROM
 #      (optional core number K: a run on N ranks gets the cores K..K+N-1 of
 #      the host, docker --cpuset-cpus, both codes; recorded in provenance.txt).
+#      RUST_THREADS (default 1): threads per rank of the Rust runs
+#      (AKANTU_NUM_THREADS in the container; their cpuset spans N × threads cores).
 #      The former environment variables MEMORY, CPUS, RUST_IMAGE, RUST_BIN are
 #      still read as defaults of the options.
 #
@@ -246,7 +248,7 @@ if [ "${mode}" = campaign ]; then
     echo "mesh=${cpp_mesh} sha256=${mesh_sha} elements=${n_elements}"
     echo "cpp_image=${PERF_IMAGE} $(perf_image_digest) config=${cfg} fnte=${AKANTU_RS_FILL_NODES_TO_ELEMENTS} memory=${memory} cpus=unlimited"
     echo "rust_image=${rust_image} $(docker image inspect --format '{{.Id}}' "${rust_image}") rust_bin=${rust_bin} sha256=${rust_sha} volume=${tvol} memory=${memory} cpus=${cpus} rust_extra=${rust_extra[*]:-}"
-    echo "pin_cpus_from=${PIN_CPUS_FROM:-none}"
+    echo "pin_cpus_from=${PIN_CPUS_FROM:-none} rust_threads=${RUST_THREADS:-1}"
     echo "threads: OMP_NUM_THREADS=1 OPENBLAS_NUM_THREADS=1 SCOTCH_PTHREAD_NUMBER=1 OPENBLAS_CORETYPE=Haswell (image ENV) AKA_SEED=1"
   } | tee -a "${out}/provenance.txt"
 fi
@@ -406,7 +408,10 @@ run_case() { # case np rep
       # limits as the C++ container (--memory without swap, --shm-size 4g,
       # --init) plus the CPU quota
       # shellcheck disable=SC2046 # plain tokens without spaces
-      docker run --rm --init --name "${prefix}-${c}-np${np}-$$" $(cpuset_for "${np}") \
+      # RUST_THREADS (default 1): the port's threads per rank (D-123,
+      # AKANTU_NUM_THREADS); the pinned cpuset then spans np × threads cores
+      docker run --rm --init --name "${prefix}-${c}-np${np}-$$" \
+        $(cpuset_for "$((np * ${RUST_THREADS:-1}))") -e "AKANTU_NUM_THREADS=${RUST_THREADS:-1}" \
         --memory "${memory}" --memory-swap "${memory}" --cpus "${cpus}" --shm-size 4g \
         -v "${tvol}:/target" -v "${repo}:/src:ro" -w /src "${rust_image}" \
         bash /src/crates/akantu-bench/scripts/c1prep_campaign.sh --rust-run \

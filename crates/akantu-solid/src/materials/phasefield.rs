@@ -88,6 +88,7 @@ use std::sync::Arc;
 
 use akantu_core::eigen_order as eo;
 use akantu_core::enums::MatrixType;
+use akantu_core::exec::{Exec, Tuples, TuplesRef};
 use akantu_core::tensor::{Matrix, MatrixExt, as_matrix, as_matrix_mut};
 use akantu_core::{
     Array, Element, ElementType, ElementTypeMapArray, Error, GhostType, Idx, Real, Result,
@@ -190,8 +191,9 @@ impl<const DIM: usize> MaterialPhaseField<DIM> {
         ParameterRegistry::update_internal_parameters(&mut self.elastic)
     }
 
-    /// Upstream `MaterialThermal::computeStress` for one block.
-    fn compute_thermal(&mut self, ty: ElementType, ghost: GhostType) -> Result<()> {
+    /// Upstream `MaterialThermal::computeStress` for one block, the points
+    /// split over `exec`'s threads (every point from its own `ΔT`).
+    fn compute_thermal(&mut self, exec: &Exec, ty: ElementType, ghost: GhostType) -> Result<()> {
         let e = &mut self.elastic;
         let dt = e.delta_t.get(ty, ghost)?.clone();
         let (mut eps, mut sig) = (
@@ -205,14 +207,54 @@ impl<const DIM: usize> MaterialPhaseField<DIM> {
                 got: eps.len().min(sig.len()),
             });
         }
-        for ((d, ep), s) in dt
-            .as_slice()
-            .iter()
-            .zip(eps.as_mut_slice())
-            .zip(sig.as_mut_slice())
-        {
-            (*ep, *s) =
-                thermal_on_quad::<DIM>(&e.thermal, e.plane_stress, e.options.thermal_strain, *d);
+        let (thermal, plane_stress, thermal_strain) =
+            (&e.thermal, e.plane_stress, e.options.thermal_strain);
+        let items = (
+            TuplesRef::new(dt.as_slice(), 1),
+            Tuples::new(eps.as_mut_slice(), 1),
+            Tuples::new(sig.as_mut_slice(), 1),
+        );
+        exec.for_each(items, 8192, |_, (dt, mut eps, mut sig)| {
+            for ((d, ep), s) in dt
+                .as_slice()
+                .iter()
+                .zip(eps.as_mut_slice())
+                .zip(sig.as_mut_slice())
+            {
+                (*ep, *s) = thermal_on_quad::<DIM>(thermal, plane_stress, thermal_strain, *d);
+            }
+        });
+        Ok(())
+    }
+
+    /// The stress of a contiguous run of points (a part of
+    /// `compute_stress`; no-alias slice parameters, not inlined into the
+    /// part closure).
+    #[inline(never)]
+    fn stress_part(
+        &self,
+        split: &EnergySplit,
+        grad_u: &[Real],
+        damage: &[Real],
+        eps_th: &[Real],
+        out: &mut [Real],
+    ) -> Result<()> {
+        let n = DIM * DIM;
+        let points = grad_u
+            .chunks_exact(n)
+            .zip(damage.iter().zip(eps_th))
+            .zip(out.chunks_exact_mut(n));
+        for ((g, (&d, &th)), o) in points {
+            let g: &Matrix<DIM, DIM> = as_matrix(g)?;
+            let strain = grad_u_to_epsilon(&self.strain_input(g));
+            let g_d = self.degradation(d);
+            let (plus, minus) = split.sigma(&strain, th);
+            let s: &mut Matrix<DIM, DIM> = as_matrix_mut(o)?;
+            for j in 0..DIM {
+                for i in 0..DIM {
+                    s[j][i] = g_d * plus[j][i] + minus[j][i];
+                }
+            }
         }
         Ok(())
     }
@@ -364,11 +406,12 @@ impl<const DIM: usize> Material for MaterialPhaseField<DIM> {
 
     fn compute_stress(
         &mut self,
-        _ctx: &LawContext<'_>,
+        ctx: &LawContext<'_>,
         ty: ElementType,
         ghost: GhostType,
     ) -> Result<()> {
-        self.compute_thermal(ty, ghost)?;
+        let exec = crate::material::points_exec(self, ctx);
+        self.compute_thermal(exec, ty, ghost)?;
         let n = DIM * DIM;
         let grad_u = self.elastic.base().grad_u.get(ty, ghost)?.clone();
         let dam = self.damage.damage.get(ty, ghost)?.clone();
@@ -384,18 +427,31 @@ impl<const DIM: usize> Material for MaterialPhaseField<DIM> {
         // the split of the (public) allocator option, constants of initMaterial
         let split = self.split_constants();
         let mut out = vec![0.0; nq * n];
-        for q in 0..nq {
-            let g: &Matrix<DIM, DIM> = as_matrix(&grad_u.as_slice()[q * n..(q + 1) * n])?;
-            let strain = grad_u_to_epsilon(&self.strain_input(g));
-            let g_d = self.degradation(dam.as_slice()[q]);
-            let (plus, minus) = split.sigma(&strain, eps_th.as_slice()[q]);
-            let s: &mut Matrix<DIM, DIM> = as_matrix_mut(&mut out[q * n..(q + 1) * n])?;
-            for j in 0..DIM {
-                for i in 0..DIM {
-                    s[j][i] = g_d * plus[j][i] + minus[j][i];
-                }
-            }
+        if grad_u.nb_component() != n {
+            return Err(Error::DimensionMismatch {
+                context: "MaterialPhaseField::computeStress: components",
+                expected: n,
+                got: grad_u.nb_component(),
+            });
         }
+        // every point from its own gradient, damage and thermal strain:
+        // parts on the model's threads (D-123)
+        let items = (
+            TuplesRef::new(grad_u.as_slice(), n),
+            TuplesRef::new(dam.as_slice(), 1),
+            TuplesRef::new(eps_th.as_slice(), 1),
+            Tuples::new(&mut out, n),
+        );
+        let this = &*self;
+        exec.try_for_each(items, 1024, |_, (g, dam, th, mut out)| {
+            this.stress_part(
+                &split,
+                g.as_slice(),
+                dam.as_slice(),
+                th.as_slice(),
+                out.as_mut_slice(),
+            )
+        })?;
         let mut sigma = self
             .elastic
             .base_mut()
@@ -412,13 +468,21 @@ impl<const DIM: usize> Material for MaterialPhaseField<DIM> {
         Ok(())
     }
 
+    /// The stress, the tangent and the thermal pre-step of a point read
+    /// only that point's gradient, damage (written by the phase-field
+    /// model, not by the law) and thermal strain, and the split's constants.
+    fn independent_points(&self) -> bool {
+        true
+    }
+
     fn compute_tangent_moduli(
         &mut self,
-        _ctx: &LawContext<'_>,
+        ctx: &LawContext<'_>,
         ty: ElementType,
         ghost: GhostType,
         tangent: &mut Array<Real>,
     ) -> Result<()> {
+        let exec = crate::material::points_exec(self, ctx);
         let n = DIM * DIM;
         let v = tangent_stiffness_voigt_size(DIM);
         let grad_u = self.elastic.base().grad_u.get(ty, ghost)?.clone();
@@ -435,24 +499,46 @@ impl<const DIM: usize> Material for MaterialPhaseField<DIM> {
                 got: dam.len().min(eps_th.len()),
             });
         }
-        for (q, t) in tangent.as_mut_slice().chunks_exact_mut(v * v).enumerate() {
-            let g: &Matrix<DIM, DIM> = as_matrix(&grad_u.as_slice()[q * n..(q + 1) * n])?;
-            let strain = grad_u_to_epsilon(&self.strain_input(g));
-            let g_d = self.degradation(dam.as_slice()[q]);
-            let positive = match mode {
-                PhaseFieldTangent::Upstream => trace_dyn(&strain) > 0.,
-                PhaseFieldTangent::Consistent => {
-                    let th = eps_th.as_slice()[q];
-                    let shifted: Matrix<DIM, DIM> = std::array::from_fn(|j| {
-                        std::array::from_fn(|i| strain[j][i] - th * id(i, j))
-                    });
-                    trace_dyn(&shifted) > 0.
-                }
-            };
-            t.fill(0.0);
-            split.tangent_coefficients::<DIM>(g_d, positive, mode, t)?;
+        if grad_u.nb_component() != n {
+            return Err(Error::DimensionMismatch {
+                context: "MaterialPhaseField::computeTangentModuli: components",
+                expected: n,
+                got: grad_u.nb_component(),
+            });
         }
-        Ok(())
+        // every point from its own values; a point fails only on the size
+        // of its tangent, checked above for all (`check_tangent`)
+        let items = (
+            TuplesRef::new(grad_u.as_slice(), n),
+            TuplesRef::new(dam.as_slice(), 1),
+            TuplesRef::new(eps_th.as_slice(), 1),
+            Tuples::new(tangent.as_mut_slice(), v * v),
+        );
+        let this = &*self;
+        exec.try_for_each(items, 512, |_, (g, dam, th, mut t)| {
+            let points = g
+                .as_slice()
+                .chunks_exact(n)
+                .zip(dam.as_slice().iter().zip(th.as_slice()))
+                .zip(t.as_mut_slice().chunks_exact_mut(v * v));
+            for ((g, (&d, &th)), t) in points {
+                let g: &Matrix<DIM, DIM> = as_matrix(g)?;
+                let strain = grad_u_to_epsilon(&this.strain_input(g));
+                let g_d = this.degradation(d);
+                let positive = match mode {
+                    PhaseFieldTangent::Upstream => trace_dyn(&strain) > 0.,
+                    PhaseFieldTangent::Consistent => {
+                        let shifted: Matrix<DIM, DIM> = std::array::from_fn(|j| {
+                            std::array::from_fn(|i| strain[j][i] - th * id(i, j))
+                        });
+                        trace_dyn(&shifted) > 0.
+                    }
+                };
+                t.fill(0.0);
+                split.tangent_coefficients::<DIM>(g_d, positive, mode, t)?;
+            }
+            Ok(())
+        })
     }
 
     fn compute_potential_energy(&mut self, _ctx: &LawContext<'_>, ty: ElementType) -> Result<()> {
@@ -535,8 +621,9 @@ impl<const DIM: usize> Material for MaterialPhaseField<DIM> {
             None
         };
         let work = DamageWork::new(&options, thermal.as_deref());
+        let exec = crate::material::points_exec(self, ctx);
         self.damage
-            .update_energies::<DIM>(self.elastic.base(), ty, work)
+            .update_energies::<DIM>(exec, self.elastic.base(), ty, work)
     }
 
     fn push_wave_speed(&self, element: Element) -> Result<Real> {

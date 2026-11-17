@@ -56,6 +56,7 @@
 //! [`LawOptions::finite_strain_work`]: crate::material::LawOptions::finite_strain_work
 //! [`LawOptions::damage_thermal_work`]: crate::material::LawOptions::damage_thermal_work
 
+use akantu_core::exec::{Tuples, TuplesRef};
 use akantu_core::tensor::{Matrix, MatrixExt, as_matrix};
 use akantu_core::{ElementType, Error, GhostType, Real, Result};
 use akantu_model::InternalField;
@@ -396,8 +397,11 @@ impl DamageFields {
     ///
     /// # Errors
     /// Missing blocks or size mismatches.
+    ///
+    /// Every point from its own values: parts on `exec`'s threads.
     pub fn update_energies<const D: usize>(
         &mut self,
+        exec: &akantu_core::exec::Exec,
         base: &MaterialBase,
         ty: ElementType,
         work: DamageWork<'_>,
@@ -437,43 +441,100 @@ impl DamageFields {
                 got: sigma.len().min(edis.len()).min(ints.len()),
             });
         }
-        let it = grad_u
-            .as_slice()
-            .chunks_exact(n)
-            .zip(prev_grad_u.as_slice().chunks_exact(n))
-            .zip(sigma.as_slice().chunks_exact(n))
-            .zip(prev_sigma.as_slice().chunks_exact(n));
-        for (q, (((((g, pg), s), ps), &ep), (ed, is))) in it
-            .zip(epot.as_slice())
-            .zip(edis.as_mut_slice().iter_mut().zip(ints.as_mut_slice()))
-            .enumerate()
+        if [&grad_u, &sigma].iter().any(|a| a.nb_component() != n)
+            || prev_grad_u.nb_component() != n
+            || prev_sigma.nb_component() != n
         {
-            let g: &Matrix<D, D> = as_matrix(g)?;
-            let pg: &Matrix<D, D> = as_matrix(pg)?;
-            let s: &Matrix<D, D> = as_matrix(s)?;
-            let ps: &Matrix<D, D> = as_matrix(ps)?;
-            // conjugate pair of the second Piola–Kirchhoff stress: the
-            // Green strain; upstream and small strain:
-            // the displacement gradient (σ symmetric: = Δε : σ)
-            let delta = if conjugate {
-                grad_u_to_green(g).sub(&grad_u_to_green(pg))
-            } else {
-                g.sub(pg)
-            };
-            let sigma_h = s.add(ps);
-            let dint = sigma_h.double_dot(&delta) / 2.;
-            *is += dint;
-            if let Some(th) = work.thermal {
-                let w = th[q];
-                if w != 0. {
-                    *is += w;
-                }
-            }
-            *ed = *is - ep;
+            return Err(Error::DimensionMismatch {
+                context: "MaterialDamage::updateEnergies: components",
+                expected: n,
+                got: sigma.nb_component(),
+            });
         }
-        Ok(())
+        let items = (
+            (
+                TuplesRef::new(grad_u.as_slice(), n),
+                TuplesRef::new(prev_grad_u.as_slice(), n),
+                TuplesRef::new(sigma.as_slice(), n),
+                TuplesRef::new(prev_sigma.as_slice(), n),
+            ),
+            TuplesRef::new(epot.as_slice(), 1),
+            Tuples::new(edis.as_mut_slice(), 1),
+            Tuples::new(ints.as_mut_slice(), 1),
+        );
+        exec.try_for_each(
+            items,
+            2048,
+            |first, ((g, pg, s, ps), ep, mut ed, mut is)| {
+                let it = g
+                    .as_slice()
+                    .chunks_exact(n)
+                    .zip(pg.as_slice().chunks_exact(n))
+                    .zip(s.as_slice().chunks_exact(n))
+                    .zip(ps.as_slice().chunks_exact(n));
+                for (k, (((((g, pg), s), ps), &ep), (ed, is))) in it
+                    .zip(ep.as_slice())
+                    .zip(ed.as_mut_slice().iter_mut().zip(is.as_mut_slice()))
+                    .enumerate()
+                {
+                    energy_on_quad::<D>(
+                        conjugate,
+                        work.thermal.map(|t| t[first + k]),
+                        g,
+                        pg,
+                        s,
+                        ps,
+                        ep,
+                        ed,
+                        is,
+                    )?;
+                }
+                Ok(())
+            },
+        )
     }
+}
 
+/// [`DamageFields::update_energies`] of one point: `∫σ += ½(σ + σ_prev):Δ`
+/// (plus the thermal work `thermal` when not zero), `e_diss = ∫σ − ψ`.
+#[allow(clippy::too_many_arguments)] // one point's values
+#[inline]
+fn energy_on_quad<const D: usize>(
+    conjugate: bool,
+    thermal: Option<Real>,
+    g: &[Real],
+    pg: &[Real],
+    s: &[Real],
+    ps: &[Real],
+    ep: Real,
+    ed: &mut Real,
+    is: &mut Real,
+) -> Result<()> {
+    let g: &Matrix<D, D> = as_matrix(g)?;
+    let pg: &Matrix<D, D> = as_matrix(pg)?;
+    let s: &Matrix<D, D> = as_matrix(s)?;
+    let ps: &Matrix<D, D> = as_matrix(ps)?;
+    // conjugate pair of the second Piola–Kirchhoff stress: the
+    // Green strain; upstream and small strain:
+    // the displacement gradient (σ symmetric: = Δε : σ)
+    let delta = if conjugate {
+        grad_u_to_green(g).sub(&grad_u_to_green(pg))
+    } else {
+        g.sub(pg)
+    };
+    let sigma_h = s.add(ps);
+    let dint = sigma_h.double_dot(&delta) / 2.;
+    *is += dint;
+    if let Some(w) = thermal
+        && w != 0.
+    {
+        *is += w;
+    }
+    *ed = *is - ep;
+    Ok(())
+}
+
+impl DamageFields {
     /// Upstream `MaterialDamage::getDissipatedEnergy`: `Σ_types ∫ e_diss`
     /// over the not-ghost filter blocks of the law's dimension.
     ///
@@ -633,11 +694,18 @@ pub trait DamageParent<const DIM: usize>: Material + Clone {
 
     /// Upstream `Parent::computeStressOnQuad` for every quadrature point of
     /// the block `(ty, ghost)` (into `stress`, or `piola_kirchhoff_2` with
-    /// finite deformation), without the parent's bulk pre-steps.
+    /// finite deformation), without the parent's bulk pre-steps. The
+    /// points may split over `exec`'s threads (the calling law's
+    /// [`crate::material::points_exec`]).
     ///
     /// # Errors
     /// Missing blocks, size mismatches, or an unsupported configuration.
-    fn stress_kernel(&mut self, ty: ElementType, ghost: GhostType) -> Result<()>;
+    fn stress_kernel(
+        &mut self,
+        exec: &akantu_core::exec::Exec,
+        ty: ElementType,
+        ghost: GhostType,
+    ) -> Result<()>;
 
     /// [`DamageParent::stress_kernel`] with `previous_sigma` (when `Some`)
     /// as the committed stress of an incremental parent (the effective
@@ -648,12 +716,13 @@ pub trait DamageParent<const DIM: usize>: Material + Clone {
     /// As [`DamageParent::stress_kernel`].
     fn stress_kernel_from(
         &mut self,
+        exec: &akantu_core::exec::Exec,
         ty: ElementType,
         ghost: GhostType,
         previous_sigma: Option<akantu_core::Array<Real>>,
     ) -> Result<()> {
         let _ = previous_sigma;
-        self.stress_kernel(ty, ghost)
+        self.stress_kernel(exec, ty, ghost)
     }
 
     /// The parent's inelastic strain (`inelastic_strain`, plastic parents).
@@ -672,8 +741,12 @@ pub trait DamageParent<const DIM: usize>: Material + Clone {
     ///
     /// # Errors
     /// Missing blocks or size mismatches.
-    fn parent_update_energies(&mut self, ty: ElementType) -> Result<()> {
-        let _ = ty;
+    fn parent_update_energies(
+        &mut self,
+        exec: &akantu_core::exec::Exec,
+        ty: ElementType,
+    ) -> Result<()> {
+        let _ = (exec, ty);
         Ok(())
     }
 
@@ -751,7 +824,14 @@ impl<const DIM: usize> DamageParent<DIM> for MaterialElastic<DIM> {
     /// stored as the second Piola–Kirchhoff stress (upstream: the damage
     /// laws bypass `MaterialElastic::computeStress`, which would use the
     /// Green strain).
-    fn stress_kernel(&mut self, ty: ElementType, ghost: GhostType) -> Result<()> {
+    /// Every point from its own gradient and thermal stress: parts on
+    /// `exec`'s threads.
+    fn stress_kernel(
+        &mut self,
+        exec: &akantu_core::exec::Exec,
+        ty: ElementType,
+        ghost: GhostType,
+    ) -> Result<()> {
         let constants = self.constants();
         let n = DIM * DIM;
         let sigma_th = self.sigma_th.get(ty, ghost)?.clone();
@@ -765,17 +845,31 @@ impl<const DIM: usize> DamageParent<DIM> for MaterialElastic<DIM> {
                 got: sigma.len(),
             });
         }
-        for ((g, s), &th) in grad_u
-            .as_slice()
-            .chunks_exact(n)
-            .zip(sigma.as_mut_slice().chunks_exact_mut(n))
-            .zip(sigma_th.as_slice())
-        {
-            let g: &Matrix<DIM, DIM> = as_matrix(g)?;
-            let s: &mut Matrix<DIM, DIM> = akantu_core::tensor::as_matrix_mut(s)?;
-            constants.stress_on_quad(g, th, s);
+        if grad_u.nb_component() != n || sigma.nb_component() != n {
+            return Err(Error::DimensionMismatch {
+                context: "MaterialElastic::computeStressOnQuad: components",
+                expected: n,
+                got: sigma.nb_component(),
+            });
         }
-        Ok(())
+        let items = (
+            akantu_core::exec::TuplesRef::new(grad_u.as_slice(), n),
+            akantu_core::exec::Tuples::new(sigma.as_mut_slice(), n),
+            akantu_core::exec::TuplesRef::new(sigma_th.as_slice(), 1),
+        );
+        exec.try_for_each(items, 2048, |_, (g, mut s, th)| {
+            for ((g, s), &th) in g
+                .as_slice()
+                .chunks_exact(n)
+                .zip(s.as_mut_slice().chunks_exact_mut(n))
+                .zip(th.as_slice())
+            {
+                let g: &Matrix<DIM, DIM> = as_matrix(g)?;
+                let s: &mut Matrix<DIM, DIM> = akantu_core::tensor::as_matrix_mut(s)?;
+                constants.stress_on_quad(g, th, s);
+            }
+            Ok(())
+        })
     }
 
     fn parent_potential_energy(

@@ -2,9 +2,14 @@
 
 Softening damage laws lose objectivity under mesh refinement: the damage
 localises in one row of elements and the dissipated energy depends on
-the element size. The non-local laws replace a local quantity by its
+the element size. The cause is the softening itself: once the damage
+grows fast enough, the equations of equilibrium lose ellipticity and the
+local problem has no length scale that would fix the width of the damaged
+band. The non-local laws replace a local quantity by its
 weighted average over a neighbourhood whose size is a material length
-(upstream *Non-local constitutive laws*; upstream package
+(upstream *Non-local constitutive laws*; the size of that neighbourhood
+stands for the material's microstructure, for instance the aggregates of
+a concrete; upstream package
 `damage_non_local`, the crate feature `damage-non-local` of
 `akantu-solid`, on by default; code
 `crates/akantu-solid/src/materials/non_local/` and the non-local manager
@@ -13,7 +18,7 @@ weighted average over a neighbourhood whose size is a material length
 | Keyword | Local law | Averaged quantity → non-local internal field |
 |---|---|---|
 | `marigo_non_local` | `marigo` | `Y` → `Y non local` |
-| `mazars_non_local` | `mazars` | `Ehat` (`ε̂`, default) or `damage` (`average_on_damage = true`) → `non_local_variable` |
+| `mazars_non_local` | `mazars` | `Ehat` ($\hat{\varepsilon}$, default) or `damage` (`average_on_damage = true`) → `non_local_variable` |
 | `plastic_mazars_non_local` | `plastic_mazars` | as `mazars_non_local` |
 
 The keywords, equations and internal fields are those of the local law
@@ -23,11 +28,11 @@ residual) the model computes the local quantities of every law, averages
 them over each neighbourhood, and then completes the stress with the
 averaged value:
 
-* `marigo_non_local`: the damage update of `marigo` with `Y` replaced by
-  its average (`F = Ȳ − Yd − Sd d_n`, …);
-* `mazars_non_local`: the damage update of `mazars` with `ε̂` replaced by
+* `marigo_non_local`: the damage update of `marigo` with $Y$ replaced by
+  its average $\bar{Y}$ ($F = \bar{Y} - Y_d - S_d\, d_n$, …);
+* `mazars_non_local`: the damage update of `mazars` with $\hat{\varepsilon}$ replaced by
   its average; with `average_on_damage = true` the stress is
-  `(1 − d̄) σ_el` with the averaged damage `d̄` (the law's own `damage`
+  $(1 - \bar{d})\, \boldsymbol{\sigma}_\text{el}$ with the averaged damage $\bar{d}$ (the law's own `damage`
   field keeps the local value).
 
 <!-- law-keywords: marigo_non_local inherits=elastic -->
@@ -99,22 +104,47 @@ non_local concrete base_wf [
 ]
 ```
 
-`radius` is the non-local radius `R`. The average of a quantity `v` at
-the quadrature point `x_i` is
+`radius` is the non-local radius $R$. In the continuum, the non-local
+counterpart $\bar{v}$ of a local quantity $v$ (upstream writes it for the
+damage, $\bar{d}$) is a weighted integral over the body $V$,
 
-```text
-v̄_i = Σ_j W(r_ij) J_j v_j / Σ_j W(r_ij) J_j
-```
+$$
+\bar{v}(\boldsymbol{x}) = \frac{\int_V W(\boldsymbol{x}, \boldsymbol{y})\, v(\boldsymbol{y})\, \mathrm{d}V(\boldsymbol{y})}
+  {\int_V W(\boldsymbol{x}, \boldsymbol{y})\, \mathrm{d}V(\boldsymbol{y})},
+$$
 
-over the quadrature points `x_j` within `R` of `x_i` (`r_ij = |x_i − x_j|`,
-`J_j` the integration weight of point `j`), so a uniform field is its own
+where the weight $W$ vanishes beyond the distance $R$. The model
+evaluates it with the quadrature rule of the elements: the average of $v$
+at the quadrature point $\boldsymbol{x}_i$ is
+
+$$
+\bar{v}_i = \frac{\sum_j W(r_{ij})\, J_j\, v_j}{\sum_j W(r_{ij})\, J_j}
+$$
+
+over the quadrature points $\boldsymbol{x}_j$ within $R$ of $\boldsymbol{x}_i$
+($r_{ij} = \lVert \boldsymbol{x}_i - \boldsymbol{x}_j \rVert$,
+$J_j$ the integration weight of point $j$), so a uniform field is its own
 average. The weight functions registered (the option of the section):
 
-| Option | Weight `W` |
+| Option | Weight $W$ |
 |---|---|
-| `base_wf` | `max(0, 1 − r²/R²)²` (bell shape) |
-| `damage_wf` | `max(0, 1 − r²/R⁴)^b` with an even exponent `b` that grows with the damage `D` of the neighbour (`b` is `⌊e⌋` rounded up to even, `e = 2 ln 0.51 / ln(1 − 0.49 (1 − D)²)`), so a damaged neighbour weighs less; the `R⁴` is upstream's formula, kept (UD-557) |
-| `remove_wf` | `max(0, 1 − r²/R²)²` for the neighbours whose damage is below `damage_limit`, 0 for the others (1 for the point itself) |
+| `base_wf` | $\max(0,\ 1 - r^2/R^2)^2$ (bell shape) |
+| `damage_wf` | $\max(0,\ 1 - r^2/R^4)^b$ with an even exponent $b$ that grows with the damage $D$ of the neighbour ($b$ is $\lfloor e \rfloor$ rounded up to even, $e = 2 \ln 0.51 / \ln\left(1 - 0.49\, (1 - D)^2\right)$), so a damaged neighbour weighs less; the $R^4$ is upstream's formula, kept (UD-557) |
+| `remove_wf` | $\max(0,\ 1 - r^2/R^2)^2$ for the neighbours whose damage is below `damage_limit`, 0 for the others (1 for the point itself) |
+
+![The bell-shaped weight function: equal to 1 at r = 0, decreasing smoothly to 0 at r = R and zero beyond](../figures/non-local-base-weight.svg)
+*Figure: the weight of `base_wf` over the distance $r$ between two points; it vanishes beyond the radius $R$, and $W = 0.51^2$ at $r = 0.7 R$ is the value that `damage_wf` keeps at its shrunken radius.*
+
+For `damage_wf`, the constant $0.51$ comes from the bell: at an undamaged
+neighbour ($D = 0$) the exponent is $e = 2$ and $W = (1 - r^2/R^4)^2$,
+the bell of `base_wf` with $R^4$ in place of $R^2$ (the two agree for
+$R = 1$), which equals $0.51^2$ at $r^2 = 0.49 R^4$. For a damaged
+neighbour the exponent is chosen so that $(1 - 0.49\, (1 - D)^2)^e = 0.51^2$:
+$W$ takes about that value (up to the rounding of $e$ to $b$) at
+$r^2 = 0.49\, (1 - D)^2 R^4$ instead: the
+interaction radius shrinks with the damage, and a fully damaged point
+keeps only itself. `remove_wf` cuts the neighbours that have reached the
+damage limit out of the average altogether.
 
 The sub-section `weight_function weight_parameter [ … ]` holds the
 parameters of the weight function: `update_rate` (default 1: the weights
@@ -140,11 +170,13 @@ Differences from upstream:
   `remove_wf`. The other two classes are not registered upstream (one is a
   header only, the other's computations are commented out); the port has
   them as types (`RemoveDamagedWithDamageRateWeightFunction`,
-  `StressBasedWeightFunction`), not as options.
+  `StressBasedWeightFunction`, the ellipsoidal weight built from the
+  stress state of Giry and Dufour, 2013), not as options.
 * What is averaged (UD-1133). Upstream's manual presents the non-local
-  model as `σ = (1 − d̄) D:ε` with the averaged damage `d̄`; in the code
+  model as $\boldsymbol{\sigma} = (1 - \bar{d})\, \mathbb{C} : \boldsymbol{\varepsilon}$
+  with the averaged damage $\bar{d}$; in the code
   (upstream and port) only `average_on_damage = true` of the Mazars laws
-  averages the damage: by default `mazars_non_local` averages `ε̂` and
+  averages the damage: by default `mazars_non_local` averages $\hat{\varepsilon}$ and
   `marigo_non_local` always averages `Y`.
 * On a distributed mesh `init_full` refuses a model with a non-local law
   (`Error::Unsupported`, the same error on every rank; test
@@ -163,9 +195,9 @@ replays) and `upstream_non_local_toolbox.rs`.
 
 ## Example
 
-Under a uniform strain the averaged `Y` equals the local one, so
+Under a uniform strain the averaged $Y$ equals the local one, so
 `marigo_non_local` gives the damage of the `marigo` example of
-[Damage](damage.md#example), `d = 0.25`:
+[Damage](damage.md#example), $d = 0.25$:
 
 ```rust
 # use akantu::core::enums::{AnalysisMethod, MeshIoType};
@@ -234,3 +266,9 @@ for d in internal(&model, "damage", quad)? {
 }
 # Ok::<(), akantu::core::Error>(())
 ```
+
+## References
+
+* Giry, C. and Dufour, F. (2013). Stress-based non-local damage model.
+  In *Damage Mechanics of Cementitious Materials and Structures*, John
+  Wiley & Sons, pp. 51–88.

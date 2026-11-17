@@ -232,6 +232,28 @@ Boost.Spirit Classic `position_iterator` (Boost Software License 1.0):
 Other third-party components and native dependencies are tracked in
 `docs/DEPENDENCIES.md`.
 
+## Third-party files included in the user manual
+
+### Figures of the Akantu manual and of Akantu's examples (LGPL-3.0-or-later)
+
+`docs/manual/src/figures/upstream/` holds figures copied unchanged from
+Akantu at the reference commit: figures of its manual
+(`doc/dev-doc/manual/figures/`) and set-up drawings of its examples (the
+`images/` directories of `examples/c++` and `examples/python`). Copyright
+(©) EPFL (Ecole Polytechnique Fédérale de Lausanne), Laboratory (LSMS -
+Laboratoire de Simulation en Mécanique des Solides). The figures carry no
+licence statement of their own; they are used under the licence of the
+Akantu repository, the GNU Lesser General Public License, version 3 or
+later. The directory's `NOTICE` file lists their origin.
+
+### KaTeX 0.16.4 (MIT)
+
+`docs/manual/src/katex/` holds the stylesheet `katex.min.css` and the fonts
+`fonts/*.woff2` of **KaTeX** 0.16.4 (https://katex.org, npm package
+`katex`), which the manual's rendered formulas need: Copyright (c)
+2013-2020 Khan Academy and other contributors, MIT licence. The licence
+text is `docs/manual/src/katex/LICENSE`.
+
 ## Benchmark data copied from the Akantu team's performance tests
 
 `benchmarks/cohesive-perf/` contains files copied from

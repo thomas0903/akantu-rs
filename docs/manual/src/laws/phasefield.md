@@ -3,32 +3,87 @@
 Keyword `phasefield` (upstream `MaterialPhaseField`; code
 `crates/akantu-solid/src/materials/phasefield.rs`). This is the
 solid side of phase-field fracture: the law degrades the elastic
-stress with a damage field `d` that the phase-field model computes. In a
+stress with a damage field $d$ that the phase-field model computes. In a
 simulation the solid–phase-field coupler `CouplerSolidPhaseField` writes
-`d` into the law's `damage` internal field and reads the strain back
+$d$ into the law's `damage` internal field and reads the strain back
 ([Phase-field fracture](../models/phase-field.md), which also describes
 the phase-field laws `quadratic` and `linear` of the `phasefield`
 sections of the phase-field model, another section type with the same
 name).
 
-With the degradation function `g(d) = (1 − d)² + η` and the strain
-`ε' = ε − ε_th I` (minus the thermal strain of `alpha`, `delta_T`):
+In the variational theory of brittle fracture that the phase-field model
+regularises (Francfort and Marigo, 1998; Bourdin et al., 2000), the
+material is linear elastic with small strains, with the elastic energy
+density
 
-```text
-σ = g(d) σ⁺ + σ⁻
-no_split (default option):   σ⁺ = 2μ ε' + λ tr ε' I,                 σ⁻ = 0
-volumetric_deviatoric:       σ⁺ = κ ⟨tr ε'⟩₊ I + 2μ (ε' − (tr ε'/3) I),   σ⁻ = κ ⟨tr ε'⟩₋ I
-```
+$$
+\psi(\boldsymbol{\varepsilon}) = \frac{\lambda}{2} \left(\operatorname{tr} \boldsymbol{\varepsilon}\right)^2
+  + \mu\, \boldsymbol{\varepsilon} : \boldsymbol{\varepsilon} ,
+$$
 
-(`κ = λ + 2μ/3`; with `finite_deformation` the strain is the
+and the phase field $d$ (0 in the intact material, 1 in the crack)
+degrades this energy, so the stress is the derivative of the degraded
+energy:
+
+$$
+\boldsymbol{\sigma} = \left((1 - d)^2 + \eta\right) \frac{\partial \psi}{\partial \boldsymbol{\varepsilon}} .
+$$
+
+$\eta$ (`eta`) is a small residual stiffness that keeps the stiffness
+matrix regular where the material is fully broken. The law generalises
+this with an energy split: only the part $\psi^+$ of the energy that
+drives the crack is degraded, the part $\psi^-$ is not. The phase-field
+laws `quadratic` and `linear` take the same split for their driving
+energy (option of their section, [Phase-field fracture](../models/phase-field.md)).
+
+With the degradation function $g(d) = (1 - d)^2 + \eta$ and the strain
+$\boldsymbol{\varepsilon}' = \boldsymbol{\varepsilon} - \varepsilon_\text{th} \boldsymbol{I}$
+(minus the thermal strain of `alpha`, `delta_T`):
+
+$$
+\boldsymbol{\sigma} = g(d)\, \boldsymbol{\sigma}^+ + \boldsymbol{\sigma}^-
+$$
+
+where, without split (`no_split`, the default option),
+
+$$
+\boldsymbol{\sigma}^+ = 2\mu\, \boldsymbol{\varepsilon}' + \lambda \operatorname{tr} \boldsymbol{\varepsilon}'\, \boldsymbol{I},
+\qquad \boldsymbol{\sigma}^- = \boldsymbol{0},
+$$
+
+and with the split `volumetric_deviatoric`
+
+$$
+\boldsymbol{\sigma}^+ = \kappa \langle \operatorname{tr} \boldsymbol{\varepsilon}' \rangle_+ \boldsymbol{I}
+  + 2\mu \left(\boldsymbol{\varepsilon}' - \tfrac{1}{3} \operatorname{tr} \boldsymbol{\varepsilon}'\, \boldsymbol{I}\right),
+\qquad \boldsymbol{\sigma}^- = \kappa \langle \operatorname{tr} \boldsymbol{\varepsilon}' \rangle_- \boldsymbol{I}
+$$
+
+($\kappa = \lambda + 2\mu/3$, $\langle x \rangle_- = \min(x, 0)$; with `finite_deformation` the strain is the
 Green–Lagrange strain and the stress the second Piola–Kirchhoff stress).
+The stresses derive from the energies
+$\psi^\pm = \tfrac{1}{2}\, \boldsymbol{\sigma}^\pm : \boldsymbol{\varepsilon}'$,
+i.e. $\psi^+ = \psi(\boldsymbol{\varepsilon}')$ and $\psi^- = 0$ without
+split, and
+
+$$
+\psi^+ = \frac{\kappa}{2} \langle \operatorname{tr} \boldsymbol{\varepsilon}' \rangle_+^2
+  + \mu\, \boldsymbol{\varepsilon}'_\text{dev} : \boldsymbol{\varepsilon}'_\text{dev},
+\qquad
+\psi^- = \frac{\kappa}{2} \langle \operatorname{tr} \boldsymbol{\varepsilon}' \rangle_-^2
+$$
+
+with the volumetric–deviatoric split
+($\boldsymbol{\varepsilon}'_\text{dev} = \boldsymbol{\varepsilon}' - \tfrac{1}{3} \operatorname{tr} \boldsymbol{\varepsilon}'\, \boldsymbol{I}$).
 The split is the option of the section: `material phasefield
 volumetric_deviatoric [ … ]`. The volumetric–deviatoric split leaves the
 compressive volumetric stress undegraded. The tangent differentiates
-this stress exactly. The potential energy is `g ψ⁺(ε') + ψ⁻(ε')`, the
-dissipated energy the damage base's `∫σ:dε − ψ`
+this stress exactly. The potential energy is
+$g\, \psi^+(\boldsymbol{\varepsilon}') + \psi^-(\boldsymbol{\varepsilon}')$, the
+dissipated energy the damage base's
+$\int \boldsymbol{\sigma} : \mathrm{d}\boldsymbol{\varepsilon} - \psi$
 ([Damage](damage.md#isotropic-damage)). With `degrade_mass = true` the
-density is degraded too, `ρ_q = min(ρ, ρ ((1 − d_q)² + η))` per
+density is degraded too, $\rho_q = \min\left(\rho,\ \rho\, ((1 - d_q)^2 + \eta)\right)$ per
 quadrature point, and the mass matrix is flagged as changed.
 
 <!-- law-keywords: phasefield inherits=elastic -->
@@ -39,23 +94,24 @@ quadrature point, and the mass matrix is flagged as changed.
 | `degrade_mass` | degrade the density with `g(d)` | bool | `false` |
 
 <!-- law-internals: phasefield -->
-Internal fields: `damage` (d, with history), `damage dissipated
+Internal fields: `damage` ($d$, with history), `damage dissipated
 energy` and `integral of sigma` (the damage base).
 
-`λ` and `μ` of the split are set from `E`, `nu` and `Plane_Stress` by
+$\lambda$ and $\mu$ of the split are set from `E`, `nu` and `Plane_Stress` by
 `init_full`, as upstream: a later change of `E` or `nu` does not reach
 the split.
 
 Differences from upstream (switches of `LawOptions`):
 
 * `phasefield_tangent`: upstream's volumetric–deviatoric tangent uses
-  `g_h E` in 1-D although the stress gives `g_h κ + g (4/3) μ`, and tests
+  $g_h E$ in 1-D although the stress gives $g_h \kappa + g\, \tfrac{4}{3} \mu$
+  ($g_h = g$ in volumetric tension, else 1), and tests
   the sign of the trace of the total strain where the stress uses
-  `tr ε'`; the default is consistent with the stress (converged results
+  $\operatorname{tr} \boldsymbol{\varepsilon}'$; the default is consistent with the stress (converged results
   are the same).
 * `thermal_energy` (UD-109): with a thermal strain the default potential
-  energy is the stored energy of the split above, upstream's `½σ:∇u`
-  otherwise.
+  energy is the stored energy of the split above, upstream's
+  $\tfrac{1}{2}\, \boldsymbol{\sigma} : \nabla\boldsymbol{u}$ otherwise.
 * `finite_strain_work` (UD-158, UD-159) and `damage_thermal_work`
   (UD-160): the work and dissipation updates of the damage base.
 * `degrade_mass` with several quadrature points per element: upstream
@@ -72,8 +128,8 @@ and, through the coupler, `crates/akantu-couplers/tests/phase_field_coupling.rs`
 
 ## Example
 
-The damage is set by hand (the coupler's job): with `d = 0.5` and
-`eta = 0.001` the stress of a uniaxial strain is `g(d) E ε`
+The damage is set by hand (the coupler's job): with $d = 0.5$ and
+`eta = 0.001` the stress of a uniaxial strain is $g(d)\, E \varepsilon$
 (`nu = 0`, no split):
 
 ```rust
@@ -127,3 +183,12 @@ for s in stress.tuples() {
 }
 # Ok::<(), akantu::core::Error>(())
 ```
+
+## References
+
+* Bourdin, B., Francfort, G. A. and Marigo, J.-J. (2000). Numerical
+  experiments in revisited brittle fracture. *Journal of the Mechanics and
+  Physics of Solids*, 48(4), 797–826.
+* Francfort, G. A. and Marigo, J.-J. (1998). Revisiting brittle fracture
+  as an energy minimization problem. *Journal of the Mechanics and Physics
+  of Solids*, 46(8), 1319–1342.

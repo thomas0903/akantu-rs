@@ -64,6 +64,22 @@ pub struct SimplexModel {
     /// Gradient returned at every quadrature point by
     /// `gradient_on_integration_points` (column-major `dim × dim`), when set.
     pub gradient: Option<Vec<Real>>,
+    /// `true`: the laws' point loops get the serial executor whatever the
+    /// process default (tests whose counts assume serial services);
+    /// `false` (default): [`process_exec`].
+    pub serial: bool,
+}
+
+/// The executor of the process default policy (`AKANTU_NUM_THREADS`,
+/// `AKANTU_EXEC_GRAIN`, ...), built once: the law-level fixture tests run
+/// the laws that declare independent points on that many threads.
+pub fn process_exec() -> &'static akantu_core::exec::Exec {
+    static EXEC: std::sync::LazyLock<akantu_core::exec::Exec> = std::sync::LazyLock::new(|| {
+        let policy = akantu_core::exec::ExecPolicy::process_default()
+            .expect("a valid AKANTU_* execution policy in the environment");
+        akantu_core::exec::Exec::new(policy).expect("the threads of the process default policy")
+    });
+    &EXEC
 }
 
 impl SimplexModel {
@@ -93,6 +109,7 @@ impl SimplexModel {
             mesh,
             jw,
             gradient: None,
+            serial: false,
         }
     }
 
@@ -170,6 +187,14 @@ fn jacobian(dim: usize, x: &[&[Real]]) -> Real {
 }
 
 impl ModelServices for SimplexModel {
+    /// The process default policy's executor (serial with `serial`).
+    fn exec(&self) -> &akantu_core::exec::Exec {
+        if self.serial {
+            akantu_core::exec::Exec::serial_ref()
+        } else {
+            process_exec()
+        }
+    }
     fn spatial_dimension(&self) -> usize {
         self.mesh.spatial_dimension()
     }

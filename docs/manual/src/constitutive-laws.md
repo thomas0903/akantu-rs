@@ -27,6 +27,43 @@ described family by family:
 The list of every registered name is generated from the factories in
 [Materials](materials.md#registered-laws).
 
+## How a law is evaluated
+
+A constitutive law computes the stress of an element from its strain. In
+the finite-element discretisation it is evaluated at every quadrature
+point of every element assigned to it: the model hands the law the
+displacement gradient $\nabla \boldsymbol{u}$ of each point, and the law
+returns the stress $\boldsymbol{\sigma}$ (method `compute_stress` of the
+trait `akantu::solid::material::Material`). An implicit analysis also
+needs the tangent $\mathbb{C} = \partial \boldsymbol{\sigma} / \partial \boldsymbol{\varepsilon}$
+of every point (`compute_tangent_moduli`), assembled into the stiffness
+matrix; the tangents of the port are Voigt matrices on engineering shear
+strains. Quantities a law keeps per quadrature point (plastic strain,
+damage, the stresses of viscous arms) are internal fields
+(`akantu::model::InternalField`), which follow the element types of the
+law, can keep the value of the previous converged step, and are resized
+when elements are added or removed.
+
+With `finite_deformation = true` the strain measure becomes the
+Green–Lagrange strain
+$\boldsymbol{E} = \frac{1}{2}(\boldsymbol{F}^T \boldsymbol{F} - \boldsymbol{I})$
+of the deformation gradient $\boldsymbol{F} = \boldsymbol{I} + \nabla \boldsymbol{u}$,
+and the stress the law returns is the second Piola–Kirchhoff stress
+$\boldsymbol{S}$, for the laws that support it (each law page says
+which).
+
+A parameter of some laws can be random: the input file adds a
+distribution to its base value (`Yd = 50 uniform [0, 10]`), and each
+quadrature point draws its own value at `init_full` (details, the list of
+these parameters and the seed in [Input files](input-files.md#random-parameters)).
+The uniform distribution draws in $[a, b)$; the Weibull distribution of
+scale $\lambda$ and shape $m$ (`weibull [a, b]` with $a = \lambda$ and
+$b = m$) has the cumulative distribution function
+
+$$
+F(x) = 1 - e^{-(x/\lambda)^m}.
+$$
+
 ## Reading the keyword tables
 
 Every law has a table of the keywords its `material` section accepts,
@@ -76,7 +113,7 @@ Every law of the solid mechanics model registers:
 | `name` | name of the material (required; selectors and `material_by_name` use it) | — | none: a section without it is an error |
 | `rho` | density | mass/volume | `0` |
 | `finite_deformation` | evaluate the law on the Green–Lagrange strain and return the second Piola–Kirchhoff stress; the model then assembles the total-Lagrangian forms ([Finite deformation](solid-mechanics.md#finite-deformation)) | bool | `false` |
-| `eigen_grad_u` | prescribed displacement-gradient eigenstrain `ε⁰`, subtracted from `∇u` before the law is evaluated (a matrix, `[[a, b], [c, d]]` in 2-D) | 1 | zero matrix |
+| `eigen_grad_u` | prescribed displacement-gradient eigenstrain $\boldsymbol{\varepsilon}^0$, subtracted from $\nabla \boldsymbol{u}$ before the law is evaluated (a matrix, `[[a, b], [c, d]]` in 2-D) | 1 | zero matrix |
 
 The laws built on the elastic law (every law of this chapter except
 `neohookean`) also register the keywords of `elastic` (meaning and

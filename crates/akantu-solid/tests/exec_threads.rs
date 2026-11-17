@@ -495,6 +495,713 @@ fn wider_models_are_bitwise_for_every_thread_count() {
     }
 }
 
+// ---------------------------------------------------------------------------
+// Laws whose points are independent (`Material::independent_points`): every
+// nodal array, every internal field of the law (current and previous
+// values), the energies, bit for bit with the one-thread run at 1, 2, 3, 4
+// and 8 threads, finest and automatic grain, in 2-D and 3-D.
+// ---------------------------------------------------------------------------
+
+type State = Vec<(String, Vec<u64>)>;
+
+/// The model of `case` on `mesh`.
+fn case_model(case: &LawCase, mesh: Mesh, policy: ExecPolicy) -> SolidMechanicsModel {
+    let dim = mesh.spatial_dimension();
+    law_model(mesh, &(case.dat)(dim), case.amp, case.options, policy)
+}
+
+/// One law on the whole mesh: the left side clamped at a non-zero
+/// prescribed displacement, the right side's second component prescribed,
+/// an initial field of amplitude `amp` elsewhere.
+fn law_model(
+    mesh: Mesh,
+    dat: &str,
+    amp: Real,
+    options: Option<fn() -> akantu_solid::material::LawOptions>,
+    policy: ExecPolicy,
+) -> SolidMechanicsModel {
+    let dim = mesh.spatial_dimension();
+    let parser = Parser::parse_str(dat, "material.dat").unwrap();
+    let mut m =
+        SolidMechanicsModel::with_parser(SharedMesh::new(mesh), None, "smm", parser).unwrap();
+    m.set_exec_policy(policy).unwrap();
+    m.physics.law_options = options.map(|o| o());
+    m.init_full(&ModelOptions::new(AnalysisMethod::ExplicitLumpedMass))
+        .unwrap();
+    let dt = m.stable_time_step().unwrap() * 0.5;
+    m.set_time_step(dt, None).unwrap();
+    let x: Vec<Real> = m
+        .physics
+        .base
+        .mesh
+        .read()
+        .unwrap()
+        .nodes()
+        .as_slice()
+        .to_vec();
+    let nodes = x.len() / dim;
+    let mut prescribed = vec![false; nodes * dim];
+    {
+        let mut u = m.displacement_mut().unwrap();
+        let u = u.as_mut_slice();
+        for n in 0..nodes {
+            let p = &x[n * dim..(n + 1) * dim];
+            for c in 0..dim {
+                u[n * dim + c] = amp * ((5.0 + c as Real) * p[0]).sin() * (p[1] + 0.2);
+            }
+            if p[0] < 1e-9 {
+                for c in 0..dim {
+                    u[n * dim + c] = 0.2 * amp * (c as Real + 1.0) * (p[1] - 0.5);
+                    prescribed[n * dim + c] = true;
+                }
+            } else if p[0] > 1.0 - 1e-9 {
+                u[n * dim + 1] = -0.3 * amp * p[1];
+                prescribed[n * dim + 1] = true;
+            }
+        }
+    }
+    m.blocked_dofs_mut()
+        .unwrap()
+        .as_mut_slice()
+        .copy_from_slice(&prescribed);
+    m
+}
+
+/// The values of every block of `field` on the not-ghost types of
+/// `types`, then its previous values when it keeps a history.
+fn field_bits<T: Copy>(
+    name: &str,
+    field: &akantu_model::InternalField<T>,
+    types: &[ElementType],
+    to_bits: impl Fn(T) -> u64,
+    out: &mut State,
+) {
+    for &ty in types {
+        if !field.exists(ty, GhostType::NotGhost) {
+            continue;
+        }
+        let cur = field.get(ty, GhostType::NotGhost).unwrap();
+        out.push((
+            format!("{name}/{ty:?}"),
+            cur.as_slice().iter().map(|&v| to_bits(v)).collect(),
+        ));
+        drop(cur);
+        if field.has_history() {
+            let prev = field.previous(ty, GhostType::NotGhost).unwrap();
+            out.push((
+                format!("{name}/{ty:?}/previous"),
+                prev.as_slice().iter().map(|&v| to_bits(v)).collect(),
+            ));
+        }
+    }
+}
+
+/// Every nodal array, every internal field of every law, the energies.
+fn law_state(m: &mut SolidMechanicsModel) -> State {
+    use akantu_model::constitutive_law::InternalFieldRef;
+    let bits = |v: &[Real]| v.iter().map(|x| x.to_bits()).collect::<Vec<u64>>();
+    let mut out = vec![
+        ("u".into(), bits(m.displacement().unwrap().as_slice())),
+        ("v".into(), bits(m.velocity().unwrap().as_slice())),
+        ("a".into(), bits(m.acceleration().unwrap().as_slice())),
+        ("f_int".into(), bits(m.internal_force().unwrap().as_slice())),
+    ];
+    for (i, law) in m.physics.materials.laws().iter().enumerate() {
+        let types = law.base().filter_types(GhostType::NotGhost);
+        assert!(!types.is_empty(), "law {i} has elements");
+        law.for_each_internal(&mut |name, f| {
+            let name = format!("law{i}/{name}");
+            match f {
+                InternalFieldRef::Real(f) => field_bits(&name, f, &types, Real::to_bits, &mut out),
+                InternalFieldRef::Int(f) => field_bits(&name, f, &types, |v| v as u64, &mut out),
+                InternalFieldRef::UInt(f) => {
+                    field_bits(&name, f, &types, |v| v as u64, &mut out);
+                }
+                InternalFieldRef::Bool(f) => {
+                    field_bits(&name, f, &types, u64::from, &mut out);
+                }
+            }
+        });
+    }
+    // an energy a law does not define is recorded as missing (the same for
+    // every thread count)
+    let energies = [
+        "kinetic",
+        "potential",
+        "dissipated",
+        "plastic",
+        "external work",
+    ]
+    .map(|id| m.energy(id).map_or(u64::MAX, Real::to_bits))
+    .to_vec();
+    out.push(("energies".into(), energies));
+    out
+}
+
+/// A law case: the `.dat` text per dimension, the amplitude of the initial
+/// field, the steps, and the internal that must have left its initial value
+/// (the law's non-linear branch was reached).
+struct LawCase {
+    name: &'static str,
+    dat: fn(usize) -> String,
+    amp: Real,
+    steps: usize,
+    active: &'static str,
+    /// Options of every law (`SolidMechanicsPhysics::law_options`).
+    options: Option<fn() -> akantu_solid::material::LawOptions>,
+}
+
+/// Run `f` on `m`; with `copy_every_save` the blocks of every field with
+/// history of every law are exported to a foreign runtime first (as NumPy
+/// views would be), which makes every history save a copy, as upstream
+/// does; otherwise the saves are deferred and exchanged.
+fn with_saves<R>(
+    m: &mut SolidMechanicsModel,
+    copy_every_save: bool,
+    f: impl FnOnce(&mut SolidMechanicsModel) -> R,
+) -> R {
+    use akantu_model::constitutive_law::InternalFieldMut as Mut;
+    let rt = ForeignRuntime::new();
+    let mut leases: Vec<ExportLease<Real>> = Vec::new();
+    if copy_every_save {
+        for law in m.physics.materials.laws_mut() {
+            let types = law.base().filter_types(GhostType::NotGhost);
+            law.for_each_internal_mut(&mut |_, field| {
+                if let Mut::Real(f) = field
+                    && f.has_history()
+                {
+                    for &ty in &types {
+                        if f.exists(ty, GhostType::NotGhost) {
+                            leases.push(
+                                f.values_mut()
+                                    .shared_mut(ty, GhostType::NotGhost)?
+                                    .export(&rt)?,
+                            );
+                        }
+                    }
+                }
+                Ok(())
+            })
+            .unwrap();
+        }
+        assert!(!leases.is_empty(), "fields with history were exported");
+    }
+    let mut interp = rt.enter().unwrap();
+    let _native = interp.native().unwrap();
+    f(m)
+}
+
+fn run_law(case: &LawCase, mesh: Mesh, policy: ExecPolicy, copy_every_save: bool) -> State {
+    let mut m = case_model(case, mesh, policy);
+    with_saves(&mut m, copy_every_save, |m| {
+        for _ in 0..case.steps {
+            m.solve_step(None).unwrap();
+        }
+        law_state(m)
+    })
+}
+
+/// With `AKANTU_TEST_STATE_DUMP=<file>`, append one line per serial
+/// reference state: the case, a hash of every array's bits (FNV-1a) and the
+/// error message, so that the serial results of two builds (e.g. before and
+/// after a change) can be compared.
+fn dump_state(case: &str, error: &str, state: &State) {
+    let Ok(path) = std::env::var("AKANTU_TEST_STATE_DUMP") else {
+        return;
+    };
+    let mut h: u64 = 0xcbf2_9ce4_8422_2325;
+    for (name, v) in state {
+        for b in name.bytes() {
+            h = (h ^ u64::from(b)).wrapping_mul(0x0100_0000_01b3);
+        }
+        for x in v {
+            for b in x.to_le_bytes() {
+                h = (h ^ u64::from(b)).wrapping_mul(0x0100_0000_01b3);
+            }
+        }
+    }
+    use std::io::Write as _;
+    let mut f = std::fs::OpenOptions::new()
+        .create(true)
+        .append(true)
+        .open(path)
+        .unwrap();
+    writeln!(f, "{case}\t{h:016x}\t{error}").unwrap();
+}
+
+/// The policies of the runs whose history saves are copies (exported
+/// blocks).
+fn copy_policies() -> Vec<ExecPolicy> {
+    threaded_policies()
+        .into_iter()
+        .filter(|p| matches!(p.threads(), 1 | 4 | 8))
+        .collect()
+}
+
+/// The thread counts and grains of the invariance tests.
+fn threaded_policies() -> Vec<ExecPolicy> {
+    let serial = ExecPolicy::serial();
+    let mut v = Vec::new();
+    for threads in [1, 2, 3, 4, 8] {
+        for grain in [Grain::Finest, Grain::Auto] {
+            v.push(serial.with_threads(threads).unwrap().with_grain(grain));
+        }
+    }
+    v
+}
+
+fn check_law(case: &LawCase) {
+    type MeshFn = fn() -> Mesh;
+    let meshes: [(&str, MeshFn); 2] = [
+        ("2-D triangles and quadrangles", || grid2d(6, false)),
+        ("3-D tetrahedra and hexahedra", || mixed_cube(3)),
+    ];
+    for (mesh_name, mesh) in meshes {
+        let reference = run_law(case, mesh(), ExecPolicy::serial(), false);
+        dump_state(&format!("{} ({mesh_name})", case.name), "", &reference);
+        let moved = reference
+            .iter()
+            .filter(|(n, _)| n.contains(&format!("/{}/", case.active)))
+            .any(|(_, v)| v.iter().any(|&b| b != 0 && b != 1.0f64.to_bits()));
+        assert!(
+            moved,
+            "{} ({mesh_name}): `{}` never left its initial value",
+            case.name, case.active
+        );
+        for p in threaded_policies() {
+            compare(
+                &reference,
+                &run_law(case, mesh(), p, false),
+                &format!(
+                    "{} ({mesh_name}): threads={} {:?}",
+                    case.name,
+                    p.threads(),
+                    p.grain()
+                ),
+            );
+        }
+        // every history save a copy (exported blocks): the same current
+        // and previous values
+        for p in copy_policies() {
+            compare(
+                &reference,
+                &run_law(case, mesh(), p, true),
+                &format!(
+                    "{} ({mesh_name}): saves by copy, threads={} {:?}",
+                    case.name,
+                    p.threads(),
+                    p.grain()
+                ),
+            );
+        }
+    }
+}
+
+fn orthotropic_dat(dim: usize) -> String {
+    let axes = if dim == 2 {
+        "  n1 = [0.6, 0.8]\n  n2 = [-0.8, 0.6]\n  E1 = 140e9\n  E2 = 10e9\n  nu12 = 0.3\n  \
+         G12 = 5e9\n"
+    } else {
+        "  n1 = [0.6, 0.8, 0]\n  n2 = [-0.8, 0.6, 0]\n  n3 = [0, 0, 1]\n  E1 = 140e9\n  \
+         E2 = 10e9\n  E3 = 10e9\n  nu12 = 0.3\n  nu13 = 0.3\n  nu23 = 0.4\n  G12 = 5e9\n  \
+         G13 = 5e9\n  G23 = 3.5e9\n"
+    };
+    format!("material elastic_orthotropic [\n  name = body\n  rho = 2500\n{axes}]\n")
+}
+
+#[test]
+fn orthotropic_law_is_bitwise_for_every_thread_count() {
+    check_law(&LawCase {
+        name: "elastic_orthotropic",
+        dat: orthotropic_dat,
+        amp: 1e-3,
+        steps: 6,
+        active: "stress",
+        options: None,
+    });
+}
+
+fn anisotropic_dat(dim: usize) -> String {
+    let c = if dim == 2 {
+        "  n1 = [0.6, 0.8]\n  n2 = [-0.8, 0.6]\n  C11 = 90e9\n  C12 = 30e9\n  C13 = 4e9\n  \
+         C22 = 60e9\n  C23 = -3e9\n  C33 = 20e9\n"
+    } else {
+        "  n1 = [0.6, 0.8, 0]\n  n2 = [-0.8, 0.6, 0]\n  n3 = [0, 0, 1]\n  C11 = 90e9\n  \
+         C12 = 30e9\n  C13 = 25e9\n  C14 = 3e9\n  C22 = 70e9\n  C23 = 28e9\n  C33 = 80e9\n  \
+         C44 = 20e9\n  C55 = 22e9\n  C56 = -2e9\n  C66 = 24e9\n"
+    };
+    format!("material elastic_anisotropic [\n  name = body\n  rho = 2500\n{c}]\n")
+}
+
+#[test]
+fn anisotropic_law_is_bitwise_for_every_thread_count() {
+    check_law(&LawCase {
+        name: "elastic_anisotropic",
+        dat: anisotropic_dat,
+        amp: 1e-3,
+        steps: 6,
+        active: "stress",
+        options: None,
+    });
+}
+
+#[test]
+fn maxwell_law_is_bitwise_for_every_thread_count() {
+    check_law(&LawCase {
+        name: "viscoelastic_maxwell",
+        dat: |_| {
+            "material viscoelastic_maxwell [\n  name = body\n  rho = 2500\n  Einf = 70e9\n  \
+             nu = 0.22\n  Eta = [1e3, 1e4]\n  Ev = [20e9, 10e9]\n]\n"
+                .into()
+        },
+        amp: 1e-3,
+        steps: 6,
+        active: "sigma_v",
+        options: None,
+    });
+}
+
+#[test]
+fn marigo_law_is_bitwise_for_every_thread_count() {
+    check_law(&LawCase {
+        name: "marigo",
+        dat: |_| {
+            "material marigo [\n  name = body\n  rho = 2500\n  E = 70e9\n  nu = 0.22\n  \
+             Yd = 1e3\n  Sd = 1e5\n]\n"
+                .into()
+        },
+        amp: 1e-3,
+        steps: 6,
+        active: "damage",
+        options: None,
+    });
+}
+
+/// The error path: after `case.steps` steps the displacement of the node
+/// nearest the centre becomes NaN, so the points of the elements around it
+/// (in the middle of the blocks) fail; the next step's error and the state
+/// it leaves are compared bit for bit across thread counts.
+fn law_error_state(
+    case: &LawCase,
+    mesh: Mesh,
+    policy: ExecPolicy,
+    copy_every_save: bool,
+) -> (String, State) {
+    let mut m = case_model(case, mesh, policy);
+    with_saves(&mut m, copy_every_save, |m| law_error_steps(case, m))
+}
+
+fn law_error_steps(case: &LawCase, m: &mut SolidMechanicsModel) -> (String, State) {
+    let dim = m.physics.base.spatial_dimension;
+    for _ in 0..case.steps {
+        m.solve_step(None).unwrap();
+    }
+    let centre = {
+        let mesh = m.physics.base.mesh.read().unwrap();
+        let nodes = mesh.nodes();
+        let x = nodes.as_slice();
+        let d2 = |n: usize| {
+            (0..dim)
+                .map(|c| (x[n * dim + c] - 0.5).powi(2))
+                .sum::<Real>()
+        };
+        (0..x.len() / dim)
+            .min_by(|&a, &b| d2(a).total_cmp(&d2(b)))
+            .unwrap()
+    };
+    m.displacement_mut().unwrap().as_mut_slice()[centre * dim] = Real::NAN;
+    let err = m
+        .solve_step(None)
+        .expect_err("a NaN displacement makes the law fail")
+        .to_string();
+    (err, law_state(m))
+}
+
+/// `expect`: a part of the error message of the law's failing point.
+fn check_law_error(case: &LawCase, expect: &str) {
+    type MeshFn = fn() -> Mesh;
+    let meshes: [(&str, MeshFn); 2] = [
+        ("2-D triangles and quadrangles", || grid2d(6, false)),
+        ("3-D tetrahedra and hexahedra", || mixed_cube(3)),
+    ];
+    for (mesh_name, mesh) in meshes {
+        let (err, reference) = law_error_state(case, mesh(), ExecPolicy::serial(), false);
+        dump_state(
+            &format!("{} error path ({mesh_name})", case.name),
+            &err,
+            &reference,
+        );
+        assert!(
+            err.contains(expect),
+            "{} ({mesh_name}): the step failed elsewhere: {err}",
+            case.name
+        );
+        for p in threaded_policies() {
+            let what = format!(
+                "{} error path ({mesh_name}): threads={} {:?}",
+                case.name,
+                p.threads(),
+                p.grain()
+            );
+            let (e, state) = law_error_state(case, mesh(), p, false);
+            assert_eq!(err, e, "{what}: another error");
+            compare(&reference, &state, &what);
+        }
+        for p in copy_policies() {
+            let what = format!(
+                "{} error path ({mesh_name}): saves by copy, threads={} {:?}",
+                case.name,
+                p.threads(),
+                p.grain()
+            );
+            let (e, state) = law_error_state(case, mesh(), p, true);
+            assert_eq!(err, e, "{what}: another error");
+            compare(&reference, &state, &what);
+        }
+    }
+}
+
+fn mazars_dat(_: usize) -> String {
+    "material mazars [\n  name = body\n  rho = 2500\n  E = 70e9\n  nu = 0.22\n  K0 = 1e-4\n  \
+     At = 1.15\n  Bt = 10000\n  Ac = 0.8\n  Bc = 1391.3\n  beta = 1.0\n]\n"
+        .into()
+}
+
+const MAZARS: LawCase = LawCase {
+    name: "mazars",
+    dat: mazars_dat,
+    amp: 1e-3,
+    steps: 6,
+    active: "damage",
+    options: None,
+};
+
+#[test]
+fn mazars_law_is_bitwise_for_every_thread_count() {
+    check_law(&MAZARS);
+}
+
+#[test]
+fn mazars_error_path_is_bitwise_for_every_thread_count() {
+    check_law_error(&MAZARS, "eig: no convergence");
+}
+
+const NEOHOOKEAN: LawCase = LawCase {
+    name: "neohookean",
+    dat: |_| {
+        "material neohookean [\n  name = body\n  rho = 2500\n  E = 70e9\n  nu = 0.3\n]\n".into()
+    },
+    amp: 2e-2,
+    steps: 6,
+    active: "grad_u",
+    options: None,
+};
+
+/// Plane stress in 2-D (the `C33` solve before the stress), plain in 3-D.
+const NEOHOOKEAN_PLANE_STRESS: LawCase = LawCase {
+    name: "neohookean, plane stress",
+    dat: |dim| {
+        let ps = if dim == 2 {
+            "  Plane_Stress = true\n"
+        } else {
+            ""
+        };
+        format!(
+            "material neohookean [\n  name = body\n  rho = 2500\n  E = 70e9\n  nu = 0.3\n{ps}]\n"
+        )
+    },
+    amp: 2e-2,
+    steps: 6,
+    active: "grad_u",
+    options: None,
+};
+
+#[test]
+fn neohookean_law_is_bitwise_for_every_thread_count() {
+    check_law(&NEOHOOKEAN);
+    check_law(&NEOHOOKEAN_PLANE_STRESS);
+}
+
+#[test]
+fn neohookean_error_path_is_bitwise_for_every_thread_count() {
+    check_law_error(&NEOHOOKEAN, "is not positive");
+}
+
+/// In 2-D the plane-stress `C33` solve fails first (its points before the
+/// failing one keep their new `C33`); in 3-D the stress loop.
+#[test]
+fn neohookean_plane_stress_error_path_is_bitwise_for_every_thread_count() {
+    check_law_error(&NEOHOOKEAN_PLANE_STRESS, "neohookean");
+}
+
+#[test]
+fn plastic_law_is_bitwise_for_every_thread_count() {
+    check_law(&LawCase {
+        name: "plastic_linear_isotropic_hardening",
+        dat: |_| {
+            "material plastic_linear_isotropic_hardening [\n  name = body\n  rho = 2500\n  \
+             E = 70e9\n  nu = 0.22\n  h = 5e9\n  sigma_y = 2e7\n]\n"
+                .into()
+        },
+        amp: 1e-3,
+        steps: 6,
+        active: "inelastic_strain",
+        options: None,
+    });
+}
+
+/// The plastic parent's return and the damage loop, with a thermal strain
+/// (the per-block thermal refresh and the thermal work of the energies).
+#[test]
+fn plastic_mazars_law_is_bitwise_for_every_thread_count() {
+    check_law(&LawCase {
+        name: "plastic_mazars",
+        dat: |_| {
+            "material plastic_mazars [\n  name = body\n  rho = 2500\n  E = 70e9\n  nu = 0.22\n  \
+             h = 5e9\n  sigma_y = 2e7\n  K0 = 1e-4\n  At = 1.15\n  Bt = 10000\n  Ac = 0.8\n  \
+             Bc = 1391.3\n  beta = 1.0\n  alpha = 1e-5\n  delta_T = 20\n]\n"
+                .into()
+        },
+        amp: 1e-3,
+        steps: 6,
+        active: "damage",
+        options: None,
+    });
+}
+
+#[test]
+fn marigo_thermal_law_is_bitwise_for_every_thread_count() {
+    check_law(&LawCase {
+        name: "marigo with a thermal strain",
+        dat: |_| {
+            "material marigo [\n  name = body\n  rho = 2500\n  E = 70e9\n  nu = 0.22\n  \
+             Yd = 1e3\n  Sd = 1e5\n  alpha = 1e-5\n  delta_T = 20\n]\n"
+                .into()
+        },
+        amp: 1e-3,
+        steps: 6,
+        active: "damage",
+        options: None,
+    });
+}
+
+#[test]
+fn sls_law_is_bitwise_for_every_thread_count() {
+    check_law(&LawCase {
+        name: "sls_deviatoric",
+        dat: |_| {
+            // relaxation time Eta / Ev of the order of the time step: the
+            // dissipated energy moves too
+            "material sls_deviatoric [\n  name = body\n  rho = 2500\n  E = 70e9\n  nu = 0.22\n  \
+             Eta = 3e5\n  Ev = 20e9\n]\n"
+                .into()
+        },
+        amp: 1e-3,
+        steps: 6,
+        active: "dissipated_energy",
+        options: None,
+    });
+}
+
+fn anisotropic_damage_options(
+    model: akantu_solid::materials::anisotropic_damage::AnisotropicDamageModel,
+) -> akantu_solid::material::LawOptions {
+    akantu_solid::material::LawOptions {
+        anisotropic_damage: model,
+        ..akantu_solid::material::LawOptions::default()
+    }
+}
+
+const ANISOTROPIC_DAMAGE_CORRECTED: LawCase = LawCase {
+    name: "anisotropic_damage, corrected model",
+    dat: |_| {
+        "material anisotropic_damage [\n  name = body\n  rho = 2400\n  E = 30e9\n  nu = 0.2\n]\n"
+            .into()
+    },
+    amp: 1e-3,
+    steps: 6,
+    active: "damage",
+    options: Some(|| {
+        anisotropic_damage_options(
+            akantu_solid::materials::anisotropic_damage::AnisotropicDamageModel::Corrected,
+        )
+    }),
+};
+
+#[test]
+fn anisotropic_damage_laws_are_bitwise_for_every_thread_count() {
+    check_law(&ANISOTROPIC_DAMAGE_CORRECTED);
+    check_law(&LawCase {
+        name: "anisotropic_damage, experimental Desmorat model",
+        options: Some(|| {
+            anisotropic_damage_options(
+                akantu_solid::materials::anisotropic_damage::AnisotropicDamageModel::DesmoratExperimental,
+            )
+        }),
+        ..ANISOTROPIC_DAMAGE_CORRECTED
+    });
+}
+
+#[test]
+fn anisotropic_damage_error_path_is_bitwise_for_every_thread_count() {
+    check_law_error(&ANISOTROPIC_DAMAGE_CORRECTED, "eig");
+}
+
+#[test]
+fn drucker_prager_law_is_bitwise_for_every_thread_count() {
+    check_law(&LawCase {
+        name: "plastic_drucker_prager",
+        dat: |_| {
+            "material plastic_drucker_prager [\n  name = body\n  rho = 3000\n  E = 25e9\n  \
+             nu = 0.2\n  phi = 30\n  fc = 1e7\n  alpha = 1e-5\n  delta_T = 10\n]\n"
+                .into()
+        },
+        amp: 1e-3,
+        steps: 6,
+        active: "inelastic_strain",
+        options: None,
+    });
+}
+
+/// The phase-field law's stress (volumetric–deviatoric split, a thermal
+/// strain) with the damage the law starts with; the tangent and an evolving
+/// damage are covered by the phase-field model's thread test.
+#[test]
+fn phasefield_law_is_bitwise_for_every_thread_count() {
+    check_law(&LawCase {
+        name: "phasefield",
+        dat: |_| {
+            "material phasefield volumetric_deviatoric [\n  name = body\n  rho = 2500\n  \
+             E = 70e9\n  nu = 0.22\n  alpha = 1e-5\n  delta_T = 10\n]\n"
+                .into()
+        },
+        amp: 1e-3,
+        steps: 6,
+        active: "stress",
+        options: None,
+    });
+}
+
+/// Non-local Mazars: the local loop of the law on threads (equivalent
+/// strain per point), the neighbourhood average serial, the damage after
+/// it.
+#[test]
+fn mazars_non_local_law_is_bitwise_for_every_thread_count() {
+    check_law(&LawCase {
+        name: "mazars_non_local",
+        dat: |dim| {
+            format!(
+                "{}non_local body base_wf [\n  radius = 0.4\n]\n",
+                mazars_dat(dim).replace("material mazars [", "material mazars_non_local [")
+            )
+        },
+        amp: 1e-3,
+        steps: 6,
+        active: "damage",
+        options: None,
+    });
+}
+
 /// An `n³` grid of the unit cube with one element type: hexahedra, or every
 /// cell split into six tetrahedra (slightly irregular inner nodes).
 fn single_cube(n: usize, hex: bool) -> Mesh {
@@ -844,5 +1551,48 @@ fn block_pass_is_bitwise_for_every_thread_count_and_equals_the_separate_passes()
                 );
             }
         }
+    }
+}
+
+/// The error path of a law that computes into scratch blocks committed by
+/// swap: plastic plane stress with a softening hardening (`h < 0`) under
+/// the initial field of the other law cases; after some steps the hardening
+/// of the most loaded points drops below `-sigma_y` and their plane-stress
+/// return fails (`sigma_y + r <= 0`), with every other point loaded.
+/// Nothing is committed: the error and every current and previous value
+/// are the serial run's at every thread count, with deferred saves and with
+/// saves by copy.
+fn plastic_plane_stress_error_state(policy: ExecPolicy, copy_every_save: bool) -> (String, State) {
+    let dat = "material plastic_linear_isotropic_hardening [\n  name = body\n  rho = 2500\n  \
+               E = 70e9\n  nu = 0.22\n  h = -2e10\n  sigma_y = 2e7\n  Plane_Stress = true\n]\n";
+    let mut m = law_model(grid2d(6, false), dat, 1e-3, None, policy);
+    with_saves(&mut m, copy_every_save, |m| {
+        for step in 0..200 {
+            if let Err(e) = m.solve_step(None) {
+                return (format!("step {step}: {e}"), law_state(m));
+            }
+        }
+        panic!("the plane-stress return never failed");
+    })
+}
+
+#[test]
+fn plastic_plane_stress_error_path_is_bitwise_for_every_thread_count() {
+    let (err, reference) = plastic_plane_stress_error_state(ExecPolicy::serial(), false);
+    assert!(err.contains("sigma_y + r <= 0"), "another error: {err}");
+    dump_state("plastic plane stress error path", &err, &reference);
+    for (p, copy) in threaded_policies()
+        .into_iter()
+        .map(|p| (p, false))
+        .chain(copy_policies().into_iter().map(|p| (p, true)))
+    {
+        let what = format!(
+            "plastic plane stress error path: threads={} {:?} copy={copy}",
+            p.threads(),
+            p.grain()
+        );
+        let (e, state) = plastic_plane_stress_error_state(p, copy);
+        assert_eq!(err, e, "{what}: another error");
+        compare(&reference, &state, &what);
     }
 }

@@ -51,7 +51,7 @@ impl SparseMatrixAij {
     /// documentation), and so are the value release, the cache contents and
     /// its resolve counter. Returns `false`, having changed nothing but the
     /// cache's configuration (as the serial loop's first call would), when
-    /// the batch does not qualify: one thread, no stored positions yet (the
+    /// the batch does not qualify: no stored positions yet (the
     /// first rounds of [`BlockPositionCache`]), a released matrix, a block
     /// that the serial loop would not take from the cache (an equation that
     /// fails or is negative, a promotion), a slot repeated in the batch, or
@@ -69,10 +69,10 @@ impl SparseMatrixAij {
         values: &[Real],
         values_type: MatrixType,
     ) -> bool {
+        let equations_key = cache.equations_key.take();
         let nb = slots.len();
         let symmetric = self.matrix_type == MatrixType::Symmetric;
-        if !exec.is_parallel()
-            || self.released
+        if self.released
             || nb == 0
             || nb_eq == 0
             || cache.stamp != self.position_epoch.0
@@ -83,6 +83,7 @@ impl SparseMatrixAij {
                 && self.policy == SymmetryPolicy::PromoteOnUnsymmetric)
             || !u32::try_from(self.a.len()).is_ok_and(|n| n < SKIP)
             || !u32::try_from(self.size).is_ok_and(|n| n < u32::MAX)
+            || !u32::try_from(nb).is_ok_and(|n| n < INSIDE)
         {
             return false;
         }
@@ -92,133 +93,301 @@ impl SparseMatrixAij {
             _ => Selection::All,
         };
         cache.configure(mode, nb_eq, nb_eq, self.size);
-        if !cache.rows_only || has_repeated_slot(slots) {
+        if !cache.rows_only {
             return false;
         }
-        let stride = cache.stride;
-        let size = self.size;
-        // Pass 1 (threads): equations of every block against the stored
-        // slots; span and number of stored contributions of the matched.
-        let mut status = vec![MATCHED; nb];
-        let mut spans = vec![NO_SPAN; nb];
-        let mut touched = vec![0u32; nb];
-        {
-            let cache_ref: &BlockPositionCache = cache;
-            exec.for_each(
-                (
-                    Tuples::new(&mut status, 1),
-                    Tuples::new(&mut spans, 1),
-                    Tuples::new(&mut touched, 1),
-                ),
-                MIN_BLOCKS,
-                |first, (mut st, mut sp, mut to)| {
-                    verify_part(
-                        cache_ref,
-                        slots,
-                        nb_eq,
-                        size,
-                        equations,
-                        first,
-                        st.as_mut_slice(),
-                        sp.as_mut_slice(),
-                        to.as_mut_slice(),
-                    );
-                },
-            );
-        }
-        if status.contains(&UNCACHED) {
-            return false;
-        }
-        // Pass 2 (threads): resolve the blocks whose slot is empty or
-        // stale, without touching the matrix; then store them in block
-        // order (the serial loop's stores and resolve count).
-        let todo: Vec<usize> = (0..nb).filter(|&k| status[k] == RESOLVE).collect();
-        if !todo.is_empty() {
-            let mut positions = vec![0u32; todo.len() * stride];
-            let mut keys = vec![0u32; todo.len() * nb_eq];
-            let mut failed = vec![false; todo.len()];
+        let nnz = self.a.len();
+        let parts = scatter_parts(exec, nb, nnz);
+        // Fast path: the caller vouches that the equations of every slot are
+        // those the plan was built with (`equations_key`), the plan was
+        // built for these slots, this profile size and this split, and no
+        // slot was stored since (a store drops the plan).
+        let found = cache.plans.iter().position(|p| p.slots == slots);
+        let planned = equations_key.is_some()
+            && found.is_some_and(|i| {
+                let p = &cache.plans[i];
+                p.equations_key == equations_key && p.nnz == nnz && p.parts == parts
+            });
+        let plan_index = if planned {
+            found
+        } else {
+            // one thread: the serial loop checks and stores the slots as
+            // cheaply as these passes (the caller then builds the plan,
+            // `BlockPositionCache::plan_after_serial_round`)
+            if !exec.is_parallel()
+                || has_repeated_slot(slots)
+                || !self.verify_and_resolve(exec, cache, slots, nb_eq, equations, mode)
             {
-                let this: &Self = self;
-                exec.for_each(
-                    (
-                        Tuples::new(&mut positions, stride),
-                        Tuples::new(&mut keys, nb_eq),
-                        Tuples::new(&mut failed, 1),
-                        TuplesRef::new(&todo, 1),
-                    ),
-                    MIN_BLOCKS / 4,
-                    |_, (mut pos, mut key, mut fail, ks)| {
-                        let (pos, key, fail) =
-                            (pos.as_mut_slice(), key.as_mut_slice(), fail.as_mut_slice());
-                        let mut eqs = Vec::with_capacity(nb_eq);
-                        let mut buf = Vec::with_capacity(stride);
-                        for (t, &k) in ks.as_slice().iter().enumerate() {
-                            buf.clear();
-                            let ok = equations(k, &mut eqs).is_ok()
-                                && eqs.len() == nb_eq
-                                && encode_key(&eqs, size, &mut key[t * nb_eq..(t + 1) * nb_eq])
-                                && this
-                                    .resolve_block_positions(&eqs, &eqs, mode, &mut buf)
-                                    .is_ok()
-                                && buf.len() == stride;
-                            if ok {
-                                pos[t * stride..(t + 1) * stride].copy_from_slice(&buf);
-                            } else {
-                                fail[t] = true;
-                            }
-                        }
-                    },
-                );
-            }
-            if failed.contains(&true) {
                 return false;
             }
-            for (t, &k) in todo.iter().enumerate() {
-                let p = &positions[t * stride..(t + 1) * stride];
-                cache.store_with_key(slots[k], &keys[t * nb_eq..(t + 1) * nb_eq], p);
-                cache.resolves += 1;
-                let (span, n) = span_of(p);
-                spans[k] = span;
-                touched[k] = n;
-            }
-        }
-        // Pass 3 (threads): the scatter by entry ranges.
+            let plan = ScatterPlan::new(cache, slots, nnz, parts, equations_key);
+            cache.set_plan(plan);
+            // `set_plan` pushes the new plan last
+            cache.plans.len().checked_sub(1)
+        };
+        let Some(plan) = plan_index.and_then(|i| cache.plans.get(i)) else {
+            return false;
+        };
         let vidx = value_indices(mode, nb_eq);
-        let nnz = self.a.len();
-        let parts = exec.nb_parts(nb, MIN_BLOCKS).min(nnz.max(1));
-        let bounds: Vec<usize> = (0..=parts).map(|p| p * nnz / parts).collect();
-        let (first, last) = block_ranges(&spans, &bounds);
+        let n2 = nb_eq * nb_eq;
         let positions = &cache.positions;
-        exec.for_each_bounds(&bounds, Tuples::new(&mut self.a, 1), |lo, mut part| {
+        let stride = cache.stride;
+        exec.for_each_bounds(&plan.bounds, Tuples::new(&mut self.a, 1), |lo, mut part| {
             let a = part.as_mut_slice();
             if a.is_empty() {
                 return;
             }
-            // the range starting at `lo` (the last of equal bounds)
-            let r = bounds.partition_point(|&b| b <= lo) - 1;
-            if first[r] > last[r] {
-                return;
-            }
-            scatter_range(
+            // the part starting at `lo` (the last of equal bounds)
+            let r = plan.bounds.partition_point(|&b| b <= lo) - 1;
+            scatter_list(
                 a,
                 lo,
-                &slots[first[r]..=last[r]],
-                &spans[first[r]..=last[r]],
-                &values[first[r] * nb_eq * nb_eq..(last[r] + 1) * nb_eq * nb_eq],
+                &plan.lists[r],
+                slots,
+                values,
                 positions,
                 stride,
                 &vidx,
-                nb_eq * nb_eq,
+                n2,
             );
         });
-        let total: u64 = touched.iter().map(|&n| u64::from(n)).sum();
-        self.bump_values(total);
+        self.bump_values(plan.touched);
+        true
+    }
+
+    /// Passes 1 and 2 of [`SparseMatrixAij::add_values_cached_batch`]
+    /// (threads): the equations of every block against the stored slots,
+    /// then the blocks whose slot is empty or stale resolved without
+    /// touching the matrix and stored in block order (the serial loop's
+    /// stores and resolve count). `false`, the matrix unchanged, when a
+    /// block does not qualify.
+    fn verify_and_resolve(
+        &self,
+        exec: &Exec,
+        cache: &mut BlockPositionCache,
+        slots: &[usize],
+        nb_eq: usize,
+        equations: &(dyn Fn(usize, &mut Vec<GlobalIdx>) -> Result<()> + Sync),
+        mode: Selection,
+    ) -> bool {
+        let nb = slots.len();
+        let size = self.size;
+        let stride = cache.stride;
+        let mut status = vec![MATCHED; nb];
+        {
+            let cache_ref: &BlockPositionCache = cache;
+            exec.for_each(Tuples::new(&mut status, 1), MIN_BLOCKS, |first, mut st| {
+                verify_part(
+                    cache_ref,
+                    slots,
+                    nb_eq,
+                    size,
+                    equations,
+                    first,
+                    st.as_mut_slice(),
+                );
+            });
+        }
+        if status.contains(&UNCACHED) {
+            return false;
+        }
+        let todo: Vec<usize> = (0..nb).filter(|&k| status[k] == RESOLVE).collect();
+        if todo.is_empty() {
+            return true;
+        }
+        let mut positions = vec![0u32; todo.len() * stride];
+        let mut keys = vec![0u32; todo.len() * nb_eq];
+        let mut failed = vec![false; todo.len()];
+        exec.for_each(
+            (
+                Tuples::new(&mut positions, stride),
+                Tuples::new(&mut keys, nb_eq),
+                Tuples::new(&mut failed, 1),
+                TuplesRef::new(&todo, 1),
+            ),
+            MIN_BLOCKS / 4,
+            |_, (mut pos, mut key, mut fail, ks)| {
+                let (pos, key, fail) =
+                    (pos.as_mut_slice(), key.as_mut_slice(), fail.as_mut_slice());
+                let mut eqs = Vec::with_capacity(nb_eq);
+                let mut buf = Vec::with_capacity(stride);
+                for (t, &k) in ks.as_slice().iter().enumerate() {
+                    buf.clear();
+                    let ok = equations(k, &mut eqs).is_ok()
+                        && eqs.len() == nb_eq
+                        && encode_key(&eqs, size, &mut key[t * nb_eq..(t + 1) * nb_eq])
+                        && self
+                            .resolve_block_positions(&eqs, &eqs, mode, &mut buf)
+                            .is_ok()
+                        && buf.len() == stride;
+                    if ok {
+                        pos[t * stride..(t + 1) * stride].copy_from_slice(&buf);
+                    } else {
+                        fail[t] = true;
+                    }
+                }
+            },
+        );
+        if failed.contains(&true) {
+            return false;
+        }
+        for (t, &k) in todo.iter().enumerate() {
+            cache.store_with_key(
+                slots[k],
+                &keys[t * nb_eq..(t + 1) * nb_eq],
+                &positions[t * stride..(t + 1) * stride],
+            );
+            cache.resolves += 1;
+        }
         true
     }
 }
 
+/// Flag of a block whose stored positions all lie inside the part that
+/// lists it (no per-pair range test), in [`ScatterPlan::lists`].
+const INSIDE: u32 = 1 << 31;
+
+/// The threaded scatter's plan of a batch: entry bounds of the parts and,
+/// per part, the blocks (indices into the batch, in block order) whose
+/// span meets the part's entries, flagged [`INSIDE`] when it lies within
+/// them; kept with the [`BlockPositionCache`] and rebuilt when the slots,
+/// the profile size, the split or a stored slot change, or when the
+/// caller's equations key differs (`docs/ARCHITECTURE.md`, "Execution
+/// policy").
+#[derive(Clone, Debug)]
+pub(super) struct ScatterPlan {
+    pub(super) equations_key: Option<EquationsKey>,
+    pub(super) slots: Vec<usize>,
+    pub(super) nnz: usize,
+    pub(super) parts: usize,
+    bounds: Vec<usize>,
+    lists: Vec<Vec<u32>>,
+    touched: u64,
+    /// Whether each slot belongs to the plan (a store of a member drops it).
+    member: Vec<bool>,
+}
+
+impl ScatterPlan {
+    /// The plan of `slots` (every slot stored in `cache`) for `nnz`
+    /// entries split into `parts` even entry ranges.
+    pub(super) fn new(
+        cache: &BlockPositionCache,
+        slots: &[usize],
+        nnz: usize,
+        parts: usize,
+        equations_key: Option<EquationsKey>,
+    ) -> Self {
+        let parts = parts.clamp(1, nnz.max(1));
+        let bounds: Vec<usize> = (0..=parts).map(|p| p * nnz / parts).collect();
+        let mut lists: Vec<Vec<u32>> = vec![Vec::new(); parts];
+        let mut touched = 0u64;
+        // range of position p: the last r with bounds[r] <= p (non-empty)
+        let range_of = |p: u32| bounds.partition_point(|&b| b <= p as usize) - 1;
+        for (k, &slot) in slots.iter().enumerate() {
+            touched += u64::from(cache.counts[slot]);
+            let (lo, hi) = cache.spans[slot];
+            if lo > hi {
+                continue;
+            }
+            let (r0, r1) = (range_of(lo), range_of(hi));
+            // `k < INSIDE` was checked by the caller
+            let k = u32::try_from(k).unwrap_or(0);
+            for (r, list) in lists.iter_mut().enumerate().take(r1 + 1).skip(r0) {
+                list.push(if r0 == r1 && bounds[r] < bounds[r + 1] {
+                    k | INSIDE
+                } else {
+                    k
+                });
+            }
+        }
+        let mut member = vec![false; slots.iter().max().map_or(0, |&m| m + 1)];
+        for &s in slots {
+            member[s] = true;
+        }
+        Self {
+            equations_key,
+            slots: slots.to_vec(),
+            nnz,
+            parts,
+            bounds,
+            lists,
+            touched,
+            member,
+        }
+    }
+
+    /// Whether `slot` belongs to the plan.
+    pub(super) fn contains(&self, slot: usize) -> bool {
+        self.member.get(slot) == Some(&true)
+    }
+
+    /// Bytes held.
+    pub(super) fn memory_bytes(&self) -> usize {
+        8 * (self.slots.capacity() + self.bounds.capacity())
+            + self.member.capacity()
+            + self
+                .lists
+                .iter()
+                .map(|l| 4 * l.capacity() + 24)
+                .sum::<usize>()
+    }
+}
+
+/// Parts of the threaded scatter: with the finest grain as many as the
+/// executor splits a batch into (tests of the invariant), otherwise one per
+/// thread, of at least 16,384 entries each (contiguous entry ranges of
+/// equal size: balanced writes, few blocks visited by two parts).
+pub(super) fn scatter_parts(exec: &Exec, nb: usize, nnz: usize) -> usize {
+    if exec.policy().grain() == akantu_core::exec::Grain::Finest {
+        exec.nb_parts(nb, 1)
+    } else {
+        exec.threads().min(nnz / 16_384).max(1)
+    }
+}
+
+/// Pass 3 of [`SparseMatrixAij::add_values_cached_batch`] for the entries
+/// `lo..lo + a.len()`: the blocks of the part's list in order, each adding
+/// the contributions whose position lies in the range (all of them for a
+/// block flagged [`INSIDE`]), in the block's pair order.
+#[allow(clippy::too_many_arguments)] // one part of the pass
+#[inline(never)] // no-alias parameters (docs/benchmarks/perf-campaign/exec)
+fn scatter_list(
+    a: &mut [Real],
+    lo: usize,
+    list: &[u32],
+    slots: &[usize],
+    values: &[Real],
+    positions: &[u32],
+    stride: usize,
+    vidx: &[usize],
+    block_len: usize,
+) {
+    let len = a.len();
+    for &entry in list {
+        let k = (entry & !INSIDE) as usize;
+        let slot = slots[k];
+        let pos = &positions[slot * stride..(slot + 1) * stride];
+        let v = &values[k * block_len..(k + 1) * block_len];
+        if entry & INSIDE != 0 {
+            for (&p, &vi) in pos.iter().zip(vidx) {
+                if p != SKIP {
+                    a[p as usize - lo] += v[vi];
+                }
+            }
+        } else {
+            for (&p, &vi) in pos.iter().zip(vidx) {
+                // SKIP (u32::MAX) is never inside a range (nnz < SKIP)
+                let off = (p as usize).wrapping_sub(lo);
+                if off < len {
+                    a[off] += v[vi];
+                }
+            }
+        }
+    }
+}
+
 /// `true` if a slot occurs twice in `slots`.
-fn has_repeated_slot(slots: &[usize]) -> bool {
+pub(super) fn has_repeated_slot(slots: &[usize]) -> bool {
     if slots.windows(2).all(|w| w[0] < w[1]) {
         return false;
     }
@@ -252,7 +421,7 @@ fn encode_key(eqs: &[GlobalIdx], size: GlobalIdx, out: &mut [u32]) -> bool {
 
 /// Smallest and largest stored position of a block and the number of
 /// stored (not skipped) contributions.
-fn span_of(positions: &[u32]) -> ((u32, u32), u32) {
+pub(super) fn span_of(positions: &[u32]) -> ((u32, u32), u32) {
     let mut span = NO_SPAN;
     let mut n = 0u32;
     for &p in positions {
@@ -266,7 +435,10 @@ fn span_of(positions: &[u32]) -> ((u32, u32), u32) {
 }
 
 /// Pass 1 of [`SparseMatrixAij::add_values_cached_batch`] over the blocks
-/// `first..first + status.len()`.
+/// `first..first + status.len()`: [`MATCHED`] when the block's equations
+/// are those stored for its slot, [`RESOLVE`] when the slot is empty or
+/// holds other equations, [`UNCACHED`] when the serial loop would not take
+/// the block from the cache.
 #[allow(clippy::too_many_arguments)] // one part of the pass
 #[inline(never)] // no-alias parameters (docs/benchmarks/perf-campaign/exec)
 fn verify_part(
@@ -277,18 +449,10 @@ fn verify_part(
     equations: &(dyn Fn(usize, &mut Vec<GlobalIdx>) -> Result<()> + Sync),
     first: usize,
     status: &mut [u8],
-    spans: &mut [(u32, u32)],
-    touched: &mut [u32],
 ) {
     let mut eqs = Vec::with_capacity(nb_eq);
     let mut key = vec![0u32; nb_eq];
-    let stride = cache.stride;
-    for (t, ((st, sp), to)) in status
-        .iter_mut()
-        .zip(spans.iter_mut())
-        .zip(touched.iter_mut())
-        .enumerate()
-    {
+    for (t, st) in status.iter_mut().enumerate() {
         let k = first + t;
         if equations(k, &mut eqs).is_err()
             || eqs.len() != nb_eq
@@ -302,11 +466,7 @@ fn verify_part(
             && cache.equations[slot * nb_eq..(slot + 1) * nb_eq] == *key;
         if !stored {
             *st = RESOLVE;
-            continue;
         }
-        let (span, n) = span_of(&cache.positions[slot * stride..(slot + 1) * stride]);
-        *sp = span;
-        *to = n;
     }
 }
 
@@ -322,62 +482,6 @@ fn value_indices(mode: Selection, n: usize) -> Vec<usize> {
         }
     }
     v
-}
-
-/// First and last block whose span meets each entry range
-/// `bounds[r]..bounds[r + 1]` (`first > last` when none does).
-fn block_ranges(spans: &[(u32, u32)], bounds: &[usize]) -> (Vec<usize>, Vec<usize>) {
-    let parts = bounds.len() - 1;
-    let mut first = vec![usize::MAX; parts];
-    let mut last = vec![0usize; parts];
-    // range of position p: the last r with bounds[r] <= p (non-empty ranges)
-    let range_of = |p: u32| bounds.partition_point(|&b| b <= p as usize) - 1;
-    for (k, &(lo, hi)) in spans.iter().enumerate() {
-        if lo > hi {
-            continue;
-        }
-        for r in range_of(lo)..=range_of(hi).min(parts - 1) {
-            if first[r] == usize::MAX {
-                first[r] = k;
-            }
-            last[r] = k;
-        }
-    }
-    (first, last)
-}
-
-/// Pass 3 of [`SparseMatrixAij::add_values_cached_batch`] for the entries
-/// `lo..lo + a.len()`: the blocks in order, each adding the contributions
-/// whose position lies in the range, in the block's pair order.
-#[allow(clippy::too_many_arguments)] // one part of the pass
-#[inline(never)] // no-alias parameters (docs/benchmarks/perf-campaign/exec)
-fn scatter_range(
-    a: &mut [Real],
-    lo: usize,
-    slots: &[usize],
-    spans: &[(u32, u32)],
-    values: &[Real],
-    positions: &[u32],
-    stride: usize,
-    vidx: &[usize],
-    block_len: usize,
-) {
-    let len = a.len();
-    let hi = lo + len;
-    for (k, (&slot, &(s0, s1))) in slots.iter().zip(spans).enumerate() {
-        if s0 > s1 || (s1 as usize) < lo || (s0 as usize) >= hi {
-            continue;
-        }
-        let pos = &positions[slot * stride..(slot + 1) * stride];
-        let v = &values[k * block_len..(k + 1) * block_len];
-        for (&p, &vi) in pos.iter().zip(vidx) {
-            // SKIP (u32::MAX) is never inside a range (nnz < SKIP)
-            let off = (p as usize).wrapping_sub(lo);
-            if off < len {
-                a[off] += v[vi];
-            }
-        }
-    }
 }
 
 /// Smallest number of entries (or rows) per part of a threaded entry-wise
@@ -759,6 +863,127 @@ fn boundary_part(
             } else {
                 0.0
             };
+        }
+    }
+}
+
+impl SparseMatrixAij {
+    /// The planned scatter of the blocks `first..first + n` of a batch
+    /// (`n = values.len() / nb_eq²`; `slots` is the whole batch's), with
+    /// the plan whose handle [`BlockPositionCache::plan_ready`] returned
+    /// for these slots (the cache unchanged since): each part
+    /// adds, in block order, the contributions of those blocks whose
+    /// positions lie in its entries. Called for consecutive chunks of the
+    /// batch in order, every entry receives its contributions in block
+    /// order, as the serial loop adds them; the value release grows by the
+    /// chunk's stored pairs. `false`, nothing changed, without a plan for
+    /// `slots` or with values of another size.
+    #[allow(clippy::too_many_arguments)] // the batch's arguments plus the chunk
+    pub fn add_values_planned_chunk(
+        &mut self,
+        exec: &Exec,
+        cache: &BlockPositionCache,
+        plan: usize,
+        slots: &[usize],
+        first: usize,
+        nb_eq: usize,
+        values: &[Real],
+        values_type: MatrixType,
+    ) -> bool {
+        let n2 = nb_eq * nb_eq;
+        let Some(plan) = cache.plans.get(plan) else {
+            return false;
+        };
+        let mode = match (self.matrix_type, values_type) {
+            (MatrixType::Symmetric, MatrixType::Symmetric) => Selection::LocalUpper,
+            (MatrixType::Symmetric, _) => Selection::GlobalUpper,
+            _ => Selection::All,
+        };
+        let n = values.len().checked_div(n2).unwrap_or(0);
+        if self.released
+            || n2 == 0
+            || n * n2 != values.len()
+            || first + n > slots.len()
+            || plan.slots.len() != slots.len()
+            || plan.nnz != self.a.len()
+            || cache.stamp != self.position_epoch.0
+            || cache.mode != Some(mode)
+            || cache.shape != (nb_eq, nb_eq)
+        {
+            return false;
+        }
+        let (lo_k, hi_k) = (first, first + n);
+        let vidx = value_indices(mode, nb_eq);
+        let positions = &cache.positions;
+        let stride = cache.stride;
+        exec.for_each_bounds(&plan.bounds, Tuples::new(&mut self.a, 1), |lo, mut part| {
+            let a = part.as_mut_slice();
+            if a.is_empty() {
+                return;
+            }
+            let r = plan.bounds.partition_point(|&b| b <= lo) - 1;
+            let list = &plan.lists[r];
+            // the part's blocks of this chunk (the list is in block order)
+            let key = |e: &u32| (e & !INSIDE) as usize;
+            let s = list.partition_point(|e| key(e) < lo_k);
+            let t = list.partition_point(|e| key(e) < hi_k);
+            scatter_chunk(
+                a,
+                lo,
+                &list[s..t],
+                first,
+                slots,
+                values,
+                positions,
+                stride,
+                &vidx,
+                n2,
+            );
+        });
+        let touched: u64 = slots[lo_k..hi_k]
+            .iter()
+            .map(|&s| u64::from(cache.counts[s]))
+            .sum();
+        self.bump_values(touched);
+        true
+    }
+}
+
+/// [`scatter_list`] for the blocks of one chunk (`values` holds the blocks
+/// `first..`).
+#[allow(clippy::too_many_arguments)] // one part of the pass
+#[inline(never)] // no-alias parameters (docs/benchmarks/perf-campaign/exec)
+fn scatter_chunk(
+    a: &mut [Real],
+    lo: usize,
+    list: &[u32],
+    first: usize,
+    slots: &[usize],
+    values: &[Real],
+    positions: &[u32],
+    stride: usize,
+    vidx: &[usize],
+    block_len: usize,
+) {
+    let len = a.len();
+    for &entry in list {
+        let k = (entry & !INSIDE) as usize;
+        let slot = slots[k];
+        let pos = &positions[slot * stride..(slot + 1) * stride];
+        let v = &values[(k - first) * block_len..(k - first + 1) * block_len];
+        if entry & INSIDE != 0 {
+            for (&p, &vi) in pos.iter().zip(vidx) {
+                if p != SKIP {
+                    a[p as usize - lo] += v[vi];
+                }
+            }
+        } else {
+            for (&p, &vi) in pos.iter().zip(vidx) {
+                let off = (p as usize).wrapping_sub(lo);
+                if off < len {
+                    a[off] += v[vi];
+                }
+            }
         }
     }
 }

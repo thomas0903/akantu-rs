@@ -70,6 +70,45 @@ change of default results or of a public API raises the minor version.
   corrector, lumped solve, residual scatter and solution gather (the
   per-node and per-equation loops only for parts of at least 131,072
   nodes / 262,144 equations).
+- Matrix assembly, second round (bitwise at every thread count): the
+  position cache keeps per-slot spans and one scatter plan per element
+  filter (entry-sized parts, exact per-part block lists), and the DOF
+  manager vouches for unchanged equations so a repeated assembly skips
+  the per-block check (`BlockPositionCache::{vouch_equations,
+  plan_ready, plan_after_serial_round}`, `akantu_linalg::sparse::EquationsKey`);
+  on one thread the elemental matrices are produced and scattered chunk
+  by chunk (`DofManager::assemble_elemental_matrices_by_chunks`,
+  `akantu_solver::ElementalProducer`,
+  `SparseMatrixAij::add_values_planned_chunk`). The cached repeated
+  assembly of 162,000 four-node tetrahedra takes 25.5 ms on one thread
+  (35.3 before) and 4.5 ms on 8 (Intel Xeon Platinum 8581C). Phase-field elemental matrices on
+  threads (`FeEngine::compute_ntbn_integrated`), structural elemental
+  stiffness and consistent mass on threads (`StructuralFeEngine::{exec,
+  set_exec}`). Memory: 12 bytes more per stored slot (span and count),
+  and per plan 4 bytes per block visit, 8 per slot and one per slot of
+  the type; the solid model no longer keeps its whole-type elemental
+  array once its assemblies are chunked (one thread).
+  After a failed assembly the matrix is partly assembled (the chunks or
+  element types before the failure are added), as it already was across
+  laws.
+- Threads in the per-point loops of more constitutive laws, bitwise equal
+  to one thread for every thread count, also on the error path (the same
+  error and the same law state as the serial loop):
+  `elastic_orthotropic`, `elastic_anisotropic`, `neohookean` (stress and
+  plane-stress `C33`), `plastic_linear_isotropic_hardening`,
+  `plastic_drucker_prager`, `mazars`, `plastic_mazars`, `marigo`, the
+  local loop of `mazars_non_local` / `marigo_non_local`,
+  `anisotropic_damage` (experimental and corrected models),
+  `viscoelastic_maxwell`, `sls_deviatoric`, `phasefield` (stress and
+  tangent), and in the extra materials `visco_plastic`, `damage_linear`
+  (per-point thresholds) and `ve_stiffness_prop`, with their per-step hooks (plastic work, dissipated energy,
+  Maxwell branch update, thermal refresh). `docs/ARCHITECTURE.md`,
+  "Execution policy", lists the laws and why the others stay serial.
+- Threads in the explicit step of the heat transfer model (under the
+  model's execution policy, see below): FE kernels, the heat law's
+  diffusivity and `D∇u` loops, the internal-flow scatter in the serial
+  order per node. The phase-field model's FE kernels run on its policy's
+  threads too.
 - Threads in matrix assembly and in the matrix operations of implicit
   steps, bitwise equal to one thread for every thread count: elemental
   stiffness (`FeEngine::compute_btdb_integrated`, `∫ BᵀDB` per element,
@@ -207,6 +246,14 @@ change of default results or of a public API raises the minor version.
 
 ### Changed
 
+- `akantu_solid::materials::damage::DamageParent::{stress_kernel,
+  stress_kernel_from, parent_update_energies}`, `DamageFields::update_energies`
+  and `PlasticFields::update_energies` take the executor of the calling law
+  (`material::points_exec`) as their first argument.
+- The laws listed above return `Error::DimensionMismatch` when a block of
+  their per-point loops (gradient, stress, history) does not have the
+  expected number of components per point (before, such a block was
+  processed in chunks of the wrong size).
 - `DofManager::split_solution_per_dofs` returns `Error::OutOfRange` for a
   local equation outside the solution vector, where it used to panic.
 - `MaterialElastic::compute_stress` returns `Error::DimensionMismatch` when
@@ -288,6 +335,19 @@ change of default results or of a public API raises the minor version.
   `EigenSparseLuSolver::set_fast_mode`, enabled with an
   `akantu_core::exec::FastToken` (fused multiply-adds in the panel
   products; not bitwise, off by default).
+- The sparse solver follows the DOF manager's executor (D-123): the AIJ
+  backend hands it to the solver of every solve
+  (`SparseDirectSolver::set_exec`; `SparseLu::set_exec` outside a model).
+  With several threads the large panel updates of the Eigen SparseLU
+  translation run on them, with the same factors and solutions at every
+  thread count; in precision `Fast` its FAST MODE kernels run (fused
+  multiply-adds also in the triangular panel solves and the GEMV kernels;
+  rule `fixtures/fast_mode/linalg/tolerances.json`). Its dense kernels take
+  the executor's SIMD level (`AKANTU_SIMD`); the environment variable
+  `AKANTU_SPARSELU_ISA` is gone. A DOF manager built without a model
+  (`DofManager::new`, `with_backend`) takes the process default policy
+  instead of one thread, and falls back to one thread when the `AKANTU_*`
+  variables are invalid (it does not fail); a model sets its own as before.
 - Small dense products and Eigen-order reductions are faster with bitwise
   identical results: the halving-tree reduction is non-recursive and
   inlined, fixed-size tensor products select their route at compile time,
@@ -392,7 +452,11 @@ The initial public state.
   then private repository had failures whose causes were fixed before
   publication.
 - The user manual and the Rust and Python API documentation, deployed from
-  `main` to <https://thomas0903.github.io/akantu-rs/>.
+  `main` to <https://thomas0903.github.io/akantu-rs/>. The manual's
+  formulas are typeset (KaTeX, rendered when the book is built), and it
+  shows the figures of the upstream manual next to images of results
+  computed with akantu-rs. Building it needs mdBook 0.4.40 and
+  mdbook-katex 0.9.4.
 - The models of upstream: solid mechanics (static, explicit and implicit
   dynamics, finite deformation), cohesive elements, contact mechanics, heat
   diffusion, phase field, structural mechanics, the embedded interface, the
