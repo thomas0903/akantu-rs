@@ -10,9 +10,12 @@ The tables have the columns of the corresponding tables of
 docs/BENCHMARKS.md, so that the document can be updated by copying rows.
 Every value is the median [min, max] over the repetitions; a ratio A / B is
 the median [min, max] of the per-repetition ratios (the two runs of one
-repetition ran next to each other). A point without data is written
-"missing", never estimated. The part is read from the directory's
-provenance.txt (lines "part=... size=...").
+repetition ran next to each other in one group). Only groups that completed
+and passed their checks (groups.jsonl, status `done`) are tabulated; every
+planned point (plan.jsonl) has its row, written "missing" without data and
+"check failed" / "failed" / "skipped" when its groups ended so; never
+estimated. A cell marked ‡ combines repetitions from more than one session
+(sessions.jsonl). The part is read from the directory's provenance.txt.
 """
 
 import csv
@@ -25,6 +28,51 @@ from collections import defaultdict
 from pathlib import Path
 
 MISSING = "missing"
+MULTI = " ‡"
+
+
+class State:
+    """The plan, the outcome of every group (last record wins) and the
+    sessions of a part's data directory."""
+
+    def __init__(self, d=None):
+        self.plan, self.status, self.sessions = [], {}, {}
+        if d is None:
+            return
+        for name, fn in (("plan.jsonl", self.plan.append),
+                         ("groups.jsonl", lambda o: self.status.__setitem__(o["id"], o)),
+                         ("sessions.jsonl",
+                          lambda o: self.sessions.__setitem__(o["session"], o))):
+            p = d / name
+            if p.exists():
+                for ln in p.read_text().splitlines():
+                    if ln.strip():
+                        fn(json.loads(ln))
+
+    def ok(self, gid):
+        return (self.status.get(gid) or {}).get("status") == "done"
+
+    def st(self, gid):
+        return (self.status.get(gid) or {}).get("status")
+
+    def sess(self, gid):
+        return (self.status.get(gid) or {}).get("session")
+
+    def label(self, gids):
+        """The cell text of a planned point without data."""
+        sts = [self.st(g) for g in gids]
+        for st, text in (("check_failed", "check failed"), ("failed", "failed")):
+            if st in sts:
+                return text
+        if sts and all(x == "skipped" for x in sts):
+            return "skipped"
+        return MISSING
+
+    def multi(self, gids):
+        return MULTI if len({self.sess(g) for g in gids if self.ok(g)}) > 1 else ""
+
+
+ST = State()
 
 
 # ---------------------------------------------------------------- formatting
@@ -126,6 +174,19 @@ def header(d, info, title):
             (f"- Size `{info.get('size')}`, repetitions requested: "
             f"{info.get('reps', '?')}. Provenance: `provenance.txt`; every "
             "command: `commands.log`; progress: `progress.log`."), ""]
+    if ST.plan:
+        n_done = sum(1 for g in ST.plan if ST.ok(g["id"]))
+        out += [f"Groups: {len(ST.plan)} planned, {n_done} complete and "
+                "checked (only these are tabulated).", ""]
+    if len(ST.sessions) > 1:
+        rows = [[k, v.get("cpu", "?"), v.get("boot_id", "?")[:8],
+                 v.get("kernel", "?")] for k, v in ST.sessions.items()]
+        host = {(v.get("boot_id"), v.get("cpu")) for v in ST.sessions.values()}
+        out += [f"Sessions ({len(rows)}; cells marked ‡ combine repetitions "
+                "from more than one)"
+                + ("; **the host changed between sessions** (boot id or CPU "
+                   "model)" if len(host) > 1 else "") + ":", "",
+                table(["session", "CPU", "boot id", "kernel"], rows)]
     for name, what in (("CHECKS_FAILED", "Failed checks"),
                        ("FAILED", "Failed runs")):
         p = d / name
@@ -149,9 +210,11 @@ def summarize_a(d, info):
     rows = defaultdict(dict)      # (mesh, mode, phase) -> {(label, r): ns}
     meta = {}
     rounds = []
+    used = []
     for f in sorted((d / "rounds").glob("r*.jsonl")):
-        if not (d / "rounds" / (f.stem + ".ok")).exists():
+        if not ST.ok(f"A-round-{f.stem}"):
             continue
+        used.append(f"A-round-{f.stem}")
         for line in f.read_text().splitlines():
             if not line.startswith("{"):
                 continue
@@ -165,13 +228,21 @@ def summarize_a(d, info):
             elif o["kind"] == "time":
                 rows[(mesh, mode, o["phase"])][(label, r)] = o["ns_el_step"]
     out = header(d, info, "the explicit step on one core")
-    out += [f"Rounds: {len(rounds)} (program order rotated per round: "
-            + "; ".join(r["order"] for r in rounds) + ").", ""]
+    planned = [g["id"] for g in ST.plan if g["kind"] == "a_round"]
+    bad = [g for g in planned if ST.st(g) in ("check_failed", "failed")]
+    out += [f"Rounds used: {len(rounds)} of {len(planned)} planned"
+            + (f" (not used, failed: {', '.join(bad)})" if bad else "")
+            + ST.multi(used).replace(MULTI, " ‡ (from more than one session)")
+            + "; program order rotated per round: "
+            + "; ".join(r["order"] for r in rounds) + ".", ""]
 
     def vals(dd, lab):
         return {r: v for (ll, r), v in dd.items() if ll == lab}
 
     meshes = DRY_MESHES if info.get("size") == "dry" else MESHES
+    cfg = next((g["configs"] for g in ST.plan if g["kind"] == "a_round"), "")
+    if cfg:
+        meshes = [m for m in MESHES if m in {c.split(":")[0] for c in cfg.split()}]
 
     for phase, title in (("step", "Explicit step (`solve_step`)"),
                          ("fint", "Internal forces (`fint`)"),
@@ -217,7 +288,10 @@ def summarize_a(d, info):
     out += [("Table \"The port's step at 2, 4 and 8 threads "
             "(`AKANTU_NUM_THREADS`, cores 0..N-1) and in fast mode "
             "(`AKANTU_PRECISION=fast`)\", ns per element and step; ratios "
-            "paired per round:"), "", table(hdr, trs)]
+            "paired per round; the thread count and precision each run "
+            "recorded are those of the process default policy, read from "
+            "the environment, checked against the request:"), "",
+            table(hdr, trs)]
     dg = d / "digests.tsv"
     if dg.exists():
         lines = [ln.split("\t") for ln in dg.read_text().splitlines() if ln]
@@ -249,8 +323,15 @@ def _unrepeatable():
 UNREPEATABLE = _unrepeatable()
 
 
+def suite_gid(base, case, np_, rep):
+    if base.name == "python":
+        return f"python-{case}-r{rep}"
+    return f"{base.name}-{case}-np{np_}-r{rep}"
+
+
 def load_suite_dir(base, nested_np=False):
-    """{(variant, np, case, phase): {rep: record}} of a suite directory."""
+    """{(variant, np, case, phase): {rep: record}} of a suite directory, the
+    complete and checked groups only."""
     res = defaultdict(dict)
     if not base.is_dir():
         return res
@@ -264,26 +345,46 @@ def load_suite_dir(base, nested_np=False):
                 m = re.match(r"(.+)\.r(\d+)\.jsonl$", f.name)
                 if not m:
                     continue
+                rep_ = int(m.group(2))
+                if not ST.ok(suite_gid(base, m.group(1), np_, rep_)):
+                    continue
                 for line in f.read_text().splitlines():
                     if not line.startswith("{"):
                         continue
                     o = json.loads(line)
-                    res[(vdir.name, np_, o["case"], o["phase"])][
-                        int(m.group(2))] = o
+                    res[(vdir.name, np_, o["case"], o["phase"])][rep_] = o
     return res
 
 
-def done_marks(base):
-    return {p.name for p in (base / ".done").glob("*")} \
-        if (base / ".done").is_dir() else set()
+def _exceptions():
+    f = Path(__file__).with_name("digest-exceptions.txt")
+    if not f.exists():
+        return set()
+    return {ln.split("#", 1)[0].strip() for ln in f.read_text().splitlines()
+            if ln.split("#", 1)[0].strip()
+            and not ln.split("#", 1)[0].strip().startswith("!")}
+
+
+EXCEPTIONS = _exceptions()
+
+
+def planned_suite(base):
+    """{(case, np): [group ids]} planned for a suite directory."""
+    res = defaultdict(list)
+    for g in ST.plan:
+        if (g["kind"] == "python" and base.name == "python") or g.get("dir") == base.name:
+            res[(g["case"], g.get("np", 1))].append(g["id"])
+    return res
 
 
 def suite_tables(base, title, serial=True):
     data = load_suite_dir(base, nested_np=not serial)
-    if not data:
+    planned = planned_suite(base)
+    if not data and not planned:
         return [f"{title}: missing.", ""]
     keys = sorted({(c, ph) for (_, _, c, ph) in data},
                   key=lambda k: (k[0], k[1]))
+    measured = {(c, n) for (_, n, c, _) in data}
     out = []
     sk = base / ".skipped"
     if sk.exists():
@@ -306,20 +407,39 @@ def suite_tables(base, title, serial=True):
         ds = {(v, o.get("digest")) for (v, n, cc, _), recs in data.items()
               if cc == c and n == np_ and "fast" not in v
               for o in recs.values()}
-        vals = {dg for _, dg in ds}
-        heads = {dg for v, dg in ds if not v.startswith("before")}
         if not ds:
             return MISSING
         if f"{c}@np{np_}" in UNREPEATABLE or c in UNREPEATABLE:
             return "not compared (does not repeat)"
-        if len(vals) == 1:
-            return "equal"
-        return "equal (head)" if len(heads) == 1 else "DIFFER"
+        heads = {dg for v, dg in ds if not v.startswith("before")}
+        befores = {dg for v, dg in ds if v.startswith("before")}
+        if len(heads) > 1:
+            return "DIFFER"
+        if befores and befores != heads:
+            exc = c in EXCEPTIONS or f"{c}@np{np_}" in EXCEPTIONS
+            return "equal (head); before differs (listed exception)" if exc else "DIFFER"
+        return "equal"
+
+    def nrep(c, np_):
+        return len({r for (v, n, cc, _), recs in data.items()
+                    if cc == c and n == np_ and v == "head" for r in recs})
+
+    def mark(c, np_):
+        return ST.multi(planned.get((c, np_), []))
+
+    def missing_rows(width_after):
+        rows = []
+        for (c, np_), gids in sorted(planned.items()):
+            if (c, np_) not in measured:
+                lab = ST.label(gids)
+                rows.append([c, "—"] + ([np_] if not serial else [])
+                            + [lab] * width_after)
+        return rows
 
     if serial:
         threaded = any(v != "head" and v.startswith("head")
                        for (v, _, _, _) in data)
-        hdr = ["case", "phase", "calls", "before", "head", "head / before"]
+        hdr = ["case", "phase", "calls", "n", "before", "head", "head / before"]
         if threaded:
             hdr += ["head 2 threads / 1", "4 / 1", "8 / 1",
                     "fast / bitwise (1)", "fast / bitwise (8)"]
@@ -329,8 +449,8 @@ def suite_tables(base, title, serial=True):
             b, h = sec("before", 1, c, ph), sec("head", 1, c, ph)
             if not any(b.values()) and not any(h.values()):
                 continue   # a phase that does not run at 1 rank
-            row = [c, ph, calls("head", 1, c, ph) or
-                   calls("before", 1, c, ph),
+            row = [c + mark(c, 1), ph, calls("head", 1, c, ph) or
+                   calls("before", 1, c, ph), nrep(c, 1),
                    med_time(list(b.values())),
                    med_time(list(h.values())), ratio(h, b)]
             if threaded:
@@ -340,14 +460,18 @@ def suite_tables(base, title, serial=True):
                         ratio(sec("head-fast-t8", 1, c, ph),
                               sec("head-t8", 1, c, ph))]
             rows.append(row + [digest_ok(c, 1)])
+        rows += missing_rows(len(hdr) - 2)
         out += [(f"Table \"{title}\" (seconds of the phase over its calls, "
-                "median [min, max]; ratios paired per repetition):"), "",
+                "median [min, max]; n = repetitions in the medians; ratios "
+                "paired per repetition; the threads and fast-mode variants run "
+                "only for the cases whose timed phases run such code, "
+                "plan.py `threaded_case`):"), "",
                 table(hdr, rows)]
     else:
         nps = sorted({n for (_, n, _, _) in data})
-        hdr = ["case", "phase", "ranks", "before", "head", "head / before",
-               "head ranks x threads", "time", "/ head at the same cores",
-               "digests"]
+        hdr = ["case", "phase", "ranks", "n", "before", "head", "head / before",
+               "head ranks x threads", "time",
+               "/ head on as many cores (unpaired)", "digests"]
         rows = []
         for c, ph in keys:
             for np_ in nps:
@@ -357,16 +481,25 @@ def suite_tables(base, title, serial=True):
                 rt, tt, cmp_ = "", "", ""
                 for t in (4, 2):
                     x = sec(f"head-t{t}", np_, c, ph)
+                    y = sec("head", np_ * t, c, ph)
                     if x:
                         rt = f"{np_} x {t}"
                         tt = med_time(list(x.values()))
-                        cmp_ = ratio(x, sec("head", np_ * t, c, ph))
-                rows.append([c, ph, np_, med_time(list(b.values())),
+                        cmp_ = (sig(statistics.median(x.values())
+                                    / statistics.median(y.values()))
+                                if y else MISSING)
+                rows.append([c + mark(c, np_), ph, np_, nrep(c, np_),
+                             med_time(list(b.values())),
                              med_time(list(h.values())), ratio(h, b), rt,
                              tt, cmp_, digest_ok(c, np_)])
+        rows += missing_rows(len(hdr) - 3)
         out += [(f"Table \"{title}\" (seconds of the phase, rank 0 or the "
-                "case's maximum over the ranks as the case reports it):"),
-                "", table(hdr, rows)]
+                "case's maximum over the ranks as the case reports it; n = "
+                "repetitions; rank r on the r-th core of the host's cores "
+                "ordered NUMA node by NUMA node, recorded and checked; "
+                "\"/ head on as many cores\" divides the medians of two "
+                "different groups, P x T threads and P x T ranks, so it is "
+                "not paired):"), "", table(hdr, rows)]
     return out
 
 
@@ -453,7 +586,7 @@ def load_runs(d):
         idx[key] = o
     runs = []
     for o in idx.values():
-        if o["outcome"] != "ok":
+        if o["outcome"] != "ok" or not ST.ok(o.get("group", "")):
             continue
         rd = d / "runs" / o["campaign"] / o["case"] / f"np{o['np']}" / "rep1"
         if not rd.is_dir():
@@ -520,12 +653,30 @@ def code_name(v, np_):
 
 
 def by_point(runs, series):
-    """{(h, np): {variant: {rep: run}}}."""
+    """{(h, np): {variant: {rep: run}}}, every planned point and variant
+    present (empty when nothing of it was measured)."""
     res = defaultdict(lambda: defaultdict(dict))
+    for g in ST.plan:
+        if g["kind"] == "coh" and g["series"] == series:
+            for v in g["variants"]:
+                res[(g["h"], g["np"])].setdefault(v, {})
     for r in runs:
         if r["series"] == series:
             res[(r["h"], r["np"])][r["variant"]][r["rep"]] = r
     return res
+
+
+def planned_gids(series, h, np_, v):
+    return [g["id"] for g in ST.plan if g["kind"] == "coh" and g["series"] == series
+            and g["h"] == h and g["np"] == np_ and v in g["variants"]]
+
+
+def cell_label(series, h, np_, v):
+    return ST.label(planned_gids(series, h, np_, v))
+
+
+def sess_mark(reps):
+    return MULTI if len({r.get("session") for r in reps.values()}) > 1 else ""
 
 
 def hkey(h):
@@ -548,7 +699,7 @@ def cohesive_series_tables(runs, series, title, steps_note=""):
     if steps_note:
         out += [steps_note, ""]
     # per point, absolute values (the rehearsal tables' columns)
-    hdr = ["h", "ranks", "code", "runs", "wall s", "init_full s",
+    hdr = ["h", "ranks", "code", "n", "wall s", "init_full s",
            "static solve s", "`solve_step` ms/step", "check ms/step",
            "core-µs/el/step", "loop efficiency", "largest rank peak MiB",
            "Σ rank peaks MiB"]
@@ -569,17 +720,22 @@ def cohesive_series_tables(runs, series, title, steps_note=""):
             eff = MISSING
             if c and (h, base) in one_rank:
                 eff = f"{one_rank[(h, base)] / statistics.median(c.values()):.0%}"
-            rows.append([h, np_, code_name(v, np_), len(reps)]
+            if not reps:
+                rows.append([h, np_, code_name(v, np_), 0]
+                            + [cell_label(series, h, np_, v)] * 9)
+                continue
+            rows.append([h, np_, code_name(v, np_) + sess_mark(reps), len(reps)]
                         + [med(list(metric(reps, k).values())) for k in
                            ("wall", "init_full", "static", "step_ms",
                             "check_ms", "core_us")]
                         + [eff] + [med(list(metric(reps, k).values()))
                                    for k in ("peak_max_mib",
                                              "peak_sum_mib")])
-    out += [("Table \"Points\" (rank 0's Chrono phases; core-µs per element "
-            "and step = (`solve_step` + check) × cores / tetrahedra / "
-            "steps; loop efficiency = core-µs at 1 rank / core-µs at P, "
-            "same code; peaks of the memory sampler):"), "",
+    out += [("Table \"Points\" (rank 0's Chrono phases; n = repetitions in "
+            "the medians; core-µs per element and step = (`solve_step` + "
+            "check) × cores / tetrahedra / steps; loop efficiency = core-µs "
+            "at 1 rank / core-µs at P, same code; peaks of the memory "
+            "sampler):"), "",
             table(hdr, rows)]
     # paired ratios, as "Port / upstream, series ws"
     for num, den, name in (("head", "cpp", "Port / upstream"),
@@ -591,6 +747,9 @@ def cohesive_series_tables(runs, series, title, steps_note=""):
         for (h, np_) in sorted(pts, key=lambda k: (hkey(k[0]), k[1])):
             vs = pts[(h, np_)]
             if num not in vs or den not in vs:
+                continue
+            if not vs[num] or not vs[den]:
+                rows.append([h, np_] + [cell_label(series, h, np_, num if not vs[num] else den)] * 6)
                 continue
             a, b = vs[num], vs[den]
             rows.append([h, np_] + [ratio(metric(a, k), metric(b, k))
@@ -667,8 +826,11 @@ def _check_lines(d):
         bad += bool(o["failures"])
         cmp_ += sum(len(v) > 1 for v in o["compared"].values())
     return [(f"Checks (`checks.jsonl`): {n} points; at every point the "
-            "thread count and precision of each port run (`rust_exec` of "
-            "`summary.json`) against the request; per-step energies and "
+            "binary that ran (its SHA-256 as recorded in the run) against "
+            "`VARIANT.json` / `CPP.json`; the thread count and precision of "
+            "each port run (`rust_exec` of `summary.json`: the process "
+            "default policy, read from the environment) against the "
+            "request; per-step energies and "
             "insertions (`energies.csv`, `insertions.csv`, 17 digits) "
             "identical across the bitwise variants at 1 rank (C++ "
             "included) and in the SparseLU series at every rank count; "
@@ -684,9 +846,13 @@ def summarize_c(d, info):
     out += [("C++: the strict install with the JOSS emulation (`FNTE = "
             "joss`), MUMPS 5.7.3; the port's MPI build (`mpi,scotch,"
             "mumps`); the same mesh and Scotch partition for both "
-            "(`c1prep_campaign.sh`); ranks on cores 0..P-1; one container "
+            "(`c1prep_campaign.sh`); rank r bound to the r-th core (block "
+            "of T cores with T threads) of the host's cores ordered NUMA "
+            "node by NUMA node, recorded and checked per run; one container "
             "per run; the variants of a point adjacent, rotated per "
-            "repetition, the point order reversed every other repetition."),
+            "repetition, the point order reversed every other repetition. "
+            "Series `reh6` runs C++ and the head only (before → head is "
+            "measured by `ws`, `ins`, `full12` and `reh4`)."),
             ""]
     out += check_lines(d)
     for s, t in (("ws", ("500 steps before the first insertion (the series "
@@ -721,19 +887,23 @@ def summarize_d(d, info):
     runs = load_runs(d)
     out = header(d, info, "static solves and solvers")
     out += [(f"The head's SparseLU factorisation uses threads: "
-            f"{info.get('sparselu_threaded', 'unknown')} (from the "
-            "translation's source; threaded variants are timed only then)."),
-            ""]
+            f"{info.get('sparselu_threaded', 'unknown')} (measured by "
+            "prepare.sh: the `factorize` phase of `static_linear_eigen` at 2 "
+            "threads under 0.85 of 1 thread, `sparselu_probe` in the head's "
+            "VARIANT.json; threaded variants are timed only then)."), ""]
     out += check_lines(d)
     pts = by_point(runs, "eig1")
     hdr = ["h", "DOFs", "C++ SparseLU (strict)", "port before", "port",
-           "port / C++", "port / port before", ("peak RSS C++ / before / "
-           "port MiB")]
+           "port / C++", "port / port before", ("container memory peak "
+           "(cgroup memory.peak) C++ / before / port MiB")]
     rows = []
     for (h, np_) in sorted(pts, key=lambda k: hkey(k[0])):
         vs = pts[(h, np_)]
         c, b, p = (vs.get(x, {}) for x in ("cppeig", "before-eig",
                                             "head-eig"))
+        if not (c or b or p):
+            rows.append([h, MISSING] + [cell_label("eig1", h, np_, "head-eig")] * 6)
+            continue
         dofs = next((r["m"]["dofs"] for r in p.values()), None)
         rows.append([h, f"{dofs:,}" if dofs else MISSING]
                     + [med(list(metric(x, "static").values()))
@@ -794,6 +964,9 @@ def summarize_e(d, info):
                     if r["m"]["infog19"]), None)
         for v in sorted(vs, key=lambda x: (x != "cpp", x)):
             reps = vs[v]
+            if not reps:
+                rows.append([np_, code_name(v, np_)] + [cell_label("mem4", h, np_, v)] * 7)
+                continue
             any_r = next(iter(reps.values()))
             mk = any_r["summary"].get("rust_memory_kib") or {}
 
@@ -818,7 +991,9 @@ def summarize_e(d, info):
                 "container = the cgroup's `memory.peak`; the port's own "
                 "records in `summary.json`; the last column = (Σ rank "
                 "peaks − the port's `INFOG(19)`) / tetrahedra, as the "
-                "document's table \"Memory besides MUMPS\"; \"factors "
+                "document's table \"Memory besides MUMPS\" (the C++ row "
+                "also subtracts the port's `INFOG(19)`: upstream records no "
+                "MUMPS statistics, and both hand MUMPS the same matrix); \"factors "
                 "released\" = `rust_release_static_solver = true`):"), ""]
         out += [table(hdr, rows)]
         rows = []
@@ -837,11 +1012,14 @@ def summarize_f(d, info):
     for (h, np_) in sorted(pts, key=lambda k: (hkey(k[0]), k[1])):
         vs = pts[(h, np_)]
         for v in sorted(vs, key=lambda x: (x != "cpp", x)):
-            rows.append([h, np_, code_name(v, np_)]
+            if not vs[v]:
+                rows.append([h, np_, code_name(v, np_)] + [cell_label("setup", h, np_, v)] * 5)
+                continue
+            rows.append([h, np_, code_name(v, np_) + sess_mark(vs[v])]
                         + [med(list(metric(vs[v], k).values())) for k in
                            ("read_mesh", "dist_mesh", "init_full",
                             "before_step", "static")])
-        if "head" in vs and "cpp" in vs:
+        if vs.get("head") and vs.get("cpp"):
             rat.append([h, np_] + [ratio(metric(vs["head"], k),
                                          metric(vs["cpp"], k))
                                    for k in ("read_mesh", "dist_mesh",
@@ -869,6 +1047,8 @@ def mpilayer_tables(m):
         return ["MPI layer: missing.", ""]
     vals = defaultdict(dict)
     for row in csv.DictReader(p.read_text().splitlines(), delimiter="\t"):
+        if not ST.ok(row.get("group") or ""):
+            continue
         try:
             us = float(row["us"])
         except ValueError:
@@ -902,6 +1082,8 @@ def mpilayer_tables(m):
         bv = defaultdict(dict)
         for ln in cal.read_text().splitlines():
             kv = dict(x.split("=", 1) for x in ln.split() if "=" in x)
+            if not ST.ok(kv.get("group", "")):
+                continue
             try:
                 bv[(kv["btl"], kv["np"], kv["kind"], int(kv["len"]),
                     kv["prog"])][int(kv["rep"])] = kv
@@ -932,7 +1114,18 @@ def mpilayer_tables(m):
     return out
 
 
-def strong_scaling(pts):
+def numa_nodes(d, reps):
+    """The NUMA nodes a configuration ran on (its bindings.txt records)."""
+    nodes = set()
+    for r in reps.values():
+        f = d / "runs" / (r["campaign"] + ".bindings.txt")
+        if f.exists():
+            for m in re.finditer(r"NUMA ([0-9,]+)", f.read_text()):
+                nodes.update(m.group(1).split(","))
+    return ",".join(sorted(nodes)) or MISSING
+
+
+def strong_scaling(pts, d=None):
     """Rows of the strong-scaling table: every configuration by cores."""
     rows_in = []
     for (h, np_), vs in pts.items():
@@ -951,10 +1144,16 @@ def strong_scaling(pts):
         def mm(k, reps=reps):
             return med(list(metric(reps, k).values()))
         c = list(metric(reps, "core_us").values())
+        if not reps:
+            rows.append(["C++" if is_cpp else "port", f"{np_} x {t}", cores, "—"]
+                        + [cell_label("full", next(iter(pts))[0], np_, v)] * 11)
+            continue
         eff = MISSING
         if c and is_cpp in base:
             eff = f"{base[is_cpp][1] / statistics.median(c):.0%}"
-        rows.append(["C++" if is_cpp else "port", f"{np_} x {t}", cores,
+        place = next(iter(reps.values())).get("placement", "?")
+        rows.append(["C++" if is_cpp else "port", f"{np_} x {t}" + sess_mark(reps), cores,
+                     f"{place}, {numa_nodes(d, reps) if d else '?'}",
                      mm("wall"), mm("read_mesh"), mm("dist_mesh"),
                      mm("init_full"), mm("static"), mm("step_ms"),
                      mm("check_ms"), mm("energies_ms"), mm("loop"),
@@ -984,16 +1183,23 @@ def summarize_g(d, info):
         out += ["The plan printed before the runs (`plan.txt`):", "",
                 "```text", (d / "plan.txt").read_text().rstrip(), "```", ""]
     pts = by_point(runs, "full")
-    rows, base = strong_scaling(pts)
+    rows, base = strong_scaling(pts, d)
     out += ["Table \"Strong scaling\" (one row per configuration, ranks x "
-            "threads; rank 0's Chrono phases, s, per step in ms; core-µs per "
-            "element and step = (`solve_step` + check) × cores / tetrahedra / "
-            "steps; loop efficiency = core-µs at the smallest core count of "
-            "the same code"
+            "threads; placement: `fill` puts ranks on one NUMA node before "
+            "the next, so on a two-node 128-core host the 8-, 32- and "
+            "64-rank runs use one node (one socket's memory bandwidth) and "
+            "the 128-rank and 128-core hybrid runs both, which is part of "
+            "the 64 → 128 efficiency; `spread` puts the same number of ranks "
+            "on every node; the NUMA nodes column is read from each run's "
+            "recorded binding; rank 0's Chrono phases, s, per step in ms; "
+            "core-µs per element and step = (`solve_step` + check) × cores "
+            "/ tetrahedra / steps; loop efficiency = core-µs at the smallest "
+            "core count of the same code"
             + "".join(f" ({'C++' if k else 'port'}: {v[0]} cores)"
                       for k, v in sorted(base.items()))
             + " / core-µs here):", "",
-            table(["code", "ranks x threads", "cores", "wall s", "read_mesh",
+            table(["code", "ranks x threads", "cores", "placement, NUMA nodes",
+                   "wall s", "read_mesh",
                    "dist_mesh", "init_full", "static solve",
                    "`solve_step` ms/step", "check ms/step",
                    "energies ms/step", "loop s", "core-µs/el/step",
@@ -1007,6 +1213,8 @@ def summarize_g(d, info):
         vs = pts[(h, np_)]
         for v in sorted(vs, key=lambda x: (x == "cpp", x)):
             reps = vs[v]
+            if not reps:
+                continue   # listed as such in the strong-scaling table
 
             def mm(k, reps=reps):
                 return med(list(metric(reps, k).values()))
@@ -1045,7 +1253,7 @@ def summarize_g(d, info):
                               st.get("retries"),
                               (f"{mx.get('nnz_sum', 0):,} / "
                               f"{mx.get('nnz_max', 0):,}")])
-        if "head" in vs and "cpp" in vs:
+        if vs.get("head") and vs.get("cpp"):
             a, b = vs["head"], vs["cpp"]
             rat.append([np_] + [ratio(metric(a, k), metric(b, k)) for k in
                                 ("wall", "init_full", "static", "dist_mesh",
@@ -1105,6 +1313,8 @@ def main(argv):
     d = Path(argv[1])
     outp = Path(argv[argv.index("--out") + 1]) if "--out" in argv \
         else d / "summary.md"
+    global ST
+    ST = State(d)
     info = read_provenance(d)
     part = info.get("part", d.name)
     if part not in PARTS:

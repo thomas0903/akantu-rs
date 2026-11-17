@@ -9,63 +9,70 @@
 #   PART       A  the explicit step on one core (ten configurations, both C++
 #                 builds, the port before and at head, threads, fast mode)
 #              B  the benchmark suites (suite_solid, suite_models, suite_setup,
-#                 suite_python.py): serial cases, threads, fast mode, the rank
-#                 series of the distributed cases
+#                 suite_python.py): serial cases, threads and fast mode where
+#                 they can change something, the distributed cases' rank series
 #              C  the cohesive benchmark at small and mid sizes, 1 to 8 ranks
 #              D  static solves: SparseLU against upstream's, MUMPS at 1/2/4
 #                 ranks, the solver phases of the suite
 #              E  memory: peak resident set per rank and summed, with the
 #                 option that releases the static solver's factors
 #              F  set-up phases, the distribution at size l, the MPI layer
-#              G  the full-size run (JOSS mesh; one 64-core node)
+#              G  the full-size run (JOSS mesh; one 128-core node)
 #   --reps N      repetitions (default 5; part G: 1)
 #   --size S      dry (the smallest sizes: a development check of the whole
 #                 chain, not a result) or full (the sizes of the published
 #                 tables; default)
 #   --only LIST   comma list of the part's series (default all; to split a
 #                 part over machines, see README.md)
+#   --variants P  comma list of shell patterns: only the matching variants run
+#                 (e.g. `cpp,head`, `before,head*`)
+#   --plan-only   print the plan (groups, runs and expected time per series,
+#                 total; part G also memory per run) and exit; nothing runs.
+#                 FINAL_PLAN_CORES=128 FINAL_PLAN_MEMORY=481g: another machine
 #   --root DIR    FINAL_ROOT (default ~/final): binaries in DIR/bin, data in DIR/data
 #   --data DIR    data root (default FINAL_ROOT/data); the part writes DIR/<PART>
 #   --before DIR, --head DIR   prepared variant directories (default
 #                 FINAL_ROOT/bin/before, FINAL_ROOT/bin/head; prepare.sh)
-#   --pin CORE    the core of the serial runs (default 2); N threads or ranks
-#                 run on cores 0..N-1
+#   --pin CORE    the core of the serial runs (default 2); N threads on cores
+#                 0..N-1; ranks on the host's cores ordered NUMA node by node
 #   --memory M    container memory limit of the cohesive runs, no swap
-#                 (default: the machine's memory minus 3 GiB)
-#   --points "P..."  part G only: the runs in their order, P = RANKS[xTHREADS]:VARIANT[,VARIANT]
-#                 (default, for a 128-core node: "128:head 128:cpp 64:head 64:cpp
-#                 32:head 32:cpp 64x2:head 32x4:head 16x8:head 8:head"; dry
-#                 "8:head 8:cpp 4x2:head"); points needing more cores than the
-#                 machine has are skipped. Before the first run the part prints
-#                 its plan (DATA/G/plan.txt): per run the expected memory and
-#                 time (g-estimates.txt), the order, the machine-hours
-#   --plan-only   part G: print the plan and exit (FINAL_PLAN_CORES=128
-#                 FINAL_PLAN_MEMORY=481g: the plan of another machine)
+#                 (default: the machine's memory minus 3 GiB; part G 94 %)
+#   --points "P..."  part G: the runs in their order, P = RANKS[xTHREADS]:VARIANT[,VARIANT]
+#                 (default "128:head 128:cpp 64:head 64:cpp 32:head 32:cpp 64x2:head
+#                 32x4:head 16x8:head 8:head"; dry "8:head 8:cpp 4x2:head")
+#   --placement fill|spread   part G: fill one NUMA node before the next
+#                 (default) or put the same number of ranks on every node
+#   --sparselu-threads auto|true|false   part D: time the threaded SparseLU
+#                 variants (default auto: what prepare.sh measured, VARIANT.json)
 #
-# Each point (a group of runs: the variants of one configuration in one
-# repetition, their order rotated by the repetition) writes its own
-# directory and a marker when it is complete; a second call skips complete
-# points and repeats incomplete ones. One progress line per point
-# (DATA/<PART>/progress.log). Checks (state digests of every bitwise
-# variant, thread count and precision recorded by every run, upstream's
-# MUMPS retry path) that fail are written to DATA/<PART>/CHECKS_FAILED; a
-# failed run to DATA/<PART>/FAILED. Exit status: 0 if every point is
-# complete and every check passed, 1 otherwise, 2 for a usage error. Safe
-# under nohup (no terminal needed). Run one part at a time on a machine,
-# nothing else running.
+# The plan (plan.py; DATA/<PART>/plan.jsonl) lists every group in execution
+# order: the variants of one configuration in one repetition, their order
+# rotated by the repetition. A group that completes and passes its checks
+# leaves a marker; a second call skips it and repeats the others. Every
+# outcome goes to DATA/<PART>/groups.jsonl with the session (sessions.jsonl:
+# UTC start, boot id, CPU), one progress line per group to progress.log.
+# Checks: the binaries against VARIANT.json / CPP.json (at the start: the part
+# stops; per cohesive run: the run fails its check), state digests of every
+# bitwise variant, thread count and precision recorded by every run, the core
+# binding of every MPI run, upstream's MUMPS retry path. Before each group the
+# machine must be idle (no final-* container, less than half a core busy).
+# Exit status: 0 if every group is complete and passed, 1 otherwise, 2 for a
+# usage error or a binary that is not the one its directory names.
 set -uo pipefail
 # shellcheck source=scripts/perf/final/lib.sh
 . "$(dirname "$0")/lib.sh"
 
 part=${1:-}
-[ -n "$part" ] || { sed -n '6,47p' "$0"; exit 2; }
+[ -n "$part" ] || { sed -n '6,62p' "$0"; exit 2; }
 shift
 reps="" size=full only="" data="" pin=2 memory="" before="" head="" gpoints="" planonly=0
+variants="" placement=fill slu=auto
 while [ $# -gt 0 ]; do
   case "$1" in
     --reps) reps=${2:?}; shift 2 ;;
     --size) size=${2:?}; shift 2 ;;
     --only) only=${2:?}; shift 2 ;;
+    --variants) variants=${2:?}; shift 2 ;;
     --root) FINAL_ROOT=${2:?}; shift 2 ;;
     --data) data=${2:?}; shift 2 ;;
     --before) before=${2:?}; shift 2 ;;
@@ -73,131 +80,186 @@ while [ $# -gt 0 ]; do
     --pin) pin=${2:?}; shift 2 ;;
     --memory) memory=${2:?}; shift 2 ;;
     --points) gpoints=${2:?}; shift 2 ;;
+    --placement) placement=${2:?}; shift 2 ;;
+    --sparselu-threads) slu=${2:?}; shift 2 ;;
     --plan-only) planonly=1; shift ;;
     *) fin_die "run_part.sh: unknown argument $1" ;;
   esac
 done
 case "$part" in A|B|C|D|E|F|G) ;; *) fin_die "run_part.sh: unknown part ${part}" ;; esac
 case "$size" in dry|full) ;; *) fin_die "--size dry|full" ;; esac
+case "$placement" in fill|spread) ;; *) fin_die "--placement fill|spread" ;; esac
+case "$slu" in auto|true|false) ;; *) fin_die "--sparselu-threads auto|true|false" ;; esac
 [ -n "$reps" ] || { if [ "$part" = G ]; then reps=1; else reps=5; fi; }
 [[ "$reps" =~ ^[1-9][0-9]*$ ]] || fin_die "--reps: a positive integer"
 FIN_BIN="${FINAL_ROOT}/bin"
 BEFORE="${before:-${FIN_BIN}/before}"
 HEAD="${head:-${FIN_BIN}/head}"
-[ "$planonly" = 1 ] || [ -f "${BEFORE}/VARIANT.json" ] || fin_die "no prepared variant ${BEFORE} (prepare.sh)"
-[ "$planonly" = 1 ] || [ -f "${HEAD}/VARIANT.json" ] || fin_die "no prepared variant ${HEAD} (prepare.sh)"
-D="${data:-${FINAL_ROOT}/data}/${part}"
-mkdir -p "$D"
-D="$(cd "$D" && pwd)"
 NCORES=$(lscpu -p=CORE 2> /dev/null | grep -v '^#' | sort -u | wc -l)
 [ "$NCORES" -ge 1 ] || NCORES=$(nproc)
 if [ -z "$memory" ]; then
   memtot=$(( $(awk '/MemTotal/ {print $2}' /proc/meminfo) / 1048576 ))
   if [ "$part" = G ]; then memory="$(( memtot * 94 / 100 ))g"; else memory="$(( memtot - 3 ))g"; fi
 fi
-# the host's cores NUMA node by NUMA node (lib.sh): the cohesive runs take
-# the first ranks x threads entries
-CORES_ORDER="$(fin_core_order)"
+if [ "$slu" = auto ]; then
+  slu=$(fin_variant_key "$HEAD" sparselu_threaded 2> /dev/null)
+  [ "$slu" = true ] || slu=false
+fi
+plan_args=("$part" --size "$size" --reps "$reps" --only "$only" --variants "$variants"
+  --points "$gpoints" --placement "$placement" --sparselu-threaded "$slu"
+  --before "$BEFORE" --head "$HEAD")
+
+if [ "$planonly" = 1 ]; then
+  exec python3 -I "${FIN_HERE}/plan.py" "${plan_args[@]}" --cores "${FINAL_PLAN_CORES:-$NCORES}" \
+    --memory "${FINAL_PLAN_MEMORY:-$memory}" --print
+fi
+
+[ -f "${BEFORE}/VARIANT.json" ] || fin_die "no prepared variant ${BEFORE} (prepare.sh)"
+[ -f "${HEAD}/VARIANT.json" ] || fin_die "no prepared variant ${HEAD} (prepare.sh)"
+D="${data:-${FINAL_ROOT}/data}/${part}"
+mkdir -p "$D"
+D="$(cd "$D" && pwd)"
+# the host's cores NUMA node by NUMA node (lib.sh): runs take blocks of it
+CORES_ORDER="${FINAL_CORE_ORDER:-$(fin_core_order)}"
 [ -n "$CORES_ORDER" ] || CORES_ORDER="$(seq -s, 0 $((NCORES - 1)))"
 CAMPAIGN_TOOL="${FIN_REPO}/crates/akantu-bench/scripts/c1prep_campaign.sh"
 X="${FIN_REPO}/scripts/perf/explicit-step"
-want_series() { [ -z "$only" ] && return 0; case ",${only}," in *",$1,"*) return 0 ;; *) return 1 ;; esac; }
-if [ "$planonly" = 0 ]; then
 exec 8> "${D}/.lock"
 flock -n 8 || fin_die "another run_part.sh holds ${D}/.lock"
 
 # failures of an earlier session are kept as history: this session repeats
-# every incomplete point and reports its own outcome
+# every incomplete group and reports its own outcome
 for f in FAILED CHECKS_FAILED; do
   if [ -s "$D/$f" ]; then mkdir -p "$D/history"; mv "$D/$f" "$D/history/$f.$(date -u +%Y%m%dT%H%M%SZ)"; fi
 done
+fin_session_start "$D"
 fin_provenance "$D" "$part"
-fin_cmdlog "$D" "$0" "$part" --reps "$reps" --size "$size" ${only:+--only "$only"} --pin "$pin" --memory "$memory"
+fin_cmdlog "$D" "$0" "$part" --reps "$reps" --size "$size" ${only:+--only "$only"} ${variants:+--variants "$variants"} \
+  --pin "$pin" --memory "$memory" --placement "$placement" --sparselu-threads "$slu"
 {
-  echo "part=${part} size=${size} reps=${reps} only=${only:-all} pin=${pin} memory=${memory} cores=${NCORES}"
+  echo "part=${part} size=${size} reps=${reps} only=${only:-all} variants=${variants:-all} pin=${pin} memory=${memory} cores=${NCORES} placement=${placement} session=${FIN_SESSION}"
   echo "before=$(fin_variant_key "$BEFORE" revision) head=$(fin_variant_key "$HEAD" revision) cpp=${FIN_CPP_REF}"
+  echo "sparselu_threaded=${slu} (head: $(fin_variant_key "$HEAD" sparselu_probe))"
   echo "core_order=${CORES_ORDER} (one CPU per physical core, NUMA node by NUMA node)"
-  lscpu | grep -E '^NUMA node[0-9]+ CPU' | sed 's/^/numa: /' 
+  lscpu | grep -E '^NUMA node[0-9]+ CPU' | sed 's/^/numa: /'
 } | fin_scrub >> "$D/provenance.txt"
-fin_progress "$D" "part ${part} start: size ${size}, ${reps} repetitions${only:+, series ${only}}"
-fi
+
+# ---------------------------------------------------------------- the binaries
+# every binary of both variants is the one its VARIANT.json names; the C++
+# side is the one CPP.json names; the port's MPI driver runs from a copy in
+# the Docker volume addressed by its SHA-256 (never a path another FINAL_ROOT
+# or another prepare.sh can overwrite)
+for v in "$BEFORE" "$HEAD"; do
+  fin_verify_variant "$v" > "$D/.verify" 2>&1 || { cat "$D/.verify" >&2; fin_die "the binaries of $v are not those of its VARIANT.json"; }
+done
+CPP_JSON="${FIN_BIN}/cpp/CPP.json"
+cpp_sha() { python3 -I -c 'import json,sys; print(json.load(open(sys.argv[1]))["sha256"].get(sys.argv[2], ""))' "$CPP_JSON" "$1" 2> /dev/null; }
+declare -A RSHA RBIN
+case "$part" in
+  C|D|E|F|G)
+    for c in strict default; do
+      got=$(docker run --rm -v akantu-perf-cohesive:/perf:ro "${FIN_ORACLE_IMAGE}" sha256sum "/perf/builds/$c/cohesive_extrinsic" 2> /dev/null | cut -d' ' -f1)
+      [ -n "$got" ] && [ "$got" = "$(cpp_sha "cohesive_extrinsic_$c")" ] \
+        || fin_die "the C++ harness /perf/builds/$c is not the one of CPP.json (got ${got:-none})"
+    done
+    for b in before head; do
+      vd=$(if [ "$b" = before ]; then echo "$BEFORE"; else echo "$HEAD"; fi)
+      sha=$(sha256sum "$vd/mpi/cohesive_extrinsic" | cut -d' ' -f1)
+      path="/target/final/sha/$sha/cohesive_extrinsic"
+      got=$(docker run --rm -u 0 -v "${FIN_TVOL}:/target" -v "$vd/mpi:/src:ro" "${FIN_MPI_IMAGE}" sh -c \
+        "test -x $path || { mkdir -p /target/final/sha/$sha && cp /src/cohesive_extrinsic $path && chmod -R a+rX /target/final; }; sha256sum $path" | cut -d' ' -f1)
+      [ "$got" = "$sha" ] || fin_die "the copy of ${b}'s driver in the volume ($path) has SHA-256 ${got:-none}"
+      RSHA[$b]=$sha; RBIN[$b]=$path
+      echo "driver_${b}=${path}" >> "$D/provenance.txt"
+    done ;;
+  A)
+    for c in strict default; do
+      [ "$(sha256sum "${FIN_BIN}/cpp/explicit_step_timing_$c" | cut -d' ' -f1)" = "$(cpp_sha "explicit_step_timing_$c")" ] \
+        || fin_die "${FIN_BIN}/cpp/explicit_step_timing_$c is not the one of CPP.json"
+    done ;;
+esac
+
+# ---------------------------------------------------------------- the plan
+python3 -I "${FIN_HERE}/plan.py" "${plan_args[@]}" --cores "$NCORES" --memory "$memory" --out "$D" --print \
+  > "$D/plan.txt" || fin_die "plan.py failed"
+fin_progress "$D" "part ${part} start (session ${FIN_SESSION}): $(grep -c . "$D/plan.tsv") groups, size ${size}, ${reps} repetitions${only:+, series ${only}}${variants:+, variants ${variants}}"
+fin_progress "$D" "plan: $(grep '^total' "$D/plan.txt" | tr -s ' ')"
 
 # variant label -> host directory of its base variant
 vdir() { case "${1%%-*}" in before) echo "$BEFORE" ;; head) echo "$HEAD" ;; *) fin_die "variant $1" ;; esac; }
-# labels of the timing parts that need more cores than the machine has are dropped
-fits() { local t; read -r _ t _ <<< "$(fin_parse_label "$1")"; [ "$t" -le "$NCORES" ]; }
+threads_of() { case "$1" in *-t[0-9]*) echo "${1##*-t}" ;; *) echo 1 ;; esac; }
+precision_of() { case "$1" in *-fast*) echo fast ;; *) echo bitwise ;; esac; }
 
 # ----------------------------------------------------------------------------
 # Part A: the explicit step
-part_a() {
-  local progs="$D/progs" labels=() l b t p cfgs mesh mode n fd rec rp rs rdd ok r
-  local all="cpp-strict cpp-default before head head-t2 head-t4 head-t8 head-fast head-fast-t8"
-  for l in $all; do
-    case "$l" in cpp-*) labels+=("$l"); continue ;; esac
-    fits "$l" || { fin_progress "$D" "A: ${l} needs more cores than ${NCORES}: dropped"; continue; }
-    read -r b t p <<< "$(fin_parse_label "$l")"
-    if [ "$t" = 1 ]; then fin_wrapper "$progs" "$l" "$(vdir "$l")/explicit_step_timing" 1 "$p" "$pin"
-    else fin_wrapper "$progs" "$l" "$(vdir "$l")/explicit_step_timing" "$t" "$p" 0; fi
-    labels+=("$l")
-  done
-  if [ "$size" = full ]; then
-    cfgs="tet4-20k:30 tet4-20k:30:fd tet4-200k:6 tet4-200k:6:fd tet10-20k:6 tet10-20k:6:fd hex8-20k:8 hex8-20k:8:fd hex8-200k:3 hex8-200k:3:fd"
-  else
-    cfgs="tet4-20k:3 tet4-20k:3:fd tet10-20k:2 tet10-20k:2:fd hex8-20k:2 hex8-20k:2:fd"
-  fi
-  local meshes="${FINAL_ROOT}/meshes/explicit"
-  rec="${FIN_REPO}/docs/benchmarks/explicit-step/final/digests.txt"
-  # 1. state digests (once): every bitwise program equal, and equal to the
-  #    recorded digests (port = C++ strict; C++ default its own)
-  if want_series digests && [ ! -e "$D/digests.ok" ]; then
-    fin_progress "$D" "A digests: start"
-    : > "$D/digests.tsv"
-    ok=1
-    for c in $cfgs; do
-      IFS=: read -r mesh _ fd <<< "$c"; mode=ss; [ "${fd:-}" = fd ] && mode=fd
-      n=$(awk -v m="$mesh" -v o="$mode" '$1 == m && $2 == o {sub("n=", "", $3); print $3}' "$rec")
-      read -r rp rs rdd <<< "$(awk -v m="$mesh" -v o="$mode" '$1 == m && $2 == o {print $4, $7, $8}' "$rec")"
-      local ref="" dig
-      for l in "${labels[@]}"; do
-        case "$l" in
-          cpp-*) dig=$(PIN_CPU="$pin" "$X/cpp_run.sh" "${FIN_BIN}/cpp" "${l#cpp-}" "$meshes" "$mesh" 1 1 0 \
-                   "$([ "$mode" = fd ] && echo 1 || echo 0)" check "$n" | sed -n 's/.*"fnv1a":"\([0-9a-f]*\)".*/\1/p') ;;
-          *) local fdarg=(); [ "$mode" = fd ] && fdarg=(--fd)
-             dig=$("$progs/$l" --mesh "$meshes/$mesh.msh" --digest-steps "$n" "${fdarg[@]}" | sed -n 's/.*"fnv1a":"\([0-9a-f]*\)".*/\1/p') ;;
-        esac
-        local verdict
-        case "$l" in
-          *-fast*) verdict="not-compared(fast)" ;;
-          cpp-default) if [ "$dig" = "$rdd" ]; then verdict="=recorded"; else verdict="DIFFERS(recorded ${rdd})"; ok=0; fi ;;
-          *) [ -n "$ref" ] || ref=$dig
-             if [ -n "$dig" ] && [ "$dig" = "$ref" ] && [ "$dig" = "$rs" ] && [ "$dig" = "$rp" ]; then verdict="=cpp-strict=recorded"
-             else verdict="DIFFERS(recorded ${rs})"; ok=0; fi ;;
-        esac
-        printf '%s\t%s\tn=%s\t%s\t%s\t%s\n' "$mesh" "$mode" "$n" "$l" "${dig:-none}" "$verdict" >> "$D/digests.tsv"
-      done
-    done
-    if [ "$ok" = 1 ]; then touch "$D/digests.ok"; fin_progress "$D" "A digests: all equal (digests.tsv)"
-    else fin_check_fail "$D" "A digests: a bitwise program differs (digests.tsv)"; fi
-  fi
-  # 2. rounds: every configuration with every program, order rotated per round
-  want_series rounds || return 0
-  mkdir -p "$D/rounds"
-  for ((r = 1; r <= reps; r++)); do
-    [ -e "$D/rounds/r$r.ok" ] && { fin_progress "$D" "A round ${r}: complete, skipped"; continue; }
-    rm -f "$D/rounds/r$r.jsonl"
-    fin_cmdlog "$D" env ROUND_START="$r" PIN_CPU="$pin" BIN_DIR="$progs" CPP_BIN_DIR="${FIN_BIN}/cpp" MESH_DIR="$meshes" \
-      "$X/timing_rotated.sh" "$D/rounds/r$r.jsonl" 1 "${labels[*]}" "$cfgs"
-    if env ROUND_START="$r" PIN_CPU="$pin" BIN_DIR="$progs" CPP_BIN_DIR="${FIN_BIN}/cpp" MESH_DIR="$meshes" \
-      "$X/timing_rotated.sh" "$D/rounds/r$r.jsonl" 1 "${labels[*]}" "$cfgs" > "$D/rounds/r$r.log" 2>&1 \
-      && check_a_round "$D/rounds/r$r.jsonl" "${labels[@]}"; then
-      touch "$D/rounds/r$r.ok"; fin_progress "$D" "A round ${r}/${reps}: done"
-    else
-      echo "$(fin_utc) A round ${r}" >> "$D/FAILED"; fin_progress "$D" "A round ${r}: FAILED (rounds/r$r.log)"
-    fi
+a_wrappers() { # labels... -> wrappers in $D/progs
+  local l t p
+  for l in "$@"; do
+    case "$l" in cpp-*) continue ;; esac
+    t=$(threads_of "$l"); p=$(precision_of "$l")
+    if [ "$t" = 1 ]; then fin_wrapper "$D/progs" "$l" "$(vdir "$l")/explicit_step_timing" 1 "$p" "$pin"
+    else fin_wrapper "$D/progs" "$l" "$(vdir "$l")/explicit_step_timing" "$t" "$p" 0; fi
   done
 }
 
-# every program's time lines present and every port meta line with the requested threads and precision
+run_a_digests() { # id labels configs
+  local id=$1 cfgs=$3 labels l c mesh mode n fd rp rs rdd ok=1 dig ref verdict
+  read -r -a labels <<< "$2"
+  a_wrappers "${labels[@]}"
+  local meshes="${FINAL_ROOT}/meshes/explicit" rec="${FIN_REPO}/docs/benchmarks/explicit-step/final/digests.txt"
+  : > "$D/digests.tsv"
+  for c in $cfgs; do
+    IFS=: read -r mesh _ fd <<< "$c"; mode=ss; [ "${fd:-}" = fd ] && mode=fd
+    n=$(awk -v m="$mesh" -v o="$mode" '$1 == m && $2 == o {sub("n=", "", $3); print $3}' "$rec")
+    read -r rp rs rdd <<< "$(awk -v m="$mesh" -v o="$mode" '$1 == m && $2 == o {print $4, $7, $8}' "$rec")"
+    ref=""
+    for l in "${labels[@]}"; do
+      case "$l" in
+        cpp-*) dig=$(PIN_CPU="$pin" "$X/cpp_run.sh" "${FIN_BIN}/cpp" "${l#cpp-}" "$meshes" "$mesh" 1 1 0 \
+                 "$([ "$mode" = fd ] && echo 1 || echo 0)" check "$n" | sed -n 's/.*"fnv1a":"\([0-9a-f]*\)".*/\1/p') ;;
+        *) local fdarg=(); [ "$mode" = fd ] && fdarg=(--fd)
+           dig=$("$D/progs/$l" --mesh "$meshes/$mesh.msh" --digest-steps "$n" "${fdarg[@]}" | sed -n 's/.*"fnv1a":"\([0-9a-f]*\)".*/\1/p') ;;
+      esac
+      case "$l" in
+        *-fast*) verdict="not-compared(fast)" ;;
+        cpp-default) if [ "$dig" = "$rdd" ]; then verdict="=recorded"; else verdict="DIFFERS(recorded ${rdd})"; ok=0; fi ;;
+        *) [ -n "$ref" ] || ref=$dig
+           if [ -n "$dig" ] && [ "$dig" = "$ref" ] && [ "$dig" = "$rs" ] && [ "$dig" = "$rp" ]; then verdict="=cpp-strict=recorded"
+           else verdict="DIFFERS(recorded ${rs})"; ok=0; fi ;;
+      esac
+      printf '%s\t%s\tn=%s\t%s\t%s\t%s\n' "$mesh" "$mode" "$n" "$l" "${dig:-none}" "$verdict" >> "$D/digests.tsv"
+    done
+  done
+  if [ "$ok" = 1 ]; then fin_group_record "$D" "$id" done; fin_progress "$D" "A digests: all equal (digests.tsv)"
+  else fin_group_record "$D" "$id" check_failed; fin_check_fail "$D" "A digests: a bitwise program differs (digests.tsv)"; fi
+}
+
+run_a_round() { # id rep labels configs
+  local id=$1 r=$2 cfgs=$4 labels
+  read -r -a labels <<< "$3"
+  a_wrappers "${labels[@]}"
+  local meshes="${FINAL_ROOT}/meshes/explicit"
+  mkdir -p "$D/rounds"
+  rm -f "$D/rounds/r$r.jsonl"
+  # the plan's order is the round's order: timing_rotated.sh rotates by the
+  # round number, so give it the list rotated back
+  local n=${#labels[@]} back
+  read -r -a back <<< "$(fin_rotate "$(( (n - (r - 1) % n) % n ))" "${labels[@]}")"
+  fin_cmdlog "$D" env ROUND_START="$r" PIN_CPU="$pin" BIN_DIR="$D/progs" CPP_BIN_DIR="${FIN_BIN}/cpp" MESH_DIR="$meshes" \
+    "$X/timing_rotated.sh" "$D/rounds/r$r.jsonl" 1 "${back[*]}" "$cfgs"
+  if env ROUND_START="$r" PIN_CPU="$pin" BIN_DIR="$D/progs" CPP_BIN_DIR="${FIN_BIN}/cpp" MESH_DIR="$meshes" \
+    "$X/timing_rotated.sh" "$D/rounds/r$r.jsonl" 1 "${back[*]}" "$cfgs" > "$D/rounds/r$r.log" 2>&1; then
+    if check_a_round "$D/rounds/r$r.jsonl" "${labels[@]}"; then
+      fin_group_record "$D" "$id" done; fin_progress "$D" "A round ${r}: done"
+    else fin_group_record "$D" "$id" check_failed; fin_progress "$D" "A round ${r}: CHECK FAILED"; fi
+  else
+    fin_group_record "$D" "$id" failed; echo "$(fin_utc) $id" >> "$D/FAILED"; fin_progress "$D" "A round ${r}: FAILED (rounds/r$r.log)"
+  fi
+}
+
+# every program's time lines present and every port meta line with the
+# requested threads and precision (of the process default policy, read from
+# the environment by the harness)
 check_a_round() {
   local f=$1; shift
   python3 -I - "$f" "$D/CHECKS_FAILED" "$@" <<'PY'
@@ -209,8 +271,7 @@ for line in open(f):
         continue
     o = json.loads(line)
     if o.get("kind") == "time":
-        seen.setdefault(o["label"].split("|")[0], 0)
-        seen[o["label"].split("|")[0]] += 1
+        seen[o["label"].split("|")[0]] = seen.get(o["label"].split("|")[0], 0) + 1
     if o.get("kind") != "meta":
         continue
     lab = o["label"].split("|")[0]
@@ -234,77 +295,76 @@ PY
 }
 
 # ----------------------------------------------------------------------------
-# Suites (parts B, D, F): serial groups with run_ab.sh, MPI groups in the image
+# Suites (parts B, D, F)
 
-# serial group: one case, one repetition, the variants rotated (run_ab.sh)
-suite_serial_group() { # outdir bin(suite_solid...) case sz rep labels...
-  local out=$1 bin=$2 c=$3 sz=$4 r=$5; shift 5
-  local mark="$out/.done/$c.r$r" args=() l lst
-  [ -e "$mark" ] && return 0
-  mkdir -p "$out/.done" "$out/progs"
-  for l in "$@"; do
-    local b t p; read -r b t p <<< "$(fin_parse_label "$l")"
-    lst="$out/.list-${b}"
-    [ -s "$lst" ] || "$(vdir "$l")/$bin" --list 2> /dev/null | awk '{print $1}' > "$lst"
-    grep -qx "$c" "$lst" || continue   # the case does not exist in that variant
+# serial group: one case, one repetition, the variants in the plan's order (run_ab.sh)
+run_suite() { # id rep labels dir bin case size
+  local id=$1 r=$2 out="$D/$4" bin=$5 c=$6 sz=$7 labels l args=() t p
+  read -r -a labels <<< "$3"
+  mkdir -p "$out/progs"
+  for l in "${labels[@]}"; do
+    t=$(threads_of "$l"); p=$(precision_of "$l")
     if [ "$t" = 1 ]; then fin_wrapper "$out/progs" "$l" "$(vdir "$l")/$bin" 1 "$p" "$pin"
     else fin_wrapper "$out/progs" "$l" "$(vdir "$l")/$bin" "$t" "$p" 0; fi
-    args+=("$l=$out/progs/$l")
   done
-  [ ${#args[@]} -gt 0 ] || return 0
-  # rotate the variants by the repetition (run_ab.sh rotates by its offset too)
+  # run_ab.sh rotates its variants by the repetition: give it the plan's order rotated back
+  local n=${#labels[@]} back
+  read -r -a back <<< "$(fin_rotate "$(( (n - r % n) % n ))" "${labels[@]}")"
+  for l in "${back[@]}"; do args+=("$l=$out/progs/$l"); done
   fin_cmdlog "$D" "${FIN_REPO}/scripts/perf/suite/run_ab.sh" --out "$out" --size "$sz" --reps 1 --rep-offset "$r" \
     --cases "$c" --core "$pin" "${args[@]}"
   if "${FIN_REPO}/scripts/perf/suite/run_ab.sh" --out "$out" --size "$sz" --reps 1 --rep-offset "$r" \
     --cases "$c" --core "$pin" "${args[@]}" > "$out/.log.$c.r$r" 2>&1; then
-    check_suite_group "$out" "$c" "$r" "" "$out/.log.$c.r$r" "${args[@]%%=*}" && touch "$mark"
-    fin_progress "$D" "$(basename "$out") ${c} r${r}: done"
+    if check_suite_group "$out" "$c" "$r" "" "$out/.log.$c.r$r" "${labels[@]}"; then
+      fin_group_record "$D" "$id" done; fin_progress "$D" "$id: done"
+    else fin_group_record "$D" "$id" check_failed; fin_progress "$D" "$id: CHECK FAILED"; fi
   elif grep -q "${c}: skip:" "$out/.log.$c.r$r"; then
-    # the case needs a feature this build does not have (e.g. scotch in the
-    # host build): it runs in the MPI series, not here
     grep -m1 "${c}: skip:" "$out/.log.$c.r$r" >> "$out/.skipped"
-    touch "$mark"; fin_progress "$D" "$(basename "$out") ${c} r${r}: skipped (this build)"
+    fin_group_record "$D" "$id" skipped "$(grep -m1 "${c}: skip:" "$out/.log.$c.r$r")"; fin_progress "$D" "$id: skipped (this build)"
   else
-    echo "$(fin_utc) $(basename "$out") $c r$r" >> "$D/FAILED"
-    fin_progress "$D" "$(basename "$out") ${c} r${r}: FAILED ($out/.log.$c.r$r)"
+    fin_group_record "$D" "$id" failed; echo "$(fin_utc) $id" >> "$D/FAILED"; fin_progress "$D" "$id: FAILED ($out/.log.$c.r$r)"
   fi
 }
 
-# MPI group: one case at P ranks (x T threads), one repetition, variants rotated
-suite_mpi_group() { # outdir bin case sz np rep labels...
-  local out=$1 bin=$2 c=$3 sz=$4 np=$5 r=$6; shift 6
-  local mark="$out/.done/$c.np$np.r$r" order l rc=0 names=()
-  [ -e "$mark" ] && return 0
-  mkdir -p "$out/.done"
-  read -r -a order <<< "$(fin_rotate "$r" "$@")"
-  for l in "${order[@]}"; do
-    local b t p; read -r b t p <<< "$(fin_parse_label "$l")"
-    [ $((np * t)) -le "$NCORES" ] || continue
-    local f="$out/$l/np$np/$c.r$r.jsonl" envs=() mapping=(--map-by core --bind-to core)
+# MPI group: one case at P ranks (x T threads), one repetition; every rank
+# bound to its core of the NUMA-ordered list, the binding recorded and checked
+run_suite_mpi() { # id rep labels dir bin case size np
+  local id=$1 r=$2 out="$D/$4" bin=$5 c=$6 sz=$7 np=$8 labels l rc=0 t p bad=0
+  read -r -a labels <<< "$3"
+  for l in "${labels[@]}"; do
+    t=$(threads_of "$l"); p=$(precision_of "$l")
+    local f="$out/$l/np$np/$c.r$r.jsonl" envs=() mapping=(--map-by core --bind-to core) cores rec
     mkdir -p "$(dirname "$f")"
+    cores=$(fin_run_cores "$np" "$t" fill "$CORES_ORDER")
     [ "$t" = 1 ] || { envs+=(-e "AKANTU_NUM_THREADS=$t"); mapping=(--map-by "slot:PE=$t" --bind-to core -x AKANTU_NUM_THREADS); }
     [ "$p" = bitwise ] || { envs+=(-e "AKANTU_PRECISION=$p"); mapping+=(-x AKANTU_PRECISION); }
-    local cmd=(docker run --rm --init --cpuset-cpus "0-$((np * t - 1))" --shm-size 2g -e SCOTCH_PTHREAD_NUMBER=1
+    local cmd=(docker run --rm --init --name "final-suite-$$-$RANDOM" --cpuset-cpus "$cores" --shm-size 2g -e SCOTCH_PTHREAD_NUMBER=1
       -e OMP_NUM_THREADS=1 -e OPENBLAS_NUM_THREADS=1 ${envs[@]+"${envs[@]}"} -v "$(vdir "$l")/mpi:/bench:ro" "${FIN_MPI_IMAGE}"
       mpirun --allow-run-as-root -n "$np" "${mapping[@]}" -x SCOTCH_PTHREAD_NUMBER -x OMP_NUM_THREADS -x OPENBLAS_NUM_THREADS
       "/bench/$bin" --case "$c" --size "$sz" --reps 1)
     fin_cmdlog "$D" "${cmd[@]}"
+    python3 -I "${FIN_HERE}/bindings.py" record "${f%.jsonl}.bindings.json" "$np" --comm "${bin:0:15}" > /dev/null 2>&1 &
+    rec=$!
     "${cmd[@]}" > "$f" 2> "${f%.jsonl}.err" || rc=1
-    names+=("$l")
+    kill "$rec" 2> /dev/null; wait "$rec" 2> /dev/null
+    if [ -s "$f" ] && ! python3 -I "${FIN_HERE}/bindings.py" check "${f%.jsonl}.bindings.json" "$np" "$t" "$cores" > "${f%.jsonl}.bindings.txt"; then
+      bad=1; echo "$(basename "$out") $c np$np r$r: $l: core binding not as planned (${f%.jsonl}.bindings.txt)" >> "$D/CHECKS_FAILED"
+    fi
   done
   if [ "$rc" != 0 ] && cat "$out"/*/"np$np/$c.r$r.err" 2> /dev/null | grep -q "skip:"; then
     cat "$out"/*/"np$np/$c.r$r.err" | grep -m1 "skip:" >> "$out/.skipped"
-    touch "$mark"; fin_progress "$D" "$(basename "$out") ${c} np${np} r${r}: skipped (this build or rank count)"
+    fin_group_record "$D" "$id" skipped "this build or rank count"; fin_progress "$D" "$id: skipped (this build or rank count)"
   elif [ "$rc" = 0 ]; then
-    check_suite_group "$out" "$c" "$r" "np$np" "" "${names[@]}" && touch "$mark"
-    fin_progress "$D" "$(basename "$out") ${c} np${np} r${r}: done"
+    if check_suite_group "$out" "$c" "$r" "np$np" "" "${labels[@]}" && [ "$bad" = 0 ]; then
+      fin_group_record "$D" "$id" done; fin_progress "$D" "$id: done"
+    else fin_group_record "$D" "$id" check_failed; fin_progress "$D" "$id: CHECK FAILED"; fi
   else
-    echo "$(fin_utc) $(basename "$out") $c np$np r$r" >> "$D/FAILED"
-    fin_progress "$D" "$(basename "$out") ${c} np${np} r${r}: FAILED"
+    fin_group_record "$D" "$id" failed; echo "$(fin_utc) $id" >> "$D/FAILED"; fin_progress "$D" "$id: FAILED"
   fi
 }
 
-# digests of the bitwise variants equal; threads and precision as requested
+# digests of the bitwise variants equal; threads and precision (the process
+# default policy, read from the environment) as requested
 check_suite_group() { # outdir case rep npdir grouplog labels...
   local out=$1 c=$2 r=$3 npd=$4 glog=$5; shift 5
   python3 -I - "$out" "$c" "$r" "$npd" "$D/CHECKS_FAILED" "${FIN_HERE}/digest-exceptions.txt" "$glog" "$@" <<'PY'
@@ -324,6 +384,7 @@ bad, digests = [], {}
 for lab in labels:
     f = os.path.join(out, lab, npd, f"{case}.r{rep}.jsonl") if npd else os.path.join(out, lab, f"{case}.r{rep}.jsonl")
     if not os.path.exists(f):
+        bad.append(f"{lab}: no result file")
         continue
     want_t = int(lab.rsplit("-t", 1)[1]) if "-t" in lab else 1
     want_p = "fast" if "-fast" in lab else "bitwise"
@@ -360,73 +421,22 @@ if bad:
 PY
 }
 
-# the case list of a suite binary (head; the cases before lacks are run without before)
-suite_cases() { "${HEAD}/$1" --list 2> /dev/null | awk '{print $1}'; }
-
-# ----------------------------------------------------------------------------
-# Part B: the suites
-SERIAL_LABELS="before head head-t2 head-t4 head-t8 head-fast head-fast-t8"
-part_b() {
-  local sz=m s c r cases labels=() l np
-  [ "$size" = dry ] && sz=s
-  for l in $SERIAL_LABELS; do fits "$l" && labels+=("$l"); done
-  for s in solid models setup; do
-    want_series "$s" || continue
-    mapfile -t cases < <(suite_cases "suite_$s")
-    for ((r = 0; r < reps; r++)); do
-      read -r -a cases_r <<< "$(fin_rotate "$r" "${cases[@]}")"
-      for c in "${cases_r[@]}"; do suite_serial_group "$D/suite-$s" "suite_$s" "$c" "$sz" "$r" "${labels[@]}"; done
-    done
+run_python() { # id rep labels case size
+  local id=$1 r=$2 c=$4 sz=$5 labels l rc=0 out="$D/python"
+  read -r -a labels <<< "$3"
+  for l in "${labels[@]}"; do
+    mkdir -p "$out/$l"
+    rm -f "$out/$l/$c.r$r.jsonl"
+    fin_cmdlog "$D" env OPENBLAS_NUM_THREADS=1 OMP_NUM_THREADS=1 taskset -c "$pin" "$(vdir "$l")/venv/bin/python" -I "$(vdir "$l")/suite_python.py" \
+      --case "$c" --size "$sz" --reps 1 --out "$out/$l/$c.r$r.jsonl"
+    env OPENBLAS_NUM_THREADS=1 OMP_NUM_THREADS=1 MKL_NUM_THREADS=1 taskset -c "$pin" "$(vdir "$l")/venv/bin/python" -I "$(vdir "$l")/suite_python.py" \
+      --case "$c" --size "$sz" --reps 1 --out "$out/$l/$c.r$r.jsonl" > /dev/null 2> "$out/$l/$c.r$r.err" || rc=1
   done
-  # the distributed cases at 1 / 2 / 4 / 8 ranks; ranks x threads for head
-  if want_series mpi; then
-    local spec bin mcases
-    for spec in "suite_solid:par_explicit_tet4_ss,par_cohesive_extrinsic" \
-      "suite_setup:explicit_step_dist_tet4,dist_mesh_tet4,dist_facets_tet4,ghost_nodes_tet4,ghost_elements_tet4,reduce_scalars,partition_scotch_tet4,partition_rcb_tet4" \
-      "suite_models:heat_explicit_tet4,phasefield_staggered_tri3"; do
-      bin=${spec%%:*}; IFS=, read -r -a mcases <<< "${spec#*:}"
-      for ((r = 0; r < reps; r++)); do
-        for c in "${mcases[@]}"; do
-          for np in 1 2 4 8; do
-            [ "$np" -le "$NCORES" ] || continue
-            local vs=(before head)
-            [ "$np" = 2 ] && vs+=(head-t4)
-            [ "$np" = 4 ] && vs+=(head-t2)
-            suite_mpi_group "$D/mpi-${bin#suite_}" "$bin" "$c" "$sz" "$np" "$r" "${vs[@]}"
-          done
-        done
-      done
-    done
-  fi
-  # the Python suite: the same script with each variant's extension
-  if want_series python; then
-    local out="$D/python" pcases
-    mkdir -p "$out/.done"
-    mapfile -t pcases < <("${HEAD}/venv/bin/python" -I "${HEAD}/suite_python.py" --list 2> /dev/null | awk '{print $1}')
-    "${BEFORE}/venv/bin/python" -I "${BEFORE}/suite_python.py" --list 2> /dev/null | awk '{print $1}' > "$out/.list-before"
-    for ((r = 0; r < reps; r++)); do
-      for c in "${pcases[@]}"; do
-        [ -e "$out/.done/$c.r$r" ] && continue
-        local rc=0 order
-        local vs=(head)
-        grep -qx "$c" "$out/.list-before" && vs=(before head)
-        read -r -a order <<< "$(fin_rotate "$r" "${vs[@]}")"
-        for l in "${order[@]}"; do
-          mkdir -p "$out/$l"
-          fin_cmdlog "$D" env OPENBLAS_NUM_THREADS=1 OMP_NUM_THREADS=1 taskset -c "$pin" "$(vdir "$l")/venv/bin/python" -I "$(vdir "$l")/suite_python.py" \
-            --case "$c" --size "$sz" --reps 1 --out "$out/$l/$c.r$r.jsonl"
-          rm -f "$out/$l/$c.r$r.jsonl"
-          env OPENBLAS_NUM_THREADS=1 OMP_NUM_THREADS=1 MKL_NUM_THREADS=1 taskset -c "$pin" "$(vdir "$l")/venv/bin/python" -I "$(vdir "$l")/suite_python.py" \
-            --case "$c" --size "$sz" --reps 1 --out "$out/$l/$c.r$r.jsonl" > /dev/null 2> "$out/$l/$c.r$r.err" || rc=1
-        done
-        if [ "$rc" = 0 ]; then
-          check_suite_group "$out" "$c" "$r" "" "" "${vs[@]}" && touch "$out/.done/$c.r$r"
-          fin_progress "$D" "python ${c} r${r}: done"
-        else
-          echo "$(fin_utc) python $c r$r" >> "$D/FAILED"; fin_progress "$D" "python ${c} r${r}: FAILED"
-        fi
-      done
-    done
+  if [ "$rc" = 0 ]; then
+    if check_suite_group "$out" "$c" "$r" "" "" "${labels[@]}"; then fin_group_record "$D" "$id" done; fin_progress "$D" "$id: done"
+    else fin_group_record "$D" "$id" check_failed; fin_progress "$D" "$id: CHECK FAILED"; fi
+  else
+    fin_group_record "$D" "$id" failed; echo "$(fin_utc) $id" >> "$D/FAILED"; fin_progress "$D" "$id: FAILED"
   fi
 }
 
@@ -453,37 +463,42 @@ coh_partition() { # h np
     docker run --rm -u 0 -v akantu-perf-cohesive:/perf "${FIN_ORACLE_IMAGE}" rm -rf "/perf/runs/$camp"
     fin_progress "$D" "partition h${h} np${np}: exported"
   else
-    echo "$(fin_utc) partition h$h np$np" >> "$D/FAILED"; fin_progress "$D" "partition h${h} np${np}: FAILED"
+    fin_progress "$D" "partition h${h} np${np}: FAILED"
     return 1
   fi
 }
 
+run_partition() { # id h np
+  if coh_partition "$2" "$3"; then fin_group_record "$D" "$1" done
+  else fin_group_record "$D" "$1" failed; echo "$(fin_utc) $1" >> "$D/FAILED"; fi
+}
+
 # one run; prints the outcome (ok | ud216 | oom | failed)
-coh_run() { # series h steps np rep variant attempt
-  local series=$1 h=$2 steps=$3 np=$4 rep=$5 v=$6 att=$7 c b t=1 p=bitwise opts=() extra=() camp outcome
+coh_run() { # group series h steps np rep variant attempt placement
+  local group=$1 series=$2 h=$3 steps=$4 np=$5 rep=$6 v=$7 att=$8 placement=$9 c b t p opts=() extra=() camp outcome cores sha
+  t=$(threads_of "$v"); p=$(precision_of "$v")
   case "$v" in
-    cpp) c=cpp ;;
-    cppeig) c=cppeig ;;
+    cpp) c=cpp; sha=$(cpp_sha cohesive_extrinsic_strict) ;;
+    cppeig) c=cppeig; sha=$(cpp_sha cohesive_extrinsic_strict) ;;
     *) b=${v%%-*}; c=rust
        case "$v" in *-eig*) c=rusteig ;; esac
-       case "$v" in *-fast*) p=fast ;; esac
        case "$v" in *-release*) extra+=(--rust-extra "rust_release_static_solver=true") ;; esac
-       case "$v" in *-t[0-9]*) t=${v##*-t} ;; esac
-       opts+=(--rust-bin "/target/final/$b/cohesive_extrinsic" --rust-volume "${FIN_TVOL}" --rust-image "${FIN_MPI_IMAGE}")
+       sha=${RSHA[$b]}
+       opts+=(--rust-bin "${RBIN[$b]}" --rust-volume "${FIN_TVOL}" --rust-image "${FIN_MPI_IMAGE}")
        [ "$t" = 1 ] || opts+=(--rust-threads "$t")
        [ "$p" = bitwise ] || opts+=(--rust-precision "$p") ;;
   esac
   camp="${series}-h${h}-np${np}-r${rep}-${v}"
   [ "$att" = 1 ] || camp="${camp}-a${att}"
   rm -rf "${D:?}/runs/${camp}"
+  cores=$(fin_run_cores "$np" "$t" "$placement" "$CORES_ORDER")
   local partopt=()
   [ "$np" = 1 ] || partopt=(--partitions "$D/partitions/h$h")
-  local cmd=(env OUT="$D/runs" PIN_CPUS_LIST="$CORES_ORDER" C1PREP_LOCK="$D/c1.lock" FNTE=joss CPP_CONFIG=strict C1_CONTAINER_PREFIX=final PERF_MPI_BIND=core
+  local cmd=(env OUT="$D/runs" PIN_CPUS_LIST="$cores" C1PREP_LOCK="$D/c1.lock" FNTE=joss CPP_CONFIG=strict C1_CONTAINER_PREFIX=final PERF_MPI_BIND=core
     bash "$CAMPAIGN_TOOL" --memory "$memory" --cpus "$NCORES" ${partopt[@]+"${partopt[@]}"} ${opts[@]+"${opts[@]}"}
     ${extra[@]+"${extra[@]}"} "$camp" "$h" "$steps" "$np" 1 "$c")
   fin_cmdlog "$D" "${cmd[@]}"
   local t0 t1 rec
-  # the binding of every rank (rank -> cores), read from /proc while it runs
   rm -f "$D/runs/${camp}.bindings.json"
   python3 -I "${FIN_HERE}/bindings.py" record "$D/runs/${camp}.bindings.json" "$np" > /dev/null 2>&1 &
   rec=$!
@@ -493,33 +508,27 @@ coh_run() { # series h steps np rep variant attempt
   kill "$rec" 2> /dev/null; wait "$rec" 2> /dev/null
   outcome=$(sed -n 's/^outcome="\(.*\)"$/\1/p' "$D/runs/$camp/$c/np$np/rep1/status.txt" 2> /dev/null)
   [ -n "$outcome" ] || outcome=failed
-  # the run directories in the volumes are copies: free them
   docker run --rm -u 0 -v akantu-perf-cohesive:/perf -v "${FIN_TVOL}:/target" "${FIN_ORACLE_IMAGE}" \
     rm -rf "/perf/runs/$camp" "/target/c1prep/$camp" > /dev/null 2>&1
-  python3 -I -c 'import json,sys; k=["series","h","steps","np","rep","variant","case","threads","precision","attempt","campaign","outcome","utc_start","wall_s"]
+  python3 -I -c 'import json,sys; k=["group","series","h","steps","np","rep","variant","case","threads","precision","attempt","campaign","outcome","utc_start","wall_s","placement","cores","binary_sha256","session"]
 v=sys.argv[1:]; d=dict(zip(k,v)); [d.__setitem__(x,int(d[x])) for x in ("steps","np","rep","threads","attempt")]; d["wall_s"]=float(d["wall_s"])
-print(json.dumps(d))' "$series" "$h" "$steps" "$np" "$rep" "$v" "$c" "$t" "$p" "$att" "$camp" "$outcome" \
-    "$(date -u -d "@$t0" +%FT%TZ)" "$((t1 - t0))" >> "$D/index.jsonl"
+print(json.dumps(d))' "$group" "$series" "$h" "$steps" "$np" "$rep" "$v" "$c" "$t" "$p" "$att" "$camp" "$outcome" \
+    "$(date -u -d "@$t0" +%FT%TZ)" "$((t1 - t0))" "$placement" "$cores" "$sha" "$FIN_SESSION" >> "$D/index.jsonl"
   echo "$outcome"
 }
 
-# a group: the variants of one point in one repetition, order rotated by the
-# repetition; repeated (at most twice) when a C++ run took upstream's MUMPS
-# retry path (UD-216); then the checks
-coh_group() { # series h steps np rep variants...
-  local series=$1 h=$2 steps=$3 np=$4 rep=$5; shift 5
-  local vkey; vkey=$(echo "$@" | tr ' ' '+')
-  local mark="$D/.done/${series}-h${h}-np${np}-r${rep}-${vkey}" order v att=1 res ud allok
-  [ -e "$mark" ] && return 0
-  mkdir -p "$D/.done" "$D/runs"
-  coh_partition "$h" "$np" || return 0
-  read -r -a order <<< "$(fin_rotate "$((rep - 1))" "$@")"
+# a group: the variants of one point in one repetition, in the plan's order;
+# repeated (at most twice) when a C++ run took upstream's MUMPS retry path
+# (UD-216); then the checks
+run_coh() { # id rep labels series h steps np placement
+  local id=$1 rep=$2 series=$4 h=$5 steps=$6 np=$7 placement=$8 order v att=1 res ud allok
+  read -r -a order <<< "$3"
+  mkdir -p "$D/runs"
+  coh_partition "$h" "$np" || { fin_group_record "$D" "$id" failed "no partition"; echo "$(fin_utc) $id: no partition" >> "$D/FAILED"; return 0; }
   while :; do
     ud=0 allok=1
     for v in "${order[@]}"; do
-      local tv=1; case "$v" in *-t[0-9]*) tv=${v##*-t} ;; esac
-      [ $((np * tv)) -le "$NCORES" ] || { fin_progress "$D" "${series} h${h} np${np}: ${v} needs $((np * tv)) cores: skipped"; continue; }
-      res=$(coh_run "$series" "$h" "$steps" "$np" "$rep" "$v" "$att")
+      res=$(coh_run "$id" "$series" "$h" "$steps" "$np" "$rep" "$v" "$att" "$placement")
       [ "$res" = ok ] || allok=0
       [ "$res" = ud216 ] && ud=1
       fin_progress "$D" "${series} h${h} np${np} r${rep} ${v}: ${res}$([ "$att" = 1 ] || echo " (attempt ${att})")"
@@ -528,23 +537,35 @@ coh_group() { # series h steps np rep variants...
     break
   done
   if [ "$allok" = 1 ]; then
-    coh_check "$series" "$h" "$np" "$rep" "$att" "${order[@]}" && touch "$mark"
+    if coh_check "$series" "$h" "$np" "$rep" "$att" "$placement" "${order[@]}"; then fin_group_record "$D" "$id" done
+    else fin_group_record "$D" "$id" check_failed; fi
   else
-    echo "$(fin_utc) ${series} h${h} np${np} r${rep}" >> "$D/FAILED"
+    fin_group_record "$D" "$id" failed; echo "$(fin_utc) $id" >> "$D/FAILED"
   fi
 }
 
-# thread count and precision recorded by every port run; at one rank (and in
-# the SparseLU series at every rank count) the per-step energies and the
-# insertions of every bitwise variant identical (and equal to C++ at one rank)
-coh_check() { # series h np rep attempt variants...
-  local series=$1 h=$2 np=$3 rep=$4 att=$5; shift 5
-  python3 -I - "$D" "$series" "$h" "$np" "$rep" "$att" "$CORES_ORDER" "${FIN_HERE}/bindings.py" "$@" <<'PY'
+# per run: the binary that ran is the one of VARIANT.json / CPP.json; the core
+# binding is the planned one; the thread count and precision of each port run
+# (rust_exec: the process default policy read from the environment) are the
+# requested ones; at one rank (and in the SparseLU series at every rank count)
+# the per-step energies and the insertions of every bitwise variant exist and
+# are identical (and equal to C++ at one rank)
+coh_check() { # series h np rep attempt placement variants...
+  local series=$1 h=$2 np=$3 rep=$4 att=$5 placement=$6; shift 6
+  local exp=() v
+  for v in "$@"; do
+    case "$v" in cpp|cppeig) exp+=("$v=$(cpp_sha cohesive_extrinsic_strict):$(fin_run_cores "$np" 1 "$placement" "$CORES_ORDER")") ;;
+      *) exp+=("$v=${RSHA[${v%%-*}]}:$(fin_run_cores "$np" "$(threads_of "$v")" "$placement" "$CORES_ORDER")") ;;
+    esac
+  done
+  python3 -I - "$D" "$series" "$h" "$np" "$rep" "$att" "${FIN_HERE}/bindings.py" "${exp[@]}" <<'PY'
 import json, os, subprocess, sys
-D, series, h, np, rep, att, cores, bindings = sys.argv[1:9]
-variants = sys.argv[9:]
+D, series, h, np, rep, att, bindings = sys.argv[1:8]
+expect = dict(x.split("=", 1) for x in sys.argv[8:])
+variants = list(expect)
 bad, files = [], {}
 for v in variants:
+    want_sha, cores = expect[v].split(":", 1)
     camp = f"{series}-h{h}-np{np}-r{rep}-{v}" + ("" if att == "1" else f"-a{att}")
     threads = int(v.rsplit("-t", 1)[1]) if "-t" in v else 1
     bf = os.path.join(D, "runs", camp + ".bindings.json")
@@ -558,11 +579,28 @@ for v in variants:
     case = "cpp" if v == "cpp" else "cppeig" if v == "cppeig" else ("rusteig" if "-eig" in v else "rust")
     d = os.path.join(D, "runs", camp, case, f"np{np}", "rep1")
     if not os.path.isdir(d):
+        bad.append(f"{v}: no run directory")
         continue
+    if case.startswith("cpp"):
+        try:
+            got = json.load(open(os.path.join(d, "run.json"))).get("binary_sha256", "")
+        except (OSError, ValueError):
+            got = ""
+    else:
+        try:
+            got = open(os.path.join(d, "binary.sha256")).read().split()[0]
+        except (OSError, IndexError):
+            got = ""
+    if got != want_sha:
+        bad.append(f"{v}: the binary that ran ({got[:16] or 'unknown'}) is not the planned one ({want_sha[:16]})")
     if not case.startswith("cpp"):
-        want_t = int(v.rsplit("-t", 1)[1]) if "-t" in v else 1
+        want_t = threads
         want_p = "fast" if "-fast" in v else "bitwise"
-        s = json.load(open(os.path.join(d, "summary.json")))
+        try:
+            s = json.load(open(os.path.join(d, "summary.json")))
+        except (OSError, ValueError):
+            s = {}
+            bad.append(f"{v}: no summary.json")
         ex = s.get("rust_exec", {"threads": 1, "precision": "bitwise", "absent": True})
         if ex.get("threads") != want_t or ex.get("precision") != want_p:
             bad.append(f"{v}: rust_exec {ex}, requested threads {want_t} precision {want_p}")
@@ -570,7 +608,10 @@ for v in variants:
             continue
     e = os.path.join(d, "energies.csv")
     i = os.path.join(d, "insertions.csv")
-    files[v] = (open(e, "rb").read() if os.path.exists(e) else None, open(i, "rb").read() if os.path.exists(i) else None)
+    if not os.path.exists(e) or not os.path.exists(i):
+        bad.append(f"{v}: energies.csv or insertions.csv missing")
+        continue
+    files[v] = (open(e, "rb").read(), open(i, "rb").read())
 # which runs must be identical: the port's bitwise variants with the same solver;
 # with C++ at one rank (the same MUMPS or SparseLU on the same matrix)
 groups = {}
@@ -600,277 +641,88 @@ if bad:
 PY
 }
 
-# a series over points "H:NP" with the variants VARIANTS and STEPS steps;
-# EXTRA_NP2 / EXTRA_NP4: additional variants at 2 / 4 ranks on the mesh STRONG
-coh_series() { # series steps "points" "variants" [strong-h extra-np2 extra-np4] [fixed-reps]
-  local series=$1 steps=$2 points=$3 variants=$4 strong=${5:-} x2=${6:-} x4=${7:-} nrep=${8:-$reps} r pt h np vs
-  want_series "$series" || return 0
-  fin_progress "$D" "series ${series}: ${steps} steps, points ${points}, variants ${variants}"
-  for ((r = 1; r <= nrep; r++)); do
-    # point order reversed every other repetition (as scaling_series.sh)
-    local pts; read -r -a pts <<< "$points"
-    if [ $((r % 2)) = 0 ]; then local rev=(); for ((i = ${#pts[@]} - 1; i >= 0; i--)); do rev+=("${pts[$i]}"); done; pts=("${rev[@]}"); fi
-    for pt in "${pts[@]}"; do
-      h=${pt%%:*} np=${pt#*:}
-      [ "$np" -le "$NCORES" ] || continue
-      read -r -a vs <<< "$variants"
-      if [ "$h" = "$strong" ]; then
-        [ "$np" = 2 ] && [ -n "$x2" ] && vs+=("$x2")
-        [ "$np" = 4 ] && [ -n "$x4" ] && vs+=("$x4")
-      fi
-      coh_group "$series" "$h" "$steps" "$np" "$r" "${vs[@]}"
-    done
+# ----------------------------------------------------------------------------
+# Part F: the MPI layer against raw MPI (docs/benchmarks/mpi-latency-2026-11-14)
+run_in_mpi() { # np prog-dir prog args... (akantu-rs-mpi:dev, the first np cores of the NUMA-ordered list)
+  local n=$1 pd=$2; shift 2
+  docker run --rm --init --name "final-mpi-$$-$RANDOM" --cpuset-cpus "$(fin_run_cores "$n" 1 fill "$CORES_ORDER")" \
+    --shm-size 2g -v "$pd:/b:ro" akantu-rs-mpi:dev timeout -k 5 300 mpirun --allow-run-as-root --map-by core --bind-to core "$@"
+}
+
+# method A: separate launches of mpi_bench (before, head) and bench_baseline (raw)
+run_mpi_a() { # id rep labels btl np kind bytes iters
+  local id=$1 r=$2 btl=$4 np=$5 kind=$6 bytes=$7 it=$8 labels l line us rows=() ok=1 out="$D/mpilayer"
+  read -r -a labels <<< "$3"
+  mkdir -p "$out"
+  [ -s "$out/separate.tsv" ] || printf 'rep\tbtl\tnp\tkind\tbytes\tprog\tus\tgroup\n' > "$out/separate.tsv"
+  for l in "${labels[@]}"; do
+    if [ "$l" = raw ]; then
+      line=$(run_in_mpi "$np" "${FIN_BIN}/raw" --mca btl "$btl,self" -np "$np" /b/bench_baseline "$kind" "$bytes" "$it" 2>> "$out/err.log" | grep -a '^BASE' | head -1)
+      us=$(printf '%s\n' "$line" | sed -n 's/.*half-RTT \([0-9.]*\) us.*/\1/p; s/.*: \([0-9.]*\) us per exchange.*/\1/p')
+    else
+      line=$(run_in_mpi "$np" "$(vdir "$l")/mpi" --mca btl "$btl,self" -np "$np" /b/mpi_bench "$kind" "$bytes" "$it" 2>> "$out/err.log" | grep -a '^PERF' | head -1)
+      echo "$id $l $line" >> "$out/perf-lines.txt"
+      us=$(printf '%s\n' "$line" | grep -o '[0-9.]* us' | head -1 | cut -d' ' -f1)
+    fi
+    [ -n "$us" ] || ok=0
+    rows+=("$(printf '%s\t%s\t%s\t%s\t%s\t%s\t%s\t%s' "$r" "$btl" "$np" "$kind" "$bytes" "$l" "${us:-NA}" "$id")")
   done
+  printf '%s\n' "${rows[@]}" >> "$out/separate.tsv"
+  if [ "$ok" = 1 ]; then fin_group_record "$D" "$id" done; fin_progress "$D" "$id: done"
+  else fin_group_record "$D" "$id" failed; echo "$(fin_utc) $id" >> "$D/FAILED"; fin_progress "$D" "$id: FAILED (err.log)"; fi
+}
+
+# method B: `mpi_bench calibrated KIND BYTES ITERATIONS 9`, one job per
+# variant (raw MPI and akantu-comm interleaved inside it); one group = the pair
+run_mpi_b() { # id rep labels btl np kind bytes iters
+  local id=$1 r=$2 btl=$4 np=$5 kind=$6 bytes=$7 it=$8 labels l line ok=1 out="$D/mpilayer" lines=()
+  read -r -a labels <<< "$3"
+  mkdir -p "$out"
+  for l in "${labels[@]}"; do
+    line=$(run_in_mpi "$np" "$(vdir "$l")/mpi" --mca btl "$btl,self" -np "$np" /b/mpi_bench calibrated "$kind" "$bytes" "$it" 9 \
+      2>> "$out/err.log" | grep -a '^CAL summary' | head -1)
+    [ -n "$line" ] || ok=0
+    lines+=("rep=$r btl=$btl np=$np prog=$l group=$id $line")
+  done
+  printf '%s\n' "${lines[@]}" >> "$out/calibrated.txt"
+  if [ "$ok" = 1 ]; then fin_group_record "$D" "$id" done; fin_progress "$D" "$id: done"
+  else fin_group_record "$D" "$id" failed; echo "$(fin_utc) $id" >> "$D/FAILED"; fin_progress "$D" "$id: FAILED (err.log)"; fi
 }
 
 # ----------------------------------------------------------------------------
-part_c() {
-  if [ "$size" = full ]; then
-    coh_series ws 500 "0.12:1 0.0925:1 0.0925:2 0.0756:2 0.0756:4 0.06:1 0.06:2 0.06:4 0.06:8 0.0476:8" "cpp before head" 0.06 head-t4 head-t2
-    coh_series ins 1500 "0.12:1 0.12:2 0.12:4 0.12:8" "cpp before head" 0.12 head-t4 head-t2
-    coh_series full12 5000 "0.12:1 0.12:2 0.12:4 0.12:8" "cpp before head" 0.12 head-t4 head-t2
-    coh_series reh6 5000 "0.06:1 0.06:2 0.06:4 0.06:8" "cpp before head" 0.06 head-t4 head-t2
-    coh_series reh4 300 "0.04:1 0.04:2 0.04:4 0.04:8" "cpp before head" 0.04 head-t4 head-t2
-    coh_series eig 1500 "0.12:1 0.12:2 0.12:4 0.12:8" "before-eig head-eig" 0.12 head-eig-t4 head-eig-t2 1
-  else
-    coh_series ws 100 "0.12:1 0.12:2 0.12:4 0.12:8" "cpp before head" 0.12 head-t4 head-t2
-    coh_series ins 800 "0.12:1 0.12:2 0.12:4 0.12:8" "cpp before head" 0.12 head-t4 head-t2
-    coh_series full12 1000 "0.12:1 0.12:8" "cpp before head"
-    coh_series reh6 200 "0.12:1 0.12:2 0.12:4 0.12:8" "cpp before head" 0.12 head-t4 head-t2
-    coh_series reh4 50 "0.12:1 0.12:2 0.12:4 0.12:8" "cpp before head" 0.12 head-t4 head-t2
-    coh_series eig 800 "0.12:1 0.12:2 0.12:4 0.12:8" "before-eig head-eig" 0.12 head-eig-t4 head-eig-t2 1
+# the executor: every group of the plan, in order
+if [ "$part" = G ] && grep -q $'\tjoss\t' "$D/plan.tsv"; then
+  docker run --rm -v akantu-perf-cohesive:/perf:ro "${FIN_ORACLE_IMAGE}" test -f /perf/meshes/cube-joss.msh \
+    || fin_die "part G: /perf/meshes/cube-joss.msh missing (prepare.sh --joss-mesh FILE)"
+fi
+stopped=0
+while IFS=$'\t' read -r -u 3 kind id rep vars a b c d e; do
+  [ -e "$D/.done/$id" ] && continue
+  if ! why=$(fin_wait_idle); then
+    fin_group_record "$D" "$id" failed "machine not idle: $why"
+    echo "$(fin_utc) $id: machine not idle ($why); the part stops" >> "$D/FAILED"
+    fin_progress "$D" "the machine is not idle ($why): the part stops"
+    stopped=1; break
   fi
-}
-
-part_d() {
-  local hs="0.12 0.06" sz=m threaded l labels=(before head) r np
-  [ "$size" = dry ] && { hs="0.12"; sz=s; }
-  threaded=$(fin_variant_key "$HEAD" sparselu_threaded)
-  fin_progress "$D" "D: the head's SparseLU factorisation uses threads: ${threaded}"
-  echo "sparselu_threaded=${threaded}" >> "$D/provenance.txt"
-  local eigv="cppeig before-eig head-eig" h plist=""
-  [ "$threaded" = true ] && eigv="${eigv} head-eig-t2 head-eig-t4 head-eig-t8"
-  [ "$threaded" = true ] && labels+=(head-t2 head-t4 head-t8)
-  for h in $hs; do plist="${plist} ${h}:1"; done
-  coh_series eig1 10 "${plist# }" "$eigv"
-  plist=""
-  for h in $hs; do plist="${plist} ${h}:1 ${h}:2 ${h}:4"; done
-  coh_series mumps 10 "${plist# }" "cpp before head"
-  if want_series suite; then
-    for ((r = 0; r < reps; r++)); do
-      for l in static_linear_eigen static_linear_faer; do
-        suite_serial_group "$D/suite-solid" suite_solid "$l" "$sz" "$r" "${labels[@]}"
-      done
-      for np in 1 2 4; do
-        suite_mpi_group "$D/mpi-solid" suite_solid_mumps static_linear_mumps "$sz" "$np" "$r" before head
-      done
-    done
-  fi
-}
-
-part_e() {
-  if [ "$size" = full ]; then
-    coh_series mem4 300 "0.04:1 0.04:2 0.04:4 0.04:8" "cpp before head head-release"
-  else
-    coh_series mem4 50 "0.12:1 0.12:2 0.12:4 0.12:8" "cpp before head head-release"
-  fi
-}
-
-part_f() {
-  local szl=l r np
-  [ "$size" = dry ] && szl=s
-  if [ "$size" = full ]; then
-    coh_series setup 1 "0.06:1 0.06:2 0.06:4 0.06:8 0.04:1 0.04:2 0.04:4 0.04:8" "cpp before head"
-  else
-    coh_series setup 1 "0.12:1 0.12:2 0.12:4 0.12:8" "cpp before head"
-  fi
-  if want_series dist; then
-    for ((r = 0; r < reps; r++)); do
-      for np in 2 4 8; do
-        [ "$np" -le "$NCORES" ] || continue
-        suite_mpi_group "$D/dist-l" suite_setup dist_mesh_tet4 "$szl" "$np" "$r" before head
-      done
-    done
-  fi
-  want_series mpilayer && part_f_mpilayer
-}
-
-# the MPI layer against raw MPI (docs/benchmarks/mpi-latency-2026-11-14):
-# method A, separate launches of mpi_bench (before, head) and bench_baseline
-# (raw), rotated; method B, `mpi_bench calibrated` (one job per case)
-part_f_mpilayer() {
-  local out="$D/mpilayer" r btl cs np kind bytes it order l line us
-  local cases=("2 pingpong 8 20000" "2 pingpong 65536 5000" "2 pingpong 1048576 500" "2 pingpong 16777216 30" "2 halo 8192 5000" "4 halo 8192 5000")
-  [ "$size" = dry ] && cases=("2 pingpong 8 2000" "2 pingpong 1048576 50" "4 halo 8192 500")
-  mkdir -p "$out/.done"
-  [ -s "$out/separate.tsv" ] || printf 'rep\tbtl\tnp\tkind\tbytes\tprog\tus\n' > "$out/separate.tsv"
-  run_in_mpi() { # np prog-dir prog args... (akantu-rs-mpi:dev, cores 0..np-1)
-    local n=$1 pd=$2; shift 2
-    docker run --rm --init --cpuset-cpus "0-$((n - 1))" --shm-size 2g -v "$pd:/b:ro" akantu-rs-mpi:dev \
-      timeout -k 5 300 mpirun --allow-run-as-root "$@"
-  }
-  for ((r = 1; r <= reps; r++)); do
-    for btl in sm tcp; do
-      for cs in "${cases[@]}"; do
-        read -r np kind bytes it <<< "$cs"
-        local key="A.r$r.$btl.$np.$kind.$bytes"
-        [ -e "$out/.done/$key" ] && continue
-        read -r -a order <<< "$(fin_rotate "$((r - 1))" raw before head)"
-        local rows=() okk=1
-        for l in "${order[@]}"; do
-          if [ "$l" = raw ]; then
-            line=$(run_in_mpi "$np" "${FIN_BIN}/raw" --mca btl "$btl,self" -np "$np" /b/bench_baseline "$kind" "$bytes" "$it" 2>> "$out/err.log" | grep -a '^BASE' | head -1)
-            us=$(printf '%s\n' "$line" | sed -n 's/.*half-RTT \([0-9.]*\) us.*/\1/p; s/.*: \([0-9.]*\) us per exchange.*/\1/p')
-          else
-            line=$(run_in_mpi "$np" "$(vdir "$l")/mpi" --mca btl "$btl,self" -np "$np" /b/mpi_bench "$kind" "$bytes" "$it" 2>> "$out/err.log" | grep -a '^PERF' | head -1)
-            echo "$l $line" >> "$out/perf-lines.txt"
-            us=$(printf '%s\n' "$line" | grep -o '[0-9.]* us' | head -1 | cut -d' ' -f1)
-          fi
-          [ -n "$us" ] || okk=0
-          rows+=("$(printf '%s\t%s\t%s\t%s\t%s\t%s\t%s' "$r" "$btl" "$np" "$kind" "$bytes" "$l" "${us:-NA}")")
-        done
-        if [ "$okk" = 1 ]; then printf '%s\n' "${rows[@]}" >> "$out/separate.tsv"; touch "$out/.done/$key"
-          fin_progress "$D" "mpilayer A r${r} ${btl} ${kind} ${bytes} B np${np}: done"
-        else echo "$(fin_utc) mpilayer $key" >> "$D/FAILED"; fin_progress "$D" "mpilayer $key: FAILED (err.log)"; fi
-      done
-    done
-  done
-  # method B: one job per case and variant (`mpi_bench calibrated KIND BYTES
-  # ITERATIONS BLOCKS`): raw MPI and akantu-comm in interleaved blocks of one
-  # job, plus a calibration block (the API's buffer work without MPI)
-  local bcases=("2 pingpong 8 2000" "2 pingpong 65536 500" "2 pingpong 1048576 100" "2 pingpong 16777216 10" "2 halo 8192 1000" "4 halo 8192 1000")
-  [ "$size" = dry ] && bcases=("2 pingpong 8 500" "2 pingpong 1048576 20" "4 halo 8192 200")
-  for ((r = 1; r <= reps; r++)); do
-    for btl in sm tcp; do
-      for cs in "${bcases[@]}"; do
-        read -r np kind bytes it <<< "$cs"
-        read -r -a order <<< "$(fin_rotate "$((r - 1))" before head)"
-        for l in "${order[@]}"; do
-          local key="B.r$r.$btl.$np.$kind.$bytes.$l"
-          [ -e "$out/.done/$key" ] && continue
-          line=$(run_in_mpi "$np" "$(vdir "$l")/mpi" --mca btl "$btl,self" -np "$np" /b/mpi_bench calibrated "$kind" "$bytes" "$it" 9 \
-            2>> "$out/err.log" | grep -a '^CAL summary' | head -1)
-          if [ -n "$line" ]; then
-            echo "rep=$r btl=$btl np=$np prog=$l $line" >> "$out/calibrated.txt"; touch "$out/.done/$key"
-            fin_progress "$D" "mpilayer B r${r} ${btl} ${kind} ${bytes} B np${np} ${l}: done"
-          else echo "$(fin_utc) mpilayer $key" >> "$D/FAILED"; fin_progress "$D" "mpilayer $key: FAILED (err.log)"; fi
-        done
-      done
-    done
-  done
-}
-
-part_g() {
-  local mesh=joss steps=5000 gpts="${gpoints}" pt np t vs v r
-  if [ "$size" = dry ]; then mesh=0.06; steps=200; [ -n "$gpts" ] || gpts="8:head 8:cpp 4x2:head"
-  else [ -n "$gpts" ] || gpts="128:head 128:cpp 64:head 64:cpp 32:head 32:cpp 64x2:head 32x4:head 16x8:head 8:head"; fi
-  g_plan "$mesh" "$gpts" | tee "$D/plan.txt"
-  [ "$planonly" = 1 ] && return 0
-  if [ "$mesh" = joss ]; then
-    docker run --rm -v akantu-perf-cohesive:/perf:ro "${FIN_ORACLE_IMAGE}" test -f /perf/meshes/cube-joss.msh \
-      || fin_die "part G: /perf/meshes/cube-joss.msh missing (prepare.sh --joss-mesh FILE)"
-  fi
-  want_series full || return 0
-  # the partitions first, once per rank count (C++ export runs, stopped once
-  # partition.csv is complete); every run replays them
-  local done_np=" "
-  for pt in $gpts; do
-    np=${pt%%:*}; t=1
-    case "$np" in *x*) t=${np#*x}; np=${np%%x*} ;; esac
-    [ $((np * t)) -le "$NCORES" ] || continue
-    case "$done_np" in *" $np "*) continue ;; esac
-    coh_partition "$mesh" "$np" || true
-    done_np="${done_np}${np} "
-  done
-  for ((r = 1; r <= reps; r++)); do
-    for pt in $gpts; do
-      np=${pt%%:*}; t=1
-      case "$np" in *x*) t=${np#*x}; np=${np%%x*} ;; esac
-      IFS=, read -r -a vs <<< "${pt#*:}"
-      [ "$t" = 1 ] || { local tv=(); for v in "${vs[@]}"; do tv+=("$v-t$t"); done; vs=("${tv[@]}"); }
-      coh_group full "$mesh" "$steps" "$np" "$r" "${vs[@]}"
-    done
-  done
-}
-
-# the plan of part G: the order, the expected memory and time per run
-g_plan() { # mesh points
-  python3 -I - "$1" "$2" "${FIN_HERE}/g-estimates.txt" "${FINAL_PLAN_CORES:-$NCORES}" "${FINAL_PLAN_MEMORY:-$memory}" "$reps" "$CORES_ORDER" <<'PY'
-import sys
-mesh, points, est_file, ncores, memory, reps, cores = sys.argv[1:8]
-ncores, reps = int(ncores), int(reps)
-lim = float(memory.rstrip("gG"))
-est = {}
-for ln in open(est_file):
-    f = ln.split("#", 1)[0].split()
-    if len(f) >= 4:
-        est[(f[0], f[1])] = (float(f[2]), float(f[3]))
-runs, nps = [], []
-for p in points.split():
-    ranks, variants = p.split(":")
-    np_, t = (int(x) for x in ranks.split("x")) if "x" in ranks else (int(ranks), 1)
-    for v in variants.split(","):
-        runs.append((ranks, np_, t, v))
-        if np_ * t <= ncores and np_ not in nps and np_ > 1:
-            nps.append(np_)
-print(f"Part G plan: mesh {mesh}, {reps} run(s) per point, {ncores} cores, memory limit {memory} per run")
-print("Runs one at a time, so the machine time is the sum of the runs whatever their order;")
-print("the order removes waste: the partition exports of every rank count first (each run then")
-print("replays its file); the port at the largest rank count first (the shortest full-size run,")
-print("and it measures the memory of that rank count before the C++ run, whose peak was within")
-print("8 % of the port's at 32 and 64 ranks); the longest and least needed run (8 ranks) last,")
-print("so a short budget drops it, not a comparison.")
-print()
-def dur(w):
-    if w is None:
-        return "?"
-    return f"{w / 60:.0f} min" if w < 3600 else f"{w / 3600:.2f} h"
-
-
-cl = cores.split(",")
-print("Pinning: rank r of a run with T threads per rank on the r-th block of T entries of the")
-print("host's cores ordered NUMA node by NUMA node (" + ("this host: " + ",".join(cl[:8]) + (",..." if len(cl) > 8 else "") if len(cl) >= ncores else "the planned host's order") + ");")
-print("each run's actual rank -> cores is recorded from /proc and checked (runs/*.bindings.txt).")
-print()
-print(f"{'step':<22} {'cores used':<24} {'expected peak GiB':>17} {'expected wall':>14} {'cumulative':>11}")
-total = 0.0
-ex = est.get((mesh, "export"), (None, None))
-for n in nps:
-    w = ex[0]
-    total += w or 0
-    print(f"{'export np' + str(n):<22} {'C++, partition only':<24} {ex[1] or '?':>17} {dur(w):>14} {total / 3600:>10.2f}h")
-for _ in range(reps):
-    for ranks, np_, t, v in runs:
-        key = f"{ranks}:{v}"
-        if np_ * t > ncores:
-            print(f"{key:<22} skipped: needs {np_ * t} cores")
-            continue
-        w, m = est.get((mesh, key), (None, None))
-        total += w or 0
-        pin = f"{np_ * t} ({np_} ranks x {t})"
-        warn = "  WARNING: above 90 % of the limit" if m and m > 0.9 * lim else ""
-        print(f"{key:<22} {pin:<24} {(m if m else '?'):>17} {dur(w):>14} {total / 3600:>10.2f}h{warn}")
-print()
-print(f"Expected machine time of part G: {total / 3600:.1f} h (plus the set-up of the machine and prepare.sh);")
-print("estimates and their basis: scripts/perf/final/g-estimates.txt. A '?' has no estimate.")
-PY
-}
-
-case "$part" in
-  A) part_a ;;
-  B) part_b ;;
-  C) part_c ;;
-  D) part_d ;;
-  E) part_e ;;
-  F) part_f ;;
-  G) part_g ;;
-esac
-[ "$planonly" = 0 ] || exit 0
+  case "$kind" in
+    a_digests) run_a_digests "$id" "$vars" "$a" ;;
+    a_round) run_a_round "$id" "$rep" "$vars" "$a" ;;
+    suite) run_suite "$id" "$rep" "$vars" "$a" "$b" "$c" "$d" ;;
+    suite_mpi) run_suite_mpi "$id" "$rep" "$vars" "$a" "$b" "$c" "$d" "$e" ;;
+    python) run_python "$id" "$rep" "$vars" "$a" "$b" ;;
+    partition) run_partition "$id" "$a" "$b" ;;
+    coh) run_coh "$id" "$rep" "$vars" "$a" "$b" "$c" "$d" "$e" ;;
+    mpi_a) run_mpi_a "$id" "$rep" "$vars" "$a" "$b" "$c" "$d" "$e" ;;
+    mpi_b) run_mpi_b "$id" "$rep" "$vars" "$a" "$b" "$c" "$d" "$e" ;;
+    *) fin_die "plan: unknown group kind $kind" ;;
+  esac
+done 3< "$D/plan.tsv"
 
 fin_scrub_tree "$D"
 status=0
 if [ -s "$D/FAILED" ]; then fin_progress "$D" "part ${part}: failed runs (FAILED)"; status=1; fi
 if [ -s "$D/CHECKS_FAILED" ]; then fin_progress "$D" "part ${part}: failed checks (CHECKS_FAILED)"; status=1; fi
+[ "$stopped" = 0 ] || status=1
 if ! fin_guard_tree "$D" > "$D/.guard" 2>&1; then fin_progress "$D" "part ${part}: the data names the machine (.guard)"; status=1; fi
 python3 -I "${FIN_HERE}/summarize.py" "$D" > "$D/.summarize.log" 2>&1 || { fin_progress "$D" "part ${part}: summarize.py failed (.summarize.log)"; status=1; }
 fin_progress "$D" "part ${part} end: status ${status}"

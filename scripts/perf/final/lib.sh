@@ -175,3 +175,119 @@ fin_parse_label() { # label -> "base threads precision"
   case "$l" in *-t[0-9]*) threads=${l##*-t} ;; esac
   echo "${base} ${threads} ${precision}"
 }
+
+# ---------------------------------------------------------------- sessions and groups
+# One session per call of run_part.sh: its UTC start, the boot id and the CPU
+# model (DIR/sessions.jsonl), so that a summary can mark the medians whose
+# repetitions come from several sessions, and show a host change.
+fin_session_start() { # dir -> sets FIN_SESSION
+  local dir=$1
+  FIN_SESSION="$(date -u +%Y%m%dT%H%M%SZ)"
+  python3 -I - "$dir/sessions.jsonl" "$FIN_SESSION" <<'PY'
+import json, platform, sys
+out, sid = sys.argv[1:3]
+def read(p):
+    try:
+        return open(p).read().strip()
+    except OSError:
+        return "unknown"
+cpu = next((ln.split(":", 1)[1].strip() for ln in read("/proc/cpuinfo").splitlines()
+            if ln.startswith("model name")), "unknown")
+with open(out, "a") as f:
+    f.write(json.dumps({"session": sid, "boot_id": read("/proc/sys/kernel/random/boot_id"),
+                        "cpu": cpu, "kernel": platform.release()}) + "\n")
+PY
+}
+
+# The outcome of one planned group (DIR/groups.jsonl): done | check_failed |
+# failed | skipped; `done` and `skipped` also leave the marker that makes a
+# later call skip the group.
+fin_group_record() { # dir id status [note]
+  local dir=$1 id=$2 st=$3 note=${4:-}
+  python3 -I -c 'import json,sys; print(json.dumps({"id": sys.argv[1], "status": sys.argv[2], "session": sys.argv[3], "utc": sys.argv[4], "note": sys.argv[5]}))' \
+    "$id" "$st" "${FIN_SESSION:-unknown}" "$(fin_utc)" "$note" >> "$dir/groups.jsonl"
+  case "$st" in done|skipped) mkdir -p "$dir/.done"; echo "${FIN_SESSION:-unknown}" > "$dir/.done/$id" ;; esac
+}
+
+# Wait (at most FINAL_IDLE_WAIT seconds, default 600) until the machine is
+# idle: no container of the campaign (name final-*) and less than half a core
+# busy over one second (/proc/stat). Status 1 if it never was.
+fin_wait_idle() {
+  local waited=0 lim=${FINAL_IDLE_WAIT:-600} busy
+  while :; do
+    busy=$(python3 -I -c '
+import time
+def snap():
+    f = [int(x) for x in open("/proc/stat").readline().split()[1:]]
+    return sum(f), f[3] + f[4]
+t0, i0 = snap(); time.sleep(1); t1, i1 = snap()
+import os
+print(f"{(1 - (i1 - i0) / max(t1 - t0, 1)) * os.cpu_count():.2f}")')
+    if [ -z "$(docker ps -q --filter name=^final- 2> /dev/null)" ] && awk -v b="$busy" 'BEGIN { exit !(b < 0.5) }'; then
+      return 0
+    fi
+    [ "$waited" -lt "$lim" ] || { echo "busy=${busy} cores, containers: $(docker ps --format '{{.Names}}' | paste -sd, -)"; return 1; }
+    sleep 15; waited=$((waited + 15))
+  done
+}
+
+# Check every binary of a variant directory against its VARIANT.json (and the
+# Python extension against python_extension_sha256): prints the mismatches,
+# status 1 if any.
+fin_verify_variant() { # dir
+  python3 -I - "$1" <<'PY'
+import glob, hashlib, json, os, sys
+d = sys.argv[1]
+v = json.load(open(os.path.join(d, "VARIANT.json")))
+bad = []
+def sha(p):
+    h = hashlib.sha256()
+    with open(p, "rb") as f:
+        for b in iter(lambda: f.read(1 << 20), b""):
+            h.update(b)
+    return h.hexdigest()
+for rel, want in v.get("sha256", {}).items():
+    p = os.path.join(d, rel)
+    if not os.path.exists(p):
+        bad.append(f"{rel}: missing")
+    elif sha(p) != want:
+        bad.append(f"{rel}: SHA-256 {sha(p)[:16]} differs from VARIANT.json {want[:16]}")
+ext = v.get("python_extension_sha256")
+if ext:
+    so = glob.glob(os.path.join(d, "venv", "lib", "python*", "site-packages", "akantu", "*.so"))
+    if not so or sha(so[0]) != ext:
+        bad.append("the Python extension differs from VARIANT.json")
+for b in bad:
+    print(f"{d}: {b}")
+sys.exit(1 if bad else 0)
+PY
+}
+
+# The cores of one run of N ranks x T threads: `fill` takes the first N x T
+# entries of CORE_ORDER (one NUMA node after the other); `spread` takes the
+# same number of cores from every NUMA node (N divisible by the node count),
+# each node's in core order, so that 64 ranks on two nodes run as 32 + 32.
+fin_run_cores() { # ranks threads placement core_order
+  python3 -I - "$1" "$2" "$3" "$4" <<'PY'
+import os, sys
+n, t, placement, order = int(sys.argv[1]), int(sys.argv[2]), sys.argv[3], sys.argv[4].split(",")
+node = {}
+base = "/sys/devices/system/node"
+if os.path.isdir(base):
+    for d in os.listdir(base):
+        if d.startswith("node") and d[4:].isdigit():
+            for part in open(f"{base}/{d}/cpulist").read().strip().split(","):
+                a, _, b = part.partition("-")
+                for c in range(int(a), int(b or a) + 1):
+                    node[str(c)] = int(d[4:])
+nodes = sorted({node.get(c, 0) for c in order})
+if placement == "spread" and len(nodes) > 1 and n % len(nodes) == 0:
+    per = n // len(nodes) * t
+    out = []
+    for k in nodes:
+        out += [c for c in order if node.get(c, 0) == k][:per]
+else:
+    out = order[:n * t]
+print(",".join(out))
+PY
+}

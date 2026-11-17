@@ -39,6 +39,7 @@
 #           suite_setup with mpi,scotch; in akantu-rs-mpi:dev: the akantu-comm
 #           example mpi_bench (mpi); the drivers are also copied into the
 #           volume akantu-rs-mpi-target at /target/final/<variant>/
+#   json    per variant: VARIANT.json only (the binaries as they are)
 #   python  per variant: a virtual environment with maturin, numpy, scipy (the
 #           second variant installs the versions of the first) and the akantu
 #           extension (maturin develop --release)
@@ -240,19 +241,60 @@ build_python() { # variant src
   cp "$s/python/benchmarks/suite_python.py" "${FIN_BIN}/$v/suite_python.py"
 }
 
+# Whether the variant's SparseLU factorisation uses threads, measured: the
+# `factorize` phase of suite_solid static_linear_eigen (size m) at 1 thread
+# on core 0 and at 2 threads on cores 0-1, alternated, the faster of two runs
+# each; threaded if 2 threads take less than 0.85 of the 1-thread time (a
+# factorisation that does not use the threads, or gains nothing from them,
+# is not timed with threads). Prints a JSON object.
+probe_sparselu() { # dir
+  local d=$1 k i f out
+  out=$(mktemp -d)
+  for i in 1 2; do
+    for k in 1 2; do
+      f="$out/t$k.r$i.jsonl"
+      AKANTU_NUM_THREADS=$k taskset -c "0-$((k - 1))" "$d/suite_solid" --case static_linear_eigen --size m --reps 1 \
+        --out "$f" > /dev/null 2>&1 || true
+    done
+  done
+  python3 -I - "$out" <<'PY'
+import glob, json, os, sys
+out = sys.argv[1]
+def best(k):
+    v = []
+    for f in glob.glob(os.path.join(out, f"t{k}.r*.jsonl")):
+        for ln in open(f):
+            if ln.startswith("{"):
+                o = json.loads(ln)
+                if o.get("phase") == "factorize":
+                    v.append(o["seconds"])
+    return min(v) if v else None
+t1, t2 = best(1), best(2)
+r = t2 / t1 if t1 and t2 else None
+print(json.dumps({"case": "suite_solid static_linear_eigen, size m, phase factorize",
+                  "t1_s": t1, "t2_s": t2, "ratio": r, "threshold": 0.85,
+                  "threaded": bool(r is not None and r < 0.85)}))
+PY
+  rm -rf "$out"
+}
+
 write_variant_json() { # variant src
-  local v=$1 s=$2 d="${FIN_BIN}/$1" threaded=false
-  # a threaded SparseLU factorisation runs the executor's parallel loops in
-  # the translation's own source (the fast-mode token alone does not count)
-  if grep -rqE '\.(for_each|for_each_bounds)\(|\.threads\(\)' "$s/crates/akantu-linalg/src/eigen_sparse_lu/" 2> /dev/null; then
-    threaded=true
-  fi
+  local v=$1 s=$2 d="${FIN_BIN}/$1" probe
+  probe=$(probe_sparselu "$d")
+  say "${v}: SparseLU probe ${probe}"
   (cd "$s" && python3 -I - "$d" "$v" "$(git rev-parse HEAD)" "$(git describe --always --tags 2> /dev/null)" \
-    "$(rustc --version)" "$(cargo --version)" "${threaded}" \
+    "$(rustc --version)" "$(cargo --version)" "${probe}" \
     "$(docker image inspect --format '{{.Id}}' "${FIN_MPI_IMAGE}")" \
     "$(docker image inspect --format '{{.Id}}' akantu-rs-mpi:dev)" <<'PY'
-import hashlib, json, os, sys
-d, v, rev, desc, rustc, cargo, threaded, img_mumps, img_mpi = sys.argv[1:10]
+import glob, hashlib, json, os, sys
+d, v, rev, desc, rustc, cargo, probe, img_mumps, img_mpi = sys.argv[1:10]
+probe = json.loads(probe)
+def sha_of(p):
+    h = hashlib.sha256()
+    with open(p, "rb") as f:
+        for b in iter(lambda: f.read(1 << 20), b""):
+            h.update(b)
+    return h.hexdigest()
 sha = {}
 for root, _, files in os.walk(d):
     if "/venv" in root:
@@ -260,14 +302,16 @@ for root, _, files in os.walk(d):
     for f in sorted(files):
         p = os.path.join(root, f)
         if f != "VARIANT.json" and os.access(p, os.X_OK) and not os.path.islink(p):
-            sha[os.path.relpath(p, d)] = hashlib.sha256(open(p, "rb").read()).hexdigest()
-py = os.path.join(d, "venv", "bin", "python")
-json.dump({"variant": v, "revision": rev, "describe": desc, "rustc": rustc, "cargo": cargo,
-           "profile": "release (workspace profile, default flags, no target-cpu)",
-           "host_features": "", "mpi_features": "mpi,scotch,mumps (cohesive_extrinsic, suite_solid_mumps); mpi,scotch (suites); mpi (mpi_bench)",
-           "images": {"mumps": img_mumps, "mpi": img_mpi},
-           "sparselu_threaded": threaded == "true", "python": os.path.exists(py),
-           "sha256": sha}, open(os.path.join(d, "VARIANT.json"), "w"), indent=1)
+            sha[os.path.relpath(p, d)] = sha_of(p)
+so = glob.glob(os.path.join(d, "venv", "lib", "python*", "site-packages", "akantu", "*.so"))
+with open(os.path.join(d, "VARIANT.json"), "w") as f:
+    json.dump({"variant": v, "revision": rev, "describe": desc, "rustc": rustc, "cargo": cargo,
+               "profile": "release (workspace profile, default flags, no target-cpu)",
+               "host_features": "", "mpi_features": "mpi,scotch,mumps (cohesive_extrinsic, suite_solid_mumps); mpi,scotch (suites); mpi (mpi_bench)",
+               "images": {"mumps": img_mumps, "mpi": img_mpi},
+               "sparselu_threaded": probe["threaded"], "sparselu_probe": probe,
+               "python": bool(so), "python_extension_sha256": sha_of(so[0]) if so else None,
+               "sha256": sha}, f, indent=1)
 PY
   )
 }
