@@ -538,6 +538,10 @@ class Session:
                                               f"{hook_oom + 1}")) if (hook_fail or hook_oom is not None) else "")
             if st.get("error"):
                 rec["note"] = (rec["note"] + "; " if rec["note"] else "") + st["error"][:300]
+            if st.get("binding_problems"):   # mn_cluster.py: ok only without them
+                rec["binding_problems"] = st["binding_problems"]
+                rec["note"] = ((rec["note"] + "; " if rec["note"] else "") + "binding problems: "
+                               + "; ".join(st["binding_problems"][:8]))[:600]
             d = self.runs / campaign
             d.mkdir(parents=True, exist_ok=True)
             if outcome == "host-lost":

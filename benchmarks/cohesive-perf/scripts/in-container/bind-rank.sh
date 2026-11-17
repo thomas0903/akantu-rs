@@ -9,9 +9,14 @@
 # The rank's index on its host, r (OMPI_COMM_WORLD_LOCAL_RANK; without it
 # OMPI_COMM_WORLD_RANK or PMIX_RANK, the same number when every rank runs on
 # one host), selects the r-th block of T cores of the cores the process may
-# use (the container's cpuset, in ascending order): the placement of
-# `--map-by core --bind-to core` (T = 1) and of `--map-by slot:PE=T
-# --bind-to core`, on one host and on each host of a multi-host job.
+# use (the container's cpuset, in ascending order of CPU number). The blocks
+# are logical CPUs: the placement equals that of `--map-by core --bind-to
+# core` (T = 1) and of `--map-by slot:PE=T --bind-to core`, on one host and on
+# each host of a multi-host job, only with one hardware thread per core and
+# CPU numbers in core order. With two threads per core numbered 0,1 / 2,3 ...
+# ranks 0 and 1 share one physical core. The script refuses nothing of this
+# itself: the multi-node launcher's preflight and run records do
+# (mn_cluster.py, distinct hardware-thread sibling sets per host).
 #
 # Why not mpirun's binding: with `--bind-to core`, Open MPI 5.0.7 (PRRTE
 # 3.0) aborts the start of more than 10 bound ranks per host inside a Docker

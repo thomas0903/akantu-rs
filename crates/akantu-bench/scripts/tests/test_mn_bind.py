@@ -8,12 +8,14 @@
 #
 #   python3 -I -m unittest discover -s crates/akantu-bench/scripts/tests
 import hashlib
+import io
 import os
 import shutil
 import subprocess
 import sys
 import tempfile
 import unittest
+from contextlib import redirect_stdout
 from pathlib import Path
 
 HERE = Path(__file__).resolve().parent
@@ -24,14 +26,15 @@ import mn_session  # noqa: E402
 
 sys.path.insert(0, str(HERE))
 from test_mn_fix import make_run, pair  # noqa: E402
+from test_mn_session import PLAN, FakeCluster, make_args  # noqa: E402
 
 REPO = HERE.parent.parent.parent.parent
 BIND_RANK = REPO / "benchmarks" / "cohesive-perf" / "scripts" / "in-container" / "bind-rank.sh"
 PINS = ["Haswell", "1", "1", "1", "1"]
 
 
-def row(rank, host, cpus, local):
-    return [rank, host, *PINS, cpus, local]
+def row(rank, host, cpus, local, sib=None):
+    return [rank, host, *PINS, cpus, local, cpus if sib is None else sib]
 
 
 class Conf(unittest.TestCase):
@@ -100,8 +103,23 @@ class Preflight(unittest.TestCase):
         self.assertTrue(any("local ranks" in p for p in mn_cluster.check_problems(bad, self.hosts, "self")))
         self.assertEqual(mn_cluster.check_problems(bad, self.hosts, "core"), [])
 
+    def test_two_threads_per_core_is_one_core_per_two_ranks(self):
+        # a host with 2 hardware threads per core, numbered 0-3 / 4-7 (cpu c and c + 4 are one
+        # core): bind-rank.sh gives local ranks 0..3 the CPUs 0..3 (four cores, fine), but with
+        # threads numbered 0,1 / 2,3 (siblings adjacent) ranks 0 and 1 share core 0
+        hosts = (("a", 4),)
+        ok = tuple(row(r, "a", str(r), str(r), f"{r},{r + 4}") for r in range(4))
+        self.assertEqual(mn_cluster.check_problems(ok, hosts, "self"), [])
+        adjacent = tuple(row(r, "a", str(r), str(r), f"{r - r % 2}-{r - r % 2 + 1}") for r in range(4))
+        probs = mn_cluster.check_problems(adjacent, hosts, "self")
+        self.assertTrue(any("share a physical core" in p for p in probs), probs)
+        # siblings unknown (`-`): not compared; the CPU check still applies
+        unknown = tuple(row(r, "a", str(r), str(r), "-") for r in range(4))
+        self.assertEqual(mn_cluster.check_problems(unknown, hosts, "self"), [])
+        self.assertEqual(mn_cluster.check_problems(adjacent, hosts, "core"), [])
+
     def test_check_runs_the_bound_probe_and_parses_its_lines(self):
-        out = "".join(f"MNCHECK {r[1]} {r[0]} {' '.join(PINS)} {r[7]} {r[8]}\n" for r in self.good) + "0\n"
+        out = "".join(f"MNCHECK {r[1]} {r[0]} {' '.join(PINS)} {r[7]} {r[8]} {r[9]}\n" for r in self.good) + "0\n"
         scripts = []
         with tempfile.TemporaryDirectory() as tmp:
             d = Path(tmp)
@@ -122,6 +140,8 @@ class Preflight(unittest.TestCase):
             r = c.check()
         self.assertEqual(r["problems"], [])
         self.assertEqual([x[8] for x in r["ranks"]], ["0", "1", "0", "1"])
+        self.assertEqual([x[9] for x in r["ranks"]], ["0", "1", "0", "1"])
+        self.assertIn("thread_siblings_list", scripts[0])
         self.assertEqual(len(scripts), 1)
         self.assertIn("--bind-to none", scripts[0])
         self.assertIn(f"sh {mn_cluster.BINDER} 1 sh -c", scripts[0])
@@ -133,7 +153,7 @@ class RunRecords(unittest.TestCase):
                  "binding_rank3.txt": "h2 1 5\n", "summary_rank0.json": "{}", "binding_rankx.txt": "h 0 1\n"}
         b = mn_cluster.bindings_from(files)
         self.assertEqual(list(b), [0, 1, 2, 3])
-        self.assertEqual(b[2], ["h2", "0", "4"])
+        self.assertEqual(b[2], ["h2", "0", "4", "-"])
         self.assertEqual(mn_cluster.binding_problems(b, 4, "self"), [])
         self.assertTrue(mn_cluster.binding_problems(b, 8, "self"))
         b[1] = ["h1", "1", "4"]
@@ -141,6 +161,49 @@ class RunRecords(unittest.TestCase):
         b[1] = ["h1", "1", "4-7"]
         self.assertTrue(any("expected one" in p for p in mn_cluster.binding_problems(b, 4, "self")))
         self.assertEqual(mn_cluster.binding_problems({}, 4, "none"), [])
+
+    def test_two_ranks_on_the_threads_of_one_core(self):
+        files = {"binding_rank0.txt": "h1 0 0 0-1\n", "binding_rank1.txt": "h1 1 1 0-1\n",
+                 "binding_rank2.txt": "h2 0 0 0-1\n", "binding_rank3.txt": "h2 1 2 2-3\n"}
+        b = mn_cluster.bindings_from(files)
+        self.assertEqual(b[1], ["h1", "1", "1", "0-1"])
+        probs = mn_cluster.binding_problems(b, 4, "self")
+        self.assertEqual(len(probs), 1, probs)
+        self.assertIn("ranks 0 and 1 on h1 share a physical core", probs[0])
+        self.assertEqual(mn_cluster.binding_problems(b, 4, "core"), [])
+
+    def test_the_record_writes_the_siblings(self):
+        self.assertIn("thread_siblings_list", mn_cluster.RECORD)
+        self.assertIn('$cpus $sib" > "binding_rank', mn_cluster.RECORD)
+
+
+class BindingOutcome(unittest.TestCase):
+    base = {"exit": 0, "summary": True, "nb_rank_summaries": 8, "np": 8}
+
+    def test_binding_problems_make_the_run_fail_unless_a_host_was_lost(self):
+        self.assertEqual(mn_cluster.classify(dict(self.base)), "ok")
+        self.assertEqual(mn_cluster.classify(dict(self.base, binding_problems=[])), "ok")
+        bad = dict(self.base, binding_problems=["ranks 0 and 1 on h1 share a physical core"])
+        self.assertEqual(mn_cluster.classify(bad), "failed")
+        # a lost host legitimately leaves records missing: the loss is the outcome
+        lost = dict(bad, lost_hosts=["h3"], killed="host-lost",
+                    binding_problems=["binding records of ranks [0, 1], expected 0..7"])
+        self.assertEqual(mn_cluster.classify(lost), "host-lost")
+        self.assertEqual(mn_cluster.classify(dict(bad, killed="timeout")), "timeout")
+
+    def test_the_session_log_line_names_them(self):
+        why = ["ranks 0 and 1 on 10.0.0.1 share a physical core (hardware threads 0-1)"]
+        c = FakeCluster(scenario={"smoke-a1": {"outcome": "failed", "binding": why}})
+        with tempfile.TemporaryDirectory() as tmp:
+            s = mn_session.Session(make_args(tmp, PLAN), c, clock=c.clock)
+            buf = io.StringIO()
+            with redirect_stdout(buf):
+                rc = s.run()
+            line = next(ln for ln in buf.getvalue().splitlines() if "run 1 smoke " in ln)
+            self.assertIn("failed", line)
+            self.assertIn("binding problems: " + why[0], line)
+            self.assertEqual(s.records()[0]["binding_problems"], why)
+            self.assertNotEqual(rc, 0)   # smoke is @required
 
 
 def campaign_ref(root, np_=2, mesh="/target/c1prep/meshes/frozen-cube-h0.12.msh", part=b"elem,rank\n0,0\n"):
@@ -227,6 +290,21 @@ class BindRankScript(unittest.TestCase):
         if len(cpus) > 1:
             p = self.run_bound({"OMPI_COMM_WORLD_RANK": "0", "OMPI_COMM_WORLD_LOCAL_RANK": "1"})
             self.assertEqual((p.returncode, p.stdout.strip()), (0, str(cpus[1])))
+
+    def test_two_cores_per_rank(self):
+        cpus = self.allowed()
+        if len(cpus) < 4:
+            self.skipTest("needs 4 CPUs")
+        cmd = ["sh", str(BIND_RANK), "2", "awk", "/^Cpus_allowed_list:/ {print $2}", "/proc/self/status"]
+        base = {k: v for k, v in os.environ.items() if not k.startswith(("OMPI_", "PMIX_"))}
+        p = subprocess.run(cmd, env={**base, "OMPI_COMM_WORLD_LOCAL_RANK": "1"}, capture_output=True, text=True,
+                           check=False)
+        self.assertEqual(p.returncode, 0, p.stderr)
+        got = []
+        for part in p.stdout.strip().split(","):
+            lo, _, hi = part.partition("-")
+            got += list(range(int(lo), int(hi or lo) + 1))
+        self.assertEqual(got, cpus[2:4])
 
     def test_world_rank_without_local_rank(self):
         cpus = self.allowed()

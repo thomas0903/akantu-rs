@@ -22,7 +22,9 @@ check: the recorded binding is the planned one: NP ranks, rank r allowed on
 exactly THREADS cores, the r-th block of THREADS cores of CORE_LIST (the
 host's cores ordered NUMA node by NUMA node), every block inside one NUMA
 node; a process whose rank was not readable must sit on the block of a rank
-that no other process reports. Prints the rank -> cores table; exit 1 with the reason otherwise.
+that no other process reports; no rank carried by two processes; every
+planned block covered by a process. Prints the rank -> cores table; exit 1
+with the reason otherwise.
 """
 
 import json
@@ -138,6 +140,9 @@ def check(path, np_, threads, core_list):
     # no environment any more) must sit on the planned block of one of the
     # ranks that no other process reports, each such block once.
     seen = {p["rank"] for p in ranks if p["rank"] is not None}
+    carried = [p["rank"] for p in ranks if p["rank"] is not None]
+    for r in sorted({r for r in carried if carried.count(r) > 1}):
+        bad.append(f"rank {r} carried by {carried.count(r)} processes")
     free = {r: sorted(order[r * threads:(r + 1) * threads])
             for r in range(np_) if r not in seen}
     for p in ranks:
@@ -161,6 +166,9 @@ def check(path, np_, threads, core_list):
                 bad.append(f"rank {r}: cores {got}, planned {want}")
         if len(nodes) > 1:
             bad.append(f"rank {r}: cores on NUMA nodes {nodes}")
+    # planned blocks that no process covers: ranks neither recorded nor matched
+    for r, blk in sorted(free.items()):
+        bad.append(f"rank {r}: no process on its planned cores {blk}")
     for b in bad:
         print("BINDING:", b)
     return 1 if bad else 0

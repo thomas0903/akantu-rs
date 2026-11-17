@@ -80,6 +80,8 @@ class FakeCluster:
               "lost_hosts": sc.get("lost", []), "oom_kills": {h: 1 for h in sc.get("oom", [])},
               "partition_sha256": "ab" * 32 if np_ > 1 and outcome == "ok" else None,
               "host_peak_kib": {self.addr(k): 1024 ** 2 for k in idx}, "wall_s": 1.0}
+        if sc.get("binding"):
+            st["binding_problems"] = list(sc["binding"])
         Path(outdir).mkdir(parents=True, exist_ok=True)
         mn_cluster.write_status(Path(outdir) / "status.txt", st)
         return st

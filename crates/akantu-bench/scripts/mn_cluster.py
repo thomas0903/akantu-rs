@@ -289,10 +289,15 @@ def mpirun_argv(np_, hostfile, wdir, cidr, bind, yield_idle=False):
     return argv
 
 
+# sh: $cpus = the process's Cpus_allowed_list, $sib = the hardware threads of the physical
+# core of its first CPU (thread_siblings_list; `-` when unreadable): two ranks with the same
+# $sib run on one physical core even when their CPU numbers differ
+CPUS_SIB = ('cpus=$(awk \'/^Cpus_allowed_list:/ {print $2}\' /proc/self/status); c=${cpus%%[,-]*}; '
+            'sib=$(cat "/sys/devices/system/cpu/cpu$c/topology/thread_siblings_list" 2>/dev/null); '
+            'sib=${sib:--}; ')
 # every rank records where it runs (in --wdir, before it execs the driver); with bind = self
 # after bind-rank.sh has bound it, so the line is the binding the driver runs with
-RECORD = ('echo "$(hostname) ${OMPI_COMM_WORLD_LOCAL_RANK:-unset} '
-          '$(awk \'/^Cpus_allowed_list:/ {print $2}\' /proc/self/status)" '
+RECORD = (CPUS_SIB + 'echo "$(hostname) ${OMPI_COMM_WORLD_LOCAL_RANK:-unset} $cpus $sib" '
           '> "binding_rank${OMPI_COMM_WORLD_RANK:-unset}.txt" && exec "$@"')
 
 
@@ -308,30 +313,38 @@ def app_argv(bind, argv, record=False):
 
 
 def bindings_from(files):
-    """{rank: [hostname, local_rank, cpus]} from the binding_rank<r>.txt texts {name: text}."""
+    """{rank: [hostname, local_rank, cpus, siblings]} from the binding_rank<r>.txt texts {name: text}
+    (siblings `-` in a record without them)."""
     out = {}
     for name, text in files.items():
         mo = re.fullmatch(r"binding_rank([0-9]+)\.txt", name)
         f = text.split()
-        if mo and len(f) == 3:
-            out[int(mo.group(1))] = f
+        if mo and len(f) in (3, 4):
+            out[int(mo.group(1))] = (f + ["-"])[:4]
     return dict(sorted(out.items()))
 
 
 def binding_problems(bindings, np_, bind):
     """Problems of a run's recorded bindings: every rank recorded; with bind = self or core,
-    one CPU per rank (self) and no CPU shared by two ranks of one host."""
+    one CPU per rank (self), no CPU shared by two ranks of one host and, with bind = self, no
+    physical core shared (the same hardware-thread sibling set; `-` = unknown, not compared)."""
     if bind == "none":
         return []
     if sorted(bindings) != list(range(np_)):
         return [f"binding records of ranks {sorted(bindings)}, expected 0..{np_ - 1}"]
-    problems, seen = [], {}
-    for r, (host, _, cpus) in bindings.items():
+    problems, seen, cores = [], {}, {}
+    for r, rec in bindings.items():
+        host, _, cpus, sib = (list(rec) + ["-"])[:4]
         if bind == "self" and not cpus.isdigit():
             problems.append(f"rank {r} on {host}: CPUs {cpus}, expected one")
         if cpus in seen.setdefault(host, {}):
             problems.append(f"ranks {seen[host][cpus]} and {r} on {host} share CPUs {cpus}")
+        elif bind == "self" and sib != "-" and sib in cores.setdefault(host, {}):
+            problems.append(f"ranks {cores[host][sib]} and {r} on {host} share a physical core "
+                            f"(hardware threads {sib})")
         seen[host][cpus] = r
+        if sib != "-":
+            cores.setdefault(host, {}).setdefault(sib, r)
     return problems
 
 
@@ -362,16 +375,19 @@ def classify(st):
     host-lost  a host's node container stopped, paused or became unreachable
                during the run (seen by the watchdog or after the job ended);
     timeout    the wall-clock limit was reached;
-    ok         mpirun exited 0, summary.json exists and every rank wrote its
-               summary_rank<r>.json;
-    failed     anything else."""
+    ok         mpirun exited 0, summary.json exists, every rank wrote its
+               summary_rank<r>.json and the binding records show no problem
+               (binding_problems empty);
+    failed     anything else (with binding problems: the reason in
+               `failure`)."""
     if any((v or 0) > 0 for v in (st.get("oom_kills") or {}).values()):
         return "oom"
     if st.get("lost_hosts"):
         return "host-lost"
     if st.get("killed") == "timeout":
         return "timeout"
-    if (st.get("exit") == 0 and st.get("summary") and st.get("nb_rank_summaries") == st.get("np")):
+    if (st.get("exit") == 0 and st.get("summary") and st.get("nb_rank_summaries") == st.get("np")
+            and not st.get("binding_problems")):
         return "ok"
     return "failed"
 
@@ -735,10 +751,9 @@ class Cluster:
             self.call(self.node_argv(k, ["mkdir", "-p", rd]), check=True)
         self.call(self.node_argv(0, ["sh", "-c", f"cat > {rd}/hostfile"], stdin=True),
                   data="".join(f"{a} slots={s}\n" for a, s in self.hosts).encode(), check=True)
-        probe = ('echo "MNCHECK $(hostname) $OMPI_COMM_WORLD_RANK ${OPENBLAS_CORETYPE:-unset} '
+        probe = (CPUS_SIB + 'echo "MNCHECK $(hostname) $OMPI_COMM_WORLD_RANK ${OPENBLAS_CORETYPE:-unset} '
                  '${OPENBLAS_NUM_THREADS:-unset} ${OMP_NUM_THREADS:-unset} ${SCOTCH_PTHREAD_NUMBER:-unset} '
-                 '${AKA_SEED:-unset} $(awk \'/^Cpus_allowed_list/ {print $2}\' /proc/self/status) '
-                 '${OMPI_COMM_WORLD_LOCAL_RANK:-unset}"')
+                 '${AKA_SEED:-unset} $cpus ${OMPI_COMM_WORLD_LOCAL_RANK:-unset} $sib"')
         script = run_script(rd, mpirun_argv(np_all, f"{rd}/hostfile", rd, self.cidr, self.conf["bind"], self.shared_cpus()),
                             app_argv(self.conf["bind"], ["sh", "-c", probe]))
         rc, _, _ = self.call(self.node_argv(0, ["bash", "-c", script]), timeout=300)
@@ -746,7 +761,7 @@ class Cluster:
         _, err, _ = self.call(self.node_argv(0, ["cat", f"{rd}/err.txt"]))
         lines = [ln.split() for ln in out.decode(errors="replace").splitlines() if ln.startswith("MNCHECK ")]
         report["mpirun_exit"] = rc
-        report["ranks"] = sorted(([int(f[2])] + f[1:2] + f[3:] for f in lines if len(f) == 10),
+        report["ranks"] = sorted(([int(f[2])] + f[1:2] + f[3:] for f in lines if len(f) == 11),
                                  key=lambda r: r[0])
         report["report_bindings"] = [ln for ln in err.decode(errors="replace").splitlines() if "bound" in ln][:64]
         report["problems"] += check_problems(report["ranks"], self.hosts, self.conf["bind"])
@@ -882,11 +897,15 @@ class Cluster:
         if (outdir / "partition.csv").exists():
             st["partition_sha256"] = sha256_file(outdir / "partition.csv")
         st["outcome"] = classify(st)
+        if st["outcome"] == "failed" and st.get("binding_problems"):
+            st["failure"] = "binding: " + "; ".join(st["binding_problems"][:8])
         st["finished"] = utc()
         write_status(outdir / "status.txt", st)
         log(f"run {name}: {st['outcome']} (exit {st['exit']}, {wall:.0f} s"
             + (f", lost {', '.join(lost)}" if lost else "")
-            + (f", oom on {[h for h, v in st['oom_kills'].items() if v]}" if st["outcome"] == "oom" else "") + ")")
+            + (f", oom on {[h for h, v in st['oom_kills'].items() if v]}" if st["outcome"] == "oom" else "")
+            + (f", binding problems: {'; '.join(st['binding_problems'][:8])}" if st.get("binding_problems") else "")
+            + ")")
         return st
 
     def _probe(self, idx, strikes):
@@ -991,7 +1010,7 @@ def session_busy(session_dir):
 
 def check_problems(ranks, hosts, bind):
     """Problems in the preflight's per-rank lines [rank, hostname, coretype, ob, omp, scotch, seed, cpus,
-    local rank]."""
+    local rank, hardware-thread siblings of the first CPU (`-`: unreadable)]."""
     problems = []
     np_all = sum(s for _, s in hosts)
     if len(ranks) != np_all or [r[0] for r in ranks] != list(range(np_all)):
@@ -1014,6 +1033,11 @@ def check_problems(ranks, hosts, bind):
             local = [r[8] if len(r) > 8 else "unset" for r in group]
             if bind == "self" and local != [str(i) for i in range(slots)]:
                 problems.append(f"{addr}: local ranks {local}, expected 0..{slots - 1}")
+            # one physical core per rank: distinct hardware-thread sibling sets (a host with two
+            # threads per core gives ranks 0 and 1 the two threads of one core otherwise)
+            sibs = [r[9] for r in group if len(r) > 9 and r[9] != "-"]
+            if bind == "self" and len(set(sibs)) != len(sibs):
+                problems.append(f"{addr}: ranks share a physical core (hardware-thread siblings {sibs})")
         start += slots
     for r in ranks:
         got = dict(zip(PIN_VARS, r[2:7]))
