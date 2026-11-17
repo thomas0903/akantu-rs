@@ -29,6 +29,50 @@ cd python && ../.venv/bin/maturin develop --release   # installs `akantu` into .
 upstream's module run with `import akantu` as before; what differs is
 listed below.
 
+## A first script
+
+As upstream's, the module is imported as `aka` by convention. Where a
+C++ program calls `initialize("material.dat", argc, argv)`, a script
+reads its input file with `aka.parseInput` (the module's `initialize`
+raises a `RuntimeError` that says so). The rest follows the C++ API
+with upstream's names. The static solve of upstream's example
+`plate-hole/plate.py`, abridged (one rank, no MPI), reads:
+
+```python
+import akantu as aka
+import numpy as np
+
+aka.parseInput("material.dat")
+
+spatial_dimension = 2
+mesh = aka.Mesh(spatial_dimension)
+mesh.read("plate.msh")
+
+model = aka.SolidMechanicsModel(mesh)
+model.initFull(_analysis_method=aka._static)
+
+model.applyBC(aka.FixedValue(0.0, aka._x), "XBlocked")
+model.applyBC(aka.FixedValue(0.0, aka._y), "YBlocked")
+model.applyBC(aka.FromTraction(np.array([0.0, 1.0])), "Traction")
+
+solver = model.getNonLinearSolver()
+solver.set("max_iterations", 2)
+solver.set("threshold", 1e-10)
+solver.set("convergence_type", aka.SolveConvergenceCriteria.residual)
+
+model.setBaseName("plate")
+model.addDumpFieldVector("displacement")
+model.addDumpField("stress")
+model.solveStep()
+model.dump()
+```
+
+`model.getDisplacement()` then returns the displacement as a NumPy
+array ([Arrays are NumPy views](#arrays-are-numpy-views)). The complete
+script is `python/examples/solid_mechanics_model/plate-hole/plate.py`;
+it is one of the examples compared bit for bit with upstream's module
+([Upstream's Python examples](#upstreams-python-examples)).
+
 ## What the package binds
 
 Classes, functions and enums keep upstream's names (`Mesh`,

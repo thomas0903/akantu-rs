@@ -78,7 +78,33 @@ change of default results or of a public API raises the minor version.
   `NonLocalManagerCallback::exec` (default serial),
   `MaterialMazarsNonLocal::compute_non_local_stress_with`,
   `damage::elastic_damage_energy_densities_with`,
-  `damage::elastic_damage_potential_energy_with`.
+  `damage::elastic_damage_potential_energy_with`. A DOF manager built
+  without a model takes the process default policy, so in a program that
+  sets `AKANTU_NUM_THREADS` (or the default policy) but no executor on a
+  model the per-equation loops of 4,096 equations and more also run on
+  threads there; the results are the same as on one thread by
+  construction.
+- Matrix assembly, second round (bitwise at every thread count): the
+  position cache keeps per-slot spans and one scatter plan per element
+  filter (entry-sized parts, exact per-part block lists), and the DOF
+  manager vouches for unchanged equations so a repeated assembly skips
+  the per-block check (`BlockPositionCache::{vouch_equations,
+  plan_ready, plan_after_serial_round}`, `akantu_linalg::sparse::EquationsKey`);
+  on one thread the elemental matrices are produced and scattered chunk
+  by chunk (`DofManager::assemble_elemental_matrices_by_chunks`,
+  `akantu_solver::ElementalProducer`,
+  `SparseMatrixAij::add_values_planned_chunk`). The cached repeated
+  assembly of 162,000 four-node tetrahedra takes 25.5 ms on one thread
+  (35.3 before) and 4.5 ms on 8 (Intel Xeon Platinum 8581C). Phase-field elemental matrices on
+  threads (`FeEngine::compute_ntbn_integrated`), structural elemental
+  stiffness and consistent mass on threads (`StructuralFeEngine::{exec,
+  set_exec}`). Memory: 12 bytes more per stored slot (span and count),
+  and per plan 4 bytes per block visit, 8 per slot and one per slot of
+  the type; the solid model no longer keeps its whole-type elemental
+  array once its assemblies are chunked (one thread).
+  After a failed assembly the matrix is partly assembled (the chunks or
+  element types before the failure are added), as it already was across
+  laws.
 - Threads in the per-point loops of more constitutive laws, bitwise equal
   to one thread for every thread count, also on the error path (the same
   error and the same law state as the serial loop):
@@ -155,6 +181,12 @@ change of default results or of a public API raises the minor version.
   writes `chrono_rank<r>.csv` (the phase times of every rank) and, for the
   cohesive model, `insertion_stats_rank<r>.csv` (the split of the
   insertion check) on every rank.
+- Benchmark records of the execution policy: the suites' JSON lines carry
+  `precision` (`bitwise` or `fast`), the cohesive driver's `summary.json`
+  carries `rust_exec` (threads per rank, precision, SIMD level). The
+  cohesive campaign tools take `--rust-threads`, `--rust-precision`,
+  `PIN_CPUS_LIST` and `PERF_MPI_BIND=core` (one rank per core, both codes);
+  the final measurement campaign's driver is `scripts/perf/final/`.
 - `akantu_comm::Synchronizer::post_in` / `wait_in` and
   `akantu_comm::PostedExchange`: an owner → ghost exchange posted inside a
   running collective scope and completed later, with one agreement on the
@@ -325,6 +357,19 @@ change of default results or of a public API raises the minor version.
   `EigenSparseLuSolver::set_fast_mode`, enabled with an
   `akantu_core::exec::FastToken` (fused multiply-adds in the panel
   products; not bitwise, off by default).
+- The sparse solver follows the DOF manager's executor (D-123): the AIJ
+  backend hands it to the solver of every solve
+  (`SparseDirectSolver::set_exec`; `SparseLu::set_exec` outside a model).
+  With several threads the large panel updates of the Eigen SparseLU
+  translation run on them, with the same factors and solutions at every
+  thread count; in precision `Fast` its FAST MODE kernels run (fused
+  multiply-adds also in the triangular panel solves and the GEMV kernels;
+  rule `fixtures/fast_mode/linalg/tolerances.json`). Its dense kernels take
+  the executor's SIMD level (`AKANTU_SIMD`); the environment variable
+  `AKANTU_SPARSELU_ISA` is gone. A DOF manager built without a model
+  (`DofManager::new`, `with_backend`) takes the process default policy
+  instead of one thread, and falls back to one thread when the `AKANTU_*`
+  variables are invalid (it does not fail); a model sets its own as before.
 - Small dense products and Eigen-order reductions are faster with bitwise
   identical results: the halving-tree reduction is non-recursive and
   inlined, fixed-size tensor products select their route at compile time,
@@ -429,7 +474,11 @@ The initial public state.
   then private repository had failures whose causes were fixed before
   publication.
 - The user manual and the Rust and Python API documentation, deployed from
-  `main` to <https://thomas0903.github.io/akantu-rs/>.
+  `main` to <https://thomas0903.github.io/akantu-rs/>. The manual's
+  formulas are typeset (KaTeX, rendered when the book is built), and it
+  shows the figures of the upstream manual next to images of results
+  computed with akantu-rs. Building it needs mdBook 0.4.40 and
+  mdbook-katex 0.9.4.
 - The models of upstream: solid mechanics (static, explicit and implicit
   dynamics, finite deformation), cohesive elements, contact mechanics, heat
   diffusion, phase field, structural mechanics, the embedded interface, the

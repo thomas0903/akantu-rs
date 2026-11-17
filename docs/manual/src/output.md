@@ -70,8 +70,21 @@ counter (upstream `dump(time, step)`).
 As upstream, quadrature-point fields are written as element fields
 averaged over the quadrature points of each element;
 `add_dump_field_vector` and `add_dump_field_tensor` pad vectors to 3
-components and 2-D tensors to 3 × 3 (with the out-of-plane stress or
+components and 2-D tensors to $3 \times 3$ (with the out-of-plane stress or
 strain of plane strain/plane stress), because ParaView handles 3-D data.
+A 2-D stress, for example, is written as
+
+$$
+\begin{pmatrix}
+\sigma_{xx} & \sigma_{xy} & 0 \\
+\sigma_{yx} & \sigma_{yy} & 0 \\
+0 & 0 & \sigma_{zz}
+\end{pmatrix},
+$$
+
+$\sigma_{zz}$ being the out-of-plane stress of plane strain (zero in
+plane stress); the out-of-plane shear components are zero (UD-111,
+below).
 
 ## Field names
 
@@ -143,6 +156,17 @@ assert!(output_dir.join("right_side_0000.pvtu").exists());
 # std::fs::remove_dir_all(&output_dir)?;
 # Ok::<(), Box<dyn std::error::Error>>(())
 ```
+
+## Cohesive elements and fragments
+
+The cohesive model registers a second dumper, `"cohesive elements"`,
+which writes the cohesive elements with their own fields (`opening`,
+`tractions`, `damage`, …), and its fragment manager computes per-fragment
+data (mass, centre of mass, mean velocity, principal moments of inertia,
+number of elements) that the program reads from public arrays. Both are
+described with the cohesive model:
+[Cohesive elements' data](models/cohesive.md#cohesive-elements-data) and
+[Fragmentation data](models/cohesive.md#fragmentation-data).
 
 ## Low-level dumpers and external data
 

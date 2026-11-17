@@ -209,14 +209,12 @@ pub(crate) fn elemental_stiffness_of(
         let nn = ty.nb_nodes_per_element();
         let ded = base.damage_energy_density.get(ty, ghost)?;
         let de = base.damage_energy.get(ty, ghost)?;
-        let mut bt_d_b = Array::new(nn * nn);
-        fe.compute_btdb(de.view(), &mut bt_d_b, 2, ty, ghost, Some(filter))?;
-        let mut nt_b_n = Array::new(nn * nn);
-        fe.compute_ntbn(ded.view(), &mut nt_b_n, ty, ghost, Some(filter))?;
-        let mut k_n = Array::new(nn * nn);
-        fe.integrate(nt_b_n.view(), &mut k_n, nn * nn, ty, ghost, Some(filter))?;
+        // `computeBtDB` / `computeNtbN` then `integrate`, fused per element
+        // (the same products, on the engine's threads)
         let mut k_b = Array::new(nn * nn);
-        fe.integrate(bt_d_b.view(), &mut k_b, nn * nn, ty, ghost, Some(filter))?;
+        fe.compute_btdb_integrated(de.view(), &mut k_b, 2, ty, ghost, Some(filter))?;
+        let mut k_n = Array::new(nn * nn);
+        fe.compute_ntbn_integrated(ded.view(), &mut k_n, ty, ghost, Some(filter))?;
         out.push((ty, filter.to_vec(), k_n, k_b));
     }
     Ok(out)

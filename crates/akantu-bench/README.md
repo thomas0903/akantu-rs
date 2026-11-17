@@ -46,12 +46,13 @@ standard output or appended to `--out`:
 ```json
 {"suite":"solid","case":"explicit_tet4_ss","size":"m","rep":0,"phase":"solve_step",
  "calls":200,"seconds":2.1,"n_elements":162000,"n_nodes":29791,"n_dofs":89373,
- "ranks":1,"threads":1,"grain":"auto","digest":"9f3c…","commit":"f81a63c8c","features":"",
+ "ranks":1,"threads":1,"grain":"auto","precision":"bitwise","digest":"9f3c…","commit":"f81a63c8c","features":"",
  "profile":"release"}
 ```
 
 Fields: `suite`, `case`, `size`, `rep`, `phase`, `calls`, `seconds`,
-`n_elements`, `n_nodes`, `n_dofs`, `ranks`, `threads`, `grain`, `digest`, `commit`
+`n_elements`, `n_nodes`, `n_dofs`, `ranks`, `threads`, `grain`, `precision`
+(of the process default execution policy: `bitwise` or `fast`), `digest`, `commit`
 (the commit at build time, from `build.rs`), `features`; `suite_solid`
 adds `profile`. Set-up phases (`mesh`, `init`, ...) are timed once
 (`calls` = 1); loop phases are totals over `calls`, after three untimed

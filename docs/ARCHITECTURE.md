@@ -1019,6 +1019,13 @@ external-work increment's per-node terms (summed in node order,
 corrector (`integration_scheme.rs`), the lumped solve (`r += M∘a`,
 `x = α·(b / m)`), the residual scatter through the inverse equation map
 and the solution gather (`dof_manager/assembly.rs`, `dof_manager.rs`); in
+`akantu-linalg`, the large panel updates of the Eigen SparseLU
+translation (at least 65,536 multiply-adds: the product over strips of
+rows, the scatter over blocks of accumulator rows,
+`eigen_sparse_lu/kernels.rs`; the AIJ backend hands the DOF manager's
+executor to the solver of every solve, `SparseDirectSolver::set_exec`; a
+DOF manager starts with the process default policy until its model sets
+its own); in
 the heat transfer model, the heat law's diffusivity and `D∇u` loops and
 the internal-flow scatter (`akantu-diffusion` `model/assembly.rs`, a
 cached `NodeScatter` per `(law, type, ghost)` as in the solid model),
@@ -1095,6 +1102,38 @@ structural `tests/exec_threads.rs`):
   (its profile, in first-insertion order) and any batch the matrix
   declines (a promotion, an equation the cache does not hold, a missing
   entry, a repeated slot) run the serial loop.
+- The scatter plan: the position cache keeps, per slot, the span and the
+  count of stored positions, and one plan per batch of slots (one per
+  element filter, i.e. per material of the type; at most 16): the entry
+  bounds of the parts (one per thread, equal entry counts; with the
+  finest grain as many as the executor splits a batch into) and, per
+  part, the blocks whose span meets it in block order, flagged when they
+  lie inside it. A plan is rebuilt when its slots, the profile size or the
+  split differ, dropped with the stored positions (another epoch, another
+  block shape or order) and when one of its slots is stored. The DOF
+  manager vouches for the equations
+  (`BlockPositionCache::vouch_equations`) with the mesh revision, the
+  numbering generation and the connectivity's storage, never for an
+  exported connectivity; with a matching key the batch skips the
+  per-block check of the equations. The key is consulted only after the
+  matrix order, the position epoch and the entry count have matched the
+  plan's, so what it alone guards are in-place edits of the connectivity
+  (the mesh revision and the connectivity's storage). Every operation that
+  changes the numbering generation (family registration, node addition or
+  removal, the rollback of a failed growth) also changes the order or
+  resets the profile; the generation is kept in the key as a defence
+  against a future renumbering that would keep both (one comparison). On one thread the batch takes only
+  the planned path; a round without a plan runs the serial loop, after
+  which the DOF manager builds the plan from the slots it has just
+  checked (`plan_after_serial_round`).
+- The chunked assembly (`DofManager::assemble_elemental_matrices_by_chunks`,
+  one thread only): with a plan ready, the elemental matrices are
+  produced per chunk of about 4 MB and scattered at once (the plan's part
+  lists cut at the chunk's blocks), so they are still in the caches; the
+  solid small-strain stiffness uses it (its whole-type array is then not
+  kept). With threads a chunk of consecutive elements touches a narrow
+  band of entries and leaves most parts idle; the whole-array batch is
+  used.
 - Whole-matrix operations of the AIJ backend on the DOF manager's
   executor (`LinearSystemBackend::set_exec`): zeroing, entry-wise sums of
   matrices with the same entries (`J += c·K`), the profile copy of `J`,
@@ -1105,9 +1144,13 @@ structural `tests/exec_threads.rs`):
   order of the serial pass. Parts of at least 32,768 entries.
 - `HeatTransferModel`, `PhaseFieldModel` and `StructuralMechanicsModel`
   take the process default policy and have `exec_policy` /
-  `set_exec_policy`; the structural engine's elemental matrices and the
-  phase-field elemental matrices (`compute_btdb`, `compute_ntbn`) stay
-  serial.
+  `set_exec_policy`. The phase-field elemental matrices use
+  `compute_btdb_integrated` (order 2) and `compute_ntbn_integrated` (the
+  products of `compute_ntbn` and `integrate` per element, on threads);
+  `StructuralFeEngine` has an executor (set by the structural model):
+  `element_stiffness` and `consistent_mass` compute each element's point
+  matrices and integral on threads (the products of `compute_btdb` /
+  `ntbn_local` and of `integrate_rows`).
 
 A law opts in with `Material::independent_points() -> true` and uses
 `material::points_exec(self, ctx)` in its per-point loops (a law that

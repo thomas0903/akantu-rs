@@ -278,6 +278,18 @@ pub struct DofData {
     pub periodic_slave: Vec<bool>,
 }
 
+/// A producer of elemental matrices for
+/// [`DofManager::assemble_elemental_matrices_by_chunks`]: `(range, out)`
+/// writes the matrices of the elements at positions `range` of the element
+/// list into `out`.
+pub type ElementalProducer<'a> =
+    dyn FnMut(std::ops::Range<usize>, &mut Array<Real>) -> Result<()> + 'a;
+
+/// Values of elemental matrices per chunk of a chunked assembly
+/// ([`DofManager::assemble_elemental_matrices_by_chunks`]): 4 MB, so that a
+/// chunk is still in the caches when it is scattered.
+const CHUNK_VALUES: usize = 1 << 19;
+
 /// What [`DofManager::element_equations`] reads, shareable between threads
 /// (the family's equation numbers and node map, the equation layout).
 struct ElementEquations<'a> {
@@ -391,6 +403,8 @@ pub struct DofManager {
     assembly_cache_enabled: bool,
     /// Element assemblies done by the threaded batch (diagnostic).
     threaded_assemblies: u64,
+    /// Values of elemental matrices per chunk of a chunked assembly.
+    chunk_values: usize,
     /// Declared type of every matrix.
     declared: BTreeMap<Id, MatrixType>,
     /// `source → derived` matrices (promotion propagation).
@@ -416,8 +430,9 @@ pub struct DofManager {
     mesh_periodic: bool,
     /// Scratch vector over local equations (upstream `data_cache`).
     data_cache: Vec<Real>,
-    /// How the per-equation loops of the integration schemes run (D-123):
-    /// serial until the owning model sets its executor.
+    /// How the per-equation loops, the whole-matrix operations of the backend
+    /// and its sparse solver run (D-123): the process default policy until
+    /// the owning model sets its executor.
     exec: akantu_core::exec::Exec,
     /// Inverse equation maps of the threaded scatter, per family.
     eq_inverse: std::sync::Mutex<BTreeMap<Id, assembly::EqInverse>>,
@@ -798,6 +813,14 @@ impl DofManager {
         // `isDistributed()` is always `true` (`solver_vector_petsc.hh:119`)
         let mut residual = ResidualVector::default();
         residual.set_distributed(backend.kind() == BackendKind::Petsc);
+        // D-123: the process default policy until a model sets its own; an
+        // invalid `AKANTU_*` variable is reported by model creation
+        // (`ExecPolicy::process_default`), a bare manager then runs serially
+        let exec = akantu_core::exec::ExecPolicy::process_default()
+            .and_then(akantu_core::exec::Exec::new)
+            .unwrap_or_else(|_| akantu_core::exec::Exec::serial());
+        let mut backend = backend;
+        backend.set_exec(&exec);
         Self {
             id: id.into(),
             communicator,
@@ -813,6 +836,7 @@ impl DofManager {
             assembly_caches: BTreeMap::new(),
             assembly_cache_enabled: true,
             threaded_assemblies: 0,
+            chunk_values: CHUNK_VALUES,
             declared: BTreeMap::new(),
             derived: BTreeMap::new(),
             node_sync: None,
@@ -830,7 +854,7 @@ impl DofManager {
             jacobian_release: 0,
             numbered_distributed: None,
             compat: UpstreamCompat::default(),
-            exec: akantu_core::exec::Exec::serial(),
+            exec,
             eq_inverse: std::sync::Mutex::default(),
             numbering_generation: 0,
         }
@@ -1853,6 +1877,15 @@ impl DofManager {
         self.threaded_assemblies
     }
 
+    /// Set the size of the chunks of a chunked assembly
+    /// ([`DofManager::assemble_elemental_matrices_by_chunks`]) in values of
+    /// elemental matrices (default 2¹⁹, 4 MB; results do not depend on it).
+    /// For tests of the chunk boundaries.
+    #[doc(hidden)]
+    pub fn set_assembly_chunk_values(&mut self, values: usize) {
+        self.chunk_values = values.max(1);
+    }
+
     /// Bytes held by the assembly position caches.
     #[must_use]
     pub fn assembly_cache_bytes(&self) -> usize {
@@ -2016,9 +2049,13 @@ impl DofManager {
         // round's `begin` is the one the serial loop below would make; when
         // the batch declines (it changed nothing) the serial loop runs with
         // that cache.
+        // The equations of an element depend on its connectivity row and on
+        // the DOF numbering only: unchanged while the mesh revision, the
+        // numbering generation and the connectivity's storage are, unless
+        // foreign code may write the connectivity (exported).
+        let vouch = self.equations_vouch(mesh, ty, ghost, conn.as_slice(), nnodes)?;
         let mut begun = None;
-        if self.exec.is_parallel()
-            && self.assembly_cache_enabled
+        if self.assembly_cache_enabled
             && elements.len() > 1
             && self.profiled.contains(&key)
             && let Some(cache) = self.assembly_caches.get(&key)
@@ -2029,6 +2066,9 @@ impl DofManager {
         {
             let mut cache = self.assembly_caches.remove(&key).unwrap_or_default();
             self.backend.begin_cached_assembly(matrix_id, &mut cache);
+            if let Some(k) = vouch {
+                cache.vouch_equations(k);
+            }
             let view = ElementEquations::new(f, &self.layout);
             let elements = &elements;
             let eqs_of = |k: usize, out: &mut Vec<GlobalIdx>| -> Result<()> {
@@ -2049,7 +2089,9 @@ impl DofManager {
             );
             if done {
                 self.assembly_caches.insert(key, cache);
-                self.threaded_assemblies += 1;
+                if self.exec.is_parallel() {
+                    self.threaded_assemblies += 1;
+                }
                 return Ok(());
             }
             begun = Some(cache);
@@ -2145,9 +2187,215 @@ impl DofManager {
             }
         }
         if self.assembly_cache_enabled {
+            // every block was checked against, or stored into, its slot:
+            // the plan of the next (planned) batch
+            if result.is_ok()
+                && let Ok(m) = self.backend.aij(matrix_id)
+            {
+                cache.plan_after_serial_round(&self.exec, m, &elements, vouch);
+            }
             self.assembly_caches.insert(key, cache);
         }
         result
+    }
+
+    /// What the equations of the elements of `(ty, ghost)` depend on, for
+    /// `BlockPositionCache::vouch_equations`: the mesh revision, the
+    /// numbering generation and the connectivity's storage; `None` when
+    /// foreign code may write the connectivity (exported).
+    fn equations_vouch(
+        &self,
+        mesh: &Mesh,
+        ty: ElementType,
+        ghost: GhostType,
+        conn: &[Idx],
+        nnodes: usize,
+    ) -> Result<Option<akantu_linalg::sparse::EquationsKey>> {
+        Ok(
+            (!mesh.connectivities().shared(ty, ghost)?.is_exported()).then(|| {
+                [
+                    mesh.revision(),
+                    self.numbering_generation,
+                    conn.as_ptr() as u64,
+                    conn.len() as u64,
+                    nnodes as u64,
+                ]
+            }),
+        )
+    }
+
+    /// [`DofManager::assemble_elemental_matrices_to_matrix`] with the
+    /// elemental matrices produced on demand: `produce(range, out)` writes
+    /// into `out` the matrices of the elements at positions `range` of the
+    /// element list (filter, group or all), `nb_component` values each.
+    ///
+    /// On one thread, when the matrix holds a scatter plan for these
+    /// elements (a repeated assembly with unchanged entry positions and
+    /// equations, `BlockPositionCache::plan_ready`), the matrices are produced and
+    /// added chunk by chunk into `chunk` (a few megabytes, kept by the
+    /// caller), each chunk scattered while it is still in the caches:
+    /// every entry receives its contributions in element order, as with the
+    /// whole array, so the values and releases are the same. Otherwise
+    /// every matrix is produced into `full` and added by
+    /// `assemble_elemental_matrices_to_matrix`. Returns whether the chunked
+    /// path ran. On an error of `produce` in the chunked path, the chunks
+    /// before it are added (the matrix is left partly assembled, as after
+    /// any failed assembly).
+    #[allow(clippy::too_many_arguments)] // the assembly's arguments plus the producer and buffers
+    pub fn assemble_elemental_matrices_by_chunks(
+        &mut self,
+        mesh: &Mesh,
+        matrix_id: &str,
+        dof_id: &str,
+        nb_component: usize,
+        produce: &mut ElementalProducer<'_>,
+        full: &mut Array<Real>,
+        chunk: &mut Array<Real>,
+        ty: ElementType,
+        ghost: GhostType,
+        elemental_matrix_type: MatrixType,
+        filter: Option<&[Idx]>,
+    ) -> Result<bool> {
+        let planned = self.chunked_assembly(
+            mesh,
+            matrix_id,
+            dof_id,
+            nb_component,
+            &mut *produce,
+            chunk,
+            ty,
+            ghost,
+            elemental_matrix_type,
+            filter,
+        )?;
+        if planned {
+            return Ok(true);
+        }
+        let nb = match (filter, self.families.get(dof_id)) {
+            (Some(f), _) => f.len(),
+            (None, Some(f)) => match &f.group_support {
+                Some(g) => mesh.groups().element_group(g)?.elements_of(ty, ghost).len(),
+                None => mesh.nb_element(ty, ghost),
+            },
+            (None, None) => return Err(Error::not_found("dof family", dof_id)),
+        };
+        produce(0..nb, full)?;
+        self.assemble_elemental_matrices_to_matrix(
+            mesh,
+            matrix_id,
+            dof_id,
+            full.view(),
+            ty,
+            ghost,
+            elemental_matrix_type,
+            filter,
+        )?;
+        Ok(false)
+    }
+
+    /// The chunked path of [`DofManager::assemble_elemental_matrices_by_chunks`]
+    /// (`false`, nothing done, when no plan is ready).
+    #[allow(clippy::too_many_arguments)] // as the caller
+    fn chunked_assembly(
+        &mut self,
+        mesh: &Mesh,
+        matrix_id: &str,
+        dof_id: &str,
+        nb_component: usize,
+        produce: &mut ElementalProducer<'_>,
+        chunk: &mut Array<Real>,
+        ty: ElementType,
+        ghost: GhostType,
+        elemental_matrix_type: MatrixType,
+        filter: Option<&[Idx]>,
+    ) -> Result<bool> {
+        self.check_poison()?;
+        let key = (matrix_id.to_owned(), dof_id.to_owned(), ty, ghost);
+        // One thread only: with threads, a chunk of consecutive elements
+        // touches a narrow band of entries, so only one or two of the
+        // entry-range parts have work per chunk; the whole-array batch,
+        // which keeps every part busy, is faster there
+        // (docs/benchmarks/perf-campaign/threaded-assembly-2/README.md).
+        if self.exec.is_parallel()
+            || !self.assembly_cache_enabled
+            || !self.profiled.contains(&key)
+            || !self.backend.has_matrix(matrix_id)
+            || mesh.nb_element(ty, ghost) == 0
+        {
+            return Ok(false);
+        }
+        let Some(f) = self.families.get(dof_id) else {
+            return Ok(false);
+        };
+        let conn = mesh.connectivity(ty, ghost)?;
+        let nnodes = conn.nb_component();
+        let nb_eq = nnodes * f.dofs.nb_component();
+        if nb_eq * nb_eq != nb_component {
+            return Ok(false);
+        }
+        let Ok(elements) = Self::element_list(mesh, f, filter, ty, ghost, conn.len()) else {
+            return Ok(false);
+        };
+        let vouch = self.equations_vouch(mesh, ty, ghost, conn.as_slice(), nnodes)?;
+        let ready = match (self.assembly_caches.get(&key), self.backend.aij(matrix_id)) {
+            (Some(c), Ok(m)) => c.plan_ready(
+                &self.exec,
+                m,
+                &elements,
+                nb_eq,
+                elemental_matrix_type,
+                vouch,
+            ),
+            _ => None,
+        };
+        let Some(plan) = ready else {
+            return Ok(false);
+        };
+        if elements.len() < 2 {
+            return Ok(false);
+        }
+        let mut cache = self.assembly_caches.remove(&key).unwrap_or_default();
+        self.backend.begin_cached_assembly(matrix_id, &mut cache);
+        // chunks of about 4 MB of elemental matrices
+        let per = (self.chunk_values / nb_component.max(1)).max(1);
+        let mut result = Ok(());
+        let mut start = 0;
+        while start < elements.len() {
+            let end = (start + per).min(elements.len());
+            if let Err(e) = produce(start..end, chunk) {
+                result = Err(e);
+                break;
+            }
+            if chunk.len() != end - start || chunk.nb_component() != nb_component {
+                result = Err(Error::DimensionMismatch {
+                    context: "assemble_elemental_matrices_by_chunks: produced matrices",
+                    expected: end - start,
+                    got: chunk.len(),
+                });
+                break;
+            }
+            let done = self.backend.aij_mut(matrix_id).is_ok_and(|m| {
+                m.add_values_planned_chunk(
+                    &self.exec,
+                    &cache,
+                    plan,
+                    &elements,
+                    start,
+                    nb_eq,
+                    chunk.as_slice(),
+                    elemental_matrix_type,
+                )
+            });
+            if !done {
+                result = Err(Error::invalid(
+                    "assemble_elemental_matrices_by_chunks: the scatter plan was lost",
+                ));
+                break;
+            }
+            start = end;
+        }
+        self.assembly_caches.insert(key, cache);
+        result.map(|()| true)
     }
 
     /// Zero a matrix, keeping its profile (upstream `zeroMatrix`).

@@ -269,6 +269,37 @@ gh pr checkout <number>
 cp .github/workflows/*.yml ci/github/
 ```
 
+## Editing the manual
+
+The manual (`docs/manual`) is built with mdBook 0.4.40 and the preprocessor
+mdbook-katex 0.9.4 (`cargo install mdbook --version 0.4.40 --locked`,
+`cargo install mdbook-katex --version 0.9.4 --locked`, then `mdbook build
+docs/manual`; D-124).
+
+1. Formulas are LaTeX: `$...$` inline, `$$...$$` on lines of their own for a
+   displayed formula, with no blank line inside. A formula that KaTeX cannot
+   parse does not stop `mdbook build`: it prints "Rendering failed" and
+   leaves the source in the page. `ci/github/manual-build.sh <dir of the two
+   binaries>` is what the CI runs, and it fails in that case. An expression
+   whose point is the order of its floating-point operations stays a code
+   block. A literal dollar sign in the text is written `\$`.
+2. A figure is an image followed, on the next line of the same paragraph,
+   by its caption in emphasis. Drawings made for the manual are SVG files in
+   `docs/manual/src/figures/`; figures copied from Akantu are in
+   `figures/upstream/`, whose `NOTICE` names their origin; a copied file
+   that no page shows is removed. The caption of a result image says which
+   library computed it.
+3. The images of `figures/examples/` are results of the port's examples,
+   rendered by `scripts/manual/render_figures.py` (its header gives the
+   commands: build and run the examples, then render off-screen in a
+   container). Render them again when an example's output changes. The
+   script is a maintenance tool; neither the build nor the CI runs it.
+4. Run `cargo test -p akantu --test manual` (links, anchors, generated
+   tables, keyword tables) and, if a Rust block changed, `cargo test -p
+   akantu --doc`. The element appendix is generated, formulas included:
+   change the generator in `crates/akantu/tests/manual.rs` and regenerate
+   with `AKANTU_BLESS_MANUAL=1 cargo test -p akantu --test manual`.
+
 ## Cutting a release
 
 1. Choose the version (semantic versioning; before 1.0 a change of default

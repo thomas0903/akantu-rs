@@ -94,7 +94,8 @@ case "$wf:$jid" in
     ;;
   docs:manual)
     cargo install mdbook --version 0.4.40 --locked --root "$RUNNER_TEMP/mdbook" || exit $?
-    "$RUNNER_TEMP/mdbook/bin/mdbook" build docs/manual
+    cargo install mdbook-katex --version 0.9.4 --locked --root "$RUNNER_TEMP/mdbook" || exit $?
+    ci/github/manual-build.sh "$RUNNER_TEMP/mdbook/bin"
     ;;
   docs:site)
     # the `site` job of docs.yml (D-114): the manual, rustdoc, the Python API
@@ -102,7 +103,8 @@ case "$wf:$jid" in
     # actions) runs only on GitHub and is not replayed.
     export CI_WHEEL_PIP_BASE=numpy==2.2.4
     cargo install mdbook --version 0.4.40 --locked --root "$RUNNER_TEMP/mdbook" || exit $?
-    "$RUNNER_TEMP/mdbook/bin/mdbook" build docs/manual || exit $?
+    cargo install mdbook-katex --version 0.9.4 --locked --root "$RUNNER_TEMP/mdbook" || exit $?
+    ci/github/manual-build.sh "$RUNNER_TEMP/mdbook/bin" || exit $?
     ci/run-all.sh --backend host --tiers docs --out "$RUNNER_TEMP/ci-out-docs" || exit $?
     ci/run-all.sh --backend host --preset python --out "$RUNNER_TEMP/ci-out" || exit $?
     ci/github/pages-site.sh "$RUNNER_TEMP/site" --python "$RUNNER_TEMP/ci-out/pydocs/html"

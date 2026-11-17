@@ -63,15 +63,16 @@ jobs:
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
         with:
           persist-credentials: false
-      - name: mdBook binary (cargo install is a no-op when the cached version is present)
+      - name: mdBook and mdbook-katex binaries (cargo install is a no-op when the cached versions are present)
         uses: actions/cache@55cc8345863c7cc4c66a329aec7e433d2d1c52a9 # v6.1.0
         with:
           path: ${{ runner.temp }}/mdbook
-          key: mdbook-0.4.40-${{ runner.os }}
-      - name: manual (mdBook 0.4.40 from crates.io, the version the manual was reviewed with)
+          key: mdbook-0.4.40-katex-0.9.4-${{ runner.os }}
+      - name: manual (mdBook 0.4.40 and mdbook-katex 0.9.4 from crates.io, the versions the manual was reviewed with; a formula that does not render fails)
         run: |
           cargo install mdbook --version 0.4.40 --locked --root "$RUNNER_TEMP/mdbook"
-          "$RUNNER_TEMP/mdbook/bin/mdbook" build docs/manual
+          cargo install mdbook-katex --version 0.9.4 --locked --root "$RUNNER_TEMP/mdbook"
+          ci/github/manual-build.sh "$RUNNER_TEMP/mdbook/bin"
       - if: always()
         uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9 # v7.0.2
         with:
@@ -101,15 +102,16 @@ jobs:
             ~/.cargo/registry/cache
           key: cargo-registry-${{ runner.os }}-${{ hashFiles('Cargo.lock') }}
           restore-keys: cargo-registry-${{ runner.os }}-
-      - name: mdBook binary (cargo install is a no-op when the cached version is present)
+      - name: mdBook and mdbook-katex binaries (cargo install is a no-op when the cached versions are present)
         uses: actions/cache@55cc8345863c7cc4c66a329aec7e433d2d1c52a9 # v6.1.0
         with:
           path: ${{ runner.temp }}/mdbook
-          key: mdbook-0.4.40-${{ runner.os }}
-      - name: manual (mdBook 0.4.40 from crates.io, the version the manual was reviewed with)
+          key: mdbook-0.4.40-katex-0.9.4-${{ runner.os }}
+      - name: manual (mdBook 0.4.40 and mdbook-katex 0.9.4 from crates.io, the versions the manual was reviewed with; a formula that does not render fails)
         run: |
           cargo install mdbook --version 0.4.40 --locked --root "$RUNNER_TEMP/mdbook"
-          "$RUNNER_TEMP/mdbook/bin/mdbook" build docs/manual
+          cargo install mdbook-katex --version 0.9.4 --locked --root "$RUNNER_TEMP/mdbook"
+          ci/github/manual-build.sh "$RUNNER_TEMP/mdbook/bin"
       - name: rustdoc (host toolchain from rust-toolchain.toml)
         run: ci/run-all.sh --backend host --tiers docs --out "$RUNNER_TEMP/ci-out-docs"
       - name: wheel + import + pytest, then pdoc (as python.yml)

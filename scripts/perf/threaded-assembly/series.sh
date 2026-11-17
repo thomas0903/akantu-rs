@@ -10,8 +10,8 @@
 #
 # BIN_DIR holds base_solid, base_models (the branch point) and head_solid,
 # head_models (this branch), all built with the release profile. Writes
-# the wrappers BIN_DIR/<name>-t<N> (AKANTU_NUM_THREADS=N, pinned to cores
-# 0..N-1, scripts/perf/exec/wrappers.sh), then runs
+# the wrappers BIN_DIR/<name>-t<N> (the suites' --threads N, pinned to
+# cores 0..N-1; AKANTU_NUM_THREADS unset), then runs
 # scripts/perf/suite/run_ab.sh (rotated order per repetition) for each
 # suite into OUT_DIR/solid and OUT_DIR/models. Run it with the machine
 # otherwise idle. Summaries: scripts/perf/suite/summarize.py --ref base.
@@ -19,9 +19,14 @@ set -euo pipefail
 bin="$1" out="$2" reps="$3" offset="${4:-0}"
 here="$(cd "$(dirname "$0")" && pwd)"
 root="$(cd "$here/../../.." && pwd)"
+wrap() { # wrap NAME N: BIN_DIR/NAME-tN runs BIN_DIR/NAME with N threads
+  printf '#!/bin/sh\nunset AKANTU_NUM_THREADS\nexec taskset -c 0-%s "%s/%s" --threads %s "$@"\n' \
+    "$(($2 - 1))" "$bin" "$1" "$2" > "$bin/$1-t$2"
+  chmod +x "$bin/$1-t$2"
+}
 for s in solid models; do
-  "$root/scripts/perf/exec/wrappers.sh" "$bin" "base_$s" "1" > /dev/null
-  "$root/scripts/perf/exec/wrappers.sh" "$bin" "head_$s" "1 2 4 8" > /dev/null
+  wrap "base_$s" 1
+  for n in 1 2 4 8; do wrap "head_$s" "$n"; done
 done
 solid="setup_tet4,setup_tet10,setup_hex8,static_linear_eigen,static_newton_plastic,implicit_dynamic,cohesive_intrinsic_implicit"
 models="heat_static_tri6,heat_implicit_hex8_kvar,structural_beam3_frame_static,structural_beam3_frame_dynamic,structural_dkt18_plate_static,phasefield_staggered_tri3,phasefield_staggered_tet4,embedded_rebar_tri3,embedded_rebar_tet4,contact_implicit_static_quad4"
