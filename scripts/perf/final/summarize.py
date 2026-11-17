@@ -31,6 +31,8 @@ def sig(x, n=3):
     """n significant digits, thousands separated (as docs/BENCHMARKS.md)."""
     if x is None:
         return MISSING
+    if x != x or x in (float("inf"), float("-inf")):
+        return str(x)
     if x == 0:
         return "0"
     a = abs(x)
