@@ -60,8 +60,20 @@ change of default results or of a public API raises the minor version.
   thermal strains, finite-deformation residual, internal-force scatter,
   external-work increment (per-node terms), Newmark-β predictor and
   corrector, lumped solve, residual scatter and solution gather (the
-  per-node and per-equation loops only for parts of at least 131,072
-  nodes / 262,144 equations).
+  per-node and per-equation loops for parts of at least 2,048 nodes /
+  4,096 equations).
+- Threads in what ran serially when the explicit step runs on threads:
+  the generalized-trapezoidal predictor and corrector, the increment
+  update, the schemes' store and restore, the blocked-DOF scan, the
+  non-local weighted average and the non-local Mazars damage after it,
+  the energy densities of the Marigo and Mazars laws, the FE plans' checks
+  of element ids and connectivity, the deferred history saves of the laws'
+  stress blocks and Mazars' block copies; all bitwise equal to one thread
+  for every thread count. New: `InternalField::get_mut_with`,
+  `NonLocalManagerCallback::exec` (default serial),
+  `MaterialMazarsNonLocal::compute_non_local_stress_with`,
+  `damage::elastic_damage_energy_densities_with`,
+  `damage::elastic_damage_potential_energy_with`.
 - Threads in the per-point loops of more constitutive laws, bitwise equal
   to one thread for every thread count, also on the error path (the same
   error and the same law state as the serial loop):
@@ -217,6 +229,8 @@ change of default results or of a public API raises the minor version.
 
 ### Changed
 
+- `DamageParent::parent_potential_energy` takes the calling law's executor
+  as its first argument.
 - `akantu_solid::materials::damage::DamageParent::{stress_kernel,
   stress_kernel_from, parent_update_energies}`, `DamageFields::update_energies`
   and `PlasticFields::update_energies` take the executor of the calling law
