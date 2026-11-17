@@ -623,6 +623,8 @@ def strong_weak(runs, series_list, studies):
                 vals.append(statistics.median(c) if c else None)
             if vals[0] is None:
                 continue
+            if not any(vals[1:]):
+                continue
             eff = [f"{vals[0] / x:.2f}" if x else MISSING for x in vals[1:]]
             rows.append([name, " / ".join(str(n) for _, n in pts[1:]),
                          label, " / ".join(eff)])
@@ -686,7 +688,7 @@ def summarize_c(d, info):
          ["0.0925:1", "0.0756:2", "0.06:4", "0.0476:8"]),
         ("strong, h = 0.06, before insertion",
          ["0.06:1", "0.06:2", "0.06:4", "0.06:8"]),
-        ("strong, h = 0.12 (dry runs)",
+        ("strong, h = 0.12, before insertion (the dry run's mesh)",
          ["0.12:1", "0.12:2", "0.12:4", "0.12:8"])])
     out += strong_weak(runs, ["ins"], [
         ("strong, h = 0.12, with insertion",
