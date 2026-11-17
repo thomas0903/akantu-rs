@@ -74,6 +74,9 @@ pub struct Opts {
     pub threads: usize,
     /// The grain in force (recorded).
     pub grain: Grain,
+    /// `--ordering`: the `eigen` solver's column ordering of every solver
+    /// case (`akantu_bench::suite::set_sparse_ordering`).
+    pub ordering: Option<akantu_linalg::eigen_sparse_lu::SparseOrdering>,
 }
 
 impl Opts {
@@ -93,6 +96,7 @@ impl Opts {
             grain_arg: None,
             threads: 1,
             grain: Grain::Auto,
+            ordering: None,
         };
         let mut it = args.iter();
         let bad = |what: &str| Error::invalid(format!("suite_models: {what}"));
@@ -132,6 +136,7 @@ impl Opts {
                             .map_err(|e| bad(&format!("--grain: {e}")))?,
                     );
                 }
+                "--ordering" => o.ordering = Some(value()?.parse()?),
                 "-h" | "--help" => o.list = true,
                 v => return Err(bad(&format!("unknown argument {v}"))),
             }
@@ -439,6 +444,9 @@ pub fn main(cases: &[Case], comm: impl FnOnce() -> Result<Communicator>) -> std:
             return ExitCode::from(2);
         }
     };
+    if let Some(o) = opts.ordering {
+        akantu_bench::suite::set_sparse_ordering(o);
+    }
     // before any model is created: the policy of every model of the run
     match akantu_bench::suite::apply_exec_options(opts.threads_arg, opts.grain_arg) {
         Ok((threads, grain)) => {

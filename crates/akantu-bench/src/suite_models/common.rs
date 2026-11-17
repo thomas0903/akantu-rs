@@ -142,6 +142,7 @@ pub fn eigen_options(run: &mut Run, method: AnalysisMethod) -> ModelOptions {
     run.sparse_solver = "eigen";
     ModelOptions::new(method).with_solver_options(ModelSolverOptions {
         sparse_solver_type: Some(SparseSolverType::Eigen),
+        sparse_solver_ordering: akantu_bench::suite::sparse_ordering(),
         ..ModelSolverOptions::default()
     })
 }

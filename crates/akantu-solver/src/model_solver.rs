@@ -42,6 +42,7 @@ use akantu_core::enums::{
 };
 use akantu_core::{Error, Id, Real, Result};
 use akantu_linalg::direct::SparseSolverFactory;
+use akantu_linalg::eigen_sparse_lu::SparseOrdering;
 use akantu_parser::param::{ParamInfo, ParamValue, ParameterRegistry, Parsable};
 use akantu_parser::{ParserSection, ParserType, SearchScope};
 
@@ -63,6 +64,13 @@ pub struct ModelSolverOptions {
     /// Sparse direct solver (`None` → `auto`; D-040: `Faer` is the port
     /// extension, selected explicitly only).
     pub sparse_solver_type: Option<SparseSolverType>,
+    /// Column ordering of the `eigen` sparse solver (D-125; `None`: the
+    /// solver's default, COLAMD in the bitwise mode). Input file:
+    /// `sparse_solver_ordering = colamd | nested_dissection | auto` in a
+    /// `time_step_solver` section. Any value other than `colamd` changes
+    /// the results in the last digits; another sparse solver kind refuses
+    /// it.
+    pub sparse_solver_ordering: Option<SparseOrdering>,
     /// Integration scheme per DOF family.
     pub integration_scheme_type: BTreeMap<Id, IntegrationSchemeType>,
     /// Solution type per DOF family.
@@ -95,6 +103,9 @@ impl ModelSolverOptions {
         }
         if self.sparse() == SparseSolverType::Auto {
             self.sparse_solver_type = other.sparse_solver_type;
+        }
+        if self.sparse_solver_ordering.is_none() {
+            self.sparse_solver_ordering = other.sparse_solver_ordering;
         }
         for (k, v) in &other.integration_scheme_type {
             self.integration_scheme_type.insert(k.clone(), *v);
@@ -576,7 +587,40 @@ impl ModelSolver {
             })
         })?;
         self.solvers.insert(solver_id.into(), tss_solver);
+        if let Some(ordering) = options.sparse_solver_ordering {
+            self.apply_sparse_ordering(solver_id, sparse, ordering)?;
+        }
         Ok(())
+    }
+
+    /// D-125: the ordering option of the new solver's sparse solver (matrix
+    /// `J`, the AIJ backend). Only the `eigen` solver has orderings;
+    /// `colamd` is accepted as a no-op by any other kind, and a lumped
+    /// solver (no linear system) ignores the option.
+    fn apply_sparse_ordering(
+        &mut self,
+        solver_id: &str,
+        sparse: SparseSolverType,
+        ordering: SparseOrdering,
+    ) -> Result<()> {
+        if self.non_linear_solver(Some(solver_id))?.kind() == NonLinearSolverType::Lumped {
+            // no linear system to order
+            return Ok(());
+        }
+        let kind = self.dof_manager.backend().sparse_solver_kind("J");
+        match kind {
+            Some(SparseSolverType::Eigen) => {
+                self.dof_manager
+                    .backend_mut()?
+                    .set_solver_option("J", "ordering", ordering.name())
+            }
+            _ if ordering == SparseOrdering::Colamd => Ok(()),
+            _ => Err(Error::invalid(format!(
+                "sparse_solver_ordering = {ordering} needs the eigen sparse solver (solver \
+                 '{solver_id}' uses {})",
+                kind.unwrap_or(sparse)
+            ))),
+        }
     }
 
     /// Install a fully constructed time-step solver under `solver_id`
@@ -845,6 +889,9 @@ impl ModelSolver {
             }
             options.non_linear_solver_type = Some(nls_type);
             options.sparse_solver_type = Some(ss_type);
+            if let Some(w) = word(ts, "sparse_solver_ordering")? {
+                options.sparse_solver_ordering = Some(w.parse()?);
+            }
             self.get_new_solver(&solver_id, &options, model)?;
             if let Some(nls_section) = nls_sections.first() {
                 let nls = self.non_linear_solver_mut(Some(&solver_id))?;

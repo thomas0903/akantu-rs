@@ -48,7 +48,9 @@ pub(crate) type AnalysisArg = NamedEnumArg<AnalysisMethod, RsAnalysisMethod>;
 /// `ModelSolverOptions(...)` (PY-065): `ModelSolverOptions(time_step_solver_type=TimeStepSolverType.not_defined,
 /// non_linear_solver_type=NonLinearSolverType.auto,
 /// sparse_solver_type=SparseSolverType.auto, integration_scheme_type={},
-/// solution_type={})`.
+/// solution_type={}, sparse_solver_ordering=None)`; `sparse_solver_ordering`
+/// is the akantu-rs option of the `eigen` solver (D-125): `"colamd"`,
+/// `"nested_dissection"` or `"auto"` (`None`: the solver's default).
 #[pyclass(frozen, name = "ModelSolverOptions", module = "akantu.py11_akantu")]
 #[derive(Clone, Debug)]
 pub(crate) struct PyModelSolverOptions {
@@ -76,18 +78,24 @@ pub(crate) fn solution_type(obj: &Bound<'_, PyAny>) -> PyResult<SolutionType> {
 #[pymethods]
 impl PyModelSolverOptions {
     #[new]
-    #[pyo3(signature = (time_step_solver_type = None, non_linear_solver_type = None, sparse_solver_type = None, integration_scheme_type = None, solution_type = None))]
+    #[pyo3(signature = (time_step_solver_type = None, non_linear_solver_type = None, sparse_solver_type = None, integration_scheme_type = None, solution_type = None, sparse_solver_ordering = None))]
     fn new(
         time_step_solver_type: Option<NamedEnumArg<TimeStepSolverType, RsTimeStepSolverType>>,
         non_linear_solver_type: Option<NamedEnumArg<NonLinearSolverType, RsNonLinearSolverType>>,
         sparse_solver_type: Option<NamedEnumArg<SparseSolverType, RsSparseSolverType>>,
         integration_scheme_type: Option<&Bound<'_, PyDict>>,
         solution_type: Option<&Bound<'_, PyDict>>,
+        sparse_solver_ordering: Option<String>,
     ) -> PyResult<Self> {
+        let ordering = sparse_solver_ordering
+            .map(|o| o.parse::<akantu::linalg::eigen_sparse_lu::SparseOrdering>())
+            .transpose()
+            .map_err(|e| pyo3::exceptions::PyValueError::new_err(e.to_string()))?;
         let mut options = ModelSolverOptions {
             time_step_solver_type: time_step_solver_type.and_then(|a| a.0),
             non_linear_solver_type: non_linear_solver_type.and_then(|a| a.0),
             sparse_solver_type: sparse_solver_type.and_then(|a| a.0),
+            sparse_solver_ordering: ordering,
             ..ModelSolverOptions::default()
         };
         if let Some(d) = integration_scheme_type {

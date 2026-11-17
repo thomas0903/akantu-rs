@@ -42,6 +42,7 @@ use std::time::Instant;
 use akantu_comm::{Communicator, ReduceOp};
 use akantu_core::exec::Grain;
 use akantu_core::{Error, Result};
+use akantu_linalg::eigen_sparse_lu::SparseOrdering;
 
 /// Warm-up calls before a loop phase is timed (suite contract).
 pub const WARMUP_CALLS: usize = 3;
@@ -100,6 +101,25 @@ pub struct Options {
     /// `--grain finest|auto`: the split grain of that policy; `None` keeps
     /// the environment's.
     pub grain: Option<Grain>,
+    /// `--ordering colamd|nested_dissection|auto`: the column ordering of
+    /// the `eigen` sparse solver of every solver case
+    /// ([`set_sparse_ordering`]); `None` keeps the solver's default.
+    pub ordering: Option<SparseOrdering>,
+}
+
+static SPARSE_ORDERING: std::sync::OnceLock<SparseOrdering> = std::sync::OnceLock::new();
+
+/// Selects the sparse solver ordering of the solver cases of this process
+/// (`--ordering`, set once before the first case; D-125).
+pub fn set_sparse_ordering(o: SparseOrdering) {
+    let _ = SPARSE_ORDERING.set(o);
+}
+
+/// The ordering of [`set_sparse_ordering`] (`None`: the solver's default,
+/// the digests of the default runs).
+#[must_use]
+pub fn sparse_ordering() -> Option<SparseOrdering> {
+    SPARSE_ORDERING.get().copied()
 }
 
 /// Name of a split grain in the command line and the JSON lines.
@@ -164,7 +184,8 @@ pub enum Command {
 fn usage(bin: &str) -> String {
     format!(
         "usage: {bin} --list\n       {bin} --case <name>[,<name>...]|all --size s|m|l [--reps N] \
-         [--out FILE] [--loop-seconds S] [--threads N] [--grain finest|auto]"
+         [--out FILE] [--loop-seconds S] [--threads N] [--grain finest|auto] \
+         [--ordering colamd|nested_dissection|auto]"
     )
 }
 
@@ -182,6 +203,7 @@ pub fn parse_args(bin: &str, args: impl IntoIterator<Item = String>) -> Result<C
     let mut loop_seconds = None;
     let mut threads = None;
     let mut grain = None;
+    let mut ordering = None;
     let bad = |what: &str| Error::invalid(format!("{what}\n{}", usage(bin)));
     while let Some(k) = it.next() {
         let mut value = || it.next().ok_or_else(|| bad(&format!("{k}: missing value")));
@@ -226,6 +248,7 @@ pub fn parse_args(bin: &str, args: impl IntoIterator<Item = String>) -> Result<C
                         .map_err(|e| bad(&format!("--grain: {e}")))?,
                 );
             }
+            "--ordering" => ordering = Some(value()?.parse::<SparseOrdering>()?),
             "-h" | "--help" => return Err(bad("")),
             _ => return Err(bad(&format!("unknown argument `{k}`"))),
         }
@@ -246,6 +269,7 @@ pub fn parse_args(bin: &str, args: impl IntoIterator<Item = String>) -> Result<C
         loop_seconds,
         threads,
         grain,
+        ordering,
     }))
 }
 
@@ -780,6 +804,9 @@ pub fn run_main(suite: &str, cases: &[Case], comm: &Communicator) -> std::proces
         }
         Command::Run(o) => o,
     };
+    if let Some(o) = opts.ordering {
+        set_sparse_ordering(o);
+    }
     // before any model is created: the policy of every model of the run
     let exec = match apply_exec_options(opts.threads, opts.grain) {
         Ok(x) => x,
@@ -978,6 +1005,7 @@ mod tests {
             loop_seconds: None,
             threads: None,
             grain: None,
+            ordering: None,
         };
         let comm = Communicator::serial();
         let mut ctx = Ctx::new(&opts, &comm, 0);

@@ -278,6 +278,7 @@ pub fn intrinsic_implicit(ctx: &mut Ctx<'_>) -> Result<Outcome> {
             ModelOptions::new(AnalysisMethod::Static).with_solver_options(ModelSolverOptions {
                 non_linear_solver_type: Some(NonLinearSolverType::Auto),
                 sparse_solver_type: Some(SparseSolverType::Eigen),
+                sparse_solver_ordering: crate::suite::sparse_ordering(),
                 ..ModelSolverOptions::default()
             });
         m.init_full(&opts, false)?;

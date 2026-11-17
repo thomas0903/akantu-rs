@@ -36,6 +36,7 @@ fn options(
     ModelOptions::new(method).with_solver_options(ModelSolverOptions {
         non_linear_solver_type: nls,
         sparse_solver_type: Some(sparse),
+        sparse_solver_ordering: crate::suite::sparse_ordering(),
         ..ModelSolverOptions::default()
     })
 }

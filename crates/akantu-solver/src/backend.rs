@@ -824,6 +824,10 @@ pub struct AijBackend {
     /// rows, products) and of the sparse solver of every solve
     /// (`SparseDirectSolver::set_exec`): the DOF manager's (D-123).
     exec: akantu_core::exec::Exec,
+    /// Options set per matrix ([`LinearSystemBackend::set_solver_option`],
+    /// e.g. the `eigen` solver's `ordering`, D-125), in the order set, one
+    /// value per name; applied again to a solver installed later.
+    solver_options: BTreeMap<Id, Vec<(String, String)>>,
 }
 
 /// Rank-0 change detector of a centralised multi-rank solve.
@@ -856,9 +860,16 @@ impl AijBackend {
     /// non-linear solver creates `SparseSolver(dof_manager, "J")`).
     /// A replaced solver releases its internal data first (upstream: the
     /// replaced `SparseSolver` is destroyed, e.g. `mumpsDataDestroy`).
-    pub fn set_solver(&mut self, id: &str, solver: Box<dyn SparseDirectSolver>) {
+    /// Options set earlier for `id` ([`LinearSystemBackend::set_solver_option`])
+    /// apply to the new solver too; a solver kind without that option
+    /// ignores it.
+    pub fn set_solver(&mut self, id: &str, mut solver: Box<dyn SparseDirectSolver>) {
         self.analysed.remove(id);
         self.central.remove(id);
+        for (name, value) in self.solver_options.get(id).into_iter().flatten() {
+            // validated when set; another kind may lack the option
+            let _ = solver.set_option(name, value);
+        }
         if let Some(mut old) = self.solvers.insert(id.into(), solver) {
             old.destroy_internal_data();
         }
@@ -1322,6 +1333,23 @@ impl LinearSystemBackend for AijBackend {
     }
     fn sparse_solver_kind(&self, id: &str) -> Option<SparseSolverType> {
         self.solvers.get(id).map(|s| s.kind())
+    }
+    /// An option of the sparse solver of matrix `id`
+    /// ([`SparseDirectSolver::set_option`]; the `eigen` solver's
+    /// `ordering`, D-125). Kept for solvers installed later; the next solve
+    /// analyses the matrix again.
+    fn set_solver_option(&mut self, id: &str, name: &str, value: &str) -> Result<()> {
+        let solver = self
+            .solvers
+            .get_mut(id)
+            .ok_or_else(|| Error::not_found("sparse solver for matrix", id))?;
+        solver.set_option(name, value)?;
+        let list = self.solver_options.entry(id.into()).or_default();
+        list.retain(|(n, _)| n != name);
+        list.push((name.to_owned(), value.to_owned()));
+        self.analysed.remove(id);
+        self.central.remove(id);
+        Ok(())
     }
     fn sparse_solver_statistics(&self, id: &str) -> Vec<(&'static str, Real)> {
         self.solvers

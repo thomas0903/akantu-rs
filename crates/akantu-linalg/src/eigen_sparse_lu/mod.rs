@@ -72,6 +72,7 @@ mod colamd;
 mod dense;
 mod etree;
 mod kernels;
+mod nested_dissection;
 // Run-time instruction-set dispatch of the dense kernels: calls of
 // `#[target_feature]` functions after the CPU check (`UNSAFE.md`).
 #[allow(unsafe_code)]
@@ -95,6 +96,85 @@ const RELAX: i64 = 1;
 const MAXSUPER: i64 = 128;
 /// `m_diagpivotthresh` default.
 const DIAG_PIVOT_THRESH: f64 = 1.0;
+
+/// [`SparseOrdering::Auto`]: below this order COLAMD is kept without
+/// computing the nested dissection.
+pub const AUTO_MIN_ORDER: usize = 2000;
+/// [`SparseOrdering::Auto`]: nested dissection is chosen when its predicted
+/// factorisation work is at most this fraction of COLAMD's (and its
+/// predicted factor size not larger).
+pub const AUTO_WORK_RATIO: f64 = 0.8;
+/// Whether an unset ordering means [`SparseOrdering::Auto`] in the fast
+/// mode (D-125); in the bitwise mode an unset ordering is always COLAMD.
+const AUTO_IN_FAST_MODE: bool = true;
+
+/// Column ordering of [`SparseLu`]'s analysis (D-125).
+///
+/// The default, [`SparseOrdering::Colamd`], is Eigen's and gives the
+/// oracle's factors bit for bit. Another ordering eliminates the unknowns
+/// in another order: the factors, the pivots and the last digits of the
+/// solutions differ from the default (tolerance rule
+/// `fast_mode/linalg/sparse_lu_ordering` of
+/// `fixtures/fast_mode/linalg/tolerances.json`).
+#[derive(Clone, Copy, Debug, Default, PartialEq, Eq, Hash)]
+pub enum SparseOrdering {
+    /// Eigen's COLAMD (`COLAMDOrdering<int>`), the default.
+    #[default]
+    Colamd,
+    /// Nested dissection of the graph of `A + Aᵀ`
+    /// (this crate's partitioner, deterministic): less fill and work than
+    /// COLAMD on large 3-D problems.
+    NestedDissection,
+    /// The ordering of smaller predicted factorisation work: COLAMD below
+    /// [`AUTO_MIN_ORDER`] unknowns; above, both orderings are computed and
+    /// nested dissection is used when its predicted work (`Σ c_j²` over the
+    /// column counts of the symmetric factor) is at most
+    /// [`AUTO_WORK_RATIO`] of COLAMD's and its predicted size not larger.
+    Auto,
+}
+
+impl SparseOrdering {
+    /// The input-file and Python name.
+    #[must_use]
+    pub fn name(self) -> &'static str {
+        match self {
+            Self::Colamd => "colamd",
+            Self::NestedDissection => "nested_dissection",
+            Self::Auto => "auto",
+        }
+    }
+}
+
+impl std::fmt::Display for SparseOrdering {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        f.write_str(self.name())
+    }
+}
+
+impl std::str::FromStr for SparseOrdering {
+    type Err = Error;
+    fn from_str(s: &str) -> Result<Self> {
+        match s {
+            "colamd" => Ok(Self::Colamd),
+            "nested_dissection" | "nd" => Ok(Self::NestedDissection),
+            "auto" => Ok(Self::Auto),
+            _ => Err(Error::invalid(format!(
+                "unknown sparse solver ordering '{s}' (expected colamd, nested_dissection or auto)"
+            ))),
+        }
+    }
+}
+
+/// What the analysis chose ([`SparseLu::ordering_report`]).
+#[derive(Clone, Copy, Debug, Default, PartialEq)]
+pub struct OrderingReport {
+    /// The ordering in effect: [`SparseOrdering::Colamd`] or
+    /// [`SparseOrdering::NestedDissection`].
+    pub used: SparseOrdering,
+    /// [`SparseOrdering::Auto`]'s predictions `(size, work)` of COLAMD and
+    /// of nested dissection (`None` when no prediction was made).
+    pub predicted: Option<[(f64, f64); 2]>,
+}
 
 /// Factor arrays of a successful factorisation (for differential checks).
 #[derive(Clone, Debug, Default)]
@@ -148,6 +228,13 @@ pub struct SparseLu {
     exec: Exec,
     /// Test override of the threaded panel updates' size threshold.
     threaded_min: Option<usize>,
+    /// The requested ordering ([`SparseLu::set_ordering`]; `None`: COLAMD,
+    /// or [`SparseOrdering::Auto`] in the fast mode).
+    ordering: Option<SparseOrdering>,
+    /// What the last analysis used.
+    report: OrderingReport,
+    /// Off-diagonal pivots of the last factorisation.
+    off_diagonal_pivots: usize,
 }
 
 impl SparseLu {
@@ -170,8 +257,65 @@ impl SparseLu {
                 limit: i32::MAX as u128,
             });
         }
-        let perm_c = colamd::colamd_ordering(n, n, a.col_ptr(), a.row_idx())?;
-        self.analyze_with_perm(a, perm_c)
+        let (perm_c, report) = match self.effective_ordering() {
+            SparseOrdering::Colamd => (
+                colamd::colamd_ordering(n, n, a.col_ptr(), a.row_idx())?,
+                OrderingReport::default(),
+            ),
+            SparseOrdering::NestedDissection => (
+                perm_of_order(&nested_dissection::nested_dissection_order(
+                    n,
+                    a.col_ptr(),
+                    a.row_idx(),
+                )),
+                OrderingReport {
+                    used: SparseOrdering::NestedDissection,
+                    predicted: None,
+                },
+            ),
+            SparseOrdering::Auto => auto_ordering(a)?,
+        };
+        self.analyze_with_perm(a, perm_c)?;
+        self.report = report;
+        Ok(())
+    }
+
+    /// The ordering of the next analyses (D-125): `Some(o)` selects `o`;
+    /// `None` (the default) is [`SparseOrdering::Colamd`], or
+    /// [`SparseOrdering::Auto`] when the fast mode is in effect
+    /// ([`SparseLu::set_fast_mode`], or an executor in precision `Fast`).
+    /// Takes effect at the next [`SparseLu::analyze_pattern`].
+    pub fn set_ordering(&mut self, ordering: Option<SparseOrdering>) {
+        self.ordering = ordering;
+    }
+
+    /// The requested ordering ([`SparseLu::set_ordering`]).
+    #[must_use]
+    pub fn ordering(&self) -> Option<SparseOrdering> {
+        self.ordering
+    }
+
+    /// The ordering an analysis would use now.
+    #[must_use]
+    pub fn effective_ordering(&self) -> SparseOrdering {
+        match self.ordering {
+            Some(o) => o,
+            None if AUTO_IN_FAST_MODE && self.fast_mode().is_some() => SparseOrdering::Auto,
+            None => SparseOrdering::Colamd,
+        }
+    }
+
+    /// The ordering the last analysis used, with `Auto`'s predictions.
+    #[must_use]
+    pub fn ordering_report(&self) -> OrderingReport {
+        self.report
+    }
+
+    /// Off-diagonal pivots of the last successful factorisation (pivot row
+    /// other than the column's diagonal row).
+    #[must_use]
+    pub fn off_diagonal_pivots(&self) -> usize {
+        self.off_diagonal_pivots
     }
 
     /// Experiment hook, not part of the supported interface: `analyzePattern`
@@ -210,7 +354,12 @@ impl SparseLu {
                 limit: i32::MAX as u128,
             });
         }
-        self.analyze_with_perm(a, perm_c)
+        self.analyze_with_perm(a, perm_c)?;
+        self.report = OrderingReport {
+            used: SparseOrdering::NestedDissection,
+            predicted: None,
+        };
+        Ok(())
     }
 
     /// The elimination tree, its postorder and the analysed pattern for the
@@ -342,6 +491,7 @@ impl SparseLu {
         let mut relax_end = vec![EMPTY; n];
         kernels::relax_snode(n, &self.etree, RELAX, &mut relax_end);
         let mut perm_r = vec![EMPTY; m];
+        let mut off_diagonal = 0usize;
         let pc = PermutedCols {
             col_ptr: a.col_ptr(),
             row_idx: a.row_idx(),
@@ -405,6 +555,8 @@ impl SparseLu {
                         )));
                     }
                 };
+                // statistics only (no effect on the factorisation)
+                off_diagonal += usize::from(pivrow != iperm_c[jj]);
                 kernels::prune_l(jj, &perm_r, pivrow, nseg, col_off, &mut wk, &mut glu);
                 for i in 0..nseg as usize {
                     let irep = wk.segrep[i] as usize;
@@ -428,6 +580,7 @@ impl SparseLu {
         }
         self.factors = Some((perm_r, glu));
         self.work = Some(wk);
+        self.off_diagonal_pivots = off_diagonal;
         Ok(())
     }
 
@@ -588,6 +741,51 @@ fn solve_u(mode: Mode, n: usize, g: &Glu, x: &mut [f64]) {
     }
 }
 
+/// `perm[c]` = position of column `c`, from an elimination order.
+fn perm_of_order(order: &[usize]) -> Vec<i64> {
+    let mut perm = vec![0i64; order.len()];
+    for (k, &c) in order.iter().enumerate() {
+        perm[c] = k as i64;
+    }
+    perm
+}
+
+/// [`SparseOrdering::Auto`]: COLAMD, or nested dissection when it is
+/// predicted to need clearly less work (see the variant).
+fn auto_ordering(a: &CscMatrix) -> Result<(Vec<i64>, OrderingReport)> {
+    let n = a.n();
+    let colamd = colamd::colamd_ordering(n, n, a.col_ptr(), a.row_idx())?;
+    if n < AUTO_MIN_ORDER {
+        return Ok((colamd, OrderingReport::default()));
+    }
+    let nd = nested_dissection::nested_dissection_order(n, a.col_ptr(), a.row_idx());
+    let (xadj, adj) = nested_dissection::symmetric_pattern(n, a.col_ptr(), a.row_idx());
+    let mut colamd_order = vec![0usize; n];
+    for (c, &p) in colamd.iter().enumerate() {
+        colamd_order[p as usize] = c;
+    }
+    let pc = nested_dissection::cholesky_counts(&xadj, &adj, &colamd_order);
+    let pn = nested_dissection::cholesky_counts(&xadj, &adj, &nd);
+    let predicted = Some([pc, pn]);
+    if pn.1 <= AUTO_WORK_RATIO * pc.1 && pn.0 <= pc.0 {
+        Ok((
+            perm_of_order(&nd),
+            OrderingReport {
+                used: SparseOrdering::NestedDissection,
+                predicted,
+            },
+        ))
+    } else {
+        Ok((
+            colamd,
+            OrderingReport {
+                used: SparseOrdering::Colamd,
+                predicted,
+            },
+        ))
+    }
+}
+
 /// Upstream `SparseSolverEigen`: Eigen `SparseLU` on the matrix built by
 /// `setA()` ([`CscMatrix::from_aij`]); analysis when the profile release or
 /// the effective symmetry changed, factorisation when the value release
@@ -619,6 +817,16 @@ impl EigenSparseLuSolver {
     #[must_use]
     pub fn lu(&self) -> &SparseLu {
         &self.lu
+    }
+
+    /// [`SparseLu::set_ordering`]; drops the analysis. Unlike the fast
+    /// mode, the choice survives
+    /// [`SparseDirectSolver::destroy_internal_data`].
+    pub fn set_ordering(&mut self, ordering: Option<SparseOrdering>) {
+        self.lu.set_ordering(ordering);
+        self.analysed = None;
+        self.lu.pattern = None;
+        self.lu.invalidate();
     }
 }
 
@@ -662,8 +870,61 @@ impl SparseDirectSolver for EigenSparseLuSolver {
         self.lu.set_exec(exec.clone());
     }
 
+    /// `ordering` = `colamd` | `nested_dissection` | `auto` ([`SparseOrdering`];
+    /// `default` restores the unset choice). Drops the analysis.
+    fn set_option(&mut self, name: &str, value: &str) -> Result<()> {
+        match name {
+            "ordering" => {
+                let o = match value {
+                    "default" => None,
+                    v => Some(v.parse::<SparseOrdering>()?),
+                };
+                self.lu.set_ordering(o);
+                self.analysed = None;
+                self.lu.pattern = None;
+                self.lu.invalidate();
+                Ok(())
+            }
+            _ => Err(Error::Unsupported(format!(
+                "the eigen sparse solver has no option '{name}' (it has: ordering)"
+            ))),
+        }
+    }
+
+    /// `ordering` (0 COLAMD, 1 nested dissection), the predictions of
+    /// [`SparseOrdering::Auto`] when it ran, `nnz_l`, `nnz_u` and
+    /// `off_diagonal_pivots` of the last factorisation.
+    fn statistics(&self) -> Vec<(&'static str, f64)> {
+        let r = self.lu.ordering_report();
+        let mut v = vec![(
+            "ordering",
+            f64::from(u8::from(r.used == SparseOrdering::NestedDissection)),
+        )];
+        if let Some([c, d]) = r.predicted {
+            v.extend([
+                ("predicted_size_colamd", c.0),
+                ("predicted_work_colamd", c.1),
+                ("predicted_size_nd", d.0),
+                ("predicted_work_nd", d.1),
+            ]);
+        }
+        if let Some((_, g)) = &self.lu.factors {
+            let (l, u) = kernels::countnz(self.lu.n, g);
+            v.extend([
+                ("nnz_l", l as f64),
+                ("nnz_u", u as f64),
+                ("off_diagonal_pivots", self.lu.off_diagonal_pivots as f64),
+            ]);
+        }
+        v
+    }
+
+    /// Releases everything but the ordering choice (a configuration of the
+    /// solver, kept like its kind).
     fn destroy_internal_data(&mut self) {
+        let ordering = self.lu.ordering;
         *self = Self::default();
+        self.lu.ordering = ordering;
     }
 }
 

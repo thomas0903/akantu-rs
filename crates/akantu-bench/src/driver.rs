@@ -335,28 +335,29 @@ fn solid_parser(parser: &Parser) -> Parser {
     p
 }
 
-/// Set `sparse_solver_type` of every `time_step_solver` section of the
-/// model section (upstream input syntax) to `ty`.
-fn override_sparse_solver(parser: &mut Parser, ty: &str) -> Result<()> {
-    fn visit(s: &mut ParserSection, ty: &str) -> Result<()> {
+/// Set the parameter `name` (`sparse_solver_type`, `sparse_solver_ordering`)
+/// of every `time_step_solver` section of the model section (upstream input
+/// syntax) to `value`.
+fn override_solver_parameter(parser: &mut Parser, name: &str, value: &str) -> Result<()> {
+    fn visit(s: &mut ParserSection, name: &str, value: &str) -> Result<()> {
         for sub in &mut s.sub_sections {
             if sub.section_type == ParserType::TimeStepSolver {
                 if let Some(p) = sub
                     .parameters
                     .iter_mut()
-                    .find(|p| p.name.as_bytes() == b"sparse_solver_type")
+                    .find(|p| p.name.as_bytes() == name.as_bytes())
                 {
-                    p.value = ty.into();
+                    p.value = value.into();
                 } else {
-                    sub.add_parameter(ParserParameter::new("sparse_solver_type", ty))?;
+                    sub.add_parameter(ParserParameter::new(name, value))?;
                 }
             } else {
-                visit(sub, ty)?;
+                visit(sub, name, value)?;
             }
         }
         Ok(())
     }
-    visit(&mut parser.root, ty)
+    visit(&mut parser.root, name, value)
 }
 
 fn count(mesh: &Mesh, ghost: GhostType, kind: Option<ElementKind>) -> usize {
@@ -509,7 +510,10 @@ pub fn run(comm: &Communicator, cfg: &Config) -> Result<RunReport> {
     let shared = SharedMesh::new(mesh);
     let mut parser = cfg.parser.clone();
     if let Some(ty) = cfg.sparse_solver {
-        override_sparse_solver(&mut parser, &ty.to_string())?;
+        override_solver_parameter(&mut parser, "sparse_solver_type", &ty.to_string())?;
+    }
+    if let Some(o) = cfg.sparse_ordering {
+        override_solver_parameter(&mut parser, "sparse_solver_ordering", o.name())?;
     }
     let mut model = build_model(&shared, cfg, &parser, verbose)?;
     chrono.store_time("init_full");
