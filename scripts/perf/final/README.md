@@ -26,7 +26,7 @@ there and the estimates for the real campaign.
 |---|---|
 | `cpp-strict`, `cpp` | the C++ reference `35a85178`, oracle install `install-strict` (`-ffp-contract=off -DEIGEN_DONT_VECTORIZE`, the port's floating-point operations) |
 | `cpp-default` | the same with upstream's flags (part A only, as in the document) |
-| `before` | the port before the campaign: `--before REV` of `prepare.sh`; use `91cb54c64` (the library of `59dd2229` = public `main`, plus the benchmark suites and the baseline scripts; its `cohesive_extrinsic` and `explicit_step_timing` sources are those of `59dd2229`) |
+| `before` | the port before the campaign: `--before REV` of `prepare.sh`; use the branch `perf/final-before` (`b6f56c2f0`): the library of `59dd2229` (= the public `main`, byte for byte in every crate but `akantu-bench`), the cohesive driver and explicit-step harness of `59dd2229`, and the benchmark suites with their final case definitions (`91cb54c64` plus the suite-only commits `73b8999d5`, `6743820cb`, `82325c03a`, `9f3149c5b`, `0a94566bb`, `f373ab7ce`, `50fe7e996`, cherry-picked; `26d0f8365` needs a library function of the campaign and is left out: `explicit_step_dist_tet4` of `before` does not report the agreement counts). What differs from the head's suites is the execution-policy plumbing (`--threads`, `--grain`) and cases added later (they run without `before`) |
 | `head` | the port at the revision under test (`--head REV`), default bitwise policy, one thread |
 | `head-t2`, `-t4`, `-t8` | `head` with `AKANTU_NUM_THREADS = N`, threads on cores 0..N−1; in the cohesive and MPI parts `head-tN` at P ranks is P ranks × N threads (`mpirun --map-by slot:PE=N --bind-to core`) |
 | `head-fast`, `head-fast-t8` | `head` with `AKANTU_PRECISION=fast` (compared only through its tolerance rules, never digested as bitwise) |
@@ -70,7 +70,7 @@ after each build (`--keep-targets` keeps them).
 
 ```sh
 git clone -b perf/final-campaign <repository> akantu-rs && cd akantu-rs
-scripts/perf/final/prepare.sh --before 91cb54c64 --head <REV> [--joss-mesh cube.msh]
+scripts/perf/final/prepare.sh --before perf/final-before --head <REV> [--joss-mesh cube.msh]
 ```
 
 `prepare.sh` checks the oracle installs and the cohesive harness builds,
