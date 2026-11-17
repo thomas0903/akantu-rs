@@ -159,8 +159,9 @@ case "$part" in
   C|D|E|F|G)
     for c in strict default; do
       got=$(docker run --rm -v akantu-perf-cohesive:/perf:ro "${FIN_ORACLE_IMAGE}" sha256sum "/perf/builds/$c/cohesive_extrinsic" 2> /dev/null | cut -d' ' -f1)
-      [ -n "$got" ] && [ "$got" = "$(cpp_sha "cohesive_extrinsic_$c")" ] \
-        || fin_die "the C++ harness /perf/builds/$c is not the one of CPP.json (got ${got:-none})"
+      if [ -z "$got" ] || [ "$got" != "$(cpp_sha "cohesive_extrinsic_$c")" ]; then
+        fin_die "the C++ harness /perf/builds/$c is not the one of CPP.json (got ${got:-none})"
+      fi
     done
     for b in before head; do
       vd=$(if [ "$b" = before ]; then echo "$BEFORE"; else echo "$HEAD"; fi)
@@ -230,7 +231,7 @@ run_a_digests() { # id labels configs
       printf '%s\t%s\tn=%s\t%s\t%s\t%s\n' "$mesh" "$mode" "$n" "$l" "${dig:-none}" "$verdict" >> "$D/digests.tsv"
     done
   done
-  if [ "$ok" = 1 ]; then fin_group_record "$D" "$id" done; fin_progress "$D" "A digests: all equal (digests.tsv)"
+  if [ "$ok" = 1 ]; then fin_group_record "$D" "$id" "done"; fin_progress "$D" "A digests: all equal (digests.tsv)"
   else fin_group_record "$D" "$id" check_failed; fin_check_fail "$D" "A digests: a bitwise program differs (digests.tsv)"; fi
 }
 
@@ -250,7 +251,7 @@ run_a_round() { # id rep labels configs
   if env ROUND_START="$r" PIN_CPU="$pin" BIN_DIR="$D/progs" CPP_BIN_DIR="${FIN_BIN}/cpp" MESH_DIR="$meshes" \
     "$X/timing_rotated.sh" "$D/rounds/r$r.jsonl" 1 "${back[*]}" "$cfgs" > "$D/rounds/r$r.log" 2>&1; then
     if check_a_round "$D/rounds/r$r.jsonl" "${labels[@]}"; then
-      fin_group_record "$D" "$id" done; fin_progress "$D" "A round ${r}: done"
+      fin_group_record "$D" "$id" "done"; fin_progress "$D" "A round ${r}: done"
     else fin_group_record "$D" "$id" check_failed; fin_progress "$D" "A round ${r}: CHECK FAILED"; fi
   else
     fin_group_record "$D" "$id" failed; echo "$(fin_utc) $id" >> "$D/FAILED"; fin_progress "$D" "A round ${r}: FAILED (rounds/r$r.log)"
@@ -316,7 +317,7 @@ run_suite() { # id rep labels dir bin case size
   if "${FIN_REPO}/scripts/perf/suite/run_ab.sh" --out "$out" --size "$sz" --reps 1 --rep-offset "$r" \
     --cases "$c" --core "$pin" "${args[@]}" > "$out/.log.$c.r$r" 2>&1; then
     if check_suite_group "$out" "$c" "$r" "" "$out/.log.$c.r$r" "${labels[@]}"; then
-      fin_group_record "$D" "$id" done; fin_progress "$D" "$id: done"
+      fin_group_record "$D" "$id" "done"; fin_progress "$D" "$id: done"
     else fin_group_record "$D" "$id" check_failed; fin_progress "$D" "$id: CHECK FAILED"; fi
   elif grep -q "${c}: skip:" "$out/.log.$c.r$r"; then
     grep -m1 "${c}: skip:" "$out/.log.$c.r$r" >> "$out/.skipped"
@@ -362,7 +363,7 @@ run_suite_mpi() { # id rep labels dir bin case size np
     fin_group_record "$D" "$id" skipped "this build or rank count"; fin_progress "$D" "$id: skipped (this build or rank count)"
   elif [ "$rc" = 0 ]; then
     if check_suite_group "$out" "$c" "$r" "np$np" "" "${labels[@]}" && [ "$bad" = 0 ]; then
-      fin_group_record "$D" "$id" done; fin_progress "$D" "$id: done"
+      fin_group_record "$D" "$id" "done"; fin_progress "$D" "$id: done"
     else fin_group_record "$D" "$id" check_failed; fin_progress "$D" "$id: CHECK FAILED"; fi
   else
     fin_group_record "$D" "$id" failed; echo "$(fin_utc) $id" >> "$D/FAILED"; fin_progress "$D" "$id: FAILED"
@@ -439,7 +440,7 @@ run_python() { # id rep labels case size
       --case "$c" --size "$sz" --reps 1 --out "$out/$l/$c.r$r.jsonl" > /dev/null 2> "$out/$l/$c.r$r.err" || rc=1
   done
   if [ "$rc" = 0 ]; then
-    if check_suite_group "$out" "$c" "$r" "" "" "${labels[@]}"; then fin_group_record "$D" "$id" done; fin_progress "$D" "$id: done"
+    if check_suite_group "$out" "$c" "$r" "" "" "${labels[@]}"; then fin_group_record "$D" "$id" "done"; fin_progress "$D" "$id: done"
     else fin_group_record "$D" "$id" check_failed; fin_progress "$D" "$id: CHECK FAILED"; fi
   else
     fin_group_record "$D" "$id" failed; echo "$(fin_utc) $id" >> "$D/FAILED"; fin_progress "$D" "$id: FAILED"
@@ -475,7 +476,7 @@ coh_partition() { # h np
 }
 
 run_partition() { # id h np
-  if coh_partition "$2" "$3"; then fin_group_record "$D" "$1" done
+  if coh_partition "$2" "$3"; then fin_group_record "$D" "$1" "done"
   else fin_group_record "$D" "$1" failed; echo "$(fin_utc) $1" >> "$D/FAILED"; fi
 }
 
@@ -543,7 +544,7 @@ run_coh() { # id rep labels series h steps np placement
     break
   done
   if [ "$allok" = 1 ]; then
-    if coh_check "$series" "$h" "$np" "$rep" "$att" "$placement" "${order[@]}"; then fin_group_record "$D" "$id" done
+    if coh_check "$series" "$h" "$np" "$rep" "$att" "$placement" "${order[@]}"; then fin_group_record "$D" "$id" "done"
     else fin_group_record "$D" "$id" check_failed; fi
   else
     fin_group_record "$D" "$id" failed; echo "$(fin_utc) $id" >> "$D/FAILED"
@@ -674,7 +675,7 @@ run_mpi_a() { # id rep labels btl np kind bytes iters
     rows+=("$(printf '%s\t%s\t%s\t%s\t%s\t%s\t%s\t%s' "$r" "$btl" "$np" "$kind" "$bytes" "$l" "${us:-NA}" "$id")")
   done
   printf '%s\n' "${rows[@]}" >> "$out/separate.tsv"
-  if [ "$ok" = 1 ]; then fin_group_record "$D" "$id" done; fin_progress "$D" "$id: done"
+  if [ "$ok" = 1 ]; then fin_group_record "$D" "$id" "done"; fin_progress "$D" "$id: done"
   else fin_group_record "$D" "$id" failed; echo "$(fin_utc) $id" >> "$D/FAILED"; fin_progress "$D" "$id: FAILED (err.log)"; fi
 }
 
@@ -691,7 +692,7 @@ run_mpi_b() { # id rep labels btl np kind bytes iters
     lines+=("rep=$r btl=$btl np=$np prog=$l group=$id $line")
   done
   printf '%s\n' "${lines[@]}" >> "$out/calibrated.txt"
-  if [ "$ok" = 1 ]; then fin_group_record "$D" "$id" done; fin_progress "$D" "$id: done"
+  if [ "$ok" = 1 ]; then fin_group_record "$D" "$id" "done"; fin_progress "$D" "$id: done"
   else fin_group_record "$D" "$id" failed; echo "$(fin_utc) $id" >> "$D/FAILED"; fin_progress "$D" "$id: FAILED (err.log)"; fi
 }
 

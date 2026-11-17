@@ -72,39 +72,14 @@ def threaded_case(suite, case):
     contact search run no threaded or fast-mode code: before and head only."""
     if suite == "suite_setup":
         return False
-    if case.startswith("setup_") or case.startswith("contact_search_"):
-        return False
-    return True
+    return not (case.startswith(("setup_", "contact_search_")))
 
 
 FALLBACK_CASES = {   # head's --list on 2026-11-17, used when no binary is at hand
-    "suite_solid": ("explicit_tet4_ss explicit_tet4_fd explicit_tet10_ss explicit_tet10_fd "
-                    "explicit_hex8_ss explicit_hex8_fd explicit_tri3_ss explicit_tri3_fd "
-                    "explicit_plastic explicit_marigo explicit_mazars explicit_sls "
-                    "explicit_maxwell explicit_neohookean explicit_orthotropic "
-                    "explicit_thermal explicit_multi_material explicit_mazars_non_local "
-                    "static_linear_eigen static_linear_faer static_linear_mumps "
-                    "static_newton_plastic implicit_dynamic setup_tet4 setup_tet10 setup_hex8 "
-                    "cohesive_intrinsic_bilinear cohesive_intrinsic_exponential "
-                    "cohesive_intrinsic_implicit cohesive_extrinsic_check "
-                    "cohesive_extrinsic_insertion par_explicit_tet4_ss "
-                    "par_cohesive_extrinsic").split(),
-    "suite_models": ("heat_explicit_tet4 heat_explicit_quad4 heat_implicit_hex8_kvar "
-                     "heat_static_tri6 phasefield_staggered_tri3 phasefield_staggered_tet4 "
-                     "contact_search_quad4 contact_search_tet4 contact_explicit_quad4 "
-                     "contact_implicit_static_quad4 contact_cohesive_quad4 "
-                     "structural_beam3_frame_static structural_beam3_frame_dynamic "
-                     "structural_dkt18_plate_static embedded_rebar_tri3 embedded_rebar_tet4 "
-                     "ntn_friction_quad4").split(),
-    "suite_setup": ("msh22_read_tet4 msh41_read_tet4 msh22_read_hex8 msh_write_tet4 "
-                    "facets_tet4 facets_hex8 groups_tet4 erase_purify_tet4 periodic_tet4 "
-                    "cohesive_insert_tet4 partition_rcb_tet4 partition_scotch_tet4 "
-                    "dist_mesh_tet4 dist_facets_tet4 ghost_nodes_tet4 ghost_elements_tet4 "
-                    "reduce_scalars explicit_step_dist_tet4 parser_dat parser_chain "
-                    "dump_paraview_tet4 dump_paraview_ascii_tet4 dump_text_tet4 "
-                    "py_twin_explicit_tri3").split(),
-    "python": "import explicit_tri3 fields_tri3 dirichlet_tri3 dirichlet_group_tri3 "
-              "neumann_tri3 material_tri3".split(),
+    "suite_solid": ["explicit_tet4_ss", "explicit_tet4_fd", "explicit_tet10_ss", "explicit_tet10_fd", "explicit_hex8_ss", "explicit_hex8_fd", "explicit_tri3_ss", "explicit_tri3_fd", "explicit_plastic", "explicit_marigo", "explicit_mazars", "explicit_sls", "explicit_maxwell", "explicit_neohookean", "explicit_orthotropic", "explicit_thermal", "explicit_multi_material", "explicit_mazars_non_local", "static_linear_eigen", "static_linear_faer", "static_linear_mumps", "static_newton_plastic", "implicit_dynamic", "setup_tet4", "setup_tet10", "setup_hex8", "cohesive_intrinsic_bilinear", "cohesive_intrinsic_exponential", "cohesive_intrinsic_implicit", "cohesive_extrinsic_check", "cohesive_extrinsic_insertion", "par_explicit_tet4_ss", "par_cohesive_extrinsic"],
+    "suite_models": ["heat_explicit_tet4", "heat_explicit_quad4", "heat_implicit_hex8_kvar", "heat_static_tri6", "phasefield_staggered_tri3", "phasefield_staggered_tet4", "contact_search_quad4", "contact_search_tet4", "contact_explicit_quad4", "contact_implicit_static_quad4", "contact_cohesive_quad4", "structural_beam3_frame_static", "structural_beam3_frame_dynamic", "structural_dkt18_plate_static", "embedded_rebar_tri3", "embedded_rebar_tet4", "ntn_friction_quad4"],
+    "suite_setup": ["msh22_read_tet4", "msh41_read_tet4", "msh22_read_hex8", "msh_write_tet4", "facets_tet4", "facets_hex8", "groups_tet4", "erase_purify_tet4", "periodic_tet4", "cohesive_insert_tet4", "partition_rcb_tet4", "partition_scotch_tet4", "dist_mesh_tet4", "dist_facets_tet4", "ghost_nodes_tet4", "ghost_elements_tet4", "reduce_scalars", "explicit_step_dist_tet4", "parser_dat", "parser_chain", "dump_paraview_tet4", "dump_paraview_ascii_tet4", "dump_text_tet4", "py_twin_explicit_tri3"],
+    "python": ["import", "explicit_tri3", "fields_tri3", "dirichlet_tri3", "dirichlet_group_tri3", "neumann_tri3", "material_tri3"],
 }
 
 # ---------------------------------------------------------------- estimates
@@ -249,7 +224,7 @@ def rotate(items, k):
 def case_list(binary, suite):
     if binary and os.access(binary, os.X_OK):
         try:
-            out = subprocess.run([binary, "--list"], capture_output=True, text=True,
+            out = subprocess.run([binary, "--list"], check=False, capture_output=True, text=True,
                                  timeout=60).stdout
             cases = [ln.split()[0] for ln in out.splitlines() if ln.strip()]
             if cases:
@@ -263,7 +238,7 @@ def python_list(vdir):
     py, script = Path(vdir or "") / "venv/bin/python", Path(vdir or "") / "suite_python.py"
     if vdir and py.exists() and script.exists():
         try:
-            out = subprocess.run([str(py), "-I", str(script), "--list"], capture_output=True,
+            out = subprocess.run([str(py), "-I", str(script), "--list"], check=False, capture_output=True,
                                  text=True, timeout=120).stdout
             cases = [ln.split()[0] for ln in out.splitlines() if ln.strip()]
             if cases:
@@ -545,7 +520,7 @@ def print_plan(p, out=sys.stdout):
 def print_g(p, out):
     a = p.a
     lim = float(str(a.memory).rstrip("gG")) if a.memory else None
-    print("", file=out)
+    print(file=out)
     print("Runs one at a time, so the machine time is their sum in any order; the order "
           "removes waste:", file=out)
     print("the partitions of every rank count first (each run replays its file); the port at "
@@ -603,8 +578,7 @@ def main(argv):
         d = Path(a.out)
         d.mkdir(parents=True, exist_ok=True)
         with open(d / "plan.jsonl", "w") as f:
-            for g in p.groups:
-                f.write(json.dumps(g) + "\n")
+            f.writelines(json.dumps(g) + "\n" for g in p.groups)
         cols = {"a_digests": ["configs"], "a_round": ["configs"],
                 "suite": ["dir", "bin", "case", "size", "np"],
                 "suite_mpi": ["dir", "bin", "case", "size", "np"],

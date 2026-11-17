@@ -176,8 +176,8 @@ def header(d, info, title):
             "command: `commands.log`; progress: `progress.log`."), ""]
     if ST.plan:
         n_done = sum(1 for g in ST.plan if ST.ok(g["id"]))
-        out += [f"Groups: {len(ST.plan)} planned, {n_done} complete and "
-                "checked (only these are tabulated).", ""]
+        out += [(f"Groups: {len(ST.plan)} planned, {n_done} complete and "
+                "checked (only these are tabulated)."), ""]
     if len(ST.sessions) > 1:
         rows = [[k, v.get("cpu", "?"), v.get("boot_id", "?")[:8],
                  v.get("kernel", "?")] for k, v in ST.sessions.items()]
