@@ -56,7 +56,7 @@
 //! [`LawOptions::finite_strain_work`]: crate::material::LawOptions::finite_strain_work
 //! [`LawOptions::damage_thermal_work`]: crate::material::LawOptions::damage_thermal_work
 
-use akantu_core::exec::{Tuples, TuplesRef};
+use akantu_core::exec::{Exec, Tuples, TuplesRef};
 use akantu_core::tensor::{Matrix, MatrixExt, as_matrix};
 use akantu_core::{ElementType, Error, GhostType, Real, Result};
 use akantu_model::InternalField;
@@ -585,6 +585,21 @@ pub fn elastic_damage_energy_densities<const D: usize>(
     ty: ElementType,
     points: std::ops::Range<usize>,
 ) -> Result<Vec<Real>> {
+    elastic_damage_energy_densities_with(Exec::serial_ref(), el, damage, ty, points)
+}
+
+/// [`elastic_damage_energy_densities`] with the points split over
+/// `exec`'s threads (every density from its own point's values).
+///
+/// # Errors
+/// As [`elastic_damage_energy_densities`].
+pub fn elastic_damage_energy_densities_with<const D: usize>(
+    exec: &Exec,
+    el: &MaterialElastic<D>,
+    damage: &InternalField<Real>,
+    ty: ElementType,
+    points: std::ops::Range<usize>,
+) -> Result<Vec<Real>> {
     let n = D * D;
     let stored = el.options.thermal_energy == ThermalEnergy::StoredElastic;
     let (plane_stress, alpha) = (el.plane_stress, el.thermal.alpha);
@@ -607,8 +622,7 @@ pub fn elastic_damage_energy_densities<const D: usize>(
             got: sigma.len().min(dam.len()).min(points.end),
         });
     }
-    let mut density = Vec::with_capacity(points.len());
-    for q in points {
+    let point = |q: usize| -> Result<Real> {
         let g: &Matrix<D, D> = as_matrix(&grad_u.as_slice()[q * n..(q + 1) * n])?;
         let s: &Matrix<D, D> = as_matrix(&sigma.as_slice()[q * n..(q + 1) * n])?;
         let strain = if finite { grad_u_to_green(g) } else { *g };
@@ -624,8 +638,16 @@ pub fn elastic_damage_energy_densities<const D: usize>(
                     delta_t.as_slice()[q] * alpha,
                 );
         }
-        density.push(w);
-    }
+        Ok(w)
+    };
+    let start = points.start;
+    let mut density = vec![0.0; points.len()];
+    exec.try_for_each(Tuples::new(&mut density, 1), 4096, |first, mut d| {
+        for (k, w) in d.as_mut_slice().iter_mut().enumerate() {
+            *w = point(start + first + k)?;
+        }
+        Ok(())
+    })?;
     Ok(density)
 }
 
@@ -641,8 +663,22 @@ pub fn elastic_damage_potential_energy<const D: usize>(
     damage: &InternalField<Real>,
     ty: ElementType,
 ) -> Result<()> {
+    elastic_damage_potential_energy_with(Exec::serial_ref(), el, damage, ty)
+}
+
+/// [`elastic_damage_potential_energy`] with the densities computed on
+/// `exec`'s threads.
+///
+/// # Errors
+/// As [`elastic_damage_potential_energy`].
+pub fn elastic_damage_potential_energy_with<const D: usize>(
+    exec: &Exec,
+    el: &mut MaterialElastic<D>,
+    damage: &InternalField<Real>,
+    ty: ElementType,
+) -> Result<()> {
     let nq = el.base().grad_u.get(ty, NG)?.len();
-    let density = elastic_damage_energy_densities(el, damage, ty, 0..nq)?;
+    let density = elastic_damage_energy_densities_with(exec, el, damage, ty, 0..nq)?;
     let mut epot = el.base_mut().potential_energy.get_mut(ty, NG)?;
     if epot.len() != nq {
         return Err(Error::DimensionMismatch {

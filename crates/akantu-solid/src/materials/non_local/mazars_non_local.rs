@@ -29,6 +29,7 @@
 //! default). The local law's `Ehat` internal (UD-067) is the averaged
 //! internal.
 
+use akantu_core::exec::Tuples;
 use akantu_core::tensor::{Matrix, MatrixExt, SquareMatrixExt, as_matrix, as_matrix_mut};
 use akantu_core::{
     ElementKind, ElementType, ElementTypeMapArray, Error, GhostType, Idx, Real, Result,
@@ -115,6 +116,23 @@ impl<const DIM: usize, P: DamageParent<DIM>> MaterialMazarsNonLocal<DIM, P> {
     /// # Errors
     /// Size inconsistencies, eigen-solver failure.
     pub fn compute_non_local_stress(&mut self, ty: ElementType, ghost: GhostType) -> Result<()> {
+        self.compute_non_local_stress_with(akantu_core::exec::Exec::serial_ref(), ty, ghost)
+    }
+
+    /// [`Self::compute_non_local_stress`] with the points split over
+    /// `exec`'s threads: every point from its own values (copies of the
+    /// blocks, written back when every point succeeded, so a failed eigen
+    /// solve returns the first failing point's error and leaves the state
+    /// unchanged at every split).
+    ///
+    /// # Errors
+    /// As [`Self::compute_non_local_stress`].
+    pub fn compute_non_local_stress_with(
+        &mut self,
+        exec: &akantu_core::exec::Exec,
+        ty: ElementType,
+        ghost: GhostType,
+    ) -> Result<()> {
         let n = DIM * DIM;
         let m = &mut self.inner;
         let el = m.elastic_constants();
@@ -146,38 +164,68 @@ impl<const DIM: usize, P: DamageParent<DIM>> MaterialMazarsNonLocal<DIM, P> {
                 got: nlv.len().min(sigma.len()),
             });
         }
-        for q in 0..nq {
-            let r = q * n..(q + 1) * n;
-            let g: &mut Matrix<DIM, DIM> = as_matrix_mut(&mut grad_u.as_mut_slice()[r.clone()])?;
-            let p: Option<&Matrix<DIM, DIM>> = inel
-                .as_ref()
-                .map(|a| as_matrix(&a.as_slice()[r.clone()]))
-                .transpose()?;
-            let d = if on_damage {
-                nlv.as_slice()[q]
-            } else {
-                let inel_trace = p.map_or(0., SquareMatrixExt::trace);
-                let e3 = mazars_strain_3d(g, inel_trace, delta_t.as_slice()[q] * alpha, mode);
-                let (fdiag, _) = principal_strains_and_ehat3(&e3)?;
-                let dq = &mut dam.as_mut_slice()[q];
-                *dq = mazars_damage_on_quad(
-                    &params,
-                    &el,
-                    nlv.as_slice()[q],
-                    k0.as_slice()[q],
-                    &fdiag,
-                    *dq,
-                );
-                *dq
-            };
-            let f = 1. - d;
-            for s in &mut sigma.as_mut_slice()[r.clone()] {
-                *s *= f;
-            }
-            if let Some(p) = p {
-                *g = g.add(p);
-            }
+        if grad_u.nb_component() != n
+            || sigma.nb_component() != n
+            || inel.as_ref().is_some_and(|a| a.nb_component() != n)
+        {
+            return Err(Error::DimensionMismatch {
+                context: "MaterialMazarsNonLocal::computeNonLocalStress: components",
+                expected: n,
+                got: sigma.nb_component(),
+            });
         }
+        // a part: contiguous points of the copies (`first` = index of its
+        // first point, to read the per-point inputs)
+        let part = |first: usize,
+                    (g_part, mut sigma, mut dam): (
+            Tuples<'_, Real>,
+            Tuples<'_, Real>,
+            Tuples<'_, Real>,
+        )|
+         -> Result<()> {
+            let g_part = g_part.into_slice();
+            let len = dam.as_mut_slice().len();
+            for k in 0..len {
+                let q = first + k;
+                let r = k * n..(k + 1) * n;
+                let g: &mut Matrix<DIM, DIM> = as_matrix_mut(&mut g_part[r.clone()])?;
+                let p: Option<&Matrix<DIM, DIM>> = inel
+                    .as_ref()
+                    .map(|a| as_matrix(&a.as_slice()[q * n..(q + 1) * n]))
+                    .transpose()?;
+                let d = if on_damage {
+                    nlv.as_slice()[q]
+                } else {
+                    let inel_trace = p.map_or(0., SquareMatrixExt::trace);
+                    let e3 = mazars_strain_3d(g, inel_trace, delta_t.as_slice()[q] * alpha, mode);
+                    let (fdiag, _) = principal_strains_and_ehat3(&e3)?;
+                    let dq = &mut dam.as_mut_slice()[k];
+                    *dq = mazars_damage_on_quad(
+                        &params,
+                        &el,
+                        nlv.as_slice()[q],
+                        k0.as_slice()[q],
+                        &fdiag,
+                        *dq,
+                    );
+                    *dq
+                };
+                let f = 1. - d;
+                for s in &mut sigma.as_mut_slice()[r] {
+                    *s *= f;
+                }
+                if let Some(p) = p {
+                    *g = g.add(p);
+                }
+            }
+            Ok(())
+        };
+        let items = (
+            Tuples::new(grad_u.as_mut_slice(), n),
+            Tuples::new(sigma.as_mut_slice(), n),
+            Tuples::new(dam.as_mut_slice(), 1),
+        );
+        exec.try_for_each(items, 512, part)?;
         let base = m.parent.base_mut();
         base.grad_u.get_mut(ty, ghost)?.copy_from(&grad_u)?;
         base.sigma_field_mut()?
@@ -348,18 +396,17 @@ where
 
     /// Upstream `MaterialDamageNonLocal::computeNonLocalStresses`: every
     /// non-empty type of the filter (law dimension).
-    fn compute_non_local_stresses(
-        &mut self,
-        _ctx: &LawContext<'_>,
-        ghost: GhostType,
-    ) -> Result<()> {
+    fn compute_non_local_stresses(&mut self, ctx: &LawContext<'_>, ghost: GhostType) -> Result<()> {
+        // the inner law's declaration: its points are independent once the
+        // average is done
+        let exec = crate::material::points_exec(&self.inner, ctx);
         for ty in self.inner.parent.base().filter_types(ghost) {
             if ty.kind() != ElementKind::Regular
                 || self.inner.element_filter().get(ty, ghost)?.is_empty()
             {
                 continue;
             }
-            self.compute_non_local_stress(ty, ghost)?;
+            self.compute_non_local_stress_with(exec, ty, ghost)?;
         }
         Ok(())
     }
