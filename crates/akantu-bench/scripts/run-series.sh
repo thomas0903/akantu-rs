@@ -78,7 +78,7 @@ json.dump({"material": "${material}", "h": "${h}", "rep": ${rep}, "steps": ${ste
            "mesh": "${mesh}", "solver": "${solver}" or "input",
            "extra": "${extra[*]+${extra[*]}}", "exit_status": ${status},
            "bin": "${bin}", "bin_sha256": "${bin_sha}", "git_head": "${git_head}",
-           "load_at_start": "${load}", "host": "$(hostname)",
+           "load_at_start": "${load}", "host": "(redacted)",
            "cpu": "$(grep -m1 'model name' /proc/cpuinfo | cut -d: -f2 | sed 's/^ //')",
            "nproc": "$(nproc)"}, open(sys.argv[1] + "/run.json", "w"), indent=1)
 EOF

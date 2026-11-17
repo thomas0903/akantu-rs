@@ -1,0 +1,14 @@
+{
+  "format_version": 1,
+  "rules": [
+    {
+      "case": "fast_mode/linalg/sparse_lu_stencil",
+      "quantity": "*",
+      "abs": 0.0,
+      "rel": 1e-12,
+      "scale": "max_abs",
+      "justification": "Fast mode of the Eigen SparseLU translation against its bitwise default (D-122, D-123): the panel products, the triangular panel solves and the GEMV kernels round each term c + a*b once (fused multiply-add) instead of twice. Each factor entry is a sum of at most a supernode width (128) of such terms, so it changes by at most about 128 units of 2^-53 relative to the sum of its terms' magnitudes, the order of the rounding error of the bitwise factorisation itself; the solution then changes by about kappa(A) times that relative to max|x|. The test matrix is a diagonally dominant unsymmetric 3-D 7-point stencil (Gershgorin: eigenvalues in [0.5, 13.4], kappa about 27), so the expected difference is of order 1e-14 of max|x|; the bound 1e-12 of max|x| covers longer sums and a pivot choice near a tie, and fails on a kernel error, which changes the solution at the 1e-3 level or more.",
+      "evidence": "akantu-linalg tests/fast_mode_sparse_lu.rs, 16^3 stencil (4096 unknowns), AMD EPYC 9B14 (AVX-512 + FMA instances), 2026-11-17: largest |fast - bitwise| / max|bitwise| 3.8e-16 (ratio to the bound 3.8e-4), 3268 of 4096 entries bit-identical (after the one-column product of the column updates went back to the bitwise kernel; 3265 before); identical at 2 and 4 threads (finest grain). On CPUs without an FMA instance (aarch64 NEON, x86-64 below AVX2) the fast mode runs the bitwise kernels and the two runs are identical."
+    }
+  ]
+}

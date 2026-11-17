@@ -416,8 +416,9 @@ pub struct DofManager {
     mesh_periodic: bool,
     /// Scratch vector over local equations (upstream `data_cache`).
     data_cache: Vec<Real>,
-    /// How the per-equation loops of the integration schemes run (D-123):
-    /// serial until the owning model sets its executor.
+    /// How the per-equation loops, the whole-matrix operations of the backend
+    /// and its sparse solver run (D-123): the process default policy until
+    /// the owning model sets its executor.
     exec: akantu_core::exec::Exec,
     /// Inverse equation maps of the threaded scatter, per family.
     eq_inverse: std::sync::Mutex<BTreeMap<Id, assembly::EqInverse>>,
@@ -798,6 +799,14 @@ impl DofManager {
         // `isDistributed()` is always `true` (`solver_vector_petsc.hh:119`)
         let mut residual = ResidualVector::default();
         residual.set_distributed(backend.kind() == BackendKind::Petsc);
+        // D-123: the process default policy until a model sets its own; an
+        // invalid `AKANTU_*` variable is reported by model creation
+        // (`ExecPolicy::process_default`), a bare manager then runs serially
+        let exec = akantu_core::exec::ExecPolicy::process_default()
+            .and_then(akantu_core::exec::Exec::new)
+            .unwrap_or_else(|_| akantu_core::exec::Exec::serial());
+        let mut backend = backend;
+        backend.set_exec(&exec);
         Self {
             id: id.into(),
             communicator,
@@ -830,7 +839,7 @@ impl DofManager {
             jacobian_release: 0,
             numbered_distributed: None,
             compat: UpstreamCompat::default(),
-            exec: akantu_core::exec::Exec::serial(),
+            exec,
             eq_inverse: std::sync::Mutex::default(),
             numbering_generation: 0,
         }

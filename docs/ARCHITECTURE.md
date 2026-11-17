@@ -1019,6 +1019,13 @@ external-work increment's per-node terms (summed in node order,
 corrector (`integration_scheme.rs`), the lumped solve (`r += M∘a`,
 `x = α·(b / m)`), the residual scatter through the inverse equation map
 and the solution gather (`dof_manager/assembly.rs`, `dof_manager.rs`); in
+`akantu-linalg`, the large panel updates of the Eigen SparseLU
+translation (at least 65,536 multiply-adds: the product over strips of
+rows, the scatter over blocks of accumulator rows,
+`eigen_sparse_lu/kernels.rs`; the AIJ backend hands the DOF manager's
+executor to the solver of every solve, `SparseDirectSolver::set_exec`; a
+DOF manager starts with the process default policy until its model sets
+its own); in
 the heat transfer model, the heat law's diffusivity and `D∇u` loops and
 the internal-flow scatter (`akantu-diffusion` `model/assembly.rs`, a
 cached `NodeScatter` per `(law, type, ghost)` as in the solid model),
