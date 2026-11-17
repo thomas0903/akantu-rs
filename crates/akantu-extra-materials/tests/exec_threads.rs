@@ -168,13 +168,17 @@ fn bits(v: &[Real]) -> Vec<u64> {
 /// With `copy_every_save` the blocks of every field with history are
 /// exported to a foreign runtime (as NumPy views would be), which makes
 /// every history save a copy; otherwise the saves are deferred.
+/// With `poison`, the displacement of the node nearest the centre then
+/// becomes NaN and one more step must fail: its error message is returned
+/// with the state it leaves (empty without `poison`).
 fn run(
     mesh: Mesh,
     dat: &str,
     options: ExtraLawOptions,
     policy: ExecPolicy,
     copy_every_save: bool,
-) -> State {
+    poison: bool,
+) -> (String, State) {
     let dim = mesh.spatial_dimension();
     let parser = Parser::parse_str(dat, "material.dat").unwrap();
     let mut m =
@@ -249,6 +253,20 @@ fn run(
     for _ in 0..6 {
         m.solve_step(None).unwrap();
     }
+    let mut error = String::new();
+    if poison {
+        let d2 = |n: usize| {
+            (0..dim)
+                .map(|c| (x[n * dim + c] - 0.5).powi(2))
+                .sum::<Real>()
+        };
+        let centre = (0..nodes).min_by(|&a, &b| d2(a).total_cmp(&d2(b))).unwrap();
+        m.displacement_mut().unwrap().as_mut_slice()[centre * dim] = Real::NAN;
+        error = m
+            .solve_step(None)
+            .expect_err("a NaN displacement makes the law fail")
+            .to_string();
+    }
     let mut out = vec![
         ("u".into(), bits(m.displacement().unwrap().as_slice())),
         ("v".into(), bits(m.velocity().unwrap().as_slice())),
@@ -287,7 +305,7 @@ fn run(
     .map(|id| m.energy(id).map_or(u64::MAX, Real::to_bits))
     .to_vec();
     out.push(("energies".into(), energies));
-    out
+    (error, out)
 }
 
 /// `active`: an internal that must leave zero (the law's non-linear branch
@@ -296,7 +314,7 @@ fn check(name: &str, dat: &str, options: ExtraLawOptions, active: &str) {
     type MeshFn = fn() -> Mesh;
     let meshes: [(&str, MeshFn); 2] = [("2-D", || grid2d(6, false)), ("3-D", || mixed_cube(3))];
     for (mesh_name, mesh) in meshes {
-        let reference = run(mesh(), dat, options, ExecPolicy::serial(), false);
+        let (_, reference) = run(mesh(), dat, options, ExecPolicy::serial(), false, false);
         let moved = reference
             .iter()
             .filter(|(n, _)| n.contains(&format!("/{active}/")))
@@ -316,10 +334,49 @@ fn check(name: &str, dat: &str, options: ExtraLawOptions, active: &str) {
                     }
                     let what =
                         format!("{name} ({mesh_name}): threads={threads} {grain:?} copy={copy}");
-                    let s = run(mesh(), dat, options, p, copy);
+                    let (_, s) = run(mesh(), dat, options, p, copy, false);
                     assert_eq!(reference.len(), s.len(), "{what}");
                     for ((n, r), (_, o)) in reference.iter().zip(&s) {
                         assert!(!r.is_empty(), "{what}: {n} empty");
+                        assert!(r == o, "{what}: {n} differs from the one-thread run");
+                    }
+                }
+            }
+        }
+    }
+}
+
+/// The error path: after six steps a NaN displacement at the centre node
+/// makes the points around it (in the middle of the blocks) fail; the
+/// error and every current and previous value equal the serial run's at
+/// every thread count, with deferred saves and with saves by copy.
+/// `expect`: a part of the error message of the failing point.
+fn check_error(name: &str, dat: &str, options: ExtraLawOptions, expect: &str) {
+    type MeshFn = fn() -> Mesh;
+    let meshes: [(&str, MeshFn); 2] = [("2-D", || grid2d(6, false)), ("3-D", || mixed_cube(3))];
+    for (mesh_name, mesh) in meshes {
+        let (err, reference) = run(mesh(), dat, options, ExecPolicy::serial(), false, true);
+        assert!(
+            err.contains(expect),
+            "{name} ({mesh_name}): the step failed elsewhere: {err}"
+        );
+        for threads in [1, 2, 3, 4, 8] {
+            for grain in [Grain::Finest, Grain::Auto] {
+                let p = ExecPolicy::serial()
+                    .with_threads(threads)
+                    .unwrap()
+                    .with_grain(grain);
+                for copy in [false, true] {
+                    if copy && !matches!(threads, 1 | 4 | 8) {
+                        continue;
+                    }
+                    let what = format!(
+                        "{name} error path ({mesh_name}): threads={threads} {grain:?} copy={copy}"
+                    );
+                    let (e, s) = run(mesh(), dat, options, p, copy, true);
+                    assert_eq!(err, e, "{what}: another error");
+                    assert_eq!(reference.len(), s.len(), "{what}");
+                    for ((n, r), (_, o)) in reference.iter().zip(&s) {
                         assert!(r == o, "{what}: {n} differs from the one-thread run");
                     }
                 }
@@ -366,5 +423,21 @@ fn ve_stiffness_prop_law_is_bitwise_for_every_thread_count() {
          Alpha = 1e-6\n]\n",
         ExtraLawOptions::default(),
         "stress_viscosity",
+    );
+}
+
+const DAMAGE_LINEAR: &str = "material damage_linear [\n  name = body\n  rho = 2500\n  E = 70e9\n  \
+    nu = 0.22\n  Sigc = 3e7\n  Gc = 2\n]\n";
+
+/// `damage_linear` works on copies of its blocks, written back only when
+/// every point succeeded: a failed eigen solve (NaN strain) leaves its
+/// state as the serial loop leaves it.
+#[test]
+fn damage_linear_error_path_is_bitwise_for_every_thread_count() {
+    check_error(
+        "damage_linear",
+        DAMAGE_LINEAR,
+        ExtraLawOptions::default(),
+        "eig",
     );
 }
