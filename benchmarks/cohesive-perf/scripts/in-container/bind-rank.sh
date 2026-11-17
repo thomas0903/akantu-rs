@@ -6,15 +6,26 @@
 #
 #   mpirun -np P --bind-to none sh bind-rank.sh T CMD [ARG...]
 #
-# Rank r (OMPI_COMM_WORLD_RANK) is bound to the r-th block of T cores of the
-# cores the process may use (the container's cpuset, in ascending order): the
-# placement of `--map-by core --bind-to core` (T = 1) and of `--map-by
-# slot:PE=T --bind-to core`. It replaces them because the launcher of
-# Open MPI 5.0.7 fails to start more than about 15 bound ranks on one host
-# (`prterun: SIGPIPE detected`, seen on a 128-core host at 16 ranks and more;
-# 8 bound ranks start).
+# The rank's index on its host, r (OMPI_COMM_WORLD_LOCAL_RANK; without it
+# OMPI_COMM_WORLD_RANK or PMIX_RANK, the same number when every rank runs on
+# one host), selects the r-th block of T cores of the cores the process may
+# use (the container's cpuset, in ascending order): the placement of
+# `--map-by core --bind-to core` (T = 1) and of `--map-by slot:PE=T
+# --bind-to core`, on one host and on each host of a multi-host job.
+#
+# Why not mpirun's binding: with `--bind-to core`, Open MPI 5.0.7 (PRRTE
+# 3.0) aborts the start of more than 10 bound ranks per host inside a Docker
+# container with the default seccomp profile (`prterun: SIGPIPE detected -
+# aborting`). Each forked child binds its memory with set_mempolicy(), which
+# that profile refuses without CAP_SYS_NICE (EPERM); the child then sends the
+# "memory not bound" warning over its status pipe, whose read end the parent
+# has already closed: EPIPE, SIGPIPE, and the child, not yet exec'd, still
+# runs prterun's SIGPIPE handler, which signals prterun's own event loop.
+# prterun aborts at the 11th SIGPIPE (10 bound ranks start, 11 fail, on any
+# core count). `docker run --cap-add SYS_NICE` (or no seccomp filter) removes
+# the failure; binding with taskset needs neither.
 t=${1:?threads per rank}; shift
-r=${OMPI_COMM_WORLD_RANK:-${PMIX_RANK:-}}
+r=${OMPI_COMM_WORLD_LOCAL_RANK:-${OMPI_COMM_WORLD_RANK:-${PMIX_RANK:-}}}
 [ -n "$r" ] || { echo "bind-rank.sh: no rank in the environment" >&2; exit 97; }
 list=$(awk '/^Cpus_allowed_list:/ {print $2}' /proc/self/status)
 cores=$(echo "$list" | tr ',' '\n' | awk -v r="$r" -v t="$t" '

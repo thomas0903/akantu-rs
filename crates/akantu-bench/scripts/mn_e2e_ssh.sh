@@ -34,10 +34,11 @@
 # binary (A exact, C; B bitwise for h012-eig), h012-stop is host-lost then ok
 # and the halt reached every host.
 # env: WORK (DIR/e2e-ssh-<UTC stamp>), N_SSH (2), SSH_NET (10.79.0), E2E_EXTRA
-#   ("rust_cohesive_compat=upstream rust_doubled_node_load=follows_elements")
+#   ("rust_cohesive_compat=upstream rust_doubled_node_load=follows_elements"),
+#   E2E_BIND (self: mn_cluster.py's `bind`)
 set -uo pipefail
 die() { echo "mn_e2e_ssh.sh: $*" >&2; exit 1; }
-[ $# -eq 2 ] || { sed -n '7,37p' "$0"; exit 2; }
+[ $# -eq 2 ] || { sed -n '7,38p' "$0"; exit 2; }
 dir="$(cd "$1" && pwd)" || exit 2
 ref="$(cd "$2" && pwd)" || exit 2
 n="${N_SSH:-2}" net="${SSH_NET:-10.79.0}"
@@ -111,7 +112,7 @@ while read -r _ f; do set_files+=("${dir}/${f}"); done < "${dir}/SHA256SUMS"
 
 echo "== 2. on the head: checksums, repository subset, session, key ($((SECONDS - t0)) s)"
 { printf 'backend = ssh\nimage = akantu-rs-bench:mn\nmemory = 6g\nnet_cidr = %s.0/24\nssh_user = ubuntu\n' "${net}"
-  printf 'bind = core\n'; } > "${work}/cluster.conf"
+  printf 'bind = %s\n' "${E2E_BIND:-self}"; } > "${work}/cluster.conf"
 : > "${work}/hosts"
 for a in "${addrs[@]}"; do echo "${a} slots=${per}" >> "${work}/hosts"; done
 { echo "h012      h0.12 8 ${n} 1500 auto  file:part-h012.csv 0.03 ${extra} @required"

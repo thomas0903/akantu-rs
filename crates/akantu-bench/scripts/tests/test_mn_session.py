@@ -127,7 +127,7 @@ small   h0.12 8  1  1500  auto  run:smoke 0.05
 class PureRules(unittest.TestCase):
     def test_conf_and_hosts(self):
         c = mn_cluster.parse_conf("backend = ssh\nnet_cidr = 172.31.0.0/16\nmemory = 56g\n")
-        self.assertEqual((c["backend"], c["ssh_port"], c["bind"]), ("ssh", "2222", "core"))
+        self.assertEqual((c["backend"], c["ssh_port"], c["bind"]), ("ssh", "2222", "self"))
         for bad in ("backend = ssh\n", "backend = k8s\nnet_cidr = 10.0.0.0/8\n",
                     "net_cidr = 10.0.0.0/8\nbind = socket\n", "net_cidr = 10.0.0.0/8\nfoo = 1\n",
                     "net_cidr = 10.0.0.0/8\nssh_port = 22\n"):

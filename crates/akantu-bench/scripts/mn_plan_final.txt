@@ -1,0 +1,39 @@
+# SPDX-License-Identifier: LGPL-3.0-or-later
+# Part of akantu-rs, a Rust port of Akantu (EPFL/LSMS). No upstream
+# counterpart: the plan of the final multi-node stage (4 hosts of 32 cores
+# and 128 GiB each, one rank per core), for mn_session.py (format there).
+# The order is the order of importance: the budget rule skips a run whose
+# scaled estimate no longer fits, so the last lines are dropped first.
+#
+# Binding: `bind = self` in cluster.conf (mn_cluster.py's default): mpirun
+# starts the ranks unbound and each rank binds itself to one core with
+# bind-rank.sh, chosen by its index on its host (Open MPI 5.0.7's own
+# `--bind-to core` cannot start more than 10 ranks per host in a container
+# with Docker's default seccomp profile; see bind-rank.sh).
+#
+# No driver settings on the lines: the runs use the driver's defaults, as the
+# single-node runs they are compared with (c1prep_campaign.sh --rust-run
+# without --rust-extra; the input differs only by the mesh and partition
+# paths and export_partition = true). The driver is the one of the
+# akantu-rs-bench:mn image (c1_images.sh export-mn).
+#
+# Meshes: h0.12 (frozen, repository subset), joss
+# (cube-joss.msh + cube-joss.json: 4,392,183 tetrahedra; the operator's mesh
+# tarball, passed with --meshes). Partitions: partition-np128.csv and
+# partition-np64.csv, the C++ partitions exported for the single-node runs
+# at 128 and 64 ranks (c1prep_campaign.sh --export-partition), passed with
+# --partitions. joss128x4 and joss64x2 replay them and are compared with the
+# single-node run of the same rank count on the same file:
+#   python3 -I mn_compare.py --pair <campaign>/rust/np<N>/rep1 <results>/runs/<name>-a1
+# (A exact: placement, partition, distribution, static matrix, MUMPS nb_proc,
+# symmetry and ordering, the same driver binary; D printed, not judged:
+# energies and insertions, which vary from run to run with MUMPS's parallel
+# factorisation).
+#
+# name        mesh   np  hosts steps solver partition                estimate_h
+# 1. smoke: placement, binding and MUMPS over the network, 2 ranks per host
+smoke-h012    h0.12    8  4   1500  auto   scotch                     0.03  @required
+# 2. the benchmark at full size, 32 ranks per host
+joss128x4     joss   128  4   5000  auto   file:partition-np128.csv   0.6
+# 3. the same at 64 ranks on 2 hosts (32 per host)
+joss64x2      joss    64  2   5000  auto   file:partition-np64.csv    0.6
