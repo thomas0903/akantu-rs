@@ -952,12 +952,13 @@ def summarize_e(d, info):
     out = header(d, info, "memory")
     out += check_lines(d)
     pts = by_point(runs, "mem4")
-    hdr = ["ranks", "code", "largest rank MiB", "Σ rank peaks MiB",
+    hdr = ["ranks", "code", "n", "largest rank MiB", "Σ rank peaks MiB",
            "container MiB", "static: largest / Σ (port) MiB",
            "port model before static: largest / Σ MiB", "MUMPS INFOG(19) MB",
            "besides MUMPS, bytes per tetrahedron"]
     rows = []
-    for (h, np_) in sorted(pts, key=lambda k: (hkey(k[0]), k[1])):
+    keys = sorted(pts, key=lambda k: (hkey(k[0]), k[1]))
+    for i, (h, np_) in enumerate(keys):
         vs = pts[(h, np_)]
         inf = next((r["m"]["infog19"] for v in ("head", "before")
                     for r in vs.get(v, {}).values()
@@ -965,7 +966,7 @@ def summarize_e(d, info):
         for v in sorted(vs, key=lambda x: (x != "cpp", x)):
             reps = vs[v]
             if not reps:
-                rows.append([np_, code_name(v, np_)] + [cell_label("mem4", h, np_, v)] * 7)
+                rows.append([np_, code_name(v, np_), 0] + [cell_label("mem4", h, np_, v)] * 7)
                 continue
             any_r = next(iter(reps.values()))
             mk = any_r["summary"].get("rust_memory_kib") or {}
@@ -980,13 +981,15 @@ def summarize_e(d, info):
             if sums and tets and inf:
                 lb = sig((statistics.median(sums) * 2 ** 20 - inf * 1e6)
                          / tets)
-            rows.append([np_, code_name(v, np_)]
+            rows.append([np_, code_name(v, np_) + sess_mark(reps), len(reps)]
                         + [med(list(metric(reps, k).values())) for k in
                            ("peak_max_mib", "peak_sum_mib",
                             "container_mib")]
                         + [pair("hwm_static"), pair("rss_before_static"),
                            inf if inf else MISSING, lb])
-        out += [(f"Table \"Memory, h = {h}\" (peaks of the sampler: "
+        if i + 1 < len(keys) and keys[i + 1][0] == h:
+            continue
+        out += [(f"Table \"Memory, h = {h}\" (n = repetitions; peaks of the sampler: "
                 "`memsample.py`, VmHWM of every rank every 0.25 s; "
                 "container = the cgroup's `memory.peak`; the port's own "
                 "records in `summary.json`; the last column = (Σ rank "
