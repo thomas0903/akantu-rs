@@ -153,3 +153,53 @@ are large (97,551 unknowns): 8 threads take 0.28 of the base's time.
   implementation needs a graph partitioner (METIS-like, or a geometric
   one where coordinates are known) and is the largest gain left for big
   3-D implicit problems.
+
+## On the merged head (base d404f4c70: threaded assembly, explicit step, per-step state)
+
+One executor story: the DOF manager's executor is the model's policy
+(copied at creation, `set_exec_policy`), a DOF manager built without a
+model starts with the process default, and the AIJ backend hands the DOF
+manager's executor (`LinearSystemBackend::set_exec`) to the sparse solver
+of every solve. Removed from this branch: `set_sparse_solver_exec` and its
+call before each solve, and the process default set in `new_dof_manager`.
+
+**One thread** (`--threads 1`, core 2, interleaved and rotated;
+`one-thread/`): `static_linear_eigen` factorize 1.021 [1.018, 1.023]
+(7 repetitions) and 1.015 [1.004, 1.044] (9); back-substitution 0.998;
+`implicit_dynamic`, `cohesive_intrinsic_implicit` 0.997–1.002. Two
+throwaway builds that differ from the head only by code that cannot run
+in the measured phase (a suite line executed after it) give 1.005
+[0.992, 1.022] for factorize and move `solve_step` by 1.6 %. On the host
+cohesive driver (h = 0.12, static solve, `merged-head/hostab/`) the head
+is 4.2 % slower than the base, and the profile puts the whole difference
+in `gemm_avx512` (+8 % of its samples; same calls, same results, the
+same code at the same offset of the function): the function starts at
+16 mod 64 in the head and at 32 mod 64 in the base, so its hottest loop
+spans the 64-byte fetch blocks differently. Built once with LLVM's loop
+alignment forced to 64 bytes (`-C llvm-args=-align-loops=64`, diagnostic
+only), base and head take 2.152 s and 2.164 s (0.6 % apart), between
+the base's 2.11 s and the head's 2.19 s with the default placement. The
+one-thread difference is therefore the placement of that loop, which a
+change anywhere in the crate can move either way; stable Rust has no
+function or loop alignment attribute, and unrolling the k loop by two
+was slower (2.22 s). A per-crate loop-alignment flag would remove this
+variance and is a build-flag decision for the owner.
+
+**Scaling on the merged head** (short series, 3 repetitions for the suite,
+`merged-head/tseries3.md`; cohesive 2 + 1 repetitions, `merged-head/c1m/`):
+
+| case | head 1 | 2 | 4 | 8 threads (ratio to the base at one thread) |
+|---|---|---|---|---|
+| static_linear_eigen factorize | 1.020 | 0.871 | 0.790 | 0.749 |
+| structural_beam3_frame_static solve_step | 1.006 | 0.800 | 0.684 | 0.614 |
+| phasefield_staggered_tet4 solid_solve | 1.012 | 0.932 | 0.898 | 0.868 |
+| heat_implicit_hex8_kvar solve_step | 1.005 | 0.955 | 0.944 | 0.932 |
+
+| cohesive static solve | C++ | base | head 1 | 2 | 4 | 8 threads |
+|---|---|---|---|---|---|---|
+| h = 0.12 | 2.93 s | 2.11 s | 2.195 s | 1.74 s | 1.445 s | 1.31 s (0.45 of C++) |
+| h = 0.06 | 249 s | 209 s | 227 s | 138 s | 84.8 s | 60.6 s (0.24 of C++) |
+
+Energies byte-identical to C++ in all 18 runs. At h = 0.06 the one-thread
+time is 8.6 % above the base: the gemm is a larger share there, so the
+loop placement above weighs more.
