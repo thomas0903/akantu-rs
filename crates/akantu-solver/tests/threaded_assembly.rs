@@ -273,8 +273,9 @@ fn matrix_assembly_and_operations_are_bitwise_for_every_thread_count() {
 /// gives, round after round, the matrix of the uncached loop bit for bit
 /// at 1, 2, 3, 4 and 8 threads (finest and automatic grain): two materials
 /// on the tetrahedra and the hexahedra, couplings appended to the profile,
-/// a mesh event (an element's node order permuted), and the chunked path
-/// really taken once a plan exists.
+/// a mesh event (an element's node order permuted); on one thread the
+/// chunked path is really taken once a plan exists, with threads the
+/// whole-array batch.
 #[test]
 fn chunked_assembly_is_the_uncached_loop() {
     fn rounds(exec: &Exec, cached: bool) -> (Vec<Snapshot>, usize) {
@@ -360,7 +361,13 @@ fn chunked_assembly_is_the_uncached_loop() {
             .unwrap();
             let (snaps, chunked) = rounds(&exec, true);
             let what = format!("threads {threads} {grain:?}");
-            assert!(chunked >= 6, "{what}: the chunked path ran {chunked} times");
+            // the chunked path runs on one thread only (with threads the
+            // whole-array batch keeps every entry range busy)
+            if threads == 1 {
+                assert!(chunked >= 6, "{what}: the chunked path ran {chunked} times");
+            } else {
+                assert_eq!(chunked, 0, "{what}");
+            }
             for (round, (a, b)) in reference.iter().zip(&snaps).enumerate() {
                 assert!(a == b, "{what}: K differs in round {round}");
             }

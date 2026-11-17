@@ -2220,9 +2220,9 @@ impl DofManager {
     /// into `out` the matrices of the elements at positions `range` of the
     /// element list (filter, group or all), `nb_component` values each.
     ///
-    /// When the matrix holds a scatter plan for these elements (a repeated
-    /// assembly with unchanged entry positions and equations,
-    /// `BlockPositionCache::plan_ready`), the matrices are produced and
+    /// On one thread, when the matrix holds a scatter plan for these
+    /// elements (a repeated assembly with unchanged entry positions and
+    /// equations, `BlockPositionCache::plan_ready`), the matrices are produced and
     /// added chunk by chunk into `chunk` (a few megabytes, kept by the
     /// caller), each chunk scattered while it is still in the caches:
     /// every entry receives its contributions in element order, as with the
@@ -2302,7 +2302,13 @@ impl DofManager {
     ) -> Result<bool> {
         self.check_poison()?;
         let key = (matrix_id.to_owned(), dof_id.to_owned(), ty, ghost);
-        if !self.assembly_cache_enabled
+        // One thread only: with threads, a chunk of consecutive elements
+        // touches a narrow band of entries, so only one or two of the
+        // entry-range parts have work per chunk; the whole-array batch,
+        // which keeps every part busy, is faster there
+        // (docs/benchmarks/perf-campaign/threaded-assembly-2/README.md).
+        if self.exec.is_parallel()
+            || !self.assembly_cache_enabled
             || !self.profiled.contains(&key)
             || !self.backend.has_matrix(matrix_id)
             || mesh.nb_element(ty, ghost) == 0
