@@ -65,6 +65,7 @@ FIN_BIN="${FINAL_ROOT}/bin"
 mkdir -p "${FIN_BIN}" "${FINAL_ROOT}/src" "${FINAL_ROOT}/meshes"
 log="${FINAL_ROOT}/prepare.log"
 say() { echo "$(fin_utc) $*" | tee -a "$log"; }
+trap 'say "prepare: FAILED at line ${LINENO} (see ${log})"' ERR
 want() { case ",${only}," in *",$1,"*) return 0 ;; *) return 1 ;; esac; }
 ncpu=$(nproc)
 memgb=$(( $(awk '/MemTotal/ {print $2}' /proc/meminfo) / 1048576 ))

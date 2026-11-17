@@ -27,6 +27,12 @@ FIN_ORACLE_IMAGE="${FINAL_ORACLE_IMAGE:-akantu-oracle:dev}"
 # the C++ reference commit (docs/REFERENCE.md)
 FIN_CPP_REF=35a851780d0b9471d258ed53a003ae98aaa95ea0
 
+# rustup's environment when the shell did not load it (ssh without a login shell)
+if ! command -v cargo > /dev/null 2>&1 && [ -f "${HOME}/.cargo/env" ]; then
+  # shellcheck source=/dev/null
+  . "${HOME}/.cargo/env"
+fi
+
 fin_utc() { date -u +%FT%TZ; }
 fin_die() { echo "$(fin_utc) FATAL: $*" >&2; exit 2; }
 

@@ -127,8 +127,11 @@ def header(d, info, title):
                        ("FAILED", "Failed runs")):
         p = d / name
         if p.exists() and p.read_text().strip():
-            out += [f"**{what}** (`{name}`):", "", "```text",
-                    p.read_text().strip(), "```", ""]
+            lines = p.read_text().strip().splitlines()
+            more = ([f"... and {len(lines) - 30} more lines"]
+                    if len(lines) > 30 else [])
+            out += [f"**{what}** (`{name}`, {len(lines)} lines):", "",
+                    "```text"] + lines[:30] + more + ["```", ""]
     return out
 
 
@@ -136,6 +139,7 @@ def header(d, info, title):
 LABEL_NAMES = {"cpp-strict": "C++ strict", "cpp-default": "C++ default",
                "before": "port before", "head": "port"}
 MESHES = ["tet4-20k", "tet4-200k", "tet10-20k", "hex8-20k", "hex8-200k"]
+DRY_MESHES = ["tet4-20k", "tet10-20k", "hex8-20k"]
 
 
 def summarize_a(d, info):
@@ -164,6 +168,8 @@ def summarize_a(d, info):
     def vals(dd, lab):
         return {r: v for (ll, r), v in dd.items() if ll == lab}
 
+    meshes = DRY_MESHES if info.get("size") == "dry" else MESHES
+
     for phase, title in (("step", "Explicit step (`solve_step`)"),
                          ("fint", "Internal forces (`fint`)"),
                          ("stress", "Stresses (`stress`)")):
@@ -173,10 +179,8 @@ def summarize_a(d, info):
                "port before / C++ strict"]
         trs = []
         for mode in ("ss", "fd"):
-            for mesh in MESHES:
-                dd = rows.get((mesh, mode, phase))
-                if dd is None:
-                    continue
+            for mesh in meshes:
+                dd = rows.get((mesh, mode, phase), {})
                 v = {lab: vals(dd, lab) for lab in
                      ("cpp-strict", "cpp-default", "before", "head")}
                 t, n = meta.get(mesh, ("?", None))
@@ -195,10 +199,8 @@ def summarize_a(d, info):
            "8 / 1", "fast / bitwise (1 thread)", "fast / bitwise (8)"]
     trs = []
     for mode in ("ss", "fd"):
-        for mesh in MESHES:
-            dd = rows.get((mesh, mode, "step"))
-            if dd is None:
-                continue
+        for mesh in meshes:
+            dd = rows.get((mesh, mode, "step"), {})
             v = {lab: vals(dd, lab) for lab in
                  ("head", "head-t2", "head-t4", "head-t8", "head-fast",
                   "head-fast-t8")}
