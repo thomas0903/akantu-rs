@@ -967,8 +967,8 @@ pub(crate) fn cholesky_counts(xadj: &[usize], adj: &[usize], order: &[usize]) ->
     }
     let mut post = Vec::with_capacity(n);
     let mut stack = Vec::new();
-    for root in 0..n {
-        if parent[root] != NONE {
+    for (root, &pr) in parent.iter().enumerate() {
+        if pr != NONE {
             continue;
         }
         stack.push(root);
