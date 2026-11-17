@@ -629,7 +629,7 @@ impl NonLocalNeighborhood {
     /// nb_component, ghost_type)` over per-slot arrays of `nb_component`
     /// values.
     ///
-    /// With at least 3 threads and more than one part of `exec`, and when
+    /// With at least 4 threads and more than one part of `exec`, and when
     /// the slots increase with the points (the manager's layout), every
     /// point's slot receives its
     /// contributions in pair order from the point's own list
@@ -647,12 +647,13 @@ impl NonLocalNeighborhood {
         let g = gi(ghost);
         let n = nb_component;
         let np = self.points.len();
-        // from 3 threads: the per-point gather visits every pair twice, so
-        // at 2 threads it is slower than the serial half-pair loop
-        // (`explicit_mazars_non_local`: 1.085 of the one-thread step
-        // against 0.884 for the serial average at 2 threads)
+        // from 4 threads: the per-point gather visits every pair twice, so
+        // at 2 and 3 threads it is slower than the serial half-pair loop
+        // with the rest of the step on the threads
+        // (`explicit_mazars_non_local`, one-thread base = 1: gather 1.085
+        // at 2 threads and 0.794 at 3, serial average 0.720 at 2)
         let threaded = n > 0
-            && exec.threads() >= 3
+            && exec.threads() >= 4
             && self.pair_list[g].len() < (u32::MAX / 2) as usize
             && exec.nb_parts(self.pair_list[g].len(), PAIRS_PER_PART) > 1
             && self.slots.len() == np

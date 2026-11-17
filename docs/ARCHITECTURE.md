@@ -1034,8 +1034,8 @@ Also on threads: the generalized-trapezoidal predictor and corrector, the
 increment update (`time_step.rs`), the schemes' store and restore copies,
 the blocked-DOF scan (each part's blocked equations appended in part
 order, then sorted as before); the non-local weighted average
-(`akantu-model` `non_local/neighborhood.rs`, from 3 threads: at 2 the
-per-point gather, which visits every pair twice, is slower than the
+(`akantu-model` `non_local/neighborhood.rs`, from 4 threads: at 2 and 3
+the per-point gather, which visits every pair twice, is slower than the
 serial half-pair loop; per point, its contributions
 in pair order from a per-point list built with the pair list, when the
 slots increase with the points; the manager takes the executor from its
