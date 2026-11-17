@@ -146,7 +146,8 @@ linked into akantu-rs binaries.
 | Tool | Licence | Use |
 |---|---|---|
 | maturin 1.16.0 (`python/pyproject.toml` requires `>=1.9,<2`) | MIT OR Apache-2.0 | builds the Python wheel; not linked |
-| mdBook | MPL-2.0 | builds the user manual on demand (`mdbook build docs/manual`); nothing of it is redistributed |
+| mdBook 0.4.40 | MPL-2.0 | builds the user manual on demand (`mdbook build docs/manual`); nothing of it is redistributed |
+| mdbook-katex 0.9.4 (embeds KaTeX 0.16.4) | MIT | mdBook preprocessor: renders the manual's LaTeX formulas to HTML when the book is built (D-122). Not redistributed; the stylesheet and the fonts that the rendered formulas need are copied from KaTeX 0.16.4 (MIT) to `docs/manual/src/katex/` with its licence file |
 | `cargo-llvm-cov` | MIT OR Apache-2.0 | coverage job of the CI |
 
 ## 3. Native libraries (optional, dynamically linked)
@@ -472,9 +473,14 @@ the definition of CGAL's Kernel_23 predicate
 - `docs/manual/` adapts the structure and parts of the text of the upstream
   manual (`doc/dev-doc/manual/*.rst`, `appendix/elements.rst`; © EPFL/LSMS,
   LGPL-3.0-or-later, same licence as the port); attribution in
-  `docs/manual/NOTICE`. No upstream figure is copied (the SVG figures of
-  `doc/dev-doc/manual/figures/` carry no separate licence statement; the
-  element tables are generated from the port's code instead). The manual's
+  `docs/manual/NOTICE`. The figures of the upstream manual
+  (`doc/dev-doc/manual/figures/`) and the set-up drawings of upstream's
+  examples that the manual shows are copied unchanged to
+  `docs/manual/src/figures/upstream/` (D-122): they
+  carry no separate licence statement and are used under the licence of the
+  Akantu repository, LGPL-3.0-or-later, with their notice in that
+  directory. The element tables are generated from the port's code. The
+  manual's
   tests (`crates/akantu/src/manual.rs`, `crates/akantu/tests/manual*.rs`) use
   only the workspace crates and `std`.
 - No Python or PyO3 code is translated from upstream sources other than

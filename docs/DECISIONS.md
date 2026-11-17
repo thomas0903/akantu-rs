@@ -2106,6 +2106,39 @@ Consequence: on aarch64 Linux one MUMPS scenario and five PETSc scenarios
 report that they did not compare oracle values; a failing comparison on
 x86_64 still fails.
 
+## D-122: Formulas and figures of the manual
+
+2026-11-17. The manual's formulas are written in LaTeX (`$...$` and
+`$$...$$`) and rendered when the book is built, by the mdBook preprocessor
+mdbook-katex 0.9.4 (KaTeX 0.16.4) next to mdBook 0.4.40. The KaTeX
+stylesheet and fonts that the rendered formulas need are stored in
+`docs/manual/src/katex/` (MIT), so the built book loads nothing from
+another site. The `manual` and `site` jobs of the CI install both tools at
+these versions and build through `ci/github/manual-build.sh`, which fails
+when a formula does not render. An expression whose point is the order of
+its floating-point operations stays a code block.
+
+The manual has figures of two kinds. Figures of the upstream manual and
+set-up drawings of upstream's examples are copied unchanged to
+`docs/manual/src/figures/upstream/`, with a notice. Where the port's own
+result shows the same thing as an upstream result image, the manual shows
+the port's. The figures of
+`docs/manual/src/figures/` outside that directory are made for akantu-rs:
+drawings, and images of the port's results rendered by
+`scripts/manual/render_figures.py`. A caption says where a figure comes
+from, and for an image of a result, which library computed it.
+
+Reason: the project's director asked for typeset formulas and for figures,
+as in the upstream documentation, and chose both sources of figures. The
+upstream figures carry no licence statement of their own; they are part of
+the Akantu repository, which is LGPL-3.0-or-later like the port. This
+replaces the earlier choice of copying no upstream figure
+(`docs/DEPENDENCIES.md`, `docs/manual/NOTICE`).
+
+Consequence: building the manual needs mdbook-katex besides mdBook. The
+rendering script is a maintenance tool (pyvista in a virtual environment);
+neither the build nor the CI depends on it.
+
 ## Ids without a record
 
 D-044, D-045, D-072, D-075, D-084, D-098, D-102, D-103, D-110, D-112 and

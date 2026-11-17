@@ -1,4 +1,5 @@
-# akantu-rs user manual (mdBook). Build with `mdbook build docs/manual`;
+# akantu-rs user manual (mdBook). Build with `mdbook build docs/manual`
+# (mdBook 0.4.40 and the preprocessor mdbook-katex 0.9.4 on the PATH);
 # not a dependency of the Rust workspace. The Rust examples are doc-tests of
 # the facade crate (`cargo test -p akantu --doc`), the input snippets, the
 # generated tables and the links are checked by
@@ -14,5 +15,14 @@ src = "src"
 build-dir = "book"
 create-missing = false
 
+# Formulas: `$...$` and `$$...$$` are rendered to HTML when the book is built
+# (KaTeX 0.16.4, the version mdbook-katex 0.9.4 embeds). `no-css`: the page
+# loads the stylesheet and the fonts stored in `src/katex/` (theme/head.hbs)
+# instead of a CDN, so the built book works offline.
+[preprocessor.katex]
+after = ["links"]
+no-css = true
+
 [output.html]
 mathjax-support = false
+additional-css = ["theme/manual.css"]

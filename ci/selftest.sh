@@ -249,9 +249,9 @@ replay_covers_workflows() {
   return "$r"
 }
 check "every ci/run-all.sh command of a workflow is replayed by ci/github/replay.sh" replay_covers_workflows
-# The mdBook lines of docs.yml's `manual` and `site` jobs are multi-line `run:`
-# blocks that the check above does not see; the replay must carry them word for
-# word.
+# The mdBook lines of docs.yml's `manual` and `site` jobs (the two pinned
+# `cargo install` and the build script) are multi-line `run:` blocks that the
+# check above does not see; the replay must carry them word for word.
 replay_covers_mdbook() {
   local r=0 line n=0
   # shellcheck disable=SC2016 # the grep pattern is a regex: the $ is literal
@@ -262,11 +262,51 @@ replay_covers_mdbook() {
       echo "not replayed by ci/github/replay.sh: $line"
       r=1
     }
-  done < <(grep -hE '^\s+("\$RUNNER_TEMP/mdbook/bin/mdbook"|cargo install mdbook)' "$here"/github/*.yml)
-  [ "$n" -ge 2 ] || r=1
+  done < <(grep -hE '^\s+(ci/github/manual-build\.sh|cargo install mdbook)' "$here"/github/*.yml)
+  [ "$n" -ge 6 ] || r=1
   return "$r"
 }
 check "the mdBook lines of docs.yml are replayed by ci/github/replay.sh" replay_covers_mdbook
+# The manual's build script, with stand-ins for mdbook and mdbook-katex
+# (nothing is built): a clean build with rendered formulas passes; a formula
+# that KaTeX rejects, a book without any rendered formula, a failing mdbook, a
+# missing stylesheet and a missing preprocessor binary all fail.
+manual_build_case() { # manual_build_case <want-rc> <fault: none|formula|no-katex|mdbook-fails|no-css|no-preprocessor>
+  local d="$tmp/manual-build-$2" rc
+  rm -rf "$d"
+  mkdir -p "$d/bin"
+  # the stand-in for `mdbook build <book> -d <dest>`; its fault is $MANUAL_BUILD_FAULT
+  cat > "$d/bin/mdbook" << 'STUB'
+#!/bin/sh
+dest=
+while [ $# -gt 0 ]; do
+  [ "$1" = -d ] && dest="$2"
+  shift
+done
+mkdir -p "$dest/katex"
+echo '<span class="katex">x</span>' > "$dest/page.html"
+echo css > "$dest/katex/katex.min.css"
+case "$MANUAL_BUILD_FAULT" in
+  formula) echo 'WARN mdbook_katex::render: Rendering failed, keeping the original content' >&2 ;;
+  no-katex) echo '<p>x</p>' > "$dest/page.html" ;;
+  mdbook-fails) exit 101 ;;
+  no-css) rm -f "$dest/katex/katex.min.css" ;;
+esac
+STUB
+  printf '#!/bin/sh\nexit 0\n' > "$d/bin/mdbook-katex"
+  chmod +x "$d/bin/mdbook" "$d/bin/mdbook-katex"
+  [ "$2" = no-preprocessor ] && rm -f "$d/bin/mdbook-katex"
+  MANUAL_BUILD_FAULT="$2" bash "$here/github/manual-build.sh" "$d/bin" "$d/book" > "$d/log" 2>&1
+  rc=$?
+  [ "$rc" = "$1" ] || {
+    cat "$d/log"
+    return 1
+  }
+}
+check "manual-build.sh: a book whose formulas all render passes" manual_build_case 0 none
+for fault in formula no-katex mdbook-fails no-css no-preprocessor; do
+  check "manual-build.sh: a faulty build ($fault) fails" manual_build_case 1 "$fault"
+done
 # The assembling step of the Pages site, on synthetic parts
 # (nothing is built): all three parts and their entry pages present -> OK with
 # resolving links; a missing part, an empty part and a missing entry page fail.
