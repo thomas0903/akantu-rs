@@ -183,8 +183,10 @@ Two rows above 1:
   0–15 % at 8 threads while their assemblies run 5–9× faster.
 - **Serial parts of an assembly**: the first assembly (profile
   construction, above), the law's tangent for laws that have not opted in
-  (the phase-field solid law, the reinforcement law of the embedded
-  model: `embedded_rebar_tri3` stops at 1.5× at 4 threads), the density
+  (the reinforcement law of the embedded model: `embedded_rebar_tri3`
+  stops at 1.5× at 4 threads; the phase-field solid law's tangent runs on
+  threads since the threaded constitutive laws were merged, after these
+  measurements), the density
   functor of the mass, and the per-call set-up. `phase_assemble_stiffness`
   of `phasefield_staggered_tet4` (6,000 elements, 8 ms) is too small to
   split: it stays at its one-thread time (0.58 of the base) at every
