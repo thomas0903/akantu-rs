@@ -86,3 +86,75 @@ fn fast_mode_sparse_lu_within_its_rule() {
         assert_eq!(run(&a, &b, p), fast, "threads={threads}");
     }
 }
+
+/// Factor arrays and solution of `lu` as bits.
+fn bits(lu: &mut SparseLu, a: &CscMatrix, b: &[f64]) -> Vec<u64> {
+    lu.factorize(a).unwrap();
+    let mut x = vec![0.0; a.n()];
+    lu.solve(b, &mut x).unwrap();
+    let f = lu.factors().unwrap();
+    f.lusup
+        .iter()
+        .chain(&f.ucol)
+        .chain(&x)
+        .map(|v| v.to_bits())
+        .chain(
+            f.perm_r
+                .iter()
+                .chain(&f.lsub)
+                .chain(&f.usub)
+                .map(|&i| i as u64),
+        )
+        .collect()
+}
+
+/// A fast factorisation followed by a bitwise one on the same solver gives
+/// the fresh bitwise factors and solution (no state of the fast mode
+/// survives), whether the mode comes from the executor (`set_exec`, 3
+/// threads, every update threaded) or from an explicit token
+/// (`set_fast_mode`); the fast runs differ from the bitwise one where the
+/// CPU has an FMA instance, so the test cannot pass without the fast
+/// kernels running.
+#[test]
+fn bitwise_after_fast_on_the_same_solver() {
+    let a = stencil3(12);
+    let b: Vec<f64> = (0..a.n()).map(|i| ((i * 11) % 13) as f64 - 6.0).collect();
+    let mut fresh = SparseLu::default();
+    fresh.analyze_pattern(&a).unwrap();
+    let want = bits(&mut fresh, &a, &b);
+    let fma = matches!(
+        ExecPolicy::serial().simd_token().level(),
+        SimdLevel::Avx2 | SimdLevel::Avx512
+    );
+    let threads = ExecPolicy::serial().with_threads(3).unwrap();
+    // through the executor's precision
+    let mut lu = SparseLu::default();
+    lu.set_threaded_update_min(Some(0));
+    lu.analyze_pattern(&a).unwrap();
+    lu.set_exec(Exec::new(threads.with_precision(Precision::Fast)).unwrap());
+    let fast = bits(&mut lu, &a, &b);
+    assert_eq!(
+        fast != want,
+        fma,
+        "the fast mode changes bits iff an FMA instance exists"
+    );
+    lu.set_exec(Exec::new(threads).unwrap());
+    assert!(
+        bits(&mut lu, &a, &b) == want,
+        "Fast -> Bitwise through set_exec"
+    );
+    // through an explicit token
+    let token = Exec::new(ExecPolicy::serial().with_precision(Precision::Fast))
+        .unwrap()
+        .fast_token();
+    let mut lu = SparseLu::default();
+    lu.analyze_pattern(&a).unwrap();
+    lu.set_fast_mode(token);
+    let fast = bits(&mut lu, &a, &b);
+    assert_eq!(fast != want, fma);
+    lu.set_fast_mode(None);
+    assert!(
+        bits(&mut lu, &a, &b) == want,
+        "Fast -> Bitwise through set_fast_mode"
+    );
+}
