@@ -8,8 +8,11 @@
 //!   `/home/<name>/` names a directory of one machine; `/private/tmp/`,
 //!   `/var/folders/` and `/tmp/claude-…` are a session's scratch
 //!   directories; `bx_` followed by eight letters or digits is the id of a
-//!   rented build machine. Use a placeholder (`<akantu-src>`, `<run-dir>`) or
-//!   a variable in its place. A path inside a longer one
+//!   rented build machine; an internal DNS name of a cloud machine
+//!   (`<name>.c.<project>.internal`, `ip-<address>.<region>.compute.internal`,
+//!   `ip-<address>.ec2.internal`) carries the project, zone or address of
+//!   one machine. Use a placeholder (`<akantu-src>`, `<run-dir>`,
+//!   `host=(redacted)`) or a variable in its place. A path inside a longer one
 //!   (`boost/spirit/home/x3/`) and the placeholder name `someone` are not
 //!   hits; a line that must name a fixed home directory (a container user's,
 //!   for example) carries the marker `public-tree-guard: allow`;
@@ -122,6 +125,52 @@ fn scratch_and_sandbox_ids(line: &str) -> Vec<String> {
             out.push(line[start..start + 11].to_owned());
         }
         from = start + 3;
+    }
+    out
+}
+
+/// Internal DNS names of cloud machines in `line` (Google Cloud
+/// `<label>.c.<label>.internal`; AWS `ip-<digits, dashes>.<label>.compute.internal`
+/// and `ip-<digits, dashes>.ec2.internal`), unless the line carries the allow
+/// marker.
+fn cloud_host_names(line: &str) -> Vec<String> {
+    if line.contains(ALLOW_MARKER) {
+        return Vec::new();
+    }
+    let label = |t: &str| {
+        !t.is_empty()
+            && t.bytes()
+                .all(|c| c.is_ascii_lowercase() || c.is_ascii_digit() || c == b'-')
+    };
+    let ip = |t: &str| {
+        t.len() > 3
+            && t.starts_with("ip-")
+            && t[3..].bytes().all(|c| c.is_ascii_digit() || c == b'-')
+    };
+    let b = line.as_bytes();
+    let mut out = Vec::new();
+    let mut from = 0;
+    while let Some(off) = line[from..].find(".internal") {
+        let end = from + off + ".internal".len();
+        from = end;
+        // a whole word: `.internal_force` is not a name
+        if b.get(end)
+            .is_some_and(|c| c.is_ascii_alphanumeric() || *c == b'_')
+        {
+            continue;
+        }
+        let start = line[..end]
+            .rfind(|c: char| !(c.is_ascii_alphanumeric() || c == '.' || c == '-'))
+            .map_or(0, |i| i + 1);
+        let parts: Vec<&str> = line[start..end].split('.').collect();
+        let n = parts.len();
+        let gce = n >= 4 && parts[n - 3] == "c" && label(parts[n - 2]) && label(parts[n - 4]);
+        let aws_compute =
+            n >= 4 && parts[n - 2] == "compute" && label(parts[n - 3]) && ip(parts[n - 4]);
+        let aws_ec2 = n >= 3 && parts[n - 2] == "ec2" && ip(parts[n - 3]);
+        if gce || aws_compute || aws_ec2 {
+            out.push(line[start..end].to_owned());
+        }
     }
     out
 }
@@ -362,6 +411,15 @@ fn hits(root: &Path) -> Vec<(String, String)> {
                     format!("{rel}:{}: scratch path or sandbox id `{p}`", i + 1),
                 ));
             }
+            for p in cloud_host_names(line) {
+                out.push((
+                    rel.clone(),
+                    format!(
+                        "{rel}:{}: internal host name of a cloud machine `{p}`",
+                        i + 1
+                    ),
+                ));
+            }
         }
         if links_checked(&rel) {
             for m in broken_links(root, &rel, &text) {
@@ -430,6 +488,22 @@ fn no_home_paths_and_no_broken_doc_links() {
             .collect::<Vec<_>>()
             .join("\n")
     );
+}
+
+#[test]
+fn cloud_host_names_are_found() {
+    // invented names, assembled so that this file holds no complete name
+    let gce = concat!("vm-1.zone-x.c.", "some-proj.internal");
+    let aws = concat!("ip-10-1-2-3.region-x.", "compute.internal");
+    let ec2 = concat!("ip-10-1-2-3.", "ec2.internal");
+    assert_eq!(cloud_host_names(&format!("host={gce} cpu=x")), [gce]);
+    assert_eq!(cloud_host_names(&format!("\"host\": \"{aws}\"")), [aws]);
+    assert_eq!(cloud_host_names(ec2), [ec2]);
+    // not names: identifiers, a lone `c.internal`, other suffixes
+    assert!(cloud_host_names("model.smm.internal_force()").is_empty());
+    assert!(cloud_host_names("x.c.internal and a.b.internal").is_empty());
+    assert!(cloud_host_names(concat!("ip-x.", "ec2.internal")).is_empty());
+    assert!(cloud_host_names(&format!("{gce} # public-tree-guard: allow")).is_empty());
 }
 
 #[test]

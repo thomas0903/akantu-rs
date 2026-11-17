@@ -91,7 +91,9 @@ if [ "${have_cpp}" = 1 ]; then
 fi
 
 {
-  echo "host=$(hostname) cpu=${cpu} nproc=$(nproc) kernel=$(uname -r) mem_total_kib=$(awk '/MemTotal/ {print $2}' /proc/meminfo)"
+  # no host name: a cloud machine's name carries its project and zone, and
+  # these records are committed (the public-tree guard refuses them)
+  echo "host=(redacted) cpu=${cpu} nproc=$(nproc) kernel=$(uname -r) mem_total_kib=$(awk '/MemTotal/ {print $2}' /proc/meminfo)"
   echo "steps=${steps} reps=${reps} h=${hs} materials=${materials} memory_cap_cpp=${memory} pin_cpu=${PIN_CPU:-none} started_utc=$(date -u +%FT%TZ)"
   [ "${have_cpp}" = 0 ] || echo "image=$(docker image inspect --format '{{.Id}}' "${img}")"
   for h in ${hs}; do echo "mesh h${h} sha256=$(sha256sum "${meshes}/cube-h${h}.msh" | cut -d' ' -f1)"; done
