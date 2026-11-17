@@ -42,6 +42,18 @@ const TOL: Real = DEFAULT_TOLERANCE;
 /// microseconds of work each).
 const DECISIONS_PER_PART: usize = 1024;
 
+/// The blocks of one facet type the insertion check reads.
+#[derive(Clone, Copy)]
+struct ScanData<'a> {
+    dim: usize,
+    nq: usize,
+    /// Tangent components per point (`dim·(dim − 1)`).
+    ntc: usize,
+    f_stress: &'a [Real],
+    normals: &'a [Real],
+    tangents: &'a [Real],
+}
+
 /// Quadrature points per part of the threaded traction loops.
 const POINTS_PER_PART: usize = 512;
 
@@ -428,96 +440,21 @@ impl Linear {
                 };
                 let zipped = core.compat.sigma_c_zipped_per_quad;
                 let limits: &[Real] = &sigma_limits;
-                // The facet's mean (or maximal) effective norm and the
-                // per-point norms and normal tractions: a function of the
-                // facet's data only.
-                let facet_norms = |facet: usize,
-                                   stress_check: &mut [Real],
-                                   normal_traction: &mut [[Real; 3]]|
-                 -> Real {
-                    for q in 0..nq {
-                        let cq = facet * nq + q;
-                        let fs = &f_stress[cq * 2 * dim * dim..(cq + 1) * 2 * dim * dim];
-                        stress_check[q] = self.effective_norm_at(
-                            dim,
-                            fs,
-                            &normals[cq * dim..(cq + 1) * dim],
-                            &tangents[cq * ntc..(cq + 1) * ntc],
-                            &mut normal_traction[q][..dim],
-                        );
-                    }
-                    // `stress_check.mean()` (run-time size)
-                    let mut final_stress = stress_check[0];
-                    for v in &stress_check[1..] {
-                        final_stress += v;
-                    }
-                    final_stress /= nq as Real;
-                    if self.max_quad_stress_insertion {
-                        // `*std::max_element` (first maximum)
-                        let mut m = stress_check[0];
-                        for &v in &stress_check[1..] {
-                            if m < v {
-                                m = v;
-                            }
-                        }
-                        final_stress = m;
-                    }
-                    final_stress
-                };
-                // UD-040: upstream pairs facet k with strength entry k
-                let limit_of = |k: usize| -> Real {
-                    if zipped {
-                        limits[k]
-                    } else {
-                        let lq = &limits[k * nq..(k + 1) * nq];
-                        let mut m = lq[0];
-                        for v in &lq[1..] {
-                            m += v;
-                        }
-                        m / nq as Real
-                    }
-                };
-                // The decision of every entry of the filter, on the threads
-                // of the facet FE engine's executor: it reads only the
-                // entry's facet data and writes only the entry's decision
-                // (0 not checked, 1 below its strength, 2 above, 3 not a
-                // facet index), the same bits for every thread count. The
-                // flags and the appended parameters follow in the filter's
-                // order below (the serial loop's order).
-                // On one part: the single pass of the serial code (the
-                // norms computed once per entry).
+                // On one part: the serial loop below, unchanged. On several:
+                // the decision of every entry of the filter on the threads
+                // of the facet FE engine's executor
+                // (`Linear::insertion_decisions`), then the flags and the
+                // appended parameters in the filter's order.
                 let exec = inputs.facet_fe.exec();
                 let serial = exec.nb_parts(nb_pairs, DECISIONS_PER_PART) <= 1;
-                let mut decision = Vec::new();
-                if !serial {
-                    decision = vec![0u8; nb_pairs];
-                    exec.for_each(
-                        akantu_core::exec::Tuples::new(&mut decision, 1),
-                        DECISIONS_PER_PART,
-                        |first, mut part| {
-                            let mut sc = vec![0.0; nq];
-                            let mut nt = vec![[0.0; 3]; nq];
-                            for (j, d) in part.as_mut_slice().iter_mut().enumerate() {
-                                let k = first + j;
-                                *d = match akantu_core::try_to_usize(filter[k]) {
-                                    Err(_) => 3,
-                                    Ok(facet)
-                                        if !facets_check.get(facet).copied().unwrap_or(false) =>
-                                    {
-                                        0
-                                    }
-                                    Ok(facet) => {
-                                        if facet_norms(facet, &mut sc, &mut nt) > limit_of(k) {
-                                            2
-                                        } else {
-                                            1
-                                        }
-                                    }
-                                };
-                            }
-                        },
-                    );
-                }
+                let scan = ScanData {
+                    dim,
+                    nq,
+                    ntc,
+                    f_stress,
+                    normals,
+                    tangents,
+                };
                 if serial {
                     // the serial loop in the filter's order, unchanged
                     for (k, &facet) in filter.iter().enumerate().take(nb_pairs) {
@@ -604,6 +541,14 @@ impl Linear {
                         }
                     }
                 } else {
+                    let decision = self.insertion_decisions(
+                        exec,
+                        &scan,
+                        &filter[..nb_pairs],
+                        facets_check,
+                        limits,
+                        zipped,
+                    );
                     for (k, &facet) in filter.iter().enumerate().take(nb_pairs) {
                         let facet = {
                             if decision[k] != 2 {
@@ -616,7 +561,12 @@ impl Linear {
                             let facet = akantu_core::try_to_usize(facet)?;
                             // the norms of the entry again, with the same
                             // operations
-                            let _ = facet_norms(facet, &mut stress_check, &mut normal_traction);
+                            let _ = self.facet_norms(
+                                &scan,
+                                facet,
+                                &mut stress_check,
+                                &mut normal_traction,
+                            );
                             facet
                         };
                         let limit_q = |q: usize| {
@@ -685,6 +635,110 @@ impl Linear {
             }
         }
         Ok(prepared)
+    }
+
+    /// The mean (or maximal) effective norm of the facet `facet` and its
+    /// per-point norms and normal tractions, with the operations of the
+    /// serial loop of [`Linear::check_insertion`] (a function of the facet's
+    /// data only).
+    #[inline(always)]
+    fn facet_norms(
+        &self,
+        scan: &ScanData<'_>,
+        facet: usize,
+        stress_check: &mut [Real],
+        normal_traction: &mut [[Real; 3]],
+    ) -> Real {
+        let ScanData {
+            dim,
+            nq,
+            ntc,
+            f_stress,
+            normals,
+            tangents,
+        } = *scan;
+        for q in 0..nq {
+            let cq = facet * nq + q;
+            let fs = &f_stress[cq * 2 * dim * dim..(cq + 1) * 2 * dim * dim];
+            stress_check[q] = self.effective_norm_at(
+                dim,
+                fs,
+                &normals[cq * dim..(cq + 1) * dim],
+                &tangents[cq * ntc..(cq + 1) * ntc],
+                &mut normal_traction[q][..dim],
+            );
+        }
+        // `stress_check.mean()` (run-time size)
+        let mut final_stress = stress_check[0];
+        for v in &stress_check[1..nq] {
+            final_stress += v;
+        }
+        final_stress /= nq as Real;
+        if self.max_quad_stress_insertion {
+            // `*std::max_element` (first maximum)
+            let mut m = stress_check[0];
+            for &v in &stress_check[1..nq] {
+                if m < v {
+                    m = v;
+                }
+            }
+            final_stress = m;
+        }
+        final_stress
+    }
+
+    /// The insertion decision of every entry of `filter` on the threads of
+    /// `exec`: 0 not checked, 1 not above its strength, 2 above, 3 not a
+    /// facet index. Each entry reads only its facet's data and writes only
+    /// its decision: the same values for every thread count.
+    #[inline(never)]
+    fn insertion_decisions(
+        &self,
+        exec: &akantu_core::exec::Exec,
+        scan: &ScanData<'_>,
+        filter: &[Idx],
+        facets_check: &[bool],
+        limits: &[Real],
+        zipped: bool,
+    ) -> Vec<u8> {
+        let nq = scan.nq;
+        // UD-040: upstream pairs facet k with strength entry k
+        let limit_of = |k: usize| -> Real {
+            if zipped {
+                limits[k]
+            } else {
+                let lq = &limits[k * nq..(k + 1) * nq];
+                let mut m = lq[0];
+                for v in &lq[1..] {
+                    m += v;
+                }
+                m / nq as Real
+            }
+        };
+        let mut decision = vec![0u8; filter.len()];
+        exec.for_each(
+            akantu_core::exec::Tuples::new(&mut decision, 1),
+            DECISIONS_PER_PART,
+            |first, mut part| {
+                let mut sc = vec![0.0; nq];
+                let mut nt = vec![[0.0; 3]; nq];
+                for (j, d) in part.as_mut_slice().iter_mut().enumerate() {
+                    let k = first + j;
+                    *d = match akantu_core::try_to_usize(filter[k]) {
+                        Err(_) => 3,
+                        Ok(facet) if !facets_check.get(facet).copied().unwrap_or(false) => 0,
+                        Ok(facet) => {
+                            if self.facet_norms(scan, facet, &mut sc, &mut nt) > limit_of(k) {
+                                2
+                            } else {
+                                1
+                            }
+                        }
+                    };
+                }
+            },
+        );
+        decision
     }
 
     /// Lengths of the not-ghost cohesive blocks [`Linear::check_insertion`]
