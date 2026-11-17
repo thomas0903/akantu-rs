@@ -1046,11 +1046,42 @@ the heat transfer model, the heat law's diffusivity and `D∇u` loops and
 the internal-flow scatter (`akantu-diffusion` `model/assembly.rs`, a
 cached `NodeScatter` per `(law, type, ghost)` as in the solid model),
 with the FE kernels above; in the phase-field model, its FE kernels.
-Serial still: the first-order (generalized trapezoidal) predictor and
-corrector of the heat model, the phase-field model's driving-force loop
-(its law interface carries no executor) and its internal-force scatter.
-The per-node and per-equation loops split only into parts of at least
-131,072 nodes or 262,144 equations; below, they run serially.
+Also on threads: the generalized-trapezoidal predictor and corrector, the
+increment update (`time_step.rs`), the schemes' store and restore copies,
+the blocked-DOF scan (each part's blocked equations appended in part
+order, then sorted as before); the non-local weighted average
+(`akantu-model` `non_local/neighborhood.rs`, from 5 threads: up to 4 the
+per-point gather, which visits every pair twice, is slower than the
+serial half-pair loop; per point, its contributions
+in pair order from a per-point list built with the pair list, when the
+slots increase with the points; the manager takes the executor from its
+callback); the FE plans' and kernels' checks of the element ids and the
+connectivity (an integer maximum, a logical or or a logical and per
+part, then over the parts: `fast::max_unsigned_with`, `any_with`,
+`consecutive_with`, `nodes_valid_with`, `batch_ids_with`; one element's
+row takes the serial maximum) and the finite-deformation check of the
+material filter (`Derivatives::check_filter`: the largest id per part,
+the serial scan only to report the first element out of range); the
+deferred history save of a block reached through
+`InternalField::get_mut_with` (a copy in parts); Mazars' copies of its
+blocks (with threads into buffers kept per element type and ghost type
+from one step to the next: a fresh allocation of a block's size, once
+glibc's mmap threshold has grown past it, comes from the heap and is
+zeroed by `calloc` on the calling thread; the cost is a permanent second
+copy of the blocks the points work on, `5 + 2·dim²` values per
+quadrature point, `5 + 3·dim²` for `plastic_mazars`: 184 bytes per point
+in 3-D, 104 in 2-D; a clone of the law starts without them). The
+per-node and per-equation loops split into parts of at least
+2,048 nodes or 4,096 equations: measured with the step's other kernels on
+threads, smaller parts gave the explicit steps of 0.1 to 0.35 million
+equations 0.70 to 0.91 of the time at 8 threads (also with idle workers
+parked at once); an earlier screening, made while the kernels that write
+these arrays ran serially, had found parts of 262,144 equations faster.
+Serial still: the phase-field model's driving-force loop (its law
+interface carries no executor) and its internal-force scatter, the sparse
+direct solves, the external-work increment's sum (one fold in node order,
+as the bitwise result needs), the non-local Marigo law's damage after the
+average.
 
 Matrix assembly and the matrix operations of implicit steps (bitwise at
 every thread count; `akantu-solver/tests/threaded_assembly.rs`,
@@ -1174,13 +1205,52 @@ iterative laws with a rank reduction after the stress phase
 point of the law); `damage_linear` in its upstream mode (UD-575: every
 point reads and writes the first point's threshold); the FE² law
 (`material_FE2`: one sub-model per point, with its own solver); laws
-written in Python (the update calls into the interpreter); the cohesive
-laws (insertion state; `akantu-cohesive`, not reviewed here). Update each
+written in Python (the update calls into the interpreter). The cohesive
+laws are outside this scheme (below, "The cohesive model"). Update each
 point from its own data and can opt in after the same review and test
 (not done: no benchmark case uses them): `brittle` (its point loop hands
 each point's state to a sequential sink used by the non-local variant),
 `vreepeerlings` and `reinforcement` (embedded). The thermal pre-step of `thermal.rs` is the
 elastic law's (`MaterialElastic::compute_thermal_with`).
+
+The cohesive model (`akantu-cohesive`, bitwise at every thread count:
+`akantu-cohesive/tests/exec_threads.rs`, serial and on the in-process local
+world at 2 and 4 ranks; the par tier runs `mpi_cohesive` with two threads
+per rank) runs on the solid model's
+executor (`SolidMechanicsModelCohesive::{exec_policy, set_exec_policy}`;
+the facet FE engine follows it). The cohesive laws do not declare
+`independent_points` and do not use `points_exec`: their loops take the
+executor from the model (`ctx.services.exec()`, the facet FE engine's for
+the insertion check) and are opted in one by one in the cohesive crate.
+On threads:
+
+- the facet stresses of the insertion check: the copy plan's pairs in
+  parts of whole facets of `facet_stress` (each pair writes only its
+  facet's tuples);
+- the linear family's insertion decision: one decision per entry of the
+  law's facet filter on the threads (read-only), then, in filter order,
+  the insertion flags and the parameters appended for the new elements
+  (the norms of an inserted facet are computed again with the same
+  operations); on one part, the serial single pass;
+- the normals and openings of the cohesive elements (the FE kernels per
+  part of whole elements, with the part's sub-filter), the residual
+  `(t + t_c) N` per point and per element, scattered to the nodes in
+  element order (`NodeScatter`, cached per cohesive block and checked
+  against the connectivity before each use), and the energy update per
+  point;
+- the tractions of `cohesive_linear` and `cohesive_bilinear`: each point
+  from its own opening, normal, history and parameters, no state of the
+  law written.
+
+Stay serial: `cohesive_exponential` (per point independent, not
+converted), `cohesive_linear_fatigue` (per point independent with a dozen
+per-point fields, not converted), `cohesive_linear_friction` (its
+per-point hook counts the points in order: order-dependent as written),
+`cohesive_linear_uncoupled` (per point independent, not converted), laws
+written in Python (the update calls into the interpreter); the insertion
+itself (the transaction, the inserter's searches, the decision's flags and
+appended parameters in filter order) and the facet-stress exchange of a
+distributed mesh.
 
 SIMD convention (`exec::simd` module documentation): one portable body
 performing per lane the scalar sequence, one `#[target_feature]` version per

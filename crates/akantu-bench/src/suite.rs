@@ -17,7 +17,8 @@
 //! ```text
 //! {"suite":"solid","case":"explicit_tet4_ss","size":"m","rep":0,"phase":"solve_step",
 //!  "calls":200,"seconds":1.2345,"n_elements":162000,"n_nodes":29791,"n_dofs":89373,
-//!  "ranks":1,"threads":1,"grain":"auto","digest":"9f3c...","commit":"59dd2229c","features":"",
+//!  "ranks":1,"threads":1,"grain":"auto","precision":"bitwise","digest":"9f3c...",
+//!  "commit":"59dd2229c","features":"",
 //!  "profile":"release"}
 //! ```
 //!
@@ -158,6 +159,15 @@ pub const fn grain_name(g: Grain) -> &'static str {
         Grain::Auto => "auto",
         Grain::Finest => "finest",
     }
+}
+
+/// The precision mode (`bitwise` or `fast`) of the process default
+/// execution policy, which every model of a run starts with; recorded in the
+/// JSON lines so that a campaign can check the requested mode took effect
+/// (`unknown` if the environment is invalid).
+#[must_use]
+pub fn precision_name() -> &'static str {
+    akantu_core::exec::ExecPolicy::process_default().map_or("unknown", |p| p.precision().name())
 }
 
 /// Apply `--threads` / `--grain` to the process default execution policy
@@ -717,11 +727,12 @@ pub fn json_line(
     let _ = write!(
         s,
         ",\"n_elements\":{},\"n_nodes\":{},\"n_dofs\":{},\"ranks\":{ranks},\"threads\":{threads},\
-         \"grain\":\"{}\",\"digest\":",
+         \"grain\":\"{}\",\"precision\":\"{}\",\"digest\":",
         counts[0],
         counts[1],
         counts[2],
-        grain_name(grain)
+        grain_name(grain),
+        precision_name()
     );
     match digest {
         Some(d) => {

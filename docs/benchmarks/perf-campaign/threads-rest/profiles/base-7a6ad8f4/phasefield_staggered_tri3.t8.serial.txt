@@ -1,0 +1,73 @@
+step samples of the main thread 5611, serial 5560 (99.1 % of the wall time), worker samples 37753
+-- serial, self:
+ 15.92 %  akantu_linalg::eigen_sparse_lu::kernels::panel_bmod
+ 12.37 %  akantu_linalg::eigen_sparse_lu::kernels::dfs_kernel
+  6.99 %  akantu_linalg::eigen_sparse_lu::dense::gemm_tile::<16, 8, true, false>
+  4.69 %  akantu_linalg::eigen_sparse_lu::dense::gebp_minus_tile::<8>
+  3.83 %  akantu_linalg::eigen_sparse_lu::kernels::copy_to_ucol
+  2.74 %  akantu_linalg::eigen_sparse_lu::dense::trsm_unit_lower
+  2.73 %  <usize as core::slice::index::SliceIndex<[i64]>>::index
+  2.69 %  akantu_linalg::eigen_sparse_lu::dense::gemm_tile::<16, 4, true, false>
+  2.21 %  akantu_linalg::eigen_sparse_lu::kernels::column_dfs
+  2.01 %  akantu_linalg::eigen_sparse_lu::kernels::dfs_kernel::place
+  1.85 %  <usize as core::cmp::PartialOrd>::lt
+  1.84 %  [unknown]
+  1.80 %  <core::ops::range::Range<usize> as core::iter::range::RangeIteratorImpl>::spec_next
+  1.69 %  akantu_linalg::eigen_sparse_lu::kernels::spa
+  1.60 %  <i64 as core::convert::From<i32>>::from
+  1.43 %  akantu_linalg::eigen_sparse_lu::kernels::kernel_bmod
+  1.27 %  akantu_linalg::eigen_sparse_lu::kernels::pivot_l
+  1.27 %  akantu_linalg::eigen_sparse_lu::dense::gebp_minus
+  1.23 %  <core::ops::range::RangeFrom<usize> as core::slice::index::SliceIndex<[f64]>>::index
+  1.21 %  akantu_linalg::eigen_sparse_lu::dense::gemv_tile::<32>
+  1.19 %  akantu_linalg::eigen_sparse_lu::dense::gemm_tile::<16, 2, true, false>
+  1.12 %  akantu_linalg::eigen_sparse_lu::kernels::prune_l
+  1.09 %  <usize as core::slice::index::SliceIndex<[i32]>>::index
+  1.05 %  akantu_linalg::eigen_sparse_lu::kernels::column_bmod
+  1.02 %  akantu_linalg::eigen_sparse_lu::solve_u
+-- serial, inclusive (akantu frames):
+ 99.09 %  <akantu_solver::model_solver::ModelSolver>::solve_step
+ 99.09 %  <akantu_solver::time_step::TimeStepSolver>::solve_step
+ 99.09 %  <core::result::Result<(), akantu_core::error::Error> as core::ops::try_trait::Try>::branch
+ 99.09 %  core::mem::replace::<akantu_solver::dof_manager::ScopeSlot>
+ 99.09 %  <akantu_solver::non_linear_newton_raphson::NonLinearSolverNewtonRaphson>::solve_nr
+ 99.09 %  <akantu_solver::non_linear_newton_raphson::NonLinearSolverNewtonRaphson as akantu_solver::non_linear::NonLinearSolver>::solve
+ 99.09 %  <akantu_solver::dof_manager::DofManager>::collective::<(), <akantu_solver::non_linear_newton_raphson::NonLinearSolverNewtonRaphson as akantu_solver::non_linear:
+ 95.56 %  <akantu_solver::dof_manager::DofManager>::solve::{closure#0}
+ 95.56 %  <akantu_solver::dof_manager::DofManager>::solve
+ 95.56 %  <akantu_solver::dof_manager::DofManager>::collective::<(), <akantu_solver::dof_manager::DofManager>::solve::{closure#0}>
+ 95.54 %  <akantu_solver::dof_manager::DofManager>::solve_linear_system::{closure#0}
+ 95.54 %  <akantu_solver::dof_manager::DofManager>::collective::<(), <akantu_solver::dof_manager::DofManager>::solve_linear_system::{closure#0}>
+ 95.54 %  <akantu_solver::dof_manager::DofManager>::lend::<(), <akantu_solver::dof_manager::DofManager>::solve_linear_system::{closure#0}::{closure#2}>
+ 95.54 %  <akantu_solver::dof_manager::DofManager>::solve_linear_system::{closure#0}::{closure#2}
+ 95.54 %  <akantu_solver::dof_manager::DofManager>::solve_linear_system
+ 95.53 %  <akantu_solver::backend::AijBackend as akantu_solver::backend::LinearSystemBackend>::solve
+ 95.46 %  <core::result::Result<alloc::vec::Vec<(i64, f64)>, akantu_core::error::Error> as core::ops::try_trait::Try>::branch
+ 95.44 %  <akantu_comm::phase::Phases>::run::<(alloc::vec::Vec<f64>, alloc::vec::Vec<i64>), alloc::vec::Vec<(i64, f64)>, <akantu_solver::backend::AijBackend as akantu_sol
+ 95.44 %  <akantu_solver::backend::AijBackend as akantu_solver::backend::LinearSystemBackend>::solve::{closure#2}
+ 95.44 %  <akantu_solver::backend::AijBackend as akantu_solver::backend::LinearSystemBackend>::solve::{closure#2}::{closure#0}
+ 92.10 %  <akantu_linalg::eigen_sparse_lu::EigenSparseLuSolver as akantu_linalg::direct::SparseDirectSolver>::factorize
+ 90.38 %  <akantu_linalg::eigen_sparse_lu::SparseLu>::factorize
+ 78.31 %  <akantu_solid::model::SolidMechanicsModel>::solve_step
+ 50.56 %  akantu_linalg::eigen_sparse_lu::kernels::panel_bmod
+ 20.78 %  <akantu_phase_field::model::PhaseFieldModel>::solve_step
+ 17.72 %  akantu_linalg::eigen_sparse_lu::kernels::dfs_kernel
+ 17.06 %  akantu_linalg::eigen_sparse_lu::simd::gemm_into_zero_with
+ 16.75 %  akantu_linalg::eigen_sparse_lu::simd::x86::gemm_avx512
+ 16.68 %  akantu_linalg::eigen_sparse_lu::dense::gemm_tiles::<16, true, false>
+ 16.45 %  akantu_linalg::eigen_sparse_lu::simd::gemm_into_zero_mode
+ 14.67 %  akantu_linalg::eigen_sparse_lu::dense::gemm_rows::<16, true, false>
+ 13.56 %  akantu_linalg::eigen_sparse_lu::kernels::panel_dfs
+ 12.83 %  akantu_linalg::eigen_sparse_lu::dense::trsm_unit_lower
+  8.45 %  akantu_linalg::eigen_sparse_lu::kernels::column_dfs
+  8.38 %  akantu_linalg::eigen_sparse_lu::dense::gebp_minus
+  7.82 %  akantu_linalg::eigen_sparse_lu::dense::gemm_tile::<16, 8, true, false>
+  5.60 %  akantu_linalg::eigen_sparse_lu::dense::gebp_minus_tile::<8>
+  5.45 %  akantu_linalg::eigen_sparse_lu::kernels::column_bmod
+  5.17 %  akantu_linalg::eigen_sparse_lu::kernels::copy_to_ucol
+  3.05 %  akantu_linalg::eigen_sparse_lu::kernels::kernel_bmod
+  3.01 %  akantu_linalg::eigen_sparse_lu::dense::gemm_tile::<16, 4, true, false>
+  2.74 %  <akantu_linalg::eigen_sparse_lu::SparseLu>::solve_with
+  2.74 %  <akantu_linalg::eigen_sparse_lu::EigenSparseLuSolver as akantu_linalg::direct::SparseDirectSolver>::solve
+  2.51 %  akantu_linalg::eigen_sparse_lu::kernels::dfs_kernel::place
+  2.23 %  akantu_linalg::eigen_sparse_lu::kernels::pivot_l

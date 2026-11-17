@@ -342,7 +342,7 @@ impl Run {
                 "{{\"suite\":\"models\",\"case\":\"{case}\",\"size\":\"{}\",\"rep\":{rep},\
                  \"phase\":\"{}\",\"calls\":{},\"seconds\":{:.6},\"n_elements\":{},\
                  \"n_nodes\":{},\"n_dofs\":{},\"ranks\":{},\"threads\":{},\"grain\":\"{}\",\
-                 \"digest\":\"{}\",\"commit\":\"{}\",\"features\":\"{}\",\
+                 \"precision\":\"{}\",\"digest\":\"{}\",\"commit\":\"{}\",\"features\":\"{}\",\
                  \"sparse_solver\":\"{}\"}}",
                 self.opts.size.name(),
                 p.name,
@@ -354,6 +354,7 @@ impl Run {
                 self.comm.size(),
                 self.opts.threads,
                 akantu_bench::suite::grain_name(self.opts.grain),
+                akantu_bench::suite::precision_name(),
                 digest.hex(),
                 commit(),
                 features(),

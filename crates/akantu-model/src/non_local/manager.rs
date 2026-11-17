@@ -202,6 +202,12 @@ pub trait NonLocalManagerCallback {
         manager: &mut NonLocalManager,
     ) -> Result<()>;
 
+    /// The executor the averages run on (D-123): the model's; serial by
+    /// default.
+    fn exec(&self) -> &akantu_core::exec::Exec {
+        akantu_core::exec::Exec::serial_ref()
+    }
+
     /// Upstream `initializeNonLocal()` (the solid model synchronises its
     /// law ids; nothing in serial).
     ///
@@ -1361,7 +1367,13 @@ impl NonLocalManager {
         self.trace.push("weights".into());
         let order = self.options.order;
         if order == SummationOrder::UpstreamHalfPairs {
-            self.average(&plan, &locals, &mut accumulated, GhostType::NotGhost);
+            self.average(
+                cb.exec(),
+                &plan,
+                &locals,
+                &mut accumulated,
+                GhostType::NotGhost,
+            );
         }
         // 4. wait for the ghost values, 5. ghost pairs
         for name in &names {
@@ -1376,7 +1388,13 @@ impl NonLocalManager {
         }
         match order {
             SummationOrder::UpstreamHalfPairs => {
-                self.average(&plan, &locals, &mut accumulated, GhostType::Ghost);
+                self.average(
+                    cb.exec(),
+                    &plan,
+                    &locals,
+                    &mut accumulated,
+                    GhostType::Ghost,
+                );
             }
             SummationOrder::KeyOrder => {
                 for (name, nl, var) in &plan {
@@ -1431,6 +1449,7 @@ impl NonLocalManager {
     /// registered in it, as resolved in the plan.
     fn average(
         &self,
+        exec: &akantu_core::exec::Exec,
         plan: &[(String, String, NonLocalVariable)],
         locals: &BTreeMap<(String, usize), Vec<Real>>,
         accumulated: &mut BTreeMap<String, Vec<Real>>,
@@ -1443,7 +1462,7 @@ impl NonLocalManager {
                 locals.get(&key),
                 accumulated.get_mut(nl),
             ) {
-                n.weighted_average(l, a, var.nb_component, ghost);
+                n.weighted_average(exec, l, a, var.nb_component, ghost);
             }
         }
     }

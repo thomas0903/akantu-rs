@@ -1,0 +1,21 @@
+# SPDX-License-Identifier: LGPL-3.0-or-later
+# Suite cases whose digest is not compared between `before` and `head`
+# (run_part.sh, check_suite_group): only cases whose digest DEFINITION (what
+# the case hashes) differs between the two revisions' suite sources, each
+# with the commit and the reason. The bitwise variants of `head` (1, 2, 4,
+# 8 threads) are still compared with each other. A library change that moves
+# a bit never goes here: it is a failed check.
+#
+# Format: one case per line (`case` for every rank count, `case@np<P>` for
+# one), then `#` and the reason.
+#
+# With `before` = perf/final-before (b6f56c2f0: the suites' digest fixes
+# 9f3149c5b and 82325c03a cherry-picked) no case differs in its definition.
+#
+# Lines starting with `!`: cases whose result does not repeat from run to run
+# at that rank count (any variant, even the same binary twice), so no digest
+# is compared there; they are timed only. The cohesive driver's distributed
+# MUMPS runs are treated the same way (docs/BENCHMARKS.md).
+!static_linear_mumps@np2   # the distributed MUMPS solve (dry run: two runs of before at 4 ranks gave two digests)
+!static_linear_mumps@np4   # likewise
+!static_linear_mumps@np8   # likewise

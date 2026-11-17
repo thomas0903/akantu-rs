@@ -44,6 +44,29 @@ pub(super) fn max_unsigned(v: &[Idx]) -> Option<usize> {
     (!v.is_empty()).then_some(m as usize)
 }
 
+/// [`max_unsigned`] on `exec`'s threads: the maximum of each part, then
+/// the maximum of those (an integer maximum: the same value for every
+/// split).
+pub(super) fn max_unsigned_with(exec: &Exec, v: &[Idx]) -> Option<usize> {
+    // parts of at least 8,192 indices (a few microseconds: the check runs
+    // once per batch, between threaded kernels)
+    let parts = exec.nb_parts(v.len(), 8_192);
+    if parts <= 1 {
+        return max_unsigned(v);
+    }
+    let bounds: Vec<usize> = (0..=parts).map(|p| p * v.len() / parts).collect();
+    let mut maxima = vec![0u32; parts];
+    let per_part: Vec<usize> = (0..=parts).collect();
+    exec.for_each_bounds(&per_part, Tuples::new(&mut maxima, 1), |p, mut m| {
+        let part = &v[bounds[p]..bounds[p + 1]];
+        // a value of `max_unsigned`, i.e. a u32
+        m.as_mut_slice()[0] =
+            max_unsigned(part).map_or(0, |x| u32::try_from(x).unwrap_or(u32::MAX));
+    });
+    let m = maxima.iter().fold(0u32, |a, &b| a.max(b));
+    (!v.is_empty()).then_some(m as usize)
+}
+
 /// `true` when `ids` are consecutive (`ids[k] = ids[0] + k`).
 fn consecutive(ids: &[Idx]) -> bool {
     let Some(&first) = ids.first() else {
@@ -54,21 +77,55 @@ fn consecutive(ids: &[Idx]) -> bool {
     })
 }
 
+/// [`consecutive`] on `exec`'s threads: each part tests its own ids
+/// against `ids[0] + k` (a logical and: the same answer for every split).
+fn consecutive_with(exec: &Exec, ids: &[Idx]) -> bool {
+    let parts = exec.nb_parts(ids.len(), 8_192);
+    if parts <= 1 {
+        return consecutive(ids);
+    }
+    let first = ids[0];
+    let bounds: Vec<usize> = (0..=parts).map(|p| p * ids.len() / parts).collect();
+    let mut ok = vec![true; parts];
+    let per_part: Vec<usize> = (0..=parts).collect();
+    exec.for_each_bounds(&per_part, Tuples::new(&mut ok, 1), |p, mut o| {
+        let (a, b) = (bounds[p], bounds[p + 1]);
+        // the offsets of the serial pass (`ids` longer than the index
+        // range are not consecutive ids of a block)
+        o.as_mut_slice()[0] = Idx::try_from(a).is_ok_and(|a0| {
+            ids[a..b]
+                .iter()
+                .zip(a0..)
+                .fold(true, |ok, (&e, k)| ok & (e == first.wrapping_add(k)))
+        });
+    });
+    !ok.contains(&false)
+}
+
 /// `true` when every node of the elements `ids` is a valid index of a
 /// nodal field of `nb_nodes` tuples (`conn` holds `nnpe` nodes per element
 /// and every id is an element of the block, checked by the caller). One
 /// pass over the connectivity of consecutive ids, else one per element.
 fn nodes_valid(conn: &[Idx], nnpe: usize, ids: &[Idx], nb_nodes: usize) -> bool {
-    let rows_ok =
-        |rows: Option<&[Idx]>| rows.is_some_and(|r| max_unsigned(r).is_none_or(|m| m < nb_nodes));
+    nodes_valid_with(Exec::serial_ref(), conn, nnpe, ids, nb_nodes)
+}
+
+/// [`nodes_valid`] with the pass over the connectivity of consecutive ids,
+/// or the per-element passes, on `exec`'s threads.
+fn nodes_valid_with(exec: &Exec, conn: &[Idx], nnpe: usize, ids: &[Idx], nb_nodes: usize) -> bool {
     match (ids.first(), ids.last()) {
-        (Some(&a), Some(&b)) if consecutive(ids) => {
+        (Some(&a), Some(&b)) if consecutive_with(exec, ids) => {
             let (a, b) = (id_index(a), id_index(b));
-            rows_ok(conn.get(a * nnpe..(b + 1) * nnpe))
+            conn.get(a * nnpe..(b + 1) * nnpe)
+                .is_some_and(|r| max_unsigned_with(exec, r).is_none_or(|m| m < nb_nodes))
         }
-        _ => ids.iter().all(|&e| {
-            let e = id_index(e);
-            rows_ok(conn.get(e * nnpe..(e + 1) * nnpe))
+        // one element's row is a few indices: its maximum serially, the
+        // elements in parts (a logical and)
+        _ => !any_with(exec, ids.len(), 8_192, |k| {
+            let e = id_index(ids[k]);
+            !conn
+                .get(e * nnpe..(e + 1) * nnpe)
+                .is_some_and(|r| max_unsigned(r).is_none_or(|m| m < nb_nodes))
         }),
     }
 }
@@ -97,6 +154,7 @@ fn gradient_shape_ok<E: LagrangeElement>(
 /// `true` when [`gradient`] takes its kernel for every element of `ids`
 /// (route, sizes and the connectivity of `ids`).
 pub(super) fn gradient_supported<E: LagrangeElement>(
+    exec: &Exec,
     block: &Block<'_>,
     u: &[Real],
     nb_dof: usize,
@@ -105,7 +163,7 @@ pub(super) fn gradient_supported<E: LagrangeElement>(
     ids: &[Idx],
 ) -> bool {
     gradient_shape_ok::<E>(block, u, nb_dof, dshapes, nq)
-        && nodes_valid(block.conn(), block.nnpe, ids, block.nb_nodes)
+        && nodes_valid_with(exec, block.conn(), block.nnpe, ids, block.nb_nodes)
 }
 
 /// `∇u = U·Bᵀ` for every quadrature point of the elements `ids` (regular
@@ -304,8 +362,25 @@ impl<E: LagrangeElement, const NBD: usize, const MINUS: bool, const FMA: bool> S
 
 /// `true` when `ids` (elements of a block of `nb_element`, checked by the
 /// caller) can index `nq` shape-derivative tuples of `bsz` values each.
-fn derivatives_cover(ids: &[Idx], nq: usize, bsz: usize, bs: &[Real]) -> bool {
-    max_unsigned(ids).is_none_or(|m| (m + 1).saturating_mul(nq * bsz) <= bs.len())
+fn derivatives_cover(exec: &Exec, ids: &[Idx], nq: usize, bsz: usize, bs: &[Real]) -> bool {
+    max_unsigned_with(exec, ids).is_none_or(|m| (m + 1).saturating_mul(nq * bsz) <= bs.len())
+}
+
+/// `true` when `pred(k)` holds for some `k` in `0..n`: the parts of
+/// `exec` each test their range (a logical or: the same answer for every
+/// split).
+fn any_with(exec: &Exec, n: usize, min: usize, pred: impl Fn(usize) -> bool + Sync) -> bool {
+    let parts = exec.nb_parts(n, min);
+    if parts <= 1 {
+        return (0..n).any(pred);
+    }
+    let bounds: Vec<usize> = (0..=parts).map(|p| p * n / parts).collect();
+    let mut found = vec![false; parts];
+    let per_part: Vec<usize> = (0..=parts).collect();
+    exec.for_each_bounds(&per_part, Tuples::new(&mut found, 1), |p, mut f| {
+        f.as_mut_slice()[0] = (bounds[p]..bounds[p + 1]).any(&pred);
+    });
+    found.contains(&true)
 }
 
 /// `D·B` per quadrature point (upstream `computeBtD`): `D` dynamic
@@ -340,7 +415,7 @@ pub(super) fn btd(
     if ds.len() != np * r * sdim || os.len() != np * r * nn {
         return None;
     }
-    if !derivatives_cover(ids, nq, sdim * nn, bs) {
+    if !derivatives_cover(exec, ids, nq, sdim * nn, bs) {
         return None;
     }
     let run: BtdPart = match (r, sdim) {
@@ -498,7 +573,7 @@ pub(super) fn btd_integrate(
     os: &mut [Real],
 ) -> Option<()> {
     let nb_dof = r * nn;
-    if !btd_integrate_supported(r, sdim, nn, ids, nq, bs, jac)
+    if !btd_integrate_supported(exec, r, sdim, nn, ids, nq, bs, jac)
         || ds.len() != ids.len() * nq * r * sdim
         || os.len() != ids.len() * nb_dof
     {
@@ -530,7 +605,9 @@ pub(super) fn btd_integrate(
 
 /// `true` when [`btd_integrate`] takes its kernel for the elements `ids`
 /// (both routes, sizes, the shape derivatives and Jacobians of `ids`).
+#[allow(clippy::too_many_arguments)] // the fused kernel's operands and its executor
 pub(super) fn btd_integrate_supported(
+    exec: &Exec,
     r: usize,
     sdim: usize,
     nn: usize,
@@ -553,8 +630,8 @@ pub(super) fn btd_integrate_supported(
         && nn > 0
         && nn <= TREE_MAX
         && btd_integrate_kernel(r, sdim).is_some()
-        && derivatives_cover(ids, nq, sdim * nn, bs)
-        && derivatives_cover(ids, nq, 1, jac)
+        && derivatives_cover(exec, ids, nq, sdim * nn, bs)
+        && derivatives_cover(exec, ids, nq, 1, jac)
 }
 
 /// The fused kernel of `(r, sdim)`.
@@ -772,7 +849,7 @@ pub(super) fn integrate<'j>(
     {
         return None;
     }
-    if (0..nb_element).any(|pos| jac(pos).len() < nq) {
+    if any_with(exec, nb_element, 8_192, |pos| jac(pos).len() < nq) {
         return None;
     }
     let min = (4096 / (nq * nb_dof).max(1)).max(1);
@@ -904,6 +981,171 @@ mod tests {
     use akantu_core::array_shared::ArrayRef;
     use akantu_core::exec::{ExecPolicy, Grain, SimdLevel};
     use akantu_core::{Array, ElementType, GhostType, Idx};
+
+    /// The threaded `any` of the plans' checks equals the serial one at
+    /// every thread count and grain, wherever the matching index lies.
+    #[test]
+    fn threaded_any_equals_the_serial_one() {
+        for n in [0usize, 1, 5, 70_000, 300_001] {
+            let hits: Vec<Option<usize>> = vec![
+                None,
+                Some(0),
+                Some(n / 2),
+                n.checked_sub(1),
+                Some(n / 3 + 1),
+            ];
+            for hit in hits {
+                let pred = |k: usize| Some(k) == hit && k < n;
+                let serial = (0..n).any(pred);
+                for threads in [1, 2, 3, 4, 8] {
+                    for grain in [Grain::Finest, Grain::Auto] {
+                        let exec = Exec::new(
+                            ExecPolicy::serial()
+                                .with_threads(threads)
+                                .unwrap()
+                                .with_grain(grain),
+                        )
+                        .unwrap();
+                        assert_eq!(
+                            any_with(&exec, n, 8_192, pred),
+                            serial,
+                            "n {n} hit {hit:?} threads {threads} {grain:?}"
+                        );
+                    }
+                }
+            }
+        }
+    }
+
+    /// The threaded maximum of the connectivity check equals the serial
+    /// one at every thread count and grain, negative indices (huge as
+    /// unsigned) included.
+    #[test]
+    fn threaded_maximum_equals_the_serial_one() {
+        let mut x: u64 = 0x9e37_79b9_7f4a_7c15;
+        let mut next = || {
+            x ^= x << 13;
+            x ^= x >> 7;
+            x ^= x << 17;
+            x
+        };
+        for len in [0usize, 1, 7, 65_535, 65_536, 300_001] {
+            let mut v: Vec<Idx> = (0..len).map(|_| (next() % 1_000_000) as Idx).collect();
+            for case in 0..3 {
+                if case == 1 && len > 0 {
+                    let k = (next() as usize) % len;
+                    v[k] = -3;
+                }
+                if case == 2 && len > 0 {
+                    v[len - 1] = 2_000_000;
+                }
+                let serial = max_unsigned(&v);
+                for threads in [1, 2, 3, 4, 8] {
+                    for grain in [Grain::Finest, Grain::Auto] {
+                        let exec = Exec::new(
+                            ExecPolicy::serial()
+                                .with_threads(threads)
+                                .unwrap()
+                                .with_grain(grain),
+                        )
+                        .unwrap();
+                        assert_eq!(
+                            max_unsigned_with(&exec, &v),
+                            serial,
+                            "len {len} case {case} threads {threads} {grain:?}"
+                        );
+                    }
+                }
+            }
+        }
+    }
+
+    /// The threaded test of consecutive ids gives the serial answer at
+    /// every thread count and grain: consecutive ids from 0 and from 7, one
+    /// id changed at the start, the middle or the end of the list, a
+    /// negative first id with wrapping.
+    #[test]
+    fn threaded_consecutive_equals_the_serial_one() {
+        let n = 100_001usize;
+        let mut cases: Vec<Vec<Idx>> = vec![
+            vec![],
+            vec![5],
+            (0..n as Idx).collect(),
+            (7..7 + n as Idx).collect(),
+            (-3..-3 + n as Idx).collect(),
+        ];
+        for k in [1usize, n / 2, n - 1, 3 * n / 4 + 1] {
+            let mut v: Vec<Idx> = (0..n as Idx).collect();
+            v[k] += 1;
+            cases.push(v);
+        }
+        for (c, ids) in cases.iter().enumerate() {
+            let serial = consecutive(ids);
+            assert_eq!(serial, c < 5, "case {c}");
+            for threads in [1, 2, 3, 4, 8] {
+                for grain in [Grain::Finest, Grain::Auto] {
+                    let exec = Exec::new(
+                        ExecPolicy::serial()
+                            .with_threads(threads)
+                            .unwrap()
+                            .with_grain(grain),
+                    )
+                    .unwrap();
+                    assert_eq!(
+                        consecutive_with(&exec, ids),
+                        serial,
+                        "case {c} threads {threads} {grain:?}"
+                    );
+                }
+            }
+        }
+    }
+
+    /// The connectivity check of non-consecutive ids (one pass per element)
+    /// gives the serial answer at every thread count and grain: a valid
+    /// connectivity, a node out of range in one element, a negative node,
+    /// an id past the connectivity.
+    #[test]
+    fn threaded_per_element_check_equals_the_serial_one() {
+        let (nnpe, nb_el, nb_nodes) = (4usize, 40_000usize, 50_000usize);
+        let base: Vec<Idx> = (0..nb_el * nnpe)
+            .map(|k| ((k * 7_919) % nb_nodes) as Idx)
+            .collect();
+        // every other element: not consecutive
+        let ids: Vec<Idx> = (0..nb_el as Idx).step_by(2).collect();
+        let mut cases = vec![(base.clone(), ids.clone())];
+        for e in [0usize, nb_el / 2, nb_el - 2] {
+            let mut c = base.clone();
+            c[e * nnpe + 3] = nb_nodes as Idx;
+            cases.push((c, ids.clone()));
+        }
+        let mut c = base.clone();
+        c[((nb_el / 3) & !1) * nnpe + 1] = -1;
+        cases.push((c, ids.clone()));
+        let mut far = ids.clone();
+        far.push(nb_el as Idx);
+        cases.push((base, far));
+        for (k, (conn, ids)) in cases.iter().enumerate() {
+            let serial = nodes_valid(conn, nnpe, ids, nb_nodes);
+            assert_eq!(serial, k == 0, "case {k}");
+            for threads in [1, 2, 3, 4, 8] {
+                for grain in [Grain::Finest, Grain::Auto] {
+                    let exec = Exec::new(
+                        ExecPolicy::serial()
+                            .with_threads(threads)
+                            .unwrap()
+                            .with_grain(grain),
+                    )
+                    .unwrap();
+                    assert_eq!(
+                        nodes_valid_with(&exec, conn, nnpe, ids, nb_nodes),
+                        serial,
+                        "case {k} threads {threads} {grain:?}"
+                    );
+                }
+            }
+        }
+    }
 
     /// An executor of SIMD level `level` whose thread count (1 to 4) varies
     /// with the case and that splits every batch as finely as it can, so the

@@ -590,6 +590,108 @@ What remains (shares of the profiles after the change, not times):
   schemes and the global ids could follow the doubled nodes instead of
   being rebuilt over all nodes.
 
+### The cohesive model on threads (performance campaign, 2026-11-17)
+
+The cohesive model's per-step kernels run on the execution policy's
+threads (D-123; `docs/ARCHITECTURE.md`, "Execution policy", "The cohesive
+model"): the facet stresses and the insertion decision of the check, the
+cohesive normals, openings and tractions (`cohesive_linear`,
+`cohesive_bilinear`), the cohesive residual and the energy update. For
+each rank count the state digests are identical at every thread count and
+grain, and equal to the base's at that rank count (the rank counts differ
+from each other, as on the base: the insertions follow the partition).
+Serial: the h = 0.12 full schedule and h = 0.06 (energies of every step,
+insertions, the nodal state of the last step) at 1, 2, 4 and 8 threads,
+finest and automatic grain. Distributed, h = 0.12 full schedule with
+`rust_sparse_solver = eigen` (energies and insertions): 2 ranks × 1, 2, 4
+threads (2 and 4 at both grains), 4 × 1, 2 (2 at both grains), 8 × 1.
+The `suite_solid` cohesive cases: the same digests at 1 to 8 threads.
+Machine: the AWS `m7a.2xlarge` (AMD
+EPYC 9R14, 8 cores), timing on cores 0–3 (`tjob`) or the whole machine
+(`xjob`), 5 interleaved repetitions (3 for the MPI series); before is
+`perf/wave2-base` at `d404f4c70`, after the branch at `6fb246686`. Raw data and scripts:
+`docs/benchmarks/perf-campaign/cohesive-threads/`.
+
+The benchmark driver, h = 0.12 (23,156 tetrahedra), full schedule (5000
+steps, 11,736 cohesive elements), ms per step, against the base at one
+thread:
+
+| threads | `check_cohesive_stress` | facet stresses | laws' checks | insertion | `solve_step` |
+|---|---|---|---|---|---|
+| base, 1 | 6.430 [6.337, 6.454] | 3.000 [2.942, 3.005] | 2.415 [2.393, 2.435] | 1.012 [0.999, 1.014] | 4.966 [4.951, 4.983] |
+| 1 | 6.253 (×0.976 [0.973, 0.978]) | 2.871 (×0.964 [0.957, 0.966]) | 2.376 (×0.981 [0.977, 0.984]) | 1.012 (×1.001 [0.995, 1.006]) | 4.902 (×0.987 [0.977, 0.994]) |
+| 2 | 4.055 (×0.633 [0.629, 0.636]) | 1.562 (×0.523) | 1.465 (×0.606) | 1.026 (×1.024) | 3.930 (×0.794 [0.791, 0.797]) |
+| 4 | 2.649 (×0.412 [0.411, 0.415]) | 0.794 (×0.266) | 0.807 (×0.333) | 1.046 (×1.034) | 3.252 (×0.654 [0.647, 0.656]) |
+| 8 | 2.208 (×0.344 [0.342, 0.345]) | 0.523 (×0.176) | 0.622 (×0.257) | 1.057 (×1.048) | 3.018 (×0.609 [0.603, 0.610]) |
+
+(One series on the whole machine: per repetition the base at one thread
+and the branch at 1, 2, 4 and 8 threads, order rotated; ratios paired per
+repetition. Peak memory +2.2 to +2.6 % with threads.) Before insertion
+(500 steps) at one thread: check ×0.970 [0.952, 0.980] (facet stresses
+×0.962, laws' checks ×0.982 [0.965, 0.990]), `solve_step` ×1.000.
+
+The laws' checks at one thread: with the decision on threads beside it,
+the serial loop first compiled to scalar code where the base packs two
+rows of the effective norm's products into one register (forced inlining
+lost the disjointness of the normal-traction output from the stresses it
+reads: +18.7 % instructions, 1.05 to 1.07 of the base's time). The normal
+traction is now computed into a local array, and the serial loop is
+compiled once per dimension (`check_serial_dim::<D>`, fixed sizes): the
+packed code is back and the law check takes 0.98 of the base's time (each
+lane performs the scalar sequence; the digests are unchanged).
+
+The `suite_solid` cohesive cases (size `m`), seconds per phase, ratio to
+the base at one thread (paired):
+
+| case | phase | 1 thread | 2 | 4 | 8 |
+|---|---|---|---|---|---|
+| `cohesive_extrinsic_check` | `check_insertion` | ×0.982 [0.975, 0.986] | ×0.562 | ×0.348 | ×0.321 |
+| `cohesive_extrinsic_check` | `solve_step` | ×1.000 [0.994, 1.005] | ×0.734 | ×0.610 | ×0.542 |
+| `cohesive_extrinsic_insertion` | `check_insertion` | ×0.989 [0.979, 0.996] | ×0.952 | ×0.929 | ×0.923 |
+| `cohesive_extrinsic_insertion` | `solve_step` | ×0.989 [0.980, 1.026] | ×0.792 | ×0.682 | ×0.629 |
+
+The mid-size mesh (h = 0.06, 177,328 tetrahedra, 500 steps, without the
+static preload, the C++ Scotch partitions), 8 cores in every
+configuration, slowest rank, ms per step, 3 repetitions:
+
+| ranks × threads | check | of which insertion | `solve_step` | step | step / base 8 × 1 |
+|---|---|---|---|---|---|
+| base 8 × 1 | 16.081 | 2.521 | 10.319 | 26.372 | 1 |
+| 8 × 1 | 16.145 | 2.578 | 10.270 | 26.388 | 1.001 [0.998, 1.001] |
+| 4 × 2 | 17.475 | 2.895 | 11.088 | 28.557 | 1.086 [1.083, 1.087] |
+| 2 × 4 | 19.234 | 4.070 | 13.525 | 32.759 | 1.242 [1.241, 1.258] |
+| 1 × 8 | 17.820 | 3.063 | 17.496 | 35.290 | 1.338 [1.336, 1.343] |
+
+Against the C++ strict build (the branch at `ac3b3179`, before the
+per-dimension serial loop): at one rank and one thread (h = 0.12, 500
+steps, 3 repetitions) the port's check takes 4.69 against 20.7 ms per
+step (C++ / port 4.4) and its step 2.56 against 8.15 (3.19); at 8 ranks
+(h = 0.06, 500 steps, the MUMPS static solve, `c1prep_campaign.sh`, the
+port at 8 × 1) the check 14.1 against 47.1 ms (port / C++ 0.299), the
+step 8.91 against 19.6 (0.453), 1.04 against 3.01 core-µs per element and
+step (0.344).
+
+What limits the scaling:
+
+- The insertion stays serial (the transaction, the inserter's searches,
+  the flags and parameters in filter order): about 1 ms per step at
+  h = 0.12, half of the check at 8 threads, and the whole difference
+  between the threads in the insertion-heavy suite case.
+- The facet stresses write `facet_stress` (about 26 MB per step at
+  h = 0.12) and the law check streams it with the normals and tangents:
+  memory traffic; 0.176 at 8 threads.
+- The solve: the bulk residual is threaded by the base; the cohesive
+  part scales; what remains is serial per-node and per-equation work
+  below the solver's part sizes and the bulk Cauchy stresses after the
+  step (`akantu-solid`, not part of this work): 0.609 at 8 threads.
+- Ranks against threads at 8 cores (mid-size): ranks win (8 × 1 is 1.34
+  times faster than 1 × 8) because everything above stays serial within
+  a rank while it is split between ranks; 4 × 2 is within 10 % of 8 × 1.
+- At 8 ranks the transaction's agreements (one per stage and per
+  dispatched event, consumer and level, with the ranks' waits) are about
+  8 % of all samples of a call-graph profile (`profiles/np8-*`); fewer
+  agreements need a change of the transaction protocol (`akantu-mesh`).
+
 ### Distribution and the communication layer (performance campaign, 2026-11-17)
 
 Measured on an 8-vCPU AMD EPYC Milan development machine, before

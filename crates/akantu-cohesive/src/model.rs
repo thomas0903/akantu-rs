@@ -458,6 +458,7 @@ fn build_stress_plan(
 /// filter or `facet_stress` do not have the sizes the plan was built for:
 /// the general path then runs (and reports what it reports).
 fn interpolate_fused(
+    exec: &akantu_core::exec::Exec,
     plan: &StressCopyPlan,
     stress: &akantu_core::SharedElementTypeMapArray<Real>,
     filter: &ElementTypeMapArray<Idx>,
@@ -477,14 +478,13 @@ fn interpolate_fused(
             .get_mut(block.facet, block.facet_ghost)?
             .as_mut_slice();
         write_fused_block(
+            exec,
             interp,
             block,
             pairs.as_deref(),
             f.as_slice(),
             rs,
             stress_size,
-            0,
-            usize::MAX,
         )?;
     }
     Ok(true)
@@ -530,21 +530,27 @@ fn fused_ready(
     Ok(true)
 }
 
-/// The fused pairs `pairs[from..]` of one block whose destination is below
-/// `dst_limit` (they are ordered by destination), written into `rs` from
-/// the law's stress block `fs` ([`fused_pairs`]); returns the position of
-/// the first pair not written.
-#[allow(clippy::too_many_arguments)] // the block, its pairs, source, destination and range
+/// Facets per part below which the facet-stress writes are not split
+/// (about 25 µs of work).
+const FACETS_PER_PART: usize = 2048;
+
+/// The fused pairs of one block written into its `facet_stress` block `rs`
+/// from the law's stress block `fs` ([`fused_pairs`]), on the threads of
+/// `exec`: the block is split into parts of whole facets (`2·nq·n` values
+/// a facet, both sides), and each part writes the pairs whose destination
+/// lies in it (the pairs are ordered by destination and a pair's tuples
+/// lie in its facet). Every pair writes only its own tuples with the same
+/// operations whatever the split: the values are those of the serial loop
+/// for every thread count.
 fn write_fused_block(
+    exec: &akantu_core::exec::Exec,
     interp: &ElementalFieldInterpolation,
     block: &StressCopyBlock,
     pairs: Option<&[FusedPair]>,
     fs: &[Real],
     rs: &mut [Real],
     stress_size: usize,
-    from: usize,
-    dst_limit: usize,
-) -> Result<usize> {
+) -> Result<()> {
     let (Some(pairs), Some(view)) = (
         pairs,
         interp.point_interpolation(block.bulk, GhostType::NotGhost, stress_size)?,
@@ -553,21 +559,47 @@ fn write_fused_block(
             "interpolateStress: fused plan changed while in use",
         ));
     };
-    let rest = pairs.get(from..).unwrap_or(&[]);
-    let n = rest.partition_point(|p| (p.dst as usize) < dst_limit);
-    let range = &rest[..n];
-    // Threading candidate (the execution policy's primitives, independent outputs):
-    // every pair writes only its own destination tuples (the plan holds
-    // one pair per destination), so any chunking of `pairs` keeps every
-    // bit; chunks by destination range keep the writes sequential.
+    let per_facet = 2 * block.nq * stress_size;
+    if per_facet == 0 || !rs.len().is_multiple_of(per_facet) {
+        // not a facet layout (the checks of `fused_ready` exclude it):
+        // the serial loop over every pair
+        write_pairs(&view, pairs, fs, rs, 0, block.nq, stress_size);
+        return Ok(());
+    }
+    exec.for_each(
+        akantu_core::exec::Tuples::new(rs, per_facet),
+        FACETS_PER_PART,
+        |first, part| {
+            let lo = first * per_facet;
+            let part = part.into_slice();
+            let hi = lo + part.len();
+            let a = pairs.partition_point(|p| (p.dst as usize) < lo);
+            let b = a + pairs[a..].partition_point(|p| (p.dst as usize) < hi);
+            write_pairs(&view, &pairs[a..b], fs, part, lo, block.nq, stress_size);
+        },
+    );
+    Ok(())
+}
+
+/// The pairs `pairs` written into `rs`, which holds the values of
+/// `facet_stress` from offset `base` on.
+fn write_pairs(
+    view: &akantu_fe::engine::PointInterpolation<'_>,
+    pairs: &[FusedPair],
+    fs: &[Real],
+    rs: &mut [Real],
+    base: usize,
+    nq: usize,
+    stress_size: usize,
+) {
     match stress_size {
-        9 => fused_pairs::<9>(&view, range, fs, rs, block.nq),
-        4 => fused_pairs::<4>(&view, range, fs, rs, block.nq),
+        9 => fused_pairs::<9>(view, pairs, fs, rs, base, nq),
+        4 => fused_pairs::<4>(view, pairs, fs, rs, base, nq),
         n => {
-            for p in range {
+            for p in pairs {
                 let src = &fs[p.field as usize..p.field as usize + n];
-                for q in 0..block.nq {
-                    let d = p.dst as usize + 2 * q * n;
+                for q in 0..nq {
+                    let d = p.dst as usize - base + 2 * q * n;
                     view.value(
                         p.slot as usize,
                         p.point as usize + q,
@@ -578,19 +610,19 @@ fn write_fused_block(
             }
         }
     }
-    Ok(from + n)
 }
 
 /// The pairs of one fused block for stress tuples of `N` values: the
 /// element's coefficients once per pair (shared by the facet's `nq`
 /// points), then each point's value (`PointInterpolation::value`, in two
-/// steps).
+/// steps); `rs` holds the values from offset `base` on.
 #[inline]
 fn fused_pairs<const N: usize>(
     view: &akantu_fe::engine::PointInterpolation<'_>,
     pairs: &[FusedPair],
     fs: &[Real],
     rs: &mut [Real],
+    base: usize,
     nq: usize,
 ) {
     let mut c = [0.0; N];
@@ -598,7 +630,7 @@ fn fused_pairs<const N: usize>(
         let (slot, field) = (p.slot as usize, p.field as usize);
         view.coefficients(slot, &fs[field..field + N], &mut c);
         for q in 0..nq {
-            let d = p.dst as usize + 2 * q * N;
+            let d = p.dst as usize - base + 2 * q * N;
             view.value_from_coefficients(&c, slot, p.point as usize + q, &mut rs[d..d + N]);
         }
     }
@@ -1455,6 +1487,7 @@ impl SolidMechanicsModelCohesive {
             fe.set_integration_orders(IntegrationOrders::facets_cohesive())?;
             fe.init_shape_functions(fm, GhostType::NotGhost)?;
             fe.init_shape_functions(fm, GhostType::Ghost)?;
+            fe.set_exec(smm.physics.base.fems.exec().clone());
             (inserter, fe)
         };
         let mut model = Self {
@@ -2029,6 +2062,7 @@ impl SolidMechanicsModelCohesive {
                     plan.fused = Some(build_fused(plan, filter, interp, stress_size));
                 }
                 if interpolate_fused(
+                    self.smm.physics.base.fems.exec(),
                     plan,
                     law.base().stress.values(),
                     filter,
@@ -2483,6 +2517,12 @@ impl SolidMechanicsModelCohesive {
             tangents,
             ..
         } = &mut *self.ext;
+        // the laws' checks run on the model's executor (the facet engine
+        // carries it to them)
+        let exec = self.smm.physics.base.fems.exec();
+        if exec.policy() != facet_fe.exec().policy() {
+            facet_fe.set_exec(exec.clone());
+        }
         let (check, insertion) = inserter.flags_mut();
         let mut inputs = InsertionInputs {
             mesh_facets: fm,
@@ -3132,6 +3172,30 @@ impl SolidMechanicsModelCohesive {
         let i = self.smm.material_index(name)?;
         as_cohesive(self.smm.material_mut(i)?)
             .ok_or_else(|| Error::invalid(format!("material {name} is not cohesive")))
+    }
+
+    /// The execution policy of the model's kernels (D-123; the solid
+    /// model's, [`SolidMechanicsModel::exec_policy`]).
+    #[must_use]
+    pub fn exec_policy(&self) -> akantu_core::exec::ExecPolicy {
+        self.smm.exec_policy()
+    }
+
+    /// Set the execution policy of the model's kernels: the solid model's
+    /// ([`SolidMechanicsModel::set_exec_policy`]) and the cohesive ones
+    /// (facet stresses, insertion decision, cohesive tractions and
+    /// internal forces, energies). With
+    /// [`akantu_core::exec::Precision::Bitwise`] every result is the same
+    /// for every thread count. May be called between two steps.
+    ///
+    /// # Errors
+    /// The operating system refuses the threads.
+    pub fn set_exec_policy(&mut self, policy: akantu_core::exec::ExecPolicy) -> Result<()> {
+        self.smm.set_exec_policy(policy)?;
+        self.ext
+            .facet_fe
+            .set_exec(self.smm.physics.base.fems.exec().clone());
+        Ok(())
     }
 
     /// Select upstream's assembly of `_unsymmetric` cohesive tangent blocks

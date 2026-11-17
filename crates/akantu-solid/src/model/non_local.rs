@@ -36,6 +36,11 @@ fn idx(v: usize) -> Result<Idx> {
 }
 
 impl NonLocalManagerCallback for SmmNonLocalCallback<'_, '_> {
+    /// The model's executor: the weighted averages split over its threads.
+    fn exec(&self) -> &akantu_core::exec::Exec {
+        self.ctx.services.exec()
+    }
+
     /// Upstream `ConstitutiveLawsHandler::insertIntegrationPointsInNeighborhoods`
     /// and `ConstitutiveLawNonLocal::insertIntegrationPointsInNeighborhoods`:
     /// for every non-local law (creation order): register its neighbourhood

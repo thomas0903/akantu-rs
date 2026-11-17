@@ -306,6 +306,51 @@ pub struct MaterialMazars<const DIM: usize, P> {
     /// plastic parents only, internal `effective_stress`): the stress
     /// history of the J2 return by default (UD-139).
     pub effective_stress: Option<InternalField<Real>>,
+    /// Buffers of the block copies of the threaded points, kept from one
+    /// step to the next (not cloned).
+    buffers: BlockBuffers,
+}
+
+/// Buffers of the copies of [`MaterialMazars`]' blocks per element type
+/// and ghost type. A fresh allocation of a block's size is filled with
+/// zeros serially by the allocator once it comes from the heap (after the
+/// first free of such a block): kept buffers are only copied into, in
+/// parts. A clone starts without buffers.
+#[derive(Default)]
+struct BlockBuffers(Vec<(BlockKey, Vec<Vec<Real>>)>);
+
+/// A block of internal values: element type and ghost type.
+type BlockKey = (ElementType, GhostType);
+
+impl Clone for BlockBuffers {
+    fn clone(&self) -> Self {
+        Self::default()
+    }
+}
+
+impl std::fmt::Debug for BlockBuffers {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        write!(f, "BlockBuffers({} blocks)", self.0.len())
+    }
+}
+
+impl BlockBuffers {
+    /// The buffers of block `(ty, ghost)` (empty the first time).
+    fn take(&mut self, ty: ElementType, ghost: GhostType) -> Vec<Vec<Real>> {
+        self.0
+            .iter_mut()
+            .find(|(b, _)| *b == (ty, ghost))
+            .map(|(_, v)| std::mem::take(v))
+            .unwrap_or_default()
+    }
+
+    /// Keep `bufs` for block `(ty, ghost)`.
+    fn put(&mut self, ty: ElementType, ghost: GhostType, bufs: Vec<Vec<Real>>) {
+        match self.0.iter_mut().find(|(b, _)| *b == (ty, ghost)) {
+            Some((_, v)) => *v = bufs,
+            None => self.0.push(((ty, ghost), bufs)),
+        }
+    }
 }
 
 /// `mazars`: Mazars damage on `elastic`.
@@ -350,6 +395,7 @@ impl<const DIM: usize, P: DamageParent<DIM>> MaterialMazars<DIM, P> {
             params: MazarsParams::default(),
             damage_in_compute_stress: true,
             effective_stress,
+            buffers: BlockBuffers::default(),
         })
     }
 
@@ -397,21 +443,28 @@ impl<const DIM: usize, P: DamageParent<DIM>> MaterialMazars<DIM, P> {
         let damage_in_cs = self.damage_in_compute_stress;
         let committed = self.options_ref().committed_trial_state;
         let alpha = self.parent.elastic().thermal.alpha;
-        let delta_t = self.parent.elastic().delta_t.get(ty, ghost)?.clone();
+        // the copies of the blocks the points work on, made in parts of the
+        // executor's threads (the same values) into the buffers of the
+        // previous step
+        let mut bufs = self.buffers.take(ty, ghost);
+        let b = &mut bufs;
+        let delta_t = clone_with(exec, &*self.parent.elastic().delta_t.get(ty, ghost)?, b)?;
         let inel = self
             .parent
             .inelastic_strain()
-            .map(|f| f.get(ty, ghost).map(|a| Array::clone(&a)))
+            .map(|f| f.get(ty, ghost).and_then(|a| clone_with(exec, &a, b)))
             .transpose()?;
-        let k0 = self.k0.get(ty, ghost)?.clone();
+        let k0 = clone_with(exec, &*self.k0.get(ty, ghost)?, b)?;
+        // the damage's deferred save, if any, in parts too
+        drop(self.damage.damage.get_mut_with(exec, ty, ghost)?);
         let (mut dam, prev_dam) = {
             let (c, p) = self.damage.damage.current_and_previous_mut(ty, ghost)?;
-            (c.clone(), p.clone())
+            (clone_with(exec, &c, b)?, clone_with(exec, p, b)?)
         };
-        let mut ehat = self.ehat.get(ty, ghost)?.clone();
+        let mut ehat = clone_with(exec, &*self.ehat.get(ty, ghost)?, b)?;
         let base = self.parent.base();
-        let mut grad_u = base.grad_u.get(ty, ghost)?.clone();
-        let mut sigma = base.sigma_field()?.get(ty, ghost)?.clone();
+        let mut grad_u = clone_with(exec, &*base.grad_u.get(ty, ghost)?, b)?;
+        let mut sigma = clone_with(exec, &*base.sigma_field()?.get(ty, ghost)?, b)?;
         let nq = grad_u.len();
         if [
             sigma.len(),
@@ -505,14 +558,75 @@ impl<const DIM: usize, P: DamageParent<DIM>> MaterialMazars<DIM, P> {
         );
         exec.try_for_each(items, 512, part)?;
         let base = self.parent.base_mut();
-        base.grad_u.get_mut(ty, ghost)?.copy_from(&grad_u)?;
-        base.sigma_field_mut()?
-            .get_mut(ty, ghost)?
-            .copy_from(&sigma)?;
-        self.damage.damage.get_mut(ty, ghost)?.copy_from(&dam)?;
-        self.ehat.get_mut(ty, ghost)?.copy_from(&ehat)?;
+        copy_back(exec, base.grad_u.get_mut_with(exec, ty, ghost)?, &grad_u)?;
+        copy_back(
+            exec,
+            base.sigma_field_mut()?.get_mut_with(exec, ty, ghost)?,
+            &sigma,
+        )?;
+        copy_back(
+            exec,
+            self.damage.damage.get_mut_with(exec, ty, ghost)?,
+            &dam,
+        )?;
+        copy_back(exec, self.ehat.get_mut_with(exec, ty, ghost)?, &ehat)?;
+        if exec.is_parallel() {
+            // back in the reverse order of the takes: the next step takes
+            // each buffer for a block of its size
+            let mut kept: Vec<Array<Real>> = vec![sigma, grad_u, ehat, prev_dam, dam, k0];
+            kept.extend(inel);
+            kept.push(delta_t);
+            bufs.extend(kept.into_iter().map(Array::into_vec));
+            self.buffers.put(ty, ghost, bufs);
+        }
         Ok(())
     }
+}
+
+/// A copy of `a` made in parts of `exec`'s threads (the same values as
+/// `Array::clone`; the id is not needed by the local copies), into the
+/// last buffer of `bufs` when it has the size of `a`.
+fn clone_with(exec: &Exec, a: &Array<Real>, bufs: &mut Vec<Vec<Real>>) -> Result<Array<Real>> {
+    if !exec.is_parallel() {
+        // one thread: the copy as before
+        return Ok(a.clone());
+    }
+    let len = a.as_slice().len();
+    let buf = match bufs.pop() {
+        Some(b) if b.len() == len => b,
+        // first step or another size: a new buffer (`vec!` of zeros takes
+        // zeroed pages from the allocator while the heap has none to reuse)
+        _ => vec![0.0; len],
+    };
+    let mut c = Array::from_vec(buf, a.nb_component())?;
+    let items = (
+        Tuples::new(c.as_mut_slice(), 1),
+        akantu_core::exec::TuplesRef::new(a.as_slice(), 1),
+    );
+    exec.for_each(items, 65_536, |_, (mut d, s)| {
+        d.as_mut_slice().copy_from_slice(s.as_slice());
+    });
+    Ok(c)
+}
+
+/// `dst.copy_from(src)` with the copy in parts of `exec`'s threads (the
+/// same checks and errors first).
+fn copy_back(
+    exec: &Exec,
+    mut dst: akantu_core::array_shared::ArrayMut<'_, Real>,
+    src: &Array<Real>,
+) -> Result<()> {
+    if !exec.is_parallel() || dst.len() != src.len() || dst.nb_component() != src.nb_component() {
+        return dst.copy_from(src);
+    }
+    let items = (
+        Tuples::new(dst.as_mut_slice(), 1),
+        akantu_core::exec::TuplesRef::new(src.as_slice(), 1),
+    );
+    exec.for_each(items, 65_536, |_, (mut d, s)| {
+        d.as_mut_slice().copy_from_slice(s.as_slice());
+    });
+    Ok(())
 }
 
 /// Name of the effective-stress internal of `plastic_mazars` (UD-139).
@@ -766,8 +880,12 @@ where
         )
     }
 
-    fn compute_potential_energy(&mut self, _ctx: &LawContext<'_>, ty: ElementType) -> Result<()> {
-        self.parent.parent_potential_energy(&self.damage.damage, ty)
+    /// The densities on the model's threads (computed at every step by the
+    /// energy update).
+    fn compute_potential_energy(&mut self, ctx: &LawContext<'_>, ty: ElementType) -> Result<()> {
+        let exec = crate::material::points_exec(self, ctx);
+        self.parent
+            .parent_potential_energy(exec, &self.damage.damage, ty)
     }
 
     fn energy_of(&mut self, ctx: &LawContext<'_>, energy_id: &str) -> Result<Real> {

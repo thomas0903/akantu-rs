@@ -1019,6 +1019,7 @@ pub fn run(comm: &Communicator, cfg: &Config) -> Result<RunReport> {
         static_matrix,
         memory,
         load_check: load_check.map(|lc| lc.summary),
+        exec: crate::output::ExecSummary::process_default(),
     };
     if prank == 0 {
         write_file(
