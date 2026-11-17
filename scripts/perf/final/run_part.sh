@@ -241,6 +241,11 @@ suite_serial_group() { # outdir bin(suite_solid...) case sz rep labels...
     --cases "$c" --core "$pin" "${args[@]}" > "$out/.log.$c.r$r" 2>&1; then
     check_suite_group "$out" "$c" "$r" "" "$out/.log.$c.r$r" "${args[@]%%=*}" && touch "$mark"
     fin_progress "$D" "$(basename "$out") ${c} r${r}: done"
+  elif grep -q "${c}: skip:" "$out/.log.$c.r$r"; then
+    # the case needs a feature this build does not have (e.g. scotch in the
+    # host build): it runs in the MPI series, not here
+    grep -m1 "${c}: skip:" "$out/.log.$c.r$r" >> "$out/.skipped"
+    touch "$mark"; fin_progress "$D" "$(basename "$out") ${c} r${r}: skipped (this build)"
   else
     echo "$(fin_utc) $(basename "$out") $c r$r" >> "$D/FAILED"
     fin_progress "$D" "$(basename "$out") ${c} r${r}: FAILED ($out/.log.$c.r$r)"
@@ -269,7 +274,10 @@ suite_mpi_group() { # outdir bin case sz np rep labels...
     "${cmd[@]}" > "$f" 2> "${f%.jsonl}.err" || rc=1
     names+=("$l")
   done
-  if [ "$rc" = 0 ]; then
+  if [ "$rc" != 0 ] && cat "$out"/*/"np$np/$c.r$r.err" 2> /dev/null | grep -q "skip:"; then
+    cat "$out"/*/"np$np/$c.r$r.err" | grep -m1 "skip:" >> "$out/.skipped"
+    touch "$mark"; fin_progress "$D" "$(basename "$out") ${c} np${np} r${r}: skipped (this build or rank count)"
+  elif [ "$rc" = 0 ]; then
     check_suite_group "$out" "$c" "$r" "np$np" "" "${names[@]}" && touch "$mark"
     fin_progress "$D" "$(basename "$out") ${c} np${np} r${r}: done"
   else

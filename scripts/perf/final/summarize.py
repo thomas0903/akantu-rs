@@ -270,6 +270,13 @@ def suite_tables(base, title, serial=True):
     keys = sorted({(c, ph) for (_, _, c, ph) in data},
                   key=lambda k: (k[0], k[1]))
     out = []
+    sk = base / ".skipped"
+    if sk.exists():
+        reasons = sorted({ln.split("skip:", 1)[-1].strip() + " (" +
+                          ln.split(":", 1)[0].split()[-1] + ")"
+                          for ln in sk.read_text().splitlines() if ln})
+        out += [f"{title}: cases not run in this build: "
+                + "; ".join(reasons) + ".", ""]
 
     def sec(v, np_, c, ph):
         return {r: o["seconds"] for r, o in

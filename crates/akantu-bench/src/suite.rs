@@ -112,6 +112,15 @@ pub const fn grain_name(g: Grain) -> &'static str {
     }
 }
 
+/// The precision mode (`bitwise` or `fast`) of the process default
+/// execution policy, which every model of a run starts with; recorded in the
+/// JSON lines so that a campaign can check the requested mode took effect
+/// (`unknown` if the environment is invalid).
+#[must_use]
+pub fn precision_name() -> &'static str {
+    akantu_core::exec::ExecPolicy::process_default().map_or("unknown", |p| p.precision().name())
+}
+
 /// Apply `--threads` / `--grain` to the process default execution policy
 /// (call it before any model is created) and return the thread count and
 /// grain models created afterwards use: the given values, else those of the
@@ -666,10 +675,7 @@ pub fn json_line(
         counts[1],
         counts[2],
         grain_name(grain),
-        // the precision of the process default policy, which every model
-        // of the run starts with (recorded so that a campaign can check it)
-        akantu_core::exec::ExecPolicy::process_default()
-            .map_or("unknown", |p| p.precision().name())
+        precision_name()
     );
     match digest {
         Some(d) => {

@@ -552,7 +552,7 @@ fn emit(
             "{{\"suite\":\"setup\",\"case\":{},\"size\":\"{}\",\"rep\":{rep},\"phase\":{},\"calls\":{},\
              \"seconds\":{},\"seconds_min\":{},\"seconds_rank0\":{},\
              \"n_elements\":{},\"n_nodes\":{},\"n_dofs\":{},\"ranks\":{},\"threads\":{},\"grain\":\"{}\",\
-             \"digest\":\"{digest:016x}\",\"commit\":{},\"features\":{}",
+             \"precision\":\"{}\",\"digest\":\"{digest:016x}\",\"commit\":{},\"features\":{}",
             json_str(case),
             ctx.size.letter(),
             json_str(p.name),
@@ -566,6 +566,7 @@ fn emit(
             comm.size(),
             ctx.threads,
             akantu_bench::suite::grain_name(ctx.grain),
+            akantu_bench::suite::precision_name(),
             json_str(commit),
             json_str(features),
         );
