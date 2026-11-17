@@ -1699,6 +1699,10 @@ enum Selection {
 /// equality only.
 pub type EquationsKey = [u64; 5];
 
+/// Most scatter plans a [`BlockPositionCache`] keeps (one per element
+/// filter assembled into it, e.g. one per material of an element type).
+const MAX_PLANS: usize = 16;
+
 /// Marker of a pair `add_values` skips, in [`BlockPositionCache`].
 const SKIP: u32 = u32::MAX;
 
@@ -1739,9 +1743,11 @@ pub struct BlockPositionCache {
     /// stored (not skipped) pairs (the threaded scatter's spans).
     spans: Vec<(u32, u32)>,
     counts: Vec<u32>,
-    /// The threaded scatter's plan of the last batch (dropped with the
-    /// stored positions and whenever a slot is stored).
-    plan: Option<threaded::ScatterPlan>,
+    /// The threaded scatter's plans, one per batch of slots (one element
+    /// filter, e.g. one material of the type; at most [`MAX_PLANS`]),
+    /// dropped with the stored positions, and a plan whenever one of its
+    /// slots is stored.
+    plans: Vec<threaded::ScatterPlan>,
     /// The caller's statement for the next batch
     /// ([`BlockPositionCache::vouch_equations`]).
     equations_key: Option<EquationsKey>,
@@ -1795,6 +1801,57 @@ impl BlockPositionCache {
         self.equations_key = Some(key);
     }
 
+    /// The plan built for the batch of `slots`, if any.
+    fn plan_for(&self, slots: &[usize]) -> Option<&threaded::ScatterPlan> {
+        self.plans.iter().find(|p| p.slots == slots)
+    }
+
+    /// Keep `plan`, replacing the plan of the same slots (the oldest plan
+    /// goes when [`MAX_PLANS`] are kept).
+    fn set_plan(&mut self, plan: threaded::ScatterPlan) {
+        self.plans.retain(|p| p.slots != plan.slots);
+        if self.plans.len() >= MAX_PLANS {
+            self.plans.remove(0);
+        }
+        self.plans.push(plan);
+    }
+
+    /// `true` when a batch of `slots` into `matrix` (square blocks of
+    /// `nb_eq` equations of type `values_type`) has a plan built with the
+    /// equations `key` the caller vouches for, for the current entry
+    /// positions, profile size and split of `exec`: the batch can then be
+    /// added chunk by chunk ([`SparseMatrixAij::add_values_planned_chunk`]).
+    /// Asked before the round is begun: [`BlockPositionCache::begin`] then
+    /// continues the cache (same entry positions) and keeps the plan.
+    #[must_use]
+    pub fn plan_ready(
+        &self,
+        exec: &akantu_core::exec::Exec,
+        matrix: &SparseMatrixAij,
+        slots: &[usize],
+        nb_eq: usize,
+        values_type: MatrixType,
+        key: Option<EquationsKey>,
+    ) -> bool {
+        let mode = match (matrix.matrix_type, values_type) {
+            (MatrixType::Symmetric, MatrixType::Symmetric) => Selection::LocalUpper,
+            (MatrixType::Symmetric, _) => Selection::GlobalUpper,
+            _ => Selection::All,
+        };
+        let nnz = matrix.a.len();
+        key.is_some()
+            && !matrix.released
+            && self.stamp == matrix.position_epoch.0
+            && self.mode == Some(mode)
+            && self.shape == (nb_eq, nb_eq)
+            && self.size == matrix.size
+            && self.plan_for(slots).is_some_and(|p| {
+                p.equations_key == key
+                    && p.nnz == nnz
+                    && p.parts == threaded::scatter_parts(exec, slots.len(), nnz)
+            })
+    }
+
     /// After a serial loop of `add_values_cached` that added every block
     /// of `slots` to `matrix` without error (each block's equations
     /// checked against, or stored into, its slot), build the threaded
@@ -1820,7 +1877,8 @@ impl BlockPositionCache {
             return false;
         }
         let parts = threaded::scatter_parts(exec, slots.len(), nnz);
-        self.plan = Some(threaded::ScatterPlan::new(self, slots, nnz, parts, key));
+        let plan = threaded::ScatterPlan::new(self, slots, nnz, parts, key);
+        self.set_plan(plan);
         true
     }
 
@@ -1839,9 +1897,10 @@ impl BlockPositionCache {
             + 4 * (self.equations.capacity() + self.positions.capacity() + self.counts.capacity())
             + 8 * self.spans.capacity()
             + self
-                .plan
-                .as_ref()
-                .map_or(0, threaded::ScatterPlan::memory_bytes)
+                .plans
+                .iter()
+                .map(threaded::ScatterPlan::memory_bytes)
+                .sum::<usize>()
     }
 
     /// Set the order, mode and block shape; stored slots of another
@@ -1894,7 +1953,7 @@ impl BlockPositionCache {
                 self.positions.clear();
                 self.spans.clear();
                 self.counts.clear();
-                self.plan = None;
+                self.plans.clear();
             }
             self.rows_only = false;
         }
@@ -1946,7 +2005,8 @@ impl BlockPositionCache {
         self.spans[slot] = span;
         self.counts[slot] = n;
         self.filled[slot] = true;
-        self.plan = None;
+        // the plans that list this slot hold its former span
+        self.plans.retain(|p| !p.contains(slot));
     }
 }
 

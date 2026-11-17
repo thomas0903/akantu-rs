@@ -103,11 +103,8 @@ impl SparseMatrixAij {
         // built for these slots, this profile size and this split, and no
         // slot was stored since (a store drops the plan).
         let planned = equations_key.is_some()
-            && cache.plan.as_ref().is_some_and(|p| {
-                p.equations_key == equations_key
-                    && p.nnz == nnz
-                    && p.parts == parts
-                    && p.slots == slots
+            && cache.plan_for(slots).is_some_and(|p| {
+                p.equations_key == equations_key && p.nnz == nnz && p.parts == parts
             });
         if !planned {
             // one thread: the serial loop checks and stores the slots as
@@ -119,9 +116,10 @@ impl SparseMatrixAij {
             {
                 return false;
             }
-            cache.plan = Some(ScatterPlan::new(cache, slots, nnz, parts, equations_key));
+            let plan = ScatterPlan::new(cache, slots, nnz, parts, equations_key);
+            cache.set_plan(plan);
         }
-        let Some(plan) = cache.plan.as_ref() else {
+        let Some(plan) = cache.plan_for(slots) else {
             return false;
         };
         let vidx = value_indices(mode, nb_eq);
@@ -252,13 +250,15 @@ const INSIDE: u32 = 1 << 31;
 /// policy").
 #[derive(Clone, Debug)]
 pub(super) struct ScatterPlan {
-    equations_key: Option<EquationsKey>,
-    slots: Vec<usize>,
-    nnz: usize,
-    parts: usize,
+    pub(super) equations_key: Option<EquationsKey>,
+    pub(super) slots: Vec<usize>,
+    pub(super) nnz: usize,
+    pub(super) parts: usize,
     bounds: Vec<usize>,
     lists: Vec<Vec<u32>>,
     touched: u64,
+    /// Whether each slot belongs to the plan (a store of a member drops it).
+    member: Vec<bool>,
 }
 
 impl ScatterPlan {
@@ -294,6 +294,10 @@ impl ScatterPlan {
                 });
             }
         }
+        let mut member = vec![false; slots.iter().max().map_or(0, |&m| m + 1)];
+        for &s in slots {
+            member[s] = true;
+        }
         Self {
             equations_key,
             slots: slots.to_vec(),
@@ -302,12 +306,19 @@ impl ScatterPlan {
             bounds,
             lists,
             touched,
+            member,
         }
+    }
+
+    /// Whether `slot` belongs to the plan.
+    pub(super) fn contains(&self, slot: usize) -> bool {
+        self.member.get(slot) == Some(&true)
     }
 
     /// Bytes held.
     pub(super) fn memory_bytes(&self) -> usize {
         8 * (self.slots.capacity() + self.bounds.capacity())
+            + self.member.capacity()
             + self
                 .lists
                 .iter()
@@ -846,6 +857,125 @@ fn boundary_part(
             } else {
                 0.0
             };
+        }
+    }
+}
+
+impl SparseMatrixAij {
+    /// The planned scatter of the blocks `first..first + n` of a batch
+    /// (`n = values.len() / nb_eq²`; `slots` is the whole batch's), with
+    /// the plan [`BlockPositionCache::plan_ready`] confirmed: each part
+    /// adds, in block order, the contributions of those blocks whose
+    /// positions lie in its entries. Called for consecutive chunks of the
+    /// batch in order, every entry receives its contributions in block
+    /// order, as the serial loop adds them; the value release grows by the
+    /// chunk's stored pairs. `false`, nothing changed, without a plan for
+    /// `slots` or with values of another size.
+    #[allow(clippy::too_many_arguments)] // the batch's arguments plus the chunk
+    pub fn add_values_planned_chunk(
+        &mut self,
+        exec: &Exec,
+        cache: &BlockPositionCache,
+        slots: &[usize],
+        first: usize,
+        nb_eq: usize,
+        values: &[Real],
+        values_type: MatrixType,
+    ) -> bool {
+        let n2 = nb_eq * nb_eq;
+        let Some(plan) = cache.plan_for(slots) else {
+            return false;
+        };
+        let mode = match (self.matrix_type, values_type) {
+            (MatrixType::Symmetric, MatrixType::Symmetric) => Selection::LocalUpper,
+            (MatrixType::Symmetric, _) => Selection::GlobalUpper,
+            _ => Selection::All,
+        };
+        let n = values.len().checked_div(n2).unwrap_or(0);
+        if self.released
+            || n2 == 0
+            || n * n2 != values.len()
+            || first + n > slots.len()
+            || plan.slots != slots
+            || plan.nnz != self.a.len()
+            || cache.stamp != self.position_epoch.0
+            || cache.mode != Some(mode)
+            || cache.shape != (nb_eq, nb_eq)
+        {
+            return false;
+        }
+        let (lo_k, hi_k) = (first, first + n);
+        let vidx = value_indices(mode, nb_eq);
+        let positions = &cache.positions;
+        let stride = cache.stride;
+        exec.for_each_bounds(&plan.bounds, Tuples::new(&mut self.a, 1), |lo, mut part| {
+            let a = part.as_mut_slice();
+            if a.is_empty() {
+                return;
+            }
+            let r = plan.bounds.partition_point(|&b| b <= lo) - 1;
+            let list = &plan.lists[r];
+            // the part's blocks of this chunk (the list is in block order)
+            let key = |e: &u32| (e & !INSIDE) as usize;
+            let s = list.partition_point(|e| key(e) < lo_k);
+            let t = list.partition_point(|e| key(e) < hi_k);
+            scatter_chunk(
+                a,
+                lo,
+                &list[s..t],
+                first,
+                slots,
+                values,
+                positions,
+                stride,
+                &vidx,
+                n2,
+            );
+        });
+        let touched: u64 = slots[lo_k..hi_k]
+            .iter()
+            .map(|&s| u64::from(cache.counts[s]))
+            .sum();
+        self.bump_values(touched);
+        true
+    }
+}
+
+/// [`scatter_list`] for the blocks of one chunk (`values` holds the blocks
+/// `first..`).
+#[allow(clippy::too_many_arguments)] // one part of the pass
+#[inline(never)] // no-alias parameters (docs/benchmarks/perf-campaign/exec)
+fn scatter_chunk(
+    a: &mut [Real],
+    lo: usize,
+    list: &[u32],
+    first: usize,
+    slots: &[usize],
+    values: &[Real],
+    positions: &[u32],
+    stride: usize,
+    vidx: &[usize],
+    block_len: usize,
+) {
+    let len = a.len();
+    for &entry in list {
+        let k = (entry & !INSIDE) as usize;
+        let slot = slots[k];
+        let pos = &positions[slot * stride..(slot + 1) * stride];
+        let v = &values[(k - first) * block_len..(k - first + 1) * block_len];
+        if entry & INSIDE != 0 {
+            for (&p, &vi) in pos.iter().zip(vidx) {
+                if p != SKIP {
+                    a[p as usize - lo] += v[vi];
+                }
+            }
+        } else {
+            for (&p, &vi) in pos.iter().zip(vidx) {
+                let off = (p as usize).wrapping_sub(lo);
+                if off < len {
+                    a[off] += v[vi];
+                }
+            }
         }
     }
 }
