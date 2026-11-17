@@ -17,7 +17,7 @@
 //!   diagonal).
 //!
 //! ```text
-//! cargo run --release -p akantu-linalg --example auto_ordering_cost [-- R]
+//! cargo run --release -p akantu-linalg --example auto_ordering_cost [-- R [NAME]]
 //! ```
 
 use std::time::Instant;
@@ -158,7 +158,9 @@ fn main() {
         "| system | n | COLAMD predicted work | COLAMD | ND / COLAMD | auto / COLAMD | auto chose | fallback |"
     );
     println!("|---|---|---|---|---|---|---|---|");
-    for (name, a) in &cases {
+    // optional second argument: run only the systems whose name contains it
+    let filter = std::env::args().nth(2).unwrap_or_default();
+    for (name, a) in cases.iter().filter(|(n, _)| n.contains(&filter)) {
         let (tc, _) = time(a, SparseOrdering::Colamd, reps);
         let (tn, _) = time(a, SparseOrdering::NestedDissection, reps);
         let (ta, lu) = time(a, SparseOrdering::Auto, reps);
