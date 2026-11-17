@@ -145,6 +145,12 @@ pub fn static_linear(ctx: &mut Ctx<'_>, sparse: SparseSolverType) -> Result<Outc
         let mut solver = factory.create(sparse, 1)?;
         // the model's executor, as the model's own solves get it (D-123)
         solver.set_exec(m.dof_manager().exec());
+        // `--ordering` (D-125), as the model's own solver gets it
+        if let Some(o) = crate::suite::sparse_ordering()
+            && sparse == SparseSolverType::Eigen
+        {
+            solver.set_option("ordering", o.name())?;
+        }
         let backend = m.dof_manager().backend();
         let a = backend.aij("J")?;
         let rhs: Vec<Real> = (0..a.size()).map(|i| ((i % 7) as Real) - 3.0).collect();
@@ -155,6 +161,15 @@ pub fn static_linear(ctx: &mut Ctx<'_>, sparse: SparseSolverType) -> Result<Outc
             solver.solve(&rhs, &mut x)
         })?;
         ctx.extra("nnz", Extra::Int(a.nnz() as i64));
+        // fill and pivots of the eigen solver (not part of the digest)
+        let stats = solver.statistics();
+        let stat = |k: &str| stats.iter().find(|s| s.0 == k).map(|s| s.1);
+        if let (Some(l), Some(u)) = (stat("nnz_l"), stat("nnz_u")) {
+            ctx.extra("nnz_lu", Extra::Int((l + u) as i64));
+        }
+        if let Some(p) = stat("off_diagonal_pivots") {
+            ctx.extra("off_diagonal_pivots", Extra::Int(p as i64));
+        }
         // the direct solver's result (factorisation and back-substitution
         // are timed work too)
         if let Some(d) = digest.as_mut() {

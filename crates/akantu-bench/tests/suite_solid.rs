@@ -23,6 +23,7 @@ fn opts() -> Options {
         threads: None,
         grain: None,
         ordering: None,
+        dump_state: None,
     }
 }
 

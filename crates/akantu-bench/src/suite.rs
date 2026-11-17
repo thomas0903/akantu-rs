@@ -105,6 +105,8 @@ pub struct Options {
     /// the `eigen` sparse solver of every solver case
     /// ([`set_sparse_ordering`]); `None` keeps the solver's default.
     pub ordering: Option<SparseOrdering>,
+    /// `--dump-state FILE` ([`set_state_dump`]).
+    pub dump_state: Option<PathBuf>,
 }
 
 static SPARSE_ORDERING: std::sync::OnceLock<SparseOrdering> = std::sync::OnceLock::new();
@@ -120,6 +122,33 @@ pub fn set_sparse_ordering(o: SparseOrdering) {
 #[must_use]
 pub fn sparse_ordering() -> Option<SparseOrdering> {
     SPARSE_ORDERING.get().copied()
+}
+
+static STATE_DUMP: std::sync::Mutex<Option<std::fs::File>> = std::sync::Mutex::new(None);
+
+/// `--dump-state FILE`: every real a digest absorbs is also appended to
+/// `FILE` (little-endian `f64`), to compare the states of two runs value by
+/// value (e.g. two orderings); the digest is unchanged.
+///
+/// # Errors
+/// The file cannot be created.
+pub fn set_state_dump(path: &std::path::Path) -> Result<()> {
+    let f = std::fs::File::create(path)
+        .map_err(|e| Error::invalid(format!("--dump-state {}: {e}", path.display())))?;
+    if let Ok(mut g) = STATE_DUMP.lock() {
+        *g = Some(f);
+    }
+    Ok(())
+}
+
+/// Appends `v` to the [`set_state_dump`] file, if any.
+pub fn dump_state_reals(v: &[f64]) {
+    if let Ok(mut g) = STATE_DUMP.lock()
+        && let Some(f) = g.as_mut()
+    {
+        let bytes: Vec<u8> = v.iter().flat_map(|x| x.to_le_bytes()).collect();
+        let _ = f.write_all(&bytes);
+    }
 }
 
 /// Name of a split grain in the command line and the JSON lines.
@@ -185,7 +214,7 @@ fn usage(bin: &str) -> String {
     format!(
         "usage: {bin} --list\n       {bin} --case <name>[,<name>...]|all --size s|m|l [--reps N] \
          [--out FILE] [--loop-seconds S] [--threads N] [--grain finest|auto] \
-         [--ordering colamd|nested_dissection|auto]"
+         [--ordering colamd|nested_dissection|auto] [--dump-state FILE]"
     )
 }
 
@@ -204,6 +233,7 @@ pub fn parse_args(bin: &str, args: impl IntoIterator<Item = String>) -> Result<C
     let mut threads = None;
     let mut grain = None;
     let mut ordering = None;
+    let mut dump_state = None;
     let bad = |what: &str| Error::invalid(format!("{what}\n{}", usage(bin)));
     while let Some(k) = it.next() {
         let mut value = || it.next().ok_or_else(|| bad(&format!("{k}: missing value")));
@@ -249,6 +279,7 @@ pub fn parse_args(bin: &str, args: impl IntoIterator<Item = String>) -> Result<C
                 );
             }
             "--ordering" => ordering = Some(value()?.parse::<SparseOrdering>()?),
+            "--dump-state" => dump_state = Some(PathBuf::from(value()?)),
             "-h" | "--help" => return Err(bad("")),
             _ => return Err(bad(&format!("unknown argument `{k}`"))),
         }
@@ -270,6 +301,7 @@ pub fn parse_args(bin: &str, args: impl IntoIterator<Item = String>) -> Result<C
         threads,
         grain,
         ordering,
+        dump_state,
     }))
 }
 
@@ -528,6 +560,7 @@ impl Digest {
 
     /// Hash the bits of reals.
     pub fn reals(&mut self, v: &[f64]) -> &mut Self {
+        dump_state_reals(v);
         for x in v {
             self.bytes(&x.to_bits().to_le_bytes());
         }
@@ -807,6 +840,12 @@ pub fn run_main(suite: &str, cases: &[Case], comm: &Communicator) -> std::proces
     if let Some(o) = opts.ordering {
         set_sparse_ordering(o);
     }
+    if let Some(p) = &opts.dump_state
+        && let Err(e) = set_state_dump(p)
+    {
+        eprintln!("{bin}: {e}");
+        return ExitCode::from(2);
+    }
     // before any model is created: the policy of every model of the run
     let exec = match apply_exec_options(opts.threads, opts.grain) {
         Ok(x) => x,
@@ -1006,6 +1045,7 @@ mod tests {
             threads: None,
             grain: None,
             ordering: None,
+            dump_state: None,
         };
         let comm = Communicator::serial();
         let mut ctx = Ctx::new(&opts, &comm, 0);
