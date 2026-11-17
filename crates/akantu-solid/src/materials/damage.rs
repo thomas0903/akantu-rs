@@ -876,7 +876,7 @@ impl<const DIM: usize> DamageParent<DIM> for MaterialElastic<DIM> {
         let sigma_th = self.sigma_th.get(ty, ghost)?.clone();
         let base = self.base_mut();
         let grad_u = base.grad_u.get(ty, ghost)?.clone();
-        let mut sigma = base.sigma_field_mut()?.get_mut(ty, ghost)?;
+        let mut sigma = base.sigma_field_mut()?.get_mut_with(exec, ty, ghost)?;
         if grad_u.len() != sigma.len() || sigma_th.len() != sigma.len() {
             return Err(Error::DimensionMismatch {
                 context: "MaterialElastic::computeStressOnQuad",
