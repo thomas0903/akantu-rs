@@ -121,6 +121,39 @@ fixed-order reductions for the energies. Insertion changes the mesh on the
 CPU, which forces transfers on 4,114 of the 5,000 full-size steps. Months
 of work; the scan advises it only after P1.2, P2.1 and P4.1.
 
+### What the performance campaign did with these findings
+
+The performance campaign (16 and 17 November 2026) worked on most of the
+findings above; the text above is the scan as written before it. One line
+per finding, with the effect measured in the final campaign, 2026-11-17 UTC, AWS `m7a.2xlarge`; `docs/BENCHMARKS.md`, data `docs/benchmarks/perf-campaign/final/`. "Not measured alone":
+the change is merged with others and the final campaign times them
+together.
+
+| Finding | Campaign | Measured effect |
+|---|---|---|
+| P1.1 | done (opt-in) | `rust_release_static_solver = true`, off by default: Σ rank peaks on h = 0.04 7,302 / 9,464 / 8,873 / 10,716 MiB against 8,965 / 11,013 / 10,400 / 12,133 without, at 1 / 2 / 4 / 8 ranks (part E) |
+| P1.2 | done | the insertion check, port / port before 0.276–0.572 over the series `ws`, `ins`, `full12`, `reh4` (part C), together with P1.3 to P1.5; not measured alone |
+| P1.3 | done | inside the check's 0.276–0.572 (part C); not measured alone |
+| P1.4 | done | inside the check's and the step's ratios (part C); not measured alone |
+| P1.5 | partly (the consistency check restricted to the replaced rows in release builds) | inside the check's ratios (part C); not measured alone |
+| P1.6 | done | `stiffness_assembly` head / before 0.0966–0.162 (`suite_solid`, part B); the static solve phase port / C++ 0.79–0.96 at 1 to 4 ranks, 0.91–1.11 at 8 (part C) |
+| P1.7 | done (tiles, then threads) | SparseLU static solve port / port before 0.279 and 0.281, port / C++ SparseLU 0.740 and 0.909 at one thread, 0.447 and 0.260 at 8 threads (h = 0.12, 0.06; part D) |
+| P1.8 | done | `parser_chain` `evaluate_last` 1.97 s → 33.7 µs, head / before 0.0000171 (part B) |
+| P2.1 | partly (incremental pieces of the insertion) | `cohesive_insert_tet4` `insert` head / before 0.880 [0.864, 0.884]; `update_insertion_facets` 2.49 [1.35, 3.21], slower (part B) |
+| P2.2 | done | inside `solve_step` at P > 1, port / port before 0.642–0.703 at 8 ranks (part C); not measured alone |
+| P2.3 | done (lane kernels, element-block pass) | the explicit step port / port before 0.66–0.72 (small strain), 0.51–0.64 (finite deformation) (part A) |
+| P2.4 | done | `dist_mesh_tet4` `distribute` at 1,296,000 Tet4 head / before 0.256–0.285; `dist_mesh` port / upstream 0.095–0.107 (part F) |
+| P2.5 | partly (byte messages without a copy) | 16 MiB ping-pong head / before 0.746 over shared memory, 0.810 over TCP; head / raw MPI 2.52 and 2.08 (part F) |
+| P2.6 | done (deferred history saves; exported blocks still copied) | inside the step's ratios (part A); not measured alone |
+| P3.1 | studied, not adopted | the build-profile study (`docs/benchmarks/perf-campaign/build-profile/`, 2026-11-16, development record): no profile change; `target-cpu` documented in the manual |
+| P3.2 | done (`AKANTU_PRECISION=fast`, off by default) | fast / bitwise 0.89–0.99 of the explicit step at one thread (part A), 0.893–1.03 over the suites' cases (part B) |
+| P4.1 | done (the execution policy's threads, bitwise) | the explicit step at 8 threads 0.20–0.47 of one thread (part A); 2 ranks × 4 threads 1.05–1.22 times the loop of 8 ranks (part C) |
+| P4.2 | partly (lane kernels in the explicit step, AVX2 at run time, no FMA) | inside P2.3's ratios (part A) |
+| P4.3 | not done | — |
+| P4.4 | partly (one agreement skipped; the protocol unchanged) | not measured |
+| P4.5 | partly (tiles and threads; an opt-in nested-dissection ordering, D-125) | as P1.7; the nested-dissection ordering is measured separately (not yet in this revision) |
+| P4.6 | not done | — |
+
 ## Features and gaps
 
 The table lists what the port does not do, and the state of the same

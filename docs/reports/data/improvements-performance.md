@@ -17,6 +17,11 @@ dedicated optimisation round (`docs/BENCHMARKS.md`, "Explicit step"), and a
 few hot spots were fixed along the way (the copy plan of the insertion check,
 the MPI packing, the array accessors); the rest is a first port.
 
+Each finding below carries one added line, in italics, on what the
+performance campaign of 16 and 17 November 2026 did with it and the
+effect the final campaign measured; the findings themselves are
+unchanged.
+
 ## Where the time goes today
 
 The figures that decide the ranking come from `docs/BENCHMARKS.md`:
@@ -53,6 +58,8 @@ The figures that decide the ranking come from `docs/BENCHMARKS.md`:
 
 ### 1.1 Release the MUMPS factors after the static solve
 
+*Performance campaign (the final campaign, 2026-11-17 UTC, AWS `m7a.2xlarge`):* done (opt-in); `rust_release_static_solver = true`, off by default: Σ rank peaks on h = 0.04 7,302 / 9,464 / 8,873 / 10,716 MiB against 8,965 / 11,013 / 10,400 / 12,133 without, at 1 / 2 / 4 / 8 ranks (part E).
+
 - Where: the static solver kept by the model after the cohesive driver's
   preload (`crates/akantu-bench/src/driver.rs`, static phase; MUMPS
   instance in `crates/akantu-linalg/src/mumps/mod.rs`, which already has a
@@ -85,6 +92,8 @@ The figures that decide the ranking come from `docs/BENCHMARKS.md`:
   the memory sampler of `crates/akantu-bench/scripts/memsample.py`.
 
 ### 1.2 A specialised kernel for the stress interpolation of the insertion check
+
+*Performance campaign (the final campaign, 2026-11-17 UTC, AWS `m7a.2xlarge`):* done; the insertion check, port / port before 0.276–0.572 over the series `ws`, `ins`, `full12`, `reh4` (part C), together with P1.3 to P1.5; not measured alone.
 
 - Where: `FeEngine::interpolate_elemental_field_with`
   (`crates/akantu-fe/src/engine/elemental.rs:444`), called once per bulk law
@@ -130,6 +139,8 @@ The figures that decide the ranking come from `docs/BENCHMARKS.md`:
 
 ### 1.3 Skip the insertion-order exchange when nothing is flagged anywhere
 
+*Performance campaign (the final campaign, 2026-11-17 UTC, AWS `m7a.2xlarge`):* done; inside the check's 0.276–0.572 (part C); not measured alone.
+
 - Where: `CohesiveElementInserter::synchronize_insertion_in`
   (`crates/akantu-cohesive/src/inserter/parallel.rs:193`), called on every
   check of a distributed run by `insert_flagged_elements`
@@ -155,6 +166,8 @@ The figures that decide the ranking come from `docs/BENCHMARKS.md`:
   `scaling_series.sh` at 2 to 8 ranks.
 
 ### 1.4 Reuse the buffers of the cohesive residual and energies
+
+*Performance campaign (the final campaign, 2026-11-17 UTC, AWS `m7a.2xlarge`):* done; inside the check's and the step's ratios (part C); not measured alone.
 
 - Where: `MaterialCohesive::assemble_internal_forces_impl`
   (`crates/akantu-cohesive/src/material.rs`, around lines 840 to 905),
@@ -182,6 +195,8 @@ The figures that decide the ranking come from `docs/BENCHMARKS.md`:
 
 ### 1.5 Remove the whole-mesh scans of every check
 
+*Performance campaign (the final campaign, 2026-11-17 UTC, AWS `m7a.2xlarge`):* partly (the consistency check restricted to the replaced rows in release builds); inside the check's ratios (part C); not measured alone.
+
 - Where: `flagged_insertion_facets` (`crates/akantu-cohesive/src/model.rs:1916`,
   scans every facet flag on each check to remember the flags before it),
   `filter_key` (line 188, hashes the whole element filter on each check to
@@ -201,6 +216,8 @@ The figures that decide the ranking come from `docs/BENCHMARKS.md`:
   tier.
 
 ### 1.6 A cheaper lookup in sparse matrix assembly
+
+*Performance campaign (the final campaign, 2026-11-17 UTC, AWS `m7a.2xlarge`):* done; `stiffness_assembly` head / before 0.0966–0.162 (`suite_solid`, part B); the static solve phase port / C++ 0.79–0.96 at 1 to 4 ranks, 0.91–1.11 at 8 (part C).
 
 - Where: `SparseMatrixAij` (`crates/akantu-linalg/src/sparse.rs:239`):
   `profile: HashMap<(GlobalIdx, GlobalIdx), usize>` with the standard
@@ -232,6 +249,8 @@ The figures that decide the ranking come from `docs/BENCHMARKS.md`:
 
 ### 1.7 Loop order of the SparseLU dense kernels
 
+*Performance campaign (the final campaign, 2026-11-17 UTC, AWS `m7a.2xlarge`):* done (tiles, then threads); SparseLU static solve port / port before 0.279 and 0.281, port / C++ SparseLU 0.740 and 0.909 at one thread, 0.447 and 0.260 at 8 threads (h = 0.12, 0.06; part D).
+
 - Where: `sparselu_gemm` (`crates/akantu-linalg/src/eigen_sparse_lu/dense.rs:539`)
   and `trsm_unit_lower` (line 452), the dense parts of the pure-Rust
   translation of Eigen's SparseLU (the `eigen` backend, used when the port
@@ -255,6 +274,8 @@ The figures that decide the ranking come from `docs/BENCHMARKS.md`:
   C++ oracle with pinned Eigen cache sizes, D-050).
 
 ### 1.8 Cache variable values in the input-file parser
+
+*Performance campaign (the final campaign, 2026-11-17 UTC, AWS `m7a.2xlarge`):* done; `parser_chain` `evaluate_last` 1.97 s → 33.7 µs, head / before 0.0000171 (part B).
 
 - Where: `Eval::variable` in `crates/akantu-parser/src/expr.rs`
   (lines 1076 to 1126): a reference to another parameter of the `.dat`
@@ -289,6 +310,8 @@ The figures that decide the ranking come from `docs/BENCHMARKS.md`:
 ## Group 2: larger but parity-preserving
 
 ### 2.1 Make the insertion step incremental on a distributed mesh
+
+*Performance campaign (the final campaign, 2026-11-17 UTC, AWS `m7a.2xlarge`):* partly (incremental pieces of the insertion); `cohesive_insert_tet4` `insert` head / before 0.880 [0.864, 0.884]; `update_insertion_facets` 2.49 [1.35, 3.21], slower (part B).
 
 - Where: the insertion transaction and its distributed hook:
   `CohesiveGlobalDataUpdater::apply` (`crates/akantu-cohesive/src/parallel.rs:780`),
@@ -340,6 +363,8 @@ The figures that decide the ranking come from `docs/BENCHMARKS.md`:
 
 ### 2.2 Overlap the stress exchange with the local assembly
 
+*Performance campaign (the final campaign, 2026-11-17 UTC, AWS `m7a.2xlarge`):* done; inside `solve_step` at P > 1, port / port before 0.642–0.703 at 8 ranks (part C); not measured alone.
+
 - Where: `SolidMechanicsPhysics::assemble_internal_forces`
   (`crates/akantu-solid/src/model/assembly.rs:327` to 345) and
   `exchange_cohesive_tractions` (`crates/akantu-cohesive/src/model.rs:717`).
@@ -365,7 +390,9 @@ The figures that decide the ranking come from `docs/BENCHMARKS.md`:
 
 ### 2.3 The remaining serial kernels of the explicit step
 
-`docs/BENCHMARKS.md` ("What remains in the serial step") ranks the
+*Performance campaign (the final campaign, 2026-11-17 UTC, AWS `m7a.2xlarge`):* done (lane kernels, element-block pass); the explicit step port / port before 0.66–0.72 (small strain), 0.51–0.64 (finite deformation) (part A).
+
+`docs/BENCHMARKS.md` ("What remained in the serial step (as of 2026-11-12)") ranks the
 remaining items by their share of the profile. The estimates in the table
 were made during the port and are kept in its development notes, not in the
 repository. Each item keeps each entry's summation order:
@@ -385,6 +412,8 @@ Verify with the explicit-step harness (`scripts/perf/explicit-step`,
 of the explicit-step section.
 
 ### 2.4 Mesh distribution from the root
+
+*Performance campaign (the final campaign, 2026-11-17 UTC, AWS `m7a.2xlarge`):* done; `dist_mesh_tet4` `distribute` at 1,296,000 Tet4 head / before 0.256–0.285; `dist_mesh` port / upstream 0.095–0.107 (part F).
 
 - Where: `distribute_impl` and `Plan::package`
   (`crates/akantu-mesh/src/distribution.rs:156` and 564).
@@ -410,6 +439,8 @@ of the explicit-step section.
 
 ### 2.5 Buffer reuse in the communication layer
 
+*Performance campaign (the final campaign, 2026-11-17 UTC, AWS `m7a.2xlarge`):* partly (byte messages without a copy); 16 MiB ping-pong head / before 0.746 over shared memory, 0.810 over TCP; head / raw MPI 2.52 and 2.08 (part F).
+
 - Where: `akantu-comm` send and receive paths (`docs/BENCHMARKS.md`,
   "Point-to-point latency against raw MPI").
 - Now: one owned copy per message on the send side, one allocation,
@@ -429,6 +460,8 @@ of the explicit-step section.
 
 ### 2.6 History copies of the explicit step
 
+*Performance campaign (the final campaign, 2026-11-17 UTC, AWS `m7a.2xlarge`):* done (deferred history saves; exported blocks still copied); inside the step's ratios (part A); not measured alone.
+
 `save_previous_state` copies `stress`, `grad_u`, `sigma_th` and
 `epsilon_th` every step, as upstream does (13 % of the hex8 small-strain
 profile). Double buffering would remove the copy but changes the buffer
@@ -440,6 +473,8 @@ without Python views.
 
 ### 3.1 Build for the host CPU
 
+*Performance campaign (the final campaign, 2026-11-17 UTC, AWS `m7a.2xlarge`):* studied, not adopted; the build-profile study (`docs/benchmarks/perf-campaign/build-profile/`, 2026-11-16, development record): no profile change; `target-cpu` documented in the manual.
+
 - Now: the release profile targets baseline x86-64 (`debug = 1`, 16 codegen
   units, no LTO, no `target-cpu`; `Cargo.toml` `[profile.release]`).
 - Change: an opt-in build with `-C target-cpu`. Rust never contracts `a·b +
@@ -447,7 +482,7 @@ without Python views.
   review during the port found identical explicit-step digests and replays
   with `target-cpu=native`. `f64::min`/`max` on signed zeros and the sign of
   default NaNs can still differ elsewhere (`docs/BENCHMARKS.md`, end of
-  "What remains in the serial step").
+  "What remained in the serial step (as of 2026-11-12)").
 - Gain: unmeasured. Fat LTO with one codegen unit gave no consistent gain on
   the specialised code (×0.78 to 1.17, within noise).
 - Parity: to be proven per build with the digests and the replay tier; a
@@ -455,6 +490,8 @@ without Python views.
 - Effort: a day plus a replay-tier run on the target CPU.
 
 ### 3.2 A fast numerical mode without the Eigen-order emulation
+
+*Performance campaign (the final campaign, 2026-11-17 UTC, AWS `m7a.2xlarge`):* done (`AKANTU_PRECISION=fast`, off by default); fast / bitwise 0.89–0.99 of the explicit step at one thread (part A), 0.893–1.03 over the suites' cases (part B).
 
 - Now: every small product follows the reduction tree Eigen 3.4's strict
   build uses (`akantu_core::eigen_order`, `eigen_unrolled`), which forces
@@ -472,6 +509,8 @@ without Python views.
 ## Group 4: architectural
 
 ### 4.1 Threads inside a rank
+
+*Performance campaign (the final campaign, 2026-11-17 UTC, AWS `m7a.2xlarge`):* done (the execution policy's threads, bitwise); the explicit step at 8 threads 0.20–0.47 of one thread (part A); 2 ranks × 4 threads 1.05–1.22 times the loop of 8 ranks (part C).
 
 `docs/ARCHITECTURE.md` and decision D-017 allow threads where results stay
 bit-identical; no crate uses threads in a hot loop today (no `rayon`
@@ -492,6 +531,8 @@ serial-against-threaded bitwise test for each loop as D-017 requires.
 
 ### 4.2 SIMD across elements
 
+*Performance campaign (the final campaign, 2026-11-17 UTC, AWS `m7a.2xlarge`):* partly (lane kernels in the explicit step, AVX2 at run time, no FMA); inside P2.3's ratios (part A).
+
 The fixed-size kernels keep a scalar operation order per element. Running
 the same sequence of operations on 2 or 4 elements at once (one element per
 SIMD lane) gives each lane exactly the scalar result for `+ − × ÷ sqrt`
@@ -503,6 +544,8 @@ is already 0.31 to 0.60 of strict C++.
 
 ### 4.3 GPU
 
+*Performance campaign (the final campaign, 2026-11-17 UTC, AWS `m7a.2xlarge`):* not done; —.
+
 The explicit-step kernels and the check's interpolation map well to GPUs.
 Bit-identical results with the CPU are possible only without FMA
 contraction (CUDA `-fmad=false`), with the same per-entry order, a gather
@@ -512,6 +555,8 @@ insertion step (4,114 of 5,000 steps at full size). Months of work; not
 advised before items 1.2, 2.1 and 4.1.
 
 ### 4.4 Fewer global agreements per step
+
+*Performance campaign (the final campaign, 2026-11-17 UTC, AWS `m7a.2xlarge`):* partly (one agreement skipped; the protocol unchanged); not measured.
 
 - Where: the collective error protocol (`docs/ARCHITECTURE.md`,
   `crates/akantu-comm/src/phase.rs`): every `DofManager::step`, every
@@ -542,6 +587,8 @@ advised before items 1.2, 2.1 and 4.1.
 
 ### 4.5 A faster pure-Rust sparse factorisation
 
+*Performance campaign (the final campaign, 2026-11-17 UTC, AWS `m7a.2xlarge`):* partly (tiles and threads; an opt-in nested-dissection ordering, D-125); as P1.7; the nested-dissection ordering is measured separately (not yet in this revision).
+
 Without MUMPS the port uses its translation of Eigen's SparseLU. Upstream's
 own SparseLU takes 314.6 s and 7.5 GiB at h = 0.06 (97,551 DOFs), 18 times
 MUMPS; faer's simplicial LU did not finish in 2 minutes (`docs/BENCHMARKS.md`,
@@ -553,6 +600,8 @@ from upstream's SparseLU, so it is a new solver choice, not a replacement
 of the `eigen` backend. Effort: weeks to months.
 
 ### 4.6 Distributed mesh input
+
+*Performance campaign (the final campaign, 2026-11-17 UTC, AWS `m7a.2xlarge`):* not done; —.
 
 Both codes read and partition the mesh on rank 0 and send packages (section
 2.4). Reading in parallel and partitioning with a parallel partitioner would

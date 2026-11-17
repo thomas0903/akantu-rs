@@ -1,7 +1,7 @@
 # Where each performance number comes from
 
 One row per section of `docs/BENCHMARKS.md`: the machine, the date (local
-time), the weight of its numbers and the data behind them. The rule the
+time; UTC for the final campaign), the weight of its numbers and the data behind them. The rule the
 document follows: every comparison of the port with the C++ reference, and
 every number a conclusion rests on, comes from an x86_64 cloud machine
 (AWS or a boat.dev sandbox) with both codes on the same machine; the
@@ -14,6 +14,17 @@ which no conclusion rests.
 
 | Section | What is measured | Machine | Date | Port vs C++ | Weight | Data |
 |---|---|---|---|---|---|---|
+| Method: the final campaign | the driver's checks: binaries by digest, bindings, thread counts, state digests | 4 × AWS `m7a.2xlarge`, AMD EPYC 9R14, 8 cores | 2026-11-17 (UTC) | yes | supporting | `docs/benchmarks/perf-campaign/final/` (every part) |
+| The explicit step on one core (final campaign, part A) | `solve_step`, internal forces, stresses; C++ strict and default, port before, port at 1–8 threads and in fast mode, ten configurations | 4 × AWS `m7a.2xlarge`, AMD EPYC 9R14, 8 cores | 2026-11-17 (UTC) | yes | headline | `docs/benchmarks/perf-campaign/final/A/` |
+| The benchmark suites (part B) | every suite case, port before against port, threads and fast mode, distributed cases at 1–8 ranks, Python | 4 × AWS `m7a.2xlarge`, AMD EPYC 9R14, 8 cores | 2026-11-17 (UTC) | no (no C++ twin) | supporting | `docs/benchmarks/perf-campaign/final/B/` |
+| Static solves and solvers: the final campaign (part D) | SparseLU against upstream's SparseLU at 1–8 threads; MUMPS at 1 / 2 / 4 ranks; the sparse solvers' phases | 4 × AWS `m7a.2xlarge`, AMD EPYC 9R14, 8 cores | 2026-11-17 (UTC) | yes | headline | `docs/benchmarks/perf-campaign/final/D/` |
+| Small and mid sizes at 1 to 8 ranks (final campaign, part C) | series `ws`, `ins`, `full12`, `reh6`, `reh4`, `eig`; C++, port before, port, ranks × threads; 5 repetitions, paired | 4 × AWS `m7a.2xlarge`, AMD EPYC 9R14, 8 cores (two machines) | 2026-11-17 (UTC) | yes | headline | `docs/benchmarks/perf-campaign/final/C/`, `C-reh6/` |
+| Memory: the final campaign (part E) | h = 0.04, Σ rank peaks, container peak, `INFOG(19)`, the factors released | 4 × AWS `m7a.2xlarge`, AMD EPYC 9R14, 8 cores | 2026-11-17 (UTC) | yes | headline | `docs/benchmarks/perf-campaign/final/E/` |
+| MPI layer: the final campaign (part F) | akantu-comm against raw MPI, methods A and B, port before and port | 4 × AWS `m7a.2xlarge`, AMD EPYC 9R14, 8 cores | 2026-11-17 (UTC) | port's layer vs raw MPI | supporting | `docs/benchmarks/perf-campaign/final/F/` |
+| Set-up costs: the final campaign (parts F, B) | `read_mesh`, `dist_mesh`, `init_full`, `before_step`, static solve at 1–8 ranks; `dist_mesh_tet4` at 1,296,000 Tet4; `suite_setup` | 4 × AWS `m7a.2xlarge`, AMD EPYC 9R14, 8 cores | 2026-11-17 (UTC) | yes (driver), no (suites) | supporting | `docs/benchmarks/perf-campaign/final/F/`, `B/` |
+| Known slow paths, What remains | each from a final-campaign section above |  |  |  | supporting | as above |
+| The full-size run (final campaign, part G); multi-node run | not yet available in this revision | one 128-core node; 4 hosts |  |  |  |  |
+| The performance campaign's development records | per-branch A/B of each change (moved to `docs/benchmarks/perf-campaign/README.md`) | development machines, AWS `m7a.2xlarge` shared | 2026-11-16, 2026-11-17 | partly | record | `docs/benchmarks/perf-campaign/<branch>/` |
 | Method: default against strict C++ install | the two C++ installs in the serial cohesive driver | boat `large`, AMD Ryzen 9 9950X | 2026-11-11 | C++ vs C++ | supporting | `docs/benchmarks/serial-driver-2026-11-11/` |
 | The explicit step on one core | `solve_step`, internal forces, stresses; port against both C++ installs, ten configurations | boat `large`, AMD Ryzen 7 9700X | 2026-11-12 | yes | headline | `docs/benchmarks/explicit-step/final/` |
 | What was optimised | interleaved A/B of each change; profiles before and after | boat `large`, AMD Ryzen 9 9950X | 2026-11-11 | strict C++ only | supporting | `docs/benchmarks/explicit-step/development/` |
@@ -47,6 +58,7 @@ They remain in the history of the repository.
 | Document | Performance statements | Source |
 |---|---|---|
 | `README.md` | none (links to `docs/BENCHMARKS.md`) | |
+| `docs/reports/02-benchmarks-and-performance.md` | the final campaign's headline numbers; the full-size and multi-node numbers of 12 and 13 November | AWS |
 | `docs/manual/src/appendix/joss.md` | full-size table, the jed efficiencies and per-element costs | AWS |
 | `docs/VALIDATION_SUMMARY.md`, `docs/MPI_VALIDATION.md` | none (point to `docs/BENCHMARKS.md`) | |
 | `benchmarks/cohesive-perf/README.md` | the harness; quotes no result | |

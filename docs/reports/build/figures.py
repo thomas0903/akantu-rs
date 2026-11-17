@@ -390,6 +390,93 @@ def perf_cohesive_ratios_boat():
     fs.save(fig, "perf-cohesive-ratios-boat")
 
 
+@figure
+def perf_explicit_step_final():
+    rows = [r for r in fs.read_csv("explicit-step-final") if r["phase"] == "step"]
+    fig, ax = fs.new(6.4, 4.3)
+    ticks, labels, y = [], [], 0
+    series = [("cpp_strict", "against C++ strict (the port's arithmetic)", fs.RUST),
+              ("cpp_default", "against C++ as shipped", fs.BLUES[0]),
+              ("before", "against the port before the campaign", fs.INK3)]
+    heads = []
+    for mode in ("ss", "fd"):
+        heads.append((y, MODE_NAME[mode]))
+        y += 1
+        for r in (r for r in rows if r["mode"] == mode):
+            for k, (key, lab, colour) in enumerate(series):
+                c = f"rust_over_{key}"
+                _dot_range(ax, y + (k - 1) * 0.26, float(r[c]), float(r[c + "_min"]),
+                           float(r[c + "_max"]), colour, label=lab if y == 1 and mode == "ss" else None)
+            ticks.append(y)
+            labels.append(f"{r['mesh'].split('-')[0]}, {fs.num(int(r['elements']))} elements")
+            y += 1
+        y += 0.4
+    ax.set_yticks(ticks, labels)
+    for yh, text in heads:
+        ax.text(-0.01, yh + 0.1, text, transform=ax.get_yaxis_transform(), ha="right", va="center",
+                fontsize=8.5, fontweight="bold", color=fs.INK)
+    ax.set_ylim(y - 0.6, -0.7)
+    ax.set_xlim(0, 1.15)
+    ax.grid(axis="x")
+    ax.grid(axis="y", visible=False)
+    ax.tick_params(axis="y", length=0)
+    ax.xaxis.set_major_locator(MultipleLocator(0.2))
+    ax.set_xlabel("port time / other time (dot: median of 5 rounds, line: range)")
+    fs.ratio_line(ax, label="same time", faster_side="right", y_text=1.0)
+    ax.annotate("← port faster", (1.0, 1.0), xycoords=("data", "axes fraction"), xytext=(-4, 2),
+                textcoords="offset points", ha="right", va="bottom", fontsize=8, color=fs.INK2)
+    ax.legend(loc="upper left", bbox_to_anchor=(0.0, 1.17), ncols=2, handlelength=1.0)
+    fs.save(fig, "perf-explicit-step-final")
+
+
+SERIES_NAME = {"ws": "h = 0.06, 500 steps", "ins": "h = 0.12, 1,500 steps",
+               "full12": "h = 0.12, 5,000 steps", "reh6": "h = 0.06, 5,000 steps",
+               "reh4": "h = 0.04, 300 steps"}
+
+
+@figure
+def perf_cohesive_ratios_final():
+    rows = [r for r in fs.read_csv("cohesive-port-over-upstream-final")
+            if r["series"] != "ws" or r["h"] == "0.06"]
+    phases = [("loop", "Loop"), ("solve_step", "Explicit step"), ("check", "Insertion check"),
+              ("static_solve", "Static solve")]
+    fig, axes = fs.new(6.7, 5.6, ncols=4, sharey=True)
+    fig.subplots_adjust(wspace=0.12)
+    ys, labels, heads, y, prev = [], [], [], 0, None
+    for r in rows:
+        if r["series"] != prev:
+            if prev is not None:
+                y += 0.5
+            heads.append((y, SERIES_NAME[r["series"]]))
+            y += 1
+            prev = r["series"]
+        n = int(r["ranks"])
+        ys.append(y)
+        labels.append(f"{n} rank{'s' if n > 1 else ''}")
+        y += 1
+    for ax, (col, title) in zip(axes, phases):
+        for yy, r in zip(ys, rows):
+            _dot_range(ax, yy, float(r[col]), float(r[col + "_min"]), float(r[col + "_max"]), fs.RUST)
+        ax.set_xscale("log")
+        ax.set_xlim(0.15, 2.0)
+        fs.plain_log_axis(ax.xaxis, [0.2, 0.5, 1])
+        ax.grid(axis="x")
+        ax.grid(axis="y", visible=False)
+        ax.set_title(title, fontsize=9)
+        ax.axvline(1.0, color=fs.INK3, lw=0.9, zorder=1)
+        ax.tick_params(axis="y", length=0)
+    axes[0].set_yticks(ys, labels, fontsize=8)
+    for yh, text in heads:
+        axes[0].text(-0.04, yh, text, transform=axes[0].get_yaxis_transform(), ha="right",
+                     va="center", fontsize=8.5, fontweight="bold")
+    axes[0].set_ylim(y - 0.4, -0.6)
+    axes[0].annotate("← port faster", (1.0, 1.0), xycoords=("data", "axes fraction"), xytext=(-3, 2),
+                     textcoords="offset points", ha="right", va="bottom", fontsize=7.5, color=fs.INK2)
+    fig.supxlabel("port time / upstream time (log scale; dot: median of 5 paired repetitions, line: range)",
+                  fontsize=8.5, color=fs.INK2, y=0.0)
+    fs.save(fig, "perf-cohesive-ratios-final")
+
+
 def _c1_phases(r):
     """Seconds per phase of a full-size run row (fullsize-c1.csv)."""
     f = lambda k: float(r[k])
