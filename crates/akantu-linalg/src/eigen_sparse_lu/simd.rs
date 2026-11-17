@@ -297,6 +297,31 @@ pub(crate) fn trsm_fma(
     dense::trsm_unit_lower_bitwise(size, cols, t, t_off, ldt, o, o_off, ldo);
 }
 
+/// Places the hot loop of the AVX-512 gemm tile on a 64-byte boundary,
+/// whatever address the linker gives the function: the default placement
+/// put the loop head at 16 or 48 mod 64 in some builds and at 0 in others,
+/// and those cost the gemm 8 % (`docs/benchmarks/perf-campaign/sparselu-threads`).
+/// `.p2align 6` aligns this point (and raises the function's section to a
+/// 64-byte alignment); the 16 bytes of NOPs compensate the loop's
+/// preheader, which the compiler emits after this point (0x70 bytes with
+/// rustc 1.99.1: the loop head then sits at 0 mod 64; checked in the
+/// disassembly, see the benchmark README). Executed once per tile; no effect
+/// on any value. Nothing on other architectures.
+#[inline(always)]
+pub(crate) fn align_next_loop() {
+    #[cfg(target_arch = "x86_64")]
+    // SAFETY: assembler alignment directives: they emit only NOP padding,
+    // read and write no memory, registers or flags, and use no stack
+    // (`nomem`, `nostack`, `preserves_flags`).
+    unsafe {
+        core::arch::asm!(
+            ".p2align 6",
+            ".nops 16",
+            options(nomem, nostack, preserves_flags)
+        );
+    }
+}
+
 #[cfg(target_arch = "x86_64")]
 mod x86 {
     use super::dense::{gemm_tiles, gemv_tiles, trsm_unit_lower_fused};

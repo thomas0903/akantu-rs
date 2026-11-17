@@ -29,8 +29,8 @@ compiled by `build.rs`. This audit compared every `extern` declaration of
 the two blocks below with its shim prototype (names, argument order, C
 types): no mismatch.
 
-**Counts** (library / tests): block 78 / 4, `unsafe fn` 4 / 4, `unsafe impl`
-6 / 2, `extern` block 2 / 0 — **90 library sites, 10 test sites** (10
+**Counts** (library / tests): block 79 / 4, `unsafe fn` 4 / 4, `unsafe impl`
+6 / 2, `extern` block 2 / 0 — **91 library sites, 10 test sites** (11
 library blocks in the default build: `src/eigen_sparse_lu/simd.rs`; the
 others need `mumps` or `petsc`).
 
@@ -112,6 +112,12 @@ others need `mumps` or `petsc`).
   instance; `dense::tests` compare every supported level with the
   reference kernels on random inputs with signed zeros, infinities, NaNs
   and subnormals).
+* **L7 — assembler alignment directive.** `asm!(".p2align 6", ".nops 16",
+  options(nomem, nostack, preserves_flags))` emits NOP padding only: no
+  instruction that reads or writes memory, registers or flags, no stack
+  use, no operands; the options state exactly that. It places the next
+  loop's code; it changes no value (the suite digests and the oracle
+  fixtures are unchanged).
 
 ## Site table
 
@@ -127,6 +133,7 @@ others need `mumps` or `petsc`).
 | LA-88 | 249 | `fn gemv_fma` block 2 | calls `x86::gemv_avx2_fma` (fast mode) | the fast token's level proves AVX2 and FMA3 | L6 (arm `SimdLevel::Avx2`) | `simd::tests::fma_trsm_and_gemv_instances_match_the_portable_fused_bodies` |
 | LA-89 | 287 | `fn trsm_fma` block 1 | calls `x86::trsm_avx512_fma` (fast mode, the triangular panel solve) | the fast token's level proves AVX-512F, AVX2 and FMA3 | L6 (arm `SimdLevel::Avx512`) | `simd::tests::fma_trsm_and_gemv_instances_match_the_portable_fused_bodies`, `tests/fast_mode_sparse_lu.rs` |
 | LA-90 | 291 | `fn trsm_fma` block 2 | calls `x86::trsm_avx2_fma` (fast mode) | the fast token's level proves AVX2 and FMA3 | L6 (arm `SimdLevel::Avx2`) | `simd::tests::fma_trsm_and_gemv_instances_match_the_portable_fused_bodies` |
+| LA-91 | 316 | `fn align_next_loop` block 1 | NOP padding that puts the AVX-512 gemm tile's k loop on a 64-byte boundary | no memory, register, flag or stack effect | L7 (`nomem`, `nostack`, `preserves_flags`, no operands) | `dense::tests::gemm_matches_reference_bitwise`, `eigen_sparse_lu_oracle` |
 | LA-83 | 212 | `fn gemv` block 1 | calls `x86::gemv_avx512` (column-major GEMV, 32-row tiles) | the token proves AVX-512F | L6 (arm `SimdLevel::Avx512`) | `dense::tests::gemv_matches_reference_bitwise`, `eigen_sparse_lu_oracle` |
 | LA-84 | 217 | `fn gemv` block 2 | calls `x86::gemv_avx` (16-row tiles) | the token proves AVX2 (hence AVX) | L6 (arm `SimdLevel::Avx2`) | `dense::tests::gemv_matches_reference_bitwise` |
 
