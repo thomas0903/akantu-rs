@@ -203,3 +203,38 @@ variance and is a build-flag decision for the owner.
 Energies byte-identical to C++ in all 18 runs. At h = 0.06 the one-thread
 time is 8.6 % above the base: the gemm is a larger share there, so the
 loop placement above weighs more.
+
+## The gemm's hot loop on a 64-byte boundary (base 7a6ad8f42)
+
+`simd::align_next_loop` (inline assembly `.p2align 6` and 16 NOP bytes,
+x86-64, before the k loop of the AVX-512 gemm tile): the alignment
+directive also raises the function's section to 64 bytes, and the NOP
+bytes compensate the 0x70-byte preheader the compiler places after it.
+Disassembly (`loop-alignment/`): `gemm_avx512` at 0x804740 in
+`suite_solid` and at 0x884cc0 in `cohesive_extrinsic` (both 0 mod 64),
+loop head at 0x804b80 and 0x885100 (both 0 mod 64); the base's
+`cohesive_extrinsic` has it at 0x8c1810 (16 mod 64), loop head 0x8c1bf0
+(48 mod 64). With the directive alone (no NOP bytes) the loop head sat at
+48 mod 64 in every build and the static solve took the slow time (2.195 s
+against 2.10 s).
+
+One thread against the base 7a6ad8f42 (interleaved, rotated, core 2):
+
+| case | head / base, median [min, max] |
+|---|---|
+| static_linear_eigen factorize (7 reps) | 1.006 [0.975, 1.020] |
+| static_linear_eigen back_substitution | 0.996 [0.986, 1.014] |
+| static_linear_eigen solve_step | 1.012 [0.991, 1.021] |
+| heat_static_tri6 solve_step | 1.017 [0.994, 1.025] |
+| structural_beam3_frame_static solve_step | 1.009 [1.003, 1.023] |
+| structural_dkt18_plate_static solve_step | 1.018 [1.008, 1.028] (1.027 in the previous round, without the directive) |
+
+Host cohesive static solve (`timing_ab.sh`, `loop-alignment/alc/`):
+
+| h | base | head | head / base per repetition |
+|---|---|---|---|
+| 0.12 (5 reps) | 2.178 s | 2.112 s | 0.968 [0.961, 0.975] |
+| 0.06 (2 reps) | 226.1 s | 214.5 s | 0.948 [0.947, 0.950] |
+
+The base binary of 7a6ad8f42 happens to have the slow placement; the head
+no longer depends on it.
