@@ -484,42 +484,67 @@ impl Linear {
                 // facet index), the same bits for every thread count. The
                 // flags and the appended parameters follow in the filter's
                 // order below (the serial loop's order).
-                let mut decision = vec![0u8; nb_pairs];
-                inputs.facet_fe.exec().for_each(
-                    akantu_core::exec::Tuples::new(&mut decision, 1),
-                    DECISIONS_PER_PART,
-                    |first, mut part| {
-                        let mut sc = vec![0.0; nq];
-                        let mut nt = vec![[0.0; 3]; nq];
-                        for (j, d) in part.as_mut_slice().iter_mut().enumerate() {
-                            let k = first + j;
-                            *d = match akantu_core::try_to_usize(filter[k]) {
-                                Err(_) => 3,
-                                Ok(facet) if !facets_check.get(facet).copied().unwrap_or(false) => {
-                                    0
-                                }
-                                Ok(facet) => {
-                                    if facet_norms(facet, &mut sc, &mut nt) > limit_of(k) {
-                                        2
-                                    } else {
-                                        1
+                // On one part: the single pass of the serial code (the
+                // norms computed once per entry).
+                let exec = inputs.facet_fe.exec();
+                let serial = exec.nb_parts(nb_pairs, DECISIONS_PER_PART) <= 1;
+                let mut decision = Vec::new();
+                if !serial {
+                    decision = vec![0u8; nb_pairs];
+                    exec.for_each(
+                        akantu_core::exec::Tuples::new(&mut decision, 1),
+                        DECISIONS_PER_PART,
+                        |first, mut part| {
+                            let mut sc = vec![0.0; nq];
+                            let mut nt = vec![[0.0; 3]; nq];
+                            for (j, d) in part.as_mut_slice().iter_mut().enumerate() {
+                                let k = first + j;
+                                *d = match akantu_core::try_to_usize(filter[k]) {
+                                    Err(_) => 3,
+                                    Ok(facet)
+                                        if !facets_check.get(facet).copied().unwrap_or(false) =>
+                                    {
+                                        0
                                     }
-                                }
-                            };
-                        }
-                    },
-                );
+                                    Ok(facet) => {
+                                        if facet_norms(facet, &mut sc, &mut nt) > limit_of(k) {
+                                            2
+                                        } else {
+                                            1
+                                        }
+                                    }
+                                };
+                            }
+                        },
+                    );
+                }
                 for (k, &facet) in filter.iter().enumerate().take(nb_pairs) {
-                    if decision[k] != 2 {
-                        if decision[k] == 3 {
-                            // the serial loop's error at this entry
-                            akantu_core::try_to_usize(facet)?;
+                    let facet = if serial {
+                        let facet = akantu_core::try_to_usize(facet)?;
+                        if !facets_check.get(facet).copied().unwrap_or(false) {
+                            continue;
                         }
-                        continue;
-                    }
-                    let facet = akantu_core::try_to_usize(facet)?;
-                    // the norms of the entry again, with the same operations
-                    let _ = facet_norms(facet, &mut stress_check, &mut normal_traction);
+                        let above = facet_norms(facet, &mut stress_check, &mut normal_traction)
+                            > limit_of(k);
+                        // (`>` as the serial loop: a NaN norm is not above)
+                        if !above {
+                            continue;
+                        }
+                        facet
+                    } else {
+                        if decision[k] != 2 {
+                            if decision[k] == 3 {
+                                // the serial loop's error at this entry
+                                akantu_core::try_to_usize(facet)?;
+                            }
+                            continue;
+                        }
+                        let facet = akantu_core::try_to_usize(facet)?;
+                        // the norms of the entry again, with the same
+                        // operations
+                        let _ = facet_norms(facet, &mut stress_check, &mut normal_traction);
+                        facet
+                    };
                     let limit_q = |q: usize| {
                         if zipped {
                             limits[k]
