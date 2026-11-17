@@ -254,7 +254,7 @@ impl FeEngine {
             block,
         };
         let ok = with_element_class!(ty, E => {
-            fast::gradient_supported::<E>(&plan.block, plan.u, nb_dof, plan.dshapes, nq, filter)
+            fast::gradient_supported::<E>(&self.exec, &plan.block, plan.u, nb_dof, plan.dshapes, nq, filter)
         }, else false);
         ok.then_some(plan)
     }
