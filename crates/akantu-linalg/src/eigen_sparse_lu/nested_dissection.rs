@@ -1078,6 +1078,33 @@ mod tests {
     }
 
     #[test]
+    fn the_separator_separates_and_is_small() {
+        for (p, c) in [(10, 1), (8, 3), (16, 1)] {
+            let (n, cp, ri) = grid(p, c);
+            let (x, a) = symmetric_pattern(n, &cp, &ri);
+            let (g, _) = compress(n, &x, &a);
+            let side = bisect(&g).expect("a proper split");
+            for v in 0..g.n() {
+                for k in g.nbrs(v) {
+                    let u = g.adj[k];
+                    assert!(
+                        !(side[v] == 0 && side[u] == 1),
+                        "edge {v}-{u} crosses the separator"
+                    );
+                }
+            }
+            let w = |s: u8| -> u64 {
+                (0..g.n()).filter(|&v| side[v] == s).map(|v| g.vwgt[v]).sum()
+            };
+            let (w0, w1, ws) = (w(0), w(1), w(2));
+            // a plane of the grid has p² nodes; the cover of a cut through a
+            // 26-neighbour grid needs at most about two planes
+            assert!(ws <= (2 * p * p * c) as u64, "separator {ws} for p {p}");
+            assert!(w0.max(w1) <= (0.62 * (w0 + w1 + ws) as f64) as u64, "{w0} {w1} {ws}");
+        }
+    }
+
+    #[test]
     fn minimum_degree_eliminates_leaves_of_a_path_first() {
         let g = Graph {
             xadj: vec![0, 1, 3, 5, 6],
