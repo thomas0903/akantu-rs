@@ -458,90 +458,22 @@ impl Linear {
                     tangents,
                 };
                 if serial {
-                    // the serial loop in the filter's order, unchanged
-                    for (k, &facet) in filter.iter().enumerate().take(nb_pairs) {
-                        let facet = akantu_core::try_to_usize(facet)?;
-                        if !facets_check.get(facet).copied().unwrap_or(false) {
-                            continue;
-                        }
-                        for q in 0..nq {
-                            let cq = facet * nq + q;
-                            let fs = &f_stress[cq * 2 * dim * dim..(cq + 1) * 2 * dim * dim];
-                            stress_check[q] = self.effective_norm_at(
-                                dim,
-                                fs,
-                                &normals[cq * dim..(cq + 1) * dim],
-                                &tangents[cq * ntc..(cq + 1) * ntc],
-                                &mut normal_traction[q][..dim],
-                            );
-                        }
-                        // `stress_check.mean()` (run-time size)
-                        let mut final_stress = stress_check[0];
-                        for v in &stress_check[1..] {
-                            final_stress += v;
-                        }
-                        final_stress /= nq as Real;
-                        if self.max_quad_stress_insertion {
-                            // `*std::max_element` (first maximum)
-                            let mut m = stress_check[0];
-                            for &v in &stress_check[1..] {
-                                if m < v {
-                                    m = v;
-                                }
-                            }
-                            final_stress = m;
-                        }
-                        // UD-040: upstream pairs facet k with strength entry k
-                        let zipped = core.compat.sigma_c_zipped_per_quad;
-                        let limit_q = |q: usize| {
-                            if zipped {
-                                sigma_limits[k]
-                            } else {
-                                sigma_limits[k * nq + q]
-                            }
-                        };
-                        let limit: Real = if zipped {
-                            sigma_limits[k]
-                        } else {
-                            let lq = &sigma_limits[k * nq..(k + 1) * nq];
-                            let mut m = lq[0];
-                            for v in &lq[1..] {
-                                m += v;
-                            }
-                            m / nq as Real
-                        };
-                        if final_stress > limit {
-                            inputs
-                                .insertion_facets
-                                .get_mut(type_facet, g)?
-                                .as_mut_slice()[facet] = true;
-                            if check_only {
-                                continue;
-                            }
-                            // Only the facets whose
-                            // parameters are appended below (a
-                            // textual merge puts this line after the
-                            // `facets_check` test above, which is wrong)
-                            prepared.push(Element::try_new(type_facet, facet, g)?);
-                            for q in 0..nq {
-                                let new_sigma = stress_check[q];
-                                let mut nt = normal_traction[q];
-                                if dim != 3 {
-                                    for x in nt.iter_mut().take(dim) {
-                                        *x *= -1.;
-                                    }
-                                }
-                                new_sigmas.push(new_sigma);
-                                new_tractions.push(nt);
-                                let new_d = if are_float_equal(core.delta_c, 0.0, self.tol) {
-                                    2. * self.g_c / new_sigma
-                                } else {
-                                    limit_q(q) / new_sigma * core.delta_c
-                                };
-                                new_delta.push(new_d);
-                            }
-                        }
-                    }
+                    self.check_serial(
+                        core,
+                        &scan,
+                        &filter[..nb_pairs],
+                        facets_check,
+                        &sigma_limits,
+                        type_facet,
+                        inputs.insertion_facets,
+                        check_only,
+                        (
+                            &mut prepared,
+                            &mut new_sigmas,
+                            &mut new_tractions,
+                            &mut new_delta,
+                        ),
+                    )?;
                 } else {
                     let decision = self.insertion_decisions(
                         exec,
@@ -637,6 +569,127 @@ impl Linear {
             }
         }
         Ok(prepared)
+    }
+
+    /// The serial loop of [`Linear::check_insertion`] over the entries of
+    /// `filter` (in its order) for one facet type: the norms and the
+    /// decision of each checked facet, the flag of an inserted facet and
+    /// the parameters appended for its new element. A function of its own
+    /// so that it compiles as the loop did before the threaded decision
+    /// was added beside it (one thread must not get slower).
+    #[inline(never)]
+    #[allow(clippy::too_many_arguments)] // the loop's inputs and its four outputs
+    #[allow(clippy::type_complexity)] // the four appended arrays
+    fn check_serial(
+        &self,
+        core: &CohesiveCore,
+        scan: &ScanData<'_>,
+        filter: &[Idx],
+        facets_check: &[bool],
+        sigma_limits: &[Real],
+        type_facet: ElementType,
+        insertion: &mut akantu_core::ElementTypeMapArray<bool>,
+        check_only: bool,
+        (prepared, new_sigmas, new_tractions, new_delta): (
+            &mut Vec<Element>,
+            &mut Vec<Real>,
+            &mut Vec<[Real; 3]>,
+            &mut Vec<Real>,
+        ),
+    ) -> Result<()> {
+        let ScanData {
+            dim,
+            nq,
+            ntc,
+            f_stress,
+            normals,
+            tangents,
+        } = *scan;
+        let g = GhostType::NotGhost;
+        let nb_pairs = filter.len();
+        let mut stress_check = vec![0.0; nq];
+        let mut normal_traction = vec![[0.0; 3]; nq];
+        for (k, &facet) in filter.iter().enumerate().take(nb_pairs) {
+            let facet = akantu_core::try_to_usize(facet)?;
+            if !facets_check.get(facet).copied().unwrap_or(false) {
+                continue;
+            }
+            for q in 0..nq {
+                let cq = facet * nq + q;
+                let fs = &f_stress[cq * 2 * dim * dim..(cq + 1) * 2 * dim * dim];
+                stress_check[q] = self.effective_norm_at(
+                    dim,
+                    fs,
+                    &normals[cq * dim..(cq + 1) * dim],
+                    &tangents[cq * ntc..(cq + 1) * ntc],
+                    &mut normal_traction[q][..dim],
+                );
+            }
+            // `stress_check.mean()` (run-time size)
+            let mut final_stress = stress_check[0];
+            for v in &stress_check[1..] {
+                final_stress += v;
+            }
+            final_stress /= nq as Real;
+            if self.max_quad_stress_insertion {
+                // `*std::max_element` (first maximum)
+                let mut m = stress_check[0];
+                for &v in &stress_check[1..] {
+                    if m < v {
+                        m = v;
+                    }
+                }
+                final_stress = m;
+            }
+            // UD-040: upstream pairs facet k with strength entry k
+            let zipped = core.compat.sigma_c_zipped_per_quad;
+            let limit_q = |q: usize| {
+                if zipped {
+                    sigma_limits[k]
+                } else {
+                    sigma_limits[k * nq + q]
+                }
+            };
+            let limit: Real = if zipped {
+                sigma_limits[k]
+            } else {
+                let lq = &sigma_limits[k * nq..(k + 1) * nq];
+                let mut m = lq[0];
+                for v in &lq[1..] {
+                    m += v;
+                }
+                m / nq as Real
+            };
+            if final_stress > limit {
+                insertion.get_mut(type_facet, g)?.as_mut_slice()[facet] = true;
+                if check_only {
+                    continue;
+                }
+                // Only the facets whose
+                // parameters are appended below (a
+                // textual merge puts this line after the
+                // `facets_check` test above, which is wrong)
+                prepared.push(Element::try_new(type_facet, facet, g)?);
+                for q in 0..nq {
+                    let new_sigma = stress_check[q];
+                    let mut nt = normal_traction[q];
+                    if dim != 3 {
+                        for x in nt.iter_mut().take(dim) {
+                            *x *= -1.;
+                        }
+                    }
+                    new_sigmas.push(new_sigma);
+                    new_tractions.push(nt);
+                    let new_d = if are_float_equal(core.delta_c, 0.0, self.tol) {
+                        2. * self.g_c / new_sigma
+                    } else {
+                        limit_q(q) / new_sigma * core.delta_c
+                    };
+                    new_delta.push(new_d);
+                }
+            }
+        }
+        Ok(())
     }
 
     /// The mean (or maximal) effective norm of the facet `facet` and its
