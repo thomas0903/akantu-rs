@@ -32,9 +32,14 @@
 #                 run on cores 0..N-1
 #   --memory M    container memory limit of the cohesive runs, no swap
 #                 (default: the machine's memory minus 3 GiB)
-#   --points "P..."  part G only: the points in their order, P = RANKS[xTHREADS]:VARIANT[,VARIANT]
-#                 (default "64:head,cpp 32:head,cpp 32x2:head 8:head"; dry
-#                 "8:head,cpp 4x2:head")
+#   --points "P..."  part G only: the runs in their order, P = RANKS[xTHREADS]:VARIANT[,VARIANT]
+#                 (default, for a 128-core node: "128:head 128:cpp 64:head 64:cpp
+#                 32:head 32:cpp 64x2:head 32x4:head 16x8:head 8:head"; dry
+#                 "8:head 8:cpp 4x2:head"); points needing more cores than the
+#                 machine has are skipped. Before the first run the part prints
+#                 its plan (DATA/G/plan.txt): per run the expected memory and
+#                 time (g-estimates.txt), the order, the machine-hours
+#   --plan-only   part G: print the plan and exit
 #
 # Each point (a group of runs: the variants of one configuration in one
 # repetition, their order rotated by the repetition) writes its own
@@ -54,7 +59,7 @@ set -uo pipefail
 part=${1:-}
 [ -n "$part" ] || { sed -n '6,47p' "$0"; exit 2; }
 shift
-reps="" size=full only="" data="" pin=2 memory="" before="" head="" gpoints=""
+reps="" size=full only="" data="" pin=2 memory="" before="" head="" gpoints="" planonly=0
 while [ $# -gt 0 ]; do
   case "$1" in
     --reps) reps=${2:?}; shift 2 ;;
@@ -67,6 +72,7 @@ while [ $# -gt 0 ]; do
     --pin) pin=${2:?}; shift 2 ;;
     --memory) memory=${2:?}; shift 2 ;;
     --points) gpoints=${2:?}; shift 2 ;;
+    --plan-only) planonly=1; shift ;;
     *) fin_die "run_part.sh: unknown argument $1" ;;
   esac
 done
@@ -77,16 +83,25 @@ case "$size" in dry|full) ;; *) fin_die "--size dry|full" ;; esac
 FIN_BIN="${FINAL_ROOT}/bin"
 BEFORE="${before:-${FIN_BIN}/before}"
 HEAD="${head:-${FIN_BIN}/head}"
-[ -f "${BEFORE}/VARIANT.json" ] || fin_die "no prepared variant ${BEFORE} (prepare.sh)"
-[ -f "${HEAD}/VARIANT.json" ] || fin_die "no prepared variant ${HEAD} (prepare.sh)"
+[ "$planonly" = 1 ] || [ -f "${BEFORE}/VARIANT.json" ] || fin_die "no prepared variant ${BEFORE} (prepare.sh)"
+[ "$planonly" = 1 ] || [ -f "${HEAD}/VARIANT.json" ] || fin_die "no prepared variant ${HEAD} (prepare.sh)"
 D="${data:-${FINAL_ROOT}/data}/${part}"
 mkdir -p "$D"
 D="$(cd "$D" && pwd)"
 NCORES=$(lscpu -p=CORE 2> /dev/null | grep -v '^#' | sort -u | wc -l)
 [ "$NCORES" -ge 1 ] || NCORES=$(nproc)
-[ -n "$memory" ] || memory="$(( $(awk '/MemTotal/ {print $2}' /proc/meminfo) / 1048576 - 3 ))g"
+if [ -z "$memory" ]; then
+  memtot=$(( $(awk '/MemTotal/ {print $2}' /proc/meminfo) / 1048576 ))
+  if [ "$part" = G ]; then memory="$(( memtot * 94 / 100 ))g"; else memory="$(( memtot - 3 ))g"; fi
+fi
+# the host's cores NUMA node by NUMA node (lib.sh): the cohesive runs take
+# the first ranks x threads entries
+CORES_ORDER="$(fin_core_order)"
+[ -n "$CORES_ORDER" ] || CORES_ORDER="$(seq -s, 0 $((NCORES - 1)))"
 CAMPAIGN_TOOL="${FIN_REPO}/crates/akantu-bench/scripts/c1prep_campaign.sh"
 X="${FIN_REPO}/scripts/perf/explicit-step"
+want_series() { [ -z "$only" ] && return 0; case ",${only}," in *",$1,"*) return 0 ;; *) return 1 ;; esac; }
+if [ "$planonly" = 0 ]; then
 exec 8> "${D}/.lock"
 flock -n 8 || fin_die "another run_part.sh holds ${D}/.lock"
 
@@ -100,9 +115,11 @@ fin_cmdlog "$D" "$0" "$part" --reps "$reps" --size "$size" ${only:+--only "$only
 {
   echo "part=${part} size=${size} reps=${reps} only=${only:-all} pin=${pin} memory=${memory} cores=${NCORES}"
   echo "before=$(fin_variant_key "$BEFORE" revision) head=$(fin_variant_key "$HEAD" revision) cpp=${FIN_CPP_REF}"
+  echo "core_order=${CORES_ORDER} (one CPU per physical core, NUMA node by NUMA node)"
+  lscpu | grep -E '^NUMA node[0-9]+ CPU' | sed 's/^/numa: /' 
 } | fin_scrub >> "$D/provenance.txt"
-want_series() { [ -z "$only" ] && return 0; case ",${only}," in *",$1,"*) return 0 ;; *) return 1 ;; esac; }
 fin_progress "$D" "part ${part} start: size ${size}, ${reps} repetitions${only:+, series ${only}}"
+fi
 
 # variant label -> host directory of its base variant
 vdir() { case "${1%%-*}" in before) echo "$BEFORE" ;; head) echo "$HEAD" ;; *) fin_die "variant $1" ;; esac; }
@@ -460,14 +477,19 @@ coh_run() { # series h steps np rep variant attempt
   rm -rf "${D:?}/runs/${camp}"
   local partopt=()
   [ "$np" = 1 ] || partopt=(--partitions "$D/partitions/h$h")
-  local cmd=(env OUT="$D/runs" PIN_CPUS_FROM=0 C1PREP_LOCK="$D/c1.lock" FNTE=joss CPP_CONFIG=strict C1_CONTAINER_PREFIX=final PERF_MPI_BIND=core
+  local cmd=(env OUT="$D/runs" PIN_CPUS_LIST="$CORES_ORDER" C1PREP_LOCK="$D/c1.lock" FNTE=joss CPP_CONFIG=strict C1_CONTAINER_PREFIX=final PERF_MPI_BIND=core
     bash "$CAMPAIGN_TOOL" --memory "$memory" --cpus "$NCORES" ${partopt[@]+"${partopt[@]}"} ${opts[@]+"${opts[@]}"}
     ${extra[@]+"${extra[@]}"} "$camp" "$h" "$steps" "$np" 1 "$c")
   fin_cmdlog "$D" "${cmd[@]}"
-  local t0 t1
+  local t0 t1 rec
+  # the binding of every rank (rank -> cores), read from /proc while it runs
+  rm -f "$D/runs/${camp}.bindings.json"
+  python3 -I "${FIN_HERE}/bindings.py" record "$D/runs/${camp}.bindings.json" "$np" > /dev/null 2>&1 &
+  rec=$!
   t0=$(date +%s)
   "${cmd[@]}" > "$D/runs/${camp}.log" 2>&1
   t1=$(date +%s)
+  kill "$rec" 2> /dev/null; wait "$rec" 2> /dev/null
   outcome=$(sed -n 's/^outcome="\(.*\)"$/\1/p' "$D/runs/$camp/$c/np$np/rep1/status.txt" 2> /dev/null)
   [ -n "$outcome" ] || outcome=failed
   # the run directories in the volumes are copies: free them
@@ -485,7 +507,8 @@ print(json.dumps(d))' "$series" "$h" "$steps" "$np" "$rep" "$v" "$c" "$t" "$p" "
 # retry path (UD-216); then the checks
 coh_group() { # series h steps np rep variants...
   local series=$1 h=$2 steps=$3 np=$4 rep=$5; shift 5
-  local mark="$D/.done/${series}-h${h}-np${np}-r${rep}" order v att=1 res ud allok
+  local vkey; vkey=$(echo "$@" | tr ' ' '+')
+  local mark="$D/.done/${series}-h${h}-np${np}-r${rep}-${vkey}" order v att=1 res ud allok
   [ -e "$mark" ] && return 0
   mkdir -p "$D/.done" "$D/runs"
   coh_partition "$h" "$np" || return 0
@@ -515,13 +538,22 @@ coh_group() { # series h steps np rep variants...
 # insertions of every bitwise variant identical (and equal to C++ at one rank)
 coh_check() { # series h np rep attempt variants...
   local series=$1 h=$2 np=$3 rep=$4 att=$5; shift 5
-  python3 -I - "$D" "$series" "$h" "$np" "$rep" "$att" "$@" <<'PY'
-import json, os, sys
-D, series, h, np, rep, att = sys.argv[1:7]
-variants = sys.argv[7:]
+  python3 -I - "$D" "$series" "$h" "$np" "$rep" "$att" "$CORES_ORDER" "${FIN_HERE}/bindings.py" "$@" <<'PY'
+import json, os, subprocess, sys
+D, series, h, np, rep, att, cores, bindings = sys.argv[1:9]
+variants = sys.argv[9:]
 bad, files = [], {}
 for v in variants:
     camp = f"{series}-h{h}-np{np}-r{rep}-{v}" + ("" if att == "1" else f"-a{att}")
+    threads = int(v.rsplit("-t", 1)[1]) if "-t" in v else 1
+    bf = os.path.join(D, "runs", camp + ".bindings.json")
+    chk = subprocess.run([sys.executable, "-I", bindings, "check", bf, np, str(threads), cores],
+                         capture_output=True, text=True)
+    with open(os.path.join(D, "runs", camp + ".bindings.txt"), "w") as h_:
+        h_.write(chk.stdout)
+    if chk.returncode != 0:
+        bad.append(f"{v}: core binding not as planned ({camp}.bindings.txt): "
+                   + "; ".join(ln for ln in chk.stdout.splitlines() if ln.startswith("BINDING"))[:300])
     case = "cpp" if v == "cpp" else "cppeig" if v == "cppeig" else ("rusteig" if "-eig" in v else "rust")
     d = os.path.join(D, "runs", camp, case, f"np{np}", "rep1")
     if not os.path.isdir(d):
@@ -729,15 +761,26 @@ part_f_mpilayer() {
 
 part_g() {
   local mesh=joss steps=5000 pts="${gpoints}" pt np t vs v r
-  if [ "$size" = dry ]; then mesh=0.06; steps=200; [ -n "$pts" ] || pts="8:head,cpp 4x2:head"
-  else [ -n "$pts" ] || pts="64:head,cpp 32:head,cpp 32x2:head 8:head"; fi
+  if [ "$size" = dry ]; then mesh=0.06; steps=200; [ -n "$pts" ] || pts="8:head 8:cpp 4x2:head"
+  else [ -n "$pts" ] || pts="128:head 128:cpp 64:head 64:cpp 32:head 32:cpp 64x2:head 32x4:head 16x8:head 8:head"; fi
+  g_plan "$mesh" "$pts" | tee "$D/plan.txt"
+  [ "$planonly" = 1 ] && return 0
   if [ "$mesh" = joss ]; then
     docker run --rm -v akantu-perf-cohesive:/perf:ro "${FIN_ORACLE_IMAGE}" test -f /perf/meshes/cube-joss.msh \
       || fin_die "part G: /perf/meshes/cube-joss.msh missing (prepare.sh --joss-mesh FILE)"
   fi
   want_series full || return 0
-  # the partitions first (C++ export runs, stopped once partition.csv is complete)
-  for pt in $pts; do np=${pt%%:*}; np=${np%%x*}; coh_partition "$mesh" "$np" || true; done
+  # the partitions first, once per rank count (C++ export runs, stopped once
+  # partition.csv is complete); every run replays them
+  local done_np=" "
+  for pt in $pts; do
+    np=${pt%%:*}; t=1
+    case "$np" in *x*) t=${np#*x}; np=${np%%x*} ;; esac
+    [ $((np * t)) -le "$NCORES" ] || continue
+    case "$done_np" in *" $np "*) continue ;; esac
+    coh_partition "$mesh" "$np" || true
+    done_np="${done_np}${np} "
+  done
   for ((r = 1; r <= reps; r++)); do
     for pt in $pts; do
       np=${pt%%:*}; t=1
@@ -749,6 +792,58 @@ part_g() {
   done
 }
 
+# the plan of part G: the order, the expected memory and time per run
+g_plan() { # mesh points
+  python3 -I - "$1" "$2" "${FIN_HERE}/g-estimates.txt" "$NCORES" "$memory" "$reps" "$CORES_ORDER" <<'PY'
+import sys
+mesh, points, est_file, ncores, memory, reps, cores = sys.argv[1:8]
+ncores, reps = int(ncores), int(reps)
+lim = float(memory.rstrip("gG"))
+est = {}
+for ln in open(est_file):
+    f = ln.split("#", 1)[0].split()
+    if len(f) >= 4:
+        est[(f[0], f[1])] = (float(f[2]), float(f[3]))
+runs, nps = [], []
+for p in points.split():
+    ranks, variants = p.split(":")
+    np_, t = (int(x) for x in ranks.split("x")) if "x" in ranks else (int(ranks), 1)
+    for v in variants.split(","):
+        runs.append((ranks, np_, t, v))
+        if np_ * t <= ncores and np_ not in nps and np_ > 1:
+            nps.append(np_)
+print(f"Part G plan: mesh {mesh}, {reps} run(s) per point, {ncores} cores, memory limit {memory} per run")
+print("Runs one at a time, so the machine time is the sum of the runs whatever their order;")
+print("the order removes waste: the partition exports of every rank count first (each run then")
+print("replays its file); the port at the largest rank count first (the shortest full-size run,")
+print("and it measures the memory of that rank count before the C++ run, whose peak was within")
+print("8 % of the port's at 32 and 64 ranks); the longest and least needed run (8 ranks) last,")
+print("so a short budget drops it, not a comparison.")
+print()
+print(f"{'step':<22} {'cores (rank -> cores)':<34} {'expected peak GiB':>17} {'expected wall':>14} {'cumulative':>11}")
+total = 0.0
+ex = est.get((mesh, "export"), (None, None))
+for n in nps:
+    w = ex[0]
+    total += w or 0
+    print(f"{'export np' + str(n):<22} {'C++ harness, partition only':<34} {ex[1] or '?':>17} {(f'{w / 60:.0f} min' if w else '?'):>14} {total / 3600:>10.2f}h")
+for _ in range(reps):
+    for ranks, np_, t, v in runs:
+        key = f"{ranks}:{v}"
+        if np_ * t > ncores:
+            print(f"{key:<22} skipped: needs {np_ * t} cores")
+            continue
+        w, m = est.get((mesh, key), (None, None))
+        total += w or 0
+        pin = (f"rank r on core list block r of {t} (cores {cores.split(',')[0]}..{cores.split(',')[np_ * t - 1]})")
+        warn = "  WARNING: above 90 % of the limit" if m and m > 0.9 * lim else ""
+        print(f"{key:<22} {pin[:34]:<34} {(m if m else '?'):>17} {(f'{w / 3600:.2f} h' if w else '?'):>14} {total / 3600:>10.2f}h{warn}")
+print()
+print(f"Expected machine time of part G: {total / 3600:.1f} h (plus the set-up of the machine and prepare.sh);")
+print("estimates and their basis: scripts/perf/final/g-estimates.txt. A '?' has no estimate.")
+PY
+}
+
 case "$part" in
   A) part_a ;;
   B) part_b ;;
@@ -758,6 +853,7 @@ case "$part" in
   F) part_f ;;
   G) part_g ;;
 esac
+[ "$planonly" = 0 ] || exit 0
 
 fin_scrub_tree "$D"
 status=0

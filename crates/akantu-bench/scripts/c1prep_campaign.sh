@@ -56,7 +56,10 @@
 #      (c1prep: container names <prefix>-<case>-np<N>-<pid>, so that a session
 #      can stop them), C1PREP_LOCK (/tmp/c1prep-campaign.lock), PIN_CPUS_FROM
 #      (optional core number K: a run on N ranks gets the cores K..K+N-1 of
-#      the host, docker --cpuset-cpus, both codes; recorded in provenance.txt).
+#      the host, docker --cpuset-cpus, both codes; recorded in provenance.txt),
+#      PIN_CPUS_LIST (optional comma list of host CPUs, e.g. ordered NUMA node
+#      by NUMA node: a run on N ranks x T threads gets its first N x T entries;
+#      takes precedence over PIN_CPUS_FROM).
 #      The former environment variables MEMORY, CPUS, RUST_IMAGE, RUST_BIN are
 #      still read as defaults of the options.
 #
@@ -215,7 +218,11 @@ perf_check_config "${cfg}" || exit 2
 export AKANTU_RS_FILL_NODES_TO_ELEMENTS="${FNTE:-joss}"
 perf_check_fnte "${AKANTU_RS_FILL_NODES_TO_ELEMENTS}" || exit 2
 prefix="${C1_CONTAINER_PREFIX:-c1prep}"
-cpuset_for() { # np [threads] -> docker arguments pinning the run to PIN_CPUS_FROM.. (none without it)
+cpuset_for() { # np [threads] -> docker arguments pinning the run to PIN_CPUS_LIST / PIN_CPUS_FROM.. (none without)
+  if [ -n "${PIN_CPUS_LIST:-}" ]; then
+    echo "--cpuset-cpus $(echo "${PIN_CPUS_LIST}" | cut -d, -f"1-$(($1 * ${2:-1}))")"
+    return 0
+  fi
   [ -n "${PIN_CPUS_FROM:-}" ] || return 0
   echo "--cpuset-cpus ${PIN_CPUS_FROM}-$((PIN_CPUS_FROM + $1 * ${2:-1} - 1))"
 }
@@ -274,6 +281,7 @@ if [ "${mode}" = campaign ]; then
     echo "mesh=${cpp_mesh} sha256=${mesh_sha} elements=${n_elements}"
     echo "cpp_image=${PERF_IMAGE} $(perf_image_digest) config=${cfg} fnte=${AKANTU_RS_FILL_NODES_TO_ELEMENTS} memory=${memory} cpus=unlimited"
     echo "rust_image=${rust_image} $(docker image inspect --format '{{.Id}}' "${rust_image}") rust_bin=${rust_bin} sha256=${rust_sha} volume=${tvol} memory=${memory} cpus=${cpus} rust_extra=${rust_extra[*]:-}"
+    echo "pin_cpus_list=${PIN_CPUS_LIST:-none}"
     echo "pin_cpus_from=${PIN_CPUS_FROM:-none} rust_threads=${rust_threads:-unset} rust_precision=${rust_precision:-unset} mpi_bind=${PERF_MPI_BIND:-none}"
     echo "threads: OMP_NUM_THREADS=1 OPENBLAS_NUM_THREADS=1 SCOTCH_PTHREAD_NUMBER=1 OPENBLAS_CORETYPE=Haswell (image ENV) AKA_SEED=1"
   } | tee -a "${out}/provenance.txt"

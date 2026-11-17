@@ -153,6 +153,20 @@ fin_wrapper() {
   chmod +x "${progdir}/${name}"
 }
 
+# The host's physical cores, one CPU (the first hardware thread) per core,
+# ordered NUMA node by NUMA node, then by core id: comma list. Rank r of a
+# run with T threads per rank gets the r-th block of T entries, so ranks fill
+# one NUMA node before the next and a rank's threads sit on adjacent cores of
+# one node (when T divides the node's core count).
+fin_core_order() {
+  lscpu -p=CPU,CORE,NODE 2> /dev/null | grep -v '^#' | sort -t, -k2,2n -k1,1n \
+    | awk -F, '!seen[$2]++ {print ($3 == "" ? 0 : $3) "," $2 "," $1}' \
+    | sort -t, -k1,1n -k2,2n | cut -d, -f3 | paste -sd,
+}
+
+# The first N entries of a comma list
+fin_first() { echo "$2" | cut -d, -f"1-$1"; }
+
 # Port variant labels of the timing parts: <base>[-fast][-t<N>] -> base, threads, precision
 fin_parse_label() { # label -> "base threads precision"
   local l=$1 base threads=1 precision=bitwise

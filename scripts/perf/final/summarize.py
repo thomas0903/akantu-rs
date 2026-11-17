@@ -652,6 +652,10 @@ def strong_weak(runs, series_list, studies):
 
 
 def check_lines(d):
+    return _check_lines(d) + binding_lines(d)
+
+
+def _check_lines(d):
     p = d / "checks.jsonl"
     if not p.exists():
         return ["Checks: none recorded.", ""]
@@ -927,11 +931,72 @@ def mpilayer_tables(m):
     return out
 
 
+def strong_scaling(pts):
+    """Rows of the strong-scaling table: every configuration by cores."""
+    rows_in = []
+    for (h, np_), vs in pts.items():
+        for v, reps in vs.items():
+            t = int(v.rsplit("-t", 1)[1]) if "-t" in v else 1
+            rows_in.append((np_ * t, v == "cpp" or v.startswith("cpp"),
+                            np_, t, v, reps))
+    rows_in.sort(key=lambda x: (x[1], x[0], -x[2]))
+    base = {}
+    for cores, is_cpp, np_, t, v, reps in rows_in:
+        c = list(metric(reps, "core_us").values())
+        if c and (is_cpp not in base or cores < base[is_cpp][0]):
+            base[is_cpp] = (cores, statistics.median(c))
+    rows = []
+    for cores, is_cpp, np_, t, v, reps in rows_in:
+        def mm(k, reps=reps):
+            return med(list(metric(reps, k).values()))
+        c = list(metric(reps, "core_us").values())
+        eff = MISSING
+        if c and is_cpp in base:
+            eff = f"{base[is_cpp][1] / statistics.median(c):.0%}"
+        rows.append(["C++" if is_cpp else "port", f"{np_} x {t}", cores,
+                     mm("wall"), mm("read_mesh"), mm("dist_mesh"),
+                     mm("init_full"), mm("static"), mm("step_ms"),
+                     mm("check_ms"), mm("energies_ms"), mm("loop"),
+                     mm("core_us"), eff])
+    return rows, base
+
+
+def binding_lines(d):
+    files = sorted((d / "runs").glob("*.bindings.txt"))
+    if not files:
+        return ["Core bindings: none recorded.", ""]
+    bad = [f.name for f in files if "BINDING" in f.read_text()]
+    out = [f"Core bindings (`runs/*.bindings.txt`, rank -> cores read from "
+           f"/proc during each run): {len(files)} runs, "
+           f"{len(files) - len(bad)} as planned (rank r on the r-th block of "
+           "its thread count in the core list ordered NUMA node by NUMA "
+           "node, every block inside one NUMA node)"
+           + (f"; not as planned: {', '.join(bad)}" if bad else "") + ".", ""]
+    return out
+
+
 def summarize_g(d, info):
     runs = load_runs(d)
     out = header(d, info, "the full-size run")
     out += check_lines(d)
+    if (d / "plan.txt").exists():
+        out += ["The plan printed before the runs (`plan.txt`):", "",
+                "```text", (d / "plan.txt").read_text().rstrip(), "```", ""]
     pts = by_point(runs, "full")
+    rows, base = strong_scaling(pts)
+    out += ["Table \"Strong scaling\" (one row per configuration, ranks x "
+            "threads; rank 0's Chrono phases, s, per step in ms; core-µs per "
+            "element and step = (`solve_step` + check) × cores / tetrahedra / "
+            "steps; loop efficiency = core-µs at the smallest core count of "
+            "the same code"
+            + "".join(f" ({'C++' if k else 'port'}: {v[0]} cores)"
+                      for k, v in sorted(base.items()))
+            + " / core-µs here):", "",
+            table(["code", "ranks x threads", "cores", "wall s", "read_mesh",
+                   "dist_mesh", "init_full", "static solve",
+                   "`solve_step` ms/step", "check ms/step",
+                   "energies ms/step", "loop s", "core-µs/el/step",
+                   "loop efficiency"], rows)]
     hdr = ["code", "ranks", "wall s", "read_mesh", "dist_mesh", "init_full",
            "static solve", "before_step", "`solve_step` s (ms/step)",
            "check s (ms/step)", "energies s (ms/step)", "loop s",
