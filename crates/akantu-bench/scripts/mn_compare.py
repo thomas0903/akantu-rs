@@ -152,8 +152,7 @@ def is_foreign(ref):
 def mesh_name(path):
     """File name of a summary's mesh; the campaign tool copies the frozen h = 0.12 mesh
     as frozen-cube-h0.12.msh (the same bytes as the session's cube-h0.12.msh)."""
-    n = Path(path or "").name
-    return n[len("frozen-"):] if n.startswith("frozen-") else n
+    return Path(path or "").name.removeprefix("frozen-")
 
 
 def foreign_partition(ref, run):

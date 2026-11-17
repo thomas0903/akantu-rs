@@ -79,8 +79,8 @@ class Commands(unittest.TestCase):
 
 
 class Preflight(unittest.TestCase):
-    hosts = [("a", 2), ("b", 2)]
-    good = [row(0, "a", "0", "0"), row(1, "a", "1", "1"), row(2, "b", "0", "0"), row(3, "b", "1", "1")]
+    hosts = (("a", 2), ("b", 2))
+    good = (row(0, "a", "0", "0"), row(1, "a", "1", "1"), row(2, "b", "0", "0"), row(3, "b", "1", "1"))
 
     def test_one_distinct_core_per_rank_on_every_host(self):
         self.assertEqual(mn_cluster.check_problems(self.good, self.hosts, "self"), [])
@@ -211,7 +211,7 @@ class BindRankScript(unittest.TestCase):
     def run_bound(self, env):
         cmd = ["sh", str(BIND_RANK), "1", "awk", "/^Cpus_allowed_list:/ {print $2}", "/proc/self/status"]
         base = {k: v for k, v in os.environ.items() if not k.startswith(("OMPI_", "PMIX_"))}
-        return subprocess.run(cmd, env={**base, **env}, capture_output=True, text=True)
+        return subprocess.run(cmd, env={**base, **env}, capture_output=True, text=True, check=False)
 
     def allowed(self):
         cpus = []
