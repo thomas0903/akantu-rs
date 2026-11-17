@@ -190,7 +190,7 @@ impl<const DIM: usize> MaterialDamageLinear<DIM> {
     /// Upstream `computeStress(type, ghost)`.
     pub(crate) fn stress_impl(
         &mut self,
-        _ctx: &LawContext<'_>,
+        ctx: &LawContext<'_>,
         ty: ElementType,
         ghost: GhostType,
     ) -> Result<()> {
@@ -206,22 +206,58 @@ impl<const DIM: usize> MaterialDamageLinear<DIM> {
             nq,
             &[sigma.len(), dam.len(), k.len()],
         )?;
-        for (q, (g, s)) in grad_u
-            .as_slice()
-            .chunks_exact(n)
-            .zip(sigma.as_mut_slice().chunks_exact_mut(n))
-            .enumerate()
-        {
-            // UD-575: upstream reads and writes the first point's threshold
-            let kq = if per_point { q } else { 0 };
-            let (d, knew) = self.stress_on_quad(
-                as_matrix(g)?,
-                as_matrix_mut(s)?,
-                dam.as_slice()[q],
-                k.as_slice()[kq],
+        if per_point {
+            // every point from its own values (copies of the blocks,
+            // written back when every point succeeded): parts on the
+            // model's threads (D-123)
+            check_lengths(
+                "MaterialDamageLinear::computeStress: components",
+                n,
+                &[grad_u.nb_component(), sigma.nb_component()],
             )?;
-            dam.as_mut_slice()[q] = d;
-            k.as_mut_slice()[kq] = knew;
+            let items = (
+                akantu_core::exec::TuplesRef::new(grad_u.as_slice(), n),
+                akantu_core::exec::Tuples::new(sigma.as_mut_slice(), n),
+                akantu_core::exec::Tuples::new(dam.as_mut_slice(), 1),
+                akantu_core::exec::Tuples::new(k.as_mut_slice(), 1),
+            );
+            let this = &*self;
+            akantu_solid::material::points_exec(this, ctx).try_for_each(
+                items,
+                512,
+                |_, (g, mut s, mut dam, mut k)| {
+                    let points = g
+                        .as_slice()
+                        .chunks_exact(n)
+                        .zip(s.as_mut_slice().chunks_exact_mut(n))
+                        .zip(dam.as_mut_slice().iter_mut().zip(k.as_mut_slice()));
+                    for ((g, s), (dam, k)) in points {
+                        let (d, knew) =
+                            this.stress_on_quad(as_matrix(g)?, as_matrix_mut(s)?, *dam, *k)?;
+                        *dam = d;
+                        *k = knew;
+                    }
+                    Ok(())
+                },
+            )?;
+        } else {
+            for (q, (g, s)) in grad_u
+                .as_slice()
+                .chunks_exact(n)
+                .zip(sigma.as_mut_slice().chunks_exact_mut(n))
+                .enumerate()
+            {
+                // UD-575: upstream reads and writes the first point's threshold
+                let kq = if per_point { q } else { 0 };
+                let (d, knew) = self.stress_on_quad(
+                    as_matrix(g)?,
+                    as_matrix_mut(s)?,
+                    dam.as_slice()[q],
+                    k.as_slice()[kq],
+                )?;
+                dam.as_mut_slice()[q] = d;
+                k.as_mut_slice()[kq] = knew;
+            }
         }
         self.elastic
             .base_mut()
@@ -231,6 +267,14 @@ impl<const DIM: usize> MaterialDamageLinear<DIM> {
         self.damage.damage.get_mut(ty, ghost)?.copy_from(&dam)?;
         self.k.get_mut(ty, ghost)?.copy_from(&k)?;
         Ok(())
+    }
+
+    /// With per-point thresholds (the corrected default) a point reads
+    /// only its own gradient, damage and threshold (copies of the blocks)
+    /// and the law's constants. Upstream mode (UD-575): every point reads
+    /// and writes the first point's threshold, the loop stays serial.
+    pub(crate) fn points_are_independent(&self) -> bool {
+        self.extra_options.damage_linear_threshold_per_point
     }
 
     const PARAMS: &'static [ParamDescriptor<Self>] = akantu_solid::elastic_parent_params!(

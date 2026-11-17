@@ -15,7 +15,10 @@
 
 use akantu_core::array_shared::{ArrayMut, SharedArray};
 use akantu_core::enums::{MatrixType, SynchronizationTag};
-use akantu_core::{Array, Element, ElementKind, ElementType, Error, GhostType, Real, Result};
+use std::collections::HashMap;
+
+use akantu_core::exec::{Exec, NodeScatter};
+use akantu_core::{Array, Element, ElementKind, ElementType, Error, GhostType, Idx, Real, Result};
 use akantu_fe::FeEngine;
 use akantu_mesh::Mesh;
 use akantu_model::ConstitutiveLawsHandler;
@@ -31,6 +34,111 @@ use crate::law::DiffusionLaw;
 
 /// Elemental matrices of one element type: `(type, filter, K_e)`.
 pub(crate) type ElementalBlock = (ElementType, Vec<akantu_core::Idx>, Array<Real>);
+
+/// The cached node-ordered scatter tables of the threaded internal-flow
+/// assembly, per `(law, type, ghost)`; built on first use with more than
+/// one thread.
+#[derive(Default)]
+pub(crate) struct FlowScatters(HashMap<(usize, ElementType, GhostType), ScatterEntry>);
+
+impl std::fmt::Debug for FlowScatters {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        f.debug_tuple("FlowScatters").field(&self.0.len()).finish()
+    }
+}
+
+/// A cached [`NodeScatter`] with what it was built from: the mesh topology
+/// revision and the law's filter. The table is reused while both are
+/// unchanged and the connectivity is not exported (foreign code could write
+/// it without a revision); otherwise it is checked row by row against the
+/// connectivity ([`NodeScatter::matches`]) and rebuilt when it differs.
+struct ScatterEntry {
+    revision: u64,
+    filter: Vec<Idx>,
+    table: NodeScatter,
+}
+
+/// `f_int −= ∫ Bᵀ D∇u` of one block: the serial scatter, or with more than
+/// one thread the node-ordered scatter (the same additions in the same
+/// order per node, D-123) with its table from the cache. Every size the
+/// serial routine checks is checked first; on a mismatch, or an element or
+/// node out of range, the serial routine runs and reports it.
+#[allow(clippy::too_many_arguments)] // the block, its table cache and the output
+fn scatter_flow_block(
+    exec: &Exec,
+    mesh: &Mesh,
+    r_e: &Array<Real>,
+    f_int: &mut ArrayMut<'_, Real>,
+    ty: ElementType,
+    ghost: GhostType,
+    filter: &[Idx],
+    key: (usize, ElementType, GhostType),
+    scatters: &mut FlowScatters,
+) -> Result<()> {
+    let serial = |f_int: &mut ArrayMut<'_, Real>| {
+        DofManager::assemble_elemental_array_local_view(
+            mesh,
+            r_e.view(),
+            f_int.view_mut(),
+            ty,
+            ghost,
+            -1.0,
+            Some(filter),
+        )
+    };
+    if !exec.is_parallel() || (mesh.nb_element(ty, ghost) == 0 && r_e.is_empty()) {
+        return serial(f_int);
+    }
+    let conn = mesh.connectivity(ty, ghost)?;
+    let nnpe = conn.nb_component();
+    let nb_nodes = f_int.len();
+    let nb_dof = r_e.nb_component().checked_div(nnpe).unwrap_or(0);
+    if nnpe == 0
+        || !r_e.nb_component().is_multiple_of(nnpe)
+        || f_int.nb_component() != nb_dof
+        || r_e.len() != filter.len()
+    {
+        drop(conn);
+        return serial(f_int);
+    }
+    let revision = mesh.revision();
+    let exported = mesh.connectivities().shared(ty, ghost)?.is_exported();
+    let (cs, fl) = (conn.as_slice(), Some(filter));
+    let valid = scatters.0.get_mut(&key).is_some_and(|e| {
+        let same = e.revision == revision && !exported && e.filter.as_slice() == filter;
+        if same || e.table.matches(exec, cs, nnpe, fl, nb_nodes) {
+            e.revision = revision;
+            if !same {
+                e.filter.clear();
+                e.filter.extend_from_slice(filter);
+            }
+            true
+        } else {
+            false
+        }
+    });
+    if !valid {
+        let Ok(table) = NodeScatter::new(cs, nnpe, fl, nb_nodes) else {
+            drop(conn);
+            return serial(f_int);
+        };
+        scatters.0.insert(
+            key,
+            ScatterEntry {
+                revision,
+                filter: filter.to_vec(),
+                table,
+            },
+        );
+    }
+    let entry = scatters
+        .0
+        .get(&key)
+        .ok_or_else(|| Error::invalid("internal flow assembly: scatter table missing"))?;
+    entry
+        .table
+        .scatter_add(exec, r_e.as_slice(), nb_dof, -1.0, f_int.as_mut_slice())
+}
 
 /// Upstream `diffusion::details::ComputeRhoFunctor`: every entry of the
 /// element's `nb_dof × nq` matrix is the law's `getRho()`.
@@ -161,7 +269,7 @@ impl DiffusionPhysics {
                 .as_mut()
                 .ok_or_else(|| not_allocated("internal_flow"))?
                 .write()?;
-            for law in self.laws.laws() {
+            for (index, law) in self.laws.laws().iter().enumerate() {
                 assemble_internal_flow_of(
                     law.as_ref(),
                     fe,
@@ -170,6 +278,7 @@ impl DiffusionPhysics {
                     self.upstream_compat.empty_filter_returns,
                     &mut f_int,
                     &mut self.flow_scratch,
+                    (index, &mut self.flow_scatters),
                 )?;
             }
             drop(f_int);
@@ -304,11 +413,15 @@ impl DiffusionPhysics {
 ///   returns instead, as upstream (UD-276).
 /// * `scratch` holds the per-point and per-element arrays between calls
 ///   (every entry is rewritten by `computeBtD` / `integrate`).
+/// * The FE kernels run on the engine's threads; the scatter to the nodes
+///   on them too, in the serial order per node ([`scatter_flow_block`],
+///   with the tables of `scatters`: the law's index and the cache).
 /// * Upstream calls `computeBtD` **without** the element filter
 ///   (`diffusion_law.cc:63`): for a law that does not own every element of
 ///   the type in mesh order its zip runs over the whole type and reads /
 ///   writes past the law's arrays (UD-279, category A). The port passes the
 ///   filter (identical for a law owning every element of its types).
+#[allow(clippy::too_many_arguments)] // the law, its block and the caches
 pub(crate) fn assemble_internal_flow_of(
     law: &dyn DiffusionLaw,
     fe: &FeEngine,
@@ -317,6 +430,7 @@ pub(crate) fn assemble_internal_flow_of(
     empty_filter_returns: bool,
     f_int: &mut ArrayMut<'_, Real>,
     scratch: &mut (Array<Real>, Array<Real>),
+    (law_index, scatters): (usize, &mut FlowScatters),
 ) -> Result<()> {
     let base = law.base();
     let (bt_d_gu, int_bt_d_gu) = scratch;
@@ -332,14 +446,16 @@ pub(crate) fn assemble_internal_flow_of(
         let d_grad_u = base.d_grad_u.get(ty, ghost)?;
         fe.compute_btd(d_grad_u.view(), bt_d_gu, ty, ghost, Some(filter))?;
         fe.integrate(bt_d_gu.view(), int_bt_d_gu, nn, ty, ghost, Some(filter))?;
-        DofManager::assemble_elemental_array_local_view(
+        scatter_flow_block(
+            fe.exec(),
             mesh,
-            int_bt_d_gu.view(),
-            f_int.view_mut(),
+            int_bt_d_gu,
+            f_int,
             ty,
             ghost,
-            -1.0,
-            Some(filter),
+            filter,
+            (law_index, ty, ghost),
+            scatters,
         )?;
     }
     Ok(())

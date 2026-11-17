@@ -343,11 +343,18 @@ impl<const DIM: usize> Material for MaterialElasticOrthotropic<DIM> {
 
     fn compute_stress(
         &mut self,
-        _ctx: &LawContext<'_>,
+        ctx: &LawContext<'_>,
         ty: ElementType,
         ghost: GhostType,
     ) -> Result<()> {
-        anisotropic_compute_stress(&mut self.base, &self.core, ty, ghost)
+        let exec = crate::material::points_exec(self, ctx);
+        anisotropic_compute_stress(exec, &mut self.base, &self.core, ty, ghost)
+    }
+
+    /// As the anisotropic law (the same kernel): a point's stress reads only
+    /// its own gradient and the constant `C`.
+    fn independent_points(&self) -> bool {
+        true
     }
 
     fn compute_tangent_moduli(
