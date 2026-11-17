@@ -142,6 +142,51 @@ pub struct Summary {
     /// when the input asks for it (`rust_load_check_*`); without it
     /// `summary.json` has none of its keys.
     pub load_check: Option<crate::load_check::LoadCheckSummary>,
+    /// Port-specific: the execution policy the run's models started with
+    /// (thread count per rank, precision mode, SIMD level), so that a
+    /// campaign can check the requested settings took effect.
+    pub exec: ExecSummary,
+}
+
+/// The execution policy of a run (`summary.json`, `rust_exec`).
+#[derive(Clone, Debug, Default, PartialEq, Eq)]
+pub struct ExecSummary {
+    /// Threads per rank.
+    pub threads: usize,
+    /// `bitwise` or `fast`.
+    pub precision: String,
+    /// The SIMD level of the kernels (`scalar`, `avx2`, ...).
+    pub simd: String,
+}
+
+impl ExecSummary {
+    /// The process default policy (`AKANTU_NUM_THREADS`,
+    /// `AKANTU_PRECISION`, `AKANTU_SIMD`); `unknown` fields if the
+    /// environment is invalid (the model creation reports that error).
+    #[must_use]
+    pub fn process_default() -> Self {
+        match akantu_core::exec::ExecPolicy::process_default() {
+            Ok(p) => Self {
+                threads: p.threads(),
+                precision: p.precision().name().into(),
+                simd: p.simd().name().into(),
+            },
+            Err(_) => Self {
+                threads: 0,
+                precision: "unknown".into(),
+                simd: "unknown".into(),
+            },
+        }
+    }
+
+    fn to_json(&self) -> String {
+        format!(
+            "{{\"threads\": {}, \"precision\": \"{}\", \"simd\": \"{}\"}}",
+            self.threads,
+            json_escape(&self.precision),
+            json_escape(&self.simd)
+        )
+    }
 }
 
 /// Size of the static matrix (`summary.json`).
@@ -307,6 +352,7 @@ impl Summary {
         if let Some(lc) = &self.load_check {
             s.push_str(&lc.json_lines());
         }
+        let _ = writeln!(s, "  \"rust_exec\": {},", self.exec.to_json());
         let _ = writeln!(s, "  \"rust_memory_kib\": {}", self.memory.to_json());
         s.push_str("}\n");
         s

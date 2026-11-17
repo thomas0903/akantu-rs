@@ -40,6 +40,11 @@
 #   --rust-extra "K=V ..."  user-section parameters of the Rust runs only (not the C++ ones),
 #                    e.g. "rust_cohesive_compat=upstream rust_doubled_node_load=follows_elements"
 #                    (the full-size rerun's settings, D-105 / D-108; c1_session.py passes them)
+#   --rust-threads T threads per rank of the Rust runs (AKANTU_NUM_THREADS = T, default
+#                    unset = 1); with T > 1 mpirun maps every rank on T consecutive cores
+#                    (--map-by slot:PE=T --bind-to core), so give the run P x T cores
+#                    (PIN_CPUS_FROM, the container's cpuset, takes P x T)
+#   --rust-precision bitwise|fast  AKANTU_PRECISION of the Rust runs (default unset = bitwise)
 #   --full-export    let the partition-export run finish (default: it is stopped as soon
 #                    as partition.csv is complete, before the static solve; see below)
 # env: CPP_CONFIG (strict), FNTE (joss: JOSS-patch emulation of the C++
@@ -123,9 +128,17 @@ if [ "${1:-}" = "--rust-run" ]; then # inside the Rust image: dir np steps mesh 
     echo "cpu.max $(cat /sys/fs/cgroup/cpu.max 2>/dev/null || echo unknown)"
     echo "nproc $(nproc)"; } > limits.txt
   export OMP_NUM_THREADS=1 OPENBLAS_NUM_THREADS=1 SCOTCH_PTHREAD_NUMBER=1
+  # the execution policy of the port (--rust-threads / --rust-precision): set
+  # in the container's environment by the campaign, forwarded to every rank
+  exec_opts=()
+  if [ -n "${AKANTU_NUM_THREADS:-}" ]; then
+    exec_opts+=(-x AKANTU_NUM_THREADS)
+    [ "${AKANTU_NUM_THREADS}" -le 1 ] || exec_opts+=(--map-by "slot:PE=${AKANTU_NUM_THREADS}" --bind-to core)
+  fi
+  [ -z "${AKANTU_PRECISION:-}" ] || exec_opts+=(-x AKANTU_PRECISION)
   t0=$(date +%s.%N)
   mpirun -np "${np}" -x OMP_NUM_THREADS -x OPENBLAS_NUM_THREADS -x OPENBLAS_CORETYPE \
-    -x SCOTCH_PTHREAD_NUMBER "${bin}" --aka_input_file input.dat > out.txt 2> err.txt
+    -x SCOTCH_PTHREAD_NUMBER ${exec_opts[@]+"${exec_opts[@]}"} "${bin}" --aka_input_file input.dat > out.txt 2> err.txt
   echo $? > exit
   t1=$(date +%s.%N)
   python3 -c "print(f'{${t1}-${t0}:.3f}')" > wall.txt
@@ -141,6 +154,7 @@ fi
 
 usage() { sed -n '12,/^# Problem:/p' "$0" | sed '$d'; exit 2; }
 memory="${MEMORY:-14g}" cpus="${CPUS:-8}" partitions="" full_export=0 rust_extra=()
+rust_threads="" rust_precision=""
 rust_image="${RUST_IMAGE:-akantu-rs-mumps:dev}"
 rust_bin="${RUST_BIN:-/target/c1/release/cohesive_extrinsic}"
 tvol="${RUST_VOLUME:-akantu-rs-mpi-target}"
@@ -154,6 +168,8 @@ while [ $# -gt 0 ]; do
     --rust-bin) rust_bin=${2:?}; shift 2 ;;
     --rust-volume) tvol=${2:?}; shift 2 ;;
     --rust-extra) read -r -a rust_extra <<< "${2?}"; shift 2 ;;
+    --rust-threads) rust_threads=${2:?}; shift 2 ;;
+    --rust-precision) rust_precision=${2:?}; shift 2 ;;
     --full-export) full_export=1; shift ;;
     --export-partition) mode=export; shift ;;
     -h|--help) usage ;;
@@ -182,14 +198,19 @@ perf_check_posint_list ranks "${ranks}" || exit 2
 [ "${mode}" = export ] || perf_check_enum_list cases "${cases}" cpp cppeig rust rusteig || exit 2
 for kv in "${extra[@]}"; do perf_check_kv "${kv}" || exit 2; done
 for kv in ${rust_extra[@]+"${rust_extra[@]}"}; do perf_check_kv "${kv}" || exit 2; done
+[ -z "${rust_threads}" ] || perf_check_posint rust-threads "${rust_threads}" || exit 2
+[ -z "${rust_precision}" ] || perf_check_enum rust-precision "${rust_precision}" bitwise fast || exit 2
+rust_env=()
+[ -z "${rust_threads}" ] || rust_env+=(-e "AKANTU_NUM_THREADS=${rust_threads}")
+[ -z "${rust_precision}" ] || rust_env+=(-e "AKANTU_PRECISION=${rust_precision}")
 cfg="${CPP_CONFIG:-strict}"
 perf_check_config "${cfg}" || exit 2
 export AKANTU_RS_FILL_NODES_TO_ELEMENTS="${FNTE:-joss}"
 perf_check_fnte "${AKANTU_RS_FILL_NODES_TO_ELEMENTS}" || exit 2
 prefix="${C1_CONTAINER_PREFIX:-c1prep}"
-cpuset_for() { # np -> docker arguments pinning the run to PIN_CPUS_FROM.. (none without it)
+cpuset_for() { # np [threads] -> docker arguments pinning the run to PIN_CPUS_FROM.. (none without it)
   [ -n "${PIN_CPUS_FROM:-}" ] || return 0
-  echo "--cpuset-cpus ${PIN_CPUS_FROM}-$((PIN_CPUS_FROM + $1 - 1))"
+  echo "--cpuset-cpus ${PIN_CPUS_FROM}-$((PIN_CPUS_FROM + $1 * ${2:-1} - 1))"
 }
 out="${OUT:-${HOME}/c1prep-results}/${campaign}"
 mkdir -p "${out}"
@@ -246,7 +267,7 @@ if [ "${mode}" = campaign ]; then
     echo "mesh=${cpp_mesh} sha256=${mesh_sha} elements=${n_elements}"
     echo "cpp_image=${PERF_IMAGE} $(perf_image_digest) config=${cfg} fnte=${AKANTU_RS_FILL_NODES_TO_ELEMENTS} memory=${memory} cpus=unlimited"
     echo "rust_image=${rust_image} $(docker image inspect --format '{{.Id}}' "${rust_image}") rust_bin=${rust_bin} sha256=${rust_sha} volume=${tvol} memory=${memory} cpus=${cpus} rust_extra=${rust_extra[*]:-}"
-    echo "pin_cpus_from=${PIN_CPUS_FROM:-none}"
+    echo "pin_cpus_from=${PIN_CPUS_FROM:-none} rust_threads=${rust_threads:-unset} rust_precision=${rust_precision:-unset}"
     echo "threads: OMP_NUM_THREADS=1 OPENBLAS_NUM_THREADS=1 SCOTCH_PTHREAD_NUMBER=1 OPENBLAS_CORETYPE=Haswell (image ENV) AKA_SEED=1"
   } | tee -a "${out}/provenance.txt"
 fi
@@ -406,8 +427,8 @@ run_case() { # case np rep
       # limits as the C++ container (--memory without swap, --shm-size 4g,
       # --init) plus the CPU quota
       # shellcheck disable=SC2046 # plain tokens without spaces
-      docker run --rm --init --name "${prefix}-${c}-np${np}-$$" $(cpuset_for "${np}") \
-        --memory "${memory}" --memory-swap "${memory}" --cpus "${cpus}" --shm-size 4g \
+      docker run --rm --init --name "${prefix}-${c}-np${np}-$$" $(cpuset_for "${np}" "${rust_threads:-1}") \
+        --memory "${memory}" --memory-swap "${memory}" --cpus "${cpus}" --shm-size 4g ${rust_env[@]+"${rust_env[@]}"} \
         -v "${tvol}:/target" -v "${repo}:/src:ro" -w /src "${rust_image}" \
         bash /src/crates/akantu-bench/scripts/c1prep_campaign.sh --rust-run \
         "${rd}" "${np}" "${steps}" "${rust_mesh}" "${part}" "${solver}" "${rust_bin}" "${extra[@]}" \
