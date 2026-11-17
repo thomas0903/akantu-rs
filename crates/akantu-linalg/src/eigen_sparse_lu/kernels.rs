@@ -1038,49 +1038,25 @@ pub(crate) fn panel_bmod(
             );
             // update: L = B * U
             luptr += ur;
-            let ldl = nr;
             let (tu, tl) = wk.tempv.split_at_mut(w * ldu);
+            let upd = PanelUpdate {
+                nr,
+                u_cols,
+                ur,
+                lusup: &glu.lusup,
+                luptr,
+                lda,
+                tu,
+                ldu,
+                lrows,
+                ucols,
+                mode,
+            };
             if exec.is_parallel() && nr * u_cols * ur >= threaded_min {
-                // scatter U (assignments; the U rows are not L rows)
-                for (u_col, &(dc, segsize)) in ucols.iter().enumerate() {
-                    let offz = ur - segsize;
-                    for t in offz..ur {
-                        wk.dense[spa(ru(glu.lsub[urows + t]), dc)] = tu[t + u_col * ldu];
-                    }
-                }
-                let upd = PanelUpdate {
-                    nr,
-                    u_cols,
-                    ur,
-                    lusup: &glu.lusup,
-                    luptr,
-                    lda,
-                    tu,
-                    ldu,
-                    lrows,
-                    ucols,
-                    mode,
-                };
+                upd.scatter_u(&mut wk.dense, &glu.lsub, urows);
                 upd.run_threaded(exec, tl, &mut wk.dense[..m * SPA_W]);
             } else {
-                // `L = 0; L += B·U` (Eigen zero-fills `L`, then `sparselu_gemm`)
-                super::simd::gemm_into_zero_mode(
-                    mode, nr, u_cols, ur, &glu.lusup, luptr, lda, tu, 0, ldu, tl, 0, ldl,
-                );
-                // scatter U (assignments) and L (one subtraction per entry; the
-                // entries are distinct, so row by row is the same arithmetic)
-                for (u_col, &(dc, segsize)) in ucols.iter().enumerate() {
-                    let offz = ur - segsize;
-                    for t in offz..ur {
-                        wk.dense[spa(ru(glu.lsub[urows + t]), dc)] = tu[t + u_col * ldu];
-                    }
-                }
-                for (i, &irow) in lrows.iter().enumerate() {
-                    let row = &mut wk.dense[spa(ru(irow), 0)..][..SPA_W];
-                    for (u_col, &(dc, _)) in ucols.iter().enumerate() {
-                        row[dc] -= tl[i + u_col * ldl];
-                    }
-                }
+                upd.run_serial(tl, &mut wk.dense, &glu.lsub, urows);
             }
         } else {
             // level 2 only: each column of the panel
@@ -1154,6 +1130,40 @@ pub(crate) struct PanelUpdate<'a> {
 }
 
 impl PanelUpdate<'_> {
+    /// The U block into the accumulator (assignments; the U rows are not L
+    /// rows): row `t` of the U block is `lsub[urows + t]`.
+    fn scatter_u(&self, dense: &mut [f64], lsub: &[i32], urows: usize) {
+        let (ur, ldu) = (self.ur, self.ldu);
+        for (u_col, &(dc, segsize)) in self.ucols.iter().enumerate() {
+            for t in ur - segsize..ur {
+                dense[spa(ru(lsub[urows + t]), dc)] = self.tu[t + u_col * ldu];
+            }
+        }
+    }
+
+    /// The serial update: `L = 0; L += B·U` (Eigen zero-fills `L`, then
+    /// `sparselu_gemm`), the U block into the accumulator, then the scatter
+    /// of `L` (one subtraction per entry; the entries are distinct, so row
+    /// by row is the same arithmetic). Out of line so that nothing of the
+    /// caller is live in the scatter loop (an extra live value made it
+    /// reload `tl` from the stack on every iteration).
+    #[inline(never)]
+    fn run_serial(&self, tl: &mut [f64], dense: &mut [f64], lsub: &[i32], urows: usize) {
+        let (nr, nc, ldl) = (self.nr, self.u_cols, self.nr);
+        super::simd::gemm_into_zero_mode(
+            self.mode, nr, nc, self.ur, self.lusup, self.luptr, self.lda, self.tu, 0, self.ldu, tl,
+            0, ldl,
+        );
+        self.scatter_u(dense, lsub, urows);
+        let tl: &[f64] = tl;
+        for (i, &irow) in self.lrows.iter().enumerate() {
+            let row = &mut dense[spa(ru(irow), 0)..][..SPA_W];
+            for (u_col, &(dc, _)) in self.ucols.iter().enumerate() {
+                row[dc] -= tl[i + u_col * ldl];
+            }
+        }
+    }
+
     // out of line: the serial path of `panel_bmod` keeps its code
     #[inline(never)]
     pub(crate) fn run_threaded(&self, exec: &Exec, tl: &mut [f64], dense: &mut [f64]) {
