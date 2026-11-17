@@ -243,15 +243,18 @@ build_python() { # variant src
 
 # Whether the variant's SparseLU factorisation uses threads, measured: the
 # `factorize` phase of suite_solid static_linear_eigen (size m) at 1 thread
-# on core 0 and at 2 threads on cores 0-1, alternated, the faster of two runs
-# each; threaded if 2 threads take less than 0.85 of the 1-thread time (a
-# factorisation that does not use the threads, or gains nothing from them,
-# is not timed with threads). Prints a JSON object.
+# on core 0 and at 4 threads on cores 0-3, alternated, the faster of two runs
+# each; threaded if 4 threads take less than 0.9 of the 1-thread time. On
+# the development machine (EPYC 7B13) the threaded factorisation of
+# perf/sparse-lu-threads took 0.78, the one-thread translation 1.00 (and
+# 0.86 at 2 threads, too close to a threshold). A factorisation that does
+# not use the threads, or gains nothing from them, is not timed with
+# threads. Prints a JSON object.
 probe_sparselu() { # dir
   local d=$1 k i f out
   out=$(mktemp -d)
   for i in 1 2; do
-    for k in 1 2; do
+    for k in 1 4; do
       f="$out/t$k.r$i.jsonl"
       AKANTU_NUM_THREADS=$k taskset -c "0-$((k - 1))" "$d/suite_solid" --case static_linear_eigen --size m --reps 1 \
         --out "$f" > /dev/null 2>&1 || true
@@ -269,11 +272,11 @@ def best(k):
                 if o.get("phase") == "factorize":
                     v.append(o["seconds"])
     return min(v) if v else None
-t1, t2 = best(1), best(2)
-r = t2 / t1 if t1 and t2 else None
+t1, t4 = best(1), best(4)
+r = t4 / t1 if t1 and t4 else None
 print(json.dumps({"case": "suite_solid static_linear_eigen, size m, phase factorize",
-                  "t1_s": t1, "t2_s": t2, "ratio": r, "threshold": 0.85,
-                  "threaded": bool(r is not None and r < 0.85)}))
+                  "t1_s": t1, "t4_s": t4, "ratio": r, "threshold": 0.9,
+                  "threaded": bool(r is not None and r < 0.9)}))
 PY
   rm -rf "$out"
 }

@@ -888,8 +888,8 @@ def summarize_d(d, info):
     out = header(d, info, "static solves and solvers")
     out += [(f"The head's SparseLU factorisation uses threads: "
             f"{info.get('sparselu_threaded', 'unknown').split()[0]} (measured by "
-            "prepare.sh: the `factorize` phase of `static_linear_eigen` at 2 "
-            "threads under 0.85 of 1 thread, `sparselu_probe` in the head's "
+            "prepare.sh: the `factorize` phase of `static_linear_eigen` at 4 "
+            "threads under 0.9 of 1 thread, `sparselu_probe` in the head's "
             "VARIANT.json; threaded variants are timed only then)."), ""]
     out += check_lines(d)
     pts = by_point(runs, "eig1")
