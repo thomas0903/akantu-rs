@@ -51,7 +51,7 @@ impl SparseMatrixAij {
     /// documentation), and so are the value release, the cache contents and
     /// its resolve counter. Returns `false`, having changed nothing but the
     /// cache's configuration (as the serial loop's first call would), when
-    /// the batch does not qualify: one thread, no stored positions yet (the
+    /// the batch does not qualify: no stored positions yet (the
     /// first rounds of [`BlockPositionCache`]), a released matrix, a block
     /// that the serial loop would not take from the cache (an equation that
     /// fails or is negative, a promotion), a slot repeated in the batch, or
@@ -72,8 +72,7 @@ impl SparseMatrixAij {
         let equations_key = cache.equations_key.take();
         let nb = slots.len();
         let symmetric = self.matrix_type == MatrixType::Symmetric;
-        if !exec.is_parallel()
-            || self.released
+        if self.released
             || nb == 0
             || nb_eq == 0
             || cache.stamp != self.position_epoch.0

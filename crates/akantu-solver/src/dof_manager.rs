@@ -2017,8 +2017,7 @@ impl DofManager {
         // the batch declines (it changed nothing) the serial loop runs with
         // that cache.
         let mut begun = None;
-        if self.exec.is_parallel()
-            && self.assembly_cache_enabled
+        if self.assembly_cache_enabled
             && elements.len() > 1
             && self.profiled.contains(&key)
             && let Some(cache) = self.assembly_caches.get(&key)
@@ -2062,7 +2061,9 @@ impl DofManager {
             );
             if done {
                 self.assembly_caches.insert(key, cache);
-                self.threaded_assemblies += 1;
+                if self.exec.is_parallel() {
+                    self.threaded_assemblies += 1;
+                }
                 return Ok(());
             }
             begun = Some(cache);

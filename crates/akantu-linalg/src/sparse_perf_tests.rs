@@ -766,7 +766,6 @@ fn threaded_batch_assembly_is_add_values() {
                         .add_values_cached_batch(exec, &mut cache, &slots, nb, &eqs, &values, vt)
                     {
                         batched += 1;
-                        assert!(exec.is_parallel(), "{what}: batch on one thread");
                     } else {
                         // the caller's serial loop
                         let mut serial_cache = cache.clone();
