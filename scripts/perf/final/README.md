@@ -41,7 +41,7 @@ Variants are directories prepared by `prepare.sh`, never hard-coded:
 An 8-core x86_64 Ubuntu 24.04 host (an AWS `m7a.2xlarge`, 32 GiB; part G an
 `r7a.16xlarge`, 64 cores, 512 GiB) with, as on the campaign's machines:
 
-1. Docker, git, Python 3 with `venv` and `pip` (network access to PyPI for
+1. Docker, git, Python 3 with `pip` (`python3-pip`; `python3-venv` is not needed) (network access to PyPI for
    `maturin`, `numpy`, `scipy`), GNU `time`, `taskset`, `lscpu`, `flock`;
    rustup for the user (the toolchain of `rust-toolchain.toml` installs
    itself).

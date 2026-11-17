@@ -222,11 +222,14 @@ build_python() { # variant src
   local v=$1 s=$2 venv="${FIN_BIN}/$1/venv" pins="${FIN_BIN}/python-constraints.txt"
   say "python: ${v}: venv and extension (maturin develop --release)"
   if [ ! -x "$venv/bin/maturin" ]; then
-    rm -rf "$venv"; python3 -m venv "$venv"
+    # without ensurepip (Ubuntu without python3-venv) the system's pip
+    # installs into the environment (--ignore-installed: nothing of the
+    # system's site packages is used)
+    rm -rf "$venv"; python3 -m venv --without-pip --system-site-packages "$venv"
     if [ -f "$pins" ]; then
-      "$venv/bin/python" -m pip install -q -c "$pins" maturin numpy scipy >> "$log" 2>&1
+      "$venv/bin/python" -m pip install -q --ignore-installed -c "$pins" maturin numpy scipy >> "$log" 2>&1
     else
-      "$venv/bin/python" -m pip install -q maturin numpy scipy >> "$log" 2>&1
+      "$venv/bin/python" -m pip install -q --ignore-installed maturin numpy scipy >> "$log" 2>&1
       "$venv/bin/python" -m pip freeze | grep -iE '^(maturin|numpy|scipy)==' > "$pins"
     fi
   fi
