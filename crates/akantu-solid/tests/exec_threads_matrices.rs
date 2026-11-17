@@ -426,3 +426,42 @@ fn kept_assembly_arrays_stay_bounded() {
         }
     }
 }
+
+/// Repeated stiffness assemblies of two laws on one thread (where the
+/// chunked assembly runs) with chunks of one, two and seven elements:
+/// `K` after every assembly bit for bit that of the uncached assembly,
+/// and the chunked steady state keeps no whole-type array.
+#[test]
+fn chunked_stiffness_assembly_with_many_chunks_is_the_uncached_one() {
+    let dat = "material elastic [\n  name = a\n  rho = 2500\n  E = 70e9\n  nu = 0.22\n]\n\
+               material elastic [\n  name = b\n  rho = 2000\n  E = 30e9\n  nu = 0.3\n]\n";
+    let run = |chunk: Option<usize>| {
+        let parser = Parser::parse_str(dat, "material.dat").unwrap();
+        let mut m =
+            SolidMechanicsModel::with_parser(SharedMesh::new(mixed_cube(3)), None, "smm", parser)
+                .unwrap();
+        m.set_exec_policy(ExecPolicy::serial()).unwrap();
+        m.set_material_selector(Box::new(EveryThird));
+        m.init_full(&options(AnalysisMethod::Static, None)).unwrap();
+        match chunk {
+            // values of one elemental matrix of a tetrahedron (12²) times
+            // the number of elements per chunk
+            Some(n) => m.solver.dof_manager.set_assembly_chunk_values(144 * n),
+            None => m.solver.dof_manager.set_assembly_cache(false),
+        }
+        let mut out = Vec::new();
+        for _ in 0..5 {
+            m.assemble_stiffness_matrix(true).unwrap();
+            out.push(state(&m, &["K"]));
+        }
+        (out, m.assembly_scratch_footprint())
+    };
+    let (reference, _) = run(None);
+    for n in [1, 2, 7] {
+        let (s, footprint) = run(Some(n));
+        for (round, (r, o)) in reference.iter().zip(&s).enumerate() {
+            compare(r, o, &format!("chunks of {n} elements, assembly {round}"));
+        }
+        assert_eq!(footprint.0, 0, "chunks of {n}: whole-type arrays kept");
+    }
+}
