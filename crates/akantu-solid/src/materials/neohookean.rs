@@ -600,6 +600,16 @@ impl<const DIM: usize> Material for MaterialNeohookean<DIM> {
         // stress field is reached through its own field below)
         let grad_u = self.base.grad_u.get(ty, ghost)?;
         let nq = grad_u.len();
+        // the gradient's shape before any loop reads it (the C33 solve and
+        // the stress split it into points of `n` values): an error, nothing
+        // written
+        if grad_u.nb_component() != n {
+            return Err(Error::DimensionMismatch {
+                context: "MaterialNeohookean::computeStress: components",
+                expected: n,
+                got: grad_u.nb_component(),
+            });
+        }
         // plane stress: C33 first (upstream PlaneStressToolbox<2>::computeStress
         // then computeThirdAxisDeformation, then the stress loop)
         if self.plane_stress_active()
@@ -663,7 +673,7 @@ impl<const DIM: usize> Material for MaterialNeohookean<DIM> {
                 got: sigma.len(),
             });
         }
-        if grad_u.nb_component() != n || sigma.nb_component() != n {
+        if sigma.nb_component() != n {
             return Err(Error::DimensionMismatch {
                 context: "MaterialNeohookean::computeStress: components",
                 expected: n,
