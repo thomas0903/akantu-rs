@@ -23,6 +23,10 @@ pub struct TimedModel<'a> {
 }
 
 impl ModelServices for TimedModel<'_> {
+    /// The inner model's executor (the process default policy's).
+    fn exec(&self) -> &akantu_core::exec::Exec {
+        self.inner.exec()
+    }
     fn spatial_dimension(&self) -> usize {
         self.inner.spatial_dimension()
     }

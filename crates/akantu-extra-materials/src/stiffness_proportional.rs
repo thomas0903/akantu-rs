@@ -244,20 +244,46 @@ impl<const DIM: usize> Material for MaterialStiffnessProportional<DIM> {
             sigma.len(),
             &[grad_v.len(), visc.len(), el.len()],
         )?;
-        for (((s, v), sv), se) in sigma
-            .as_mut_slice()
-            .chunks_exact_mut(n)
-            .zip(grad_v.as_slice().chunks_exact(n))
-            .zip(visc.as_mut_slice().chunks_exact_mut(n))
-            .zip(el.as_mut_slice().chunks_exact_mut(n))
-        {
-            let sigma_visc = self.viscous_stress(as_matrix(v)?);
-            as_matrix_mut::<DIM, DIM>(sv)?.clone_from(&sigma_visc);
-            se.copy_from_slice(s);
-            for (x, y) in s.iter_mut().zip(sigma_visc.as_flattened()) {
-                *x += *y;
-            }
-        }
+        check_lengths(
+            "MaterialStiffnessProportional::computeStress: components",
+            n,
+            &[
+                sigma.nb_component(),
+                grad_v.nb_component(),
+                visc.nb_component(),
+                el.nb_component(),
+            ],
+        )?;
+        // every point from its own stress and velocity gradient (copies of
+        // the blocks): parts on the model's threads (D-123)
+        let items = (
+            akantu_core::exec::Tuples::new(sigma.as_mut_slice(), n),
+            akantu_core::exec::TuplesRef::new(grad_v.as_slice(), n),
+            akantu_core::exec::Tuples::new(visc.as_mut_slice(), n),
+            akantu_core::exec::Tuples::new(el.as_mut_slice(), n),
+        );
+        let this = &*self;
+        akantu_solid::material::points_exec(this, ctx).try_for_each(
+            items,
+            1024,
+            |_, (mut s, v, mut sv, mut se)| {
+                for (((s, v), sv), se) in s
+                    .as_mut_slice()
+                    .chunks_exact_mut(n)
+                    .zip(v.as_slice().chunks_exact(n))
+                    .zip(sv.as_mut_slice().chunks_exact_mut(n))
+                    .zip(se.as_mut_slice().chunks_exact_mut(n))
+                {
+                    let sigma_visc = this.viscous_stress(as_matrix(v)?);
+                    as_matrix_mut::<DIM, DIM>(sv)?.clone_from(&sigma_visc);
+                    se.copy_from_slice(s);
+                    for (x, y) in s.iter_mut().zip(sigma_visc.as_flattened()) {
+                        *x += *y;
+                    }
+                }
+                Ok(())
+            },
+        )?;
         self.elastic
             .base_mut()
             .stress
@@ -266,6 +292,13 @@ impl<const DIM: usize> Material for MaterialStiffnessProportional<DIM> {
         self.stress_viscosity.get_mut(ty, ghost)?.copy_from(&visc)?;
         self.stress_elastic.get_mut(ty, ghost)?.copy_from(&el)?;
         Ok(())
+    }
+
+    /// A point's viscous stress reads only its own velocity gradient and
+    /// the law's constants; its elastic part is the elastic law's (threaded
+    /// as that law's).
+    fn independent_points(&self) -> bool {
+        true
     }
 
     fn compute_tangent_moduli(

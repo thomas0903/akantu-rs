@@ -958,7 +958,11 @@ including those registered later) and its DOF manager
 (`DofManager::exec`); its services return it to the laws
 (`ModelServices::exec`, default serial for services without a model).
 `SolidMechanicsModel::{exec_policy, set_exec_policy}` read and change it
-between steps.
+between steps; `HeatTransferModel` (`DiffusionModel`), `PhaseFieldModel`
+and `StructuralMechanicsModel` have the same pair and the same ownership
+(one policy set at creation, given to the FE engines and the DOF
+manager); the heat model's services return the engines' executor to its
+laws.
 
 Rules for a threaded kernel:
 
@@ -979,21 +983,49 @@ Rules for a threaded kernel:
   calling thread, i.e. the serial code.
 - Errors: `try_for_each` returns the error of the first failing part in
   item order. Outputs after the failing item may already be written
-  (unlike the serial loop); every caller treats the outputs of a failed
-  kernel as undefined.
+  (unlike the serial loop). The FE kernels' callers treat the outputs of a
+  failed kernel as undefined. A law's state after an error is the serial
+  loop's at every thread count (current and previous values). The laws
+  that compute into scratch blocks committed by swap (plastic, standard
+  linear solid, Marigo, Maxwell) take their guards, size the scratch and
+  load what the points read before they write (the plastic hardening, the
+  Marigo damage) on the calling thread, before the parts; the parts write
+  disjoint ranges of the scratch and call no `InternalField` method; the
+  commits run once on the calling thread after every part succeeded,
+  none when a part failed. The laws that work on copies of their blocks
+  write them back only when every point succeeded (Mazars, Drucker–Prager,
+  anisotropic damage);
+  the neo-Hookean stress finds the first point with `J ≤ 0` with a
+  read-only pass of the kernel's own predicate, runs the points before it
+  on the threads and the rest serially; the plane-stress `C33` solve
+  writes a copy and commits the points before the first failure; a law
+  whose points fail only on sizes that are the same for every point (the
+  anisotropic kernel) fails at the first point of every part, before
+  writing.
 
-Threaded today (all bitwise, `akantu-solid/tests/exec_threads.rs`): the FE
+Threaded today (all bitwise, `akantu-solid/tests/exec_threads.rs`,
+`akantu-diffusion/tests/exec_threads_explicit.rs`,
+`akantu-couplers/tests/exec_threads_phase_field.rs`): the FE
 gradient, `BᵀD` and integration batch kernels (`akantu-fe`
 `engine/fast.rs`); `grad_u −= eigen_grad_u` in `computeAllStresses`, on
 the model's threads for every law, whatever the law declares (a
 per-value subtraction, `material.rs`); the finite-deformation residual
 (`akantu-solid` `model/assembly/finite_deformation/fast.rs`); the
-internal-force scatter; the elastic law's stress and thermal loops; the
+internal-force scatter; the per-point loops of the laws that declare
+independent points (list below: stress, the per-step hooks and energies
+that run every step, the phase-field law's tangent); the
 external-work increment's per-node terms (summed in node order,
 `model/energy.rs`); in `akantu-solver`, the Newmark-β predictor and
 corrector (`integration_scheme.rs`), the lumped solve (`r += M∘a`,
 `x = α·(b / m)`), the residual scatter through the inverse equation map
-and the solution gather (`dof_manager/assembly.rs`, `dof_manager.rs`).
+and the solution gather (`dof_manager/assembly.rs`, `dof_manager.rs`); in
+the heat transfer model, the heat law's diffusivity and `D∇u` loops and
+the internal-flow scatter (`akantu-diffusion` `model/assembly.rs`, a
+cached `NodeScatter` per `(law, type, ghost)` as in the solid model),
+with the FE kernels above; in the phase-field model, its FE kernels.
+Serial still: the first-order (generalized trapezoidal) predictor and
+corrector of the heat model, the phase-field model's driving-force loop
+(its law interface carries no executor) and its internal-force scatter.
 The per-node and per-equation loops split only into parts of at least
 131,072 nodes or 262,144 equations; below, they run serially.
 
@@ -1076,22 +1108,49 @@ structural `tests/exec_threads.rs`):
   `ntbn_local` and of `integrate_rows`).
 
 A law opts in with `Material::independent_points() -> true` and uses
-`material::points_exec(self, ctx)` in its per-point loop. Declared: the
-elastic law (`elastic`, small strain and finite deformation). Must stay
-serial: the non-local laws (the `*_non_local` laws of the
-`damage_non_local` package and of `akantu-extra-materials`: the averaging
-couples points), the iterative laws with a rank reduction after the stress
-phase (`damage_iterative`, `iterative_stiffness_reduction`,
-`orthotropic_damage_iterative`), the FE² law (`material_FE2`: one sub-model
-per point), laws written in Python (the update calls into the interpreter)
-and the cohesive laws (insertion state; `akantu-cohesive`). Update each
-point from its own data and can opt in after a review of their loops (one
-declaration and the loop through `points_exec` each): `elastic_orthotropic`,
-`elastic_anisotropic`, `neohookean`, `plastic_linear_isotropic_hardening`,
-`plastic_drucker_prager`, `plastic_mazars`, `marigo`, `mazars`,
-`anisotropic_damage`, `viscoelastic_maxwell`, `sls_deviatoric`,
-`phasefield`, `damage_linear`, `brittle`, `vreepeerlings`, `visco_plastic`,
-`ve_stiffness_prop` and `reinforcement` (embedded).
+`material::points_exec(self, ctx)` in its per-point loops (a law that
+does not declare it gets the serial executor there, also for the shared
+kernels it calls: the damage parents' stress kernel, the plastic and
+damage energy updates, the thermal pre-step). Each declaration rests on a
+reading of every piece of state the stress, the tangent and the per-step
+hooks touch, and has a test of every internal field at 1 to 8 threads
+(`exec_threads.rs`) that a mutant making a point depend on its
+predecessor fails. Declared:
+
+| Law | Threaded loops | Why independent |
+|---|---|---|
+| `elastic` | stress, thermal pre-step | a point's stress from its own gradient and thermal stress |
+| `elastic_orthotropic`, `elastic_anisotropic` | stress | a point from its own gradient and the constant `C` |
+| `neohookean` (incl. 2-D plane stress) | stress, `C33` solve | a point from its own gradient and stored `C33`; error path as above |
+| `plastic_linear_isotropic_hardening` | J2 return, plastic work, thermal pre-step | a point from its own history (scratch blocks committed on success) |
+| `plastic_drucker_prager` | projection, plastic work, thermal pre-step | the same |
+| `mazars`, `plastic_mazars` | parent stress, damage loop, dissipated energy, thermal refresh | a point from its own values (copies); a failed eigen solve leaves the state unchanged |
+| `marigo` | stress and damage loop, dissipated energy, thermal refresh | a point from its own values (scratch blocks, the damage loaded first) |
+| `mazars_non_local`, `marigo_non_local` | the inner law's local loop (equivalent strain / `Y` per point) | the local loop is per point; the averaging, its own phase, stays serial |
+| `anisotropic_damage`, experimental and corrected models | stress and damage | a point from its own gradient and committed damage (copies) |
+| `viscoelastic_maxwell` | stress, branch update, potential and dissipated energy | a point from its own gradients and branch state; block constants set outside the loops; the stress and potential energy into scratch blocks, the branch state, work and dissipation in place |
+| `sls_deviatoric` | stress and history | a point from its own gradient and history (scratch blocks) |
+| `phasefield` | stress, tangent, thermal pre-step | a point from its own gradient, damage (written by the phase-field model) and thermal strain |
+| `visco_plastic` (extra materials) | flow and return, plastic work | a point from its own values (copies); upstream mode (UD-583): also the first point's previous state, which the loop does not write |
+| `damage_linear` (extra materials), per-point thresholds | stress and damage | a point from its own damage and threshold (copies) |
+| `ve_stiffness_prop` (extra materials) | viscous stress | a point from its own velocity gradient |
+
+Must stay serial: `anisotropic_damage` in its upstream model (a point
+exceeding `Dc` rewrites the law's own `E` and `ν`, which later points
+read); the non-local averages (the averaging couples points); the
+iterative laws with a rank reduction after the stress phase
+(`damage_iterative`, `iterative_stiffness_reduction`,
+`orthotropic_damage_iterative`: the damage step picks the most stressed
+point of the law); `damage_linear` in its upstream mode (UD-575: every
+point reads and writes the first point's threshold); the FE² law
+(`material_FE2`: one sub-model per point, with its own solver); laws
+written in Python (the update calls into the interpreter); the cohesive
+laws (insertion state; `akantu-cohesive`, not reviewed here). Update each
+point from its own data and can opt in after the same review and test
+(not done: no benchmark case uses them): `brittle` (its point loop hands
+each point's state to a sequential sink used by the non-local variant),
+`vreepeerlings` and `reinforcement` (embedded). The thermal pre-step of `thermal.rs` is the
+elastic law's (`MaterialElastic::compute_thermal_with`).
 
 SIMD convention (`exec::simd` module documentation): one portable body
 performing per lane the scalar sequence, one `#[target_feature]` version per
