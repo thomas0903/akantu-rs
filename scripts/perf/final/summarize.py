@@ -272,9 +272,10 @@ def suite_tables(base, title, serial=True):
     out = []
     sk = base / ".skipped"
     if sk.exists():
-        reasons = sorted({ln.split("skip:", 1)[-1].strip() + " (" +
-                          ln.split(":", 1)[0].split()[-1] + ")"
-                          for ln in sk.read_text().splitlines() if ln})
+        reasons = sorted({f"`{m.group(1)}` ({m.group(2).strip()})"
+                          for m in (re.search(r"(\S+): skip: (.*)", ln)
+                                    for ln in sk.read_text().splitlines())
+                          if m})
         out += [f"{title}: cases not run in this build: "
                 + "; ".join(reasons) + ".", ""]
 
@@ -299,22 +300,29 @@ def suite_tables(base, title, serial=True):
         return "equal (head)" if len(heads) == 1 else "DIFFER"
 
     if serial:
-        hdr = ["case", "phase", "calls", "before", "head", "head / before",
-               "head 2 threads / 1", "4 / 1", "8 / 1",
-               "fast / bitwise (1)", "fast / bitwise (8)", "digests"]
+        threaded = any(v != "head" and v.startswith("head")
+                       for (v, _, _, _) in data)
+        hdr = ["case", "phase", "calls", "before", "head", "head / before"]
+        if threaded:
+            hdr += ["head 2 threads / 1", "4 / 1", "8 / 1",
+                    "fast / bitwise (1)", "fast / bitwise (8)"]
+        hdr += ["digests"]
         rows = []
         for c, ph in keys:
             b, h = sec("before", 1, c, ph), sec("head", 1, c, ph)
-            rows.append([c, ph, calls("head", 1, c, ph) or
-                         calls("before", 1, c, ph),
-                         med_time(list(b.values())),
-                         med_time(list(h.values())), ratio(h, b)]
-                        + [ratio(sec(f"head-t{n}", 1, c, ph), h)
-                           for n in (2, 4, 8)]
-                        + [ratio(sec("head-fast", 1, c, ph), h),
-                           ratio(sec("head-fast-t8", 1, c, ph),
-                                 sec("head-t8", 1, c, ph)),
-                           digest_ok(c, 1)])
+            if not any(b.values()) and not any(h.values()):
+                continue   # a phase that does not run at 1 rank
+            row = [c, ph, calls("head", 1, c, ph) or
+                   calls("before", 1, c, ph),
+                   med_time(list(b.values())),
+                   med_time(list(h.values())), ratio(h, b)]
+            if threaded:
+                row += [ratio(sec(f"head-t{n}", 1, c, ph), h)
+                        for n in (2, 4, 8)]
+                row += [ratio(sec("head-fast", 1, c, ph), h),
+                        ratio(sec("head-fast-t8", 1, c, ph),
+                              sec("head-t8", 1, c, ph))]
+            rows.append(row + [digest_ok(c, 1)])
         out += [f"Table \"{title}\" (seconds of the phase over its calls, "
                 "median [min, max]; ratios paired per repetition):", "",
                 table(hdr, rows)]
@@ -327,7 +335,7 @@ def suite_tables(base, title, serial=True):
         for c, ph in keys:
             for np_ in nps:
                 b, h = sec("before", np_, c, ph), sec("head", np_, c, ph)
-                if not b and not h:
+                if not any(b.values()) and not any(h.values()):
                     continue
                 rt, tt, cmp_ = "", "", ""
                 for t in (4, 2):

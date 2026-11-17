@@ -360,7 +360,7 @@ part_b() {
   if want_series mpi; then
     local spec bin mcases
     for spec in "suite_solid:par_explicit_tet4_ss,par_cohesive_extrinsic" \
-      "suite_setup:explicit_step_dist_tet4,dist_mesh_tet4,dist_facets_tet4,ghost_nodes_tet4,ghost_elements_tet4,reduce_scalars" \
+      "suite_setup:explicit_step_dist_tet4,dist_mesh_tet4,dist_facets_tet4,ghost_nodes_tet4,ghost_elements_tet4,reduce_scalars,partition_scotch_tet4,partition_rcb_tet4" \
       "suite_models:heat_explicit_tet4,phasefield_staggered_tri3"; do
       bin=${spec%%:*}; IFS=, read -r -a mcases <<< "${spec#*:}"
       for ((r = 0; r < reps; r++)); do
