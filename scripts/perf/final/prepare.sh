@@ -125,7 +125,7 @@ prepare_meshes() {
   for h in 0.0925 0.0756 0.06 0.0476 0.04; do
     want_sha=$(python3 -I -c 'import json,sys; print(json.load(open(sys.argv[1]))["sha256"])' \
       "${FIN_REPO}/benchmarks/cohesive-perf/meshes/cube-h${h}.x86_64.json")
-    sha=$(docker run --rm -v akantu-perf-cohesive:/perf:ro "${FIN_ORACLE_IMAGE}" sh -c "sha256sum /perf/meshes/cube-h${h}.msh 2>/dev/null" | cut -d' ' -f1)
+    sha=$(docker run --rm -v akantu-perf-cohesive:/perf:ro "${FIN_ORACLE_IMAGE}" sh -c "sha256sum /perf/meshes/cube-h${h}.msh 2>/dev/null || true" | cut -d' ' -f1)
     if [ "$sha" != "$want_sha" ]; then
       if [ -f "${FIN_BASELINE}/meshes/cohesive/cube-h${h}.msh" ]; then
         docker run --rm -i -v akantu-perf-cohesive:/perf "${FIN_ORACLE_IMAGE}" sh -c "cat > /perf/meshes/cube-h${h}.msh" \
