@@ -652,16 +652,15 @@ the base at one thread (paired):
 
 The mid-size mesh (h = 0.06, 177,328 tetrahedra, 500 steps, without the
 static preload, the C++ Scotch partitions), 8 cores in every
-configuration but the 1 × 1 base, slowest rank, ms per step:
+configuration, slowest rank, ms per step, 3 repetitions:
 
 | ranks × threads | check | of which insertion | `solve_step` | step | step / base 8 × 1 |
 |---|---|---|---|---|---|
-| base 8 × 1 | 16.122 | 2.510 | 10.334 | 26.449 | 1 |
-| 8 × 1 | 16.029 | 2.338 | 10.336 | 26.375 | 0.997 [0.995, 0.998]; final commit 1.000 [0.989, 1.000] |
-| 4 × 2 | 17.626 | 2.987 | 11.285 | 28.911 | 1.093 |
-| 2 × 4 | 19.359 | 4.198 | 13.757 | 33.116 | 1.253 |
-| 1 × 8 | 17.761 | 3.101 | 17.705 | 35.480 | 1.341 |
-| base 1 × 1 | 58.147 | 3.088 | 26.451 | 84.684 | 3.203 |
+| base 8 × 1 | 16.081 | 2.521 | 10.319 | 26.372 | 1 |
+| 8 × 1 | 16.145 | 2.578 | 10.270 | 26.388 | 1.001 [0.998, 1.001] |
+| 4 × 2 | 17.475 | 2.895 | 11.088 | 28.557 | 1.086 [1.083, 1.087] |
+| 2 × 4 | 19.234 | 4.070 | 13.525 | 32.759 | 1.242 [1.241, 1.258] |
+| 1 × 8 | 17.820 | 3.063 | 17.496 | 35.290 | 1.338 [1.336, 1.343] |
 
 Against the C++ strict build (the branch at `ac3b3179`, before the
 per-dimension serial loop): at one rank and one thread (h = 0.12, 500
