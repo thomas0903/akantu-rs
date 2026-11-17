@@ -131,12 +131,61 @@ fn scratch_and_sandbox_ids(line: &str) -> Vec<String> {
 
 /// Internal DNS names of cloud machines in `line` (Google Cloud
 /// `<label>.c.<label>.internal`; AWS `ip-<digits, dashes>.<label>.compute.internal`
-/// and `ip-<digits, dashes>.ec2.internal`), unless the line carries the allow
-/// marker.
+/// and `ip-<digits, dashes>.ec2.internal`; the bare AWS host name
+/// `ip-<a>-<b>-<c>-<d>` with one to three digits per part, what `hostname`
+/// prints on an EC2 machine), unless the line carries the allow marker.
 fn cloud_host_names(line: &str) -> Vec<String> {
     if line.contains(ALLOW_MARKER) {
         return Vec::new();
     }
+    let mut out = internal_host_names(line);
+    for name in bare_aws_host_names(line) {
+        // a full internal name also holds its bare part: report it once
+        if !out.iter().any(|n| n.starts_with(&name)) {
+            out.push(name);
+        }
+    }
+    out
+}
+
+/// Bare AWS host names `ip-<a>-<b>-<c>-<d>` (one to three digits per part)
+/// in `line`, each a whole word: no letter, digit, `_` or `-` on either side.
+fn bare_aws_host_names(line: &str) -> Vec<String> {
+    let b = line.as_bytes();
+    let word = |c: u8| c.is_ascii_alphanumeric() || c == b'_' || c == b'-';
+    let mut out = Vec::new();
+    let mut from = 0;
+    while let Some(off) = line[from..].find("ip-") {
+        let start = from + off;
+        from = start + 3;
+        if start > 0 && word(b[start - 1]) {
+            continue;
+        }
+        let mut i = start + 3;
+        let mut parts = 0;
+        loop {
+            let d0 = i;
+            while i < b.len() && b[i].is_ascii_digit() {
+                i += 1;
+            }
+            if !(1..=3).contains(&(i - d0)) {
+                break;
+            }
+            parts += 1;
+            if parts == 4 || i >= b.len() || b[i] != b'-' {
+                break;
+            }
+            i += 1;
+        }
+        if parts == 4 && !b.get(i).is_some_and(|c| word(*c)) {
+            out.push(line[start..i].to_owned());
+        }
+    }
+    out
+}
+
+/// The `.internal` DNS names of `cloud_host_names`.
+fn internal_host_names(line: &str) -> Vec<String> {
     let label = |t: &str| {
         !t.is_empty()
             && t.bytes()
@@ -503,6 +552,20 @@ fn cloud_host_names_are_found() {
     assert!(cloud_host_names("model.smm.internal_force()").is_empty());
     assert!(cloud_host_names("x.c.internal and a.b.internal").is_empty());
     assert!(cloud_host_names(concat!("ip-x.", "ec2.internal")).is_empty());
+    // the bare AWS form, a whole word
+    let bare = ["ip", "10", "1", "2", "3"].join("-");
+    assert_eq!(
+        cloud_host_names(&format!("host={bare} cpu=x")),
+        [bare.as_str()]
+    );
+    assert_eq!(cloud_host_names(&format!("{bare}\n")), [bare.as_str()]);
+    assert_eq!(cloud_host_names(&format!("({bare}).")), [bare.as_str()]);
+    // not names: too few or too many parts, four-digit parts, inside a word
+    assert!(cloud_host_names(&["ip", "10", "1", "2"].join("-")).is_empty());
+    assert!(cloud_host_names(&format!("{bare}-4")).is_empty());
+    assert!(cloud_host_names(&["ip", "1000", "1", "2", "3"].join("-")).is_empty());
+    assert!(cloud_host_names(&format!("skip-{}", &bare[3..])).is_empty());
+    assert!(cloud_host_names(&format!("{bare}a")).is_empty());
     assert!(cloud_host_names(&format!("{gce} # public-tree-guard: allow")).is_empty());
 }
 

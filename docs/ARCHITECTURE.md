@@ -1189,13 +1189,52 @@ iterative laws with a rank reduction after the stress phase
 point of the law); `damage_linear` in its upstream mode (UD-575: every
 point reads and writes the first point's threshold); the FE² law
 (`material_FE2`: one sub-model per point, with its own solver); laws
-written in Python (the update calls into the interpreter); the cohesive
-laws (insertion state; `akantu-cohesive`, not reviewed here). Update each
+written in Python (the update calls into the interpreter). The cohesive
+laws are outside this scheme (below, "The cohesive model"). Update each
 point from its own data and can opt in after the same review and test
 (not done: no benchmark case uses them): `brittle` (its point loop hands
 each point's state to a sequential sink used by the non-local variant),
 `vreepeerlings` and `reinforcement` (embedded). The thermal pre-step of `thermal.rs` is the
 elastic law's (`MaterialElastic::compute_thermal_with`).
+
+The cohesive model (`akantu-cohesive`, bitwise at every thread count:
+`akantu-cohesive/tests/exec_threads.rs`, serial and on the in-process local
+world at 2 and 4 ranks; the par tier runs `mpi_cohesive` with two threads
+per rank) runs on the solid model's
+executor (`SolidMechanicsModelCohesive::{exec_policy, set_exec_policy}`;
+the facet FE engine follows it). The cohesive laws do not declare
+`independent_points` and do not use `points_exec`: their loops take the
+executor from the model (`ctx.services.exec()`, the facet FE engine's for
+the insertion check) and are opted in one by one in the cohesive crate.
+On threads:
+
+- the facet stresses of the insertion check: the copy plan's pairs in
+  parts of whole facets of `facet_stress` (each pair writes only its
+  facet's tuples);
+- the linear family's insertion decision: one decision per entry of the
+  law's facet filter on the threads (read-only), then, in filter order,
+  the insertion flags and the parameters appended for the new elements
+  (the norms of an inserted facet are computed again with the same
+  operations); on one part, the serial single pass;
+- the normals and openings of the cohesive elements (the FE kernels per
+  part of whole elements, with the part's sub-filter), the residual
+  `(t + t_c) N` per point and per element, scattered to the nodes in
+  element order (`NodeScatter`, cached per cohesive block and checked
+  against the connectivity before each use), and the energy update per
+  point;
+- the tractions of `cohesive_linear` and `cohesive_bilinear`: each point
+  from its own opening, normal, history and parameters, no state of the
+  law written.
+
+Stay serial: `cohesive_exponential` (per point independent, not
+converted), `cohesive_linear_fatigue` (per point independent with a dozen
+per-point fields, not converted), `cohesive_linear_friction` (its
+per-point hook counts the points in order: order-dependent as written),
+`cohesive_linear_uncoupled` (per point independent, not converted), laws
+written in Python (the update calls into the interpreter); the insertion
+itself (the transaction, the inserter's searches, the decision's flags and
+appended parameters in filter order) and the facet-stress exchange of a
+distributed mesh.
 
 SIMD convention (`exec::simd` module documentation): one portable body
 performing per lane the scalar sequence, one `#[target_feature]` version per

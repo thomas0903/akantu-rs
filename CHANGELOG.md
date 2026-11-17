@@ -10,6 +10,14 @@ change of default results or of a public API raises the minor version.
 
 ### Added
 
+- The cohesive model runs on the execution policy's threads (D-123),
+  bitwise at every thread count: the facet stresses and the insertion
+  decision of the extrinsic check, the normals, openings and tractions of
+  `cohesive_linear` and `cohesive_bilinear`, the cohesive residual
+  (scattered in element order per node) and the energy update;
+  `SolidMechanicsModelCohesive::{exec_policy, set_exec_policy}`. The
+  insertion itself and the other cohesive laws stay serial
+  (`docs/ARCHITECTURE.md`, "Execution policy").
 - `akantu_geometry::GridIndex`: a uniform-grid search structure over the
   triangle primitives of the segment intersector that tests only the
   primitives near a query, in primitive order with the predicates of
