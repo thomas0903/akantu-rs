@@ -314,6 +314,19 @@ change of default results or of a public API raises the minor version.
 
 ### Changed
 
+- `docs/BENCHMARKS.md` is rewritten around the final measurement campaign
+  (stage 1, four AWS `m7a.2xlarge`, AMD EPYC 9R14, 2026-11-17 UTC; data
+  `docs/benchmarks/perf-campaign/final/`). On one core the port's explicit
+  step takes 0.29–0.40× the C++ strict step in small strain and 0.15–0.25×
+  in finite deformation. In the cohesive benchmark at 1 to 8 ranks the
+  explicit loop takes 0.22–0.36× upstream's time. The static MUMPS solve
+  phase takes 0.79–1.11× upstream's. The sum of the ranks' memory peaks on
+  h = 0.04 is 0.77–0.80× upstream's. The measurements of 11 to 14
+  November stay as dated records. The statement on run-to-run
+  repeatability is corrected: with MUMPS the port is not bit-repeatable
+  at 2 ranks and more; with its SparseLU it is. The full-size run, the
+  nested-dissection ordering and the multi-node run of the final campaign
+  are measured separately and have marked places.
 - `DamageParent::parent_potential_energy` takes the calling law's executor
   as its first argument.
 - `akantu_solid::materials::damage::DamageParent::{stress_kernel,
@@ -358,10 +371,10 @@ change of default results or of a public API raises the minor version.
   by the first check), the elemental interpolation selects its products'
   route once per block, the copy plan after an insertion is built in
   linear time, and the linear law's effective norm uses fixed-size loops
-  (`docs/BENCHMARKS.md`, "The insertion check").
+  (`docs/benchmarks/perf-campaign/README.md`, "The insertion check").
 - The cohesive insertion step and the mesh operations under it are faster
   with bitwise identical results, serial and distributed
-  (`docs/BENCHMARKS.md`, "The insertion step"): in release builds a mesh
+  (`docs/benchmarks/perf-campaign/README.md`, "The insertion step"): in release builds a mesh
   transaction that starts from a state that passed the cross-part check
   checks the adjacency references only in the rows it replaced or appended
   (debug builds keep the full check; `SharedMesh::set_full_consistency_checks`
@@ -382,8 +395,8 @@ change of default results or of a public API raises the minor version.
   `Arc<ElementTypeMapArray<Rank>>` (shared, never changed after
   construction) instead of an `ElementTypeMapArray<Rank>`.
 - Mesh distribution and the communication layer are faster with
-  bitwise identical results (`docs/BENCHMARKS.md`, "Distribution and the
-  communication layer"): the dual graph of the partitioners counts shared
+  bitwise identical results (`docs/benchmarks/perf-campaign/README.md`,
+  "Distribution and the communication layer"): the dual graph of the partitioners counts shared
   nodes in an array over linearised elements (same graph, same Scotch
   partition), the distribution's group tables are built once instead of
   per rank, checked collectives of the MPI back-end carry payloads of at

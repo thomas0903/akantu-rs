@@ -2,7 +2,8 @@
 
 Question: which build configurations (codegen units, LTO, target CPU,
 PGO, `panic = "abort"`, allocator) make the port faster, and which of
-them keep every result bit. Summarised in `docs/BENCHMARKS.md`, "Build
+them keep every result bit. Summarised in
+`docs/benchmarks/perf-campaign/README.md` (moved from `docs/BENCHMARKS.md`), "Build
 configuration"; the user-facing statement is in the manual,
 `docs/manual/src/getting-started.md`, "Optimised builds and the target
 CPU". Tooling: `scripts/perf/build/`.

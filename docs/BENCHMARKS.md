@@ -2049,7 +2049,7 @@ Each is measured; none was worked on unless the row says so.
 
 | Slow path | Measurement | Where |
 |---|---|---|
-| The insertion check after insertions start | the largest phase at full size in both codes: 53 % of the port's wall at 64 ranks, 75 % at 8; about twice its pre-insertion cost per element and step; profiled and reworked in the performance campaign (explicit dynamics, "The insertion check"); the full-size run was not repeated | full-size run |
+| The insertion check after insertions start | the largest phase at full size in both codes: 53 % of the port's wall at 64 ranks, 75 % at 8; about twice its pre-insertion cost per element and step; profiled and reworked in the performance campaign (`docs/benchmarks/perf-campaign/README.md`, "The insertion check"); the full-size run was not repeated | full-size run |
 | The port's lead shrinks once the mesh fragments | per element and step from about 2.1× to about 1.4× on h = 0.06 (full schedule ×1.91 / ×1.65 for the port at 1 / 8 ranks against ×1.29 / ×1.09 for upstream); not profiled | mid-size rehearsal |
 | The explicit step's parallel overhead | 0.45 → 0.82 → 1.58 core-µs per element and step at 8 → 32 → 64 ranks, 1.14 before insertion at 64; the port's step goes from 0.44× upstream's at 1 rank to 0.76× at 8 and 0.82× at 64 | scaling series, full-size run |
 | The mesh distribution from rank 0 | grows by about 2.1 s per added rank at full size; 1.86× upstream's at 64 ranks | full-size run |
