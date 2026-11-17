@@ -5,7 +5,8 @@ document, the report data in `docs/reports/data/` and the tests read. Raw
 per-run records (logs, memory samples, per-rank files, partitions) and the
 session tools' logs and scheduling state are not kept in the tree; a few
 studies keep a run's own small files (listed below). Dates are local dates
-(UTC+11); the provenance files record UTC times. Host names are written
+(UTC+11), except the final campaign's, which are UTC dates; the provenance
+files record UTC times. Host names are written
 `node-host1` … `node-host8`. Home directories are written `/home/<user>`,
 except the home of the generic account `user` of the x86_64 virtual
 machines, which is kept; run directories in `summary.json` are relative to
@@ -25,6 +26,9 @@ their campaign.
 | `percopy-2026-11-13/` | the driver's per-copy load check at mid sizes (h = 0.12, h = 0.06, 1 to 8 ranks) | boat.dev `large`, x86_64 | 2026-11-13 | `analysis.txt`, `runs/files.sha256` |
 | `scaling-2026-11-13/` | weak and strong scaling of both codes at 1 to 8 ranks, before insertion and with insertion | boat.dev `large`, AMD EPYC 9455, 8 vCPU | 2026-11-13 | `ws-summary.{md,json}`, `ins-summary.{md,json}`, series logs, partition digests |
 | `mpi-latency-2026-11-14/` | akantu-comm against raw MPI, all message sizes, shared memory and TCP | boat.dev `default`, AMD Ryzen 9 9950X, 4 vCPU | 2026-11-14 | `separate.tsv`, `calibrated.txt`, `perf-lines.txt`, `provenance.txt`, the scripts |
+| `perf-campaign/final/` | the final campaign, stage 1: the C++ reference, the port before the performance campaign and the port at `53de1eeef` in every table of `docs/BENCHMARKS.md` (parts A to F: explicit step, suites, cohesive benchmark at 1 to 8 ranks, static solves, memory, set-up and MPI layer); `README.md` says what was left out | 4 × AWS `m7a.2xlarge`, AMD EPYC 9R14, 8 cores | 2026-11-17 (UTC) | per part `summary.md`, `provenance.txt`, `plan.{txt,jsonl}`, `groups.jsonl`, `sessions.jsonl`, `progress.log`, `commands.log`; `checks.jsonl`, `index.jsonl`, `runs.jsonl` (parts C to F); `suite-records.tsv`, `suite-bindings.tsv` (B, D, F); `digests.tsv`, `rounds/` (A); `mpilayer/` (F) |
+| `perf-campaign/final-dryrun/` | the final campaign's dry run of every part (not results) | development machine (a Google Cloud VM) | 2026-11-17 | per part `summary.md` and records |
+| `perf-campaign/` (other directories) | the performance campaign's development records, branch by branch (`perf-campaign/README.md`; not results) | development machines, AWS `m7a.2xlarge` shared with other jobs | 2026-11-16, 2026-11-17 | per branch `README.md` and data |
 | `dev-machine/` | development records on the Apple M4 Pro (appendix of `docs/BENCHMARKS.md`; no conclusion rests on them) | Apple M4 Pro, aarch64 Linux VM | 2026-11-10 | `cpp-baseline-m4-2026-11-10/` |
 
 The upstream JOSS study's published timings are in

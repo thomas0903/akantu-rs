@@ -1,7 +1,8 @@
 <!-- SPDX-License-Identifier: LGPL-3.0-or-later -->
 # The cohesive insertion step: measurements (performance campaign, 2026-11-17)
 
-Raw data of `docs/BENCHMARKS.md`, "The insertion step and the mesh
+Raw data of `docs/benchmarks/perf-campaign/README.md` (moved from
+`docs/BENCHMARKS.md`), "The insertion step and the mesh
 operations under it".
 
 ## Machine and method

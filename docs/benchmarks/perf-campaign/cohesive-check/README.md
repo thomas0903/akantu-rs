@@ -1,7 +1,8 @@
 <!-- SPDX-License-Identifier: LGPL-3.0-or-later -->
 # The cohesive insertion check: measurements (2026-11-16)
 
-Raw data of `docs/BENCHMARKS.md`, "The insertion check (performance
+Raw data of `docs/benchmarks/perf-campaign/README.md` (moved from
+`docs/BENCHMARKS.md`), "The insertion check (performance
 campaign, 2026-11-16)".
 
 ## Machines

@@ -821,8 +821,8 @@ def strong_weak(runs, series_list, studies):
         if rows:
             out += table(["study", "ranks", "code",
                           "efficiency (core-µs at the first point / at P)"],
-                         rows).splitlines()
-    return out + [""] if out else []
+                         rows).splitlines() + [""]
+    return out
 
 
 def check_lines(d):
@@ -869,6 +869,17 @@ def summarize_c(d, info):
             "measured by `ws`, `ins`, `full12` and `reh4`)."),
             ""]
     out += check_lines(d)
+    # a part split over machines (--only): this directory's plan names its
+    # series; the others were planned, run and summarised elsewhere
+    planned = {g["series"] for g in ST.plan if g["kind"] == "coh"}
+    allseries = ("ws", "ins", "full12", "reh6", "reh4", "eig")
+    elsewhere = [x for x in allseries if planned and x not in planned]
+    if elsewhere:
+        out += [("Series of this part not planned in this data directory "
+                 "(the part was split over machines with `--only`; they "
+                 "were planned, run and summarised in another data "
+                 "directory): " + ", ".join(f"`{x}`" for x in elsewhere)
+                 + "."), ""]
     for s, t in (("ws", ("500 steps before the first insertion (the series "
                   "`ws` of the scaling study)")),
                  ("ins", "the insertion regime on h = 0.12, 1,500 steps"),
@@ -880,7 +891,11 @@ def summarize_c(d, info):
                   "h = 0.04 (\"The mid-size rehearsal\")")),
                  ("eig", ("the port's SparseLU static solve at 1 to 8 ranks "
                   "(bitwise check of the distributed runs)"))):
+        if s in elsewhere:
+            continue
         out += cohesive_series_tables(runs, s, t)
+    if "ws" in elsewhere and "ins" in elsewhere:
+        return out
     out += ["## Weak and strong scaling", ""]
     out += strong_weak(runs, ["ws"], [
         ("weak A (≈ 23 k tets per rank)",

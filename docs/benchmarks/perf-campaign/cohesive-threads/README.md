@@ -1,7 +1,8 @@
 <!-- SPDX-License-Identifier: LGPL-3.0-or-later -->
 # The cohesive model on threads: measurements (performance campaign, 2026-11-17)
 
-Raw data of `docs/BENCHMARKS.md`, "The cohesive model on threads".
+Raw data of `docs/benchmarks/perf-campaign/README.md` (moved from
+`docs/BENCHMARKS.md`), "The cohesive model on threads".
 
 ## Machine and method
 
