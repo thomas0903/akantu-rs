@@ -31,9 +31,26 @@ parameters, computes the stress and the tangent, and gives the P-wave
 speed used by the stable time step. Registered on a model before
 `init_full`, it is used from the input file and solved statically; with
 `factor = f` it must behave as the built-in `elastic` law with Young's
-modulus `f·E`, which the example checks against the closed form
-`u_x = (1 − ν²) t / (f E)` of the uniaxial traction test of
-[Solid mechanics model](solid-mechanics.md#static-analysis):
+modulus $f E$, which the example checks against the closed form
+$u_x = (1 - \nu^2)\, t / (f E)$ of the uniaxial traction test of
+[Solid mechanics model](solid-mechanics.md#static-analysis).
+
+In formulas, with the Lamé constants computed once by `init_material`
+from the Young modulus $E$ (`E`) and the Poisson ratio $\nu$ (`nu`), the
+law's stress, its tangent in Voigt notation $(xx, yy, xy)$, and its P-wave
+speed are
+
+$$
+\begin{aligned}
+\lambda &= \frac{\nu E}{(1 + \nu)(1 - 2\nu)}, \qquad \mu = \frac{E}{2 (1 + \nu)} \\
+\boldsymbol{\sigma} &= f \left(\lambda \operatorname{tr}(\boldsymbol{\varepsilon})\, \boldsymbol{I} + 2\mu\, \boldsymbol{\varepsilon}\right),
+  \qquad \boldsymbol{\varepsilon} = \tfrac{1}{2} \left(\nabla\boldsymbol{u} + \nabla\boldsymbol{u}^T\right) \\
+\boldsymbol{D} &= f \begin{bmatrix} \lambda + 2\mu & \lambda & 0 \\ \lambda & \lambda + 2\mu & 0 \\ 0 & 0 & \mu \end{bmatrix},
+  \qquad c_p = \sqrt{\frac{f (\lambda + 2\mu)}{\rho}}
+\end{aligned}
+$$
+
+($f$ the parameter `factor`, $\rho$ the density `rho`). The law in Rust:
 
 ```rust
 use std::sync::Arc;
@@ -196,8 +213,41 @@ data (`state.base`: the common internals `grad_u`, `stress`,
 `rho`; `state.params`: the runtime parameters; `state.internals`: the
 runtime internal fields), `ctx` gives read access to the model (mesh,
 quadrature-point coordinates, nodal fields) for the current phase.
-`grad_u` holds the displacement gradient `∇u` (as upstream), not the
+`grad_u` holds the displacement gradient $\nabla\boldsymbol{u}$ (as upstream), not the
 strain; a law that needs the strain symmetrises it itself.
+
+### What each method computes
+
+* `init_material` is called once the input file is read and the elements
+  are assigned to the laws. It computes the constants that derive from
+  the parameters, such as the Lamé constants of an elastic law, and sizes
+  the internal fields (`base_init_material`).
+* `compute_stress` computes the stress at every quadrature point of the
+  given element type and ghost type from the displacement gradient (and
+  the law's internal fields). For the linear elastic law it is
+  $\boldsymbol{\sigma} = \lambda \operatorname{tr}(\boldsymbol{\varepsilon})\, \boldsymbol{I} + 2\mu\, \boldsymbol{\varepsilon}$.
+* `compute_tangent_moduli` gives the tangent $\boldsymbol{D}$ of the
+  stress-strain curve, the slope that an implicit solver needs (the
+  stiffness matrix below). $\boldsymbol{D}$ is the fourth-order tensor
+  $\mathbb{C} = \partial \boldsymbol{\sigma} / \partial \boldsymbol{\varepsilon}$
+  stored as a matrix in Voigt notation, one per quadrature point
+  (engineering shear strains, as every tangent of the port).
+* `push_wave_speed` gives the speed of the fastest wave, the compressive
+  (P) wave by default; the explicit schemes take their stable time step
+  from it, the minimum over the elements of the element size divided by
+  this speed ([Explicit dynamics](solid-mechanics.md#explicit-dynamics)).
+
+![A nonlinear stress-strain curve with the tangent at one point drawn as a triangle of base 1 and height D](figures/upstream/tangent.svg)
+*Figure: the tangent $\boldsymbol{D}$ to the stress-strain curve (figure of the Akantu manual).*
+
+The model assembles the stiffness matrix of the elements from the
+tangent,
+
+$$
+\boldsymbol{K} = \int_\Omega \boldsymbol{B}^T \boldsymbol{D}(\boldsymbol{\varepsilon})\, \boldsymbol{B}\, \mathrm{d}\Omega ,
+$$
+
+with $\boldsymbol{B}$ the matrix of the shape-function derivatives.
 
 Internal fields (upstream `InternalField<Real> damage("damage", *this)` +
 `damage.initialize(n)`) are `ForeignMaterial::register_internal_real(name,
@@ -285,11 +335,12 @@ calls `compute_non_local_stresses`. The law below is the port of upstream's
 `CustomNonLocalTestMaterial` (test `test_material_non_local`, ported in
 `crates/akantu-solid/tests/upstream_material_non_local.rs`): it extends
 `elastic` by the local field `local_damage`, averages it into `damage` and
-completes the stress as `σ ← σ (1 − damage)`. The lines that only forward
+completes the stress as $\boldsymbol{\sigma} \leftarrow \boldsymbol{\sigma}\, (1 - \bar{d})$, with $\bar{d}$ the
+averaged `damage`. The lines that only forward
 the local behaviour to the parent law are hidden in the rendered page (they
 are compiled and run as part of this page). The example checks that the
 model creates the non-local manager and that a uniform local quantity is
-reproduced by the averaging, so that `σ = 0.75 σ_el` for
+reproduced by the averaging, so that $\boldsymbol{\sigma} = 0.75\, \boldsymbol{\sigma}_\text{el}$ for
 `local_damage = 0.25`:
 
 ```rust

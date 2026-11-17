@@ -1,55 +1,103 @@
 # Plasticity
 
 Two small-strain elasto-plastic laws with an additive split of the
-strain, `ε = εᵉ + εᵖ`, and an elastic stress `σ = C:(ε − εᵖ)` (upstream
+strain, $\boldsymbol{\varepsilon} = \boldsymbol{\varepsilon}^e + \boldsymbol{\varepsilon}^p$, and an elastic stress $\boldsymbol{\sigma} = \mathbb{C}:(\boldsymbol{\varepsilon} - \boldsymbol{\varepsilon}^p)$ (upstream
 *Plastic*; code `crates/akantu-solid/src/materials/plastic.rs` and
 `drucker_prager.rs`). Both are incremental: the stress of a step starts
 from the stress and plastic strain committed at the end of the previous
 converged step.
 
+The additive decomposition is valid for infinitesimal deformations. With
+the isotropic elastic operator the elastic part of the law is
+
+$$
+\boldsymbol{\sigma} = 2\mu\, \boldsymbol{\varepsilon}^e + \lambda \operatorname{tr}(\boldsymbol{\varepsilon}^e) \boldsymbol{I},
+$$
+
+with the Lamé coefficients $\lambda$ and $\mu$ of `E` and `nu`
+([Materials](../materials.md#isotropic-hooke-law)).
+
 ## Von Mises plasticity with linear isotropic hardening: `plastic_linear_isotropic_hardening`
 
-Yield function `f = σ_eq − (σ_y + r)`, with the von Mises stress
-`σ_eq = √(3/2 s:s)` of the deviator `s = σ − (tr σ/3) I` and the
-isotropic hardening `r` (internal `iso_hardening`), and associated flow.
-The radial return of one step, with the committed values `σ_n`, `r_n`,
-`εᵖ_n`, the strain increment `Δε` and the shear modulus `μ`:
+In this law plastic flow is a shearing process: the hydrostatic stress
+does not contribute to yielding, and the plastic flow does not change the
+volume. Yielding occurs when the elastic shear energy reaches a critical
+value, which is the von Mises criterion.
 
-```text
-σ_tr  = σ_n + C:Δε                                  (trial stress)
-f_tr  = σ_eq(σ_tr) − σ_y − r_n
-if f_tr > 0:   Δp = f_tr / (3μ + h)
-               Δεᵖ = (3/2) Δp s_tr / σ_eq(σ_tr)
-               r = r_n + h Δp
-else:          Δp = 0, Δεᵖ = 0, r = r_n
-σ = σ_n + C:(Δε − Δεᵖ),   εᵖ = εᵖ_n + Δεᵖ
-```
+![Bilinear stress-strain curve: slope E up to the yield stress, slope Eh/(E+h) beyond, elastic unloading parallel to the initial slope](../figures/upstream/cl/isotropic_hardening_plasticity.svg)
+*Figure: uniaxial stress-strain curve of small-deformation plasticity with linear isotropic hardening (figure of the Akantu manual).*
+
+Yield function $f = \sigma_{eq} - (\sigma_y + r)$, with the von Mises stress
+$\sigma_{eq} = \sqrt{\tfrac{3}{2}\, \boldsymbol{s}:\boldsymbol{s}}$ of the deviator $\boldsymbol{s} = \boldsymbol{\sigma} - (\operatorname{tr} \boldsymbol{\sigma}/3) \boldsymbol{I}$ and the
+isotropic hardening $r$ (internal `iso_hardening`), and associated flow.
+The deformation is elastic while $f < 0$ and plastic when $f = 0$. After
+yielding, the normality rule gives the direction of the plastic flow,
+normal to the yield surface at the stress point,
+
+$$
+\Delta\boldsymbol{\varepsilon}^p = \Delta p\, \frac{\partial f}{\partial \boldsymbol{\sigma}}
+= \frac{3}{2}\, \Delta p\, \frac{\boldsymbol{s}}{\sigma_{eq}},
+$$
+
+and the plastic multiplier $\Delta p$ (the increment of the accumulated
+plastic strain $p$) follows from the consistency condition, which keeps
+the stress on the yield surface during plastic loading. The hardening is
+linear in $p$: $r = h\, p$ with the hardening modulus $h$ (`h`). In
+uniaxial stress the slope of the curve after yield is $E h / (E + h)$.
+
+The radial return of one step, with the committed values $\boldsymbol{\sigma}_n$, $r_n$,
+$\boldsymbol{\varepsilon}^p_n$, the strain increment $\Delta\boldsymbol{\varepsilon}$ and the shear modulus $\mu$:
+
+$$
+\begin{aligned}
+\boldsymbol{\sigma}^{tr} &= \boldsymbol{\sigma}_n + \mathbb{C}:\Delta\boldsymbol{\varepsilon} && \text{(trial stress)} \\
+f^{tr} &= \sigma_{eq}(\boldsymbol{\sigma}^{tr}) - \sigma_y - r_n \\
+\text{if } f^{tr} > 0: \quad \Delta p &= \frac{f^{tr}}{3\mu + h}, \qquad
+\Delta\boldsymbol{\varepsilon}^p = \frac{3}{2}\, \Delta p\, \frac{\boldsymbol{s}^{tr}}{\sigma_{eq}(\boldsymbol{\sigma}^{tr})}, \qquad
+r = r_n + h\, \Delta p \\
+\text{else:} \quad \Delta p &= 0, \qquad \Delta\boldsymbol{\varepsilon}^p = \boldsymbol{0}, \qquad r = r_n \\
+\boldsymbol{\sigma} &= \boldsymbol{\sigma}_n + \mathbb{C}:(\Delta\boldsymbol{\varepsilon} - \Delta\boldsymbol{\varepsilon}^p), \qquad
+\boldsymbol{\varepsilon}^p = \boldsymbol{\varepsilon}^p_n + \Delta\boldsymbol{\varepsilon}^p
+\end{aligned}
+$$
+
+The plastic strain increment is deviatoric and parallel to
+$\boldsymbol{s}^{tr}$, so it scales the trial deviator without turning it
+(hence "radial" return): $\boldsymbol{s} = \boldsymbol{s}^{tr}\,(1 - 3\mu\,\Delta p / \sigma_{eq}(\boldsymbol{\sigma}^{tr}))$
+and $\sigma_{eq}(\boldsymbol{\sigma}) = \sigma_{eq}(\boldsymbol{\sigma}^{tr}) - 3\mu\,\Delta p$.
+The consistency condition
+$\sigma_{eq}(\boldsymbol{\sigma}^{tr}) - 3\mu\,\Delta p = \sigma_y + r_n + h\,\Delta p$
+gives the $\Delta p$ above. The return is an implicit (backward Euler)
+integration: unconditionally stable, with an accuracy that depends on the
+size of the step.
 
 In 3-D this is upstream's algorithm; with linear hardening the
 return is exact in one step (upstream's manual writes it as an
-iteration on `Δp`). In 1-D and 2-D the port returns the represented 3-D
+iteration on $\Delta p$,
+$\mathrm{d}\Delta p = (\sigma^{tr}_{eq} - 3\mu\,\Delta p^{(k)} - \sigma_y^{(k)})/(3\mu + h)$,
+whose first iterate is already the solution). In 1-D and 2-D the port returns the represented 3-D
 state consistently (`LawOptions::j2_reduced_return =
 J2ReducedReturn::Consistent`, UD-137): 1-D uniaxial stress with
-`Δp = f_tr/(E + h)`, plane strain with the out-of-plane stress tracked
-(isochoric flow, `εᵖ33 = −tr εᵖ`), plane stress with the plane-stress
-projection (`σ33 = 0` exactly), so the returned stress lies on the yield
+$\Delta p = f^{tr}/(E + h)$, plane strain with the out-of-plane stress tracked
+(isochoric flow, $\varepsilon^p_{33} = -\operatorname{tr} \boldsymbol{\varepsilon}^p$), plane stress with the plane-stress
+projection ($\sigma_{33} = 0$ exactly), so the returned stress lies on the yield
 surface; upstream truncates the 3-D return to the in-plane block
 (`J2ReducedReturn::UpstreamTruncated` reproduces it).
 
-The tangent is the elastic tangent `C` (not the consistent elasto-plastic
+The tangent is the elastic tangent $\mathbb{C}$ (not the consistent elasto-plastic
 tangent: UD-079, kept as upstream), so a Newton solve of a plastic step
-converges linearly. Energies: `potential` `½ σ:(ε − εᵖ)`, and `plastic`,
-the plastic work `Σ ½(σ + σ_n):Δεᵖ` accumulated after converged steps.
+converges linearly. Energies: `potential` $\frac{1}{2} \boldsymbol{\sigma}:(\boldsymbol{\varepsilon} - \boldsymbol{\varepsilon}^p)$, and `plastic`,
+the plastic work $\sum \frac{1}{2}(\boldsymbol{\sigma} + \boldsymbol{\sigma}_n):\Delta\boldsymbol{\varepsilon}^p$ accumulated after converged steps.
 
 <!-- law-keywords: plastic_linear_isotropic_hardening inherits=elastic -->
 | Keyword | Meaning | Unit | Default |
 |---|---|---|---|
-| `sigma_y` | initial yield stress `σ_y` | stress | `0` |
-| `h` | hardening modulus (slope of `r` against the accumulated plastic strain `p`) | stress | `0` |
+| `sigma_y` | initial yield stress $\sigma_y$ | stress | `0` |
+| `h` | hardening modulus (slope of $r$ against the accumulated plastic strain $p$) | stress | `0` |
 
 <!-- law-internals: plastic_linear_isotropic_hardening -->
-Internal fields: `iso_hardening` (r, with history), `inelastic_strain`
-(εᵖ, dim² components, with history), `plastic_energy` (accumulated
+Internal fields: `iso_hardening` ($r$, with history), `inelastic_strain`
+($\boldsymbol{\varepsilon}^p$, $\text{dim}^2$ components, with history), `plastic_energy` (accumulated
 plastic work) and `d_plastic_energy` (plastic work of the last converged
 step).
 
@@ -57,12 +105,12 @@ Differences from upstream (switches of `LawOptions`):
 
 * `finite_strain_plasticity` (UD-030): with `finite_deformation = true`
   upstream runs a finite-strain computation and then overwrites its result
-  with the small-strain kernel on the raw `∇u`; the default refuses the
+  with the small-strain kernel on the raw $\nabla\boldsymbol{u}$; the default refuses the
   combination (`Error::Unsupported` from the stress computation),
   `FiniteStrainPlasticity::UpstreamLegacy` reproduces upstream.
 * `plastic_thermal_increment` (UD-038): with a temperature change
   upstream's trial stress uses the thermal increment with the wrong sign
-  and the final stress drops it; the default uses `σ_th − σ_th,n` in
+  and the final stress drops it; the default uses $\sigma_{th} - \sigma_{th,n}$ in
   both.
 * `committed_trial_state` (UD-138): upstream's yield test of a trial
   uses the hardening of the previous evaluation, so the rejected trials
@@ -84,17 +132,23 @@ UD-138).
 
 Perfect plasticity (no hardening) with the Drucker–Prager yield function
 
-```text
-f(σ) = √(3 J₂) + α tr σ − k,     J₂ = ½ s:s,   s = σ − (tr σ / dim) I
-α = 6 sin φ / (3 − sin φ),   c = fc (1 − sin φ) / (2 cos φ),   k = 6 c cos φ / (3 − sin φ)
-```
+$$
+\begin{aligned}
+f(\boldsymbol{\sigma}) &= \sqrt{3 J_2} + \alpha \operatorname{tr} \boldsymbol{\sigma} - k, \qquad
+J_2 = \tfrac{1}{2}\, \boldsymbol{s}:\boldsymbol{s}, \qquad
+\boldsymbol{s} = \boldsymbol{\sigma} - (\operatorname{tr} \boldsymbol{\sigma} / \text{dim})\, \boldsymbol{I} \\
+\alpha &= \frac{6 \sin\varphi}{3 - \sin\varphi}, \qquad
+c = \frac{f_c (1 - \sin\varphi)}{2 \cos\varphi}, \qquad
+k = \frac{6 c \cos\varphi}{3 - \sin\varphi}
+\end{aligned}
+$$
 
-with the friction angle `φ` (given in degrees) and the compressive
-strength `fc`; the deviator subtracts `tr σ / dim` (the `dim`-dimensional
-deviator, as upstream). The trial stress is `σ_n + C:Δε`; if `f > 0` the
+with the friction angle $\varphi$ (given in degrees) and the compressive
+strength $f_c$; the deviator subtracts $\operatorname{tr} \boldsymbol{\sigma} / \text{dim}$ (the $\text{dim}$-dimensional
+deviator, as upstream). The trial stress is $\boldsymbol{\sigma}_n + \mathbb{C}:\Delta\boldsymbol{\varepsilon}$; if $f > 0$ the
 stress is projected on the yield surface by the closed-form
 closest-point projection for the isotropic elastic operator: the regular
-return on the cone, or the apex `σ = k/(dim · α) I` when the exact
+return on the cone, or the apex $\boldsymbol{\sigma} = k/(\text{dim} \cdot \alpha)\, \boldsymbol{I}$ when the exact
 criterion selects it; with `radial_return = true` the return keeps the
 pressure fixed. The tangent is the elastic tangent; `finite_deformation`
 is refused (`Error::NotImplemented`, as upstream). The keywords `h` and
@@ -104,7 +158,7 @@ Mises law) but the yield function does not use them.
 <!-- law-keywords: plastic_drucker_prager inherits=elastic -->
 | Keyword | Meaning | Unit | Default |
 |---|---|---|---|
-| `phi` | friction angle `φ` | degree | `0` |
+| `phi` | friction angle $\varphi$ | degree | `0` |
 | `fc` | compressive strength | stress | `1` |
 | `radial_return` | return at fixed pressure | bool | `true` |
 | `sigma_y` | registered, unused by this law | stress | `0` |
@@ -112,7 +166,7 @@ Mises law) but the yield function does not use them.
 
 <!-- law-internals: plastic_drucker_prager -->
 Internal fields: `iso_hardening` (unused, 0), `inelastic_strain`
-(εᵖ), `plastic_energy`, `d_plastic_energy`, as the von Mises law.
+($\boldsymbol{\varepsilon}^p$), `plastic_energy`, `d_plastic_energy`, as the von Mises law.
 
 Differences from upstream: `LawOptions::drucker_prager_return`
 (UD-144…146): upstream's return is an iteration (an apex loop without
@@ -132,10 +186,10 @@ Tests: `crates/akantu-solid/tests/inelastic_properties.rs`
 
 ## Example
 
-Simple shear `u_x = γ y` of the unit cube beyond yield: the trial
-stress `σ_xy = μγ` has the von Mises stress `√3 μγ`, the return gives
-`Δp = (√3 μγ − σ_y)/(3μ + h)`, the hardening `r = h Δp` and the shear
-stress `σ_xy = (σ_y + h Δp)/√3` (back on the yield surface):
+Simple shear $u_x = \gamma y$ of the unit cube beyond yield: the trial
+stress $\sigma_{xy} = \mu\gamma$ has the von Mises stress $\sqrt{3}\, \mu\gamma$, the return gives
+$\Delta p = (\sqrt{3}\, \mu\gamma - \sigma_y)/(3\mu + h)$, the hardening $r = h\, \Delta p$ and the shear
+stress $\sigma_{xy} = (\sigma_y + h\, \Delta p)/\sqrt{3}$ (back on the yield surface):
 
 ```rust
 # use akantu::core::enums::{AnalysisMethod, MeshIoType};

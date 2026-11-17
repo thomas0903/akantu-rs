@@ -444,7 +444,11 @@ The initial public state.
   then private repository had failures whose causes were fixed before
   publication.
 - The user manual and the Rust and Python API documentation, deployed from
-  `main` to <https://thomas0903.github.io/akantu-rs/>.
+  `main` to <https://thomas0903.github.io/akantu-rs/>. The manual's
+  formulas are typeset (KaTeX, rendered when the book is built), and it
+  shows the figures of the upstream manual next to images of results
+  computed with akantu-rs. Building it needs mdBook 0.4.40 and
+  mdbook-katex 0.9.4.
 - The models of upstream: solid mechanics (static, explicit and implicit
   dynamics, finite deformation), cohesive elements, contact mechanics, heat
   diffusion, phase field, structural mechanics, the embedded interface, the

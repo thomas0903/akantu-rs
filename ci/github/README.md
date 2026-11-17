@@ -41,7 +41,7 @@ runner of the public repository (`ubuntu-24.04`, 4 vCPU and 16 GB;
 | `selftest` | `ci/selftest.sh` with shellcheck, PyYAML, jq and actionlint (from its digest-pinned image) | 36 s; 76 s |
 | `msrv` | `cargo check` with the toolchain of `workspace.package.rust-version` | 134 s; 138 s |
 | `rustdoc` | `cargo doc --workspace --no-deps` with `-D warnings` (HTML artifact, 7 days) | 53 s; 72 s |
-| `manual` | `mdbook build docs/manual` with mdBook 0.4.40 (HTML artifact, 7 days) | not measured; 86 s |
+| `manual` | the user manual with mdBook 0.4.40 and mdbook-katex 0.9.4, built by `ci/github/manual-build.sh`, which fails when a formula does not render (HTML artifact, 7 days) | not measured; 86 s |
 | `site`, `deploy` | the manual, rustdoc and the `python` preset (wheel, both pytest runs, pdoc), assembled by `ci/github/pages-site.sh`; the GitHub Pages deployment | 2,969 s, not replayable; 2,820 s, 11 s |
 | `features` | the feature matrix in the MUMPS image (PETSc checks in the PETSc image) | 424 s; 603 s |
 | `gates` | every line of `ci/tools/feature-gates.txt` in the MPI image | 1,208 s; 1,268 s |
@@ -68,7 +68,7 @@ Caches: every job that loads the project images keeps them with
 `actions/cache` (one entry per image set and Dockerfile hash). The jobs that
 run cargo on the runner itself (`msrv`, `rustdoc`, `site`, `python`,
 `crates-dry-run`, `miri`) also cache the cargo registry (`index` and `cache`,
-keyed by `Cargo.lock`), and `manual` and `site` cache the mdBook binary. The
+keyed by `Cargo.lock`), and `manual` and `site` cache the mdBook and mdbook-katex binaries. The
 Docker-backend jobs keep their registry in the named volume
 `akantu-rs-mpi-cargo`, which the container's user (uid 1000) owns; a cache
 restored on the runner (uid 1001) would need its ownership changed, so these

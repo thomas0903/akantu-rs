@@ -10,6 +10,15 @@ and keeps upstream's input files, output formats and behaviour, with
 floating-point results identical bit for bit wherever the computation allows
 it. Like Akantu, it is free software under the LGPL-3.0-or-later.
 
+| Dynamic fracture | Contact | Heat diffusion |
+|---|---|---|
+| ![A plate at three steps of a tensile test: a zig-zag crack opens across it](docs/manual/src/figures/examples/cohesive_extrinsic.png) | ![A half-disc pressed on a block, coloured by the vertical stress, with the contact forces as arrows](docs/manual/src/figures/examples/contact_explicit_static.png) | ![The temperature spreading from a hot disc at three times, with isotherms](docs/manual/src/figures/examples/heat_diffusion_dynamics_2d.png) |
+
+Results computed with akantu-rs: the examples `cohesive_extrinsic`,
+`contact_explicit_static` and `heat_diffusion_dynamics_2d`. The manual's
+[Examples](docs/manual/src/examples.md) chapter describes each example,
+with its set-up, its result and the command that runs it.
+
 ## State
 
 <!-- BEGIN GENERATED: parity-stats (scripts/parity/stats.py --update) -->
@@ -125,7 +134,7 @@ the fixtures were first recorded on aarch64 Linux. The details are in
 
 | Document | Content |
 |---|---|
-| [User manual](docs/manual/src/introduction.md) | mdBook (`mdbook build docs/manual`), organised like upstream's manual; every Rust example in it is a doc-test |
+| [User manual](docs/manual/src/introduction.md) | mdBook (`mdbook build docs/manual`, with the preprocessor mdbook-katex), organised like upstream's manual, with the theory of each model, typeset formulas and figures; every Rust example in it is a doc-test |
 | [Differences from the C++ library](docs/manual/src/differences.md) | corrected defaults, compatibility switches, API conventions |
 | [`docs/FEATURE_PARITY.md`](docs/FEATURE_PARITY.md) | the parity matrix: every upstream feature, its Rust counterpart, status and evidence |
 | [`docs/VALIDATION_SUMMARY.md`](docs/VALIDATION_SUMMARY.md) | how the port was verified, per area, and what is validated less |

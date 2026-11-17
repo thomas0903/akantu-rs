@@ -11,8 +11,8 @@ STRUCT-001…013, DOC-016). `akantu::structural::StructuralMechanicsModel`
 (crate `akantu-structural`, feature `structural`, on by default) solves
 linear structural problems on
 
-* 2-D Bernoulli beams (`_bernoulli_beam_2`, DOFs `u, v, θ` per node),
-* 3-D Bernoulli beams (`_bernoulli_beam_3`, DOFs `u, v, w, θx, θy, θz`),
+* 2-D Bernoulli beams (`_bernoulli_beam_2`, DOFs $u, v, \theta$ per node),
+* 3-D Bernoulli beams (`_bernoulli_beam_3`, DOFs $u, v, w, \theta_x, \theta_y, \theta_z$),
 * discrete Kirchhoff triangles (`_discrete_kirchhoff_triangle_18`, plates
   and shells in 3-D, 6 DOFs per node),
 
@@ -31,6 +31,155 @@ Limitations of this release (details below):
 * the lumped mass exists for beams only (as upstream; [Lumped
   mass](#lumped-mass));
 * no stable time-step estimate (upstream has none either).
+
+## Theory
+
+The model is linear in the geometry and in the material: small
+displacements and rotations, linear elastic cross-sections. Upstream's
+reference for the beam elements is Frey and Jirousek (2009).
+
+### Degrees of freedom and generalised quantities
+
+Each node carries translations and rotations in the single DOF family
+`displacement` (translations first). The elements work with generalised
+strains $\boldsymbol{\varepsilon}$ and stresses
+$\boldsymbol{\sigma} = \boldsymbol{D} \boldsymbol{\varepsilon}$ of the
+cross-section, computed in the element frame:
+
+| Type | Nodes | DOFs per node | Generalised strains | Generalised stresses | $\boldsymbol{D}$ |
+|---|---|---|---|---|---|
+| `_bernoulli_beam_2` | 2 | 3: $u, v, \theta$ | $\varepsilon, \chi$ | $N, M$ | $\operatorname{diag}(EA, EI)$ |
+| `_bernoulli_beam_3` | 2 | 6: $u, v, w, \theta_x, \theta_y, \theta_z$ | $\varepsilon, \chi_z, \chi_y, \theta_x'$ | $N, M_z, M_y, T$ | $\operatorname{diag}(EA, EI_z, EI_y, GJ)$ |
+| `_discrete_kirchhoff_triangle_18` | 3 | 6: $u, v, w, \theta_x, \theta_y, \theta_z$ | membrane strains, curvatures | membrane forces, bending moments | $\begin{bmatrix} \boldsymbol{D}_m & \\ & \boldsymbol{D}_b \end{bmatrix}$ |
+
+$E$, $A$, $I$, $I_z$, $I_y$ and $GJ$ are the fields `e`, `a`, `i`, `iz`,
+`iy` and `gj` of the element's material ([Materials](#materials)).
+
+### Bernoulli beams
+
+In the frame of a beam (local $x$ along the axis from node 1 to node 2,
+of length $L$), the axial displacement is interpolated linearly and the
+transverse displacement by cubic Hermite polynomials; the rotation is the
+slope, $\theta = \mathrm{d}v/\mathrm{d}x$ (the cross-section stays normal
+to the axis: no shear deformation). With $\xi \in [-1, 1]$ and
+$a = L/2$:
+
+$$
+\begin{aligned}
+u &= \tfrac{1 - \xi}{2} u_1 + \tfrac{1 + \xi}{2} u_2, \\
+v &= M_1(\xi) v_1 + L_1(\xi) \theta_1 + M_2(\xi) v_2 + L_2(\xi) \theta_2, \\
+M_1 &= \tfrac{1}{4}(2 - 3\xi + \xi^3), \quad
+M_2 = \tfrac{1}{4}(2 + 3\xi - \xi^3), \\
+L_1 &= \tfrac{a}{4}(1 - \xi - \xi^2 + \xi^3), \quad
+L_2 = \tfrac{a}{4}(-1 - \xi + \xi^2 + \xi^3).
+\end{aligned}
+$$
+
+The generalised strains are the axial strain and the curvature,
+
+$$
+\varepsilon = \frac{\mathrm{d}u}{\mathrm{d}x}, \qquad
+\chi = -\frac{\mathrm{d}^2 v}{\mathrm{d}x^2}, \qquad
+N = EA\,\varepsilon, \qquad M = EI\,\chi ,
+$$
+
+so $\boldsymbol{\varepsilon} = \boldsymbol{B} \boldsymbol{u}_e$ with a
+constant axial row and a curvature row linear in $\xi$.
+
+![A 2-D beam element inclined by the angle alpha, with the displacements u, v and the rotation theta at both nodes](../figures/structural-beam-dofs.svg)
+*Figure: the six DOFs of a `_bernoulli_beam_2` in its element frame; the rotation $\boldsymbol{T}$ maps the global components to these.*
+
+The element stiffness is
+$\boldsymbol{K}_e = \int_0^L \boldsymbol{B}^T \boldsymbol{D} \boldsymbol{B} \, \mathrm{d}x$,
+integrated with two Gauss points (exact, since $\boldsymbol{B}$ is at
+most linear). For the 2-D beam with the DOFs
+$(u_1, v_1, \theta_1, u_2, v_2, \theta_2)$ it is the classical matrix
+
+$$
+\boldsymbol{K}_e = \begin{bmatrix}
+\frac{EA}{L} & 0 & 0 & -\frac{EA}{L} & 0 & 0 \\
+0 & \frac{12EI}{L^3} & \frac{6EI}{L^2} & 0 & -\frac{12EI}{L^3} & \frac{6EI}{L^2} \\
+0 & \frac{6EI}{L^2} & \frac{4EI}{L} & 0 & -\frac{6EI}{L^2} & \frac{2EI}{L} \\
+-\frac{EA}{L} & 0 & 0 & \frac{EA}{L} & 0 & 0 \\
+0 & -\frac{12EI}{L^3} & -\frac{6EI}{L^2} & 0 & \frac{12EI}{L^3} & -\frac{6EI}{L^2} \\
+0 & \frac{6EI}{L^2} & \frac{2EI}{L} & 0 & -\frac{6EI}{L^2} & \frac{4EI}{L}
+\end{bmatrix}
+$$
+
+(the example of [Structural element kernels and FE
+engine](#structural-element-kernels-and-fe-engine) checks three of its
+entries). It is assembled in global components as
+$\boldsymbol{T}^T \boldsymbol{K}_e \boldsymbol{T}$, with $\boldsymbol{T}$
+block diagonal and, per node of a 2-D beam at the angle $\alpha$ to the
+global $X$ axis,
+
+$$
+\boldsymbol{R} = \begin{bmatrix} \cos\alpha & \sin\alpha & 0 \\ -\sin\alpha & \cos\alpha & 0 \\ 0 & 0 & 1 \end{bmatrix}.
+$$
+
+The 3-D beam adds a second bending plane and the torsion: $v$ (with
+$\theta_z$) bends in the local $x$–$y$ plane with $EI_z$, $w$ (with
+$\theta_y = -\mathrm{d}w/\mathrm{d}x$) in the $x$–$z$ plane with $EI_y$,
+and the twist $\theta_x$ is interpolated linearly, its derivative being
+the torsion strain carried by $GJ$. The local $z$ axis is the element's
+`extra_normal` (below), and $\boldsymbol{R}$ is the $3 \times 3$ rotation
+of the frame $(x, y = z \times x, z)$, applied to the translations and to
+the rotations of each node.
+
+### Discrete Kirchhoff triangle
+
+`_discrete_kirchhoff_triangle_18` is a flat shell: a membrane triangle
+and a plate-bending triangle in the plane of the element. The membrane
+part interpolates the in-plane displacements $u, v$ linearly (constant
+membrane strains). The bending part is the discrete Kirchhoff triangle
+(Batoz, Bathe and Ho, 1980): the rotations are interpolated quadratically
+and the Kirchhoff condition (no transverse shear) is imposed at discrete
+points of the edges, so that the curvatures depend on $w$, $\theta_x$ and
+$\theta_y$ of the three nodes. The rotation about the normal of the
+element (the sixth DOF in the element frame) receives no stiffness: it
+must be blocked or held by other elements. The tangent of a material with
+thickness $t$ and Poisson's ratio $\nu$ is
+
+$$
+\boldsymbol{D}_m = \frac{E t}{1 - \nu^2}
+\begin{bmatrix} 1 & \nu & 0 \\ \nu & 1 & 0 \\ 0 & 0 & \frac{1 - \nu}{2} \end{bmatrix},
+\qquad
+\boldsymbol{D}_b = \frac{t^2}{12} \boldsymbol{D}_m
+= \frac{E t^3}{12 (1 - \nu^2)}
+\begin{bmatrix} 1 & \nu & 0 \\ \nu & 1 & 0 \\ 0 & 0 & \frac{1 - \nu}{2} \end{bmatrix}
+$$
+
+(upstream multiplies by $t^3/12$ instead of $t^2/12$, UD-007). The
+element has no shape functions upstream (UD-053), so it has stiffness,
+stresses and internal forces but no line loads, no consistent mass and no
+lumped mass.
+
+### Mass matrices and equations of motion
+
+The consistent mass of a beam is
+
+$$
+\boldsymbol{M}_e = \int_0^L \boldsymbol{N}_m^T \bar{\boldsymbol{\rho}} \, \boldsymbol{N}_m \, \mathrm{d}x
+$$
+
+with $\boldsymbol{N}_m$ the rows of the shape matrix of the translations
+($u, v$ in 2-D; $u, v, w$ and the twist $\theta_x$ in 3-D), the weights
+$\bar{\boldsymbol{\rho}} = \rho A$ for the translations and
+$\rho (I_y + I_z)$ for the twist (UD-507), and four Gauss points; the
+bending rotations enter only through the Hermite functions of the
+transverse displacement, as upstream. The lumped
+mass is described in [Lumped mass](#lumped-mass). The model solves
+
+$$
+\boldsymbol{K} \boldsymbol{u} = \boldsymbol{f}_\text{ext}
+\quad \text{(static)}, \qquad
+\boldsymbol{M} \ddot{\boldsymbol{u}} + \boldsymbol{K} \boldsymbol{u} = \boldsymbol{f}_\text{ext}
+\quad \text{(dynamic)},
+$$
+
+with $\boldsymbol{u}$ the generalised displacements (displacements and
+rotations) and $\boldsymbol{f}_\text{ext}$ the generalised forces (forces
+and moments); the damping matrix exists but stays empty (UD-517).
 
 ## Creating the model
 
@@ -86,9 +235,9 @@ method: upstream's `initFull()` without argument (like
 
 Normals of 3-D beams. Each `_bernoulli_beam_3` needs a unit normal in
 the elemental mesh data `extra_normal` (`akantu::fe::structural::EXTRA_NORMAL`,
-three values per element): it is the local `z` axis of the cross-section
-(local `x` along the beam, `y = z × x`; `Iz` governs the bending in the
-local `x`–`y` plane, `Iy` in the `x`–`z` plane). Give it on the mesh before
+three values per element): it is the local $z$ axis of the cross-section
+(local $x$ along the beam, $y = z \times x$; `Iz` governs the bending in the
+local $x$–$y$ plane, `Iy` in the $x$–$z$ plane). Give it on the mesh before
 the model is created, or with `set_extra_normals(type, normals)` (validated
 before the mesh is touched; a refused normal leaves the mesh unchanged).
 Without normals `init_full` fails (UD-294); a normal that is not a unit
@@ -127,7 +276,7 @@ The nodal arrays have `nb_degree_of_freedom` components per node
 | `getVelocity()`, `getAcceleration()` | `velocity()`, `acceleration()` (and `…_mut`) | dynamic analyses only |
 | `getBlockedDOFs()` | `blocked_dofs()`, `blocked_dofs_mut()` | `true`: imposed DOF (Dirichlet) |
 | `getExternalForce()` | `external_force()`, `external_force_mut()` | nodal forces and moments |
-| `getInternalForce()` | `internal_force()` | `f_int` |
+| `getInternalForce()` | `internal_force()` | $\boldsymbol{f}_\text{int}$ |
 | `getLumpedMass()` | `lumped_mass()` | after the lumped assembly ([Lumped mass](#lumped-mass)) |
 
 Distributed loads along beams are integrated into nodal forces with
@@ -142,13 +291,22 @@ loads (no shape functions upstream, UD-053: `Error::NotImplemented`).
 
 ## Static analysis
 
-The equilibrium `K u = f_ext` is solved by `solve_step` with the model's
-Newton–Raphson solver (the problem is linear). The example
+The equilibrium $\boldsymbol{K} \boldsymbol{u} = \boldsymbol{f}_\text{ext}$ is solved by `solve_step` with the model's
+Newton–Raphson solver (the problem is linear, so the first correction is
+the solution). The example
 of the upstream manual (and of its test `TestStructBernoulli2`): a beam
 clamped at the left end and supported by two rollers, a uniform load
-`q = 6 kN/m` on the first span (as nodal equivalents) and a moment
-`M = 3.6 kN m` on the last node; the rotations of nodes 2 and 3 are
-`5.6/4800 = 0.001167` and `−3.7/4800 = −0.000771`:
+$q = 6\ \text{kN/m}$ on the first span (as nodal equivalents) and a moment
+$\bar{M} = 3.6\ \text{kN m}$ on the last node; the rotations of nodes 2 and 3 are
+$5.6/4800 = 0.001\,167$ and $-3.7/4800 = -0.000\,771$:
+
+![A two-span beam clamped at node 1 and on rollers at nodes 2 and 3, with a uniform load on the first span and a moment at node 3](../figures/upstream/beam_example.svg)
+*Figure: the 2-D beam of the example: spans of $L_1 = 10\ \text{m}$ and $L_2 = 8\ \text{m}$ with the second moments of area $I_1 = 250\,000\ \text{cm}^4$ and $I_2 = 128\,000\ \text{cm}^4$, load $q$ on the first span and moment $\bar{M}$ at node 3 (figure of the Akantu manual).*
+
+The uniform load enters as its consistent nodal forces and moments, for a
+span of length $L$:
+$f_v = -qL/2$ at both nodes, and the moments $-qL^2/12$ at the first node
+and $+qL^2/12$ at the second.
 
 ```rust
 # use akantu::core::enums::AnalysisMethod;
@@ -216,11 +374,12 @@ assert_eq!(model.stress(ty, GhostType::NotGhost)?.nb_component(), 2);
 # Ok::<(), akantu::core::Error>(())
 ```
 
-`assemble_stiffness_matrix()` assembles `K` explicitly (the solvers do it
+`assemble_stiffness_matrix()` assembles $\boldsymbol{K}$ explicitly (the solvers do it
 when needed); `compute_stresses()` computes the generalised stresses
-alone: `N, M` for 2-D beams, `N, Mz, My, T` for 3-D beams, membrane forces
+$\boldsymbol{\sigma} = \boldsymbol{D}\boldsymbol{B}\boldsymbol{u}_e$
+alone: $N, M$ for 2-D beams, $N, M_z, M_y, T$ for 3-D beams, membrane forces
 then bending moments for the discrete Kirchhoff triangle. Energies:
-`potential_energy()` (`½ uᵀ K u`), `kinetic_energy()` and `energy(id)`,
+`potential_energy()` ($\frac{1}{2} \boldsymbol{u}^T \boldsymbol{K} \boldsymbol{u}$), `kinetic_energy()` and `energy(id)`,
 which knows `"kinetic"` and `"potential"` and returns `0` for any other id,
 as upstream (UD-510, an upstream API behaviour, not a defect; there is no
 `"external work"` for this model).
@@ -230,9 +389,9 @@ as upstream (UD-510, an upstream API behaviour, not a defect; there is no
 | `AnalysisMethod` | Solver id | Integration scheme | Mass |
 |---|---|---|---|
 | `Static` | `static` | pseudo-time | — |
-| `ImplicitDynamic` | `implicit` | trapezoidal rule (Newmark β = ¼) | consistent `M` |
-| `ExplicitLumpedMass` | `explicit_lumped` | central difference | lumped `M` (beams only) |
-| `ExplicitConsistentMass` | `explicit` | central difference | consistent `M` |
+| `ImplicitDynamic` | `implicit` | trapezoidal rule (Newmark $\beta = 1/4$) | consistent $\boldsymbol{M}$ |
+| `ExplicitLumpedMass` | `explicit_lumped` | central difference | lumped $\boldsymbol{M}$ (beams only) |
+| `ExplicitConsistentMass` | `explicit` | central difference | consistent $\boldsymbol{M}$ |
 
 The time step is set with `set_time_step(dt, None)`; the model has no
 stable time-step estimate (`Model::stable_time_step` returns
@@ -240,8 +399,8 @@ stable time-step estimate (`Model::stable_time_step` returns
 element sizes and wave speeds. Initial conditions are written into
 `displacement_mut()` and `velocity_mut()`. The consistent mass is
 assembled with the element mass of the FE engine; for 3-D beams its
-torsion row uses the polar inertia `ρ (Iy + Iz)` (upstream uses `ρ A`,
-UD-507). As upstream, a damping matrix `C` exists and stays empty unless
+torsion row uses the polar inertia $\rho (I_y + I_z)$ (upstream uses $\rho A$,
+UD-507). As upstream, a damping matrix $\boldsymbol{C}$ exists and stays empty unless
 you fill it (UD-517). Until the first lumped assembly of an explicit
 lumped analysis, `kinetic_energy()` uses the consistent mass, as upstream
 (UD-510).
@@ -254,66 +413,71 @@ lumped analysis, `kinetic_energy()` uses the consistent mass, as upstream
 
 Upstream's lumped mass is identically zero (UD-005), so the port computes
 its own (beams only; other types: `Error::NotImplemented`, as upstream).
-Each beam of length `L` and mass `m = ρ A L` adds `m/2` to every
+Each beam of length $L$ and mass $m = \rho A L$ adds $m/2$ to every
 translational DOF of both nodes and, to the rotations, a rotary inertia
 built from the element-frame coefficients of the Hinton–Rock–Zienkiewicz
-diagonal scaling of the consistent beam mass: bending `J_b = m L²/78`,
-torsion `J_t = ρ (Iy + Iz) L/2`. The rule is the field
+diagonal scaling of the consistent beam mass:
+
+$$
+J_b = \frac{m L^2}{78} \quad \text{(bending)}, \qquad
+J_t = \frac{\rho (I_y + I_z) L}{2} \quad \text{(torsion)}.
+$$
+ The rule is the field
 `lumped_rotary_inertia` of `StructuralModelUpstreamCompat`
 (`LumpedRotaryInertia`, fixed at construction; UD-059, decision D-059):
 
 | Rule | 2-D | 3-D | Lumped matrix |
 |---|---|---|---|
-| `Block3x3` (default) | `J_b` | the nodal block `Jₙ = Σ_e Tₑᵀ diag(J_t, J_b, J_b) Tₑ` on `θx, θy, θz` (`Tₑ` the element's global → member rotation) | a symmetric 3×3 block per node |
-| `IsotropicMax` | `J_b` | `max(J_t, J_b)` on the three rotations | diagonal |
+| `Block3x3` (default) | $J_b$ | the nodal block $\boldsymbol{J}_n = \sum_e \boldsymbol{T}_e^T \operatorname{diag}(J_t, J_b, J_b) \boldsymbol{T}_e$ on $\theta_x, \theta_y, \theta_z$ ($\boldsymbol{T}_e$ the element's global → member rotation) | a symmetric 3×3 block per node |
+| `IsotropicMax` | $J_b$ | $\max(J_t, J_b)$ on the three rotations | diagonal |
 
-`Block3x3` is objective (a rigid rotation `Q` of the structure maps every
-block to `Q J Qᵀ` and leaves the spectrum unchanged) and exact HRZ in the
+`Block3x3` is objective (a rigid rotation $\boldsymbol{Q}$ of the structure maps every
+block to $\boldsymbol{Q} \boldsymbol{J} \boldsymbol{Q}^T$ and leaves the spectrum unchanged) and exact HRZ in the
 frame of every member. The DOF manager's lumped matrix `M` carries the
 off-diagonal entries of the blocks: the explicit lumped solve solves the
 3×3 rotary system of each node (a blocked rotation removes its row and
-column, the remaining block is solved), the residual `r −= M ü` uses the
-block product, and `kinetic_energy()` adds `½ ωᵀ Jₙ ω` per node.
+column, the remaining block is solved), the residual $\boldsymbol{r} \mathrel{-}= \boldsymbol{M} \ddot{\boldsymbol{u}}$ uses the
+block product, and `kinetic_energy()` adds $\frac{1}{2} \boldsymbol{\omega}^T \boldsymbol{J}_n \boldsymbol{\omega}$ per node.
 `lumped_mass()` holds the translations and the diagonal of the blocks,
 `rotary_inertia()` the full blocks (9 values per node, row-major; one in
 2-D).
 
-`IsotropicMax` (the rule `max(J_t, J_b) I` per node) is the diagonal
+`IsotropicMax` (the rule $\max(J_t, J_b) \boldsymbol{I}$ per node) is the diagonal
 alternative for users who need a diagonal mass. A diagonal lumped mass
 that does not depend on the orientation of the structure must be
-isotropic at each node, so it cannot carry `J_t ≠ J_b`: on elements longer
-than `h* = √(39 I_p/A)` (`4.42 r` for a circular section of radius `r`),
-the usual case for beam meshes, `J_b` is the larger term, the torsional
-inertia is over-estimated by `J_b/J_t = A L²/(39 I_p)` and the torsional
-frequencies are too low by a factor about `√(J_t/J_b)`. Torsional
-fundamental of a clamped–free steel shaft (`r = 0.02 m`, length 1.5 m):
+isotropic at each node, so it cannot carry $J_t \ne J_b$: on elements longer
+than $h^* = \sqrt{39 I_p/A}$ ($4.42\, r$ for a circular section of radius $r$),
+the usual case for beam meshes, $J_b$ is the larger term, the torsional
+inertia is over-estimated by $J_b/J_t = A L^2/(39 I_p)$ and the torsional
+frequencies are too low by a factor about $\sqrt{J_t/J_b}$. Torsional
+fundamental of a clamped–free steel shaft ($r = 0.02\ \text{m}$, length 1.5 m):
 
-| elements | `L/r` | `J_b/J_t` | `Block3x3` | `IsotropicMax` |
+| elements | $L/r$ | $J_b/J_t$ | `Block3x3` | `IsotropicMax` |
 |---|---|---|---|---|
 | 3 | 25 | 32.1 | −1.14 % | −82.5 % |
 | 6 | 12.5 | 8.01 | −0.29 % | −64.8 % |
 | 12 | 6.25 | 2.00 | −0.071 % | −29.4 % |
 | 24 | 3.12 | 0.50 | −0.018 % | −0.018 % |
 
-With `Block3x3` the torsional fundamental is `(4N/π) sin(π/(4N))` times
-the exact one for `N` elements (the closed form of the lumped chain), in
+With `Block3x3` the torsional fundamental is $\frac{4N}{\pi} \sin\frac{\pi}{4N}$ times
+the exact one for $N$ elements (the closed form of the lumped chain), in
 every orientation of the shaft (`lumped_rotary_blocks.rs`). Bending is the
-same for both rules on coarse meshes; on fine meshes (`L < h*`)
+same for both rules on coarse meshes; on fine meshes ($L < h^*$)
 `IsotropicMax` gives the bending rotations the polar inertia, so bending
-converges to the Rayleigh-beam value (an offset of −4.4e-4 for that
-shaft). The stable time step `2/ω_max` of that shaft is the same for the two
-rules on coarse meshes (`h > h*`), where the axial wave governs it
-(9.98e-5 s, 4.86e-5 s and 2.41e-5 s at 3, 6 and 12 elements); that was
-measured on a straight shaft along x only. The stable step of `Block3x3`
+converges to the Rayleigh-beam value (an offset of $-4.4 \times 10^{-4}$ for that
+shaft). The stable time step $2/\omega_\text{max}$ of that shaft is the same for the two
+rules on coarse meshes ($h > h^*$), where the axial wave governs it
+($9.98 \times 10^{-5}$ s, $4.86 \times 10^{-5}$ s and $2.41 \times 10^{-5}$ s at 3, 6 and 12 elements); that was
+measured on a straight shaft along $x$ only. The stable step of `Block3x3`
 is never longer than that of `IsotropicMax` (Loewner order: the element
-block `J_t aaᵀ + J_b (I − aaᵀ)` is dominated by `max(J_t, J_b) I`), and on
-meshes with `h < √(39 I_p/A)` it is shorter: the `IsotropicMax` step is
+block $J_t \boldsymbol{a}\boldsymbol{a}^T + J_b (\boldsymbol{I} - \boldsymbol{a}\boldsymbol{a}^T)$ is dominated by $\max(J_t, J_b) \boldsymbol{I}$), and on
+meshes with $h < \sqrt{39 I_p/A}$ it is shorter: the `IsotropicMax` step is
 1.39× and 2.41× longer at 24 and 48 elements of this shaft.
 
 > Warning. A time step chosen for the diagonal rule
 > (`IsotropicMax`) can be unstable with the `Block3x3` default on fine
 > meshes: `Block3x3`'s stable step is never longer than `IsotropicMax`'s,
-> and on meshes with `h < √(39 I_p/A)` it is shorter (1.39× / 2.41× at
+> and on meshes with $h < \sqrt{39 I_p/A}$ it is shorter (1.39× / 2.41× at
 > 24 / 48 elements of the reference shaft). Recompute the step, or select
 > `IsotropicMax` to keep the step.
 
@@ -324,9 +488,9 @@ those zeros as a documented difference. UD-059 is therefore corrected
 without a compatibility switch; `StructuralModelUpstreamCompat::UPSTREAM`
 keeps `Block3x3`.
 
-The lumped mass of one shaft element along x (`L = 0.5 m`): the block of
-a member along x is `diag(J_t, J_b, J_b)`, and `IsotropicMax` puts
-`max(J_t, J_b) = J_b` on the torsion as well:
+The lumped mass of one shaft element along $x$ ($L = 0.5\ \text{m}$): the block of
+a member along $x$ is $\operatorname{diag}(J_t, J_b, J_b)$, and `IsotropicMax` puts
+$\max(J_t, J_b) = J_b$ on the torsion as well:
 
 ```rust
 use akantu::core::enums::AnalysisMethod;
@@ -396,13 +560,13 @@ for node in model.lumped_mass()?.tuples() {
 ```
 
 Every free (unblocked) DOF must get a positive, finite lumped mass, since
-the explicit update divides by it: `ρ = 0` (the default density), `A = 0`
+the explicit update divides by it: $\rho = 0$ (the default density), $A = 0$
 or a node that belongs to no beam is refused with `Error::Numerical`
 naming the node and DOF, instead of producing `inf`/`NaN` (UD-518). With
 `Block3x3` in 3-D the free rotary block of every node must in addition be
-positive definite (each pivot of its `LDLᵀ` factorisation above `1e-12`
+positive definite (each pivot of its $\boldsymbol{L}\boldsymbol{D}\boldsymbol{L}^T$ factorisation above $10^{-12}$
 times its largest diagonal entry, `ROTARY_BLOCK_DEFINITENESS`): beams
-without polar moment (`Iy = Iz = 0`) that are collinear at a node give it
+without polar moment ($I_y = I_z = 0$) that are collinear at a node give it
 no inertia about their axis and are refused unless that rotation is
 blocked (`IsotropicMax` accepts them). Blocked DOFs may have a zero mass.
 The check uses the blocked flags of each call: a DOF unblocked after the
@@ -415,12 +579,12 @@ The model registers a ParaView dumper `structural_mechanics_model` (file
 base name: the model id) on the structural elements; fields are added by
 name with `add_dump_field` / `add_dump_field_vector` (padded to 3
 components) and written by `dump(time, step)` ([Output and
-dumpers](../output.md)). With `n` = 2 (2-D) or 3 (3-D) translational
+dumpers](../output.md)). With $n$ = 2 (2-D) or 3 (3-D) translational
 components per node:
 
 | Field | Content |
 |---|---|
-| `displacement`, `velocity`, `acceleration` | translational components `0..n` |
+| `displacement`, `velocity`, `acceleration` | translational components $0, \dots, n-1$ |
 | `rotation` | rotational components of the displacement |
 | `force` / `external_force`, `momentum` | external forces, external moments |
 | `internal_force`, `internal_momentum` | internal forces, internal moments |
@@ -453,10 +617,10 @@ STRUCT-001…013):
 
 | Defect | Upstream | Port default | Switch |
 |---|---|---|---|
-| UD-293 | `_bernoulli_beam_3` θy shape row `+dw/ds` (line-load moments) | `−dw/ds` | `fe.beam3_theta_y_legacy` |
+| UD-293 | `_bernoulli_beam_3` $\theta_y$ shape row $+\mathrm{d}w/\mathrm{d}s$ (line-load moments) | $-\mathrm{d}w/\mathrm{d}s$ | `fe.beam3_theta_y_legacy` |
 | UD-343 | any finite `extra_normal` builds the frame (non-orthogonal for non-unit or skew normals) | refused unless unit and orthogonal to the axis (1e-10, an input check) | `fe.beam3_normal_unchecked` |
-| UD-007 | discrete Kirchhoff triangle bending rigidity `E t⁴/(12(1−ν²))` | `E t³/(12(1−ν²))` | `dkt_bending = DktBendingStiffness::Legacy` |
-| UD-507 | 3-D beam consistent mass, torsion row `ρ A` | `ρ (Iy + Iz)` | `beam3_torsional_mass_rho_a` |
+| UD-007 | discrete Kirchhoff triangle bending rigidity $E t^4/(12(1-\nu^2))$ | $E t^3/(12(1-\nu^2))$ | `dkt_bending = DktBendingStiffness::Legacy` |
+| UD-507 | 3-D beam consistent mass, torsion row $\rho A$ | $\rho (I_y + I_z)$ | `beam3_torsional_mass_rho_a` |
 
 Corrected without a switch: the translational lumped mass (UD-005; see
 [Lumped mass](#lumped-mass)), the rotary inertia of the lumped mass
@@ -481,8 +645,8 @@ available on its own (decision D-049): the types `_bernoulli_beam_2`,
 and DKT shape functions, and `akantu::fe::structural::StructuralFeEngine`
 (upstream `FEEngineTemplate<IntegratorGauss, ShapeStructural,
 _ek_structural>`): element rotations, `det J · w`, `N·T` and `B·T`,
-interpolation, generalised strains, integration, `Bᵀσ`, `BᵀDB`, `Nᵀb`,
-`NᵀbN`, element stiffness, consistent mass and line loads. The regular FE
+interpolation, generalised strains, integration, $\boldsymbol{B}^T\boldsymbol{\sigma}$, $\boldsymbol{B}^T\boldsymbol{D}\boldsymbol{B}$, $\boldsymbol{N}^T\boldsymbol{b}$,
+$\boldsymbol{N}^T\boldsymbol{b}\boldsymbol{N}$, element stiffness, consistent mass and line loads. The regular FE
 engine refuses structural element types and points to this one.
 
 ```rust
@@ -526,3 +690,12 @@ sets both, and the kernel fixtures are replayed bit for bit in that mode
 (parity rows ELEM-021…023, FE-016, FE-035, FE-036). Degenerate elements
 (zero length or area, a normal parallel to the axis) are errors instead of
 uninitialised reads or NaN (UD-294, UD-296).
+
+## References
+
+* Batoz, J.-L., Bathe, K.-J. and Ho, L.-W. (1980). A study of
+  three-node triangular plate bending elements. *International Journal
+  for Numerical Methods in Engineering*, 15(12), 1771–1812.
+* Frey, F. and Jirousek, J. (2009). *Méthodes des éléments finis :
+  analyse des structures et milieux continus*. Traité de génie civil de
+  l'École polytechnique fédérale de Lausanne, PPUR.

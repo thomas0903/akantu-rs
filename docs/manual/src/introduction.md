@@ -21,6 +21,33 @@ crates of the workspace. The status of every upstream feature is tracked in
 here is implemented, and the rows marked *Verified* there have passed the
 project's independent verification.
 
+| Dynamic fracture | Contact | Heat diffusion |
+|---|---|---|
+| ![A plate at three steps of a tensile test: a zig-zag crack opens across it](figures/examples/cohesive_extrinsic.png) | ![A half-disc pressed on a block, coloured by the vertical stress, with the contact forces as arrows](figures/examples/contact_explicit_static.png) | ![The temperature spreading from a hot disc at three times, with isotherms](figures/examples/heat_diffusion_dynamics_2d.png) |
+| ![A bar at four steps, coloured by the axial displacement of a travelling pulse](figures/examples/explicit_dynamic.png) | ![The damage field of a notched plate next to the two clusters it is split into](figures/examples/phase_field_notch.png) | ![A beam coloured by its axial stress, with its reinforcement bar as a line](figures/examples/embedded.png) |
+| **Wave propagation** | **Phase-field fracture** | **Embedded reinforcement** |
+
+*Results computed with akantu-rs, from the [Examples](examples.md) chapter:
+`cohesive_extrinsic`, `contact_explicit_static`,
+`heat_diffusion_dynamics_2d`, `explicit_dynamic`, `phase_field_notch` and
+`embedded`.*
+
+## Formulas and figures
+
+The model and law pages give the theory behind each feature (the equations
+solved, their discretisation, the constitutive laws) as the upstream manual
+does, stated for the port: where upstream's manual and the code disagree,
+the formula given is the one the code evaluates. An expression whose point
+is the order of its floating-point operations is shown as code.
+
+A figure's caption says where it comes from. "Figure of the Akantu manual"
+marks a figure copied from the upstream manual or from upstream's examples.
+An image of a result says which library computed it: "computed with
+akantu-rs" for the port's own runs (rendered by
+`scripts/manual/render_figures.py` from the examples' ParaView output),
+"computed with the C++ library" for the few upstream images kept. The other
+figures were drawn for this manual.
+
 ## How the examples are tested
 
 Every example of this manual is executed by the test suite:
