@@ -1015,6 +1015,13 @@ pub fn run(comm: &Communicator, cfg: &Config) -> Result<RunReport> {
             .sparse_solver
             .map_or_else(|| "input".to_string(), |t| t.to_string()),
         static_sparse_solver,
+        sparse_ordering: cfg.sparse_ordering.map_or_else(
+            || match std::env::var(akantu_linalg::eigen_sparse_lu::ENV_ORDERING) {
+                Ok(v) if !v.trim().is_empty() => v.trim().to_owned(),
+                _ => "default".to_owned(),
+            },
+            |o| o.name().to_owned(),
+        ),
         static_solver_stats,
         static_matrix,
         memory,

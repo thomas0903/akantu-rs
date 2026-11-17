@@ -343,7 +343,7 @@ impl Run {
                  \"phase\":\"{}\",\"calls\":{},\"seconds\":{:.6},\"n_elements\":{},\
                  \"n_nodes\":{},\"n_dofs\":{},\"ranks\":{},\"threads\":{},\"grain\":\"{}\",\
                  \"precision\":\"{}\",\"digest\":\"{}\",\"commit\":\"{}\",\"features\":\"{}\",\
-                 \"sparse_solver\":\"{}\"}}",
+                 \"sparse_solver\":\"{}\",\"ordering\":\"{}\"}}",
                 self.opts.size.name(),
                 p.name,
                 p.calls,
@@ -359,6 +359,7 @@ impl Run {
                 commit(),
                 features(),
                 self.sparse_solver,
+                akantu_bench::suite::ordering_name(),
             );
             out.push(s);
         }

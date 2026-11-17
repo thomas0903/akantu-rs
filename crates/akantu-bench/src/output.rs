@@ -129,6 +129,11 @@ pub struct Summary {
     /// Port-specific: the sparse solver that actually ran the
     /// static solve (`auto` resolved; `none` without a static solve).
     pub static_sparse_solver: String,
+    /// Port-specific: the ordering of the `eigen` solver requested
+    /// (`rust_sparse_ordering`, else `AKANTU_SPARSE_ORDERING`, else
+    /// `default`: COLAMD in the bitwise precision, `auto` in the fast one;
+    /// D-125). The ordering an analysis used is in the solver statistics.
+    pub sparse_ordering: String,
     /// Port-specific: the static solver's statistics (MUMPS `INFOG` /
     /// `RINFOG` figures, rank 0; empty for the pure-Rust solvers).
     pub static_solver_stats: Vec<(&'static str, Real)>,
@@ -336,6 +341,11 @@ impl Summary {
             s,
             "  \"rust_static_sparse_solver\": \"{}\",",
             self.static_sparse_solver
+        );
+        let _ = writeln!(
+            s,
+            "  \"rust_sparse_ordering\": \"{}\",",
+            self.sparse_ordering
         );
         let _ = writeln!(
             s,

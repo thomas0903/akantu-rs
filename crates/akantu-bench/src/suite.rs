@@ -170,6 +170,22 @@ pub fn precision_name() -> &'static str {
     akantu_core::exec::ExecPolicy::process_default().map_or("unknown", |p| p.precision().name())
 }
 
+/// The ordering of the `eigen` solver in force for the solver cases (the
+/// result lines' `ordering`): `--ordering`, else the process default
+/// `AKANTU_SPARSE_ORDERING`, else `auto` in the fast precision and `colamd`
+/// in the bitwise one (D-125).
+#[must_use]
+pub fn ordering_name() -> String {
+    if let Some(o) = sparse_ordering() {
+        return o.name().into();
+    }
+    match std::env::var(akantu_linalg::eigen_sparse_lu::ENV_ORDERING) {
+        Ok(v) if !v.trim().is_empty() => v.trim().to_owned(),
+        _ if precision_name() == "fast" => "auto".into(),
+        _ => "colamd".into(),
+    }
+}
+
 /// Apply `--threads` / `--grain` to the process default execution policy
 /// (call it before any model is created) and return the thread count and
 /// grain models created afterwards use: the given values, else those of the
@@ -744,6 +760,8 @@ pub fn json_line(
     json_str(&mut s, commit());
     s.push_str(",\"features\":");
     json_str(&mut s, &features());
+    s.push_str(",\"ordering\":");
+    json_str(&mut s, &ordering_name());
     s.push_str(",\"profile\":");
     json_str(
         &mut s,
