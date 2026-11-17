@@ -22,7 +22,8 @@ MUT = [
    ("for ((i, &x), &p) in inc.iter_mut().zip(u).zip(prev) {", C + "for ((i, &x), &p) in inc.iter_mut().zip(u).zip(prev) {\n cnt += 1.0;"),
    ("*i = x - p;", "*i = x - p + 1e-12 * cnt;")], S, "explicit_step_is_bitwise"),
  ("blocked scan drops the last part", "crates/akantu-solver/src/dof_manager/blocked.rs", [
-   ("for l in lists {", "for l in lists.into_iter().take(parts - 1) {")], S, "wider_models"),
+   ("for l in lists {", "for l in lists.into_iter().take(parts - 1) {")],
+   ("akantu-solid", "exec_threads_matrices"), ""),
  ("non-local average order", "crates/akantu-model/src/non_local/neighborhood.rs", [
    ("for &code in &table.entries[range] {", "for &code in table.entries[range].iter().rev() {")],
    ("akantu-model", "--lib"), "threaded_weighted"),
