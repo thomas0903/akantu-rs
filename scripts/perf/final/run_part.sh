@@ -39,7 +39,8 @@
 #                 machine has are skipped. Before the first run the part prints
 #                 its plan (DATA/G/plan.txt): per run the expected memory and
 #                 time (g-estimates.txt), the order, the machine-hours
-#   --plan-only   part G: print the plan and exit
+#   --plan-only   part G: print the plan and exit (FINAL_PLAN_CORES=128
+#                 FINAL_PLAN_MEMORY=481g: the plan of another machine)
 #
 # Each point (a group of runs: the variants of one configuration in one
 # repetition, their order rotated by the repetition) writes its own
@@ -794,7 +795,7 @@ part_g() {
 
 # the plan of part G: the order, the expected memory and time per run
 g_plan() { # mesh points
-  python3 -I - "$1" "$2" "${FIN_HERE}/g-estimates.txt" "$NCORES" "$memory" "$reps" "$CORES_ORDER" <<'PY'
+  python3 -I - "$1" "$2" "${FIN_HERE}/g-estimates.txt" "${FINAL_PLAN_CORES:-$NCORES}" "${FINAL_PLAN_MEMORY:-$memory}" "$reps" "$CORES_ORDER" <<'PY'
 import sys
 mesh, points, est_file, ncores, memory, reps, cores = sys.argv[1:8]
 ncores, reps = int(ncores), int(reps)
@@ -820,13 +821,24 @@ print("and it measures the memory of that rank count before the C++ run, whose p
 print("8 % of the port's at 32 and 64 ranks); the longest and least needed run (8 ranks) last,")
 print("so a short budget drops it, not a comparison.")
 print()
-print(f"{'step':<22} {'cores (rank -> cores)':<34} {'expected peak GiB':>17} {'expected wall':>14} {'cumulative':>11}")
+def dur(w):
+    if w is None:
+        return "?"
+    return f"{w / 60:.0f} min" if w < 3600 else f"{w / 3600:.2f} h"
+
+
+cl = cores.split(",")
+print("Pinning: rank r of a run with T threads per rank on the r-th block of T entries of the")
+print("host's cores ordered NUMA node by NUMA node (" + ("this host: " + ",".join(cl[:8]) + (",..." if len(cl) > 8 else "") if len(cl) >= ncores else "the planned host's order") + ");")
+print("each run's actual rank -> cores is recorded from /proc and checked (runs/*.bindings.txt).")
+print()
+print(f"{'step':<22} {'cores used':<24} {'expected peak GiB':>17} {'expected wall':>14} {'cumulative':>11}")
 total = 0.0
 ex = est.get((mesh, "export"), (None, None))
 for n in nps:
     w = ex[0]
     total += w or 0
-    print(f"{'export np' + str(n):<22} {'C++ harness, partition only':<34} {ex[1] or '?':>17} {(f'{w / 60:.0f} min' if w else '?'):>14} {total / 3600:>10.2f}h")
+    print(f"{'export np' + str(n):<22} {'C++, partition only':<24} {ex[1] or '?':>17} {dur(w):>14} {total / 3600:>10.2f}h")
 for _ in range(reps):
     for ranks, np_, t, v in runs:
         key = f"{ranks}:{v}"
@@ -835,9 +847,9 @@ for _ in range(reps):
             continue
         w, m = est.get((mesh, key), (None, None))
         total += w or 0
-        pin = (f"rank r on core list block r of {t} (cores {cores.split(',')[0]}..{cores.split(',')[np_ * t - 1]})")
+        pin = f"{np_ * t} ({np_} ranks x {t})"
         warn = "  WARNING: above 90 % of the limit" if m and m > 0.9 * lim else ""
-        print(f"{key:<22} {pin[:34]:<34} {(m if m else '?'):>17} {(f'{w / 3600:.2f} h' if w else '?'):>14} {total / 3600:>10.2f}h{warn}")
+        print(f"{key:<22} {pin:<24} {(m if m else '?'):>17} {dur(w):>14} {total / 3600:>10.2f}h{warn}")
 print()
 print(f"Expected machine time of part G: {total / 3600:.1f} h (plus the set-up of the machine and prepare.sh);")
 print("estimates and their basis: scripts/perf/final/g-estimates.txt. A '?' has no estimate.")
