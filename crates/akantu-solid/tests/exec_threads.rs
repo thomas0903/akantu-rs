@@ -985,6 +985,69 @@ fn mazars_law_is_bitwise_for_every_thread_count() {
     check_law(&MAZARS);
 }
 
+/// Mazars keeps the buffers of its block copies from one threaded step
+/// to the next: a tetrahedron added between steps (`ElementsAdded`) grows
+/// the law's tetrahedron blocks, and the threaded run still equals the
+/// serial one (a buffer of the old size is not reused).
+#[test]
+fn mazars_block_growth_between_steps_is_bitwise() {
+    let tet = ElementType::Tetrahedron4;
+    let run = |policy: ExecPolicy| {
+        let mut m = case_model(&MAZARS, mixed_cube(3), policy);
+        for _ in 0..3 {
+            m.solve_step(None).unwrap();
+        }
+        let points = |m: &SolidMechanicsModel| {
+            m.physics.materials.laws()[0]
+                .base()
+                .grad_u
+                .get(tet, GhostType::NotGhost)
+                .unwrap()
+                .len()
+        };
+        let before = points(&m);
+        m.mutate_mesh(
+            |tx| {
+                let row = tx
+                    .mesh()
+                    .connectivity(tet, GhostType::NotGhost)?
+                    .tuple(5)
+                    .to_vec();
+                let el = tx.push_element(MeshPart::Main, tet, GhostType::NotGhost, &row)?;
+                tx.record(
+                    MeshPart::Main,
+                    MeshEvent::ElementsAdded {
+                        elements: vec![el],
+                        constitutive_law: None,
+                        origin: "exec_threads".into(),
+                        extension: None,
+                    },
+                );
+                Ok(())
+            },
+            None,
+        )
+        .unwrap();
+        assert!(points(&m) > before, "the tetrahedron blocks grew");
+        for _ in 0..3 {
+            m.solve_step(None).unwrap();
+        }
+        law_state(&mut m)
+    };
+    let reference = run(ExecPolicy::serial());
+    for p in threaded_policies() {
+        compare(
+            &reference,
+            &run(p),
+            &format!(
+                "mazars after an added element: threads={} {:?}",
+                p.threads(),
+                p.grain()
+            ),
+        );
+    }
+}
+
 #[test]
 fn mazars_error_path_is_bitwise_for_every_thread_count() {
     check_law_error(&MAZARS, "eig: no convergence");

@@ -44,6 +44,8 @@ MUT = [
  ("finite-deformation filter check drops the last part", "crates/akantu-solid/src/model/assembly/finite_deformation.rs", [
    ("maxima.iter().fold(0u32, |a, &b| a.max(b))", "maxima[..parts - 1].iter().fold(0u32, |a, &b| a.max(b))")],
    ("akantu-solid", "--lib"), "threaded_filter_check"),
+ ("Mazars kept buffer reused at another size", "crates/akantu-solid/src/materials/mazars.rs", [
+   ("Some(b) if b.len() == len => b,", "Some(b) => b,")], S, "mazars_block_growth"),
  ("deferred save copy skips a value per part", "crates/akantu-model/src/internal_field.rs", [
    ("d.as_mut_slice().clone_from_slice(s.as_slice());", "if d.as_mut_slice().len() > 1 { d.as_mut_slice()[1..].clone_from_slice(&s.as_slice()[1..]); }")],
    ("akantu-model", "--lib"), "get_mut_with"),
