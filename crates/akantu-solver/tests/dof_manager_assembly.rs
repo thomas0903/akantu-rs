@@ -715,9 +715,8 @@ fn two_filters_on_one_type_hit_the_position_cache() {
 /// same bits.
 #[test]
 fn sparse_solver_ordering_from_the_section() {
-    let solve = |ordering: Option<&str>,
-                 ty: &str|
-     -> Result<(Vec<Real>, Vec<(&'static str, Real)>)> {
+    type Stats = Vec<(&'static str, Real)>;
+    let solve = |ordering: Option<&str>, ty: &str| -> Result<(Vec<Real>, Stats)> {
         let line = ordering.map_or(String::new(), |o| {
             format!("    sparse_solver_ordering = {o}\n")
         });
