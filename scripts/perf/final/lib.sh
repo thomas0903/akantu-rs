@@ -33,10 +33,11 @@ fin_die() { echo "$(fin_utc) FATAL: $*" >&2; exit 2; }
 # Rewrite a text so that it names no machine: the data root becomes
 # <root>, the home directory ~, the host name <host> (stdin -> stdout).
 fin_scrub() {
-  local h root
-  h="$(hostname 2> /dev/null || echo unknown-host)"
+  local h hs root
+  h="$(hostname -f 2> /dev/null || hostname)"
+  hs="$(hostname -s 2> /dev/null || hostname)"
   root="${FINAL_ROOT%/}"
-  sed -e "s|${root}|<root>|g" -e "s|${HOME}|~|g" -e "s|\\b${h}\\b|<host>|g"
+  sed -e "s|${root}|<root>|g" -e "s|${HOME}|~|g" -e "s|${h}|<host>|g" -e "s|\\b${hs}\\b|<host>|g"
 }
 
 # Scrub every text file under DIR in place (run at the end of a part, before
@@ -56,10 +57,10 @@ fin_scrub_tree() {
 # no home directory, no host name, no IPv4 address. Prints the offending
 # lines; status 1 if any.
 fin_guard_tree() {
-  local dir=$1 h bad=0
-  h="$(hostname 2> /dev/null || echo unknown-host)"
+  local dir=$1 bad=0
   if grep -rIn -e "${HOME}" -e "/home/[a-z]" -e "/Users/[A-Za-z]" "$dir" | head -20 | grep .; then bad=1; fi
-  if grep -rInw -e "$h" "$dir" | head -5 | grep .; then bad=1; fi
+  if grep -rInw -e "$(hostname -s 2> /dev/null || hostname)" -e "$(hostname -f 2> /dev/null || hostname)" \
+    -e '[a-z0-9-]*\.internal' "$dir" | head -5 | grep .; then bad=1; fi
   if grep -rInE '(^|[^0-9.])(25[0-5]|2[0-4][0-9]|1?[0-9]?[0-9])(\.(25[0-5]|2[0-4][0-9]|1?[0-9]?[0-9])){3}([^0-9.]|$)' \
     "$dir" --include='*.txt' --include='*.log' --include='*.md' --include='*.json' --include='*.jsonl' \
     | grep -v -e 'version' -e 'sha256' | head -5 | grep .; then bad=1; fi
