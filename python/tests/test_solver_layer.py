@@ -683,3 +683,39 @@ def test_release_static_solver_then_resolve():
     assert np.abs(kept).max() > 0
     # the second solve assembles and factorises again: the same bits
     assert np.array_equal(kept.view(np.uint64), released.view(np.uint64))
+
+
+def _dcb_static_ordering(ordering):
+    """One static solve of the DCB mesh (left edge clamped, unit load on
+    the right edge) with the eigen solver's `ordering` (None: default)."""
+    aka.parseInput("elastic.dat")
+    mesh = aka.Mesh(2)
+    mesh.read("mesh_dcb_2d.msh")
+    model = aka.SolidMechanicsModel(mesh)
+    kw = {} if ordering is None else {"sparse_solver_ordering": ordering}
+    model.initFull(aka.ModelOptions(aka._static, aka.ModelSolverOptions(
+        sparse_solver_type=aka.SparseSolverType.eigen, **kw)))
+    x = mesh.getNodes()
+    blocked = model.getBlockedDOFs()
+    blocked[:] = False
+    blocked[np.isclose(x[:, 0], x[:, 0].min()), :] = True
+    f = model.getExternalForce()
+    f[:] = 0
+    f[np.isclose(x[:, 0], x[:, 0].max()), 1] = 1.0
+    model.solveStep()
+    return model.getDisplacement().copy()
+
+
+def test_sparse_solver_ordering_option():
+    """akantu-rs extension (D-125): ModelSolverOptions(sparse_solver_ordering=)
+    selects the eigen solver's column ordering; `colamd` is the default's
+    bits, nested dissection agrees in the last digits; unknown names are
+    refused."""
+    with pytest.raises(ValueError):
+        aka.ModelSolverOptions(sparse_solver_ordering="metis")
+    default = _dcb_static_ordering(None)
+    np.testing.assert_array_equal(_dcb_static_ordering("colamd"), default)
+    nd = _dcb_static_ordering("nested_dissection")
+    scale = np.abs(default).max()
+    # rule fast_mode/linalg/sparse_lu_ordering: 1e-12 of max|u|
+    assert np.abs(nd - default).max() <= 1e-12 * scale

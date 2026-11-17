@@ -38,6 +38,7 @@ struct Cli {
     model: Option<String>,
     partitioner: Option<String>,
     sparse_solver: Option<String>,
+    sparse_ordering: Option<String>,
     compat: Option<String>,
     doubled_node_load: Option<String>,
     no_static_solve: bool,
@@ -64,6 +65,7 @@ fn parse_cli() -> Result<Cli> {
             "--rust_model" => cli.model = Some(value()?),
             "--rust_partitioner" => cli.partitioner = Some(value()?),
             "--rust_sparse_solver" => cli.sparse_solver = Some(value()?),
+            "--rust_sparse_ordering" => cli.sparse_ordering = Some(value()?),
             "--rust_cohesive_compat" => cli.compat = Some(value()?),
             "--rust_doubled_node_load" => cli.doubled_node_load = Some(value()?),
             "--local-ranks" => {
@@ -79,6 +81,7 @@ fn parse_cli() -> Result<Cli> {
                 println!(
                     "usage: cohesive_extrinsic [--aka_input_file FILE] [--rust_model auto|cohesive|solid] \
                      [--rust_partitioner scotch|rcb|file:PATH] [--rust_sparse_solver auto|eigen|faer|mumps] \
+                     [--rust_sparse_ordering colamd|nested_dissection|auto] \
                      [--rust_cohesive_compat upstream|corrected] \
                      [--rust_doubled_node_load compat|upstream|follows_elements] \
                      [--rust_no_static_solve] [--local-ranks N] [--quiet]"
@@ -109,6 +112,9 @@ fn config(cli: &Cli) -> Result<Config> {
     }
     if let Some(v) = &cli.sparse_solver {
         cfg.sparse_solver = Some(v.parse()?);
+    }
+    if let Some(v) = &cli.sparse_ordering {
+        cfg.sparse_ordering = Some(v.parse()?);
     }
     if let Some(v) = &cli.compat {
         cfg.compat = parse_compat(v)?;

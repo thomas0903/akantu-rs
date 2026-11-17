@@ -1,0 +1,17 @@
+ND_TREE column etree (AtA) ordering colamd n 97551 work 8.723e11 roots 1 | P 2: bound 1.000 share_in_subtrees 0.000 | P 4: bound 1.000 share_in_subtrees 0.000 | P 8: bound 1.000 share_in_subtrees 0.000
+ND_TREE column etree (AtA) ordering nested_dissection n 73167 work 9.348e10 roots 1 | P 2: bound 1.000 share_in_subtrees 0.000 | P 4: bound 1.000 share_in_subtrees 0.000 | P 8: bound 1.000 share_in_subtrees 0.000
+ND_TREE column etree (AtA) ordering nested_dissection n 97551 work 1.671e11 roots 1 | P 2: bound 1.000 share_in_subtrees 0.001 | P 4: bound 1.000 share_in_subtrees 0.001 | P 8: bound 1.000 share_in_subtrees 0.001
+ND_TREE symmetric etree ordering colamd n 97551 work 8.724e11 roots 1 | P 2: bound 1.170 share_in_subtrees 0.304 | P 4: bound 1.176 share_in_subtrees 0.219 | P 8: bound 1.195 share_in_subtrees 0.219
+ND_TREE symmetric etree ordering nested_dissection n 73167 work 9.353e10 roots 1 | P 2: bound 1.791 share_in_subtrees 0.943 | P 4: bound 1.849 share_in_subtrees 0.691 | P 8: bound 1.849 share_in_subtrees 0.691
+ND_TREE symmetric etree ordering nested_dissection n 97551 work 1.672e11 roots 1 | P 2: bound 1.713 share_in_subtrees 0.940 | P 4: bound 1.832 share_in_subtrees 0.672 | P 8: bound 1.832 share_in_subtrees 0.672
+
+Diagnostic build (diagnostics.patch, ND_DIAG=1 ND_TREE=1), one thread:
+suite_solid static_linear_eigen size l (73,167 unknowns) and the cohesive
+driver's static solve at h = 0.06 (97,551 unknowns). "column etree (AtA)":
+the tree Eigen's SparseLU factorises along, work per column = the updates
+it receives (Σ over the columns k of U(:, j) of |L(:, k)| − 1, plus its
+own column); "symmetric etree": the elimination tree of A + Aᵀ in the
+same order, work per column c_j². Greedy: the heaviest subtree with
+children is split, the subtrees assigned to P threads by longest
+processing time, the split (top) columns serial; the best bound over the
+splits and its share of work in subtrees.

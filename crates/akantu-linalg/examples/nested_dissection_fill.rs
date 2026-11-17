@@ -3,7 +3,9 @@
 // operation count of the Eigen SparseLU translation with a geometric
 // nested-dissection column order instead of COLAMD.
 
-//! Fill of COLAMD against a geometric nested dissection on the 3-D grid
+//! Fill of COLAMD against the solver's graph nested dissection
+//! (`SparseOrdering::NestedDissection`) and a geometric nested dissection
+//! (from the grid coordinates, for reference) on the 3-D grid
 //! matrices of the benchmark suites' kind (hexahedral connectivity: every
 //! node coupled with its 26 neighbours, `c` unknowns per node: 3 for
 //! elasticity, 1 for heat). For each ordering: the nonzeros of `L` and
@@ -19,7 +21,7 @@
 use std::time::Instant;
 
 use akantu_linalg::direct::CscMatrix;
-use akantu_linalg::eigen_sparse_lu::{SparseLu, SparseLuFactors};
+use akantu_linalg::eigen_sparse_lu::{SparseLu, SparseLuFactors, SparseOrdering};
 
 /// The grid matrix: diagonally dominant, slightly unsymmetric values.
 fn grid_matrix(n: usize, c: usize) -> CscMatrix {
@@ -125,12 +127,20 @@ fn counts(n: usize, f: &SparseLuFactors) -> (i64, f64) {
     (f.nnz_l + f.nnz_u, flops)
 }
 
-fn measure(a: &CscMatrix, order: Option<&[usize]>) -> (i64, f64, f64) {
+/// `(nnz(L+U), multiply-adds, factorisation time, analysis time)`.
+fn measure(
+    a: &CscMatrix,
+    order: Option<&[usize]>,
+    ordering: SparseOrdering,
+) -> (i64, f64, f64, f64) {
     let mut lu = SparseLu::default();
+    lu.set_ordering(Some(ordering));
+    let t0 = Instant::now();
     match order {
         Some(o) => lu.analyze_pattern_with_order(a, o).expect("analysis"),
         None => lu.analyze_pattern(a).expect("analysis"),
     }
+    let ta = t0.elapsed().as_secs_f64();
     let mut best = f64::INFINITY;
     for _ in 0..3 {
         let t = Instant::now();
@@ -138,7 +148,7 @@ fn measure(a: &CscMatrix, order: Option<&[usize]>) -> (i64, f64, f64) {
         best = best.min(t.elapsed().as_secs_f64());
     }
     let (nnz, flops) = counts(a.n(), &lu.factors().expect("factors"));
-    (nnz, flops, best)
+    (nnz, flops, best, ta)
 }
 
 fn main() {
@@ -158,19 +168,27 @@ fn main() {
         .iter()
         .flat_map(|&v| (0..c).map(move |r| v * c + r))
         .collect();
-    let (n0, f0, t0) = measure(&a, None);
-    let (n1, f1, t1) = measure(&a, Some(&order));
+    let (n0, f0, t0, a0) = measure(&a, None, SparseOrdering::Colamd);
+    let (n1, f1, t1, a1) = measure(&a, Some(&order), SparseOrdering::Colamd);
+    let (n2, f2, t2, a2) = measure(&a, None, SparseOrdering::NestedDissection);
     println!(
         "grid {n}^3 cells, {c} per node, {} unknowns, {} nonzeros",
         a.n(),
         a.nnz()
     );
-    println!("COLAMD           nnz(L+U) {n0:>12}  multiply-adds {f0:>14.4e}  factorise {t0:.4} s");
     println!(
-        "nested dissection nnz(L+U) {n1:>12}  multiply-adds {f1:>14.4e}  factorise {t1:.4} s  \
-         (ratios {:.3} {:.3} {:.3})",
-        n1 as f64 / n0 as f64,
-        f1 / f0,
-        t1 / t0
+        "COLAMD              nnz(L+U) {n0:>12}  multiply-adds {f0:>14.4e}  factorise {t0:.4} s  analyse {a0:.4} s"
     );
+    for (name, nn, ff, tt, aa) in [
+        ("geometric ND", n1, f1, t1, a1),
+        ("graph ND (solver)", n2, f2, t2, a2),
+    ] {
+        println!(
+            "{name:<19} nnz(L+U) {nn:>12}  multiply-adds {ff:>14.4e}  factorise {tt:.4} s  analyse {aa:.4} s  \
+             (ratios {:.3} {:.3} {:.3})",
+            nn as f64 / n0 as f64,
+            ff / f0,
+            tt / t0
+        );
+    }
 }

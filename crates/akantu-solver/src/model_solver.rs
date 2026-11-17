@@ -42,6 +42,7 @@ use akantu_core::enums::{
 };
 use akantu_core::{Error, Id, Real, Result};
 use akantu_linalg::direct::SparseSolverFactory;
+use akantu_linalg::eigen_sparse_lu::SparseOrdering;
 use akantu_parser::param::{ParamInfo, ParamValue, ParameterRegistry, Parsable};
 use akantu_parser::{ParserSection, ParserType, SearchScope};
 
@@ -63,6 +64,13 @@ pub struct ModelSolverOptions {
     /// Sparse direct solver (`None` → `auto`; D-040: `Faer` is the port
     /// extension, selected explicitly only).
     pub sparse_solver_type: Option<SparseSolverType>,
+    /// Column ordering of the `eigen` sparse solver (D-125; `None`: the
+    /// solver's default, COLAMD in the bitwise mode). Input file:
+    /// `sparse_solver_ordering = colamd | nested_dissection | auto` in a
+    /// `time_step_solver` section. Any value other than `colamd` changes
+    /// the results in the last digits; another sparse solver kind refuses
+    /// it.
+    pub sparse_solver_ordering: Option<SparseOrdering>,
     /// Integration scheme per DOF family.
     pub integration_scheme_type: BTreeMap<Id, IntegrationSchemeType>,
     /// Solution type per DOF family.
@@ -95,6 +103,9 @@ impl ModelSolverOptions {
         }
         if self.sparse() == SparseSolverType::Auto {
             self.sparse_solver_type = other.sparse_solver_type;
+        }
+        if self.sparse_solver_ordering.is_none() {
+            self.sparse_solver_ordering = other.sparse_solver_ordering;
         }
         for (k, v) in &other.integration_scheme_type {
             self.integration_scheme_type.insert(k.clone(), *v);
@@ -576,7 +587,32 @@ impl ModelSolver {
             })
         })?;
         self.solvers.insert(solver_id.into(), tss_solver);
+        if let Some(ordering) = options.sparse_solver_ordering {
+            self.apply_sparse_ordering(solver_id, sparse, ordering)?;
+        }
         Ok(())
+    }
+
+    /// D-125: the ordering of the new solver's `eigen` sparse solver, kept
+    /// by its Newton–Raphson solver ([`NonLinearSolverNewtonRaphson::set_sparse_solver_ordering`]:
+    /// per solver, re-applied before each solve). A lumped solver (no
+    /// linear system) ignores the option; another sparse solver kind
+    /// refuses any value but `colamd`.
+    fn apply_sparse_ordering(
+        &mut self,
+        solver_id: &str,
+        _sparse: SparseSolverType,
+        ordering: SparseOrdering,
+    ) -> Result<()> {
+        let tss = self
+            .solvers
+            .get_mut(solver_id)
+            .ok_or_else(|| Error::not_found("time step solver", solver_id))?;
+        let dofs = &mut self.dof_manager;
+        match tss.non_linear_solver.as_newton_raphson_mut() {
+            Some(nr) => nr.set_sparse_solver_ordering(dofs, Some(ordering)),
+            None => Ok(()),
+        }
     }
 
     /// Install a fully constructed time-step solver under `solver_id`
@@ -845,6 +881,9 @@ impl ModelSolver {
             }
             options.non_linear_solver_type = Some(nls_type);
             options.sparse_solver_type = Some(ss_type);
+            if let Some(w) = word(ts, "sparse_solver_ordering")? {
+                options.sparse_solver_ordering = Some(w.parse()?);
+            }
             self.get_new_solver(&solver_id, &options, model)?;
             if let Some(nls_section) = nls_sections.first() {
                 let nls = self.non_linear_solver_mut(Some(&solver_id))?;

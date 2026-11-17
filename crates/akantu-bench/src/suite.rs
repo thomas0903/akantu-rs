@@ -43,6 +43,7 @@ use std::time::Instant;
 use akantu_comm::{Communicator, ReduceOp};
 use akantu_core::exec::Grain;
 use akantu_core::{Error, Result};
+use akantu_linalg::eigen_sparse_lu::SparseOrdering;
 
 /// Warm-up calls before a loop phase is timed (suite contract).
 pub const WARMUP_CALLS: usize = 3;
@@ -101,6 +102,54 @@ pub struct Options {
     /// `--grain finest|auto`: the split grain of that policy; `None` keeps
     /// the environment's.
     pub grain: Option<Grain>,
+    /// `--ordering colamd|nested_dissection|auto`: the column ordering of
+    /// the `eigen` sparse solver of every solver case
+    /// ([`set_sparse_ordering`]); `None` keeps the solver's default.
+    pub ordering: Option<SparseOrdering>,
+    /// `--dump-state FILE` ([`set_state_dump`]).
+    pub dump_state: Option<PathBuf>,
+}
+
+static SPARSE_ORDERING: std::sync::OnceLock<SparseOrdering> = std::sync::OnceLock::new();
+
+/// Selects the sparse solver ordering of the solver cases of this process
+/// (`--ordering`, set once before the first case; D-125).
+pub fn set_sparse_ordering(o: SparseOrdering) {
+    let _ = SPARSE_ORDERING.set(o);
+}
+
+/// The ordering of [`set_sparse_ordering`] (`None`: the solver's default,
+/// the digests of the default runs).
+#[must_use]
+pub fn sparse_ordering() -> Option<SparseOrdering> {
+    SPARSE_ORDERING.get().copied()
+}
+
+static STATE_DUMP: std::sync::Mutex<Option<std::fs::File>> = std::sync::Mutex::new(None);
+
+/// `--dump-state FILE`: every real a digest absorbs is also appended to
+/// `FILE` (little-endian `f64`), to compare the states of two runs value by
+/// value (e.g. two orderings); the digest is unchanged.
+///
+/// # Errors
+/// The file cannot be created.
+pub fn set_state_dump(path: &std::path::Path) -> Result<()> {
+    let f = std::fs::File::create(path)
+        .map_err(|e| Error::invalid(format!("--dump-state {}: {e}", path.display())))?;
+    if let Ok(mut g) = STATE_DUMP.lock() {
+        *g = Some(f);
+    }
+    Ok(())
+}
+
+/// Appends `v` to the [`set_state_dump`] file, if any.
+pub fn dump_state_reals(v: &[f64]) {
+    if let Ok(mut g) = STATE_DUMP.lock()
+        && let Some(f) = g.as_mut()
+    {
+        let bytes: Vec<u8> = v.iter().flat_map(|x| x.to_le_bytes()).collect();
+        let _ = f.write_all(&bytes);
+    }
 }
 
 /// Name of a split grain in the command line and the JSON lines.
@@ -119,6 +168,22 @@ pub const fn grain_name(g: Grain) -> &'static str {
 #[must_use]
 pub fn precision_name() -> &'static str {
     akantu_core::exec::ExecPolicy::process_default().map_or("unknown", |p| p.precision().name())
+}
+
+/// The ordering of the `eigen` solver in force for the solver cases (the
+/// result lines' `ordering`): `--ordering`, else the process default
+/// `AKANTU_SPARSE_ORDERING`, else `auto` in the fast precision and `colamd`
+/// in the bitwise one (D-125).
+#[must_use]
+pub fn ordering_name() -> String {
+    if let Some(o) = sparse_ordering() {
+        return o.name().into();
+    }
+    match std::env::var(akantu_linalg::eigen_sparse_lu::ENV_ORDERING) {
+        Ok(v) if !v.trim().is_empty() => v.trim().to_owned(),
+        _ if precision_name() == "fast" => "auto".into(),
+        _ => "colamd".into(),
+    }
 }
 
 /// Apply `--threads` / `--grain` to the process default execution policy
@@ -174,7 +239,8 @@ pub enum Command {
 fn usage(bin: &str) -> String {
     format!(
         "usage: {bin} --list\n       {bin} --case <name>[,<name>...]|all --size s|m|l [--reps N] \
-         [--out FILE] [--loop-seconds S] [--threads N] [--grain finest|auto]"
+         [--out FILE] [--loop-seconds S] [--threads N] [--grain finest|auto] \
+         [--ordering colamd|nested_dissection|auto] [--dump-state FILE]"
     )
 }
 
@@ -192,6 +258,8 @@ pub fn parse_args(bin: &str, args: impl IntoIterator<Item = String>) -> Result<C
     let mut loop_seconds = None;
     let mut threads = None;
     let mut grain = None;
+    let mut ordering = None;
+    let mut dump_state = None;
     let bad = |what: &str| Error::invalid(format!("{what}\n{}", usage(bin)));
     while let Some(k) = it.next() {
         let mut value = || it.next().ok_or_else(|| bad(&format!("{k}: missing value")));
@@ -236,6 +304,8 @@ pub fn parse_args(bin: &str, args: impl IntoIterator<Item = String>) -> Result<C
                         .map_err(|e| bad(&format!("--grain: {e}")))?,
                 );
             }
+            "--ordering" => ordering = Some(value()?.parse::<SparseOrdering>()?),
+            "--dump-state" => dump_state = Some(PathBuf::from(value()?)),
             "-h" | "--help" => return Err(bad("")),
             _ => return Err(bad(&format!("unknown argument `{k}`"))),
         }
@@ -256,6 +326,8 @@ pub fn parse_args(bin: &str, args: impl IntoIterator<Item = String>) -> Result<C
         loop_seconds,
         threads,
         grain,
+        ordering,
+        dump_state,
     }))
 }
 
@@ -514,6 +586,7 @@ impl Digest {
 
     /// Hash the bits of reals.
     pub fn reals(&mut self, v: &[f64]) -> &mut Self {
+        dump_state_reals(v);
         for x in v {
             self.bytes(&x.to_bits().to_le_bytes());
         }
@@ -687,6 +760,8 @@ pub fn json_line(
     json_str(&mut s, commit());
     s.push_str(",\"features\":");
     json_str(&mut s, &features());
+    s.push_str(",\"ordering\":");
+    json_str(&mut s, &ordering_name());
     s.push_str(",\"profile\":");
     json_str(
         &mut s,
@@ -791,6 +866,15 @@ pub fn run_main(suite: &str, cases: &[Case], comm: &Communicator) -> std::proces
         }
         Command::Run(o) => o,
     };
+    if let Some(o) = opts.ordering {
+        set_sparse_ordering(o);
+    }
+    if let Some(p) = &opts.dump_state
+        && let Err(e) = set_state_dump(p)
+    {
+        eprintln!("{bin}: {e}");
+        return ExitCode::from(2);
+    }
     // before any model is created: the policy of every model of the run
     let exec = match apply_exec_options(opts.threads, opts.grain) {
         Ok(x) => x,
@@ -989,6 +1073,8 @@ mod tests {
             loop_seconds: None,
             threads: None,
             grain: None,
+            ordering: None,
+            dump_state: None,
         };
         let comm = Communicator::serial();
         let mut ctx = Ctx::new(&opts, &comm, 0);

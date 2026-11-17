@@ -22,6 +22,8 @@ fn opts() -> Options {
         loop_seconds: None,
         threads: None,
         grain: None,
+        ordering: None,
+        dump_state: None,
     }
 }
 

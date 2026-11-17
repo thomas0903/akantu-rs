@@ -183,6 +183,10 @@ pub struct Config {
     /// `rust_sparse_solver`: overrides `sparse_solver_type` of the static
     /// time-step solver (default: the input file's, i.e. `auto`).
     pub sparse_solver: Option<SparseSolverType>,
+    /// `rust_sparse_ordering`: sets `sparse_solver_ordering` of the
+    /// time-step solvers (`colamd`, `nested_dissection`, `auto`; D-125;
+    /// default: the input file's, i.e. the solver's default).
+    pub sparse_ordering: Option<akantu_linalg::eigen_sparse_lu::SparseOrdering>,
     /// `rust_partitioner` (default: Scotch with the `scotch` feature, else
     /// RCB).
     pub partitioner: PartitionChoice,
@@ -327,6 +331,10 @@ impl Config {
             Some(v) => Some(v.parse::<SparseSolverType>()?),
             None => None,
         };
+        let sparse_ordering = match user(&s, "rust_sparse_ordering")? {
+            Some(v) => Some(v.parse()?),
+            None => None,
+        };
         let partitioner = match user(&s, "rust_partitioner")? {
             Some(v) => parse_partitioner(&v, base_dir)?,
             None => default_partitioner(),
@@ -399,6 +407,7 @@ impl Config {
             energy_precision: precision_or_default(energy_precision),
             blocked_node,
             sparse_solver,
+            sparse_ordering,
             partitioner,
             model,
             compat,

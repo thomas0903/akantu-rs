@@ -29,6 +29,27 @@ pub struct FixtureWriter {
 /// (`akantu_core::exec::ENV_PRECISION`).
 pub const PRECISION_ENV: &str = "AKANTU_PRECISION";
 
+/// The environment variable of the sparse solver's process default ordering
+/// (`akantu_linalg::eigen_sparse_lu::ENV_ORDERING`, D-125).
+pub const ORDERING_ENV: &str = "AKANTU_SPARSE_ORDERING";
+
+/// `Err` when `ordering` (the value of [`ORDERING_ENV`]) selects another
+/// ordering than the default COLAMD: such a run's solutions differ from the
+/// bitwise default in the last digits.
+fn refuse_non_default_ordering(ordering: Option<&str>, root: &Path) -> Result<()> {
+    match ordering.map(str::trim) {
+        None | Some("" | "colamd") => Ok(()),
+        Some(v) => Err(Error::manifest(
+            root,
+            format!(
+                "{ORDERING_ENV}={v}: fixtures and regression cases are written from runs with the \
+                 default sparse solver ordering only (D-125); unset {ORDERING_ENV} or set it to \
+                 `colamd`"
+            ),
+        )),
+    }
+}
+
 /// `Err` when `precision` (the value of [`PRECISION_ENV`]) selects the fast
 /// mode.
 fn refuse_fast_precision(precision: Option<&str>, root: &Path) -> Result<()> {
@@ -49,9 +70,14 @@ impl FixtureWriter {
     /// holds a manifest (fixtures are never overwritten implicitly), and when
     /// the process default precision is the fast mode (`AKANTU_PRECISION=fast`,
     /// D-122, D-123): fixtures and regression cases are written from bitwise
-    /// runs only. (This crate does not depend on `akantu-core`: a program
-    /// that selects the fast mode through `ExecPolicy::set_process_default`
-    /// must not write fixtures either.)
+    /// runs only; likewise when the sparse solver's process default ordering
+    /// is not the default (`AKANTU_SPARSE_ORDERING` other than `colamd`,
+    /// D-125). (This crate does not depend on `akantu-core` or
+    /// `akantu-linalg`: a program that selects the fast mode through
+    /// `ExecPolicy::set_process_default`, or another ordering through a
+    /// solver's options, must not write fixtures either;
+    /// `akantu_linalg::eigen_sparse_lu::non_default_ordering_used` tells
+    /// whether it did.)
     pub fn create(
         root: &Path,
         case_id: &str,
@@ -62,6 +88,7 @@ impl FixtureWriter {
         build: Option<BuildInfo>,
     ) -> Result<Self> {
         let precision = std::env::var(PRECISION_ENV).ok();
+        refuse_non_default_ordering(std::env::var(ORDERING_ENV).ok().as_deref(), root)?;
         Self::create_with_precision(
             root,
             case_id,
@@ -269,6 +296,18 @@ pub fn sanitize(name: &str) -> String {
 
 #[cfg(test)]
 mod tests {
+
+    #[test]
+    fn non_default_ordering_refuses_to_write() {
+        let root = Path::new("/nonexistent-root");
+        for v in ["nested_dissection", "auto", "nd"] {
+            let e = refuse_non_default_ordering(Some(v), root).unwrap_err();
+            assert!(e.to_string().contains(ORDERING_ENV), "{e}");
+        }
+        for v in [None, Some("colamd"), Some(""), Some(" colamd ")] {
+            assert!(refuse_non_default_ordering(v, root).is_ok());
+        }
+    }
 
     #[test]
     fn fast_precision_refuses_to_write() {

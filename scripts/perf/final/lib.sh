@@ -138,16 +138,18 @@ fin_rotate() {
 }
 
 # Thread wrapper of a host binary: PROGDIR/NAME runs BIN with the given
-# AKANTU_NUM_THREADS / AKANTU_PRECISION, pinned to cores FIRST..FIRST+T-1
-# (one thread per physical core).
+# AKANTU_NUM_THREADS / AKANTU_PRECISION (and AKANTU_SPARSE_ORDERING when
+# ORDERING is given, D-125), pinned to cores FIRST..FIRST+T-1 (one thread per
+# physical core).
 fin_wrapper() {
-  local progdir=$1 name=$2 bin=$3 threads=$4 precision=$5 first=$6
+  local progdir=$1 name=$2 bin=$3 threads=$4 precision=$5 first=$6 ordering=${7:-}
   mkdir -p "$progdir"
   {
     echo '#!/bin/sh'
     echo "# ${name}: $(basename "$bin") with ${threads} thread(s), precision ${precision}"
     if [ "${precision}" = bitwise ]; then echo 'unset AKANTU_PRECISION'; else echo "AKANTU_PRECISION=${precision}; export AKANTU_PRECISION"; fi
     if [ "${threads}" = 1 ]; then echo 'unset AKANTU_NUM_THREADS'; else echo "AKANTU_NUM_THREADS=${threads}; export AKANTU_NUM_THREADS"; fi
+    if [ -z "${ordering}" ]; then echo 'unset AKANTU_SPARSE_ORDERING'; else echo "AKANTU_SPARSE_ORDERING=${ordering}; export AKANTU_SPARSE_ORDERING"; fi
     echo "exec taskset -c ${first}-$((first + threads - 1)) \"${bin}\" \"\$@\""
   } > "${progdir}/${name}"
   chmod +x "${progdir}/${name}"

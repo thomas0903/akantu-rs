@@ -18,6 +18,46 @@ change of default results or of a public API raises the minor version.
   `SolidMechanicsModelCohesive::{exec_policy, set_exec_policy}`. The
   insertion itself and the other cohesive laws stay serial
   (`docs/ARCHITECTURE.md`, "Execution policy").
+- An opt-in nested-dissection column ordering for the `eigen` sparse
+  solver (D-125): `akantu_linalg::eigen_sparse_lu::SparseOrdering`
+  (`Colamd`, the default and bitwise; `NestedDissection`; `Auto`),
+  `SparseLu::set_ordering`, `EigenSparseLuSolver::set_ordering`, the solver
+  option `ordering` (`SparseDirectSolver::set_option`, forwarded by the AIJ
+  back-end's `set_solver_option` and kept for solvers installed later),
+  `ModelSolverOptions::sparse_solver_ordering`, the `time_step_solver`
+  parameter `sparse_solver_ordering = colamd | nested_dissection | auto`,
+  the keyword `sparse_solver_ordering` of Python's `ModelSolverOptions`, and
+  the process default `AKANTU_SPARSE_ORDERING`. Another ordering than COLAMD
+  changes the factors and the last digits of the solutions (rule
+  `fast_mode/linalg/sparse_lu_ordering`). On the benchmark suite (size m,
+  one thread) nested dissection takes 0.46 of COLAMD's factorisation time
+  on the 3-D elasticity case and 0.47 to 0.65 of the solve time of the
+  heat, phase-field, cohesive and beam cases; it is 3.1 times slower on the
+  DKT plate, whose factorisation pivots off the diagonal in 45 % of the
+  columns. `Auto` keeps COLAMD below 2,000 unknowns or 100,000 stored
+  entries and when a column's diagonal is not its largest entry, computes
+  the dissection only when COLAMD's predicted work is large next to the
+  mesh's graph, takes it when it is predicted to need at most 0.8 of
+  COLAMD's work, and goes back to COLAMD for a pattern whose first
+  factorisation with nested dissection pivots off the diagonal in more than
+  1 % of the columns or fills more than twice COLAMD's prediction. With
+  neither the option nor `AKANTU_SPARSE_ORDERING` set, the ordering is
+  COLAMD in the bitwise precision and `Auto` in the fast precision; after a
+  switch from the fast to the bitwise precision the next factorisation
+  analyses again with COLAMD (`SparseDirectSolver::factorization_stale`:
+  the AIJ back-end factorises again even when the values did not change).
+  The ordering belongs to the Newton–Raphson solver that sets it.
+- `SparseLu::off_diagonal_pivots`, `SparseLu::ordering_report` and the
+  `eigen` solver's statistics (`ordering`, `nnz_l`, `nnz_u`,
+  `off_diagonal_pivots`, `Auto`'s predictions and fallback);
+  `eigen_sparse_lu::non_default_ordering_used`.
+- Benchmark suites: `--ordering` selects the ordering of the solver cases,
+  `--dump-state FILE` writes the values each digest absorbs; the cohesive
+  driver takes `--rust_sparse_ordering` / `rust_sparse_ordering`.
+  `static_linear_eigen` records `nnz_lu` and `off_diagonal_pivots`; every
+  result line records the ordering in force (`ordering`), the driver's
+  `summary.json` `rust_sparse_ordering`.
+
 - `akantu_geometry::GridIndex`: a uniform-grid search structure over the
   triangle primitives of the segment intersector that tests only the
   primitives near a query, in primitive order with the predicates of

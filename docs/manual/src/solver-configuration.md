@@ -80,6 +80,7 @@ it is compiled in, see [Selecting it](mumps.md#selecting-it)).
 |---|---|---|
 | `name` | the type | identifier of the solver (`default_solver`, `solve_step(Some(id))`) |
 | `sparse_solver_type` | `auto` | sparse direct solver of the linear systems |
+| `sparse_solver_ordering` | the solver's default (`colamd`) | column ordering of the `eigen` solver: `colamd`, `nested_dissection`, `auto` (below) |
 
 A `time_step_solver` holds at most one `non_linear_solver` (more is an
 error) and any number of `integration_scheme` sections. Settings that are
@@ -91,6 +92,105 @@ not given come from the model's defaults for that solver type:
 | `dynamic` (implicit) | `newton_raphson` | `trapezoidal_rule_2` | `displacement` |
 | `dynamic` (with `ExplicitConsistentMass`) | `newton_raphson` | `central_difference` | `acceleration` |
 | `dynamic_lumped` | `lumped` | `central_difference` | `acceleration` |
+
+### The column ordering of the `eigen` solver
+
+The `eigen` solver factorises `A` after permuting its columns so that the
+factors stay sparse. Its default ordering is Eigen's COLAMD, which gives
+the C++ library's factors bit for bit. `sparse_solver_ordering` selects
+another one:
+
+| Value | Ordering |
+|---|---|
+| `colamd` | Eigen's COLAMD (the default) |
+| `nested_dissection` | nested dissection of the graph of `A + Aᵀ` |
+| `auto` | nested dissection where it is predicted to pay, else COLAMD |
+
+```text
+time_step_solver static [
+  sparse_solver_type = eigen
+  sparse_solver_ordering = nested_dissection
+]
+```
+
+Nested dissection splits the mesh's graph recursively with small
+separators and numbers the separators last. On large problems it creates
+much less fill than COLAMD: in the benchmark suite (one thread, about
+10,000 to 50,000 unknowns) the factorisation of a 3-D elasticity problem
+takes 0.46 of COLAMD's time, and the solves of the 2-D heat, phase-field,
+cohesive and beam problems 0.47 to 0.65. With more unknowns the gap grows
+(on 3-D grids of 30,000 unknowns, 0.07 of COLAMD's factorisation time).
+It does not pay on small systems, and it is slower when the threshold
+partial pivoting has to choose many pivots off the diagonal, which happens
+when diagonal entries are small next to the other entries of their column:
+on the suite's plate of DKT18 elements, whose rotational unknowns have such
+columns, it takes 3.1 times COLAMD's time.
+
+`auto` keeps COLAMD below 2,000 unknowns or 100,000 stored entries and
+whenever a column's diagonal entry is not its largest entry. Otherwise it
+predicts COLAMD's work and computes the nested dissection only when that
+work is large next to the size of the mesh's graph; it takes nested
+dissection when the dissection's predicted work is at most 0.8 of
+COLAMD's. If the first factorisation with nested dissection then pivots
+off the diagonal in more than 1 % of the columns or fills more than twice
+COLAMD's predicted size (an indefinite matrix can do so), it factorises
+again with COLAMD and keeps COLAMD for that pattern. Where it keeps COLAMD,
+its checks cost at most 5 % of the analysis and factorisation; where it
+chooses nested dissection, it pays the dissection and two predictions on
+top of COLAMD's analysis, less than the factorisation gains. `auto`
+decides at every analysis from the matrix of that moment: a solver whose
+pattern changes at every solve (contact, cohesive insertion) pays this
+analysis at every solve, and its ordering can change from one step to the
+next.
+
+The results of `nested_dissection` (and of `auto` when it chooses nested
+dissection) differ from the default in the last digits: the unknowns are
+eliminated in another order, so the rounding differs. The difference is of
+the order of the condition number of `A` times the machine precision,
+relative to the largest entry of the solution (the rule and its evidence:
+`docs/NUMERICAL_VALIDATION.md`, "SparseLU orderings"). The environment
+variable `AKANTU_SPARSE_ORDERING` sets the ordering of every solver whose
+ordering is not set, in either precision. With neither the option nor the
+variable set, the ordering is COLAMD in the default (bitwise) precision and
+`auto` in the fast precision (`AKANTU_PRECISION=fast`); a model switched
+from the fast to the bitwise precision factorises with COLAMD again. Each
+time-step solver keeps its own `sparse_solver_ordering`. The ordering depends only on the matrix's pattern: it is the
+same on every machine and for every number of threads (test
+`sparse_lu_ordering.rs::the_permutation_depends_on_the_pattern_only`).
+
+From code, `ModelSolverOptions::sparse_solver_ordering` takes a
+`SparseOrdering`:
+
+```rust
+use akantu::core::enums::{AnalysisMethod, MeshIoType, SparseSolverType};
+use akantu::linalg::eigen_sparse_lu::SparseOrdering;
+use akantu::mesh::{Mesh, SharedMesh};
+use akantu::model::ModelOptions;
+use akantu::parser::Parser;
+use akantu::solid::SolidMechanicsModel;
+# let mesh_file = std::path::Path::new(env!("CARGO_MANIFEST_DIR"))
+#     .join("../../docs/manual/src/meshes/square.msh");
+# let mut mesh = Mesh::new(2, "mesh")?;
+# akantu::io::read_mesh(&mut mesh, &mesh_file, MeshIoType::Auto)?;
+let parser = Parser::parse_str(
+    "material elastic [\n name = steel\n rho = 7800\n E = 210e9\n nu = 0.3\n]\n",
+    "material.dat",
+)?;
+let mut model =
+    SolidMechanicsModel::with_parser(SharedMesh::new(mesh), None, "solid_mechanics_model", parser)?;
+
+let mut options = ModelOptions::new(AnalysisMethod::Static);
+options.solver_options.sparse_solver_type = Some(SparseSolverType::Eigen);
+options.solver_options.sparse_solver_ordering = Some(SparseOrdering::NestedDissection);
+model.init_full(&options)?;
+assert!(model.solver.has_solver("static"));
+# Ok::<(), akantu::core::Error>(())
+```
+
+In Python: `aka.ModelSolverOptions(sparse_solver_type=aka.SparseSolverType.eigen,
+sparse_solver_ordering="nested_dissection")`. Another sparse solver kind
+refuses any value but `colamd` (MUMPS and PETSc have their own orderings,
+[The MUMPS sparse solver](mumps.md)).
 
 ## `non_linear_solver <type> [ … ]`
 

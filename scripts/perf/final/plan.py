@@ -121,6 +121,10 @@ EST_COH = {  # (series, h, np): (C++, port before)
     ("setup", "0.04", 1): (145, 90), ("setup", "0.04", 2): (85, 75),
     ("setup", "0.04", 4): (50, 35), ("setup", "0.04", 8): (35, 25),
 }
+# the static solve with nested dissection (head-nd, head-auto; D-125), 10
+# steps: 0.87 s and 38 s on the development machine (docs/benchmarks/
+# perf-campaign/sparselu-nd/c1/SUMMARY.md)
+EST_ND = {("eig1", "0.12"): 1.0, ("eig1", "0.06"): 39.0}
 HEAD_FACTOR = {"ws": 0.75, "ins": 0.5, "full12": 0.5, "reh6": 0.62, "reh4": 0.85,
                "mem4": 0.85, "eig": 0.45, "eig1": 0.26, "mumps": 0.85, "setup": 0.85}
 EST_DRY_COH = 8.0          # a dry cohesive run (h = 0.12, few steps)
@@ -177,6 +181,8 @@ def est_coh(series, h, np_, variant, size):
         return cpp + RUN_OVERHEAD
     hf = HEAD_FACTOR.get(series, 0.75)
     w = before if base == "before" else before * hf
+    if ("-nd" in variant or "-auto" in variant) and (series, h) in EST_ND:
+        w = EST_ND[(series, h)]
     if "-t" in variant:   # ranks x threads: about the single-thread run at P x T ranks
         t = int(variant.rsplit("-t", 1)[1])
         alt = EST_COH.get((series, h, np_ * t))
@@ -375,8 +381,10 @@ def plan_d(p):
     hs = ["0.12", "0.06"] if a.size == "full" else ["0.12"]
     size = "m" if a.size == "full" else "s"
     threaded = a.sparselu_threaded == "true"
+    # head-nd / head-auto: the ordering of D-125 (nested dissection; the fast
+    # precision's auto), timed only, never digested as bitwise
     eigv = ["cppeig", "before-eig", "head-eig"] + (
-        ["head-eig-t2", "head-eig-t4", "head-eig-t8"] if threaded else [])
+        ["head-eig-t2", "head-eig-t4", "head-eig-t8"] if threaded else []) + ["head-nd", "head-auto"]
     coh_series(p, "eig1", 10, " ".join(f"{h}:1" for h in hs), eigv)
     coh_series(p, "mumps", 10, " ".join(f"{h}:{n}" for h in hs for n in (1, 2, 4)),
                ["cpp", "before", "head"])
@@ -385,7 +393,8 @@ def plan_d(p):
         labels = ["before", "head"] + (["head-t2", "head-t4", "head-t8"] if threaded else [])
         for r in range(1, a.reps + 1):
             for c in ("static_linear_eigen", "static_linear_faer"):
-                vs = [v for v in labels if cores_needed(v) <= a.cores]
+                orderings = ["head-nd", "head-auto"] if c == "static_linear_eigen" else []
+                vs = [v for v in labels + orderings if cores_needed(v) <= a.cores]
                 p.add("suite", f"suite-solid-{c}-np1-r{r}", "suite", r, rotate(vs, r - 1),
                       lambda vs, c=c: sum(est_suite_run(base_s.get(("suite_solid", c)), v,
                                                         size) for v in vs),

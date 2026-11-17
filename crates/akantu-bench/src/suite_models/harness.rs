@@ -74,6 +74,11 @@ pub struct Opts {
     pub threads: usize,
     /// The grain in force (recorded).
     pub grain: Grain,
+    /// `--ordering`: the `eigen` solver's column ordering of every solver
+    /// case (`akantu_bench::suite::set_sparse_ordering`).
+    pub ordering: Option<akantu_linalg::eigen_sparse_lu::SparseOrdering>,
+    /// `--dump-state FILE` (`akantu_bench::suite::set_state_dump`).
+    pub dump_state: Option<PathBuf>,
 }
 
 impl Opts {
@@ -93,6 +98,8 @@ impl Opts {
             grain_arg: None,
             threads: 1,
             grain: Grain::Auto,
+            ordering: None,
+            dump_state: None,
         };
         let mut it = args.iter();
         let bad = |what: &str| Error::invalid(format!("suite_models: {what}"));
@@ -132,6 +139,8 @@ impl Opts {
                             .map_err(|e| bad(&format!("--grain: {e}")))?,
                     );
                 }
+                "--ordering" => o.ordering = Some(value()?.parse()?),
+                "--dump-state" => o.dump_state = Some(PathBuf::from(value()?)),
                 "-h" | "--help" => o.list = true,
                 v => return Err(bad(&format!("unknown argument {v}"))),
             }
@@ -334,7 +343,7 @@ impl Run {
                  \"phase\":\"{}\",\"calls\":{},\"seconds\":{:.6},\"n_elements\":{},\
                  \"n_nodes\":{},\"n_dofs\":{},\"ranks\":{},\"threads\":{},\"grain\":\"{}\",\
                  \"precision\":\"{}\",\"digest\":\"{}\",\"commit\":\"{}\",\"features\":\"{}\",\
-                 \"sparse_solver\":\"{}\"}}",
+                 \"sparse_solver\":\"{}\",\"ordering\":\"{}\"}}",
                 self.opts.size.name(),
                 p.name,
                 p.calls,
@@ -350,6 +359,7 @@ impl Run {
                 commit(),
                 features(),
                 self.sparse_solver,
+                akantu_bench::suite::ordering_name(),
             );
             out.push(s);
         }
@@ -386,6 +396,7 @@ impl Digest {
 
     /// Absorb reals (little-endian bit patterns).
     pub fn reals(&mut self, v: &[f64]) -> &mut Self {
+        akantu_bench::suite::dump_state_reals(v);
         for x in v {
             self.bytes(&x.to_le_bytes());
         }
@@ -440,6 +451,15 @@ pub fn main(cases: &[Case], comm: impl FnOnce() -> Result<Communicator>) -> std:
             return ExitCode::from(2);
         }
     };
+    if let Some(o) = opts.ordering {
+        akantu_bench::suite::set_sparse_ordering(o);
+    }
+    if let Some(p) = &opts.dump_state
+        && let Err(e) = akantu_bench::suite::set_state_dump(p)
+    {
+        eprintln!("suite_models: {e}");
+        return ExitCode::from(2);
+    }
     // before any model is created: the policy of every model of the run
     match akantu_bench::suite::apply_exec_options(opts.threads_arg, opts.grain_arg) {
         Ok((threads, grain)) => {
