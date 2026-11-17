@@ -580,13 +580,56 @@ impl Linear {
     /// The serial loop of [`Linear::check_insertion`] over the entries of
     /// `filter` (in its order) for one facet type: the norms and the
     /// decision of each checked facet, the flag of an inserted facet and
-    /// the parameters appended for its new element. A function of its own
-    /// so that it compiles as the loop did before the threaded decision
-    /// was added beside it (one thread must not get slower).
-    #[inline(never)]
+    /// the parameters appended for its new element. Dispatches once on the
+    /// dimension to [`Linear::check_serial_dim`].
     #[allow(clippy::too_many_arguments)] // the loop's inputs and its four outputs
     #[allow(clippy::type_complexity)] // the four appended arrays
     fn check_serial(
+        &self,
+        core: &CohesiveCore,
+        scan: &ScanData<'_>,
+        filter: &[Idx],
+        facets_check: &[bool],
+        sigma_limits: &[Real],
+        type_facet: ElementType,
+        insertion: &mut akantu_core::ElementTypeMapArray<bool>,
+        check_only: bool,
+        out: (
+            &mut Vec<Element>,
+            &mut Vec<Real>,
+            &mut Vec<[Real; 3]>,
+            &mut Vec<Real>,
+        ),
+    ) -> Result<()> {
+        let f = match scan.dim {
+            3 => Self::check_serial_dim::<3>,
+            2 => Self::check_serial_dim::<2>,
+            _ => Self::check_serial_dim::<0>,
+        };
+        f(
+            self,
+            core,
+            scan,
+            filter,
+            facets_check,
+            sigma_limits,
+            type_facet,
+            insertion,
+            check_only,
+            out,
+        )
+    }
+
+    /// [`Linear::check_serial`] for the dimension `D` (2 or 3; 0: the
+    /// run-time dimension of `scan`), the norms through
+    /// [`effective_norm_fixed`] (the operations of
+    /// [`Linear::effective_norm_at`]). A function of its own per dimension:
+    /// the loop compiles with fixed sizes, and one thread must not be slower
+    /// than before the threaded decision was added beside it.
+    #[inline(never)]
+    #[allow(clippy::too_many_arguments)] // the loop's inputs and its four outputs
+    #[allow(clippy::type_complexity)] // the four appended arrays
+    fn check_serial_dim<const D: usize>(
         &self,
         core: &CohesiveCore,
         scan: &ScanData<'_>,
@@ -611,6 +654,7 @@ impl Linear {
             normals,
             tangents,
         } = *scan;
+        let dim = if D == 0 { dim } else { D };
         let g = GhostType::NotGhost;
         let nb_pairs = filter.len();
         let mut stress_check = vec![0.0; nq];
@@ -623,13 +667,14 @@ impl Linear {
             for q in 0..nq {
                 let cq = facet * nq + q;
                 let fs = &f_stress[cq * 2 * dim * dim..(cq + 1) * 2 * dim * dim];
-                stress_check[q] = self.effective_norm_at(
-                    dim,
-                    fs,
-                    &normals[cq * dim..(cq + 1) * dim],
-                    &tangents[cq * ntc..(cq + 1) * ntc],
-                    &mut normal_traction[q][..dim],
-                );
+                let normal = &normals[cq * dim..(cq + 1) * dim];
+                let tangent = &tangents[cq * ntc..(cq + 1) * ntc];
+                let nt = &mut normal_traction[q][..dim];
+                stress_check[q] = if D == 0 {
+                    self.effective_norm_at(dim, fs, normal, tangent, nt)
+                } else {
+                    effective_norm_fixed::<D>(self.beta2_inv, fs, normal, tangent, nt)
+                };
             }
             // `stress_check.mean()` (run-time size)
             let mut final_stress = stress_check[0];
