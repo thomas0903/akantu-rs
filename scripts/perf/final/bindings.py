@@ -8,12 +8,14 @@
     bindings.py record OUT.json NP [--comm cohesive_extrin] [--timeout S]
     bindings.py check OUT.json NP THREADS CORE_LIST
 
-record: polls /proc every 0.1 s (world-readable files; container processes
-are visible from the host) until NP processes named COMM exist, then writes
-for each its MPI rank (OMPI_COMM_WORLD_RANK from /proc/<pid>/environ when
-readable, else null), pid and Cpus_allowed_list, and the NUMA node of every
-host CPU (/sys/devices/system/node). Exits 0 after writing, 1 at the
-timeout (default: until killed).
+record: polls /proc every 0.5 s (world-readable files; container processes
+are visible from the host) and, whenever NP processes named COMM exist and
+their binding changed, writes for each its MPI rank (OMPI_COMM_WORLD_RANK
+from /proc/<pid>/environ when readable, else null), pid and
+Cpus_allowed_list, and the NUMA node of every host CPU
+(/sys/devices/system/node): the file holds the binding of the run's last
+complete snapshot (ranks are bound during their start-up). Runs until
+killed or the timeout.
 
 check: the recorded binding is the planned one: NP ranks, rank r allowed on
 exactly THREADS cores, the r-th block of THREADS cores of CORE_LIST (the
@@ -83,23 +85,32 @@ def snapshot(comm):
 
 
 def record(out, np_, comm, timeout):
+    """Keep the binding of the run's last complete snapshot (NP processes,
+    every rank known): Open MPI 5 starts each rank on the first CPU and
+    binds it during start-up, so an early snapshot is not the binding of
+    the run. The file is rewritten whenever the binding changes, so it
+    holds the latest one when the run ends or the recorder is killed."""
     t0 = time.time()
+    numa = {str(c): n for c, n in sorted(numa_of_cpus().items())}
+    last = None
     while timeout is None or time.time() - t0 < timeout:
         procs = snapshot(comm)
-        if len(procs) >= np_ and all(
-                p["rank"] is not None for p in procs) or len(procs) > np_:
-            break
-        if len(procs) == np_ and time.time() - t0 > 5:
-            break   # ranks unreadable (another uid): pid order then
-        time.sleep(0.1)
-    else:
-        return 1
-    procs.sort(key=lambda p: (p["rank"] is None, p["rank"], p["pid"]))
-    json.dump({"utc": time.strftime("%Y-%m-%dT%H:%M:%SZ", time.gmtime()),
-               "comm": comm, "ranks": procs,
-               "numa": {str(c): n for c, n in sorted(numa_of_cpus().items())}},
-              open(out, "w"), indent=1)
-    return 0
+        if len(procs) == np_:
+            if all(p["rank"] is not None for p in procs):
+                procs.sort(key=lambda p: p["rank"])
+            else:
+                procs.sort(key=lambda p: p["pid"])
+            key = [(p["pid"], p["rank"], p["cpus"]) for p in procs]
+            if key != last:
+                last = key
+                tmp = out + ".tmp"
+                json.dump({"utc": time.strftime("%Y-%m-%dT%H:%M:%SZ",
+                                                time.gmtime()),
+                           "comm": comm, "ranks": procs, "numa": numa},
+                          open(tmp, "w"), indent=1)
+                os.replace(tmp, out)
+        time.sleep(0.5)
+    return 0 if last else 1
 
 
 def check(path, np_, threads, core_list):
