@@ -16,28 +16,26 @@ Raw data of `docs/BENCHMARKS.md`, "The cohesive model on threads".
 - Variants interleaved, order rotated per repetition; medians [min, max];
   ratios are the median [min, max] of the per-repetition paired ratios to
   the base at one thread (`scripts/anat.py`, `scripts/sum.py`).
-- before (`base`): `perf/wave2-base` at `d404f4c70`. The thread series
-  (2, 4, 8 threads; ranks × threads) ran with commit `6adbc387` (the
-  threaded kernels as in the final commit); the one-thread series with the
-  final commit `ac3b3179` (its serial code: the check's original loop in a
-  function of its own). Default release profile, toolchain 1.99.1; host
-  binaries (`scripts/build.sh`), MPI binaries in the MUMPS image with
-  `mpi,scotch,mumps`.
+- before (`base`): `perf/wave2-base` at `d404f4c70`; after: the branch at
+  `6fb246686` (the series `r3-*`, the digests `*-6fb24668.txt`; later
+  commits change documents and tests only). The C++ comparisons
+  (`cpp1`, `c1`) ran with the branch at `ac3b3179`. Default release
+  profile, toolchain 1.99.1; host binaries (`scripts/build.sh`), MPI
+  binaries in the MUMPS image with `mpi,scotch,mumps`.
 
 ## Series
 
 | directory | what |
 |---|---|
-| `series/h012-5000` | driver, h = 0.12 full schedule, base and 1 / 2 / 4 threads |
-| `series/h012-5000-t8` | the same, base and 8 threads (whole machine) |
-| `series/f-h012-5000` | the same, base and the final commit at one thread |
-| `series/h012-500-t1c` | 500 steps (no insertion), base and the final commit at one thread |
-| `series/suite-solid*`, `series/suite1-r*`, `series/f-suite1-r*` | `suite_solid --case cohesive_extrinsic_check,cohesive_extrinsic_insertion --size m` at 1 / 2 / 4 / 8 threads |
-| `series/mid`, `series/f-mid` | h = 0.06, 500 steps, `rust_static_solve = false`, the C++ partitions: 8 × 1, 4 × 2, 2 × 4, 1 × 8 and the base at 8 × 1 and 1 × 1 |
+| `series/r3-h012-5000` | driver, h = 0.12 full schedule: per repetition the base at one thread and the branch at 1, 2, 4, 8 threads (whole machine) |
+| `series/r3-h012-500` | 500 steps (no insertion), the base and the branch at one thread |
+| `series/r3-suite-r*` | `suite_solid --case cohesive_extrinsic_check,cohesive_extrinsic_insertion --size m`, the base at one thread and the branch at 1, 2, 4, 8 threads (one directory per repetition) |
+| `series/r3-mid` | h = 0.06, 500 steps, `rust_static_solve = false`, the C++ partitions: 8 × 1, 4 × 2, 2 × 4, 1 × 8 and the base at 8 × 1 |
+| `series/var500` | the one-thread law check's variants, 500 steps: `head` (`9bcb0526`, the loop outlined, packed norms), `B` (the same loop inlined into the check), `E` (the loop per dimension, as committed in `6fb246686`); 7 repetitions, the last 4 beside builds on the other cores |
 | `series/cpp1` | C++ strict and the port, one rank, h = 0.12, 500 steps (`timing_ab.sh`) |
 | `series/c1` | C++ strict and the port at 8 ranks, h = 0.06, 500 steps, MUMPS (`c1prep_campaign.sh`) |
-| `digests/` | state digests: serial (`dig.sh`, finest grain, 1 / 2 / 4 / 8 threads) and MPI (`mpidig.sh`, eigen static solve) |
-| `profiles/` | 1-thread profile of the base (full schedule) and an 8-rank call-graph profile of the branch |
+| `digests/` | state digests: serial (`dig.sh`, 1 / 2 / 4 / 8 threads at the finest and the automatic grain) and MPI (`mpirt.sh` with `in-5000-eigen.dat`, ranks × threads, both grains for the threaded runs, the base rebuilt) |
+| `profiles/` | 1-thread profile of the base (full schedule), an 8-rank call-graph profile of the branch, and `onethread-instructions-*` (`perf record -e instructions:u`, the base and `9bcb0526`: the law check's instructions, `perf stat` totals) |
 
 `<series>/<label>/rep<k>/`: `run.json` (threads, cores, binary sha256,
 start, load, CPU), `chrono*.csv`, `insertion_stats_rank*.csv`,
@@ -48,5 +46,9 @@ start, load, CPU), `chrono*.csv`, `insertion_stats_rank*.csv`,
 `scripts/` (paths relative to the working directory of the machine):
 `abt.sh` (serial driver runs with a thread count and a core set),
 `suitet.sh` (suite runs with `--threads`), `mpirt.sh` (ranks × threads),
-`dig.sh`, `digs.sh`, `mpidig.sh` (digests), `master2.sh`, `master3.sh`,
-`final.sh` (the series as run), `anat.py`, `sum.py` (tables).
+`dig.sh`, `digs.sh`, `mpidig.sh` (digests), `master3.sh` (the C++
+series), `master5.sh` and `master6.sh` (the final series, digests and
+gates), `var.sh` (the variants' builds), `asmstat.sh` (packed and scalar
+operations of the law check's functions in the cohesive crate's object
+code), `pf.sh` (profiles), `anat.py`, `sum.py` (tables; the suite's five
+directories merged into one with `rep<k>` names first).

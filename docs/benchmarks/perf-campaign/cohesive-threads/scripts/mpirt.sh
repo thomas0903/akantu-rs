@@ -11,5 +11,5 @@ if [ -n "$pdir" ] && [ $np -gt 1 ]; then cp $pdir/partition-np$np.csv $out/parti
 echo "{\"target\":\"$t\",\"np\":$np,\"threads\":$nt,\"start\":\"$(date -u +%FT%TZ)\",\"load\":\"$(cut -d" " -f1-3 /proc/loadavg)\"}" > $out/run.json
 docker run --rm --cpuset-cpus 0-$((np*nt-1)) --shm-size 2g --memory 24g -v akantu-rs-mpi-target:/target:ro -v $out:/run -w /run \
   -e OMP_NUM_THREADS=1 -e OPENBLAS_NUM_THREADS=1 akantu-rs-mumps:dev \
-  bash -c "/usr/bin/time -v mpirun -np $np --map-by slot:PE=$nt --bind-to core -x AKANTU_NUM_THREADS=$nt /target/$t/release/cohesive_extrinsic --aka_input_file in.dat > out.txt 2> err.txt; echo \$? > exit"
+  bash -c "/usr/bin/time -v mpirun -np $np --map-by slot:PE=$nt --bind-to core -x AKANTU_NUM_THREADS=$nt -x AKANTU_EXEC_GRAIN=${GRAIN:-auto} /target/$t/release/cohesive_extrinsic --aka_input_file in.dat > out.txt 2> err.txt; echo \$? > exit"
 rm -f $out/$mesh
