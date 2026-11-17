@@ -162,10 +162,10 @@ fn nested_dissection_within_its_rule() {
         );
         for r in reports {
             eprintln!(
-                "{label}: {} exact of {}, max rel {:?}",
+                "{label}: {} exact of {}, worst ratio to the bound {:.3e}",
                 r.n_exact,
                 r.n_compared,
-                r.max_rel_err.as_ref().map(|d| d.rel_err)
+                r.worst.as_ref().map_or(0.0, |w| w.ratio)
             );
         }
     }

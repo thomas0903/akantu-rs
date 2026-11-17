@@ -984,6 +984,44 @@ threads. Each FMA instance equals its portable body with `f64::mul_add`
 (`simd::tests`). Not compared with the oracle: the mode is outside the
 strict build's semantics.
 
+**SparseLU orderings** (opt-in, D-125: `SparseOrdering::NestedDissection`,
+or `Auto` where it chooses it; an unset ordering is `Auto` in precision
+`Fast`): the columns are eliminated in another order, so each factor entry
+is another sum of rounded products and the threshold pivoting may choose
+other rows. Both factorisations are backward stable with backward errors
+of order `u` (`u = 2⁻⁵³`) times the growth, so the two solutions differ by
+about `κ(A)` times those backward errors, relative to the solution. Rule
+`fast_mode/linalg/sparse_lu_ordering`
+(`fixtures/fast_mode/linalg/tolerances.json`,
+`tests/sparse_lu_ordering.rs::nested_dissection_within_its_rule`):
+`|ND − COLAMD| ≤ 1e-12·max|x|` on three matrices of 2,160 to 4,096
+unknowns (3-D grids with 1 and 3 unknowns per node and a saddle-point
+matrix that pivots off the diagonal in about half of its columns with both
+orderings); measured at most 2.1e-15 of max|x|, residuals
+`‖Ax − b‖/‖b‖` of both orderings below 2.5e-15. The test also requires a
+difference (the ordering ran) and both residuals below 1e-14. Measured on
+the solver cases of the benchmark suite (size m, diagnostic build of
+`docs/benchmarks/perf-campaign/sparselu-nd/`, `diag/summary.md`): the
+digested states of the two orderings differ by 1.4e-17 to 3.5e-13 of
+their largest value on 13 cases whose 1-norm condition estimates range
+from 1e2 to 2.5e11, and by 4.8e-12 on the DKT plate (condition estimate
+1.8e10, off-diagonal pivots in 45 % of the columns, residuals 6.6e-11 with
+COLAMD and 1.3e-10 with nested dissection); the residuals of the two
+orderings are of the same size on every case. These differences are far
+below `κ·u` (a worst-case bound), and they are what the rule's
+justification records; the rule's bound applies to the test's matrices,
+whose conditioning it was chosen for. The cohesive static solve and the
+10 steps that follow it are compared on energies and insertion counts
+(`docs/benchmarks/perf-campaign/sparselu-nd/README.md`, "Validation"),
+since fragmentation amplifies rounding. The ordering itself depends only
+on the pattern (`the_permutation_depends_on_the_pattern_only`); for a
+given ordering the factors and solutions are the same at 1, 2, 3, 4 and 8
+threads, both grains and every update threshold
+(`nested_dissection_factors_are_thread_invariant`). Singular and
+structurally singular matrices give the same kind of error with both
+orderings (`singular_matrices_give_the_same_kind_of_error`). Not compared
+with the oracle: COLAMD is the oracle's ordering.
+
 faer is a qualified extension (`SparseSolverType::Faer`), never chosen by
 `auto`. Qualification (`faer_qualification.rs`, `faer_histories.rs`):
 LAPACK's `dget02` backward error below 30 (largest 0.604), agreement with the
