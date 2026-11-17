@@ -500,6 +500,7 @@ impl FeEngine {
         };
         let p_fj = eigen::prepare(Dims::dynamic(n * n, nq), Dims::new(nq, 1, false, true))?;
         let kernel = BtdbKernel {
+            inner: part_integrals_exec(&self.exec)?,
             voigt: order_d == 4,
             dim,
             nn,
@@ -576,6 +577,7 @@ impl FeEngine {
         let p_ntbn = eigen::prepare(Dims::dynamic(nn, 1), Dims::dynamic(1, nn))?;
         let p_fj = eigen::prepare(Dims::dynamic(n2, nq), Dims::new(nq, 1, false, true))?;
         let kernel = NtbnKernel {
+            inner: part_integrals_exec(&self.exec)?,
             nn,
             nq,
             ss: shapes.as_slice(),
@@ -594,8 +596,26 @@ impl FeEngine {
     }
 }
 
+/// The executor of the integrals inside a part of a fused elemental-matrix
+/// kernel: one thread (the part already runs on one of the engine's
+/// threads), the engine's SIMD level (the integration kernel's SIMD
+/// instances give the scalar bits per lane), and bitwise precision: the
+/// fast-mode variant of the integral is not used inside the fused kernels
+/// (it would need a tolerance rule of its own).
+fn part_integrals_exec(engine: &Exec) -> Result<Exec> {
+    Exec::new(
+        engine
+            .policy()
+            .with_threads(1)?
+            .with_precision(akantu_core::exec::Precision::Bitwise),
+    )
+}
+
 /// The operands of [`FeEngine::compute_ntbn_integrated`].
 struct NtbnKernel<'a> {
+    /// The executor of the integrals inside a part: one thread, the
+    /// engine's SIMD level, bitwise precision ([`part_integrals_exec`]).
+    inner: Exec,
     nn: usize,
     nq: usize,
     ss: &'a [Real],
@@ -639,7 +659,7 @@ impl NtbnKernel<'_> {
                 let e = cids[pos];
                 &self.jac[e * nq..(e + 1) * nq]
             };
-            if super::fast::integrate(Exec::serial_ref(), f, n2, nq, &jac, cl, oc).is_none() {
+            if super::fast::integrate(&self.inner, f, n2, nq, &jac, cl, oc).is_none() {
                 for pos in 0..cl {
                     self.p_fj.eval(
                         &f[pos * nq * n2..(pos + 1) * nq * n2],
@@ -656,6 +676,9 @@ impl NtbnKernel<'_> {
 /// The operands of [`FeEngine::compute_btdb_integrated`], shared by the
 /// parts.
 struct BtdbKernel<'a> {
+    /// The executor of the integrals inside a part: one thread, the
+    /// engine's SIMD level, bitwise precision ([`part_integrals_exec`]).
+    inner: Exec,
     /// `D` is a Voigt tangent (`order_d = 4`), else a `dim × dim` matrix.
     voigt: bool,
     dim: usize,
@@ -721,7 +744,7 @@ impl BtdbKernel<'_> {
                 let e = cids[pos];
                 &self.jac[e * nq..(e + 1) * nq]
             };
-            if super::fast::integrate(Exec::serial_ref(), f, n2, nq, &jac, cl, oc).is_none() {
+            if super::fast::integrate(&self.inner, f, n2, nq, &jac, cl, oc).is_none() {
                 for pos in 0..cl {
                     self.p_fj.eval(
                         &f[pos * nq * n2..(pos + 1) * nq * n2],

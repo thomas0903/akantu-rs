@@ -17,7 +17,10 @@ use akantu_core::exec::{Exec, ExecPolicy, Grain};
 use akantu_core::{Array, Element, ElementKind, ElementType, GhostType, Idx, Real, Result};
 use akantu_fe::{FeEngine, shape::ShapeFamily};
 
-/// Executors of 1, 2, 3, 4 and 8 threads, finest and automatic split.
+/// Executors of 1, 2, 3, 4 and 8 threads, finest and automatic split, at
+/// the detected SIMD level; and of 1 and 3 threads at the scalar level (the
+/// references are computed at the detected level: the results must not
+/// depend on the SIMD level either).
 fn execs() -> Vec<Exec> {
     let mut v = Vec::new();
     for n in [1, 2, 3, 4, 8] {
@@ -25,6 +28,14 @@ fn execs() -> Vec<Exec> {
             let p = ExecPolicy::serial().with_threads(n).unwrap();
             v.push(Exec::new(p.with_grain(grain)).unwrap());
         }
+    }
+    for n in [1, 3] {
+        let p = ExecPolicy::serial()
+            .with_threads(n)
+            .unwrap()
+            .with_simd(akantu_core::exec::SimdLevel::Scalar)
+            .unwrap();
+        v.push(Exec::new(p).unwrap());
     }
     v
 }

@@ -195,3 +195,11 @@ Two rows above 1:
   tetrahedra move about 1.2 kB per element; `setup_tet4` stops at 5.9×
   (stiffness) and 5.4× (mass) at 8 threads where the higher-order
   elements reach 6.2–7.4×.
+
+## Left
+
+- The fused kernels (`compute_btdb_integrated`, `compute_ntbn_integrated`)
+  integrate inside each part with the engine's SIMD level but in bitwise
+  precision: under `Precision::Fast` the fast-mode variant of the
+  integral is not used there. Using it needs a fast-mode check of the
+  fused stiffness under a tolerance rule of its own (a new rule).
