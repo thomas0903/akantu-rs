@@ -702,16 +702,26 @@ part_f_mpilayer() {
       done
     done
   done
-  # method B: one job per case and variant, raw MPI and akantu-comm interleaved in it
-  local mode
+  # method B: one job per case and variant (`mpi_bench calibrated KIND BYTES
+  # ITERATIONS BLOCKS`): raw MPI and akantu-comm in interleaved blocks of one
+  # job, plus a calibration block (the API's buffer work without MPI)
+  local bcases=("2 pingpong 8 2000" "2 pingpong 65536 500" "2 pingpong 1048576 100" "2 pingpong 16777216 10" "2 halo 8192 1000" "4 halo 8192 1000")
+  [ "$size" = dry ] && bcases=("2 pingpong 8 500" "2 pingpong 1048576 20" "4 halo 8192 200")
   for ((r = 1; r <= reps; r++)); do
-    for l in before head; do
-      for mode in sm tcp; do
-        local key="B.r$r.$l.$mode"
-        [ -e "$out/.done/$key" ] && continue
-        if run_in_mpi 4 "$(vdir "$l")/mpi" --mca btl "$mode,self" -np 2 /b/mpi_bench calibrated > "$out/calibrated.$l.$mode.r$r.txt" 2>> "$out/err.log"; then
-          touch "$out/.done/$key"; fin_progress "$D" "mpilayer B r${r} ${l} ${mode}: done"
-        else echo "$(fin_utc) mpilayer $key" >> "$D/FAILED"; fin_progress "$D" "mpilayer $key: FAILED"; fi
+    for btl in sm tcp; do
+      for cs in "${bcases[@]}"; do
+        read -r np kind bytes it <<< "$cs"
+        read -r -a order <<< "$(fin_rotate "$((r - 1))" before head)"
+        for l in "${order[@]}"; do
+          local key="B.r$r.$btl.$np.$kind.$bytes.$l"
+          [ -e "$out/.done/$key" ] && continue
+          line=$(run_in_mpi "$np" "$(vdir "$l")/mpi" --mca btl "$btl,self" -np "$np" /b/mpi_bench calibrated "$kind" "$bytes" "$it" 9 \
+            2>> "$out/err.log" | grep -a '^CAL summary' | head -1)
+          if [ -n "$line" ]; then
+            echo "rep=$r btl=$btl np=$np prog=$l $line" >> "$out/calibrated.txt"; touch "$out/.done/$key"
+            fin_progress "$D" "mpilayer B r${r} ${btl} ${kind} ${bytes} B np${np} ${l}: done"
+          else echo "$(fin_utc) mpilayer $key" >> "$D/FAILED"; fin_progress "$D" "mpilayer $key: FAILED (err.log)"; fi
+        done
       done
     done
   done

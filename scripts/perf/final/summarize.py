@@ -890,16 +890,38 @@ def mpilayer_tables(m):
     out = [("Table \"Method A, separate launches\" (µs, median [min, max]; "
            "ping-pong: half round trip; halo: one exchange with every "
            "other rank, slowest rank):"), "", table(hdr, rows)]
-    cal = sorted(m.glob("calibrated.*.txt"))
-    if cal:
-        out += [("Method B (`mpi_bench calibrated`, one job per transport "
-                "and variant): the raw output is in `mpilayer/calibrated.*`"
-                f" ({len(cal)} files); its summary lines:"), "", "```text"]
-        for f in cal:
-            lines = [ln for ln in f.read_text(errors="replace").splitlines()
-                     if "ratio" in ln.lower()]
-            out += [f"{f.name}: {ln.strip()}" for ln in lines[:12]]
-        out += ["```", ""]
+    cal = m / "calibrated.txt"
+    if cal.exists():
+        bv = defaultdict(dict)
+        for ln in cal.read_text().splitlines():
+            kv = dict(x.split("=", 1) for x in ln.split() if "=" in x)
+            try:
+                bv[(kv["btl"], kv["np"], kv["kind"], int(kv["len"]),
+                    kv["prog"])][int(kv["rep"])] = kv
+            except (KeyError, ValueError):
+                continue
+        rows = []
+        for btl, np_, kind, by in sorted(
+                {k[:4] for k in bv}, key=lambda k: (k[0] != "sm", k[2], k[1],
+                                                    k[3])):
+            for prog in ("before", "head"):
+                reps = bv.get((btl, np_, kind, by, prog), {})
+                if not reps:
+                    continue
+
+                def col(f, reps=reps):
+                    return med([float(v[f]) for v in reps.values()])
+                rows.append(["shared memory" if btl == "sm" else "TCP",
+                             f"{kind} {by} B, {np_} ranks", prog,
+                             col("raw_med_us"), col("akantu_med_us"),
+                             col("calib_med_us"), col("ratio_med"),
+                             col("backend_ratio_med")])
+        out += ["Table \"Method B, one job\" (`mpi_bench calibrated`, 9 "
+                "interleaved blocks per job; µs; backend ratio = (akantu − "
+                "calibration) / raw, the MPI tier's gated figure):", "",
+                table(["Transport", "Case", "variant", "raw", "akantu-comm",
+                       "calibration", "akantu / raw", "backend ratio"],
+                      rows)]
     return out
 
 
