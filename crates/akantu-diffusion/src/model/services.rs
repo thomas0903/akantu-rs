@@ -44,6 +44,12 @@ pub(crate) struct DiffusionServices<'a> {
 }
 
 impl ModelServices for DiffusionServices<'_> {
+    /// The executor of the model's FE engines (D-123): the heat law's
+    /// points are independent.
+    fn exec(&self) -> &akantu_core::exec::Exec {
+        self.fems.exec()
+    }
+
     fn spatial_dimension(&self) -> usize {
         self.spatial_dimension
     }

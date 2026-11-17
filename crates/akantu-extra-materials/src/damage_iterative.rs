@@ -625,8 +625,11 @@ impl<const DIM: usize> MaterialDamageIterative<DIM> {
             None
         };
         let work = DamageWork::new(&options, thermal.as_deref());
+        // serial: the law's points are not independent (the damage step
+        // picks the most stressed point of the law)
+        let exec = akantu_core::exec::Exec::serial_ref();
         self.damage
-            .update_energies::<DIM>(self.elastic.base(), ty, work)
+            .update_energies::<DIM>(exec, self.elastic.base(), ty, work)
     }
 
     /// The internals of the law (registration order) for reflection.
