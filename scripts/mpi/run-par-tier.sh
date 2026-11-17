@@ -160,9 +160,11 @@ for n in $ranks; do
     done
     # the cohesive model distributed and threaded: mpi_cohesive again at 2
     # and 4 ranks with two threads per rank and batches split as finely as
-    # possible, every comparison (oracle replays included) as at one thread
+    # possible, every comparison (oracle replays included) as at one thread;
+    # idle workers park at once (4 x 2 threads on the image's 4 cores: with
+    # the default spin the run takes 90 s instead of 5)
     case "$n" in 2 | 4)
-      one_run "$n" "$k" "$coh" -t2 -x AKANTU_NUM_THREADS=2 -x AKANTU_EXEC_GRAIN=finest ;;
+      one_run "$n" "$k" "$coh" -t2 -x AKANTU_NUM_THREADS=2 -x AKANTU_EXEC_GRAIN=finest -x AKANTU_EXEC_SPIN_US=0 ;;
     esac
   done
 done
