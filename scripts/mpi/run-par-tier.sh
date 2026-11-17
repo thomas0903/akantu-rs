@@ -161,7 +161,7 @@ for n in $ranks; do
     # the cohesive model distributed and threaded: mpi_cohesive again at 2
     # and 4 ranks with two threads per rank and batches split as finely as
     # possible, every comparison (oracle replays included) as at one thread
-    case " 2 4 " in *" $n "*)
+    case "$n" in 2 | 4)
       one_run "$n" "$k" "$coh" -t2 -x AKANTU_NUM_THREADS=2 -x AKANTU_EXEC_GRAIN=finest ;;
     esac
   done
