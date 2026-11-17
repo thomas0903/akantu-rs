@@ -2374,7 +2374,7 @@ parameter `sparse_solver_ordering`, the Python keyword of
   program whether one of its analyses used another ordering.
 
 Reason: on the suite's 3-D and 2-D problems the dissection needs 0.46 of
-COLAMD's factorisation time on the 3-D elasticity case and 0.47–0.60 of the
+COLAMD's factorisation time on the 3-D elasticity case and 0.47–0.61 of the
 solve time on the heat, phase-field and beam cases (one thread, size m;
 the README of the benchmark directory has the tables). A user who accepts
 differences in the last digits gets that through one option. The
