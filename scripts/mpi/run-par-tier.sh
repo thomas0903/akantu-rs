@@ -6,7 +6,8 @@
 # mpi_synchronizers (distributed facets, facet / grid / periodic
 # synchronizers; akantu-mesh), mpi_smm (akantu-solid), mpi_diffusion
 # (akantu-diffusion), mpi_cohesive (akantu-cohesive,
-# the cohesive model on a distributed mesh), mpi_phase_field, mpi_ntn
+# the cohesive model on a distributed mesh; at 2 and 4 ranks also with two
+# threads per rank, `mpi_cohesive-t2` in results.tsv), mpi_phase_field, mpi_ntn
 # (akantu-ntn-contact, the split-node contact) and mpi_xmat
 # (akantu-extra-materials, TEST-187 and the extra non-local
 # laws) at every rank count of --ranks (default "1 2 4"), --repeat times,
@@ -106,49 +107,63 @@ echo "== binaries: $dist $syncs $smm $diff $coh $pf $ntn $xmat $life"
 export OMPI_MCA_rmaps_base_oversubscribe=1
 # reproducible Scotch partitions (see akantu_mesh::scotch)
 export SCOTCH_PTHREAD_NUMBER="${SCOTCH_PTHREAD_NUMBER:-1}"
+# one run of binary <b> at <n> ranks, repetition <k>; <tag> (empty or
+# `-t<threads>`) marks the threaded runs, the further arguments are passed
+# to mpirun (`-x VAR=value`); the NOT RUN expectations are the binary's
+one_run() {
+  local n="$1" k="$2" b="$3" tag="$4"; shift 4
+  local name log t0 rc t1 secs verdict summary ran nr names got want
+  name=$(basename "$b" | sed 's/-[0-9a-f]*$//')
+  log="$logdir/$name$tag-np$n-run$k.log"
+  t0=$(date +%s.%N)
+  timeout -k 10 900 mpirun -np "$n" --oversubscribe --bind-to none -x SCOTCH_PTHREAD_NUMBER "$@" "$b" > "$log" 2>&1
+  rc=$?
+  t1=$(date +%s.%N)
+  secs=$(python3 -c "print(f'{$t1-$t0:.1f}')")
+  verdict=FAIL
+  summary=$(grep -a "SUMMARY ranks=$n " "$log" | head -1)
+  ran=$(sed -nE 's/.* scenarios=([0-9]+) .*/\1/p' <<< "$summary")
+  nr=$(sed -nE 's/.* not_run=([0-9]+).*/\1/p' <<< "$summary")
+  nr=${nr:-0}
+  # At least one scenario ran, failed=0 exactly
+  if [ $rc = 0 ] && grep -aEq "SUMMARY ranks=$n scenarios=[1-9][0-9]* failed=0( |\$)" "$log"; then verdict=PASS; fi
+  names=$(grep -a "^NOT RUN " "$log" | sed -E 's/^NOT RUN ([^:]*):.*/\1/' | LC_ALL=C sort)
+  if [ "$k" = 1 ] && [ -z "$tag" ]; then
+    while IFS= read -r x; do [ -n "$x" ] && echo "$n $name $x" >> "$observed"; done <<< "$names"
+  fi
+  got=$(grep -c . <<< "$names")
+  if [ "$got" != "$nr" ]; then
+    echo "np=$n $name: $got NOT RUN line(s), SUMMARY not_run=$nr"
+    verdict=FAIL
+  fi
+  if covered "$n"; then
+    want=$(expected_not_run "$n" "$name")
+    if [ "$names" != "$want" ]; then
+      echo "np=$n $name: NOT RUN differs from scripts/mpi/par-not-run.txt"
+      echo "  new (not expected): $(LC_ALL=C comm -23 <(echo "$names") <(echo "$want") | tr '\n' ' ')"
+      echo "  gone (expected):    $(LC_ALL=C comm -13 <(echo "$names") <(echo "$want") | tr '\n' ' ')"
+      verdict=FAIL
+    fi
+  else
+    echo "INFO np=$n $name: par-not-run.txt covers no run at $n ranks; $got NOT RUN name(s) not compared"
+  fi
+  [ $verdict = FAIL ] && fail=1
+  printf '%s\t%s\t%s\t%s\t%s\t%s\t%s\t%s\n' "$n" "$name$tag" "$k" "$rc" "$secs" "$verdict" "${ran:--}" "$nr" >> "$results"
+  echo "np=$n run=$k $name$tag: $verdict (rc=$rc, ${secs}s)"
+  grep -a "SUMMARY ranks=" "$log" | head -1
+  grep -a "^FAIL\|^INFO" "$log" | head -20
+}
 for n in $ranks; do
   for k in $(seq 1 "$repeat"); do
     for b in "$dist" "$syncs" "$smm" "$diff" "$coh" "$pf" "$ntn" "$xmat"; do
-      name=$(basename "$b" | sed 's/-[0-9a-f]*$//')
-      log="$logdir/$name-np$n-run$k.log"
-      t0=$(date +%s.%N)
-      timeout -k 10 900 mpirun -np "$n" --oversubscribe --bind-to none -x SCOTCH_PTHREAD_NUMBER "$b" > "$log" 2>&1
-      rc=$?
-      t1=$(date +%s.%N)
-      secs=$(python3 -c "print(f'{$t1-$t0:.1f}')")
-      verdict=FAIL
-      summary=$(grep -a "SUMMARY ranks=$n " "$log" | head -1)
-      ran=$(sed -nE 's/.* scenarios=([0-9]+) .*/\1/p' <<< "$summary")
-      nr=$(sed -nE 's/.* not_run=([0-9]+).*/\1/p' <<< "$summary")
-      nr=${nr:-0}
-      # At least one scenario ran, failed=0 exactly
-      if [ $rc = 0 ] && grep -aEq "SUMMARY ranks=$n scenarios=[1-9][0-9]* failed=0( |\$)" "$log"; then verdict=PASS; fi
-      names=$(grep -a "^NOT RUN " "$log" | sed -E 's/^NOT RUN ([^:]*):.*/\1/' | LC_ALL=C sort)
-      if [ "$k" = 1 ]; then
-        while IFS= read -r x; do [ -n "$x" ] && echo "$n $name $x" >> "$observed"; done <<< "$names"
-      fi
-      got=$(grep -c . <<< "$names")
-      if [ "$got" != "$nr" ]; then
-        echo "np=$n $name: $got NOT RUN line(s), SUMMARY not_run=$nr"
-        verdict=FAIL
-      fi
-      if covered "$n"; then
-        want=$(expected_not_run "$n" "$name")
-        if [ "$names" != "$want" ]; then
-          echo "np=$n $name: NOT RUN differs from scripts/mpi/par-not-run.txt"
-          echo "  new (not expected): $(LC_ALL=C comm -23 <(echo "$names") <(echo "$want") | tr '\n' ' ')"
-          echo "  gone (expected):    $(LC_ALL=C comm -13 <(echo "$names") <(echo "$want") | tr '\n' ' ')"
-          verdict=FAIL
-        fi
-      else
-        echo "INFO np=$n $name: par-not-run.txt covers no run at $n ranks; $got NOT RUN name(s) not compared"
-      fi
-      [ $verdict = FAIL ] && fail=1
-      printf '%s\t%s\t%s\t%s\t%s\t%s\t%s\t%s\n' "$n" "$name" "$k" "$rc" "$secs" "$verdict" "${ran:--}" "$nr" >> "$results"
-      echo "np=$n run=$k $name: $verdict (rc=$rc, ${secs}s)"
-      grep -a "SUMMARY ranks=" "$log" | head -1
-      grep -a "^FAIL\|^INFO" "$log" | head -20
+      one_run "$n" "$k" "$b" ""
     done
+    # the cohesive model distributed and threaded: mpi_cohesive again at 2
+    # and 4 ranks with two threads per rank and batches split as finely as
+    # possible, every comparison (oracle replays included) as at one thread
+    case " 2 4 " in *" $n "*)
+      one_run "$n" "$k" "$coh" -t2 -x AKANTU_NUM_THREADS=2 -x AKANTU_EXEC_GRAIN=finest ;;
+    esac
   done
 done
 for s in funneled_self_wait_on_worker_early funneled_self_wait_on_worker_late; do

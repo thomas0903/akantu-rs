@@ -13,7 +13,8 @@
 //! really splits) and at the automatic grain. 2-D (triangles) and 3-D
 //! (tetrahedra); extrinsic runs with insertions during the run
 //! (`cohesive_linear` and `cohesive_bilinear`, the laws that run their
-//! points on threads), and intrinsic runs (`cohesive_bilinear`, and
+//! points on threads; facets of a band, and of the whole mesh for
+//! `cohesive_linear`), and intrinsic runs (`cohesive_bilinear`, and
 //! `cohesive_exponential`, which stays serial, beside the threaded bulk).
 
 use akantu_cohesive::SolidMechanicsModelCohesive;
@@ -26,7 +27,8 @@ use akantu_model::ModelOptions;
 use akantu_parser::Parser;
 
 /// An `n^dim` grid of the unit square (cube), each cell split into two
-/// triangles (five tetrahedra); a slightly irregular interior.
+/// triangles (six tetrahedra around a diagonal); a slightly irregular
+/// interior.
 fn grid(dim: usize, n: usize) -> Mesh {
     let mut m = Mesh::new(dim, "grid").unwrap();
     {
@@ -81,7 +83,6 @@ fn grid(dim: usize, n: usize) -> Mesh {
                         let mut conn =
                             a.connectivity_mut(ElementType::Tetrahedron4, GhostType::NotGhost);
                         // the six Kuhn tetrahedra around the diagonal 0-6
-                        // (conforming between neighbouring cells)
                         for t in [
                             [0, 1, 2, 6],
                             [0, 2, 3, 6],
@@ -141,6 +142,24 @@ fn dat(law: &str, y_lo: Real, y_hi: Real) -> String {
     )
 }
 
+/// Where the cohesive elements go.
+#[derive(Clone, Copy, Debug)]
+enum Setup {
+    /// Extrinsic, the facets of a wide band (many checked facets,
+    /// insertions spread over the run).
+    Band,
+    /// Extrinsic, every facet of the mesh.
+    WholeBox,
+    /// Intrinsic, the facets of the grid line y = 1/2 only.
+    Intrinsic,
+}
+
+impl Setup {
+    fn extrinsic(self) -> bool {
+        !matches!(self, Setup::Intrinsic)
+    }
+}
+
 /// A model of `law` on `grid(dim, n)` with the policy, its time step and an
 /// initial stretching velocity (with a shear part) that opens facets
 /// during the first steps.
@@ -148,16 +167,17 @@ fn model(
     dim: usize,
     n: usize,
     law: &str,
-    extrinsic: bool,
+    setup: Setup,
     policy: ExecPolicy,
 ) -> SolidMechanicsModelCohesive {
-    // extrinsic: a wide band (many checked facets, insertions spread over
-    // the run); intrinsic: the facets of the grid line y = 1/2 only
-    let (y_lo, y_hi) = if extrinsic {
-        (0.3, 0.7)
-    } else {
-        let h = 1.0 / n as Real;
-        (0.5 - 0.25 * h, 0.5 + 0.25 * h)
+    let extrinsic = setup.extrinsic();
+    let (y_lo, y_hi) = match setup {
+        Setup::Band => (0.3, 0.7),
+        Setup::WholeBox => (-1.0, 2.0),
+        Setup::Intrinsic => {
+            let h = 1.0 / n as Real;
+            (0.5 - 0.25 * h, 0.5 + 0.25 * h)
+        }
     };
     let parser = Parser::parse_str(&dat(law, y_lo, y_hi), "material.dat").unwrap();
     let mut m = SolidMechanicsModelCohesive::with_parser(
@@ -292,11 +312,12 @@ fn run(
     dim: usize,
     n: usize,
     law: &str,
-    extrinsic: bool,
+    setup: Setup,
     policy: ExecPolicy,
     steps: usize,
 ) -> (Vec<(String, Vec<u64>)>, usize) {
-    let mut m = model(dim, n, law, extrinsic, policy);
+    let extrinsic = setup.extrinsic();
+    let mut m = model(dim, n, law, setup, policy);
     let mut inserted = 0;
     for _ in 0..steps {
         if extrinsic {
@@ -342,38 +363,44 @@ fn policies() -> Vec<(String, ExecPolicy)> {
     out
 }
 
-fn check(dim: usize, n: usize, law: &str, extrinsic: bool, steps: usize) {
-    let (reference, inserted) = run(dim, n, law, extrinsic, ExecPolicy::serial(), steps);
+fn check(dim: usize, n: usize, law: &str, setup: Setup, steps: usize) {
+    let (reference, inserted) = run(dim, n, law, setup, ExecPolicy::serial(), steps);
     assert!(
         inserted > 0,
         "{dim}-D {law}: no cohesive element in the run"
     );
     for (what, policy) in policies() {
-        let (other, k) = run(dim, n, law, extrinsic, policy, steps);
+        let (other, k) = run(dim, n, law, setup, policy, steps);
         assert_eq!(k, inserted, "{dim}-D {law} ({what}): inserted elements");
         compare(
             &reference,
             &other,
-            &format!("{dim}-D {law} extrinsic={extrinsic} ({what})"),
+            &format!("{dim}-D {law} {setup:?} ({what})"),
         );
     }
 }
 
 #[test]
 fn extrinsic_linear_is_bitwise_for_every_thread_count() {
-    check(2, 10, "cohesive_linear", true, 40);
-    check(3, 4, "cohesive_linear", true, 30);
+    check(2, 10, "cohesive_linear", Setup::Band, 40);
+    check(3, 4, "cohesive_linear", Setup::Band, 30);
+}
+
+#[test]
+fn extrinsic_linear_whole_box_is_bitwise_for_every_thread_count() {
+    check(2, 8, "cohesive_linear", Setup::WholeBox, 30);
+    check(3, 3, "cohesive_linear", Setup::WholeBox, 25);
 }
 
 #[test]
 fn extrinsic_bilinear_is_bitwise_for_every_thread_count() {
-    check(2, 10, "cohesive_bilinear", true, 40);
-    check(3, 4, "cohesive_bilinear", true, 30);
+    check(2, 10, "cohesive_bilinear", Setup::Band, 40);
+    check(3, 4, "cohesive_bilinear", Setup::Band, 30);
 }
 
 #[test]
 fn intrinsic_laws_are_bitwise_for_every_thread_count() {
-    check(2, 8, "cohesive_bilinear", false, 30);
-    check(3, 3, "cohesive_bilinear", false, 20);
-    check(2, 8, "cohesive_exponential", false, 30);
+    check(2, 8, "cohesive_bilinear", Setup::Intrinsic, 30);
+    check(3, 3, "cohesive_bilinear", Setup::Intrinsic, 20);
+    check(2, 8, "cohesive_exponential", Setup::Intrinsic, 30);
 }
