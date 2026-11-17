@@ -74,3 +74,67 @@ fn every_case_completes_and_repeats_its_digest() {
         );
     }
 }
+
+/// The JSON lines, the status and the standard error of one run of the
+/// binary (`AKANTU_*` thread variables of the test's environment removed,
+/// `env` added).
+fn thread_run(args: &[&str], env: &[(&str, &str)]) -> (bool, Vec<serde_json::Value>, String) {
+    let mut cmd = Command::new(env!("CARGO_BIN_EXE_suite_models"));
+    cmd.args(args).env("SCOTCH_PTHREAD_NUMBER", "1");
+    for k in ["AKANTU_NUM_THREADS", "AKANTU_EXEC_GRAIN"] {
+        cmd.env_remove(k);
+    }
+    for (k, v) in env {
+        cmd.env(k, v);
+    }
+    let out = cmd.output().expect("suite_models runs");
+    let lines = String::from_utf8_lossy(&out.stdout)
+        .lines()
+        .filter(|l| l.starts_with('{'))
+        .map(|l| serde_json::from_str(l).expect("one JSON object per line"))
+        .collect();
+    (
+        out.status.success(),
+        lines,
+        String::from_utf8_lossy(&out.stderr).into_owned(),
+    )
+}
+
+/// `--threads` sets the thread count of the run: one case at 1 and at 3
+/// threads gives the same digest and records the count in force (and the
+/// grain); the environment variable alone is recorded too; an explicit
+/// `--threads` that differs from `AKANTU_NUM_THREADS` is an error naming
+/// both.
+#[test]
+fn the_thread_option_sets_and_records_the_thread_count() {
+    let case = "heat_static_tri6".to_owned();
+    let run = |extra: &[&str], env: &[(&str, &str)]| {
+        let mut a = vec!["--case", case.as_str(), "--size", "s"];
+        a.extend_from_slice(extra);
+        let (ok, lines, err) = thread_run(&a, env);
+        assert!(ok, "{a:?}: {err}");
+        assert!(!lines.is_empty(), "{a:?}: no output");
+        lines
+    };
+    let one = run(&["--threads", "1"], &[]);
+    let three = run(&["--threads", "3", "--grain", "finest"], &[]);
+    let env3 = run(&[], &[("AKANTU_NUM_THREADS", "3")]);
+    assert_eq!(one.len(), three.len());
+    for (l1, l3) in one.iter().zip(&three) {
+        assert_eq!(l1["digest"], l3["digest"], "{case}");
+        assert_eq!(l1["threads"], 1);
+        assert_eq!(l3["threads"], 3);
+        assert_eq!(l1["grain"], "auto");
+        assert_eq!(l3["grain"], "finest");
+    }
+    assert!(env3.iter().all(|l| l["threads"] == 3));
+    let (ok, _, err) = thread_run(
+        &["--case", case.as_str(), "--size", "s", "--threads", "2"],
+        &[("AKANTU_NUM_THREADS", "3")],
+    );
+    assert!(!ok);
+    assert!(
+        err.contains("--threads 2") && err.contains("AKANTU_NUM_THREADS=3"),
+        "{err}"
+    );
+}

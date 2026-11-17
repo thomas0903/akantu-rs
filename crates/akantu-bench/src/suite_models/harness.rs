@@ -13,6 +13,7 @@ use std::path::PathBuf;
 use std::time::Instant;
 
 use akantu_comm::{Communicator, ReduceOp};
+use akantu_core::exec::Grain;
 use akantu_core::{Error, Result};
 
 /// Problem size of a run.
@@ -63,8 +64,16 @@ pub struct Opts {
     pub out: Option<PathBuf>,
     /// `--loop-seconds S`: repeat each loop phase for at least `S` seconds.
     pub loop_seconds: Option<f64>,
-    /// `--threads N` (recorded only).
+    /// `--threads N`: the thread count of the process default execution
+    /// policy (`akantu_bench::suite::apply_exec_options`); `None` keeps the
+    /// environment's.
+    pub threads_arg: Option<usize>,
+    /// `--grain finest|auto`, likewise.
+    pub grain_arg: Option<Grain>,
+    /// The thread count in force (recorded in the JSON lines).
     pub threads: usize,
+    /// The grain in force (recorded).
+    pub grain: Grain,
 }
 
 impl Opts {
@@ -80,7 +89,10 @@ impl Opts {
             reps: 1,
             out: None,
             loop_seconds: None,
+            threads_arg: None,
+            grain_arg: None,
             threads: 1,
+            grain: Grain::Auto,
         };
         let mut it = args.iter();
         let bad = |what: &str| Error::invalid(format!("suite_models: {what}"));
@@ -106,7 +118,20 @@ impl Opts {
                 "--loop-seconds" => {
                     o.loop_seconds = Some(value()?.parse().map_err(|_| bad("--loop-seconds S"))?);
                 }
-                "--threads" => o.threads = value()?.parse().map_err(|_| bad("--threads N"))?,
+                "--threads" => {
+                    let n: usize = value()?.parse().map_err(|_| bad("--threads N"))?;
+                    if n == 0 {
+                        return Err(bad("--threads must be at least 1"));
+                    }
+                    o.threads_arg = Some(n);
+                }
+                "--grain" => {
+                    o.grain_arg = Some(
+                        value()?
+                            .parse()
+                            .map_err(|e| bad(&format!("--grain: {e}")))?,
+                    );
+                }
                 "-h" | "--help" => o.list = true,
                 v => return Err(bad(&format!("unknown argument {v}"))),
             }
@@ -307,7 +332,7 @@ impl Run {
                 s,
                 "{{\"suite\":\"models\",\"case\":\"{case}\",\"size\":\"{}\",\"rep\":{rep},\
                  \"phase\":\"{}\",\"calls\":{},\"seconds\":{:.6},\"n_elements\":{},\
-                 \"n_nodes\":{},\"n_dofs\":{},\"ranks\":{},\"threads\":{},\
+                 \"n_nodes\":{},\"n_dofs\":{},\"ranks\":{},\"threads\":{},\"grain\":\"{}\",\
                  \"digest\":\"{}\",\"commit\":\"{}\",\"features\":\"{}\",\
                  \"sparse_solver\":\"{}\"}}",
                 self.opts.size.name(),
@@ -319,6 +344,7 @@ impl Run {
                 self.counts.dofs,
                 self.comm.size(),
                 self.opts.threads,
+                akantu_bench::suite::grain_name(self.opts.grain),
                 digest.hex(),
                 commit(),
                 features(),
@@ -406,13 +432,24 @@ pub fn features() -> String {
 pub fn main(cases: &[Case], comm: impl FnOnce() -> Result<Communicator>) -> std::process::ExitCode {
     use std::process::ExitCode;
     let args: Vec<String> = std::env::args().skip(1).collect();
-    let opts = match Opts::parse(&args) {
+    let mut opts = match Opts::parse(&args) {
         Ok(o) => o,
         Err(e) => {
             eprintln!("{e}");
             return ExitCode::from(2);
         }
     };
+    // before any model is created: the policy of every model of the run
+    match akantu_bench::suite::apply_exec_options(opts.threads_arg, opts.grain_arg) {
+        Ok((threads, grain)) => {
+            opts.threads = threads;
+            opts.grain = grain;
+        }
+        Err(e) => {
+            eprintln!("suite_models: {e}");
+            return ExitCode::from(2);
+        }
+    }
     if opts.list || opts.cases.is_empty() {
         for c in cases {
             println!("{:<34} {}", c.name, c.description);

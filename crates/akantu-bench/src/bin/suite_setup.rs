@@ -7,7 +7,7 @@
 //! `suite_setup`: see `crates/akantu-bench/README.md`, section "Set-up
 //! suite". `suite_setup --list`; `suite_setup --case <name>[,…]|all --size
 //! s|m|l [--reps N] [--out FILE] [--loop-seconds S] [--threads N]
-//! [--local-ranks N]`. MPI cases take the rank count from `mpirun -n`
+//! [--grain finest|auto] [--local-ranks N]`. MPI cases take the rank count from `mpirun -n`
 //! (feature `mpi`), or from `--local-ranks` (in-process ranks).
 
 #![forbid(unsafe_code)]
@@ -35,13 +35,18 @@ fn world() -> Result<Communicator> {
 }
 
 fn main() -> ExitCode {
-    let cli = match parse_cli(std::env::args().skip(1)) {
+    let mut cli = match parse_cli(std::env::args().skip(1)) {
         Ok(c) => c,
         Err(e) => {
             eprintln!("suite_setup: {e}");
             return ExitCode::from(2);
         }
     };
+    // before any model is created: the policy of every model of the run
+    if let Err(e) = cli.apply_exec() {
+        eprintln!("suite_setup: {e}");
+        return ExitCode::from(2);
+    }
     let cases = suite_setup::cases();
     let results: Vec<Result<()>> = match cli.local_ranks {
         Some(n) if n > 1 => run_local(n, Duration::from_secs(24 * 3600), |c| {

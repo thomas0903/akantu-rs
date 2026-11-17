@@ -75,11 +75,44 @@ change of default results or of a public API raises the minor version.
   (per-point thresholds) and `ve_stiffness_prop`, with their per-step hooks (plastic work, dissipated energy,
   Maxwell branch update, thermal refresh). `docs/ARCHITECTURE.md`,
   "Execution policy", lists the laws and why the others stay serial.
-- Threads in the explicit step of the heat transfer model
-  (`HeatTransferModel::{exec_policy, set_exec_policy}`): FE kernels, the
-  heat law's diffusivity and `D∇u` loops, the internal-flow scatter in the
-  serial order per node. `PhaseFieldModel::{exec_policy,
-  set_exec_policy}` puts the phase-field model's FE kernels on threads.
+- Threads in the explicit step of the heat transfer model (under the
+  model's execution policy, see below): FE kernels, the heat law's
+  diffusivity and `D∇u` loops, the internal-flow scatter in the serial
+  order per node. The phase-field model's FE kernels run on its policy's
+  threads too.
+- Threads in matrix assembly and in the matrix operations of implicit
+  steps, bitwise equal to one thread for every thread count: elemental
+  stiffness (`FeEngine::compute_btdb_integrated`, `∫ BᵀDB` per element,
+  bit for bit `compute_btdb` then `integrate`, used by the solid stiffness
+  and the heat conductivity) and consistent mass on the FE engine's
+  executor; the scatter of a repeated element assembly by entry ranges
+  (every entry receives its contributions in element order:
+  `SparseMatrixAij::add_values_cached_batch`,
+  `LinearSystemBackend::add_values_cached_batch`,
+  `BlockPositionCache::continues`, the diagnostic
+  `DofManager::threaded_assemblies`); zeroing, scaling, entry-wise sums,
+  profile copies, Dirichlet rows and the matrix-vector product
+  (`SparseMatrixAij::{set_with, zero_with, mul_with, add_matrix_with,
+  add_matrix_upstream_with, copy_profile_with, apply_boundary_on,
+  mat_vec_mul_with}`, `LinearSystemBackend::set_exec`; the product
+  gathers each row's terms in storage order, about 16 bytes per stored
+  entry, built once per profile). `DofManager::set_exec` reaches the
+  backend. `HeatTransferModel`, `PhaseFieldModel` and
+  `StructuralMechanicsModel` take the process default policy and have
+  `exec_policy` / `set_exec_policy` (the structural engine's elemental
+  matrices stay serial). The first assembly of a matrix (its profile)
+  stays serial. `FeEngine::field_matrix_elemental_into`: the consistent
+  mass into caller-owned arrays (same checks, errors and values).
+- `SolidMechanicsModel` keeps the arrays of its stiffness and
+  consistent-mass assemblies between assemblies: one elemental-matrix
+  array per element type (shared by the stiffness and the mass), the
+  tangent, the gradient and the density values. For 162,000 four-node
+  tetrahedra that is 187 MB of elemental matrices and 46 MB of tangent
+  held after an assembly, which used to be allocated, page-faulted and
+  freed at every assembly. The peak during an assembly is lower than
+  before: the per-point `BᵀDB` array (`nb_element · nq · n²` values) is
+  no longer built. `SolidMechanicsModel::release_static_solver` frees
+  them; the next assembly allocates them again.
 - Fast-mode harness `akantu_validation::fast_mode` with the rules of
   `fixtures/fast_mode/`, and its demonstrator (the gradient kernel with
   fused multiply-adds under `Precision::Fast`).
