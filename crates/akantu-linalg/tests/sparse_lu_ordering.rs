@@ -14,7 +14,9 @@
 use akantu_core::Error;
 use akantu_core::exec::{Exec, ExecPolicy, Grain, Precision};
 use akantu_linalg::direct::CscMatrix;
-use akantu_linalg::eigen_sparse_lu::{AUTO_MIN_ORDER, SparseLu, SparseOrdering};
+use akantu_linalg::eigen_sparse_lu::{
+    AUTO_MIN_ORDER, SparseLu, SparseOrdering, non_default_ordering_used,
+};
 use akantu_validation::fast_mode::{ModeQuantity, check_fast_mode};
 
 const CASE: &str = "fast_mode/linalg/sparse_lu_ordering";
@@ -320,6 +322,8 @@ fn the_permutation_depends_on_the_pattern_only() {
         lu.perm_c().to_vec()
     };
     let p = perm(&a);
+    // the process records that a non-default ordering ran
+    assert!(non_default_ordering_used());
     assert_eq!(p, perm(&a));
     assert_eq!(p, perm(&b));
     let mut sorted = p.clone();

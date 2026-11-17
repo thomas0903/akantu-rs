@@ -11,7 +11,7 @@
 
 use akantu_core::exec::{Exec, ExecPolicy, Grain, Precision, SimdLevel};
 use akantu_linalg::direct::CscMatrix;
-use akantu_linalg::eigen_sparse_lu::SparseLu;
+use akantu_linalg::eigen_sparse_lu::{SparseLu, SparseOrdering};
 use akantu_validation::fast_mode::{ModeQuantity, check_fast_mode};
 
 const CASE: &str = "fast_mode/linalg/sparse_lu_stencil";
@@ -48,6 +48,9 @@ fn stencil3(k: usize) -> CscMatrix {
 fn run(a: &CscMatrix, b: &[f64], policy: ExecPolicy) -> Vec<ModeQuantity> {
     let mut lu = SparseLu::default();
     lu.set_exec(Exec::new(policy).unwrap());
+    // the FMA kernels alone: COLAMD in both modes (an unset ordering is
+    // `auto` in the fast mode, D-125; its rule is sparse_lu_ordering)
+    lu.set_ordering(Some(SparseOrdering::Colamd));
     lu.analyze_pattern(a).unwrap();
     lu.factorize(a).unwrap();
     let mut x = vec![0.0; a.n()];

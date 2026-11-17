@@ -707,3 +707,52 @@ fn two_filters_on_one_type_hit_the_position_cache() {
         "round 3 resolved again: {resolves:?}"
     );
 }
+
+/// D-125: `sparse_solver_ordering` of a `time_step_solver` section reaches
+/// the eigen solver (its statistics after a solve name the ordering used),
+/// an unknown value is an error, another sparse solver kind refuses any
+/// ordering but `colamd`, and the default and an explicit `colamd` give the
+/// same bits.
+#[test]
+fn sparse_solver_ordering_from_the_section() {
+    let solve = |ordering: Option<&str>,
+                 ty: &str|
+     -> Result<(Vec<Real>, Vec<(&'static str, Real)>)> {
+        let line = ordering.map_or(String::new(), |o| {
+            format!("    sparse_solver_ordering = {o}\n")
+        });
+        let text = format!(
+            "model model_solver [\n  time_step_solver static [\n    sparse_solver_type = {ty}\n{line}    \
+             integration_scheme pseudo_time [\n      name = disp\n    ]\n  ]\n]\n"
+        );
+        let parser = Parser::parse_str(&text, "ordering.dat")?;
+        let section = &parser.root.sub_sections[0];
+        let mut dm = DofManager::new("dm", Communicator::serial());
+        let mut model = MyModel::new(1.0, gen_mesh(40), false, &mut dm)?;
+        let mut ms = ModelSolver::new(dm);
+        ms.init_from_section(section, &mut model, false)?;
+        ms.solve_step(&mut model, None)?;
+        let stats = ms.dof_manager.backend().sparse_solver_statistics("J");
+        let u = ms.dof_manager.dofs("disp")?.as_slice().to_vec();
+        Ok((u, stats))
+    };
+    let used = |s: &[(&str, Real)]| s.iter().find(|p| p.0 == "ordering").map(|p| p.1);
+    let (u_default, s_default) = solve(None, "eigen").unwrap();
+    let (u_colamd, s_colamd) = solve(Some("colamd"), "eigen").unwrap();
+    let (u_nd, s_nd) = solve(Some("nested_dissection"), "eigen").unwrap();
+    assert_eq!(used(&s_default), Some(0.0));
+    assert_eq!(used(&s_colamd), Some(0.0));
+    assert_eq!(used(&s_nd), Some(1.0));
+    assert!(
+        u_default
+            .iter()
+            .zip(&u_colamd)
+            .all(|(a, b)| a.to_bits() == b.to_bits())
+    );
+    for (a, b) in u_default.iter().zip(&u_nd) {
+        assert!((a - b).abs() <= 1e-12 * a.abs().max(1.0), "{a} {b}");
+    }
+    assert!(solve(Some("metis"), "eigen").is_err());
+    assert!(solve(Some("nested_dissection"), "faer").is_err());
+    assert!(solve(Some("colamd"), "faer").is_ok());
+}

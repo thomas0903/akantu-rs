@@ -108,6 +108,42 @@ pub const AUTO_WORK_RATIO: f64 = 0.8;
 /// mode (D-125); in the bitwise mode an unset ordering is always COLAMD.
 const AUTO_IN_FAST_MODE: bool = true;
 
+/// The environment variable of the process default ordering: the ordering
+/// of a solver whose ordering is not set (`colamd`, `nested_dissection`,
+/// `auto`; read once). Unset: COLAMD, or `auto` in the fast mode. A fixture
+/// writer refuses to run when it names another ordering than `colamd`
+/// (`akantu_validation::writer`).
+pub const ENV_ORDERING: &str = "AKANTU_SPARSE_ORDERING";
+
+/// [`ENV_ORDERING`], parsed once (`Err`: an invalid value).
+fn env_ordering() -> std::result::Result<Option<SparseOrdering>, String> {
+    static ENV: std::sync::OnceLock<std::result::Result<Option<SparseOrdering>, String>> =
+        std::sync::OnceLock::new();
+    ENV.get_or_init(|| match std::env::var(ENV_ORDERING) {
+        Ok(v) if !v.trim().is_empty() => v
+            .trim()
+            .parse::<SparseOrdering>()
+            .map(Some)
+            .map_err(|e| format!("{ENV_ORDERING}: {e}")),
+        _ => Ok(None),
+    })
+    .clone()
+}
+
+/// Whether an analysis of this process used another ordering than COLAMD
+/// (a run whose results differ from the default bits; for programs that
+/// must not record such results, e.g. fixture writers).
+static NON_DEFAULT_ORDERING_USED: std::sync::atomic::AtomicBool =
+    std::sync::atomic::AtomicBool::new(false);
+
+/// `true` once an analysis of this process used another ordering than
+/// COLAMD ([`SparseOrdering::NestedDissection`], directly or through
+/// [`SparseOrdering::Auto`]).
+#[must_use]
+pub fn non_default_ordering_used() -> bool {
+    NON_DEFAULT_ORDERING_USED.load(std::sync::atomic::Ordering::Relaxed)
+}
+
 /// Column ordering of [`SparseLu`]'s analysis (D-125).
 ///
 /// The default, [`SparseOrdering::Colamd`], is Eigen's and gives the
@@ -262,7 +298,7 @@ impl SparseLu {
                 limit: i32::MAX as u128,
             });
         }
-        let (perm_c, report) = match self.effective_ordering() {
+        let (perm_c, report) = match self.effective_ordering_checked()? {
             SparseOrdering::Colamd => (
                 colamd::colamd_ordering(n, n, a.col_ptr(), a.row_idx())?,
                 OrderingReport::default(),
@@ -281,15 +317,19 @@ impl SparseLu {
             SparseOrdering::Auto => auto_ordering(a)?,
         };
         self.analyze_with_perm(a, perm_c)?;
+        if report.used != SparseOrdering::Colamd {
+            NON_DEFAULT_ORDERING_USED.store(true, std::sync::atomic::Ordering::Relaxed);
+        }
         self.report = report;
         Ok(())
     }
 
     /// The ordering of the next analyses (D-125): `Some(o)` selects `o`;
-    /// `None` (the default) is [`SparseOrdering::Colamd`], or
-    /// [`SparseOrdering::Auto`] when the fast mode is in effect
-    /// ([`SparseLu::set_fast_mode`], or an executor in precision `Fast`).
-    /// Takes effect at the next [`SparseLu::analyze_pattern`].
+    /// `None` (the default) is the process default [`ENV_ORDERING`] when
+    /// set, else [`SparseOrdering::Colamd`], or [`SparseOrdering::Auto`]
+    /// when the fast mode is in effect ([`SparseLu::set_fast_mode`], or an
+    /// executor in precision `Fast`). Takes effect at the next
+    /// [`SparseLu::analyze_pattern`].
     pub fn set_ordering(&mut self, ordering: Option<SparseOrdering>) {
         self.ordering = ordering;
     }
@@ -300,14 +340,26 @@ impl SparseLu {
         self.ordering
     }
 
-    /// The ordering an analysis would use now.
+    /// The ordering an analysis would use now (an invalid [`ENV_ORDERING`]
+    /// counts as unset here; the analysis reports it).
     #[must_use]
     pub fn effective_ordering(&self) -> SparseOrdering {
-        match self.ordering {
-            Some(o) => o,
-            None if AUTO_IN_FAST_MODE && self.fast_mode().is_some() => SparseOrdering::Auto,
-            None => SparseOrdering::Colamd,
+        self.effective_ordering_checked()
+            .unwrap_or(SparseOrdering::Colamd)
+    }
+
+    fn effective_ordering_checked(&self) -> Result<SparseOrdering> {
+        if let Some(o) = self.ordering {
+            return Ok(o);
         }
+        if let Some(o) = env_ordering().map_err(Error::invalid)? {
+            return Ok(o);
+        }
+        Ok(if AUTO_IN_FAST_MODE && self.fast_mode().is_some() {
+            SparseOrdering::Auto
+        } else {
+            SparseOrdering::Colamd
+        })
     }
 
     /// The ordering the last analysis used, with `Auto`'s predictions.
@@ -360,6 +412,7 @@ impl SparseLu {
             });
         }
         self.analyze_with_perm(a, perm_c)?;
+        NON_DEFAULT_ORDERING_USED.store(true, std::sync::atomic::Ordering::Relaxed);
         self.report = OrderingReport {
             used: SparseOrdering::NestedDissection,
             predicted: None,
