@@ -2135,9 +2135,18 @@ the Akantu repository, which is LGPL-3.0-or-later like the port. This
 replaces the earlier choice of copying no upstream figure
 (`docs/DEPENDENCIES.md`, `docs/manual/NOTICE`).
 
+The element appendix's formulas are generated, and its test
+(`shape_formulas_match_the_kernels`) compares each displayed derivative
+with the kernels within an absolute 1e-13, the value it already used for
+the shape functions: the formula and the kernel evaluate the same
+polynomial in different operation orders. This is a check of the
+documentation, not a fixture tolerance; no `tolerances.json` changes. The
+project's director agreed to it, to the added build tool and to the copied
+figures on 17 November 2026.
+
 Consequence: building the manual needs mdbook-katex besides mdBook. The
-rendering script is a maintenance tool (pyvista in a virtual environment);
-neither the build nor the CI depends on it.
+rendering script is a maintenance tool (pyvista in a container); neither
+the build nor the CI depends on it.
 
 ## Ids without a record
 
