@@ -935,6 +935,15 @@ def summarize_d(d, info):
                              ratio(metric(x, "static"), metric(c, "static")),
                              ratio(metric(x, "static"), metric(p, "static"))
                              + " (against 1 thread)", ""])
+        for lab, what in (("head-nd", "nested dissection"),
+                          ("head-auto", "fast precision, auto ordering")):
+            x = vs.get(lab)
+            if x:
+                rows.append([h, f"port, {what}",
+                             "", "", med(list(metric(x, "static").values())),
+                             ratio(metric(x, "static"), metric(c, "static")),
+                             ratio(metric(x, "static"), metric(p, "static"))
+                             + " (against COLAMD)", ""])
     out += [("Table \"The SparseLU translation against upstream's "
             "SparseLU\" (the driver's `static_solve` phase: assembly, "
             "analysis, factorisation, solve; 1 rank, 10 steps; s):"), "",

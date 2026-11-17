@@ -189,7 +189,10 @@ fin_progress "$D" "plan: $(grep '^total' "$D/plan.txt" | tr -s ' ')"
 # variant label -> host directory of its base variant
 vdir() { case "${1%%-*}" in before) echo "$BEFORE" ;; head) echo "$HEAD" ;; *) fin_die "variant $1" ;; esac; }
 threads_of() { case "$1" in *-t[0-9]*) echo "${1##*-t}" ;; *) echo 1 ;; esac; }
-precision_of() { case "$1" in *-fast*) echo fast ;; *) echo bitwise ;; esac; }
+# head-auto: the fast precision with no ordering set (the eigen solver's
+# `auto` ordering); head-nd: AKANTU_SPARSE_ORDERING=nested_dissection (D-125)
+precision_of() { case "$1" in *-fast*|*-auto*) echo fast ;; *) echo bitwise ;; esac; }
+ordering_of() { case "$1" in *-nd*) echo nested_dissection ;; *) echo "" ;; esac; }
 
 # ----------------------------------------------------------------------------
 # Part A: the explicit step
@@ -305,8 +308,8 @@ run_suite() { # id rep labels dir bin case size
   mkdir -p "$out/progs"
   for l in "${labels[@]}"; do
     t=$(threads_of "$l"); p=$(precision_of "$l")
-    if [ "$t" = 1 ]; then fin_wrapper "$out/progs" "$l" "$(vdir "$l")/$bin" 1 "$p" "$pin"
-    else fin_wrapper "$out/progs" "$l" "$(vdir "$l")/$bin" "$t" "$p" 0; fi
+    if [ "$t" = 1 ]; then fin_wrapper "$out/progs" "$l" "$(vdir "$l")/$bin" 1 "$p" "$pin" "$(ordering_of "$l")"
+    else fin_wrapper "$out/progs" "$l" "$(vdir "$l")/$bin" "$t" "$p" 0 "$(ordering_of "$l")"; fi
   done
   # run_ab.sh rotates its variants by the repetition: give it the plan's order rotated back
   local n=${#labels[@]} back
@@ -394,7 +397,8 @@ for lab in labels:
         bad.append(f"{lab}: no result file")
         continue
     want_t = int(lab.rsplit("-t", 1)[1]) if "-t" in lab else 1
-    want_p = "fast" if "-fast" in lab else "bitwise"
+    want_p = "fast" if ("-fast" in lab or "-auto" in lab) else "bitwise"
+    want_o = "nested_dissection" if "-nd" in lab else ("auto" if "-auto" in lab else None)
     lines = [json.loads(x) for x in open(f) if x.startswith("{")]
     if not lines:
         err = f[:-6] + ".err"
@@ -406,7 +410,11 @@ for lab in labels:
         if o.get("threads", 1) != want_t or o.get("precision", "bitwise") != want_p:
             bad.append(f"{lab}: threads {o.get('threads')} precision {o.get('precision', 'absent')}, requested {want_t} {want_p}")
             break
-    if want_p == "bitwise":
+        if want_o and o.get("ordering") != want_o:
+            bad.append(f"{lab}: ordering {o.get('ordering', 'absent')}, requested {want_o}")
+            break
+    # another ordering than COLAMD is not bitwise: timed, never digested
+    if want_p == "bitwise" and want_o is None:
         digests[lab] = {o.get("digest") for o in lines}
 ref = digests.get("head") or digests.get("before")
 key = case if not npd else f"{case}@{npd}"
@@ -488,8 +496,9 @@ coh_run() { # group series h steps np rep variant attempt placement
     cpp) c=cpp; sha=$(cpp_sha cohesive_extrinsic_strict) ;;
     cppeig) c=cppeig; sha=$(cpp_sha cohesive_extrinsic_strict) ;;
     *) b=${v%%-*}; c=rust
-       case "$v" in *-eig*) c=rusteig ;; esac
+       case "$v" in *-eig*|*-nd*|*-auto*) c=rusteig ;; esac
        case "$v" in *-release*) extra+=(--rust-extra "rust_release_static_solver=true") ;; esac
+       case "$v" in *-nd*) extra+=(--rust-extra "rust_sparse_ordering=nested_dissection") ;; esac
        sha=${RSHA[$b]}
        opts+=(--rust-bin "${RBIN[$b]}" --rust-volume "${FIN_TVOL}" --rust-image "${FIN_MPI_IMAGE}")
        [ "$t" = 1 ] || opts+=(--rust-threads "$t")
@@ -583,7 +592,8 @@ for v in variants:
     if chk.returncode != 0:
         bad.append(f"{v}: core binding not as planned ({camp}.bindings.txt): "
                    + "; ".join(ln for ln in chk.stdout.splitlines() if ln.startswith("BINDING"))[:300])
-    case = "cpp" if v == "cpp" else "cppeig" if v == "cppeig" else ("rusteig" if "-eig" in v else "rust")
+    case = "cpp" if v == "cpp" else "cppeig" if v == "cppeig" else (
+        "rusteig" if ("-eig" in v or "-nd" in v or "-auto" in v) else "rust")
     d = os.path.join(D, "runs", camp, case, f"np{np}", "rep1")
     if not os.path.isdir(d):
         bad.append(f"{v}: no run directory")
@@ -602,7 +612,7 @@ for v in variants:
         bad.append(f"{v}: the binary that ran ({got[:16] or 'unknown'}) is not the planned one ({want_sha[:16]})")
     if not case.startswith("cpp"):
         want_t = threads
-        want_p = "fast" if "-fast" in v else "bitwise"
+        want_p = "fast" if ("-fast" in v or "-auto" in v) else "bitwise"
         try:
             s = json.load(open(os.path.join(d, "summary.json")))
         except (OSError, ValueError):
@@ -611,7 +621,12 @@ for v in variants:
         ex = s.get("rust_exec", {"threads": 1, "precision": "bitwise", "absent": True})
         if ex.get("threads") != want_t or ex.get("precision") != want_p:
             bad.append(f"{v}: rust_exec {ex}, requested threads {want_t} precision {want_p}")
-        if want_p == "fast":
+        if "-nd" in v and s.get("rust_sparse_ordering") != "nested_dissection":
+            bad.append(f"{v}: rust_sparse_ordering {s.get('rust_sparse_ordering', 'absent')}")
+        # the fast mode and another ordering than COLAMD: timed only (their
+        # rules are the solver's tolerance tests, D-125), never compared
+        # with the bitwise runs
+        if want_p == "fast" or "-nd" in v:
             continue
     e = os.path.join(d, "energies.csv")
     i = os.path.join(d, "insertions.csv")

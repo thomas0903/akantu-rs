@@ -34,6 +34,7 @@ there and the estimates for the real campaign.
 | `head-t2`, `-t4`, `-t8` | `head` with `AKANTU_NUM_THREADS = N`, threads on cores 0..N−1; in the cohesive and MPI parts `head-tN` at P ranks is P ranks × N threads (`mpirun --map-by slot:PE=N --bind-to core`) |
 | `head-fast`, `head-fast-t8` | `head` with `AKANTU_PRECISION=fast` (compared only through its tolerance rules, never digested as bitwise) |
 | `head-eig`, `before-eig`, `cppeig` | the static solve with each code's SparseLU instead of MUMPS |
+| `head-nd`, `head-auto` | part D's SparseLU series only (`eig1`, `static_linear_eigen`): the head's SparseLU with the nested-dissection ordering (`AKANTU_SPARSE_ORDERING=nested_dissection`; the cohesive runs: `rust_sparse_ordering = nested_dissection`), and with `AKANTU_PRECISION=fast` and no ordering set (the `auto` ordering, D-125). Timed and compared only through the ordering's tolerance rule (`fast_mode/linalg/sparse_lu_ordering`), never digested as bitwise; the check requires the requested precision and the recorded ordering (`ordering` of the suites' result lines, `rust_sparse_ordering` of the driver's `summary.json`) |
 | `head-release` | `head` with `rust_release_static_solver = true` (the static solver's factors released after the preload) |
 
 Variants are directories prepared by `prepare.sh`, never hard-coded:
@@ -192,7 +193,7 @@ the part exits 1):
 | A | `digests`, `rounds` | the ten configurations of `scripts/perf/explicit-step/` (`timing_rotated.sh`), programs `cpp-strict cpp-default before head head-t2 head-t4 head-t8 head-fast head-fast-t8`, phases `step`, `fint`, `stress` | 5 rounds |
 | B | `solid`, `models`, `setup`, `mpi`, `python` | every serial suite case at size `m`: `before head`, and `head-t2 head-t4 head-t8 head-fast head-fast-t8` only for the cases whose timed phases run threaded or fast-mode code (the model cases of `suite_solid` and `suite_models`; not the set-up suite, the `setup_*` cases or the geometric contact search: `plan.py`, `threaded_case`); the distributed cases at 1/2/4/8 ranks (`before head`, and `head` 2 × 4, 4 × 2 for the five whose timed phases run threaded model code); `suite_python.py` (`before head`) | 5 repetitions |
 | C | `ws`, `ins`, `full12`, `reh6`, `reh4`, `eig` | the cohesive benchmark: series `ws` (500 steps, ten points of the weak and strong studies), `ins` (h = 0.12, 1,500 steps), `full12` (h = 0.12, 5,000 steps), `reh6` (h = 0.06, 5,000 steps; `cpp head` only, before → head being measured by the other series), `reh4` (h = 0.04, 300 steps), each at 1/2/4/8 ranks with `cpp before head` and `head` 2 × 4, 4 × 2 on the strong mesh; `eig`: the SparseLU static solve at 1–8 ranks, `before-eig head-eig` (the bitwise check of the distributed runs, one repetition) | 5 repetitions |
-| D | `eig1`, `mumps`, `suite` | the static solve with SparseLU (`cppeig before-eig head-eig`, threads if the head has a threaded factorisation) on h = 0.12 and 0.06 at 1 rank; MUMPS (`cpp before head`) at 1/2/4 ranks; `suite_solid` `static_linear_{eigen,faer}` phases (analysis, factorize, back substitution) and `static_linear_mumps` at 1/2/4 ranks | 5 repetitions |
+| D | `eig1`, `mumps`, `suite` | the static solve with SparseLU (`cppeig before-eig head-eig`, threads if the head has a threaded factorisation, and the orderings `head-nd head-auto`) on h = 0.12 and 0.06 at 1 rank; MUMPS (`cpp before head`) at 1/2/4 ranks; `suite_solid` `static_linear_{eigen,faer}` phases (analysis, factorize, back substitution) and `static_linear_mumps` at 1/2/4 ranks | 5 repetitions |
 | E | `mem4` | memory on h = 0.04 (static solve + 300 steps) at 1/2/4/8 ranks: `cpp before head head-release`; per-rank peaks (sampler), sums, container peak, the port's records, `INFOG(19)` | 5 repetitions |
 | F | `setup`, `dist`, `mpilayer` | set-up phases (`read_mesh`, `dist_mesh`, `init_full`, `before_step`, static solve; 1 step on h = 0.06 and 0.04, 1/2/4/8 ranks, `cpp before head`); `dist_mesh_tet4` at size `l` (1,296,000 Tet4) at 2/4/8 ranks; the MPI layer against raw MPI (methods A and B of `docs/benchmarks/mpi-latency-2026-11-14/`) | 5 repetitions |
 | G | `full` | the JOSS mesh, 5,000 steps, one 128-core node: `--points "128:head 128:cpp 64:head 64:cpp 32:head 32:cpp 64x2:head 32x4:head 16x8:head 8:head"` (the default, in this order; the partitions of every rank count exported first by the C++ harness, replayed by every run); any other list of `RANKS[xTHREADS]:VARIANT[,VARIANT]`; `--placement fill` (default: one NUMA node filled before the next, so 64 ranks run on one socket) or `spread` (the same number of ranks on every node: 64 ranks as 32 + 32) | 1 run per point |
@@ -208,10 +209,10 @@ of every estimate is written there). At full settings, 5 repetitions, on an
 | A | 0.2 h | digests 1 min, 5 rounds 10 min |
 | B | 4.4 h | `solid` 2.3 h, `models` 0.9 h, `setup` 0.1 h, `mpi` 1.0 h, `python` 0.1 h |
 | C | 15.4 h | `ws` 2.3 h, `ins` 0.5 h, `full12` 1.6 h, `reh6` 7.9 h, `reh4` 3.1 h, `eig` 0.1 h |
-| D | 2.6 h | `eig1` 1.9 h, `mumps` 0.3 h, `suite` 0.3 h (+0.8 h if the head's factorisation uses threads) |
+| D | 2.7 h | `eig1` 2.0 h, `mumps` 0.3 h, `suite` 0.4 h (of which `head-nd head-auto` 10 min; +0.8 h if the head's factorisation uses threads) |
 | E | 3.7 h | |
 | F | 1.9 h | `setup` 1.4 h, `dist` 0.2 h, `mpilayer` 0.3 h |
-| A to F | 28.2 h | |
+| A to F | 28.3 h | |
 | G | 7.0 h | below |
 
 ### Part G
