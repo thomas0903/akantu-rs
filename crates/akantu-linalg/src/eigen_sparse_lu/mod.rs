@@ -100,6 +100,17 @@ const DIAG_PIVOT_THRESH: f64 = 1.0;
 /// [`SparseOrdering::Auto`]: below this order COLAMD is kept without
 /// computing the nested dissection.
 pub const AUTO_MIN_ORDER: usize = 2000;
+/// [`SparseOrdering::Auto`]: when COLAMD's predicted work (`Σ c_j²`) is
+/// below this, COLAMD is kept without computing the nested dissection,
+/// whose own cost the gain would not cover.
+pub const AUTO_MIN_WORK: f64 = 2e8;
+/// [`SparseOrdering::Auto`]: after the first factorisation with nested
+/// dissection, COLAMD is used for the pattern when nnz(L + U) exceeds this
+/// multiple of COLAMD's predicted size.
+pub const AUTO_FALLBACK_FILL: f64 = 2.0;
+/// [`SparseOrdering::Auto`]: likewise when the off-diagonal pivots exceed
+/// this fraction of the order.
+pub const AUTO_FALLBACK_PIVOTS: f64 = 0.01;
 /// [`SparseOrdering::Auto`]: nested dissection is chosen when its predicted
 /// factorisation work is at most this fraction of COLAMD's (and its
 /// predicted factor size not larger).
@@ -212,9 +223,16 @@ pub struct OrderingReport {
     /// The ordering in effect: [`SparseOrdering::Colamd`] or
     /// [`SparseOrdering::NestedDissection`].
     pub used: SparseOrdering,
-    /// [`SparseOrdering::Auto`]'s predictions `(size, work)` of COLAMD and
-    /// of nested dissection (`None` when no prediction was made).
-    pub predicted: Option<[(f64, f64); 2]>,
+    /// [`SparseOrdering::Auto`]'s prediction `(size, work)` for COLAMD
+    /// (`None` when it made none).
+    pub predicted_colamd: Option<(f64, f64)>,
+    /// [`SparseOrdering::Auto`]'s prediction `(size, work)` for nested
+    /// dissection (`None` when it did not compute that ordering).
+    pub predicted_nd: Option<(f64, f64)>,
+    /// [`SparseOrdering::Auto`] chose nested dissection, its first
+    /// factorisation exceeded the bounds of [`AUTO_FALLBACK_FILL`] or
+    /// [`AUTO_FALLBACK_PIVOTS`], and COLAMD is used for this pattern.
+    pub fallback: bool,
 }
 
 /// Factor arrays of a successful factorisation (for differential checks).
@@ -276,6 +294,16 @@ pub struct SparseLu {
     report: OrderingReport,
     /// Off-diagonal pivots of the last factorisation.
     off_diagonal_pivots: usize,
+    /// The effective ordering requested at the last analysis (`None`: none
+    /// yet, or the caller's order of `analyze_pattern_with_order`); a
+    /// factorisation analyses again when it changed (a switch of the
+    /// precision mode, of the ordering or of the process default).
+    analysed_with: Option<SparseOrdering>,
+    /// [`SparseOrdering::Auto`] fell back to COLAMD for the analysed
+    /// pattern (reset by [`SparseLu::analyze_pattern`]).
+    auto_fallback: bool,
+    /// Whether the fast mode was in effect at the last factorisation.
+    factorized_fast: bool,
 }
 
 impl SparseLu {
@@ -288,6 +316,13 @@ impl SparseLu {
 
     /// `analyzePattern(mat)` on the compressed column matrix `a`.
     pub fn analyze_pattern(&mut self, a: &CscMatrix) -> Result<()> {
+        self.auto_fallback = false;
+        self.analyze_effective(a)
+    }
+
+    /// The analysis with the effective ordering (the fallback of
+    /// [`SparseOrdering::Auto`] kept).
+    fn analyze_effective(&mut self, a: &CscMatrix) -> Result<()> {
         self.invalidate();
         self.pattern = None;
         let n = a.n();
@@ -298,7 +333,8 @@ impl SparseLu {
                 limit: i32::MAX as u128,
             });
         }
-        let (perm_c, report) = match self.effective_ordering_checked()? {
+        let want = self.effective_ordering_checked()?;
+        let (perm_c, report) = match want {
             SparseOrdering::Colamd => (
                 colamd::colamd_ordering(n, n, a.col_ptr(), a.row_idx())?,
                 OrderingReport::default(),
@@ -308,10 +344,17 @@ impl SparseLu {
                     n,
                     a.col_ptr(),
                     a.row_idx(),
-                )),
+                ))?,
                 OrderingReport {
                     used: SparseOrdering::NestedDissection,
-                    predicted: None,
+                    ..OrderingReport::default()
+                },
+            ),
+            SparseOrdering::Auto if self.auto_fallback => (
+                colamd::colamd_ordering(n, n, a.col_ptr(), a.row_idx())?,
+                OrderingReport {
+                    fallback: true,
+                    ..OrderingReport::default()
                 },
             ),
             SparseOrdering::Auto => auto_ordering(a)?,
@@ -321,6 +364,7 @@ impl SparseLu {
             NON_DEFAULT_ORDERING_USED.store(true, std::sync::atomic::Ordering::Relaxed);
         }
         self.report = report;
+        self.analysed_with = Some(want);
         Ok(())
     }
 
@@ -415,8 +459,9 @@ impl SparseLu {
         NON_DEFAULT_ORDERING_USED.store(true, std::sync::atomic::Ordering::Relaxed);
         self.report = OrderingReport {
             used: SparseOrdering::NestedDissection,
-            predicted: None,
+            ..OrderingReport::default()
         };
+        self.analysed_with = None;
         Ok(())
     }
 
@@ -520,7 +565,85 @@ impl SparseLu {
     /// finite input (e.g. the reciprocal of a subnormal pivot multiplying
     /// the entries below it) are an arithmetic range failure; both are
     /// [`Error::Numerical`]. Every failure leaves no factorisation.
+    ///
+    /// When the effective ordering changed since the analysis (a switch of
+    /// the precision mode through [`SparseLu::set_exec`] or
+    /// [`SparseLu::set_fast_mode`], of [`SparseLu::set_ordering`]), the
+    /// pattern is analysed again first, so that a bitwise factorisation
+    /// always uses COLAMD (D-125). After the first factorisation of an
+    /// [`SparseOrdering::Auto`] analysis that chose nested dissection, the
+    /// fill and the off-diagonal pivots are checked
+    /// ([`AUTO_FALLBACK_FILL`], [`AUTO_FALLBACK_PIVOTS`]); beyond them the
+    /// pattern is analysed and factorised again with COLAMD, which is kept
+    /// for that pattern.
     pub fn factorize(&mut self, a: &CscMatrix) -> Result<()> {
+        if self.pattern.is_some()
+            && let Some(prev) = self.analysed_with
+            && self.effective_ordering_checked()? != prev
+        {
+            self.check_pattern(a)?;
+            self.analyze_effective(a)?;
+        }
+        self.factorize_analysed(a)?;
+        let first_auto_nd = self.analysed_with == Some(SparseOrdering::Auto)
+            && self.report.used == SparseOrdering::NestedDissection
+            && !self.auto_fallback;
+        if first_auto_nd && let Some((size_c, _)) = self.report.predicted_colamd {
+            let nnz = self
+                .factors
+                .as_ref()
+                .map_or(0, |(_, g)| {
+                    let (l, u) = kernels::countnz(self.n, g);
+                    l + u
+                }) as f64;
+            let pivots = self.off_diagonal_pivots as f64;
+            if nnz > AUTO_FALLBACK_FILL * size_c || pivots > AUTO_FALLBACK_PIVOTS * self.n as f64 {
+                log::debug!(
+                    "SparseLu auto ordering: nested dissection gave nnz(L+U) {nnz} (COLAMD predicted \
+                     {size_c}) and {pivots} off-diagonal pivots of {}; COLAMD for this pattern",
+                    self.n
+                );
+                self.auto_fallback = true;
+                self.analyze_effective(a)?;
+                self.factorize_analysed(a)?;
+            }
+        }
+        Ok(())
+    }
+
+    /// Whether the factors no longer match the mode in effect: the effective
+    /// ordering differs from the analysed one, or the fast mode was switched
+    /// on or off since the factorisation. A caller that factorises only
+    /// when the values change (`AijBackend`) factorises again then, so that
+    /// the solves after a switch to the bitwise mode use bitwise factors.
+    #[must_use]
+    pub fn factorization_stale(&self) -> bool {
+        self.factors.is_some()
+            && (self
+                .analysed_with
+                .is_some_and(|p| self.effective_ordering_checked().ok() != Some(p))
+                || self.factorized_fast != self.fast_mode().is_some())
+    }
+
+    /// `a` has the analysed pattern.
+    fn check_pattern(&self, a: &CscMatrix) -> Result<()> {
+        match &self.pattern {
+            Some((cp, ri))
+                if a.n() == self.n && a.col_ptr() == cp.as_slice() && a.row_idx() == ri.as_slice() =>
+            {
+                Ok(())
+            }
+            Some(_) => Err(Error::LinearSolver(
+                "the matrix pattern differs from the analysed one (re-analyse first)".into(),
+            )),
+            None => Err(Error::LinearSolver(
+                "factorize() called before analyzePattern()".into(),
+            )),
+        }
+    }
+
+    /// The numerical factorisation with the current analysis.
+    fn factorize_analysed(&mut self, a: &CscMatrix) -> Result<()> {
         self.invalidate();
         let Some((cp, ri)) = &self.pattern else {
             return Err(Error::LinearSolver(
@@ -639,6 +762,7 @@ impl SparseLu {
         self.factors = Some((perm_r, glu));
         self.work = Some(wk);
         self.off_diagonal_pivots = off_diagonal;
+        self.factorized_fast = self.fast_mode().is_some();
         Ok(())
     }
 
@@ -799,13 +923,19 @@ fn solve_u(mode: Mode, n: usize, g: &Glu, x: &mut [f64]) {
     }
 }
 
-/// `perm[c]` = position of column `c`, from an elimination order.
-fn perm_of_order(order: &[usize]) -> Vec<i64> {
-    let mut perm = vec![0i64; order.len()];
+/// `perm[c]` = position of column `c`, from an elimination order; an
+/// error when `order` is not a permutation of `0..order.len()`.
+fn perm_of_order(order: &[usize]) -> Result<Vec<i64>> {
+    let mut perm = vec![-1i64; order.len()];
     for (k, &c) in order.iter().enumerate() {
+        if c >= perm.len() || perm[c] >= 0 {
+            return Err(Error::invalid(
+                "SparseLu: the column order is not a permutation",
+            ));
+        }
         perm[c] = k as i64;
     }
-    perm
+    Ok(perm)
 }
 
 /// Whether every column has a nonzero diagonal entry at least as large in
@@ -827,38 +957,47 @@ fn diagonal_leads_every_column(a: &CscMatrix) -> bool {
 }
 
 /// [`SparseOrdering::Auto`]: COLAMD, or nested dissection when it is
-/// predicted to need clearly less work (see the variant).
+/// predicted to need clearly less work (see the variant). COLAMD and its
+/// prediction come first; the nested dissection is computed only when
+/// COLAMD's predicted work reaches [`AUTO_MIN_WORK`].
 fn auto_ordering(a: &CscMatrix) -> Result<(Vec<i64>, OrderingReport)> {
     let n = a.n();
     let colamd = colamd::colamd_ordering(n, n, a.col_ptr(), a.row_idx())?;
     if n < AUTO_MIN_ORDER || !diagonal_leads_every_column(a) {
         return Ok((colamd, OrderingReport::default()));
     }
-    let nd = nested_dissection::nested_dissection_order(n, a.col_ptr(), a.row_idx());
     let (xadj, adj) = nested_dissection::symmetric_pattern(n, a.col_ptr(), a.row_idx());
     let mut colamd_order = vec![0usize; n];
     for (c, &p) in colamd.iter().enumerate() {
         colamd_order[p as usize] = c;
     }
     let pc = nested_dissection::cholesky_counts(&xadj, &adj, &colamd_order);
+    if pc.1 < AUTO_MIN_WORK {
+        return Ok((
+            colamd,
+            OrderingReport {
+                predicted_colamd: Some(pc),
+                ..OrderingReport::default()
+            },
+        ));
+    }
+    let nd = nested_dissection::nested_dissection_order(n, a.col_ptr(), a.row_idx());
     let pn = nested_dissection::cholesky_counts(&xadj, &adj, &nd);
-    let predicted = Some([pc, pn]);
+    let report = OrderingReport {
+        predicted_colamd: Some(pc),
+        predicted_nd: Some(pn),
+        ..OrderingReport::default()
+    };
     if pn.1 <= AUTO_WORK_RATIO * pc.1 && pn.0 <= pc.0 {
         Ok((
-            perm_of_order(&nd),
+            perm_of_order(&nd)?,
             OrderingReport {
                 used: SparseOrdering::NestedDissection,
-                predicted,
+                ..report
             },
         ))
     } else {
-        Ok((
-            colamd,
-            OrderingReport {
-                used: SparseOrdering::Colamd,
-                predicted,
-            },
-        ))
+        Ok((colamd, report))
     }
 }
 
@@ -946,6 +1085,10 @@ impl SparseDirectSolver for EigenSparseLuSolver {
         self.lu.set_exec(exec.clone());
     }
 
+    fn factorization_stale(&self) -> bool {
+        self.lu.factorization_stale()
+    }
+
     /// `ordering` = `colamd` | `nested_dissection` | `auto` ([`SparseOrdering`];
     /// `default` restores the unset choice). Drops the analysis.
     fn set_option(&mut self, name: &str, value: &str) -> Result<()> {
@@ -976,14 +1119,13 @@ impl SparseDirectSolver for EigenSparseLuSolver {
             "ordering",
             f64::from(u8::from(r.used == SparseOrdering::NestedDissection)),
         )];
-        if let Some([c, d]) = r.predicted {
-            v.extend([
-                ("predicted_size_colamd", c.0),
-                ("predicted_work_colamd", c.1),
-                ("predicted_size_nd", d.0),
-                ("predicted_work_nd", d.1),
-            ]);
+        if let Some(c) = r.predicted_colamd {
+            v.extend([("predicted_size_colamd", c.0), ("predicted_work_colamd", c.1)]);
         }
+        if let Some(d) = r.predicted_nd {
+            v.extend([("predicted_size_nd", d.0), ("predicted_work_nd", d.1)]);
+        }
+        v.push(("auto_fallback", f64::from(u8::from(r.fallback))));
         if let Some((_, g)) = &self.lu.factors {
             let (l, u) = kernels::countnz(self.lu.n, g);
             v.extend([

@@ -313,6 +313,13 @@ pub trait SparseDirectSolver: std::fmt::Debug + Send {
     fn set_exec(&mut self, exec: &akantu_core::exec::Exec) {
         let _ = exec;
     }
+    /// Whether the current factorisation no longer matches the solver's mode
+    /// (D-125: the `eigen` solver after a switch of the precision mode or of
+    /// the ordering); the solver stack then factorises again before the
+    /// next solve even when the values did not change. Default: `false`.
+    fn factorization_stale(&self) -> bool {
+        false
+    }
     /// Set an option of this solver by name (the solver's parameters of
     /// the input file and of Python: `ordering` of the `eigen` solver,
     /// D-125). Takes effect at the next analysis; the caller re-analyses.

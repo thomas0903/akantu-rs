@@ -947,7 +947,7 @@ impl AijBackend {
                     solver.analysis(a)?;
                     cache.0 = profile;
                 }
-                if cache.1 != values {
+                if cache.1 != values || solver.factorization_stale() {
                     solver.factorize(a)?;
                     cache.1 = values;
                 }
@@ -1241,7 +1241,7 @@ impl LinearSystemBackend for AijBackend {
                         cache.0 = key;
                         cache.1 = 0;
                     }
-                    if cache.1 != a.value_release() {
+                    if cache.1 != a.value_release() || solver.factorization_stale() {
                         solver.factorize(a)?;
                         cache.1 = a.value_release();
                     }
