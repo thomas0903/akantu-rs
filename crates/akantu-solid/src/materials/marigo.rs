@@ -68,10 +68,7 @@ use akantu_model::constitutive_law::{
 };
 use akantu_parser::param::{ParamDescriptor, ParameterAccess};
 
-use super::damage::{
-    DamageFields, elastic_damage_energy_densities, elastic_damage_potential_energy, std_max,
-    std_min,
-};
+use super::damage::{DamageFields, elastic_damage_energy_densities, std_max, std_min};
 use super::elastic::MaterialElastic;
 use super::scratch::{ScratchBlocks, commit, load};
 use super::thermal::{ThermalEnergy, thermal_energy_correction};
@@ -509,8 +506,16 @@ impl<const DIM: usize> Material for MaterialMarigo<DIM> {
         )
     }
 
-    fn compute_potential_energy(&mut self, _ctx: &LawContext<'_>, ty: ElementType) -> Result<()> {
-        elastic_damage_potential_energy(&mut self.elastic, &self.damage.damage, ty)
+    /// The densities on the model's threads (every point from its own
+    /// values; computed at every step by the energy update).
+    fn compute_potential_energy(&mut self, ctx: &LawContext<'_>, ty: ElementType) -> Result<()> {
+        let exec = crate::material::points_exec(self, ctx);
+        super::damage::elastic_damage_potential_energy_with(
+            exec,
+            &mut self.elastic,
+            &self.damage.damage,
+            ty,
+        )
     }
 
     fn energy_of(&mut self, ctx: &LawContext<'_>, energy_id: &str) -> Result<Real> {

@@ -31,6 +31,7 @@
 //! (`akantu_core::voigt`), `B += B2` is a coefficient-wise sum.
 
 use akantu_core::array_shared::ArrayRef;
+use akantu_core::exec::{Exec, Tuples};
 use akantu_core::tensor::MatrixX;
 use akantu_core::voigt::{self, VoigtTable};
 use akantu_core::{Array, ElementType, Error, GhostType, Idx, Real, Result};
@@ -96,7 +97,32 @@ impl<'a> Derivatives<'a> {
         })
     }
 
-    fn check_filter(&self, filter: &[Idx]) -> Result<()> {
+    /// Every element of `filter` indexes the derivatives: the largest id
+    /// read as unsigned (a negative id is huge), per part of `exec`'s
+    /// threads, below the element count (a maximum: the same for every
+    /// split); otherwise the first element out of range, by the serial
+    /// scan, is the error.
+    fn check_filter(&self, exec: &Exec, filter: &[Idx]) -> Result<()> {
+        #[allow(clippy::cast_sign_loss)] // the reinterpretation is the point
+        let max = |ids: &[Idx]| ids.iter().fold(0u32, |m, &e| m.max(e as u32));
+        let parts = exec.nb_parts(filter.len(), 8_192);
+        let m = if parts <= 1 {
+            max(filter)
+        } else {
+            let bounds: Vec<usize> = (0..=parts).map(|p| p * filter.len() / parts).collect();
+            let mut maxima = vec![0u32; parts];
+            let per_part: Vec<usize> = (0..=parts).collect();
+            exec.for_each_bounds(&per_part, Tuples::new(&mut maxima, 1), |p, mut out| {
+                out.as_mut_slice()[0] = max(&filter[bounds[p]..bounds[p + 1]]);
+            });
+            maxima.iter().fold(0u32, |a, &b| a.max(b))
+        };
+        // without negative ids below the count (at most `Idx::MAX + 1`
+        // elements can be indexed)
+        let fits = Idx::try_from(self.nb_elements.saturating_sub(1)).is_ok();
+        if fits && (filter.is_empty() || usize::try_from(m).is_ok_and(|m| m < self.nb_elements)) {
+            return Ok(());
+        }
         for &e in filter {
             let ok = usize::try_from(e).is_ok_and(|e| e < self.nb_elements);
             if !ok {
@@ -227,7 +253,7 @@ pub(super) fn internal_forces(
     let s = Sizes::of(fe, dim, ty, ghost)?;
     let table = voigt::voigt_table(dim)?;
     let dsh = Derivatives::of(fe, &s, ty, ghost)?;
-    dsh.check_filter(filter)?;
+    dsh.check_filter(fe.exec(), filter)?;
     let nb_points = filter.len() * s.nq;
     let grad_u = law.base().grad_u.get(ty, ghost)?;
     check_field(
@@ -331,7 +357,7 @@ impl<'a> ResidualPlan<'a> {
         let s = Sizes::of(fe, dim, ty, ghost).ok()?;
         let table = voigt::voigt_table(dim).ok()?;
         let dsh = Derivatives::of(fe, &s, ty, ghost).ok()?;
-        dsh.check_filter(filter).ok()?;
+        dsh.check_filter(fe.exec(), filter).ok()?;
         let jac = fe.jacobians(ty, ghost).ok()?;
         if jac.len() != dsh.nb_elements * s.nq {
             return None;
@@ -424,7 +450,7 @@ pub(super) fn stiffness(
     let fe = ctx.services.fe_engine("")?;
     let s = Sizes::of(fe, dim, ty, ghost)?;
     let dsh = Derivatives::of(fe, &s, ty, ghost)?;
-    dsh.check_filter(filter)?;
+    dsh.check_filter(fe.exec(), filter)?;
     let nb_points = filter.len() * s.nq;
     let d2 = dim * dim;
     let size = s.bt * s.bt;
@@ -519,6 +545,74 @@ pub(super) fn stiffness(
 #[cfg(test)]
 mod tests {
     use super::*;
+
+    /// The filter check gives the serial scan's answer (the first element
+    /// out of range) at every thread count and grain: valid ids, an id
+    /// equal to the count early / in the middle / last, a negative id, two
+    /// bad ids (the first one is reported), an empty filter.
+    #[test]
+    fn threaded_filter_check_equals_the_serial_scan() {
+        use akantu_core::exec::{ExecPolicy, Grain};
+        let nb = 60_000usize;
+        let d = Derivatives {
+            data: &[],
+            stride: 1,
+            nq: 1,
+            nb_elements: nb,
+        };
+        let serial = |f: &[Idx]| -> String {
+            for &e in f {
+                if !usize::try_from(e).is_ok_and(|e| e < nb) {
+                    return format!("bad {e}");
+                }
+            }
+            "ok".into()
+        };
+        let show = |r: Result<()>| match r {
+            Ok(()) => "ok".to_string(),
+            Err(Error::InvalidIndex { value, .. }) => format!("bad {value}"),
+            Err(e) => format!("other {e}"),
+        };
+        let base: Vec<Idx> = (0..nb as Idx).rev().step_by(3).collect();
+        let n = base.len();
+        let mut cases = vec![base.clone(), vec![]];
+        for k in [1usize, n / 2, n - 1] {
+            let mut f = base.clone();
+            f[k] = nb as Idx;
+            cases.push(f);
+        }
+        let mut f = base.clone();
+        f[n / 3] = -7;
+        cases.push(f);
+        let mut f = base.clone();
+        f[n / 4] = -1;
+        f[3 * n / 4] = nb as Idx + 5;
+        cases.push(f);
+        for (c, f) in cases.iter().enumerate() {
+            let reference = serial(f);
+            assert_eq!(
+                show(d.check_filter(Exec::serial_ref(), f)),
+                reference,
+                "case {c}"
+            );
+            for threads in [1, 2, 3, 4, 8] {
+                for grain in [Grain::Finest, Grain::Auto] {
+                    let exec = Exec::new(
+                        ExecPolicy::serial()
+                            .with_threads(threads)
+                            .unwrap()
+                            .with_grain(grain),
+                    )
+                    .unwrap();
+                    assert_eq!(
+                        show(d.check_filter(&exec, f)),
+                        reference,
+                        "case {c} threads {threads} {grain:?}"
+                    );
+                }
+            }
+        }
+    }
 
     #[test]
     fn cauchy_stress_matrix_is_block_diagonal() {

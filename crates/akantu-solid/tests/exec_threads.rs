@@ -606,6 +606,10 @@ fn law_state(m: &mut SolidMechanicsModel) -> State {
         ("a".into(), bits(m.acceleration().unwrap().as_slice())),
         ("f_int".into(), bits(m.internal_force().unwrap().as_slice())),
     ];
+    // the displacement increment of the last step, when the model keeps one
+    if let Ok(inc) = m.increment() {
+        out.push(("increment".into(), bits(inc.as_slice())));
+    }
     for (i, law) in m.physics.materials.laws().iter().enumerate() {
         let types = law.base().filter_types(GhostType::NotGhost);
         assert!(!types.is_empty(), "law {i} has elements");
@@ -979,6 +983,69 @@ const MAZARS: LawCase = LawCase {
 #[test]
 fn mazars_law_is_bitwise_for_every_thread_count() {
     check_law(&MAZARS);
+}
+
+/// Mazars keeps the buffers of its block copies from one threaded step
+/// to the next: a tetrahedron added between steps (`ElementsAdded`) grows
+/// the law's tetrahedron blocks, and the threaded run still equals the
+/// serial one (a buffer of the old size is not reused).
+#[test]
+fn mazars_block_growth_between_steps_is_bitwise() {
+    let tet = ElementType::Tetrahedron4;
+    let run = |policy: ExecPolicy| {
+        let mut m = case_model(&MAZARS, mixed_cube(3), policy);
+        for _ in 0..3 {
+            m.solve_step(None).unwrap();
+        }
+        let points = |m: &SolidMechanicsModel| {
+            m.physics.materials.laws()[0]
+                .base()
+                .grad_u
+                .get(tet, GhostType::NotGhost)
+                .unwrap()
+                .len()
+        };
+        let before = points(&m);
+        m.mutate_mesh(
+            |tx| {
+                let row = tx
+                    .mesh()
+                    .connectivity(tet, GhostType::NotGhost)?
+                    .tuple(5)
+                    .to_vec();
+                let el = tx.push_element(MeshPart::Main, tet, GhostType::NotGhost, &row)?;
+                tx.record(
+                    MeshPart::Main,
+                    MeshEvent::ElementsAdded {
+                        elements: vec![el],
+                        constitutive_law: None,
+                        origin: "exec_threads".into(),
+                        extension: None,
+                    },
+                );
+                Ok(())
+            },
+            None,
+        )
+        .unwrap();
+        assert!(points(&m) > before, "the tetrahedron blocks grew");
+        for _ in 0..3 {
+            m.solve_step(None).unwrap();
+        }
+        law_state(&mut m)
+    };
+    let reference = run(ExecPolicy::serial());
+    for p in threaded_policies() {
+        compare(
+            &reference,
+            &run(p),
+            &format!(
+                "mazars after an added element: threads={} {:?}",
+                p.threads(),
+                p.grain()
+            ),
+        );
+    }
 }
 
 #[test]

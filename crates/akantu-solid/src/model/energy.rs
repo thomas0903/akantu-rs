@@ -41,8 +41,10 @@ pub(crate) fn all_reduce_in(
 
 /// Upstream counting of a node in nodal sums: local or master, and not a
 /// periodic slave.
-/// Nodes per part of the threaded external-work terms (D-123).
-const NODES_PER_WORK_PART: usize = 131_072;
+/// Nodes per part of the threaded external-work terms (D-123): as the
+/// solver's per-equation loops (`akantu-solver`, integration schemes), the
+/// arrays were just written by the step's threaded kernels.
+const NODES_PER_WORK_PART: usize = 2_048;
 
 fn counted(mesh: &Mesh, n: usize) -> Result<bool> {
     let f = mesh.node_flag(akantu_core::try_idx(n)?);

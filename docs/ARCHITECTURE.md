@@ -1030,11 +1030,42 @@ the heat transfer model, the heat law's diffusivity and `D∇u` loops and
 the internal-flow scatter (`akantu-diffusion` `model/assembly.rs`, a
 cached `NodeScatter` per `(law, type, ghost)` as in the solid model),
 with the FE kernels above; in the phase-field model, its FE kernels.
-Serial still: the first-order (generalized trapezoidal) predictor and
-corrector of the heat model, the phase-field model's driving-force loop
-(its law interface carries no executor) and its internal-force scatter.
-The per-node and per-equation loops split only into parts of at least
-131,072 nodes or 262,144 equations; below, they run serially.
+Also on threads: the generalized-trapezoidal predictor and corrector, the
+increment update (`time_step.rs`), the schemes' store and restore copies,
+the blocked-DOF scan (each part's blocked equations appended in part
+order, then sorted as before); the non-local weighted average
+(`akantu-model` `non_local/neighborhood.rs`, from 5 threads: up to 4 the
+per-point gather, which visits every pair twice, is slower than the
+serial half-pair loop; per point, its contributions
+in pair order from a per-point list built with the pair list, when the
+slots increase with the points; the manager takes the executor from its
+callback); the FE plans' and kernels' checks of the element ids and the
+connectivity (an integer maximum, a logical or or a logical and per
+part, then over the parts: `fast::max_unsigned_with`, `any_with`,
+`consecutive_with`, `nodes_valid_with`, `batch_ids_with`; one element's
+row takes the serial maximum) and the finite-deformation check of the
+material filter (`Derivatives::check_filter`: the largest id per part,
+the serial scan only to report the first element out of range); the
+deferred history save of a block reached through
+`InternalField::get_mut_with` (a copy in parts); Mazars' copies of its
+blocks (with threads into buffers kept per element type and ghost type
+from one step to the next: a fresh allocation of a block's size, once
+glibc's mmap threshold has grown past it, comes from the heap and is
+zeroed by `calloc` on the calling thread; the cost is a permanent second
+copy of the blocks the points work on, `5 + 2·dim²` values per
+quadrature point, `5 + 3·dim²` for `plastic_mazars`: 184 bytes per point
+in 3-D, 104 in 2-D; a clone of the law starts without them). The
+per-node and per-equation loops split into parts of at least
+2,048 nodes or 4,096 equations: measured with the step's other kernels on
+threads, smaller parts gave the explicit steps of 0.1 to 0.35 million
+equations 0.70 to 0.91 of the time at 8 threads (also with idle workers
+parked at once); an earlier screening, made while the kernels that write
+these arrays ran serially, had found parts of 262,144 equations faster.
+Serial still: the phase-field model's driving-force loop (its law
+interface carries no executor) and its internal-force scatter, the sparse
+direct solves, the external-work increment's sum (one fold in node order,
+as the bitwise result needs), the non-local Marigo law's damage after the
+average.
 
 Matrix assembly and the matrix operations of implicit steps (bitwise at
 every thread count; `akantu-solver/tests/threaded_assembly.rs`,

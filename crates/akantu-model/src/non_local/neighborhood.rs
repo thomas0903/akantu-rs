@@ -104,11 +104,60 @@ pub struct NonLocalNeighborhood {
     /// computed with the pair weights (so the key-order route follows the
     /// `update_rate` schedule like upstream's route).
     key_weights: Vec<Vec<Real>>,
+    /// Per pair list: every point's contributions to its weighted average in
+    /// pair order (built on first use after the pair list changed), for the
+    /// threaded [`NonLocalNeighborhood::weighted_average`].
+    contributions: [std::sync::OnceLock<PointContributions>; 2],
     /// Inputs and volume outputs of the last weight computation, kept for
     /// weight functions whose weights depend on the distance only
     /// ([`WeightFunction::weights_depend_only_on_distance`]); dropped by
     /// every change of the points, pairs, radius or weight function.
     weight_memo: Option<Box<WeightMemo>>,
+}
+
+/// Pairs per part of the threaded weighted average.
+const PAIRS_PER_PART: usize = 16_384;
+
+/// Every point's contributions to its weighted average, in pair order:
+/// `entries[offsets[p]..offsets[p + 1]]` are the codes `2k + side` of the
+/// pairs `k` that add to point `p` (side 0: `p` is the pair's first point
+/// and receives `w[0]·v(second)`; side 1: its second, `w[1]·v(first)`, only
+/// in the not-ghost list), in increasing `k` and, within a pair whose two
+/// points are `p`, side 0 first: the order of the serial loop's additions
+/// to `p`'s slot.
+#[derive(Debug, Default)]
+struct PointContributions {
+    offsets: Vec<u32>,
+    entries: Vec<u32>,
+}
+
+impl PointContributions {
+    fn build(list: &[(usize, usize)], nb_points: usize, ghost: GhostType) -> Self {
+        let both = ghost != GhostType::Ghost;
+        let mut count = vec![0u32; nb_points + 1];
+        for &(i, j) in list {
+            count[i + 1] += 1;
+            if both {
+                count[j + 1] += 1;
+            }
+        }
+        for p in 0..nb_points {
+            count[p + 1] += count[p];
+        }
+        let offsets = count.clone();
+        let mut next = count;
+        let mut entries = vec![0u32; offsets[nb_points] as usize];
+        for (k, &(i, j)) in list.iter().enumerate() {
+            let k = u32::try_from(k).unwrap_or(u32::MAX);
+            entries[next[i] as usize] = 2 * k;
+            next[i] += 1;
+            if both {
+                entries[next[j] as usize] = 2 * k + 1;
+                next[j] += 1;
+            }
+        }
+        Self { offsets, entries }
+    }
 }
 
 /// What [`NonLocalNeighborhood::compute_weights`] read and produced besides
@@ -164,6 +213,7 @@ impl NonLocalNeighborhood {
             variables: BTreeSet::new(),
             key_lists: Vec::new(),
             key_weights: Vec::new(),
+            contributions: Default::default(),
             weight_memo: None,
         }
     }
@@ -259,6 +309,7 @@ impl NonLocalNeighborhood {
             });
         }
         self.weight_memo = None;
+        self.contributions = Default::default();
         let index = self.points.len();
         self.grid.insert(index, coords)?;
         self.points.push(q);
@@ -277,6 +328,7 @@ impl NonLocalNeighborhood {
         self.coords.clear();
         self.slots.clear();
         self.pair_list = [Vec::new(), Vec::new()];
+        self.contributions = Default::default();
         self.pair_weight = [Vec::new(), Vec::new()];
         self.weights_computed = false;
         Ok(())
@@ -333,6 +385,7 @@ impl NonLocalNeighborhood {
             }
         }
         self.pair_list = lists;
+        self.contributions = Default::default();
         self.pair_weight = [Vec::new(), Vec::new()];
         self.weights_computed = false;
         self.key_lists = self.build_key_lists();
@@ -445,6 +498,7 @@ impl NonLocalNeighborhood {
         self.coords = coords;
         self.slots.clear();
         self.pair_list = lists;
+        self.contributions = Default::default();
         self.pair_weight = [Vec::new(), Vec::new()];
         self.weights_computed = false;
         self.key_lists = self.build_key_lists();
@@ -574,8 +628,17 @@ impl NonLocalNeighborhood {
     /// Upstream `weightedAverageOnNeighbours(to_accumulate, accumulated,
     /// nb_component, ghost_type)` over per-slot arrays of `nb_component`
     /// values.
+    ///
+    /// With at least 5 threads and more than one part of `exec`, and when
+    /// the slots increase with the points (the manager's layout), every
+    /// point's slot receives its
+    /// contributions in pair order from the point's own list
+    /// ([`PointContributions`]): the additions of the serial loop to that
+    /// slot, in their order, so the same bits for every thread count; the
+    /// points split over the threads. Otherwise the serial loop.
     pub(crate) fn weighted_average(
         &self,
+        exec: &akantu_core::exec::Exec,
         to_accumulate: &[Real],
         accumulated: &mut [Real],
         nb_component: usize,
@@ -583,6 +646,85 @@ impl NonLocalNeighborhood {
     ) {
         let g = gi(ghost);
         let n = nb_component;
+        let np = self.points.len();
+        // from 5 threads: the per-point gather visits every pair twice, so
+        // up to 4 threads the serial half-pair loop, with the rest of the
+        // step on the threads, is faster (`explicit_mazars_non_local`,
+        // one-thread base = 1, serial average / gather: 2 threads 0.721 /
+        // 1.085, 4 threads 0.599 / 0.633, 5 threads 0.572 / 0.534,
+        // 8 threads 0.534 / 0.366)
+        let threaded = n > 0
+            && exec.threads() >= 5
+            && self.pair_list[g].len() < (u32::MAX / 2) as usize
+            && exec.nb_parts(self.pair_list[g].len(), PAIRS_PER_PART) > 1
+            && self.slots.len() == np
+            && self.slots.windows(2).all(|w| w[0] < w[1])
+            && self.slots.last().is_some_and(|&s| {
+                (s + 1) * n <= accumulated.len() && (s + 1) * n <= to_accumulate.len()
+            })
+            && self.pair_weight[g].len() == self.pair_list[g].len();
+        let table = threaded.then(|| {
+            self.contributions[g]
+                .get_or_init(|| PointContributions::build(&self.pair_list[g], np, ghost))
+        });
+        // a table built for another number of points (a point inserted
+        // since): the serial loop
+        if let Some(table) = table.filter(|t| t.offsets.len() == np + 1) {
+            let parts = exec.nb_parts(self.pair_list[g].len(), PAIRS_PER_PART);
+            // point boundaries with balanced numbers of contributions, then
+            // the slot ranges they own in `accumulated` (contiguous: the
+            // slots increase with the points)
+            let total = table.entries.len();
+            let mut points = vec![0usize];
+            for p in 1..parts {
+                let target = u32::try_from(p * total / parts).unwrap_or(u32::MAX);
+                let k = table.offsets.partition_point(|&o| o < target).min(np);
+                points.push(k.max(*points.last().unwrap_or(&0)));
+            }
+            points.push(np);
+            let mut bounds: Vec<usize> = points
+                .iter()
+                .map(|&k| {
+                    if k < np {
+                        self.slots[k]
+                    } else {
+                        accumulated.len() / n
+                    }
+                })
+                .collect();
+            bounds[0] = 0;
+            let len = accumulated.len() / n;
+            let acc = &mut accumulated[..len * n];
+            let (slots, list, weights) = (&self.slots, &self.pair_list[g], &self.pair_weight[g]);
+            exec.for_each_bounds(
+                &bounds,
+                akantu_core::exec::Tuples::new(acc, n),
+                |first, mut part| {
+                    let part = part.as_mut_slice();
+                    let end = first + part.len() / n;
+                    // the points whose slots are in [first, end)
+                    let p0 = slots.partition_point(|&s| s < first);
+                    let p1 = slots.partition_point(|&s| s < end);
+                    for p in p0..p1 {
+                        let dst = (slots[p] - first) * n;
+                        let range = table.offsets[p] as usize..table.offsets[p + 1] as usize;
+                        for &code in &table.entries[range] {
+                            let k = (code >> 1) as usize;
+                            let (i, j) = list[k];
+                            let (w, src) = if code & 1 == 0 {
+                                (weights[k][0], slots[j] * n)
+                            } else {
+                                (weights[k][1], slots[i] * n)
+                            };
+                            for c in 0..n {
+                                part[dst + c] += w * to_accumulate[src + c];
+                            }
+                        }
+                    }
+                },
+            );
+            return;
+        }
         for (w, &(i, j)) in self.pair_weight[g].iter().zip(&self.pair_list[g]) {
             let (s1, s2) = (self.slots[i] * n, self.slots[j] * n);
             for c in 0..n {
@@ -859,6 +1001,76 @@ mod tests {
         n.update_pair_list(PointIdentity::Complete, 1e-12).unwrap();
         n.slots = (0..n.points().len()).map(|i| 2 * i + 1).collect();
         n
+    }
+
+    /// The threaded weighted average (per-point contribution lists in pair
+    /// order) equals the serial loop bit for bit at 1 to 8 threads, finest
+    /// and automatic grain, for both pair lists, with self-pairs and points
+    /// that appear in many pairs; with slots that do not increase the
+    /// serial loop runs.
+    #[test]
+    fn threaded_weighted_average_equals_the_serial_loop() {
+        use akantu_core::exec::{Exec, ExecPolicy, Grain};
+        let mut n = grid_neighborhood();
+        let np = n.points().len();
+        let mut x: u64 = 0x2545_f491_4f6c_dd1d;
+        let mut next = move || {
+            x ^= x << 13;
+            x ^= x >> 7;
+            x ^= x << 17;
+            x
+        };
+        // a random pair list over the points (self-pairs included) with
+        // random weights of every magnitude
+        for list in &mut n.pair_list {
+            *list = (0..5000)
+                .map(|_| ((next() % np as u64) as usize, (next() % np as u64) as usize))
+                .collect();
+            list.push((3, 3));
+        }
+        for w in &mut n.pair_weight {
+            *w = (0..5001)
+                .map(|_| {
+                    [
+                        f64::from_bits(0x3ff0_0000_0000_0000 | (next() >> 12)) - 1.5,
+                        f64::from_bits(0x3fe0_0000_0000_0000 | (next() >> 12)) * 3.0,
+                    ]
+                })
+                .collect();
+        }
+        n.contributions = Default::default();
+        let nb = 2;
+        let len = (2 * np + 2) * nb;
+        let v: Vec<Real> = (0..len).map(|k| (k as Real * 0.37).sin() * 1e3).collect();
+        for slots in [
+            (0..np).map(|i| 2 * i + 1).collect::<Vec<_>>(),
+            (0..np).map(|i| 2 * (np - 1 - i) + 1).collect(),
+        ] {
+            n.slots = slots;
+            for ghost in GhostType::ALL {
+                let mut reference: Vec<Real> = (0..len).map(|k| k as Real * 1e-3).collect();
+                let start = reference.clone();
+                n.weighted_average(Exec::serial_ref(), &v, &mut reference, nb, ghost);
+                for threads in [1, 2, 3, 4, 5, 8] {
+                    for grain in [Grain::Finest, Grain::Auto] {
+                        let exec = Exec::new(
+                            ExecPolicy::serial()
+                                .with_threads(threads)
+                                .unwrap()
+                                .with_grain(grain),
+                        )
+                        .unwrap();
+                        let mut out = start.clone();
+                        n.weighted_average(&exec, &v, &mut out, nb, ghost);
+                        let same = out
+                            .iter()
+                            .zip(&reference)
+                            .all(|(a, b)| a.to_bits() == b.to_bits());
+                        assert!(same, "{ghost:?} threads {threads} {grain:?}");
+                    }
+                }
+            }
+        }
     }
 
     /// The stored weights of a distance-only weight function are reused

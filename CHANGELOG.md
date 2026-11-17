@@ -60,8 +60,30 @@ change of default results or of a public API raises the minor version.
   thermal strains, finite-deformation residual, internal-force scatter,
   external-work increment (per-node terms), Newmark-β predictor and
   corrector, lumped solve, residual scatter and solution gather (the
-  per-node and per-equation loops only for parts of at least 131,072
-  nodes / 262,144 equations).
+  per-node and per-equation loops for parts of at least 2,048 nodes /
+  4,096 equations).
+- Threads in what ran serially when the explicit step runs on threads:
+  the generalized-trapezoidal predictor and corrector, the increment
+  update, the schemes' store and restore, the blocked-DOF scan, the
+  non-local weighted average and the non-local Mazars damage after it,
+  the energy densities of the Marigo and Mazars laws, the FE plans' checks
+  of element ids and connectivity (consecutive ids, per-element rows), the
+  finite-deformation check of the material filter, the deferred history
+  saves of the laws' stress blocks and Mazars' block copies (into buffers
+  kept from one step to the next with threads: a second copy of the
+  law's blocks, 184 bytes per quadrature point in 3-D, 104 in 2-D); all
+  bitwise equal to one thread for every thread count. The non-local
+  average runs on threads from 5 threads (up to 4 the serial loop is
+  faster). New: `InternalField::get_mut_with`,
+  `NonLocalManagerCallback::exec` (default serial),
+  `MaterialMazarsNonLocal::compute_non_local_stress_with`,
+  `damage::elastic_damage_energy_densities_with`,
+  `damage::elastic_damage_potential_energy_with`. A DOF manager built
+  without a model takes the process default policy, so in a program that
+  sets `AKANTU_NUM_THREADS` (or the default policy) but no executor on a
+  model the per-equation loops of 4,096 equations and more also run on
+  threads there; the results are the same as on one thread by
+  construction.
 - Matrix assembly, second round (bitwise at every thread count): the
   position cache keeps per-slot spans and one scatter plan per element
   filter (entry-sized parts, exact per-part block lists), and the DOF
@@ -244,6 +266,8 @@ change of default results or of a public API raises the minor version.
 
 ### Changed
 
+- `DamageParent::parent_potential_energy` takes the calling law's executor
+  as its first argument.
 - `akantu_solid::materials::damage::DamageParent::{stress_kernel,
   stress_kernel_from, parent_update_energies}`, `DamageFields::update_energies`
   and `PlasticFields::update_energies` take the executor of the calling law

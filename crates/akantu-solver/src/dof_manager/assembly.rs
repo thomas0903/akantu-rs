@@ -80,8 +80,8 @@ fn inverse_scatter_part(inv: &[u32], values: &[Real], scale: Real, target: &mut 
 }
 
 /// Equations per part of a threaded per-equation loop (D-123); as the
-/// integration-scheme updates (short parts cost more than they save).
-const EQUATIONS_PER_PART: usize = 262_144;
+/// integration-scheme updates (see there for the measurements).
+pub(crate) const EQUATIONS_PER_PART: usize = crate::integration_scheme::EQUATIONS_PER_PART;
 
 /// The inverse of a family's equation numbers (`inv[eq] = dof`), kept for
 /// the equation-ordered scatter with the numbering generation it was built
