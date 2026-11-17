@@ -294,11 +294,13 @@ import json, os, sys
 out, case, rep, npd, failed, exc_file, glog = sys.argv[1:8]
 labels = sys.argv[8:]
 group_log = open(glog, errors="replace").read() if glog and os.path.exists(glog) else ""
-exceptions = set()
+exceptions, unrepeatable = set(), set()
 if os.path.exists(exc_file):
     for ln in open(exc_file):
         ln = ln.split("#", 1)[0].strip()
-        if ln:
+        if ln.startswith("!"):
+            unrepeatable.add(ln[1:].strip())
+        elif ln:
             exceptions.add(ln)
 bad, digests = [], {}
 for lab in labels:
@@ -322,6 +324,8 @@ for lab in labels:
         digests[lab] = {o.get("digest") for o in lines}
 ref = digests.get("head") or digests.get("before")
 key = case if not npd else f"{case}@{npd}"
+if case in unrepeatable or key in unrepeatable:
+    digests = {}   # not repeatable at this rank count: timed only
 for lab, d in digests.items():
     if len(d) != 1:
         bad.append(f"{lab}: several digests in one run {sorted(map(str, d))}")

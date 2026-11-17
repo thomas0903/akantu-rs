@@ -234,6 +234,18 @@ def summarize_a(d, info):
 
 
 # ---------------------------------------------------------------- suites
+def _unrepeatable():
+    f = Path(__file__).with_name("digest-exceptions.txt")
+    if not f.exists():
+        return set()
+    return {ln.split("#", 1)[0].strip()[1:].strip()
+            for ln in f.read_text().splitlines()
+            if ln.split("#", 1)[0].strip().startswith("!")}
+
+
+UNREPEATABLE = _unrepeatable()
+
+
 def load_suite_dir(base, nested_np=False):
     """{(variant, np, case, phase): {rep: record}} of a suite directory."""
     res = defaultdict(dict)
@@ -295,6 +307,8 @@ def suite_tables(base, title, serial=True):
         heads = {dg for v, dg in ds if not v.startswith("before")}
         if not ds:
             return MISSING
+        if f"{c}@np{np_}" in UNREPEATABLE or c in UNREPEATABLE:
+            return "not compared (does not repeat)"
         if len(vals) == 1:
             return "equal"
         return "equal (head)" if len(heads) == 1 else "DIFFER"
