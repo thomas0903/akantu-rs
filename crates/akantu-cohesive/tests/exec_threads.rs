@@ -16,9 +16,16 @@
 //! points on threads; facets of a band, and of the whole mesh for
 //! `cohesive_linear`), and intrinsic runs (`cohesive_bilinear`, and
 //! `cohesive_exponential`, which stays serial, beside the threaded bulk).
+//! Distributed: the parallel cohesive scenarios on the in-process local
+//! world at 2 and 4 ranks (ghost cohesive elements, the facet-stress
+//! exchange), each rank on 2 or 4 threads against one thread per rank.
+
+mod par_coh;
 
 use akantu_cohesive::SolidMechanicsModelCohesive;
 use akantu_cohesive::material::MaterialCohesive;
+use akantu_cohesive::par_scenarios::{self, RunObserver, Spec};
+use akantu_comm::{Communicator, run_local};
 use akantu_core::enums::AnalysisMethod;
 use akantu_core::exec::{ExecPolicy, Grain};
 use akantu_core::{ElementKind, ElementType, GhostType, Real, TypeFilter};
@@ -403,4 +410,84 @@ fn intrinsic_laws_are_bitwise_for_every_thread_count() {
     check(2, 8, "cohesive_bilinear", Setup::Intrinsic, 30);
     check(3, 3, "cohesive_bilinear", Setup::Intrinsic, 20);
     check(2, 8, "cohesive_exponential", Setup::Intrinsic, 30);
+}
+
+/// Named state arrays (bit patterns) of a run.
+type State = Vec<(String, Vec<u64>)>;
+
+/// Sets the policy of a rank's model after its initialisation (the model
+/// takes the process default before).
+struct SetPolicy(ExecPolicy);
+
+impl RunObserver for SetPolicy {
+    fn after_init(&mut self, model: &mut SolidMechanicsModelCohesive) -> akantu_core::Result<()> {
+        model.set_exec_policy(self.0)
+    }
+}
+
+/// One rank's state after the scenario (the arrays of [`state`], the
+/// energies and insertions of every step) and its number of ghost cohesive
+/// elements.
+fn rank_state(
+    spec: &Spec,
+    comm: &Communicator,
+    policy: ExecPolicy,
+) -> Result<(State, usize), String> {
+    let (mut model, mesh, _dt, recs) = par_coh::run(spec, comm, &mut SetPolicy(policy))?;
+    let mut out = state(&mut model);
+    out.push((
+        "energies".to_owned(),
+        recs.iter()
+            .flat_map(|r| r.energies.map(Real::to_bits))
+            .collect(),
+    ));
+    out.push((
+        "inserted".to_owned(),
+        recs.iter().map(|r| r.inserted as u64).collect(),
+    ));
+    let m = mesh.read().map_err(|e| e.to_string())?;
+    let dim = m.spatial_dimension();
+    let ghosts = m
+        .element_types(TypeFilter {
+            spatial_dimension: Some(dim),
+            ghost_type: GhostType::Ghost,
+            kind: Some(ElementKind::Cohesive),
+        })
+        .map(|ty| m.nb_element(ty, GhostType::Ghost))
+        .sum();
+    Ok((out, ghosts))
+}
+
+#[test]
+fn distributed_scenarios_are_bitwise_for_every_thread_count() {
+    let mut ghosts = 0;
+    for spec in par_scenarios::specs() {
+        for np in [2, 4] {
+            let run = |policy: ExecPolicy| -> Vec<(State, usize)> {
+                run_local(np, par_coh::local_timeout(), |comm| {
+                    rank_state(&spec, &comm, policy)
+                })
+                .into_iter()
+                .enumerate()
+                .map(|(r, o)| o.unwrap_or_else(|e| panic!("{} np {np} rank {r}: {e}", spec.name)))
+                .collect()
+            };
+            let reference = run(ExecPolicy::serial());
+            ghosts += reference.iter().map(|(_, g)| g).sum::<usize>();
+            for threads in [2, 4] {
+                let policy = ExecPolicy::serial()
+                    .with_threads(threads)
+                    .unwrap()
+                    .with_grain(Grain::Finest);
+                for (r, ((a, _), (b, _))) in reference.iter().zip(&run(policy)).enumerate() {
+                    compare(
+                        a,
+                        b,
+                        &format!("{} np {np} rank {r}, {threads} threads", spec.name),
+                    );
+                }
+            }
+        }
+    }
+    assert!(ghosts > 0, "no ghost cohesive element in the scenarios");
 }
