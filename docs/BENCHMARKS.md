@@ -2233,6 +2233,13 @@ the change is small: 814 s against 835 s at 128 ranks on the 128-core
 machine; the shared-memory suite cases of `net/README.md`, section 7, are
 within 1.5 % of the first round of the change.
 
+The full-size runs were made at `4a8d9d38e`. One correction followed on the
+same day (the blocked-DOF snapshot after a deferred failure, D-126): it adds
+no collective to the explicit step (20.5 per step and rank, counted again)
+and on one host its loop is 1.001 [0.998, 1.002] of that revision's (8 ranks,
+five alternating pairs; `net/README.md`, section 8). The full-size runs were
+not repeated with it.
+
 ### Before the final campaign (2026-11-14)
 
 #### Point-to-point latency against raw MPI
