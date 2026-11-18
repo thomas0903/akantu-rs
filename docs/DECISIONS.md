@@ -2526,15 +2526,18 @@ Failure semantics:
   rank") at the phase where it learned of it, which may be a later
   phase than under `every-phase` (the documented substitute).
 
-Consequence: 16.7 collectives per step and rank for the benchmark's step
-at 8 ranks (h = 0.06; was 51.6; the reference 8.4). Those left, per step:
-the solve's operation close and its two exchange agreements; the four
+Consequence: 19.4 collectives per step and rank for the benchmark's step
+at 8 ranks (h = 0.06, 977 insertion steps in 2,000; was 51.6; the
+reference 8.4). Those left, per step: the solve's operation close and its
+two exchange agreements (ghost stresses, cohesive tractions); the four
 energy reductions (the reference's four `MPI_Allreduce`); the facet-stress
-exchange's settle, the insertion decision's reduction and the driver's
-global count; and on insertion steps the transaction's commit point and
-dispatch end, the insertion order's checks and the global-id, count and
-bounding-box reductions (the reference's scan and reductions of
-`updateGlobalIDs` / `updateData`). Results are unchanged in both modes.
+exchange's agreement and its scope's settle, the insertion decision's
+reduction and the driver's global count; and on insertion steps the
+agreements before the insertion-order exchanges and of its uniqueness
+check, the transaction's commit point and dispatch end, the consumers'
+exchange agreements, and the global-id, count and bounding-box reductions
+(the reference's scan and reductions of `updateGlobalIDs` / `updateData`).
+Results are unchanged in both modes.
 Tests: `crates/akantu-cohesive/tests/collective_checks_failures.rs` (one
 rank failing the solve step, the insertion check, an energy, a mesh
 transaction before and after its commit, at 2 and 4 ranks, both modes),
