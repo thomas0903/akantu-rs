@@ -508,6 +508,9 @@ impl NonLinearSolverNewtonRaphson {
         self.assemble_residual(dofs, cb)?;
         if ty == T::NewtonRaphsonModified || (ty == T::Linear && self.force_linear_recompute) {
             self.assemble_jacobian(dofs, cb)?;
+            // D-126: the flag persists between solves; cleared only once
+            // every rank assembled
+            dofs.commit_point("jacobian:assembled")?;
             self.force_linear_recompute = false;
         }
         self.n_iter = 0;

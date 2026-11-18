@@ -1031,14 +1031,27 @@ impl DofManager {
     ///   from a solver callback) **joins** it instead of opening an
     ///   independent scope, and communicating callbacks communicate through
     ///   it ([`DofManager::phases`]).
-    /// * Every call — outermost or joined — ends with an agreement on `f`'s
-    ///   outcome, so **the result of every collective method is common
-    ///   knowledge**: identical success/failure on every rank, also when
-    ///   only one rank's validation or callback failed. Callers may branch
-    ///   on it without diverging (native drivers branch on trampoline
-    ///   status codes).
+    /// * Under every-phase checks (D-018) every call — outermost or joined —
+    ///   ends with an agreement on `f`'s outcome, so the result of every
+    ///   collective method is common knowledge: identical success/failure
+    ///   on every rank, also when only one rank's validation or callback
+    ///   failed. Under commit points (D-126) only the outermost call ends
+    ///   with an agreement (or with the verdict of its closing reduction,
+    ///   [`DofManager::reduction`]); a joined call's outcome is local and
+    ///   deferred to the operation's next agreement (its next exchange,
+    ///   commit point or close): the rank's own error returns at once, a
+    ///   peer's failure arrives later. Callers that branch on a joined
+    ///   result before any further communication use
+    ///   [`DofManager::collective_committed`] (native drivers branch on
+    ///   trampoline status codes).
     /// * Once an agreement failed, the scope is failed on every rank: later
     ///   agreements and collectives return at once without communicating.
+    /// * Code inside `f` that changes persistent state (DOF values, internal
+    ///   variables, the mesh, cached matrices) after deferred steps calls
+    ///   [`DofManager::commit_point`] first, so that a failed operation
+    ///   leaves every rank's state as every-phase checks do.
+    /// * While the operation holds deferred outcomes, the thread may not
+    ///   communicate on another communicator (refused locally, D-126).
     /// * A transport failure or an agreed fatal failure poisons the manager
     ///   ([`Error::Fatal`]); a callback or body returning an
     ///   `Error::Fatal` is agreed as fatal (every rank's manager is
@@ -1218,9 +1231,11 @@ impl DofManager {
     /// `on_mesh_event_phased` for mesh consumers): a callback communicates
     /// only through it (`sync.slave_reduction_in(&mut *dofs.phases()?, …)`,
     /// `Phases::run`), never through an independent scope or a raw
-    /// communicator call (both are refused while the scope is live). The
-    /// guard resumes the scope on the calling thread and parks it back when
-    /// dropped.
+    /// communicator call (both are refused while the scope is live, and
+    /// under commit points a scope or raw collective on **another**
+    /// communicator is refused too while the operation holds deferred
+    /// outcomes, D-126). The guard resumes the scope on the calling thread
+    /// and parks it back when dropped.
     pub fn phases(&mut self) -> Result<ScopeGuard<'_>> {
         match &self.active {
             ScopeSlot::Active(_) => {
@@ -1243,9 +1258,13 @@ impl DofManager {
     }
 
     /// One step of the running collective operation — typically one solver
-    /// callback — whose outcome is agreed on every rank afterwards (skipped
-    /// without communication if the operation already failed). Must be
-    /// called inside [`DofManager::collective`]. A callback returning an
+    /// callback — whose outcome is agreed on every rank afterwards: at once
+    /// under every-phase checks, at the operation's next agreement under
+    /// commit points (D-126: the rank's own error returns at once, a peer's
+    /// failure arrives there; place a [`DofManager::commit_point`] before
+    /// later persistent changes). Skipped without communication if the
+    /// operation already failed. Must be called inside
+    /// [`DofManager::collective`]. A callback returning an
     /// `Error::Fatal` is agreed as fatal on every rank (or, for the
     /// transport kind, breaks the scope without communicating) and poisons
     /// the manager.
@@ -1275,6 +1294,34 @@ impl DofManager {
         // a callback's outcome: local; under commit points agreed with the
         // operation's next agreement (D-126), here at once otherwise
         let r = ph.deferred(name, r, Severity::Recoverable);
+        let r = self.settle(&ph, name, r);
+        self.check_in(ph);
+        r
+    }
+
+    /// A **commit point before a persistent change** of the running
+    /// operation (D-126): under commit points the step outcomes deferred so
+    /// far are agreed here, so that no rank changes persistent state (DOF
+    /// values, internal variables, the mesh) while an earlier step may have
+    /// failed on a peer — when the operation fails, every rank's state is
+    /// then what every-phase checks leave on it. Communicates only when an
+    /// outcome is deferred (never under every-phase checks); a plain no-op
+    /// outside a collective operation.
+    ///
+    /// # Errors
+    /// A failure agreed on any rank (this rank's own first), or a transport
+    /// failure (the manager is poisoned).
+    pub fn commit_point(&mut self, name: &str) -> Result<()> {
+        if !self.in_collective() {
+            return Ok(());
+        }
+        if let ScopeSlot::Active(parked) = &self.active
+            && parked.is_failed()
+        {
+            return Err(self.failed_step(name)?);
+        }
+        let mut ph = self.check_out(name)?;
+        let r = ph.agree_deferred(name);
         let r = self.settle(&ph, name, r);
         self.check_in(ph);
         r

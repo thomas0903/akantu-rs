@@ -77,7 +77,7 @@
 
 use std::collections::HashMap;
 
-use akantu_comm::phase::{Phases, Severity, digest_bytes};
+use akantu_comm::phase::{CollectiveChecks, Phases, Severity, digest_bytes};
 use akantu_core::enums::EventPriority;
 use akantu_core::{
     Array, Element, ElementType, ElementTypeMapArray, Error, FatalKind, GhostType, GlobalIdx, Idx,
@@ -2084,10 +2084,18 @@ impl SharedMesh {
                     upper.extend_from_slice(&b.upper);
                     locals.push(b);
                 }
-                // a checked reduction: carries what is deferred (D-126)
-                ph.run_collective("bbox", Ok(()), |c, ()| {
-                    crate::mesh::all_sum_bounds(c, &mut lower, &mut upper)
-                })?;
+                // under commit points a checked reduction that carries what
+                // is deferred (D-126); under every-phase checks the plain
+                // collective of D-018 (no agreement of its own)
+                if ph.collective_checks() == CollectiveChecks::CommitPoints {
+                    ph.run_collective("bbox", Ok(()), |c, ()| {
+                        crate::mesh::all_sum_bounds(c, &mut lower, &mut upper)
+                    })?;
+                } else {
+                    ph.collective("bbox", |c| {
+                        crate::mesh::all_sum_bounds(c, &mut lower, &mut upper)
+                    })?;
+                }
                 let mut off = 0;
                 for (&p, local) in parts.iter().zip(locals) {
                     let m = part_mut(tx.mesh, p)?;
@@ -2106,9 +2114,15 @@ impl SharedMesh {
                 .iter()
                 .map(|(_, e)| u64::try_from(event_len(e)).unwrap_or(u64::MAX))
                 .collect();
-            ph.run_collective("counts", Ok(()), |c, ()| {
-                c.all_reduce(&mut counts, akantu_comm::ReduceOp::Sum)
-            })?;
+            if ph.collective_checks() == CollectiveChecks::CommitPoints {
+                ph.run_collective("counts", Ok(()), |c, ()| {
+                    c.all_reduce(&mut counts, akantu_comm::ReduceOp::Sum)
+                })?;
+            } else {
+                ph.collective("counts", |c| {
+                    c.all_reduce(&mut counts, akantu_comm::ReduceOp::Sum)
+                })?;
+            }
             // ---- stage 3b: consumer capability check, agreed -------------
             // the commit point (D-126): every outcome before the commit is
             // agreed here, immediately, in every mode

@@ -15,12 +15,26 @@ change of default results or of a public API raises the minor version.
   (`akantu_comm::phase::CollectiveChecks`, `AKANTU_COLLECTIVE_CHECKS`,
   `Communicator::set_collective_checks`); `every-phase` keeps an agreement
   after every phase. New `Phases::{settling, defer, deferred, defer_digest, commit,
-  commit_agreed, classify, has_deferred, collective_checks}`, `DofManager::{reduction, collective_committed}`, the
-  fault-injection aid `akantu_comm::phase::testing`, `phase::deferred_stats`.
-  The header of every checked collective carries the protocol status; from
-  64 ranks it is exchanged by gather and broadcast
+  commit_agreed, classify, has_deferred, agree_deferred, collective_checks}`,
+  `DofManager::{reduction, collective_committed, commit_point}`, the
+  fault-injection aid `akantu_comm::phase::testing` (with
+  `record_keys` / `recorded_keys`), `phase::deferred_stats`.
+  The header of every checked collective carries the protocol status and
+  the rank's mode (ranks in different modes fail with one agreed-fatal
+  error); from 64 ranks it is exchanged by gather and broadcast
   (`AKANTU_COLLECTIVE_HEADER`, `mpi_backend::{set_header_exchange,
-  header_exchange}`). Results are unchanged.
+  header_exchange}`). A failed operation leaves every rank's persistent
+  state (DOF arrays, lumped mass, internal variables, mesh) as the
+  every-phase mode does (commit points before persistent changes). While
+  a scope holds deferred outcomes, its thread's scopes and raw collectives
+  on another communicator are refused locally. Results are unchanged.
+- `SolidMechanicsModel::energies` and `SolidMechanicsModelCohesive::energies`:
+  several energies with one reduction over the ranks, each bitwise the
+  value of `energy` (the benchmark driver's four energies per step).
+- `SolidMechanicsModelCohesive::last_insertion_global_count`: the
+  not-ghost cohesive elements the last insertion of a distributed model
+  added over every rank (no reduction; the benchmark driver's global
+  count, checked against the mesh at the end of the run).
 - The cohesive model runs on the execution policy's threads (D-123),
   bitwise at every thread count: the facet stresses and the insertion
   decision of the extrinsic check, the normals, openings and tractions of
@@ -327,6 +341,13 @@ change of default results or of a public API raises the minor version.
 
 - `Phases::settle` takes `&mut self` and agrees the outcomes still
   deferred (D-126); `Phases::classify` is the former classification alone.
+  `mpi_backend::header_exchange` returns a `Result` (an invalid
+  `AKANTU_COLLECTIVE_HEADER` is an error); an invalid
+  `AKANTU_COLLECTIVE_CHECKS` or `AKANTU_COLLECTIVE_HEADER` fails
+  `Communicator::{mpi_world, from_mpi, from_raw_mpi}`. A settling scope
+  dropped with deferred outcomes reports a failure in one last agreement
+  (marks the communicator broken while the thread unwinds).
+  `SolverVector::norm_in` reduces on every communicator, also of one rank.
   A peer's local failure is reported at the scope's next agreement under
   the default collective checks (error messages may name a later phase).
 - `docs/BENCHMARKS.md` is rewritten around the final measurement campaign

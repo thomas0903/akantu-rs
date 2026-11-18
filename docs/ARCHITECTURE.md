@@ -827,6 +827,13 @@ collective on every rank before any payload moves; an operation that ends
 with such a reduction closes with its verdict (`DofManager::reduction`).
 A failed rank leaves through its error path and takes part only in its
 scope's settle agreement, which its peers meet at their next agreement.
+Code that changes persistent state (DOF values, the lumped mass, internal
+variables, the mesh) after deferred steps first agrees what is deferred
+(`DofManager::commit_point`, `Phases::agree_deferred`; the time-step
+adapter places them for every solver), so a failed operation leaves every
+rank's state as `every-phase` does. While a scope holds deferred outcomes,
+its thread's scopes and raw collectives on another communicator are
+refused locally; on a one-rank communicator nothing is deferred.
 
 ### Synchronizers
 

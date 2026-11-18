@@ -462,6 +462,47 @@ impl SolidMechanicsModel {
         }
     }
 
+    /// Several energies of [`SolidMechanicsModel::energy`] at once, in the
+    /// order of `ids`, with **one** reduction over the ranks: the local
+    /// contributions form a vector whose elements are each summed in rank
+    /// order, so every value is bitwise the one `energy(id)` returns (the
+    /// same local computation, the same rank-ordered fold, the same
+    /// scaling after it: `½` for `kinetic`, `× Δt` for `external work`
+    /// outside static analyses). One collective instead of `ids.len()`
+    /// (D-126).
+    ///
+    /// # Errors
+    /// As [`SolidMechanicsModel::energy`] for any of the ids.
+    pub fn energies(&mut self, ids: &[&str]) -> Result<Vec<Real>> {
+        let p = &mut self.physics;
+        let sums = self.solver.dof_manager.reduction("smm:energies", |dm| {
+            let local: Result<Vec<Real>> = ids
+                .iter()
+                .map(|&id| match id {
+                    "kinetic" => p.kinetic_energy_local(dm),
+                    "external work" => p.external_work_local(dm),
+                    "external work new" => Ok(p.external_work),
+                    _ => p.materials_energy_local(dm, id),
+                })
+                .collect();
+            let mut ph = dm.phases()?;
+            ph.run_collective("smm:all_reduce", local, |c, mut v: Vec<Real>| {
+                c.all_reduce(&mut v, ReduceOp::Sum)?;
+                Ok(v)
+            })
+        })?;
+        let static_ = self.physics.base.method == AnalysisMethod::Static;
+        let mut out = Vec::with_capacity(ids.len());
+        for (&id, s) in ids.iter().zip(sums) {
+            out.push(match id {
+                "kinetic" => s / 2.,
+                "external work" if !static_ => s * self.solver.time_step(None)?,
+                _ => s,
+            });
+        }
+        Ok(out)
+    }
+
     /// This rank's contribution to [`SolidMechanicsModel::energy`] before
     /// the reduction over the ranks (`kinetic`: `½ Σ m v²` over the local
     /// and master nodes; any other id: the sum over the laws), for the

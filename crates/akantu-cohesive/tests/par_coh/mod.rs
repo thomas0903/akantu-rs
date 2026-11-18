@@ -210,6 +210,7 @@ pub fn run(
     Ok((model, mesh, dt, recs))
 }
 
+pub mod checks;
 pub mod coh2;
 pub mod oracle;
 

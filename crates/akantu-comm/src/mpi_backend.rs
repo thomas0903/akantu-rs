@@ -2013,9 +2013,14 @@ pub fn set_header_exchange(h: HeaderExchange) {
     HEADER_EXCHANGE.store(code, Ordering::Relaxed);
 }
 
-/// The header exchange in effect.
-#[must_use]
-pub fn header_exchange() -> HeaderExchange {
+/// The header exchange in effect: the one given to
+/// [`set_header_exchange`], else `AKANTU_COLLECTIVE_HEADER` (read once; empty
+/// or unset: `auto`).
+///
+/// # Errors
+/// An invalid `AKANTU_COLLECTIVE_HEADER` (the error repeats on every call;
+/// MPI communicators are not created then).
+pub fn header_exchange() -> Result<HeaderExchange> {
     let mut c = HEADER_EXCHANGE.load(Ordering::Relaxed);
     if c == 0 {
         c = match std::env::var(ENV_COLLECTIVE_HEADER)
@@ -2023,23 +2028,30 @@ pub fn header_exchange() -> HeaderExchange {
             .as_deref()
             .map(str::trim)
         {
+            None | Some("" | "auto") => 1,
             Some("allgather") => 2,
             Some("gather-broadcast") => 3,
-            _ => 1,
+            Some(other) => {
+                return Err(Error::invalid(format!(
+                    "{ENV_COLLECTIVE_HEADER}=`{other}`: expected auto, allgather or \
+                     gather-broadcast"
+                )));
+            }
         };
         HEADER_EXCHANGE.store(c, Ordering::Relaxed);
     }
-    match c {
+    Ok(match c {
         2 => HeaderExchange::AllGather,
         3 => HeaderExchange::GatherBroadcast,
         _ => HeaderExchange::Auto,
-    }
+    })
 }
 
 /// Whether a communicator of `size` ranks exchanges headers by gather and
 /// broadcast.
 fn header_by_gather(size: usize) -> bool {
-    match header_exchange() {
+    // validated when the communicator was created (`check_settings`)
+    match header_exchange().unwrap_or(HeaderExchange::Auto) {
         HeaderExchange::AllGather => false,
         HeaderExchange::GatherBroadcast => size > 1,
         HeaderExchange::Auto => size >= HEADER_GATHER_FROM,

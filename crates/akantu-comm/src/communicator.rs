@@ -517,14 +517,21 @@ pub(crate) struct HeaderStatus {
     pub(crate) id: u64,
     /// Schedule digest folded likewise.
     pub(crate) digest: u64,
+    /// The sender's collective-check mode (`CollectiveChecks::code`), so
+    /// that ranks in different modes fail with one clear error.
+    pub(crate) mode: u8,
 }
 
 impl HeaderStatus {
-    /// Wire form: `[0, 0, 0]` when not armed, else `[1 + severity, id,
-    /// digest]`.
+    /// Wire form: `[0, 0, 0]` when not armed, else `[1 + severity + 256 ×
+    /// mode, id, digest]`.
     pub(crate) fn words(s: Option<Self>) -> [u64; STATUS_WORDS] {
         s.map_or([0; STATUS_WORDS], |s| {
-            [1 + u64::from(s.severity), s.id, s.digest]
+            [
+                1 + u64::from(s.severity) + (u64::from(s.mode) << 8),
+                s.id,
+                s.digest,
+            ]
         })
     }
 }
@@ -539,6 +546,8 @@ pub(crate) struct StatusVerdict {
     pub(crate) ids_match: bool,
     /// Every armed digest is the same.
     pub(crate) digests_match: bool,
+    /// Every armed status names the same collective-check mode.
+    pub(crate) modes_match: bool,
 }
 
 /// The verdict of the ranks' header statuses (rank order): `None` when no
@@ -551,16 +560,24 @@ pub(crate) fn status_verdict(
     let all: Vec<[u64; STATUS_WORDS]> = statuses.into_iter().collect();
     let armed: Vec<&[u64; STATUS_WORDS]> = all.iter().filter(|w| w[0] != 0).collect();
     let first = armed.first()?;
-    let worst = armed.iter().map(|w| w[0] - 1).max().unwrap_or(0);
+    let worst = armed.iter().map(|w| (w[0] - 1) & 0xff).max().unwrap_or(0);
     let ids_match = armed.len() == all.len() && armed.iter().all(|w| w[1] == first[1]);
     let digests_match = armed.iter().all(|w| w[2] == first[2]);
+    let modes_match = armed.iter().all(|w| (w[0] - 1) >> 8 == (first[0] - 1) >> 8);
     let v = StatusVerdict {
         worst: u8::try_from(worst).unwrap_or(u8::MAX),
         ids_match,
         digests_match,
+        modes_match,
     };
-    (v.worst != 0 || !ids_match || !digests_match).then_some(v)
+    (v.worst != 0 || !ids_match || !digests_match || !modes_match).then_some(v)
 }
+
+/// The error every rank reports when ranks use different collective-check
+/// modes (D-126).
+pub(crate) const MIXED_MODES: &str = "collective checks differ between ranks (every-phase on \
+     some, commit-points on others): set AKANTU_COLLECTIVE_CHECKS, or \
+     Communicator::set_collective_checks, alike on every rank";
 
 thread_local! {
     /// A status armed by the current thread's live scope for the next
@@ -596,6 +613,9 @@ pub(crate) fn set_verdict(v: StatusVerdict) {
 /// The error of a collective that a header status failed: the rank's own
 /// local error when it has one, else a common description.
 pub(crate) fn status_error(v: StatusVerdict, own: Option<Error>) -> Error {
+    if !v.modes_match {
+        return Error::fatal(FatalKind::Agreed, comm_err(MIXED_MODES));
+    }
     own.unwrap_or_else(|| {
         comm_err(if v.worst != 0 {
             "collective: the operation failed on another rank".to_owned()
@@ -942,8 +962,9 @@ struct Family {
 impl Default for Family {
     fn default() -> Self {
         // An invalid environment value is reported where creation can fail
-        // (`Communicator::mpi_world` / `from_mpi`); elsewhere it keeps
-        // every agreement (D-018's behaviour).
+        // (`check_settings`: `Communicator::mpi_world`, `from_mpi`,
+        // `from_raw_mpi`); elsewhere it keeps every agreement (D-018's
+        // behaviour).
         let mode = crate::phase::default_collective_checks()
             .unwrap_or(crate::phase::CollectiveChecks::EveryPhase);
         Self {
@@ -1020,6 +1041,9 @@ impl ScopeRegistry {
 pub(crate) enum OpenRefusal {
     /// Another scope (named) is live on the communicator.
     Active(String),
+    /// A scope (named) of this thread holds deferred outcomes on another
+    /// communicator (D-126).
+    Deferred(String),
     /// The communicator observed a transport failure.
     Broken,
 }
@@ -1277,7 +1301,13 @@ impl LocalRank {
             let replies: Vec<Vec<u8>> = match (verdict, outcome) {
                 (Some(v), _) => {
                     vec![
-                        vec![2, v.worst, u8::from(v.ids_match), u8::from(v.digests_match)];
+                        vec![
+                            2,
+                            v.worst,
+                            u8::from(v.ids_match),
+                            u8::from(v.digests_match),
+                            u8::from(v.modes_match),
+                        ];
                         self.world.size
                     ]
                 }
@@ -1309,11 +1339,12 @@ impl LocalRank {
         };
         match reply.split_first() {
             Some((1, rest)) => local.map(|()| rest.to_vec()),
-            Some((2, rest)) if rest.len() == 3 => {
+            Some((2, rest)) if rest.len() == 4 => {
                 let v = StatusVerdict {
                     worst: rest[0],
                     ids_match: rest[1] != 0,
                     digests_match: rest[2] != 0,
+                    modes_match: rest[3] != 0,
                 };
                 set_verdict(v);
                 Err(status_error(v, local.err()))
@@ -1461,6 +1492,18 @@ fn prefix_folds<T: CommData>(
     Ok(out)
 }
 
+/// The process settings of the collective protocol (D-126), checked before
+/// an MPI communicator is created: an invalid `AKANTU_COLLECTIVE_CHECKS` or
+/// `AKANTU_COLLECTIVE_HEADER` is an error there (the local and serial
+/// constructors cannot fail; they keep every agreement on an invalid
+/// `AKANTU_COLLECTIVE_CHECKS`).
+#[cfg(feature = "mpi")]
+fn check_settings() -> Result<()> {
+    crate::phase::default_collective_checks()?;
+    crate::mpi_backend::header_exchange()?;
+    Ok(())
+}
+
 fn rank_index(r: Rank) -> Result<usize> {
     usize::try_from(r).map_err(|_| comm_err(format!("invalid rank {r}")))
 }
@@ -1555,6 +1598,7 @@ impl Communicator {
     /// retry.
     #[cfg(feature = "mpi")]
     pub fn mpi_world(options: crate::mpi_backend::MpiOptions) -> Result<Self> {
+        check_settings()?;
         let b = crate::mpi_backend::MpiBackend::world(options)?;
         Ok(Self::from_backend(
             Backend::Mpi(b),
@@ -1607,6 +1651,7 @@ impl Communicator {
         options: crate::mpi_backend::MpiOptions,
     ) -> Result<Self> {
         use mpi::raw::AsRaw;
+        check_settings()?;
         // SAFETY: `comm` is a live rsmpi communicator, borrowed (not freed)
         // for the duration of the call.
         let b = unsafe { crate::mpi_backend::MpiBackend::import(comm.as_raw(), options)? };
@@ -1660,6 +1705,7 @@ impl Communicator {
         raw: mpi::ffi::MPI_Comm,
         options: crate::mpi_backend::MpiOptions,
     ) -> Result<Self> {
+        check_settings()?;
         // SAFETY: forwarded from this function's contract.
         let b = unsafe { crate::mpi_backend::MpiBackend::import(raw, options)? };
         Ok(Self::from_backend(
@@ -1718,6 +1764,9 @@ impl Communicator {
     pub(crate) fn open_scope(&self, name: &str) -> std::result::Result<u64, OpenRefusal> {
         if self.scopes.broken().is_some() {
             return Err(OpenRefusal::Broken);
+        }
+        if let Some(other) = crate::phase::deferring_elsewhere(self.identity()) {
+            return Err(OpenRefusal::Deferred(other));
         }
         let mut st = self.scopes.lock();
         if let Some(s) = &st.live {
@@ -1846,6 +1895,12 @@ impl Communicator {
                     "raw {what} refused: the communicator observed a transport failure ({reason})"
                 )),
             ));
+        }
+        if let Some(other) = crate::phase::deferring_elsewhere(self.identity()) {
+            return Err(comm_err(format!(
+                "raw {what} refused: collective scope '{other}' of this thread holds deferred \
+                 outcomes on another communicator; finish or settle it first (D-126)"
+            )));
         }
         let me = std::thread::current().id();
         let st = self.scopes.lock();

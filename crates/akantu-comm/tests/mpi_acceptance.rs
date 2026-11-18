@@ -538,6 +538,147 @@ fn split_and_duplicate() -> Outcome {
     Ok(())
 }
 
+/// D-126 on real MPI, under both collective-check modes and both header
+/// forms of the checked collectives (`MPI_Iallgather`, and the
+/// `MPI_Igather` + `MPI_Ibcast` form the automatic choice uses from 64
+/// ranks, forced here): deferred successes then a checked reduction; a
+/// deferred failure then a variable-size all-gather beyond the header's
+/// inline slot; a scope on another communicator while outcomes are
+/// deferred (refused locally); checked reductions on a one-rank
+/// communicator from a split, with and without a collective in the
+/// closure; a settling scope dropped unsettled on the failing rank, then a
+/// next operation on every rank.
+fn commit_points_scenarios() -> Outcome {
+    use akantu_comm::mpi_backend::{HeaderExchange, set_header_exchange};
+    let c = fresh();
+    let mode0 = c.collective_checks();
+    let r = commit_points_scenarios_in(&c);
+    set_header_exchange(HeaderExchange::Auto);
+    c.set_collective_checks(mode0);
+    ensure!(c.broken().is_none());
+    r
+}
+
+fn commit_points_scenarios_in(c: &Communicator) -> Outcome {
+    use akantu_comm::mpi_backend::{HeaderExchange, set_header_exchange};
+    let p = c.size();
+    let rank = c.rank();
+    let last = i32::try_from(p - 1).unwrap_or(0);
+    let fail_on = |bad: i32| -> Result<()> {
+        if rank == bad {
+            Err(Error::Numerical(format!("injected on rank {rank}")))
+        } else {
+            Ok(())
+        }
+    };
+    let solo = c
+        .split(Some(u32::try_from(rank).unwrap_or(0)), 0)
+        .map_err(e2s)?
+        .ok_or("split returned no communicator")?;
+    ensure!(solo.size() == 1);
+    for header in [HeaderExchange::AllGather, HeaderExchange::GatherBroadcast] {
+        set_header_exchange(header);
+        for mode in [CollectiveChecks::EveryPhase, CollectiveChecks::CommitPoints] {
+            c.set_collective_checks(mode);
+            let what = format!("{header:?}, {mode:?}");
+            let t0 = Instant::now();
+            // deferred successes, then a checked reduction
+            {
+                let mut ph = Phases::settling(c, "sum");
+                ph.defer("local", Ok(()), Severity::Recoverable)
+                    .map_err(e2s)?;
+                let s = ph.run_collective("all_reduce", Ok(1u64), |c, s| {
+                    let mut v = [s];
+                    c.all_reduce(&mut v, ReduceOp::Sum)?;
+                    Ok(v[0])
+                });
+                let s = ph.settle(s).map_err(e2s)?;
+                ensure!(s == p as u64, "{what}: sum {s}");
+            }
+            // a deferred failure on the last rank, then a variable-size
+            // all-gather
+            {
+                let mut ph = Phases::settling(c, "gather");
+                let r = ph
+                    .defer("local", fail_on(last), Severity::Recoverable)
+                    .and_then(|()| {
+                        ph.run_collective("gather", Ok(vec![7u8; 1000]), |c, v| c.all_gather_v(&v))
+                    })
+                    .map(|_| ());
+                let r = ph.settle(r);
+                ensure!(
+                    r.as_ref().is_err_and(|e| e.fatal_kind().is_none()),
+                    "{what}: {r:?}"
+                );
+            }
+            let mut v = [1u64];
+            c.all_reduce(&mut v, ReduceOp::Sum).map_err(e2s)?;
+            ensure!(
+                v[0] == p as u64,
+                "{what}: usable after a recoverable failure"
+            );
+            // a scope on another communicator while outcomes are deferred
+            {
+                let d = c.duplicate().map_err(e2s)?;
+                let mut ph = Phases::settling(c, "outer");
+                let r = ph
+                    .defer("local", fail_on(0), Severity::Recoverable)
+                    .and_then(|()| {
+                        let mut q = Phases::new(&d, "inner");
+                        let r = q.agree("x", Ok(()), Severity::Recoverable);
+                        q.settle(r)
+                    });
+                let r = ph.settle(r);
+                drop(ph);
+                ensure!(r.is_err(), "{what}: cross-communicator");
+                if mode == CollectiveChecks::CommitPoints && rank != 0 {
+                    let e = r.unwrap_err().to_string();
+                    ensure!(e.contains("holds deferred outcomes"), "{what}: {e}");
+                }
+                d.barrier().map_err(e2s)?;
+            }
+            // one-rank communicator: the deferred outcomes are agreed at
+            // once (nothing folds), with or without a collective in the
+            // checked reduction's closure
+            for skip in [false, true] {
+                let mut ph = Phases::settling(&solo, "solo");
+                ph.defer("local", Ok(()), Severity::Recoverable)
+                    .map_err(e2s)?;
+                let n = ph.run_collective("norm", Ok(4.0_f64), |c, s| {
+                    let mut v = [s];
+                    if !skip || c.size() > 1 {
+                        c.all_reduce(&mut v, ReduceOp::Sum)?;
+                    }
+                    Ok(v[0].sqrt())
+                });
+                let n = ph.settle(n).map_err(e2s)?;
+                ensure!(n == 2.0, "{what}: one-rank norm {n}");
+            }
+            // a settling scope dropped unsettled on the failing rank: the
+            // others fail at once; the next operation works everywhere
+            {
+                let mut ph = Phases::settling(c, "unsettled");
+                let r = ph.defer("local", fail_on(0), Severity::Recoverable);
+                let r = if r.is_err() {
+                    drop(ph);
+                    r
+                } else {
+                    let r = ph.settle(r);
+                    drop(ph);
+                    r
+                };
+                ensure!(r.is_err(), "{what}: unsettled owner");
+                let mut q = Phases::new(c, "next-op");
+                let n = q.agree("work", Ok(()), Severity::Recoverable);
+                q.settle(n).map_err(e2s)?;
+            }
+            ensure!(t0.elapsed() < FAST, "{what}: waited {:?}", t0.elapsed());
+            ensure!(c.broken().is_none(), "{what}: broken");
+        }
+    }
+    Ok(())
+}
+
 // ------------------------------------------------- collective protocol
 
 /// Port of `phase.rs::injected_failures_complete_on_all_ranks` on a ring.
@@ -2245,6 +2386,7 @@ fn main() {
     h.run("phase_injected_failures", phase_injected_failures);
     h.run("phase_failure_sweep", phase_failure_sweep);
     h.run("phase_protocol_ports", phase_protocol_ports);
+    h.run("commit_points_scenarios", commit_points_scenarios);
     h.run("park_resume_on_workers", park_resume_on_workers);
     h.run(
         "upstream_synchronizer_communication",

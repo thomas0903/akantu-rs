@@ -261,6 +261,20 @@ pub mod testing {
 
     thread_local! {
         static FAIL: RefCell<Option<(String, u32)>> = const { RefCell::new(None) };
+        static RECORD: RefCell<Option<Vec<String>>> = const { RefCell::new(None) };
+    }
+
+    /// Start recording the keys `"<scope>/<phase name>"` of this thread's
+    /// phases, in the order they run (every phase an injection could hit),
+    /// dropping what an earlier recording kept.
+    pub fn record_keys() {
+        RECORD.with(|r| *r.borrow_mut() = Some(Vec::new()));
+    }
+
+    /// Stop recording and return the keys recorded since
+    /// [`record_keys`] (empty if it was not called).
+    pub fn recorded_keys() -> Vec<String> {
+        RECORD.with(|r| r.borrow_mut().take().unwrap_or_default())
     }
 
     /// Make the `nth` (from 1) phase of this thread whose key
@@ -277,6 +291,11 @@ pub mod testing {
 
     /// `true` if the phase `key` is the injected one (consumed).
     pub(crate) fn hit(key: &str) -> bool {
+        RECORD.with(|r| {
+            if let Some(keys) = r.borrow_mut().as_mut() {
+                keys.push(key.to_owned());
+            }
+        });
         FAIL.with(|f| {
             let mut f = f.borrow_mut();
             let fire = match f.as_mut() {
@@ -343,6 +362,29 @@ struct Reduced {
     worst: u64,
     ids_match: bool,
     digests_match: bool,
+    /// Every rank in the same collective-check mode (D-126).
+    modes_match: bool,
+}
+
+impl Reduced {
+    fn from_verdict(v: crate::communicator::StatusVerdict) -> Self {
+        Self {
+            worst: u64::from(v.worst),
+            ids_match: v.ids_match,
+            digests_match: v.digests_match,
+            modes_match: v.modes_match,
+        }
+    }
+}
+
+/// Disarms the thread's header status when dropped (also on a panic in
+/// the collective that should have consumed it).
+struct Disarm;
+
+impl Drop for Disarm {
+    fn drop(&mut self) {
+        disarm_status();
+    }
 }
 
 /// Severity a rank reports for its local outcome: `Ok` for
@@ -438,42 +480,39 @@ fn reduce_status(comm: &Communicator, id: u64, status: Severity, digest: u64) ->
             worst: status as u64,
             ids_match: true,
             digests_match: true,
+            modes_match: true,
         });
     }
-    // D-126: under commit points the agreement also carries its status in
-    // the collective's header, so that it meets a checked reduction that
-    // folds a peer's deferred outcomes (`Phases::run_collective`), or a
-    // failed peer's agreement, with one verdict on every rank
-    let armed = comm.collective_checks() == CollectiveChecks::CommitPoints;
-    if armed {
-        arm_status(
-            comm,
-            HeaderStatus {
-                severity: status as u8,
-                id,
-                digest,
-            },
-        );
-    }
+    // D-126: the agreement also carries its status (with the rank's
+    // collective-check mode) in the collective's header, so that it meets a
+    // checked reduction that folds a peer's deferred outcomes
+    // (`Phases::run_collective`), or a failed peer's agreement, with one
+    // verdict on every rank, and ranks in different modes fail with one
+    // clear error
+    arm_status(
+        comm,
+        HeaderStatus {
+            severity: status as u8,
+            id,
+            digest,
+            mode: comm.collective_checks().code(),
+        },
+    );
+    let disarm = Disarm;
     let mut v = [status as u64, id, !id, digest, !digest];
     let t = std::time::Instant::now();
     let r = comm.all_reduce(&mut v, ReduceOp::Max);
     count_agreement(Some(t));
-    if armed {
-        disarm_status();
-        if let Some(verdict) = take_verdict() {
-            return Ok(Reduced {
-                worst: u64::from(verdict.worst),
-                ids_match: verdict.ids_match,
-                digests_match: verdict.digests_match,
-            });
-        }
+    drop(disarm);
+    if let Some(verdict) = take_verdict() {
+        return Ok(Reduced::from_verdict(verdict));
     }
     r?;
     Ok(Reduced {
         worst: v[0],
         ids_match: v[1] == !v[2],
         digests_match: v[3] == !v[4],
+        modes_match: true,
     })
 }
 
@@ -533,7 +572,9 @@ pub fn deferred_stats() -> u64 {
 /// a fatal status was reported, or the ranks are at different steps while
 /// all reporting success (a protocol divergence).
 fn agreed_fatal(r: &Reduced) -> bool {
-    r.worst >= Severity::Fatal as u64 || (!r.ids_match && r.worst == Severity::Ok as u64)
+    !r.modes_match
+        || r.worst >= Severity::Fatal as u64
+        || (!r.ids_match && r.worst == Severity::Ok as u64)
 }
 
 fn interpret(name: &str, local: Result<()>, r: &Reduced, digest_what: &str) -> Result<()> {
@@ -544,6 +585,11 @@ fn interpret(name: &str, local: Result<()>, r: &Reduced, digest_what: &str) -> R
     // step than the one this rank is at — that is the protocol
     // working, not a divergence. Only a mismatch with every rank reporting
     // success is a protocol divergence.
+    if !r.modes_match {
+        return Err(Error::Communication(
+            crate::communicator::MIXED_MODES.into(),
+        ));
+    }
     match local {
         Err(e) => Err(e),
         Ok(()) if r.worst != Severity::Ok as u64 => Err(Error::Communication(format!(
@@ -681,6 +727,11 @@ enum ScopeState {
     /// an independent nested (or concurrent) scope, refused before any
     /// communication.
     Refused(String),
+    /// Opened on this thread while the named scope, on another
+    /// communicator, held deferred outcomes (D-126): refused before any
+    /// communication, so that a peer that left that scope through its
+    /// error never waits here.
+    RefusedDeferred(String),
 }
 
 /// Registration, step counter and failure state of one scope; shared by
@@ -699,29 +750,118 @@ struct ScopeCore {
     /// The owner settles the scope before it drops it ([`Phases::settling`]):
     /// only then are local outcomes deferred.
     settles: bool,
-    /// Outcomes deferred since the last agreement (commit points only).
+    /// Outcomes deferred since the last agreement (commit points only);
+    /// change it only through [`ScopeCore::set_deferred`] /
+    /// [`ScopeCore::take_deferred`] (the thread's deferral registry).
     deferred: Option<Deferred>,
+    /// Key of this scope in the thread's deferral registry.
+    key: u64,
 }
 
 impl Drop for ScopeCore {
     fn drop(&mut self) {
+        // A settling owner settles before it drops its scope
+        // (`Phases::settle` agrees what is still deferred). A running scope
+        // dropped with outcomes still deferred (an owner that broke that
+        // promise, or a scope dropped after a caught panic) reports a
+        // failure in one last agreement with its deferred outcomes, so that
+        // the peers, which wait in an agreement of the scope, fail with it
+        // instead of waiting for this rank. While the thread unwinds, or
+        // when that agreement cannot complete, the abort path instead, as
+        // for a local failure after the last agreement (the communicator is
+        // marked broken).
+        if self.deferred.is_some() && self.state == ScopeState::Running {
+            let q = format!("{}#{}:dropped", self.scope, self.count);
+            let d = self.take_deferred();
+            let agreed = !std::thread::panicking() && self.comm.broken().is_none() && {
+                let f = Deferred::fold(d, &q, Severity::Recoverable, 0);
+                let _step = self.comm.scope_step(self.uid);
+                reduce_status(&self.comm, f.id, f.worst, f.digest).is_ok()
+            };
+            if agreed {
+                self.state = ScopeState::Failed(Severity::Recoverable);
+            } else {
+                self.state = ScopeState::Broken;
+                self.comm.mark_broken(&format!(
+                    "scope '{}': dropped with deferred outcomes that were never agreed",
+                    self.scope
+                ));
+            }
+        }
+        unregister_deferring(self.key);
         if let Some(uid) = self.uid {
             self.comm.close_scope(uid);
         }
-        // A settling owner settles before it drops its scope
-        // (`Phases::settle` agrees what is still deferred), unless the
-        // operation already failed or broke on this rank.
-        debug_assert!(
-            self.deferred.is_none()
-                || self.state != ScopeState::Running
-                || std::thread::panicking(),
-            "collective scope '{}' dropped with deferred outcomes not settled",
-            self.scope
-        );
     }
 }
 
+/// Scopes that hold deferred outcomes: (key, owner thread, communicator
+/// identity, scope name). While one is owned by a thread (live or parked
+/// by it), a scope or raw collective of that thread on another
+/// communicator is refused locally (D-126).
+type DeferringScopes = Vec<(u64, std::thread::ThreadId, usize, String)>;
+
+static DEFERRING: std::sync::Mutex<DeferringScopes> = std::sync::Mutex::new(Vec::new());
+/// Entries of [`DEFERRING`] (fast path without the lock).
+static NB_DEFERRING: std::sync::atomic::AtomicUsize = std::sync::atomic::AtomicUsize::new(0);
+
+/// Keys of [`ScopeCore`]s (unique per process).
+static NEXT_SCOPE_KEY: std::sync::atomic::AtomicU64 = std::sync::atomic::AtomicU64::new(0);
+
+fn deferring() -> std::sync::MutexGuard<'static, DeferringScopes> {
+    DEFERRING
+        .lock()
+        .unwrap_or_else(std::sync::PoisonError::into_inner)
+}
+
+fn register_deferring(key: u64, identity: usize, scope: &str) {
+    use std::sync::atomic::Ordering::SeqCst;
+    let me = std::thread::current().id();
+    let mut d = deferring();
+    if let Some(e) = d.iter_mut().find(|e| e.0 == key) {
+        e.1 = me;
+    } else {
+        d.push((key, me, identity, scope.to_owned()));
+        NB_DEFERRING.fetch_add(1, SeqCst);
+    }
+}
+
+fn unregister_deferring(key: u64) {
+    use std::sync::atomic::Ordering::SeqCst;
+    if NB_DEFERRING.load(SeqCst) == 0 {
+        return;
+    }
+    let mut d = deferring();
+    let before = d.len();
+    d.retain(|e| e.0 != key);
+    NB_DEFERRING.fetch_sub(before - d.len(), SeqCst);
+}
+
+/// The scope owned by this thread that holds deferred outcomes on a
+/// communicator other than the one of `identity`, if any (D-126: a scope
+/// or raw collective there is refused).
+pub(crate) fn deferring_elsewhere(identity: usize) -> Option<String> {
+    if NB_DEFERRING.load(std::sync::atomic::Ordering::SeqCst) == 0 {
+        return None;
+    }
+    let me = std::thread::current().id();
+    deferring()
+        .iter()
+        .find(|e| e.1 == me && e.2 != identity)
+        .map(|e| e.3.clone())
+}
+
 impl ScopeCore {
+    fn set_deferred(&mut self, d: Deferred) {
+        self.deferred = Some(d);
+        register_deferring(self.key, self.comm.identity(), &self.scope);
+    }
+
+    fn take_deferred(&mut self) -> Option<Deferred> {
+        unregister_deferring(self.key);
+        self.deferred.take()
+    }
+
     fn is_failed(&self) -> bool {
         self.state != ScopeState::Running
     }
@@ -731,7 +871,7 @@ impl ScopeCore {
             ScopeState::Running => None,
             ScopeState::Failed(s) => Some(*s),
             ScopeState::Broken => Some(Severity::Fatal),
-            ScopeState::Refused(_) => Some(Severity::Recoverable),
+            ScopeState::Refused(_) | ScopeState::RefusedDeferred(_) => Some(Severity::Recoverable),
         }
     }
 
@@ -810,6 +950,10 @@ impl ParkedScope {
             core.uid = None;
             core.state = ScopeState::Broken;
         }
+        if core.deferred.is_some() {
+            // the resuming thread now owns the deferred outcomes
+            register_deferring(core.key, core.comm.identity(), &core.scope);
+        }
         Phases {
             core,
             _thread: PhantomData,
@@ -857,6 +1001,18 @@ impl Phases {
     /// the next agreement ([`Phases::defer`]); in a scope opened with
     /// [`Phases::new`] every outcome is agreed at once, as under
     /// every-phase checks.
+    ///
+    /// While the scope holds deferred outcomes, the owning thread may not
+    /// communicate on another communicator: a scope it opens there is
+    /// refused ([`Phases::is_refused`], a recoverable error at its first
+    /// phase) and a raw collective there returns an error, both without
+    /// communicating (a peer that failed sits in an agreement of this
+    /// scope and would never join). Agree what is deferred first
+    /// ([`Phases::agree_deferred`], any agreement) or settle.
+    ///
+    /// Dropped unsettled while it holds deferred outcomes, the scope
+    /// reports a failure in one last agreement (the peers fail at once);
+    /// while the thread unwinds, it marks the communicator broken instead.
     #[must_use]
     pub fn settling(comm: &Communicator, scope: impl Into<String>) -> Self {
         Self::open(comm, scope.into(), true)
@@ -866,6 +1022,7 @@ impl Phases {
         let (state, uid) = match comm.open_scope(&scope) {
             Ok(uid) => (ScopeState::Running, Some(uid)),
             Err(OpenRefusal::Active(active)) => (ScopeState::Refused(active), None),
+            Err(OpenRefusal::Deferred(other)) => (ScopeState::RefusedDeferred(other), None),
             Err(OpenRefusal::Broken) => (ScopeState::Broken, None),
         };
         Self {
@@ -878,6 +1035,7 @@ impl Phases {
                 mode: comm.collective_checks(),
                 settles,
                 deferred: None,
+                key: NEXT_SCOPE_KEY.fetch_add(1, std::sync::atomic::Ordering::Relaxed),
             },
             _thread: PhantomData,
         }
@@ -931,7 +1089,10 @@ impl Phases {
     /// `true` for a scope refused at creation (independent nested scope).
     #[must_use]
     pub fn is_refused(&self) -> bool {
-        matches!(self.core.state, ScopeState::Refused(_))
+        matches!(
+            self.core.state,
+            ScopeState::Refused(_) | ScopeState::RefusedDeferred(_)
+        )
     }
 
     /// `true` after an agreed [`Severity::Fatal`] failure (identical on
@@ -1014,7 +1175,7 @@ impl Phases {
     /// outside native library regions.
     fn folds(&self) -> bool {
         self.core.mode == CollectiveChecks::CommitPoints
-            && !one_rank_without_mpi(&self.core.comm)
+            && self.core.comm.size() > 1
             && !in_native_region()
     }
 
@@ -1033,7 +1194,12 @@ impl Phases {
     /// rank's own error is returned at once (the other ranks learn of it
     /// there). Use only where nothing between this phase and the next
     /// agreement needs every rank's success: no point-to-point exchange
-    /// outside the scope's own steps, no effect another rank relies on.
+    /// outside the scope's own steps, no effect another rank relies on, no
+    /// persistent change that the every-phase mode would not make (agree
+    /// first: [`Phases::agree_deferred`]), and no communication on another
+    /// communicator (refused while outcomes are deferred, see
+    /// [`Phases::settling`]). On a one-rank communicator every outcome is
+    /// agreed at once.
     pub fn defer(&mut self, name: &str, local: Result<()>, severity: Severity) -> Result<()> {
         self.defer_digest(name, local, 0, severity)
     }
@@ -1066,7 +1232,8 @@ impl Phases {
         }
         let status = reported_severity(&local, severity);
         let q = self.qualified(name);
-        self.core.deferred = Some(Deferred::fold(self.core.deferred, &q, status, digest));
+        let d = Deferred::fold(self.core.deferred, &q, status, digest);
+        self.core.set_deferred(d);
         DEFERRED.fetch_add(1, std::sync::atomic::Ordering::Relaxed);
         local
     }
@@ -1099,6 +1266,20 @@ impl Phases {
         severity: Severity,
     ) -> Result<T> {
         self.agreed(name, local, severity)
+    }
+
+    /// A **commit point before a persistent change** (D-126): agree the
+    /// outcomes deferred so far, if any, before the caller changes state
+    /// that a peer's failure must stop (DOF values, internal variables, the
+    /// mesh). Communicates only when something is deferred; under
+    /// every-phase checks nothing is ever deferred, so it never
+    /// communicates there.
+    ///
+    /// # Errors
+    /// A failure agreed on any rank (the rank's own error first), or a
+    /// transport failure.
+    pub fn agree_deferred(&mut self, name: &str) -> Result<()> {
+        self.flush(name)
     }
 
     /// Agree what is deferred, if anything (before a communication step).
@@ -1145,6 +1326,11 @@ impl Phases {
             ScopeState::Refused(active) => Err(Error::Communication(format!(
                 "{}: phase '{name}' refused: collective scope '{active}' is already active on \
                  this communicator; communicate through it instead of an independent scope",
+                self.core.scope
+            ))),
+            ScopeState::RefusedDeferred(other) => Err(Error::Communication(format!(
+                "{}: phase '{name}' refused: collective scope '{other}' of this thread holds \
+                 deferred outcomes on another communicator; finish or settle it first (D-126)",
                 self.core.scope
             ))),
         }
@@ -1243,7 +1429,7 @@ impl Phases {
         let q = self.qualified(name);
         // D-126: the outcomes deferred since the last agreement are agreed
         // with this one
-        let (status, id, digest) = match self.core.deferred.take() {
+        let (status, id, digest) = match self.core.take_deferred() {
             None => (status, phase_id(&q), digest),
             Some(d) => {
                 let f = Deferred::fold(Some(d), &q, status, digest);
@@ -1355,7 +1541,7 @@ impl Phases {
         }
         let status = reported_severity(&local, Severity::Recoverable);
         let q = self.qualified(&format!("{name}:prepare"));
-        let folded = Deferred::fold(self.core.deferred.take(), &q, status, 0);
+        let folded = Deferred::fold(self.core.take_deferred(), &q, status, 0);
         let comm = self.core.comm.clone();
         arm_status(
             &comm,
@@ -1363,8 +1549,10 @@ impl Phases {
                 severity: folded.worst as u8,
                 id: folded.id,
                 digest: folded.digest,
+                mode: self.core.mode.code(),
             },
         );
+        let disarm = Disarm;
         let t = std::time::Instant::now();
         let outcome = {
             let _step = comm.scope_step(self.core.uid);
@@ -1376,12 +1564,9 @@ impl Phases {
         };
         count_agreement(Some(t));
         let unconsumed = disarm_status();
+        drop(disarm);
         if let Some(v) = take_verdict() {
-            let r = Reduced {
-                worst: u64::from(v.worst),
-                ids_match: v.ids_match,
-                digests_match: v.digests_match,
-            };
+            let r = Reduced::from_verdict(v);
             self.core.state = ScopeState::Failed(if agreed_fatal(&r) {
                 Severity::Fatal
             } else {
@@ -1547,10 +1732,18 @@ mod tests {
         }
     }
 
+    /// Under both modes: a scope not opened with `Phases::settling` defers
+    /// nothing (D-126).
     #[test]
     fn digest_and_post_failures_are_agreed() {
+        for mode in [CollectiveChecks::EveryPhase, CollectiveChecks::CommitPoints] {
+            digest_and_post_failures_are_agreed_in(mode);
+        }
+    }
+
+    fn digest_and_post_failures_are_agreed_in(mode: CollectiveChecks) {
         let out = run_local(2, Duration::from_secs(10), |c| {
-            c.set_collective_checks(CollectiveChecks::EveryPhase);
+            c.set_collective_checks(mode);
             let mut ph = Phases::new(&c, "op");
             let d = ph.agree_digest(
                 "schedule",
@@ -1572,7 +1765,7 @@ mod tests {
             (d.is_err(), post.is_err(), ph2.is_failed(), ph2.is_broken())
         });
         for o in out {
-            assert_eq!(o, (true, true, true, false));
+            assert_eq!(o, (true, true, true, false), "{mode:?}");
         }
     }
 
@@ -1988,11 +2181,18 @@ mod tests {
 
     /// An agreed, ordinary error of a raw collective in a
     /// communication step fails the scope recoverably (communicator usable,
-    /// later scopes run); a transport error still breaks it.
+    /// later scopes run); a transport error still breaks it. Under both
+    /// modes (a scope not opened with `Phases::settling` defers nothing).
     #[test]
     fn agreed_error_of_a_raw_collective_is_an_inner_result() {
+        for mode in [CollectiveChecks::EveryPhase, CollectiveChecks::CommitPoints] {
+            agreed_error_of_a_raw_collective_is_an_inner_result_in(mode);
+        }
+    }
+
+    fn agreed_error_of_a_raw_collective_is_an_inner_result_in(mode: CollectiveChecks) {
         let out = run_local(2, Duration::from_secs(10), |c| {
-            c.set_collective_checks(CollectiveChecks::EveryPhase);
+            c.set_collective_checks(mode);
             let mut ph = Phases::new(&c, "pe01");
             let r: Result<()> = ph.run("native", Ok(()), |_, ()| {
                 agreed_or_transport::<()>(Err(Error::Communication(
@@ -2015,15 +2215,15 @@ mod tests {
         for (rank, (failed, usable, broken)) in out.into_iter().enumerate() {
             assert!(
                 failed,
-                "rank {rank}: the agreed error did not fail the scope recoverably"
+                "{mode:?}, rank {rank}: the agreed error did not fail the scope recoverably"
             );
             assert!(
                 usable,
-                "rank {rank}: the communicator is unusable after an agreed error"
+                "{mode:?}, rank {rank}: the communicator is unusable after an agreed error"
             );
             assert!(
                 broken,
-                "rank {rank}: a transport error must break the communicator"
+                "{mode:?}, rank {rank}: a transport error must break the communicator"
             );
         }
     }

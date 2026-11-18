@@ -2411,8 +2411,6 @@ pattern. A Scotch ordering was not added: the
 crate's dissection already reaches the fill of a geometric dissection on
 the grids measured, and Scotch would be a second, optional code path.
 
-## Ids without a record
-
 ## D-126: Collective checks at commit points (amends D-018)
 
 2026-11-18, the campaign lead's decision on a multi-host diagnosis
@@ -2447,9 +2445,17 @@ Mechanisms of `commit-points`:
    `Phases::defer` / `deferred` record a purely local phase's outcome
    (worst severity, folded phase ids and digests) without communicating;
    in any other scope (`Phases::new`) every outcome is agreed at once, as
-   under every-phase checks, so an owner that drops its scope without
-   settling cannot lose a peer's failure; the failing rank gets its own error at
-   once and skips the rest of the operation. Deferred: the DOF manager's
+   under every-phase checks; the failing rank gets its own error at once
+   and skips the rest of the operation. Only on a communicator of more
+   than one rank: on a one-rank communicator (a split, an MPI singleton)
+   every outcome is agreed at once (no collective there could carry it).
+   A settling scope dropped while it holds deferred outcomes (an owner
+   that broke its promise, or a scope dropped after a caught panic)
+   reports a failure in one last agreement, which its peers, waiting in an
+   agreement of the scope, meet: they fail at once, recoverably, and the
+   communicator stays usable; while the thread unwinds, or if that
+   agreement cannot complete, the communicator is marked broken instead
+   (the abort path). Deferred: the DOF manager's
    steps (solver callbacks) and joined operations, the post-processing
    (unpacking) of `Phases::run` and `Synchronizer::wait_in`, the mesh
    transaction's stages before its commit (preflight, topology with its
@@ -2461,10 +2467,20 @@ Mechanisms of `commit-points`:
    deferred. A peer that failed locally has left the operation through its
    error path, whose next communication is its scope's settle; the other
    ranks meet it at their next agreement, never in a point-to-point
-   exchange.
+   exchange. While a scope of a thread holds deferred outcomes (live or
+   parked by that thread), every scope and raw collective of that thread
+   on **another** communicator is refused locally, recoverably
+   (`ScopeState::RefusedDeferred`, the raw operation's error): a peer that
+   failed is in an agreement of the deferring scope's communicator and
+   would never join the other one. The refusal is the code's local error;
+   it is agreed when the deferring scope settles.
 3. **The status in the header.** Every checked collective's header
    carries an optional protocol status (`HeaderStatus`: severity, phase id,
-   digest), and every agreement carries its own. A failure reported by any
+   digest, and the rank's collective-check mode), and every agreement
+   carries its own. Ranks in different modes fail at their first header
+   with one agreed-fatal error naming the setting; an invalid
+   `AKANTU_COLLECTIVE_CHECKS` or `AKANTU_COLLECTIVE_HEADER` is an error of
+   the world's creation (`mpi_world`, `from_mpi`, `from_raw_mpi`). A failure reported by any
    rank, or ranks at different phases, fails the collective on every rank
    before any payload moves, whatever the descriptors say (so a failed
    rank's settle agreement meets its peers' next reduction).
@@ -2494,7 +2510,36 @@ Commit points (an immediate agreement in both modes; `Phases::commit`,
 - every agreement inside a native library's region (PETSc, MUMPS): the
   library communicates outside the protocol, so nothing is deferred there;
 - every other existing `agree` / `agreed` (unchanged call sites: they stay
-  immediate and also agree what is deferred).
+  immediate and also agree what is deferred);
+- **before every persistent change** of a DOF manager's operation
+  (`DofManager::commit_point`, which communicates only when something is
+  deferred, never under every-phase checks). The rule: when an operation
+  returns an error, every rank's persistent state — the DOF arrays (values,
+  previous values, increments), the lumped mass, the laws' internal
+  variables, the mesh — is the state the every-phase mode leaves on that
+  rank for the same failure; the ranks that run further under commit
+  points change transient data only (residual, forces, solution, matrices'
+  content, buffers). Placed in the time-step adapter
+  (`crates/akantu-solver/src/time_step.rs`), so that every solver goes
+  through them: at the start of `before_solve_step` (the laws save their
+  previous state, the schemes store the step's start), after the model's
+  `predictor` hook and before the schemes' predictor, after the mass
+  assembly and before the model's residual in `assemble_residual` and
+  `assemble_residual_part` (internal variables), at the start of the
+  corrector and of `after_solve_step`, and at the start of
+  `assemble_matrix` (the schemes' Jacobian caches and release tracking);
+  in the solid model's lumped mass after its density exchange and before
+  the assembly into `M` (the cached mass and its flag); in the cohesive
+  model's residual after the traction exchange, before the bulk stresses;
+  in the Newton–Raphson solver before it clears its
+  `force_linear_recompute` flag. A failure in the same step as a write is
+  no concern: every-phase checks agree after the step, so the writes of
+  that step happen in both modes. Each of the explicit step's commit points
+  is necessary (removing any one makes the state test below fail). Not in
+  the rule: the scheme's store for a restore, the solid model's
+  `displacement_release` counter and the DOF manager's blocked-DOF index
+  (recomputed at every step), and the Newton–Raphson Jacobian's content
+  (reassembled whenever the solver's flag says so).
 
 Fallback, agreement before every point-to-point exchange (the decision
 asked for the sender's status in each message): every synchronizer
@@ -2530,6 +2575,13 @@ Failure semantics:
   error; a peer's message names the remote failure ("failed on another
   rank") at the phase where it learned of it, which may be a later
   phase than under `every-phase` (the documented substitute).
+- The agreed failure can be more severe than under `every-phase`: two
+  ranks failing different deferred phases (one recoverable, a later one
+  fatal) are agreed together, with the worst severity, where every-phase
+  checks would have stopped at the first (recoverable) failure.
+- Under `every-phase` the mesh's bounding-box and element-count
+  reductions keep the D-018 form (a collective with its own agreements,
+  no checked header), so that mode makes no more agreements than before.
 
 Consequence: 19.4 collectives per step and rank for the benchmark's step
 at 8 ranks (h = 0.06, 977 insertion steps in 2,000; was 51.6; the
@@ -2545,12 +2597,30 @@ exchange agreements, and the global-id, count and bounding-box reductions
 Results are unchanged in both modes.
 Tests: `crates/akantu-cohesive/tests/collective_checks_failures.rs` (one
 rank failing the solve step, the insertion check, an energy, a mesh
-transaction before and after its commit, at 2 and 4 ranks, both modes),
-the protocol tests of `akantu-comm` (deferred post-processing, header
-verdicts, a silent peer bounded by the deadline), the existing
-fault-injection tests of the solver, mesh and solid crates in both modes.
+transaction before and after its commit, at 2 and 4 ranks, both modes);
+`crates/akantu-cohesive/tests/collective_checks_state.rs` (the persistent
+state after a failure injected in each phase of the explicit solve step in
+turn, on the first and the last rank, at 2 and 4 ranks, at an insertion
+step and two steps later: the same bits in both modes on every rank); the
+same two in the real-MPI binary `mpi_cohesive` at 2 and 4 ranks;
+`crates/akantu-comm/tests/commit_point_failures.rs` (a scope on another
+communicator while outcomes are deferred, an unsettled settling scope,
+mixed modes, two failures of different severity, a failed preparation
+against a payload collective) and the scenario `commit_points_scenarios`
+of `mpi_acceptance` (the same under both header forms, the
+gather-broadcast one forced, and checked reductions on a one-rank
+communicator from a split); `crates/akantu-solver/tests/commit_point_steps.rs`
+(where the peers of a failed step stop); the protocol tests of
+`akantu-comm` (deferred post-processing, header verdicts, a silent peer
+bounded by the deadline), the existing fault-injection tests of the
+solver, mesh and solid crates in both modes.
 Governs `crates/akantu-comm/src/{phase,communicator,mpi_backend,synchronizer}.rs`,
-`crates/akantu-solver/src/dof_manager.rs`, `crates/akantu-mesh/src/mutation.rs`.
+`crates/akantu-solver/src/{dof_manager,time_step,non_linear_newton_raphson}.rs`,
+`crates/akantu-mesh/src/mutation.rs`, the commit points of
+`crates/akantu-solid/src/model/assembly.rs` and
+`crates/akantu-cohesive/src/model.rs`.
+
+## Ids without a record
 
 D-044, D-045, D-072, D-075, D-084, D-098, D-102, D-103, D-110, D-112 and
 D-120 were decisions about how the port was carried out (compute
