@@ -5,8 +5,9 @@
 #
 #   python3 -I summarize.py runs.csv PREFIX [EXCLUDED_RUN,...]
 #
-# Runs are named PREFIX-<case>-k<repetition>, <case> = <c|r|b|a><ranks>x<hosts> (c: the C++
-# reference, r: the port in the diagnosis series, b / a: the port before / after D-126) or
+# Runs are named PREFIX-<case>-k<repetition>, <case> = <c|r|b|a|n><ranks>x<hosts> (c: the C++
+# reference, r: the port in the diagnosis series, b / a: the port before / after D-126, n: the
+# port after D-126's fix round) or
 # <variant>-<ranks>x<hosts>. Prints the median [min, max] of
 # each phase per case and the paired ratios (same repetition) named in RATIOS.
 import csv
@@ -15,12 +16,16 @@ import statistics
 import sys
 
 PHASES = ("loop", "check_cohesive_stress", "solve_step", "energies", "interpolation", "insertion")
-# r: the port (diagnosis series); b / a: the port before / after D-126 (final series); c: C++
+# r: the port (diagnosis series); b / a: the port before / after D-126 (final series); n: after
+# the fix round (fin3 series); c: C++
 RATIOS = (("r8x4", "r8x1"), ("c8x4", "c8x1"), ("r8x1", "c8x1"), ("r8x4", "c8x4"), ("r32x4", "c32x4"),
           ("a8x1", "b8x1"), ("a8x4", "b8x4"), ("a32x4", "b32x4"),
           ("b8x4", "b8x1"), ("a8x4", "a8x1"),
           ("b8x1", "c8x1"), ("a8x1", "c8x1"), ("b8x4", "c8x4"), ("a8x4", "c8x4"),
-          ("b32x4", "c32x4"), ("a32x4", "c32x4"))
+          ("b32x4", "c32x4"), ("a32x4", "c32x4"),
+          ("n8x1", "a8x1"), ("n8x4", "a8x4"), ("n32x4", "a32x4"),
+          ("n8x1", "b8x1"), ("n8x4", "b8x4"), ("n32x4", "b32x4"),
+          ("n8x1", "c8x1"), ("n8x4", "c8x4"), ("n32x4", "c32x4"), ("n8x4", "n8x1"))
 
 
 def fmt(v):

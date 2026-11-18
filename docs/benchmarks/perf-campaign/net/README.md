@@ -331,21 +331,146 @@ No timed phase has a median ratio above 1.015.
   depends on the ranks per host (shared memory bandwidth); the reference
   gains across hosts for that reason, and so does the port now.
 
+## 7. Fix round (18 November 2026, 15:40–17:22 UTC)
+
+After an independent review of section 4's change, the protocol keeps
+every rank's persistent state as the every-phase mode leaves it when an
+operation fails (D-126, "before every persistent change"): commit points
+before the DOF values, the lumped mass, the internal variables or the
+mesh change, placed in the time-step adapter for every solver
+(`DofManager::commit_point`). Also: a scope or raw collective on another
+communicator is refused while a scope holds deferred outcomes; nothing is
+deferred on a one-rank communicator; the mode travels in the header
+status (mixed modes fail with one error); and two collectives fewer per
+step that do not change a bit: the four energies as one vector reduction
+(`SolidMechanicsModel::energies`, each element summed in rank order as
+before) and the driver's global cohesive count taken from the insertion
+order's reduction (`last_insertion_global_count`, checked against the
+mesh at the end of the run).
+
+Collectives per step and rank, same case as section 4 (8 ranks,
+h = 0.06, 2,000 steps; `collectives-by-phase.txt`, run `btr3-r8x1`, build
+9307cd930):
+
+| phase | before D-126 | section 4 | fix round | C++ |
+|---|---|---|---|---|
+| solve_step | 17.3 | 3.2 | 8.3 | |
+| check_cohesive_stress | 20.2 | 11.2 | 11.2 | |
+| driver's global count | 1.0 | 1.0 | 0.0 | |
+| energies | 13.0 | 4.0 | 1.0 | |
+| total | 51.6 | 19.4 | 20.5 | 8.4 |
+
+Under `every-phase` the fix round makes 41.6 (run `bte-r8x1`): the solve
+step's and the insertion check's counts of before D-126 (17.3, 20.2; that
+mode adds no agreement), 4.0 for the energies (13.0 before) and no driver
+count.
+
+The solve step's 8.3: the operation's close, the agreements before its two
+exchanges (cohesive tractions, ghost stresses), five commit points (after
+the model's predictor hook, before the model's residual, after the
+traction exchange, before the corrector, before `after_solve_step`), and on
+the steps that reassemble the mass its density exchange's agreement and
+commit point. Each of the five is needed: removing any one makes the state
+test fail (`crates/akantu-cohesive/tests/collective_checks_state.rs`: a
+failure injected in each of the step's phases in turn, on the first and the
+last rank, at 2 and 4 ranks, compares every rank's DOF arrays, lumped
+mass, internal variables and mesh between the two modes bit for bit).
+
+Timing, same session, interleaved, order rotated per repetition, 3
+repetitions: the port before D-126 (the image's driver, 5455adfc2), after
+section 4 (7cafbd708, the code of 6cdb1b601), after the fix round
+(9307cd930, SHA-256 `5ef1a5c0…`) and the C++ reference; loop and rank 0's
+phases in seconds, median [min, max] (`python3 -I summarize.py runs.csv
+fin3`):
+
+| case | loop | check_cohesive_stress | solve_step | energies |
+|---|---|---|---|---|
+| before 8x1 | 69.3 [69.3, 69.5] | 40.6 [40.5, 40.8] | 26.1 [26.1, 26.1] | 2.6 [2.6, 2.7] |
+| section 4, 8x1 | 69.3 [68.2, 69.3] | 40.6 [39.8, 40.8] | 26.0 [26.0, 26.2] | 2.5 [2.4, 2.5] |
+| fix round, 8x1 | 68.5 [67.7, 69.2] | 40.2 [39.5, 40.7] | 26.0 [26.0, 26.2] | 2.3 [2.2, 2.3] |
+| C++ 8x1 | 176.7 [176.5, 177.2] | 119.1 [118.5, 119.2] | 49.9 [49.7, 50.0] | 8.0 [7.9, 8.0] |
+| before 8x4 | 86.4 [77.7, 89.4] | 41.7 [38.0, 43.1] | 29.8 [26.7, 31.1] | 14.9 [13.0, 15.1] |
+| section 4, 8x4 | 53.2 [50.9, 54.6] | 32.6 [30.7, 32.7] | 15.1 [14.8, 16.2] | 5.4 [5.3, 5.8] |
+| fix round, 8x4 | 53.8 [50.2, 57.6] | 30.7 [28.9, 33.3] | 20.2 [18.7, 21.2] | 2.8 [2.7, 3.1] |
+| C++ 8x4 | 130.2 [126.3, 139.3] | 82.5 [80.4, 91.3] | 33.3 [33.3, 34.5] | 13.1 [12.6, 14.6] |
+| before 32x4 | 105.1 [104.5, 105.6] | 48.6 [48.1, 48.6] | 38.1 [37.6, 39.0] | 18.4 [18.2, 18.5] |
+| section 4, 32x4 | 65.8 [64.8, 66.1] | 38.9 [37.6, 39.2] | 20.6 [20.2, 20.6] | 6.7 [6.3, 6.7] |
+| fix round, 32x4 | 67.1 [67.1, 67.9] | 37.4 [37.2, 37.8] | 27.0 [26.7, 27.1] | 2.9 [2.8, 3.1] |
+| C++ 32x4 | 136.5 [135.9, 138.2] | 88.5 [87.8, 90.0] | 39.4 [39.3, 39.5] | 8.6 [8.5, 8.8] |
+
+Paired ratios (same repetition), loop:
+
+| ratio | 8x1 | 8x4 | 32x4 |
+|---|---|---|---|
+| fix round / section 4 | 0.992 [0.988, 0.998] | 0.988 [0.985, 1.083] | 1.033 [1.015, 1.035] |
+| fix round / before | 0.987 [0.977, 0.996] | 0.644 [0.623, 0.646] | 0.642 [0.636, 0.646] |
+| fix round / C++ | 0.386 [0.383, 0.392] | 0.398 [0.386, 0.442] | 0.494 [0.486, 0.497] |
+| section 4 / C++ | 0.391 [0.386, 0.393] | 0.403 [0.392, 0.408] | 0.482 [0.469, 0.487] |
+
+Across hosts the commit points cost the solve step 26 % (8x4) and 32 %
+(32x4) against section 4 (about 0.5 ms per agreement, five per step), and
+the single energy reduction saves half of the energies' time; the loop is
+within 1 % at 8 ranks and 3 % slower at 32 ranks. The port stays 2.5× (8
+ranks) and 2.0× (32 ranks) faster than the reference across four hosts.
+
+Messages and collectives per step (NIC packets sent by all hosts, from the
+timing runs; collectives and the time in their requests per rank, from
+the interposer runs `pm-a8x4`, `pm-n8x4`, `pm-a32x4`, `pm-n32x4`):
+
+| | section 4, 8x4 | fix round, 8x4 | C++ 8x4 | section 4, 32x4 | fix round, 32x4 | C++ 32x4 |
+|---|---|---|---|---|---|---|
+| NIC packets per step | 1,463 | 1,526 | 908 | 17,028 | 17,725 | 2,690 |
+| collectives per step and rank | 19.4 | 20.5 | 8.4 | 17.7 | 18.8 | 7.8 |
+| ms per step in collective requests | 11.6 | 12.5 | – | 24.9 | 26.2 | – |
+
+Results: with the Eigen static solve, `energies.csv`, `insertions.csv` and
+the 29 result values of `summary.json` are bitwise identical between the
+port before D-126 (`eig-base-8x1`) and the fix round on one host under
+both modes (`eig-r3-8x1`, `eig-r3e-8x1` with `every-phase`) and on four
+hosts (`eig-r3-8x4`).
+
+Shared memory, one host, the MPI cases of `suite_solid` (size m) before
+D-126 (5455adfc2), after section 4 (7cafbd708) and after the fix round
+(9307cd930), 5 repetitions in rotated order, ranks bound to cores 0–7
+(`suite3-ab.txt` by `suite3ab.py`, raw data `suite3/`); paired ratios,
+median [min, max]:
+
+| case | ranks | phase | fix round / section 4 | fix round / before | digests |
+|---|---|---|---|---|---|
+| par_cohesive_extrinsic | 2 | step | 1.015 [0.995, 1.019] | 0.992 [0.980, 0.998] | identical |
+| par_cohesive_extrinsic | 4 | step | 1.012 [1.006, 1.017] | 0.987 [0.987, 0.996] | identical |
+| par_cohesive_extrinsic | 8 | step | 1.006 [0.995, 1.018] | 0.986 [0.972, 0.992] | identical |
+| par_explicit_tet4_ss | 2 | solve_step | 1.000 [0.987, 1.007] | 0.979 [0.971, 0.999] | identical |
+| par_explicit_tet4_ss | 4 | solve_step | 0.991 [0.986, 1.015] | 1.000 [0.969, 1.019] | identical |
+| par_explicit_tet4_ss | 8 | solve_step | 1.000 [0.983, 1.008] | 0.995 [0.979, 1.006] | identical |
+
+On one host the commit points cost the cohesive step 0.6 to 1.5 % against
+section 4's build; it stays faster than before D-126.
+
+Not reduced: the facet-stress exchange of the insertion check keeps its
+own settle (its post-processing could ride in the insertion decision's
+reduction only if the exchange ran inside the insertion order's scope,
+which is split around the runtime laws' checks of a binding); the
+residual's two exchange agreements stay separate (the bulk stresses are
+computed between them, after the traction exchange's commit point).
+
 ## Files
 
 - `runs.csv`: every run of the sessions (`collect.py`); `env` names the
   interposer (`LD_PRELOAD`, `PMPI_BT`), the diagnostic switches and the
   Eigen solve; timing tables use the runs without the interposer. Prefixes:
   `cal-`, `d1-`, `d2-`, `rep-` diagnosis; `i5-` the contention experiment;
-  `eig-` bitwise checks; `fin-` the series of section 5; `bt*-`, `pm-`
-  interposer runs.
-- `summarize.py`: the tables of sections 1, 3 and 5.
+  `eig-` bitwise checks; `fin-` the series of section 5, `fin3-` that of
+  section 7; `bt*-`, `pm-` interposer runs.
+- `summarize.py`: the tables of sections 1, 3, 5 and 7.
 - `pmpistat.c`: the PMPI interposer (`mpicc -O2 -fPIC -shared`); its counters
   `pmpi-counters.txt` (`pmpi_summary.py`); call sites before and after the
   fix `collectives-by-phase.txt` (`btcat.py`).
 - `microbench.txt`: the cost and message count of one collective, before
   and after.
-- `suite-ab.txt`, `suite/`: the shared-memory A/B of section 5.
+- `suite-ab.txt`, `suite/`: the shared-memory A/B of section 5;
+  `suite3-ab.txt`, `suite3/`, `suite3ab.py`: the three-way comparison of
+  section 7.
 
 Commands (head host; sessions as in the launcher's header, `hosts` with the
 four private addresses and `slots=8`): one run is
