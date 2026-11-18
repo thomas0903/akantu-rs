@@ -10,6 +10,19 @@ change of default results or of a public API raises the minor version.
 
 ### Added
 
+- Collective checks at commit points (D-126): by default the collective
+  error protocol agrees only before communication and at commit points
+  (`akantu_comm::phase::CollectiveChecks`, `AKANTU_COLLECTIVE_CHECKS`,
+  `Communicator::set_collective_checks`); `every-phase` keeps an agreement
+  after every phase. New `Phases::{defer, deferred, defer_digest, commit,
+  commit_agreed, classify, status_in_messages, exchange, has_deferred,
+  collective_checks}`, `DofManager::{reduction, collective_committed}`, the
+  fault-injection aid `akantu_comm::phase::testing`, `phase::deferred_stats`.
+  The header of every checked collective carries the protocol status; from
+  64 ranks it is exchanged by gather and broadcast
+  (`AKANTU_COLLECTIVE_HEADER`, `mpi_backend::{set_header_exchange,
+  header_exchange}`). Synchronizer exchanges without a preceding agreement
+  carry their sender's status in every message. Results are unchanged.
 - The cohesive model runs on the execution policy's threads (D-123),
   bitwise at every thread count: the facet stresses and the insertion
   decision of the extrinsic check, the normals, openings and tractions of
@@ -314,6 +327,10 @@ change of default results or of a public API raises the minor version.
 
 ### Changed
 
+- `Phases::settle` takes `&mut self` and agrees the outcomes still
+  deferred (D-126); `Phases::classify` is the former classification alone.
+  A peer's local failure is reported at the scope's next agreement under
+  the default collective checks (error messages may name a later phase).
 - `docs/BENCHMARKS.md` is rewritten around the final measurement campaign
   (stage 1, four AWS `m7a.2xlarge`, AMD EPYC 9R14, 2026-11-17 UTC; data
   `docs/benchmarks/perf-campaign/final/`). On one core the port's explicit

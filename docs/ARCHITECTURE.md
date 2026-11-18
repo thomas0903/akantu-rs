@@ -806,7 +806,26 @@ domain); an `Error::Fatal { kind: Transport }` is never agreed: the
 communicator is marked broken and the runtime aborts the job. Owners
 convert their scope's state with `Phases::settle` before dropping it.
 Ordinary input errors therefore surface as errors on every rank, never as
-timeouts; the tests inject rank-specific failures on the local world.
+timeouts; the tests inject rank-specific failures on the local world
+(`akantu_comm::phase::testing::fail_phase` fails a chosen phase of one
+rank).
+
+Where agreements are spent depends on the communicator family's
+collective-check mode (D-126). `every-phase` agrees after every phase as
+above. `commit-points`, the default, defers a purely local phase's outcome
+(`Phases::defer`: the DOF manager's steps and joined operations, `run`'s
+post-processing, the mesh transaction's stages before its commit and its
+dispatch after it) to the scope's next agreement: before its next
+communication (`run`, `collective`), at a commit point (`Phases::commit`:
+the transaction's capability check and dispatch end, a DOF manager's
+outermost operation, the native trampolines; everything inside a native
+region) or when the scope settles. Every checked collective's header
+carries the protocol status, so a reduction carries the deferred outcomes
+itself (`run_collective`) and a failure reported by any rank fails the
+collective on every rank before any payload moves; an operation that ends
+with such a reduction closes with its verdict (`DofManager::reduction`).
+A failed rank leaves through its error path and takes part only in its
+scope's settle agreement, which its peers meet at their next agreement.
 
 ### Synchronizers
 
@@ -816,7 +835,12 @@ variants that run inside an enclosing scope. `DataAccessor<E>` packs and
 unpacks per `SynchronizationTag`. An exchange is one phase: prepack and
 size every buffer, agree, post owned receives then sends, unpack in rank
 order with a typed wire contract (received length equals the announced
-size), agree. Message tags are `1024 + 64·tag + hash6(synchronizer id)`; two
+size), agree. Under the default collective checks (D-126) the post
+agreement is deferred, and an exchange that follows an agreement with
+nothing deferred skips the first one too: every message then starts with
+its sender's status byte, and a rank whose packing failed sends the failed
+status alone, completes every receive and send, and the failure reaches
+every rank at the scope's next agreement. Message tags are `1024 + 64·tag + hash6(synchronizer id)`; two
 synchronizers whose ids collide in the hash must not exchange the same tag
 concurrently.
 

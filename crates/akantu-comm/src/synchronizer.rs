@@ -1848,6 +1848,89 @@ mod tests {
         }
     }
 
+    /// D-126, status in the message: in a scope with nothing deferred, a
+    /// rank whose packing fails sends its failed status in place of the
+    /// payload. Its receiver (and only it) learns of the failure from the
+    /// message; a rank that receives nothing from it continues, and every
+    /// rank fails at the next commit point. Nothing waits for a timeout.
+    #[test]
+    fn commit_points_failed_status_reaches_the_neighbour_then_every_rank() {
+        use crate::phase::{Phases, Severity};
+        use std::time::{Duration, Instant};
+        struct Packs(bool);
+        impl DataAccessor<u32> for Packs {
+            fn nb_data(&self, e: &[u32], _: SynchronizationTag) -> usize {
+                e.len() * 8
+            }
+            fn pack_data(
+                &self,
+                b: &mut CommunicationBuffer,
+                e: &[u32],
+                _: SynchronizationTag,
+            ) -> Result<()> {
+                if self.0 {
+                    return Err(Error::Numerical("injected packing error".into()));
+                }
+                for &n in e {
+                    b.pack(&f64::from(n));
+                }
+                Ok(())
+            }
+            fn unpack_data(
+                &mut self,
+                b: &mut CommunicationBuffer,
+                e: &[u32],
+                _: SynchronizationTag,
+            ) -> Result<()> {
+                for _ in e {
+                    b.unpack::<f64>()?;
+                }
+                Ok(())
+            }
+        }
+        let t0 = Instant::now();
+        let out = crate::run_local(3, Duration::from_secs(20), |c| {
+            c.set_collective_checks(CollectiveChecks::CommitPoints);
+            let r = c.rank();
+            // a ring: r sends to r + 1, receives from r - 1
+            let mut s: Synchronizer<u32> = Synchronizer::new("ring", c.clone());
+            s.communications.send.insert((r + 1) % 3, vec![0, 1]);
+            s.communications.recv.insert((r + 2) % 3, vec![0, 1]);
+            let mut ph = Phases::new(&c, "op");
+            ph.agree("start", Ok(()), Severity::Recoverable).unwrap();
+            let lazy = ph.status_in_messages();
+            let x = s.synchronize_in(&mut ph, &mut Packs(r == 0), SynchronizationTag::Test);
+            let x = x.map_err(|e| e.to_string());
+            let at_commit = ph
+                .commit("next", Ok(()), Severity::Recoverable)
+                .map_err(|e| e.to_string());
+            (lazy, x, at_commit, ph.failure(), ph.is_broken())
+        });
+        assert!(
+            t0.elapsed() < Duration::from_secs(5),
+            "no rank waited for the timeout"
+        );
+        for (r, (lazy, x, at_commit, failure, broken)) in out.iter().enumerate() {
+            assert!(*lazy, "rank {r}: no agreement before the exchange");
+            match r {
+                0 => assert!(x.as_ref().unwrap_err().contains("injected packing error")),
+                1 => assert!(
+                    x.as_ref()
+                        .unwrap_err()
+                        .contains("failed on another rank (rank 0, before the exchange)"),
+                    "{x:?}"
+                ),
+                _ => assert!(x.is_ok(), "rank 2 receives from rank 1: {x:?}"),
+            }
+            assert!(at_commit.is_err(), "rank {r} fails at the commit point");
+            assert_eq!(
+                (*failure, *broken),
+                (Some(Severity::Recoverable), false),
+                "rank {r}"
+            );
+        }
+    }
+
     /// An overflowing or oversized announced size on one
     /// rank (here: rank-specific `nb_component`) is a preflight failure
     /// agreed on every rank, before anything is allocated or posted; the

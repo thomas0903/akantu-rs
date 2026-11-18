@@ -253,6 +253,56 @@ pub fn set_default_collective_checks(mode: CollectiveChecks) {
     DEFAULT_CHECKS.store(mode.code(), std::sync::atomic::Ordering::Relaxed);
 }
 
+/// Fault injection of the collective error protocol's tests (D-126): a
+/// rank (thread of the in-process world, or MPI process) fails one chosen
+/// phase locally, at a chosen occurrence, whatever the mode.
+pub mod testing {
+    use std::cell::RefCell;
+
+    thread_local! {
+        static FAIL: RefCell<Option<(String, u32)>> = const { RefCell::new(None) };
+    }
+
+    /// Make the `nth` (from 1) phase of this thread whose key
+    /// `"<scope>/<phase name>"` contains `pattern` fail locally with
+    /// `Error::Communication("injected failure at <key>")` (once).
+    pub fn fail_phase(pattern: &str, nth: u32) {
+        FAIL.with(|f| *f.borrow_mut() = Some((pattern.to_owned(), nth.max(1))));
+    }
+
+    /// Cancel this thread's pending injection.
+    pub fn clear() {
+        FAIL.with(|f| *f.borrow_mut() = None);
+    }
+
+    /// `true` if the phase `key` is the injected one (consumed).
+    pub(crate) fn hit(key: &str) -> bool {
+        FAIL.with(|f| {
+            let mut f = f.borrow_mut();
+            let fire = match f.as_mut() {
+                Some((p, n)) if key.contains(p.as_str()) => {
+                    *n -= 1;
+                    *n == 0
+                }
+                _ => false,
+            };
+            if fire {
+                *f = None;
+            }
+            fire
+        })
+    }
+}
+
+/// The local outcome with this thread's injected failure, if `key` is it.
+fn injected(scope: &str, name: &str, local: Result<()>) -> Result<()> {
+    let key = format!("{scope}/{name}");
+    if testing::hit(&key) {
+        return Err(Error::Communication(format!("injected failure at {key}")));
+    }
+    local
+}
+
 /// Failure class of a phase.
 #[derive(Clone, Copy, Debug, PartialEq, Eq, PartialOrd, Ord)]
 pub enum Severity {
@@ -975,6 +1025,7 @@ impl Phases {
         if !self.defers() {
             return self.agree_digest(name, local, digest, severity);
         }
+        let local = injected(&self.core.scope, name, local);
         if let Err(e) = self.check(name) {
             if let Err(own) = &local {
                 self.unagreed_fatal(own);
@@ -1157,6 +1208,7 @@ impl Phases {
         digest: u64,
         severity: Severity,
     ) -> Result<()> {
+        let local = injected(&self.core.scope, name, local);
         if let Err(e) = self.check(name) {
             if let Err(own) = &local {
                 self.unagreed_fatal(own);
@@ -1283,6 +1335,8 @@ impl Phases {
             Ok(p) => (Some(p), Ok(())),
             Err(e) => (None, Err(e)),
         };
+        local = injected(&self.core.scope, &format!("{name}:prepare"), local);
+        let payload = if local.is_ok() { payload } else { None };
         if let Err(e) = self.check(name) {
             if let Err(own) = &local {
                 self.unagreed_fatal(own);
@@ -2047,5 +2101,32 @@ mod tests {
         for o in out {
             assert_eq!(o, (true, true, true));
         }
+    }
+
+    /// D-126: a peer that stays silent (never reaches the next agreement)
+    /// is still bounded by the progress deadline under commit points: the
+    /// agreement that settles the deferred outcomes fails with a transport
+    /// error at the deadline and breaks the scope.
+    #[test]
+    fn commit_points_silent_peer_is_bounded_by_the_deadline() {
+        let t0 = Instant::now();
+        let out = run_local(2, Duration::from_millis(500), |c| {
+            c.set_collective_checks(CollectiveChecks::CommitPoints);
+            if c.rank() == 1 {
+                // silent: never takes part
+                std::thread::sleep(Duration::from_millis(1500));
+                return (true, false);
+            }
+            let mut ph = Phases::new(&c, "op");
+            ph.defer("local", Ok(()), Severity::Recoverable).unwrap();
+            let r = ph.settle(Ok(()));
+            (r.is_err(), ph.is_broken())
+        });
+        assert!(t0.elapsed() < Duration::from_secs(5));
+        assert_eq!(
+            out[0],
+            (true, true),
+            "the settle fails at the deadline and breaks the scope"
+        );
     }
 }
