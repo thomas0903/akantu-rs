@@ -119,6 +119,17 @@ class RankEnvironment(unittest.TestCase):
         self.assertEqual(differ, [2])
         self.assertEqual(mn_cluster.env_from({}), ({}, []))
 
+    def test_remote_library_path_of_rust_runs(self):
+        # code = rust does not forward LD_LIBRARY_PATH: PRRTE's remote launch sets one on the
+        # other hosts' ranks; recorded, not a difference (code = cpp forwards it and compares it)
+        head = "AKA_SEED=1\nLD_LIBRARY_PATH=unset\n"
+        remote = "AKA_SEED=1\nLD_LIBRARY_PATH=/usr/lib:/usr/lib/x86_64-linux-gnu/pmix2/lib:\n"
+        files = {"env_rank0.txt": head, "env_rank1.txt": remote}
+        self.assertEqual(mn_cluster.env_from(files, mn_cluster.ENV_NOT_COMPARED["rust"])[1], [])
+        self.assertEqual(mn_cluster.env_from(files, mn_cluster.ENV_NOT_COMPARED["cpp"])[1], [1])
+        seed = {"env_rank0.txt": head, "env_rank1.txt": remote.replace("AKA_SEED=1", "AKA_SEED=2")}
+        self.assertEqual(mn_cluster.env_from(seed, mn_cluster.ENV_NOT_COMPARED["rust"])[1], [1])
+
 
 class Packages(unittest.TestCase):
     BASE = "libc6\t2.41-12\tamd64\nlibopenmpi40\t5.0.7-1\tamd64\npython3\t3.13.5-1\tamd64\n"

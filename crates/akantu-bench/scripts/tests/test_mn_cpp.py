@@ -290,3 +290,26 @@ class Plan(unittest.TestCase):
 
 if __name__ == "__main__":
     unittest.main()
+
+
+class FailureReasons(unittest.TestCase):
+    P = "file:/mn/work/partitions/p.csv"
+
+    def test_partition_reasons(self):
+        st = {"partition_matches": False, "partition_input_sha256": "ab"}
+        self.assertEqual(mn_cluster.failure_reasons(st, "cpp", self.P, True),
+                         ["partition: the harness's partition.csv differs from /mn/work/partitions/p.csv"])
+        st["partition_input_sha256"] = None
+        self.assertEqual(mn_cluster.failure_reasons(st, "cpp", self.P, True),
+                         ["partition: /mn/work/partitions/p.csv is missing on the head (nothing to compare with)"])
+        self.assertEqual(mn_cluster.failure_reasons(st, "cpp", self.P, False),
+                         ["partition: the harness exported no partition.csv"])
+        self.assertEqual(mn_cluster.failure_reasons(st, "rust", self.P, True), [])
+
+    def test_other_reasons(self):
+        st = {"binding_problems": ["rank 1 on h: CPUs 0-1, expected one"], "ud216_markers": 2, "aborted": "x"}
+        self.assertEqual(mn_cluster.failure_reasons(st, "cpp", "scotch", True),
+                         ["binding: rank 1 on h: CPUs 0-1, expected one",
+                          "UD-216: MUMPS error or warning (2 marker(s), run stopped early)"])
+        self.assertEqual(mn_cluster.failure_reasons(st, "rust", "scotch", True),
+                         ["binding: rank 1 on h: CPUs 0-1, expected one"])

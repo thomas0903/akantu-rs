@@ -477,9 +477,16 @@ def package_changes(base_tsv, new_tsv):
     return changed, added
 
 
-def env_from(files):
-    """({VAR: value} of rank 0, [ranks whose environment differs from rank 0's]) from the
-    env_rank<r>.txt texts {name: text}."""
+# variables the launcher does not set for a code: recorded, not compared between ranks.
+# code = rust: LD_LIBRARY_PATH is not forwarded; the ranks PRRTE starts on the other hosts
+# get the one of their remote launch (Open MPI 5.0.7 of the image:
+# `/usr/lib:/usr/lib/x86_64-linux-gnu/pmix2/lib:`), the head's ranks none
+ENV_NOT_COMPARED = {"rust": ("LD_LIBRARY_PATH",), "cpp": ()}
+
+
+def env_from(files, ignore=()):
+    """({VAR: value} of rank 0, [ranks whose environment differs from rank 0's in a variable
+    not in `ignore`]) from the env_rank<r>.txt texts {name: text}."""
     envs = {}
     for name, text in files.items():
         mo = re.fullmatch(r"env_rank([0-9]+)\.txt", name)
@@ -488,7 +495,10 @@ def env_from(files):
     if not envs:
         return {}, []
     ref = envs[min(envs)]
-    return ref, sorted(r for r, e in envs.items() if e != ref)
+
+    def compared(e):
+        return {k: v for k, v in e.items() if k not in ignore}
+    return ref, sorted(r for r, e in envs.items() if compared(e) != compared(ref))
 
 
 def app_argv(bind, argv, record=False):
@@ -609,6 +619,26 @@ def classify(st):
             and not st.get("binding_problems")):
         return "ok"
     return "failed"
+
+
+def failure_reasons(st, code, partition, exported):
+    """The reasons of a `failed` run that the status facts name (status dict st; exported:
+    the run directory has a partition.csv)."""
+    why = []
+    if st.get("binding_problems"):
+        why.append("binding: " + "; ".join(st["binding_problems"][:8]))
+    if code == "cpp" and (st.get("aborted") or st.get("ud216_markers")):
+        why.append(f"UD-216: MUMPS error or warning ({st.get('ud216_markers')} marker(s)"
+                   + (", run stopped early" if st.get("aborted") else "") + ")")
+    if code == "cpp" and st.get("partition_matches") is False:
+        ref = partition[len("file:"):]
+        if not exported:
+            why.append("partition: the harness exported no partition.csv")
+        elif st.get("partition_input_sha256") is None:
+            why.append(f"partition: {ref} is missing on the head (nothing to compare with)")
+        else:
+            why.append("partition: the harness's partition.csv differs from " + ref)
+    return why
 
 
 def watch_step(strikes, states):
@@ -1122,7 +1152,8 @@ class Cluster:
         st["rank_hosts"] = rank_hosts
         st["bindings"] = bindings_from({p.name: p.read_text() for p in outdir.glob("binding_rank*.txt")})
         st["environment"], st["environment_differs"] = env_from({p.name: p.read_text()
-                                                                for p in outdir.glob("env_rank*.txt")})
+                                                                for p in outdir.glob("env_rank*.txt")},
+                                                               ENV_NOT_COMPARED[code])
         st["binding_problems"] = binding_problems(st["bindings"], np_, self.conf["bind"])
         st["nb_rank_summaries"] = sum(len(v) for v in rank_hosts.values())
         st["summary"] = (outdir / "summary.json").exists()
@@ -1152,14 +1183,7 @@ class Cluster:
                 st["partition_matches"] = False   # no partition.csv: the harness did not export it
         st["outcome"] = classify(st)
         if st["outcome"] == "failed":
-            why = []
-            if st.get("binding_problems"):
-                why.append("binding: " + "; ".join(st["binding_problems"][:8]))
-            if code == "cpp" and (st.get("aborted") or st.get("ud216_markers")):
-                why.append(f"UD-216: MUMPS error or warning ({st['ud216_markers']} marker(s)"
-                           + (", run stopped early" if st.get("aborted") else "") + ")")
-            if code == "cpp" and st.get("partition_matches") is False:
-                why.append("partition: the harness's partition.csv differs from " + partition[len("file:"):])
+            why = failure_reasons(st, code, partition, (outdir / "partition.csv").exists())
             if why:
                 st["failure"] = "; ".join(why)
         st["finished"] = utc()
