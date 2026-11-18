@@ -1,4 +1,4 @@
-# The port across several hosts: diagnosis
+# The port across several hosts: diagnosis and fix
 
 On one 128-core machine the port ran the full-size cohesive benchmark 2.3×
 faster than the C++ reference (128 ranks); on four 32-core hosts over TCP the
@@ -6,7 +6,8 @@ reference was 1.5× faster than the port: the reference's loop fell from
 1948 s to 1040 s, the port's rose from 835 s to 1538 s (64 ranks: port 846 s
 on one machine, 1046 s on two 32-core hosts). This directory holds the
 reproduction on a small four-host cluster, the measurements that locate the
-cause, and the data.
+cause, the fix (D-126: collective checks at commit points) with its results,
+and the data.
 
 ## Machines and software
 
@@ -192,6 +193,57 @@ cores (68.8 s): this host's memory bandwidth (or shared cache) is saturated
 at 4 ranks, and the port's per-rank compute speed depends on how many ranks
 share a host. With 2 ranks per host the port's interpolation takes 14.2 s
 instead of 25.1 s, the reference's insertion check 82.3 s instead of 118.8 s.
+
+## 4. The fix: collective checks at commit points (D-126)
+
+`docs/DECISIONS.md`, D-126, has the rules; in short, under the default
+mode `commit-points` (`AKANTU_COLLECTIVE_CHECKS`; `every-phase` restores
+D-018's agreement after every phase):
+
+- the outcomes of purely local phases are deferred to the scope's next
+  agreement (in scopes whose owner settles them: the DOF manager's
+  operations, the mesh transaction, the standalone synchronizer exchanges,
+  the cohesive insertion order);
+- every checked collective's header carries the protocol status, so a
+  reduction carries the deferred outcomes itself (no separate agreement)
+  and a failure reported by any rank fails the collective on every rank;
+- commit points stay immediate (the transaction's capability check and
+  dispatch end, a DOF manager's outermost operation, the native
+  trampolines, everything inside a native library region);
+- every point-to-point exchange keeps its agreement before it (a status
+  in the message was tried and hung: a rank that failed earlier waits in an
+  agreement, never in the exchange);
+- from 64 ranks the header is exchanged by gather and broadcast
+  (2 (P − 1) messages instead of P (P − 1)).
+
+Collectives per step and rank, 8 ranks, h = 0.06, 2,000 steps (977 with an
+insertion), from the interposer's stacks (`collectives-by-phase.txt`):
+
+| phase | port before | port after | C++ |
+|---|---|---|---|
+| solve_step | 17.3 | 3.2 | |
+| check_cohesive_stress (+ driver count) | 21.2 | 12.2 | |
+| energies | 13.0 | 4.0 | |
+| total | 51.6 | 19.4 | 8.4 |
+
+What is left after the fix, per step: the solve's operation close and the
+agreements before its two exchanges (ghost stresses, cohesive tractions);
+the four energy reductions (the reference's four `MPI_Allreduce`); the
+facet-stress exchange's agreement and settle, the insertion decision's
+reduction and the driver's global count; on insertion steps the agreements
+before the insertion-order exchanges and of its uniqueness check, the
+transaction's commit point and dispatch end, the consumers' exchange
+agreements and the global-id, count and bounding-box reductions.
+
+Header exchange at 128 ranks (one host, Open MPI's pml monitoring,
+`microbench.txt`): one agreement sends 16,147 messages with the all-gather
+header and 254 with gather and broadcast (libnbc's own `MPI_Iallreduce`
+also sends 254; it cannot carry the per-rank contributions that the
+rank-ordered reductions need, so the header stays an all-gather in
+function). On this cluster's slow network the two-round gather and
+broadcast costs more than the one-round all-gather up to 32 ranks
+(1,014 against 726 µs per agreement at 32 ranks on four hosts), hence the
+switch at 64 ranks.
 
 ## Files
 
