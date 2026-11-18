@@ -349,9 +349,11 @@ five in the paper's files.
 
 ### What the port has not measured
 
-* More than 64 processes: the paper's points from 144 cores (two *jed*
-  nodes) upwards. The port ran across eight hosts at up to 64 processes on
-  13 November (`docs/BENCHMARKS.md`, "Multi-node runs"); its
+* More than 128 processes: the paper's points from 144 cores (two *jed*
+  nodes) upwards. The final measurement campaign ran both codes at 128
+  processes on one 128-core machine and on four 32-core hosts
+  (`docs/BENCHMARKS.md`, "The full-size run" and "Multi-node runs"); the
+  port ran across eight hosts at up to 64 processes on 13 November; its
   multi-node acceptance is parity row INT-009.
 * The no-insertion series (elastic material) at full size.
 
