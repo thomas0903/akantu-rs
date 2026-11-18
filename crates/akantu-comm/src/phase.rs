@@ -2228,6 +2228,31 @@ mod tests {
         }
     }
 
+    /// A panic in a checked collective's closure (caught by the caller)
+    /// leaves no header status armed on the thread: the next collective
+    /// of the thread carries no stale status (D-126).
+    #[test]
+    fn panic_in_a_checked_collective_disarms_the_status() {
+        let out = run_local(2, Duration::from_secs(10), |c| {
+            c.set_collective_checks(CollectiveChecks::CommitPoints);
+            let mut ph = Phases::settling(&c, "panics");
+            let caught = std::panic::catch_unwind(std::panic::AssertUnwindSafe(|| {
+                ph.run_collective("x", Ok(1u64), |_, _| -> Result<u64> {
+                    panic!("closure panics before communicating")
+                })
+            }));
+            let armed = crate::communicator::disarm_status();
+            drop(ph);
+            (caught.is_err(), armed)
+        });
+        for (panicked, armed) in out {
+            assert!(
+                panicked && !armed,
+                "panicked {panicked}, still armed {armed}"
+            );
+        }
+    }
+
     /// D-126 commit points: a post-processing failure of one rank stays
     /// local until the scope settles; then every rank fails recoverably,
     /// the failing rank with its own error.

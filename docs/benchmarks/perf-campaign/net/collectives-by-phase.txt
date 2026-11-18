@@ -26,3 +26,40 @@ other (init, output)                     data collective      0.02
 solve_step                               agreement            3.16
 solve_step                               data collective      0.01
 total                                                        19.36
+
+# fix round (18 November 2026, 15:47 UTC): run btr3-r8x1 (same case, build of 9307cd930: commit points before
+# persistent changes, energies as one reduction, the driver's count from the insertion order).
+# The energies' single reduction is inlined into the driver loop: it is the 1.00 under "other".
+phase                                    kind             per step and rank
+check_cohesive_stress                    agreement            6.45
+check_cohesive_stress                    data collective      4.71
+check_cohesive_stress (driver count)     data collective      0.00
+energies                                 agreement            0.00
+energies                                 data collective      0.00
+other (init, output)                     agreement            0.01
+other (init, output)                     data collective      1.02
+solve_step                               agreement            8.31
+solve_step                               data collective      0.01
+total                                                        20.51
+
+phase / kind / call site                                                                             per step and rank
+check_cohesive_stress / agreement / driver::run < main::{closure#1} < error::Error>>::and_then::<(),           4.44
+check_cohesive_stress / agreement / events::MeshEventHandler>::on_mesh_event_phased < error::Error>>::and_then::<(), < driver::run     1.08
+check_cohesive_stress / agreement / mutation::DistributedHook>::apply < error::Error>>::map::<core::result::Result<(), < error::Error>,     0.49
+check_cohesive_stress / agreement / global_ids_updater::update_global_ids_in < mutation::DistributedHook>::apply < error::Error>>::map::<core::result::Result<(),     0.29
+check_cohesive_stress / agreement / collections::btree::map::BTreeMap<i32, < synchronizers::rebuild_node_schemes_in::{closure#1}> < synchronizers::rebuild_node_schemes_in     0.15
+check_cohesive_stress / data collective / driver::run < main::{closure#1} < error::Error>>::and_then::<(),           2.47
+check_cohesive_stress / data collective / global_ids_updater::update_global_ids_in::{closure#2} < global_ids_updater::update_global_ids_in::{closure#2}> < global_ids_updater::update_global_ids_in     0.98
+check_cohesive_stress / data collective / mesh::all_sum_bounds < driver::run < main::{closure#1}                     0.49
+check_cohesive_stress / data collective / mutation::DistributedHook>::apply::{closure#2} < mutation::DistributedHook>::apply::{closure#2}> < mutation::DistributedHook>::apply     0.49
+check_cohesive_stress / data collective / events::MeshEventHandler>::on_mesh_event_phased < error::Error>>::and_then::<(), < driver::run     0.29
+other (init, output) / data collective / driver::run < main::{closure#1} < error::Error>>::and_then::<(),           1.00
+other (init, output) / data collective / driver::all_reduce_u64 < driver::memory_summary < driver::run              0.01
+solve_step / agreement / callback::SolverCallback>::assemble_residual < time_step::model_step::<(), < callback::SolverCallback>::assemble_residual::{closure#0}>     2.00
+solve_step / agreement / non_linear::NonLinearSolver>::solve::{closure#0}> < non_linear::NonLinearSolver>::solve < driver::run     1.00
+solve_step / agreement / callback::SolverCallback>::predictor < non_linear::NonLinearSolver>::solve::{closure#0}::{closure#1} < non_linear::NonLinearSolver>::solve::{closure#0}::{closure#1}>     1.00
+solve_step / agreement / model::exchange_cohesive_tractions < callback::SolverCallback>::assemble_residual < time_step::model_step::<(),     1.00
+solve_step / agreement / callback::SolverCallback>::corrector < non_linear::NonLinearSolver>::solve::{closure#0}::{closure#4} < non_linear::NonLinearSolver>::solve::{closure#0}::{closure#4}>     1.00
+solve_step / agreement / callback::SolverCallback>::assemble_residual < non_linear::NonLinearSolver>::solve::{closure#0}::{closure#2} < non_linear::NonLinearSolver>::solve::{closure#0}::{closure#2}>     1.00
+solve_step / agreement / callback::SolverCallback>::after_solve_step < non_linear::NonLinearSolver>::solve::{closure#0}::{closure#5} < non_linear::NonLinearSolver>::solve::{closure#0}::{closure#5}>     1.00
+solve_step / agreement / callback::SolverCallback>::assemble_lumped_matrix < callback::SolverCallback>::assemble_lumped_matrix::{closure#0} < callback::SolverCallback>::assemble_lumped_matrix::{closure#0}>     0.29

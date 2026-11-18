@@ -2583,17 +2583,25 @@ Failure semantics:
   reductions keep the D-018 form (a collective with its own agreements,
   no checked header), so that mode makes no more agreements than before.
 
-Consequence: 19.4 collectives per step and rank for the benchmark's step
+Consequence: 20.5 collectives per step and rank for the benchmark's step
 at 8 ranks (h = 0.06, 977 insertion steps in 2,000; was 51.6; the
-reference 8.4). Those left, per step: the solve's operation close and its
-two exchange agreements (ghost stresses, cohesive tractions); the four
-energy reductions (the reference's four `MPI_Allreduce`); the facet-stress
-exchange's agreement and its scope's settle, the insertion decision's
-reduction and the driver's global count; and on insertion steps the
+reference 8.4; 19.4 before the commit points before persistent changes,
+the single energy reduction and the driver's count were added). Those
+left, per step: in the solve (8.3), the operation's close, the agreements
+before its two exchanges (cohesive tractions, ghost stresses) and its five
+commit points (after the model's predictor hook, before the model's
+residual, after the traction exchange, before the corrector, before
+`after_solve_step`), plus the density exchange's agreement and the mass's
+commit point on the steps that reassemble the mass; one reduction of the
+four energies (the reference makes four `MPI_Allreduce`); in the insertion
+check (11.2) the facet-stress exchange's agreement and its scope's settle
+and the insertion decision's reduction, and on insertion steps the
 agreements before the insertion-order exchanges and of its uniqueness
 check, the transaction's commit point and dispatch end, the consumers'
 exchange agreements, and the global-id, count and bounding-box reductions
-(the reference's scan and reductions of `updateGlobalIDs` / `updateData`).
+(the reference's scan and reductions of `updateGlobalIDs` /
+`updateData`); the driver takes the global cohesive count from the
+insertion order's reduction (`last_insertion_global_count`).
 Results are unchanged in both modes.
 Tests: `crates/akantu-cohesive/tests/collective_checks_failures.rs` (one
 rank failing the solve step, the insertion check, an energy, a mesh
