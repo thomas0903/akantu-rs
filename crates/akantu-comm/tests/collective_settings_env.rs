@@ -38,7 +38,7 @@ fn child_invalid_collective_checks() {
     #[cfg(feature = "mpi")]
     {
         let w = akantu_comm::Communicator::mpi_world(akantu_comm::MpiOptions::default());
-        let e = w.err().expect("mpi_world must refuse the setting");
+        let e = w.expect_err("mpi_world must refuse the setting");
         assert!(e.to_string().contains("AKANTU_COLLECTIVE_CHECKS"), "{e}");
     }
 }
@@ -66,7 +66,7 @@ fn child_invalid_collective_header() {
     let e = akantu_comm::mpi_backend::header_exchange().unwrap_err();
     assert!(e.to_string().contains("AKANTU_COLLECTIVE_HEADER"), "{e}");
     let w = akantu_comm::Communicator::mpi_world(akantu_comm::MpiOptions::default());
-    let e = w.err().expect("mpi_world must refuse the setting");
+    let e = w.expect_err("mpi_world must refuse the setting");
     assert!(e.to_string().contains("AKANTU_COLLECTIVE_HEADER"), "{e}");
 }
 

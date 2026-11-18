@@ -366,6 +366,10 @@ pub fn compare(a: &State, b: &State, what: &str) -> std::result::Result<(), Stri
     Ok(())
 }
 
+/// One [`state_run`] on every rank: the mode, the injection (pattern,
+/// occurrence; `None` records the phase keys) and the failing rank.
+pub type StateRun<'a> = dyn FnMut(CollectiveChecks, Option<(&str, u32)>, usize) -> StepState + 'a;
+
 /// This rank's part of the state check: a run without failure in each
 /// mode (the same phases, the same state), then for every phase of the
 /// solve step of rank `failing` (each `failing` of `failing_ranks`) a run
@@ -379,7 +383,7 @@ pub fn compare(a: &State, b: &State, what: &str) -> std::result::Result<(), Stri
 pub fn check_states(
     rank: usize,
     failing_ranks: &[usize],
-    run: &mut dyn FnMut(CollectiveChecks, Option<(&str, u32)>, usize) -> StepState,
+    run: &mut StateRun<'_>,
     what: &str,
 ) -> std::result::Result<usize, String> {
     let reference = run(CollectiveChecks::EveryPhase, None, usize::MAX);
