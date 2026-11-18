@@ -181,11 +181,11 @@ what is specific to the site.
 
 | Id | Line | Site | What it does | Invariant (its `SAFETY:` comment) | Established by | Test |
 |---|---|---|---|---|---|---|
-| CM-T01 | 1719 | `fn cm01_intercommunicator_import` block 1 | reads `RSMPI_COMM_NULL` | immutable shim constant | K1 | itself |
-| CM-T02 | 1721 | `fn cm01_intercommunicator_import` block 2 | `from_raw_mpi(MPI_COMM_NULL)` (must be refused) | `MPI_COMM_NULL` is allowed by the contract | CM-02's contract | itself |
-| CM-T03 | 1742 | `fn cm01_intercommunicator_import` block 3 | `MPI_Intercomm_create` | valid local and peer communicators (rsmpi world and split), valid leaders, out-parameter; freed below | the test (rsmpi handles alive in the frame) | itself |
-| CM-T04 | 1755 | `fn cm01_intercommunicator_import` block 4 | `from_raw_mpi(inter)` (must be refused) | `inter` valid, freed only below | the test | itself |
-| CM-T05 | 1758 | `fn cm01_intercommunicator_import` block 5 | `MPI_Comm_free(&inter)` | the host owns `inter`; akantu kept nothing | the test | itself |
+| CM-T01 | 1724 | `fn cm01_intercommunicator_import` block 1 | reads `RSMPI_COMM_NULL` | immutable shim constant | K1 | itself |
+| CM-T02 | 1726 | `fn cm01_intercommunicator_import` block 2 | `from_raw_mpi(MPI_COMM_NULL)` (must be refused) | `MPI_COMM_NULL` is allowed by the contract | CM-02's contract | itself |
+| CM-T03 | 1747 | `fn cm01_intercommunicator_import` block 3 | `MPI_Intercomm_create` | valid local and peer communicators (rsmpi world and split), valid leaders, out-parameter; freed below | the test (rsmpi handles alive in the frame) | itself |
+| CM-T04 | 1760 | `fn cm01_intercommunicator_import` block 4 | `from_raw_mpi(inter)` (must be refused) | `inter` valid, freed only below | the test | itself |
+| CM-T05 | 1763 | `fn cm01_intercommunicator_import` block 5 | `MPI_Comm_free(&inter)` | the host owns `inter`; akantu kept nothing | the test | itself |
 
 ### tests/mpi_self_messages.rs
 
