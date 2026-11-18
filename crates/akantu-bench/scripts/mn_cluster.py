@@ -125,6 +125,12 @@ abort on a MUMPS error or warning (UD-216) is kept: aborted.txt,
 ud216_markers, outcome `failed` with the reason in `failure`. One run at a time
 (lock SESSION/run.lock; refused while a `cohesive_extrinsic` process exists
 in a node container).
+
+Diagnostic hooks of `run` (environment variables of this script, off when unset,
+recorded in status.txt `diagnostics`): MN_DRIVER (another port driver inside the
+node containers, code = rust), MN_PRELOAD (LD_PRELOAD of every rank, e.g. the PMPI
+interposer of docs/benchmarks/perf-campaign/net/pmpistat.c), MN_XENV (`VAR=value
+...` forwarded to every rank with -x).
 """
 
 import argparse
@@ -343,7 +349,7 @@ def input_text_cpp(template, steps, mesh, solver, extra):
     return "\n".join(out) + "\n"
 
 
-def mpirun_argv(np_, hostfile, wdir, cidr, bind, yield_idle=False):
+def mpirun_argv(np_, hostfile, wdir, cidr, bind, yield_idle=False, extra=()):
     # pml ob1 (+ the TCP / shared-memory BTLs) explicitly: the MPI image ships libucx0, and
     # Open MPI 5 only drops UCX by itself because no Mellanox device is found.
     # bind = self: no binding by mpirun, the ranks bind themselves (app_argv)
@@ -354,7 +360,39 @@ def mpirun_argv(np_, hostfile, wdir, cidr, bind, yield_idle=False):
             "--prtemca", "oob_tcp_if_include", cidr]
     if yield_idle:   # local `cpuset = all`: more ranks than cores; idle ranks must give their core away
         argv += ["--mca", "mpi_yield_when_idle", "1"]
-    return argv
+    return argv + list(extra)
+
+
+# Diagnostic hooks of `run` (environment of mn_cluster.py; off when unset; recorded in
+# status.txt `diagnostics`): MN_DRIVER, the path of another port driver inside the node
+# containers (code = rust; e.g. a build copied there with docker cp); MN_PRELOAD, a library
+# preloaded into every rank (LD_PRELOAD, e.g. a PMPI interposer); MN_XENV, `VAR=value ...`
+# set in every rank's environment (mpirun -x).
+DIAG_PATH = r"/[A-Za-z0-9._/-]+"
+DIAG_KV = r"[A-Z_][A-Z0-9_]*=[A-Za-z0-9._/:,=-]*"
+
+
+def diag_options(environ):
+    """(driver or None, extra mpirun arguments, record) from the MN_* hooks of `environ`."""
+    rec, extra, driver = {}, [], None
+    for k in ("MN_DRIVER", "MN_PRELOAD"):
+        v = environ.get(k, "")
+        if v and not re.fullmatch(DIAG_PATH, v):
+            raise ClusterError(f"{k}: an absolute path of [A-Za-z0-9._/-], got {v!r}")
+        if v:
+            rec[k] = v
+    if rec.get("MN_DRIVER"):
+        driver = rec["MN_DRIVER"]
+    if rec.get("MN_PRELOAD"):
+        extra += ["-x", "LD_PRELOAD=" + rec["MN_PRELOAD"]]
+    kvs = environ.get("MN_XENV", "").split()
+    for kv in kvs:
+        if not re.fullmatch(DIAG_KV, kv):
+            raise ClusterError(f"MN_XENV: expected VAR=value words, got {kv!r}")
+        extra += ["-x", kv]
+    if kvs:
+        rec["MN_XENV"] = " ".join(kvs)
+    return driver, extra, rec
 
 
 # sh: $cpus = the process's Cpus_allowed_list, $sib = the hardware threads of the physical
@@ -548,7 +586,7 @@ def binding_problems(bindings, np_, bind):
     return problems
 
 
-def run_script(rd, mpirun, app, code="rust", fnte="joss"):
+def run_script(rd, mpirun, app, code="rust", fnte="joss", driver=DRIVER):
     """bash script run in the head's node container (as akantu): the job. code = cpp: the
     harness's environment (FNTE, the install's library path, forwarded to every rank) and
     run-one.sh's early abort on a MUMPS error or warning (UD-216 class: aborted.txt, TERM to
@@ -585,7 +623,7 @@ t0=$(date +%s.%N)
 echo $? > exit
 t1=$(date +%s.%N)
 python3 -c "print(f'{{$t1-$t0:.3f}}')" > wall.txt
-sha256sum {CPP_DRIVER if code == "cpp" else DRIVER} > binary.sha256
+sha256sum {CPP_DRIVER if code == "cpp" else driver} > binary.sha256
 """
 
 
@@ -1061,6 +1099,12 @@ class Cluster:
               "hosts": [a for a, _ in hosts], "ranks_per_host": per, "mesh": mesh, "steps": steps,
               "partition": partition, "solver": solver, "extra": extra, "timeout_s": timeout_s,
               "bind": self.conf["bind"], "backend": self.conf["backend"], "started": utc()}
+        driver, extra_mpirun, diag = diag_options(os.environ)
+        if driver and code == "cpp":
+            raise ClusterError("MN_DRIVER applies to code = rust only")
+        driver = driver or (CPP_DRIVER if code == "cpp" else DRIVER)
+        if diag:
+            st["diagnostics"] = diag
         down = self._settle(idx, {})
         if down:
             raise ClusterError(f"refused: host(s) {', '.join(down)} not running")
@@ -1092,10 +1136,10 @@ class Cluster:
         for k in idx:
             self.call(self.node_argv(k, ["python3", "-I", SAMPLER, f"{rd}/mem-h{idx.index(k) + 1}.jsonl"],
                                      detach=True), timeout=60)
-        script = run_script(rd, mpirun_argv(np_, f"{rd}/hostfile", rd, self.cidr, self.conf["bind"], self.shared_cpus()),
-                            app_argv(self.conf["bind"], [CPP_DRIVER if code == "cpp" else DRIVER,
-                                                         "--aka_input_file", "input.dat"], record=True),
-                            code, self.conf["fnte"])
+        script = run_script(rd, mpirun_argv(np_, f"{rd}/hostfile", rd, self.cidr, self.conf["bind"], self.shared_cpus(),
+                                            extra_mpirun),
+                            app_argv(self.conf["bind"], [driver, "--aka_input_file", "input.dat"], record=True),
+                            code, self.conf["fnte"], driver)
         (outdir / "run.sh").write_text(script)
         t0 = time.time()
         log(f"run {name}: {np_} ranks on {len(idx)} hosts ({per} per host: {', '.join(st['hosts'])}), "

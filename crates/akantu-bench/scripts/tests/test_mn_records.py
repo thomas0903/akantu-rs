@@ -243,3 +243,27 @@ class ComparePair(unittest.TestCase):
 
 if __name__ == "__main__":
     unittest.main()
+
+
+class DiagnosticHooks(unittest.TestCase):
+    def test_off_by_default(self):
+        self.assertEqual(mn_cluster.diag_options({}), (None, [], {}))
+
+    def test_hooks(self):
+        driver, extra, rec = mn_cluster.diag_options({
+            "MN_DRIVER": "/usr/local/lib/akv/diag", "MN_PRELOAD": "/usr/local/lib/libpmpistat.so",
+            "MN_XENV": "AKANTU_DIAG_SKIP_AGREEMENTS=1 PMPI_BT=Iallgather"})
+        self.assertEqual(driver, "/usr/local/lib/akv/diag")
+        self.assertEqual(extra, ["-x", "LD_PRELOAD=/usr/local/lib/libpmpistat.so",
+                                 "-x", "AKANTU_DIAG_SKIP_AGREEMENTS=1", "-x", "PMPI_BT=Iallgather"])
+        self.assertEqual(rec["MN_XENV"], "AKANTU_DIAG_SKIP_AGREEMENTS=1 PMPI_BT=Iallgather")
+        argv = mn_cluster.mpirun_argv(8, "/h", "/w", "10.0.0.0/8", "self", extra=extra)
+        self.assertEqual(argv[-6:], extra)
+        script = mn_cluster.run_script("/w", argv, ["sh", driver], driver=driver)
+        self.assertIn("sha256sum /usr/local/lib/akv/diag > binary.sha256", script)
+
+    def test_refused_values(self):
+        for env in ({"MN_DRIVER": "relative/path"}, {"MN_PRELOAD": "/a b"}, {"MN_XENV": "lower=1"},
+                    {"MN_XENV": "A=$(rm)"}):
+            with self.assertRaises(mn_cluster.ClusterError):
+                mn_cluster.diag_options(env)

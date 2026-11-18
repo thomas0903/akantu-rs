@@ -1,0 +1,27 @@
+# Cost of one collective, 2026-11-18 06:57-07:00 UTC, four 8-core hosts (CPU models in
+# README.md), Open MPI 5.0.7, pml ob1, btl tcp,self,sm; ranks bound one per core.
+# Layout NxH: N ranks on H hosts (N/H per host, rank 0 on the first host).
+# mpi_bench (crates/akantu-comm/examples, perf/net 49ef30f1f): agree = phase::agree,
+#   allreduce = rank-ordered all-reduce (Max) of 5 u64 (what an agreement sends);
+# bench_baseline (scripts/mpi): MPI_Allreduce (MAX, 5 u64), MPI_Iallgather (128 B) + MPI_Wait.
+# 3000 collectives back to back after 301 warm-up ones; time per collective, slowest rank.
+8x1  mpi_bench agree                 2.86 us
+8x1  mpi_bench allreduce 5           2.95 us
+8x1  bench_baseline allreduce 5      0.82 us
+8x1  bench_baseline iallgather 128   1.96 us
+8x4  mpi_bench agree               472.37 us
+8x4  mpi_bench allreduce 5         492.52 us
+8x4  bench_baseline allreduce 5    868.04 us
+8x4  bench_baseline iallgather 128 504.21 us
+32x4 mpi_bench agree               760.19 us
+32x4 mpi_bench allreduce 5         740.16 us
+32x4 bench_baseline allreduce 5    892.43 us
+32x4 bench_baseline iallgather 128 744.03 us
+# the same with --mca coll_libnbc_iallgather_algorithm 2 (recursive doubling instead of linear)
+32x4 bench_baseline iallgather 128 587.08 us
+32x4 mpi_bench agree               586.40 us
+# point to point, 2 ranks on 2 hosts (first and second host): half round trip
+2x2  bench_baseline pingpong 8      25.42 us
+2x2  mpi_bench pingpong 8           28.42 us
+2x2  bench_baseline pingpong 65536 125.15 us
+# ICMP round trip from the first host: 0.25 ms to the second, 0.70 ms to the fourth host
