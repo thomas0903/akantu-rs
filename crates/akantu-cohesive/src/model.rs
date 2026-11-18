@@ -3184,7 +3184,8 @@ impl SolidMechanicsModelCohesive {
     }
 
     /// Several energies with one reduction over the ranks
-    /// ([`SolidMechanicsModel::energies`]; each value bitwise the one of
+    /// ([`SolidMechanicsModel::energies`]; under the default rank-ordered
+    /// reduction policy each value is bitwise the one of
     /// [`SolidMechanicsModelCohesive::energy`]).
     ///
     /// # Errors

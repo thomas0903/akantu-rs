@@ -498,6 +498,9 @@ impl NonLinearSolverNewtonRaphson {
         use NonLinearSolverType as T;
         use SolveConvergenceCriteria as C;
         let ty = self.non_linear_solver_type;
+        // D-126: the blocked snapshot is updated after a deferred step;
+        // put back without communicating if a rank leaves before it
+        dofs.mark_blocked_update();
         dofs.step("before_solve_step", |d| cb.before_solve_step(d))?;
         dofs.update_global_blocked_dofs();
         dofs.step("predictor", |d| cb.predictor(d))?;
@@ -562,6 +565,9 @@ impl NonLinearSolverNewtonRaphson {
     /// Upstream `solve_linear` (one solve; `n_iter`, `error`, `converged`
     /// untouched, as upstream).
     fn solve_linear(&mut self, dofs: &mut DofManager, cb: &mut dyn SolverCallback) -> Result<()> {
+        // D-126: the blocked snapshot is updated after a deferred step;
+        // put back without communicating if a rank leaves before it
+        dofs.mark_blocked_update();
         dofs.step("before_solve_step", |d| cb.before_solve_step(d))?;
         dofs.update_global_blocked_dofs();
         dofs.step("predictor", |d| cb.predictor(d))?;

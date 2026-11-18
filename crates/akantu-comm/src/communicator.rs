@@ -520,15 +520,18 @@ pub(crate) struct HeaderStatus {
     /// The sender's collective-check mode (`CollectiveChecks::code`), so
     /// that ranks in different modes fail with one clear error.
     pub(crate) mode: u8,
+    /// The sender's scope flag (`Phases::set_header_flag`): a failed
+    /// verdict reports whether any rank set it.
+    pub(crate) flag: bool,
 }
 
 impl HeaderStatus {
     /// Wire form: `[0, 0, 0]` when not armed, else `[1 + severity + 256 ×
-    /// mode, id, digest]`.
+    /// mode + 65536 × flag, id, digest]`.
     pub(crate) fn words(s: Option<Self>) -> [u64; STATUS_WORDS] {
         s.map_or([0; STATUS_WORDS], |s| {
             [
-                1 + u64::from(s.severity) + (u64::from(s.mode) << 8),
+                1 + u64::from(s.severity) + (u64::from(s.mode) << 8) + (u64::from(s.flag) << 16),
                 s.id,
                 s.digest,
             ]
@@ -548,6 +551,8 @@ pub(crate) struct StatusVerdict {
     pub(crate) digests_match: bool,
     /// Every armed status names the same collective-check mode.
     pub(crate) modes_match: bool,
+    /// Some rank's armed status carries its scope flag.
+    pub(crate) any_flag: bool,
 }
 
 /// The verdict of the ranks' header statuses (rank order): `None` when no
@@ -563,12 +568,15 @@ pub(crate) fn status_verdict(
     let worst = armed.iter().map(|w| (w[0] - 1) & 0xff).max().unwrap_or(0);
     let ids_match = armed.len() == all.len() && armed.iter().all(|w| w[1] == first[1]);
     let digests_match = armed.iter().all(|w| w[2] == first[2]);
-    let modes_match = armed.iter().all(|w| (w[0] - 1) >> 8 == (first[0] - 1) >> 8);
+    let mode = |w: &[u64; STATUS_WORDS]| ((w[0] - 1) >> 8) & 0xff;
+    let modes_match = armed.iter().all(|w| mode(w) == mode(first));
+    let any_flag = armed.iter().any(|w| ((w[0] - 1) >> 16) & 1 == 1);
     let v = StatusVerdict {
         worst: u8::try_from(worst).unwrap_or(u8::MAX),
         ids_match,
         digests_match,
         modes_match,
+        any_flag,
     };
     (v.worst != 0 || !ids_match || !digests_match || !modes_match).then_some(v)
 }
@@ -1307,6 +1315,7 @@ impl LocalRank {
                             u8::from(v.ids_match),
                             u8::from(v.digests_match),
                             u8::from(v.modes_match),
+                            u8::from(v.any_flag),
                         ];
                         self.world.size
                     ]
@@ -1339,12 +1348,13 @@ impl LocalRank {
         };
         match reply.split_first() {
             Some((1, rest)) => local.map(|()| rest.to_vec()),
-            Some((2, rest)) if rest.len() == 4 => {
+            Some((2, rest)) if rest.len() == 5 => {
                 let v = StatusVerdict {
                     worst: rest[0],
                     ids_match: rest[1] != 0,
                     digests_match: rest[2] != 0,
                     modes_match: rest[3] != 0,
+                    any_flag: rest[4] != 0,
                 };
                 set_verdict(v);
                 Err(status_error(v, local.err()))

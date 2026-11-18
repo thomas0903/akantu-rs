@@ -452,6 +452,10 @@ pub struct DofManager {
     previous_blocked_release: u64,
     /// Blocked flag per local equation (upstream `global_blocked_dofs`).
     global_blocked: Vec<bool>,
+    /// The blocked snapshot before an update taken while outcomes of the
+    /// running operation were deferred (D-126): put back if the next
+    /// agreement fails because a rank left before that update.
+    blocked_backup: Option<blocked::BlockedBackup>,
     /// Value release of the matrix at the last `apply_boundary` (upstream
     /// `jacobian_release`, one counter shared by every matrix).
     jacobian_release: u64,
@@ -862,6 +866,7 @@ impl DofManager {
             blocked_release: 0,
             previous_blocked_release: 0,
             global_blocked: Vec::new(),
+            blocked_backup: None,
             jacobian_release: 0,
             numbered_distributed: None,
             compat: UpstreamCompat::default(),
@@ -976,6 +981,7 @@ impl DofManager {
     /// Classify a result of the running operation (a step's: nothing
     /// deferred is agreed) and poison the manager on a fatal one.
     fn settle<R>(&mut self, ph: &Phases, what: &str, r: Result<R>) -> Result<R> {
+        self.resolve_blocked_backup(ph);
         let r = ph.classify(r);
         if let (Err(e), Some(kind)) = (&r, ph.fatal_kind()) {
             self.poison(kind, format!("{what}: {e}"));
@@ -1183,6 +1189,8 @@ impl DofManager {
         };
         let r = self.settle(&ph, name, r);
         if owner {
+            // resolved by the close's agreement at the latest
+            self.blocked_backup = None;
             self.active = ScopeSlot::Idle;
             drop(ph);
         } else {

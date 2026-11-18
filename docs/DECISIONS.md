@@ -2516,7 +2516,8 @@ Commit points (an immediate agreement in both modes; `Phases::commit`,
   deferred, never under every-phase checks). The rule: when an operation
   returns an error, every rank's persistent state — the DOF arrays (values,
   previous values, increments), the lumped mass, the laws' internal
-  variables, the mesh — is the state the every-phase mode leaves on that
+  variables, the mesh, the DOF manager's blocked snapshot (blocked indexes,
+  flags, release and the release last seen) — is the state the every-phase mode leaves on that
   rank for the same failure; the ranks that run further under commit
   points change transient data only (residual, forces, solution, matrices'
   content, buffers). Placed in the time-step adapter
@@ -2527,19 +2528,41 @@ Commit points (an immediate agreement in both modes; `Phases::commit`,
   assembly and before the model's residual in `assemble_residual` and
   `assemble_residual_part` (internal variables), at the start of the
   corrector and of `after_solve_step`, and at the start of
-  `assemble_matrix` (the schemes' Jacobian caches and release tracking);
-  in the solid model's lumped mass after its density exchange and before
+  `assemble_matrix` (the schemes' Jacobian caches and release tracking)
+  and before `apply_boundary("J")` (it records the blocked release as
+  seen); for a solver without integration scheme, at the start of each of
+  the model's hooks (the model changes its state there itself); in the
+  solid model's lumped mass after its density exchange and before
   the assembly into `M` (the cached mass and its flag); in the cohesive
   model's residual after the traction exchange, before the bulk stresses;
   in the Newton–Raphson solver before it clears its
-  `force_linear_recompute` flag. A failure in the same step as a write is
+  `force_linear_recompute` flag; in the diffusion model's residual after
+  its exchange, before the laws' diffusivity gradient, and in its lumped
+  capacity before `M` and its flag change (at its start and after the
+  periodic exchange). The blocked snapshot is the one change without a
+  commit point: every solver updates it (`update_global_blocked_dofs`, as
+  upstream right after `before_solve_step`, whose outcome is deferred), and
+  an agreement there would cost the explicit step one more collective.
+  Instead each solver marks the update at the start of its operation
+  (`DofManager::mark_blocked_update`): until its update, a rank's
+  agreements carry a flag in their header status (one bit of the status
+  word, no extra message); a rank that updates while outcomes are
+  deferred keeps the previous snapshot, and when the next agreement fails
+  with the flag of a rank that left before its update, it puts the
+  snapshot back (no rank updated under every-phase checks); otherwise the
+  update stands (every rank passed it). A failure in the same step as a write is
   no concern: every-phase checks agree after the step, so the writes of
   that step happen in both modes. Each of the explicit step's commit points
   is necessary (removing any one makes the state test below fail). Not in
   the rule: the scheme's store for a restore, the solid model's
-  `displacement_release` counter and the DOF manager's blocked-DOF index
-  (recomputed at every step), and the Newton–Raphson Jacobian's content
-  (reassembled whenever the solver's flag says so).
+  `displacement_release` counter, the Newton–Raphson Jacobian's content
+  (reassembled whenever the solver's flag says so) and the schemes'
+  record of the `K` release behind `J` (it decides only whether `J` is
+  copied from `K` again, which gives the same `J`). The blocked snapshot is
+  not recomputed from scratch at every step: its change detection compares
+  with the previous snapshot, so a rank that updated it alone would miss a
+  boundary change at the retry (no rebuilt `J`, no re-applied boundary
+  rows).
 
 Fallback, agreement before every point-to-point exchange (the decision
 asked for the sender's status in each message): every synchronizer

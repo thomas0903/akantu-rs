@@ -179,8 +179,10 @@ fn bits(v: &[Real]) -> Vec<u64> {
     v.iter().map(|x| x.to_bits()).collect()
 }
 
-/// The DOF arrays, the lumped mass, every `Real` internal of every law
-/// (current and previous values) and the mesh's revision and sizes.
+/// The DOF arrays, the lumped mass, the DOF manager's blocked snapshot
+/// (indexes, flags, release and whether it changed since the previous
+/// one), every `Real` internal of every law (current and previous values)
+/// and the mesh's revision and sizes.
 fn state(model: &SolidMechanicsModelCohesive, mesh: &SharedMesh) -> State {
     let mut out = State::new();
     let smm = &model.smm;
@@ -202,6 +204,20 @@ fn state(model: &SolidMechanicsModelCohesive, mesh: &SharedMesh) -> State {
     if let Ok(m) = smm.mass() {
         out.push(("lumped mass".into(), bits(m.as_slice())));
     }
+    // the DOF manager's blocked snapshot and its releases
+    let dm = smm.dof_manager();
+    out.push((
+        "blocked snapshot".into(),
+        dm.global_blocked_dofs_indexes()
+            .iter()
+            .map(|&i| i as u64)
+            .chain(dm.global_blocked_dofs().iter().map(|&b| u64::from(b)))
+            .chain([
+                dm.blocked_release(),
+                u64::from(dm.has_blocked_dofs_changed()),
+            ])
+            .collect(),
+    ));
     for l in 0..smm.nb_materials() {
         let law = smm.material(l).unwrap();
         law.for_each_internal(&mut |name, f| {
@@ -256,7 +272,9 @@ pub struct StepState {
 
 /// The extrinsic scenario's steps up to `offset` steps after the first
 /// insertion (0: the step that inserts, whose solve reassembles the mass;
-/// 2: cohesive elements exist and open), the last one's solve with
+/// 2: cohesive elements exist and open), the boundary conditions changed
+/// before the last one's solve (y also blocked on the pulled faces), that
+/// solve with
 /// `inject` (pattern, occurrence) armed on rank `failing`, or recording its
 /// phase keys on every rank when `inject` is `None`.
 pub fn state_run(
@@ -297,6 +315,19 @@ pub fn state_run(
             last = Some(step + offset);
         }
         if last == Some(step) {
+            // the boundary conditions change before this solve (y also
+            // blocked on the pulled faces), so that the solve's update of
+            // the blocked snapshot changes it
+            {
+                let mut b_g = model.smm.blocked_dofs_mut().unwrap();
+                let b = b_g.as_mut_slice();
+                for n in 0..coords.len() / dim {
+                    let xx = par_scenarios::loading_coordinate(&spec, coords[dim * n]);
+                    if xx.abs() > 0.99 {
+                        b[dim * n + 1] = true;
+                    }
+                }
+            }
             let me = usize::try_from(comm.rank()).unwrap() == failing;
             match inject {
                 Some((p, n)) if me => testing::fail_phase(p, n),
@@ -386,26 +417,32 @@ pub fn check_states(
     run: &mut StateRun<'_>,
     what: &str,
 ) -> std::result::Result<usize, String> {
+    // every rank runs every injection whatever it finds (a rank that left
+    // the loop early would leave its peers waiting in the next run); the
+    // differences are collected and reported at the end
+    let mut errors = Vec::new();
     let reference = run(CollectiveChecks::EveryPhase, None, usize::MAX);
     let control = run(CollectiveChecks::CommitPoints, None, usize::MAX);
     for s in [&reference, &control] {
         if let Some(e) = &s.error {
-            return Err(format!("{what}: no failure injected, rank {rank}: {e}"));
+            errors.push(format!("{what}: no failure injected, rank {rank}: {e}"));
         }
     }
     if reference.keys.iter().collect::<Vec<_>>() != without_commit_points(&control.keys) {
-        return Err(format!(
+        errors.push(format!(
             "{what}: rank {rank} runs other phases in the two modes"
         ));
     }
-    compare(
+    if let Err(e) = compare(
         &reference.state,
         &control.state,
         &format!("{what}, no failure, rank {rank}"),
-    )?;
+    ) {
+        errors.push(e);
+    }
     let points = injection_points(&reference.keys, &control.keys);
     if points.len() <= 10 {
-        return Err(format!("{what}: {} phases recorded", points.len()));
+        errors.push(format!("{what}: {} phases recorded", points.len()));
     }
     let mut n = 0;
     for &failing in failing_ranks {
@@ -422,17 +459,23 @@ pub fn check_states(
                 failing,
             );
             for (m, s) in [("every-phase", &every), ("commit points", &commit)] {
-                let e = s
-                    .error
-                    .as_deref()
-                    .ok_or_else(|| format!("{w}: {m}: ended without an error"))?;
-                if rank == failing && !e.contains("injected failure") {
-                    return Err(format!("{w}: {m}: {e}"));
+                match s.error.as_deref() {
+                    None => errors.push(format!("{w}: {m}: ended without an error")),
+                    Some(e) if rank == failing && !e.contains("injected failure") => {
+                        errors.push(format!("{w}: {m}: {e}"));
+                    }
+                    Some(_) => {}
                 }
             }
-            compare(&every.state, &commit.state, &w)?;
+            if let Err(e) = compare(&every.state, &commit.state, &w) {
+                errors.push(e);
+            }
             n += 1;
         }
     }
-    Ok(n)
+    if errors.is_empty() {
+        Ok(n)
+    } else {
+        Err(errors.join("\n"))
+    }
 }

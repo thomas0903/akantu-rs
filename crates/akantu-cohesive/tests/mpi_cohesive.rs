@@ -84,6 +84,37 @@ fn collective_failure(c: &Communicator, name: &str) -> par_coh::Outcome {
     r
 }
 
+/// `SolverVector::norm_in` on a communicator split to one rank, under both
+/// modes, after a deferred outcome (D-126: nothing is deferred on a one-rank
+/// communicator; the norm's reduction is issued there too).
+fn norm_on_a_one_rank_split(c: &Communicator) -> par_coh::Outcome {
+    use akantu_comm::phase::{Phases, Severity};
+    let rank = u32::try_from(c.rank()).map_err(|e| e.to_string())?;
+    let solo = par_coh::ok(c.split(Some(rank), 0), "split")?.ok_or("split: no communicator")?;
+    if solo.size() != 1 {
+        return Err(format!("split: {} ranks", solo.size()));
+    }
+    let mode0 = c.collective_checks();
+    let r = (|| {
+        for mode in par_coh::checks::MODES {
+            solo.set_collective_checks(mode);
+            let mut v = akantu_linalg::SolverVector::new("v", false);
+            v.resize(4);
+            v.set(2.0);
+            let mut ph = Phases::settling(&solo, "norm");
+            par_coh::ok(ph.defer("local", Ok(()), Severity::Recoverable), "defer")?;
+            let n = v.norm_in(&mut ph, "norm", &[true, true, true, false]);
+            let n = par_coh::ok(ph.settle(n), "norm")?;
+            if n.to_bits() != 12.0_f64.sqrt().to_bits() {
+                return Err(format!("{mode:?}: norm {n}"));
+            }
+        }
+        Ok(())
+    })();
+    c.set_collective_checks(mode0);
+    r
+}
+
 /// The persistent state after a failure in each phase of the explicit
 /// solve step, `offset` steps after the first insertion, is the
 /// every-phase mode's (`par_coh::checks::check_states`).
@@ -265,6 +296,11 @@ fn main() {
             ));
         }
     }
+    scenarios.push((
+        "solver_vector_norm_on_a_one_rank_split".into(),
+        Box::new(|c| norm_on_a_one_rank_split(&c)),
+        false,
+    ));
     // The collective error protocol under both collective-check modes
     // (D-018, D-126): a failure injected on one rank (the first, then the
     // last) in chosen phases of the steps, and the persistent state after a

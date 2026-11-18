@@ -454,6 +454,46 @@ which is split around the runtime laws' checks of a binding); the
 residual's two exchange agreements stay separate (the bulk stresses are
 computed between them, after the traction exchange's commit point).
 
+## 8. Second fix round (18 November 2026, 20:42–21:14 UTC, one host)
+
+A re-check found the blocked-DOF snapshot outside the commit points: every
+solver updates it right after the deferred step `before_solve_step`, so
+after a peer's failure there the other ranks updated it alone (D-126). It
+is now put back without communicating: a rank that leaves before its
+update says so with one bit of its next agreement's header status, and
+the ranks that updated restore their snapshot there
+(`DofManager::mark_blocked_update`). Commit points were added before
+`apply_boundary("J")` (implicit solvers only), in the hooks of a solver
+without integration scheme and in the diffusion model; none is on the
+explicit lumped path. Only the first development machine was available.
+
+- Collectives per step and rank, 8 ranks, h = 0.06, 2,000 steps (run
+  `btn2-r8x1`, build 05e3580c8, `collectives-by-phase.txt`): 20.51, the
+  same calls as the previous build (solve step 8.31, insertion check 11.16,
+  energies 1.0).
+- Results: with the Eigen static solve, `energies.csv`, `insertions.csv`
+  and the 29 result values of `summary.json` are bitwise identical to the
+  port before D-126 for the new build (`eig-n2-8x1`) and for a6370798a
+  (`eig-n2b-8x1`). (With the default MUMPS static solve the energies differ
+  from run to run for either build, the insertions do not.)
+- The cohesive benchmark at 8 ranks on one host, a6370798a against
+  05e3580c8 in alternating order, 5 pairs (`ab-` runs): loop 69.55 s and
+  69.58 s (medians), paired ratio 1.001 [0.998, 1.002] without the first
+  pair (its a6370798a run, the first after the machine started, took 88.3 s).
+- Shared memory, the MPI cases of `suite_solid` (size m), 5 paired
+  repetitions in alternating order (`suite4-ab.txt` by `python3 -I
+  suite3ab.py suite4 n2base n2head`, raw data `suite4/`): the cohesive step
+  0.981, 0.986 and 0.989 of a6370798a's at 2, 4 and 8 ranks (its solve step
+  1.000, 0.999, 1.009); `par_explicit_tet4_ss`'s solve step 0.998 to 1.015;
+  every result digest identical.
+
+No multi-host run was possible. The explicit lumped step makes the same
+collectives with the same three-word header status as at 4a8d9d38e (the
+flag is one bit of the first word) and adds per step one copy of the
+blocked indexes and, on a rank whose blocked set changed, of its flags
+(proportional to the rank's local equations), so the multi-host
+times measured at 4a8d9d38e should hold within their spread.
+
 ## Files
 
 - `runs.csv`: every run of the sessions (`collect.py`); `env` names the
@@ -461,7 +501,8 @@ computed between them, after the traction exchange's commit point).
   Eigen solve; timing tables use the runs without the interposer. Prefixes:
   `cal-`, `d1-`, `d2-`, `rep-` diagnosis; `i5-` the contention experiment;
   `eig-` bitwise checks; `fin-` the series of section 5, `fin3-` that of
-  section 7; `bt*-`, `pm-` interposer runs.
+  section 7, `ab-` the paired one-host runs of section 8; `bt*-`, `pm-`
+  interposer runs.
 - `summarize.py`: the tables of sections 1, 3, 5 and 7.
 - `pmpistat.c`: the PMPI interposer (`mpicc -O2 -fPIC -shared`); its counters
   `pmpi-counters.txt` (`pmpi_summary.py`); call sites before and after the
@@ -470,7 +511,7 @@ computed between them, after the traction exchange's commit point).
   and after.
 - `suite-ab.txt`, `suite/`: the shared-memory A/B of section 5;
   `suite3-ab.txt`, `suite3/`, `suite3ab.py`: the three-way comparison of
-  section 7.
+  section 7; `suite4-ab.txt`, `suite4/`: the comparison of section 8.
 
 Commands (head host; sessions as in the launcher's header, `hosts` with the
 four private addresses and `slots=8`): one run is

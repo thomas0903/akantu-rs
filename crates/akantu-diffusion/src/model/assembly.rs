@@ -253,6 +253,10 @@ impl DiffusionPhysics {
                 .map_err(|_| not_allocated(&name))?
                 .dofs = u;
             r?;
+            // D-126: under commit points a failure after the exchange's
+            // leading agreement (a peer's unpacking) is deferred; agreed
+            // here, before the laws' internal variables change
+            dofs.commit_point("diffusion:exchanged")?;
         }
         for ghost in GhostType::ALL {
             self.with_laws(&mesh, dofs, LawPhase::Stress, |laws, ctx| {
@@ -325,6 +329,9 @@ impl DiffusionPhysics {
     /// shared nodes is complete on every rank); periodic consistency (sum);
     /// assemble into the lumped `M`.
     pub(crate) fn assemble_capacity_matrix_lumped(&mut self, dofs: &mut DofManager) -> Result<()> {
+        // D-126: the lumped capacity and its flag persist; no rank changes
+        // them while an earlier step may have failed on a peer
+        dofs.commit_point("diffusion:capacity_lumped")?;
         if !dofs.has_lumped_matrix("M") {
             dofs.new_lumped_matrix("M")?;
         }
@@ -370,6 +377,9 @@ impl DiffusionPhysics {
                 |a, b| a + b,
             )?;
         }
+        // D-126: the periodic exchange's deferred outcomes, before `M` and
+        // the flag change (communicates only when something is deferred)
+        dofs.commit_point("diffusion:capacity_lumped:assemble")?;
         dofs.assemble_to_lumped_matrix(&self.dof_name, capacity.view(), "M", 1.0)?;
         self.need_to_reassemble_capacity_lumped = false;
         Ok(())
