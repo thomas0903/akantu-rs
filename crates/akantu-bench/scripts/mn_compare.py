@@ -34,6 +34,10 @@ What is compared and how (docs/TESTING.md):
     two cohesive settings (rust_cohesive_compat, rust_doubled_node_load) and
     binary.sha256 equal when both runs record them; every compared key
     present in the reference (no pass on keys neither run recorded).
+ R  with A: every phase of both runs' chrono.csv repeated as often (the
+    `<phase> nb_rep` columns: the same amount of work), when both have one.
+    Both sides' host descriptions (status.txt host_descriptions, run.json
+    host, the campaign's provenance.txt) are printed when the reference has one.
  B  bitwise, Eigen static solve (`eigen`: centralised on rank 0, no MUMPS):
     energies.csv and insertions.csv byte-identical; summary.json time_step,
     node counts, cohesive counts, insertion steps, energies, displacement
@@ -81,6 +85,10 @@ import hashlib
 import json
 import sys
 from pathlib import Path
+
+HERE = Path(__file__).resolve().parent
+sys.path.insert(0, str(HERE))
+import mn_cluster  # noqa: E402  (the launcher's host-description formatter; standard library only)
 
 PHYS = ("time_step", "nb_global_nodes_end", "nb_owned_nodes_sum", "nb_cohesive_elements", "nb_insertion_steps",
         "first_insertion_step", "energy_dissipated", "energy_potential", "energy_kinetic",
@@ -373,6 +381,10 @@ def compare_pair(ref, run, label, out, fails, d108=False):
     out.append(f"{label}: {run.d} vs {ref.d}")
     out.append(f"  A exact ({'placement, partition, distribution, matrix' + (', MUMPS nb_proc/sym/ordering' if solver == 'auto' else '')}): "
                + ("ok" if not a else "FAIL: " + "; ".join(a[:6])))
+    reps = check_reps(ref, run)
+    if reps:
+        a = a + reps
+        out.append("  R same repetition count of every chrono.csv phase: FAIL: " + "; ".join(reps[:6]))
     fails += [f"{label} A: {x}" for x in a]
     note = foreign_partition(ref, run)[1]
     if note:
@@ -398,15 +410,17 @@ def compare_pair(ref, run, label, out, fails, d108=False):
             out += [f"     {r}" for r in rep]
             fails += [f"{label} J: {x}" for x in j]
         out.append("  D printed, not judged (MUMPS run to run): " + fmt_d(figures_d(ref, run)))
+    print_hosts(ref, run, out)
     wa, wb = ref.st.get("wall_s"), run.st.get("wall_s")
     if wa and wb:
         out.append(f"  wall {wa:.1f} s (reference) / {wb:.1f} s ({run.st.get('nb_hosts')} host(s)): "
                    f"{wb / wa:.2f} (timing on one sandbox, not a measurement of a network)")
 
 
-def chrono_row(run):
-    """{phase: seconds} of the C++ harness's chrono.csv (header `"psize", "<phase>", "<phase> nb_rep",
-    ...`, one row of rank 0's totals)."""
+def chrono_row(run, reps=False):
+    """{phase: seconds} of a chrono.csv (the C++ harness and the port write the same layout: header
+    `"psize", "<phase>", "<phase> nb_rep", ...`, one row of rank 0's totals); with reps=True
+    {phase: repetition count} (the `<phase> nb_rep` columns)."""
     t = run.text("chrono.csv")
     if t is None:
         return {}
@@ -417,12 +431,52 @@ def chrono_row(run):
     vals = [v.strip().strip('"') for v in lines[1].split(",")]
     out = {}
     for h, v in zip(head, vals):
-        if h != "psize" and not h.endswith(" nb_rep"):
-            try:
-                out[h] = float(v)
-            except ValueError:
-                pass
+        if h == "psize" or h.endswith(" nb_rep") != reps:
+            continue
+        try:
+            out[h[:-len(" nb_rep")] if reps else h] = int(float(v)) if reps else float(v)
+        except ValueError:
+            pass
     return out
+
+
+def check_reps(ref, run):
+    """The same amount of work: every phase of both chrono.csv repeated as often (judged when both
+    runs have one); returns a list of failures."""
+    ra, rb = chrono_row(ref, reps=True), chrono_row(run, reps=True)
+    if not ra or not rb:
+        return []
+    return [f"phase {k}: {ra.get(k)} vs {rb.get(k)} repetitions" for k in sorted(set(ra) | set(rb))
+            if ra.get(k) != rb.get(k)]
+
+
+def host_descriptions(run):
+    """[(label, one line)] of a run directory's host description(s): a launcher run's
+    status.txt host_descriptions, else a single-node C++ run's run.json host, else the
+    campaign's provenance.txt (<campaign>/<case>/np<N>/rep<k>) of c1prep_campaign.sh."""
+    hd = run.st.get("host_descriptions")
+    if isinstance(hd, dict) and hd:
+        return [(f"host {i + 1}", mn_cluster.host_line(d)) for i, d in enumerate(hd.values())]
+    h = (run.json("run.json") or {}).get("host")
+    if h:
+        return [("host", f"{h.get('cpu_model')}; {h.get('logical_cpus')} logical CPUs; kernel {h.get('kernel')}")]
+    prov = run.d.parent.parent.parent / "provenance.txt"
+    if prov.exists():
+        lines = [ln for ln in prov.read_text().splitlines() if ln.startswith(("host_cpu=", "mem_total_kib="))]
+        if lines:
+            return [("host", "; ".join(lines))]
+    return []
+
+
+def print_hosts(ref, run, out):
+    """Both sides' host descriptions, when the reference has one."""
+    a = host_descriptions(ref)
+    if not a:
+        return
+    out.append("  hosts of the reference:")
+    out += [f"    {lab}: {ln}" for lab, ln in a]
+    out.append("  hosts of the run:")
+    out += [f"    {lab}: {ln}" for lab, ln in host_descriptions(run)] or ["    no description"]
 
 
 def compare_cpp(ref, run, out, fails):
@@ -432,7 +486,9 @@ def compare_cpp(ref, run, out, fails):
     path (blocked node, steps, output and partition switches, static solver); the same mesh
     (file name without `frozen-`, global node and element counts), rank count and FNTE mode;
     the same partition (the reference's partition.csv against the run's, which the launcher
-    checked against the plan's file); the placement. Printed: the phases side by side
+    checked against the plan's file); the placement; every chrono.csv phase repeated as often;
+    the ranks' environment (per-rank records, equal on every rank) against run.json's on the
+    variables both record. Printed: both sides' host descriptions. Printed: the phases side by side
     (chrono.csv), init / loop / wall times, energies and insertions (upstream's distributed
     runs vary from run to run: not judged)."""
     rj = ref.json("run.json") or {}
@@ -477,9 +533,19 @@ def compare_cpp(ref, run, out, fails):
         bad.append(f"placement {run.st.get('rank_hosts')} != {want}")
     if run.st.get("binding_problems"):
         bad.append("binding: " + "; ".join(run.st["binding_problems"][:4]))
+    bad += check_reps(ref, run)
+    # the environment of the ranks: the run's per-rank record against the single-node run's
+    # run.json environment, on the variables both record
+    ea, eb = rj.get("environment") or {}, run.st.get("environment") or {}
+    for k in sorted(set(ea) & set(eb)):
+        if (ea.get(k) if ea.get(k) is not None else "unset") != eb.get(k):
+            bad.append(f"environment {k}: {ea.get(k)} vs {eb.get(k)}")
+    if run.st.get("environment_differs"):
+        bad.append(f"ranks {run.st['environment_differs'][:8]} received another environment than rank 0")
     out.append(f"cpp: {run.d} ({run.st.get('nb_hosts')} host(s)) vs {ref.d} (one host)")
     out.append("  judged (outcomes, UD-216, driver, input, mesh, ranks, FNTE, static solver, partition, placement, "
-               "binding): " + ("ok" if not bad else "FAIL: " + "; ".join(bad)))
+               "binding, phase repetitions, environment): " + ("ok" if not bad else "FAIL: " + "; ".join(bad)))
+    print_hosts(ref, run, out)
     fails += bad
     ca, cb = chrono_row(ref), chrono_row(run)
     if ca or cb:

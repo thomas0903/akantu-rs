@@ -9,6 +9,8 @@
 import hashlib
 import io
 import json
+import shutil
+import subprocess
 import sys
 import tempfile
 import unittest
@@ -22,6 +24,37 @@ import mn_compare  # noqa: E402
 import mn_session  # noqa: E402
 
 TEMPLATE = mn_cluster.TEMPLATE.read_text()
+RUN_ONE = mn_cluster.REPO / "benchmarks" / "cohesive-perf" / "scripts" / "in-container" / "run-one.sh"
+
+
+def gnu_sed():
+    """A GNU sed (run-one.sh's insertion uses `\\n` in a replacement, a GNU extension), or None."""
+    for exe in ("sed", "gsed"):
+        path = shutil.which(exe)
+        if path:
+            try:
+                if "GNU" in subprocess.run([path, "--version"], capture_output=True, text=True, check=False).stdout:
+                    return path
+            except OSError:
+                pass
+    return None
+
+
+def run_one_input(template_path, steps, mesh, extra, solver=""):
+    """The input run-one.sh writes: its own lines from `src=` to the `sed ... > input.dat` line,
+    run by bash with src = the template (the rest of run-one.sh needs the image)."""
+    text = RUN_ONE.read_text().splitlines()
+    i = next(k for k, ln in enumerate(text) if ln.startswith('src="/harness/inputs/'))
+    j = next(k for k, ln in enumerate(text) if ln.startswith('sed "${sedargs[@]}" "${src}" > input.dat'))
+    body = "\n".join(text[i + 1:j]) + '\nsed "${sedargs[@]}" "${src}"\n'
+    sed = gnu_sed()
+    script = f'set -eu\nsed() {{ "{sed}" "$@"; }}\nsrc="$1"; steps="$2"; mesh="$3"; shift 3\n' + body
+    p = subprocess.run(["bash", "-c", script, "run-one-input", str(template_path), str(steps), mesh, *extra],
+                       env={"PATH": "/usr/bin:/bin", "PERF_STATIC_SPARSE_SOLVER": solver},
+                       capture_output=True, text=True, check=False)
+    if p.returncode != 0:
+        raise AssertionError(p.stderr)
+    return p.stdout
 SINGLE_NODE_EXTRA = ["blocked_node=global", "energy_precision=17", "output_energy=true", "export_partition=true"]
 PINS = ["Haswell", "1", "1", "1", "1"]
 
@@ -59,6 +92,15 @@ class Input(unittest.TestCase):
                                                         "  export_partition = "))]
         self.assertEqual(got, src)
 
+    @unittest.skipUnless(gnu_sed() and shutil.which("bash"), "needs bash and GNU sed (run-one.sh's sed)")
+    def test_equals_what_run_one_writes(self):
+        for steps, mesh, extra, solver in (
+                (5000, "/mn/work/meshes/cube-joss.msh", SINGLE_NODE_EXTRA, "auto"),
+                (1500, "/mn/work/meshes/cube-h0.12.msh", SINGLE_NODE_EXTRA[:3], "auto"),
+                (10, "/m.msh", [*SINGLE_NODE_EXTRA, "shear=-1e6"], "eigen")):
+            want = run_one_input(mn_cluster.TEMPLATE, steps, mesh, extra, "" if solver == "auto" else solver)
+            self.assertEqual(mn_cluster.input_text_cpp(TEMPLATE, steps, mesh, solver, extra), want)
+
     def test_eigen_static_solve(self):
         t = mn_cluster.input_text_cpp(TEMPLATE, 10, "/m.msh", "eigen", [])
         lines = t.splitlines()
@@ -87,7 +129,9 @@ class Script(unittest.TestCase):
 
     def test_rust_unchanged(self):
         s = self.script("rust")
-        self.assertNotIn("LD_LIBRARY_PATH", s)
+        self.assertNotIn("export AKANTU_RS_FILL_NODES_TO_ELEMENTS", s)
+        xs = next(ln for ln in s.splitlines() if ln.startswith("for v in "))
+        self.assertNotIn("LD_LIBRARY_PATH", xs)   # recorded per rank (env_rank<r>.txt), not forwarded
         self.assertNotIn("aborted.txt", s)
         self.assertIn(f"sha256sum {mn_cluster.DRIVER} > binary.sha256", s)
 
