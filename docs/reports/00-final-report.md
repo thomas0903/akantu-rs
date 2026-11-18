@@ -10,14 +10,16 @@ it has Rust tests, a golden fixture from the C++ library or an analytical
 reference, a justified tolerance and an independent review. Most
 comparisons with the C++ library are bit for bit. In the final measurement
 campaign (8-core AWS machines, 17 November 2026) the port's cohesive
-benchmark loop took 0.22 to 0.36 times the C++ time at 1 to 8 ranks; at
-full size (4.39 million tetrahedra, 64 cores, 12 November, before the
-performance campaign) the port took 0.875 times the C++ run time (one run
-each). Comparing the two codes
+benchmark loop took 0.22 to 0.36 times the C++ time at 1 to 8 ranks. At
+full size (4.39 million tetrahedra, one run per configuration, 17 and 18
+November) it took 0.35 to 0.43 times the C++ time on one 128-core machine
+at 32 to 128 ranks, and 0.51 to 0.52 times at 128 ranks on four 32-core
+hosts after a change of its collective error protocol (1.48 to 1.51 times
+before it). Comparing the two codes
 produced a register of 596 defects and quirks of the C++ library. AI coding
 agents, directed by Thomas Molinari, wrote the port in six days (9 to 14
 November 2026). The Akantu developers have not reviewed or endorsed the
-port. A performance campaign (16 and 17 November) made it faster without
+port. A performance campaign (16 to 18 November) made it faster without
 changing a result bit in its default mode; it has no C API, and it refuses
 a few configurations on several ranks.
 
@@ -98,9 +100,9 @@ rows became Verified.
 All ratios are the port's time over the C++ time on the same x86_64
 machine, with the same meshes, partitions and MUMPS
 (`02-benchmarks-and-performance.md`). The final campaign ran on four AWS
-`m7a.2xlarge` (8 cores) on 17 November 2026; its full-size and multi-node
-runs are measured separately, so the full-size rows are still the
-measurements of 12 November, made before the performance campaign:
+`m7a.2xlarge` (8 cores) on 17 November 2026, its full-size runs on one AWS
+`m7a.32xlarge` (128 cores) and on sets of four `m7a.8xlarge` (32 cores) on
+17 and 18 November, one run per configuration:
 
 | Measurement | Port time / C++ time |
 |---|---|
@@ -109,15 +111,23 @@ measurements of 12 November, made before the performance campaign:
 | Static MUMPS solve phase, 1 to 8 ranks | 0.79 to 1.11 |
 | Port's SparseLU translation against upstream's SparseLU, one thread (opt-in nested-dissection ordering) | 0.74 to 0.91 (0.17 to 0.31) |
 | Sum of the ranks' memory peaks, 559 k tetrahedra, 1 to 8 ranks | 0.77 to 0.80 |
-| Full-size JOSS run, whole wall time, at 64 and 32 ranks (12 November, one run each) | 0.875 and 0.851 |
-| Full-size mesh distribution from rank 0 (12 November) | 1.26 to 1.86 |
+| Full-size JOSS run, loop, one 128-core machine, 32 to 128 ranks | 0.35 to 0.43 |
+| Full-size JOSS run, whole wall time, one 128-core machine, 32 to 128 ranks | 0.42 to 0.51 |
+| Full-size JOSS run, loop, 128 ranks on four 32-core hosts: final revision (before the protocol change) | 0.51 to 0.52 (1.48 to 1.51) |
+| Full-size mesh distribution from rank 0, one 128-core machine | 0.13 to 0.17 |
 
-![Full-size run, wall time by phase](figures/perf-fullsize-phases.svg)
+![Full-size run of 12 November (port before the campaign), wall time by phase](figures/perf-fullsize-phases.svg)
 
-At full size on 12 November memory was about the same, most of it held by
-MUMPS, and the port's largest rank needed 1.27 times upstream's at 64
-ranks; the insertion check was the largest phase in both codes (53 % to
-75 % of the port's wall time). Against the port before the performance
+At full size the containers' memory peaks were 206, 196 and 183 GiB for
+the port and 217, 213 and 184 GiB for upstream at 128, 64 and 32 ranks,
+most of it MUMPS's. The 128-core machine does not scale from 64 to 128
+ranks (the port's loop 846 and 835 s), so the ratios at 128 ranks are
+those of a saturated machine. Across four hosts the port first lost
+because its collective error protocol agreed after every phase (51.6
+collectives per step and rank against upstream's 8.4); with collective
+checks at commit points (D-126, 20.5 per step and rank, results
+unchanged) its loop at 128 ranks is 526 s against upstream's 1,019 and
+1,040 s. Against the port before the performance
 campaign, the explicit step takes 0.51 to 0.72 of the time and the cohesive
 loop 0.36 to 0.62.
 
@@ -174,8 +184,9 @@ compile at the reference commit.
   themselves rest on analytical checks and review.
 - Multi-rank MUMPS solves and the MUMPS-solved fields of the examples are
   compared under tolerances or as diagnostics, not bitwise.
-- Multi-node runs used one cluster of eight hosts, up to 64 ranks, one run
-  per point. In the full-size rerun at 64 and 32 ranks, the two runs'
+- Multi-node runs used one cluster of eight hosts, up to 64 ranks (13
+  November), and three sets of four 32-core hosts at up to 128 ranks (18
+  November), one run per point. In the full-size rerun at 64 and 32 ranks, the two runs'
   external work differs by more than 1e-10 of the step's largest energy
   from step 2,716 on, before their insertion counts part (they agree for
   3,176 steps); the criterion written before the run asked for the reverse
@@ -219,7 +230,11 @@ its order. Items 1 to 4 keep results bit for bit; item 5 adds a switch.
 The performance campaign did items 1 and 3 and most of item 4 (item 1 as an opt-in switch;
 `04-possible-improvements.md` gives each finding's status and measured
 effect). Tooling for following upstream commits, starting with the
-`features/matrix_free` branch, comes next (item 6, about a week).
+`features/matrix_free` branch, comes next (item 6, about a week). The
+final measurements leave two performance items: the port's collectives
+across hosts (20.5 per step and rank against the C++ library's 8.4) and
+its loop on one 128-core machine, which does not improve from 64 to 128
+ranks.
 
 ## Where everything is
 

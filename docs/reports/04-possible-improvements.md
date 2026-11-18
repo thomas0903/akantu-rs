@@ -125,7 +125,7 @@ of work; the scan advises it only after P1.2, P2.1 and P4.1.
 
 The performance campaign (16 and 17 November 2026) worked on most of the
 findings above; the text above is the scan as written before it. One line
-per finding, with the effect measured in the final campaign, 2026-11-17 UTC, AWS `m7a.2xlarge`; `docs/BENCHMARKS.md`, data `docs/benchmarks/perf-campaign/final/`. "Not measured alone":
+per finding, with the effect measured in the final campaign, 2026-11-17 UTC, AWS `m7a.2xlarge` (full size: 17 and 18 November, one 128-core machine and four 32-core hosts); `docs/BENCHMARKS.md`, data `docs/benchmarks/perf-campaign/final/`. "Not measured alone":
 the change is merged with others and the final campaign times them
 together.
 
@@ -150,9 +150,34 @@ together.
 | P4.1 | done (the execution policy's threads, bitwise) | the explicit step at 8 threads 0.20–0.47 of one thread (part A); 2 ranks × 4 threads 1.05–1.22 times the loop of 8 ranks (part C) |
 | P4.2 | partly (lane kernels in the explicit step, AVX2 at run time, no FMA) | inside P2.3's ratios (part A) |
 | P4.3 | not done | — |
-| P4.4 | partly (one agreement skipped; the protocol unchanged) | not measured |
+| P4.4 | done (D-126: collective checks at commit points, the default; `AKANTU_COLLECTIVE_CHECKS=every-phase` keeps the former protocol) | collectives per step and rank 51.6 → 20.5 (upstream 8.4; 8 ranks, h = 0.06, `net/`); the full-size loop at 128 ranks on four 32-core hosts 1,538 and 1,536 s → 526 s (upstream 1,040 and 1,019 s), 64 ranks on two hosts 1,046 → 722 s (upstream 1,924 s), one 128-core machine 835 → 814 s (`final/multinode/`); results unchanged |
 | P4.5 | partly (tiles and threads; an opt-in nested-dissection ordering, D-125) | as P1.7; with nested dissection the SparseLU static solve takes 0.412 and 0.186 of COLAMD's at one thread (h = 0.12, 0.06), 0.305 and 0.170 of upstream's SparseLU (part D, second pass) |
 | P4.6 | not done | — |
+
+### What is left after the final measurements
+
+- Collectives across hosts. After D-126 the cohesive step makes 20.5
+  collectives per step and rank against upstream's 8.4: the agreements
+  before its point-to-point exchanges (cohesive tractions, ghost stresses,
+  the density on mass steps, the insertion order), the step's five commit
+  points before persistent changes, the facet-stress exchange's own
+  settle and the insertion transaction's checks. A status carried in the
+  exchanged messages instead of an agreement before them was tried and
+  deadlocked (a rank that failed earlier waits in an agreement, D-126).
+  Not reduced and possible: the facet-stress settle could ride in the
+  insertion decision's reduction if the exchange ran inside the insertion
+  order's scope. Across four hosts the final port's loop is 0.646 of its
+  one-machine loop, upstream's 0.523 to 0.534
+  (`docs/benchmarks/perf-campaign/net/README.md`, sections 6 and 7).
+- The header exchange by gather and broadcast from 64 ranks (254 messages
+  per agreement at 128 ranks instead of 16,147) was not measured against
+  the all-gather across hosts at that size.
+- One 128-core machine at 128 ranks. The port's loop is 846 s at 64 ranks
+  (one socket) and 835 s at 128 (both); upstream gains 1.25 times. In a
+  profile at 64 and 128 ranks the port's own code falls from 69 % to 51 %
+  of the cycles while the kernel, libc (`sched_yield` among it) and Open
+  MPI rise from 31 % to 48 % (`final/G/profile/`); the cause is not
+  established. 64 ranks × 2 threads on the same cores take 568 s.
 
 ## Features and gaps
 
