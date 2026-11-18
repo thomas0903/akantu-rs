@@ -873,7 +873,12 @@ fn phase_protocol_ports() -> Outcome {
                 Ok(())
             })
         });
-        ensure!(post.is_err() == (c.rank() == 0) && !ph.is_failed());
+        if p == 1 {
+            // one rank: nothing is deferred, the failure is agreed at once
+            ensure!(post.is_err() && ph.is_failed());
+        } else {
+            ensure!(post.is_err() == (c.rank() == 0) && !ph.is_failed());
+        }
         let settled = ph.settle(post);
         ensure!(p == 1 || (settled.is_err() && ph.is_failed() && !ph.is_broken()));
         drop(ph);
