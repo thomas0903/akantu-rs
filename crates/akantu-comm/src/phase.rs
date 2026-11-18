@@ -1014,6 +1014,30 @@ impl Phases {
         self.agree(name, local, severity)
     }
 
+    /// `true` when a communication step may run without an agreement
+    /// before it (D-126): commit points, a communicating world outside
+    /// native regions, and nothing deferred since the last agreement — no
+    /// rank can have left the operation, so a rank that failed locally just
+    /// now is still here and reports its failure **in the exchange itself**
+    /// (a status in each message; see `Synchronizer`).
+    #[must_use]
+    pub fn status_in_messages(&self) -> bool {
+        self.defers() && self.core.deferred.is_none() && self.core.state == ScopeState::Running
+    }
+
+    /// A communication step without an agreement before it, allowed only
+    /// while [`Phases::status_in_messages`] holds (otherwise the deferred
+    /// outcomes are agreed first, as for [`Phases::collective`]). Every rank
+    /// must run it, whatever its local outcome; `f`'s errors are transport
+    /// failures (the scope breaks).
+    pub fn exchange<R>(
+        &mut self,
+        name: &str,
+        f: impl FnOnce(&Communicator) -> Result<R>,
+    ) -> Result<R> {
+        self.collective(name, f)
+    }
+
     /// [`Phases::commit`] on an outcome that produced a value.
     pub fn commit_agreed<T>(
         &mut self,

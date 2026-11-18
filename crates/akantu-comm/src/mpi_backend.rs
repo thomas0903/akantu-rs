@@ -1975,6 +1975,77 @@ const INLINE_BYTES: usize = 64;
 /// Bytes sent by every rank in the header all-gather.
 const HEADER_BYTES: usize = HEADER_WORDS_BYTES + INLINE_BYTES;
 
+/// Environment variable selecting how the header of every checked
+/// collective is exchanged (D-126): `auto` (default), `allgather`,
+/// `gather-broadcast`. It must be the same on every rank.
+pub const ENV_COLLECTIVE_HEADER: &str = "AKANTU_COLLECTIVE_HEADER";
+
+/// Communicator size from which `auto` exchanges headers by gather and
+/// broadcast: below it Open MPI's linear all-gather (one round, size − 1
+/// messages per rank) is as fast; from 64 ranks on its size (size − 1)
+/// messages dominate (`docs/benchmarks/perf-campaign/net/`).
+pub const HEADER_GATHER_FROM: usize = 64;
+
+/// How the header of every checked collective is exchanged.
+#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+pub enum HeaderExchange {
+    /// [`HeaderExchange::GatherBroadcast`] from [`HEADER_GATHER_FROM`]
+    /// ranks, [`HeaderExchange::AllGather`] below.
+    Auto,
+    /// `MPI_Iallgather`.
+    AllGather,
+    /// `MPI_Igather` on rank 0, then `MPI_Ibcast` from rank 0.
+    GatherBroadcast,
+}
+
+/// Process setting (0 = unread, then 1 + variant index).
+static HEADER_EXCHANGE: AtomicU64 = AtomicU64::new(0);
+
+/// Set how headers are exchanged (programs; the same on every rank,
+/// before any communicator is used). Otherwise `AKANTU_COLLECTIVE_HEADER`
+/// is read once (an invalid value counts as `auto`).
+pub fn set_header_exchange(h: HeaderExchange) {
+    let code = match h {
+        HeaderExchange::Auto => 1,
+        HeaderExchange::AllGather => 2,
+        HeaderExchange::GatherBroadcast => 3,
+    };
+    HEADER_EXCHANGE.store(code, Ordering::Relaxed);
+}
+
+/// The header exchange in effect.
+#[must_use]
+pub fn header_exchange() -> HeaderExchange {
+    let mut c = HEADER_EXCHANGE.load(Ordering::Relaxed);
+    if c == 0 {
+        c = match std::env::var(ENV_COLLECTIVE_HEADER)
+            .ok()
+            .as_deref()
+            .map(str::trim)
+        {
+            Some("allgather") => 2,
+            Some("gather-broadcast") => 3,
+            _ => 1,
+        };
+        HEADER_EXCHANGE.store(c, Ordering::Relaxed);
+    }
+    match c {
+        2 => HeaderExchange::AllGather,
+        3 => HeaderExchange::GatherBroadcast,
+        _ => HeaderExchange::Auto,
+    }
+}
+
+/// Whether a communicator of `size` ranks exchanges headers by gather and
+/// broadcast.
+fn header_by_gather(size: usize) -> bool {
+    match header_exchange() {
+        HeaderExchange::AllGather => false,
+        HeaderExchange::GatherBroadcast => size > 1,
+        HeaderExchange::Auto => size >= HEADER_GATHER_FROM,
+    }
+}
+
 /// Wait at most this long for the `Serialized` MPI lock before the
 /// emergency abort falls back to process termination.
 const ABORT_LOCK_WAIT: Duration = Duration::from_secs(2);
@@ -2761,20 +2832,25 @@ impl MpiBackend {
         let total = HEADER_BYTES
             .checked_mul(self.size)
             .ok_or_else(|| transport("header size overflow"))?;
-        let mut all = zeroed(total);
-        let n = count(HEADER_BYTES, "header")?;
-        let (s, d) = (mine.as_ptr(), all.as_mut_ptr());
-        let mut op = self.in_flight(vec![mine, all], Vec::new(), "MPI_Iallgather (header)", None);
-        let comm = self.raw();
-        // SAFETY: `mine` holds HEADER_BYTES bytes, `all` HEADER_BYTES × size
-        // where size is the size of this **intra**communicator (checked at
-        // adoption): exactly what MPI writes. Both are owned by the
-        // in-flight operation (heap unchanged) until completion.
-        self.start(&mut op, |r| unsafe {
-            ffi::MPI_Iallgather(s.cast(), n, byte_type(), d.cast(), n, byte_type(), comm, r)
-        })?;
-        let mut bufs = op.wait()?;
-        let all = bufs.pop().unwrap_or_default();
+        let all = if header_by_gather(self.size) {
+            self.header_gather_broadcast(mine, total)?
+        } else {
+            let mut all = zeroed(total);
+            let n = count(HEADER_BYTES, "header")?;
+            let (s, d) = (mine.as_ptr(), all.as_mut_ptr());
+            let mut op =
+                self.in_flight(vec![mine, all], Vec::new(), "MPI_Iallgather (header)", None);
+            let comm = self.raw();
+            // SAFETY: `mine` holds HEADER_BYTES bytes, `all` HEADER_BYTES × size
+            // where size is the size of this **intra**communicator (checked at
+            // adoption): exactly what MPI writes. Both are owned by the
+            // in-flight operation (heap unchanged) until completion.
+            self.start(&mut op, |r| unsafe {
+                ffi::MPI_Iallgather(s.cast(), n, byte_type(), d.cast(), n, byte_type(), comm, r)
+            })?;
+            let mut bufs = op.wait()?;
+            bufs.pop().unwrap_or_default()
+        };
         let word = |r: usize, k: usize| {
             let o = r * HEADER_BYTES + 8 * k;
             let mut w = [0u8; 8];
@@ -2830,6 +2906,54 @@ impl MpiBackend {
                 .collect()
         });
         Ok((local?, infos, inlined))
+    }
+
+    /// The header all-gather as a gather on rank 0 followed by a broadcast
+    /// of the gathered headers from rank 0 (`MPI_Igather` + `MPI_Ibcast`,
+    /// polled like every wait): every rank receives every rank's header, as
+    /// from `MPI_Iallgather`, with 2 (size − 1) messages instead of the
+    /// size (size − 1) of Open MPI's linear non-blocking all-gather (D-126).
+    fn header_gather_broadcast(&self, mine: Vec<u8>, total: usize) -> Result<Vec<u8>> {
+        let n = count(HEADER_BYTES, "header")?;
+        let nt = count(total, "header")?;
+        let comm = self.raw();
+        let mut all = zeroed(total);
+        let (s, d) = (mine.as_ptr(), all.as_mut_ptr());
+        let mut op = self.in_flight(vec![mine, all], Vec::new(), "MPI_Igather (header)", None);
+        // SAFETY: `mine` holds HEADER_BYTES bytes; `all` holds HEADER_BYTES ×
+        // size bytes (significant on the root, rank 0, which every rank
+        // names), the size of this **intra**communicator (checked at
+        // adoption); both are owned by the in-flight operation until it
+        // completes.
+        self.start(&mut op, |r| unsafe {
+            ffi::MPI_Igather(
+                s.cast(),
+                n,
+                byte_type(),
+                d.cast(),
+                n,
+                byte_type(),
+                0,
+                comm,
+                r,
+            )
+        })?;
+        let mut bufs = op.wait()?;
+        let mut all = bufs.pop().unwrap_or_default();
+        if all.len() != total {
+            return Err(transport("header gather: buffer lost"));
+        }
+        let b = all.as_mut_ptr();
+        let mut op = self.in_flight(vec![all], Vec::new(), "MPI_Ibcast (header)", None);
+        // SAFETY: every rank passes the same count (`total` bytes, from the
+        // communicator size), its buffer of exactly that length is owned by
+        // the in-flight operation until it completes; root 0 exists.
+        self.start(&mut op, |r| unsafe {
+            ffi::MPI_Ibcast(b.cast(), nt, byte_type(), 0, comm, r)
+        })?;
+        let mut bufs = op.wait()?;
+        bufs.pop()
+            .ok_or_else(|| transport("header broadcast: buffer lost"))
     }
 
     /// Barrier (a header all-gather is synchronising).

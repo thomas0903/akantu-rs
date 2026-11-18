@@ -791,12 +791,115 @@ impl<E: Clone> Synchronizer<E> {
         let prepared = prepack(send, recv, &*accessor, tag, &self.sanity, me);
         let name = exchange_name(&self.id, tag);
         let sanity = &self.sanity;
+        if phases.status_in_messages() {
+            return self.exchange_with_status(phases, &name, prepared, recv, accessor, tag, mtag);
+        }
         phases.run(&name, prepared, |comm, (out, incoming)| {
             let (recvs, sends) = post_requests(comm, out, incoming, mtag)?;
             let received = complete(recvs, sends)?;
             // Post-processing (inner result): unpack in rank order.
             Ok(unpack_all(recv, received, accessor, tag, sanity, me))
         })
+    }
+
+    /// [`Synchronizer::exchange`] without an agreement before it (D-126,
+    /// [`Phases::status_in_messages`]): every message starts with its
+    /// sender's status byte ([`STATUS_OK`] then the payload, or
+    /// [`STATUS_FAILED`] alone when the sender's preparation failed). Every
+    /// rank posts every receive and send of its schemes whatever its local
+    /// outcome, so nobody waits for a message that is never sent and no
+    /// message is left behind; a rank that failed, or that received a
+    /// failed status, unpacks nothing and defers the failure to the scope's
+    /// next agreement (at the latest when it settles).
+    #[allow(clippy::too_many_arguments)] // the exchange's parts, as `exchange`
+    fn exchange_with_status(
+        &self,
+        phases: &mut Phases,
+        name: &str,
+        prepared: Result<Prepacked>,
+        recv: &Schemes<E>,
+        accessor: &mut dyn DataAccessor<E>,
+        tag: SynchronizationTag,
+        mtag: Tag,
+    ) -> Result<()> {
+        let me = self.communicator.rank();
+        let (out, incoming, local) = match prepared {
+            Ok((out, incoming)) => {
+                let out = out
+                    .into_iter()
+                    .map(|(rank, bytes)| {
+                        let mut m = Vec::with_capacity(bytes.len() + 1);
+                        m.push(STATUS_OK);
+                        m.extend(bytes);
+                        (rank, m)
+                    })
+                    .collect::<Vec<_>>();
+                (out, incoming, Ok(()))
+            }
+            Err(e) => {
+                // the peers still get one (status) message each and this
+                // rank still receives theirs
+                let (send, _) = self.schemes_of(recv);
+                let out = send
+                    .iter()
+                    .filter(|(_, ents)| !ents.is_empty())
+                    .map(|(&rank, _)| (rank, vec![STATUS_FAILED]))
+                    .collect();
+                // receives of the status byte only: a longer message is
+                // still received whole (reported as truncated, not
+                // unpacked), so nothing is left behind and no announced
+                // size (possibly the failure itself) is trusted
+                let incoming = recv
+                    .iter()
+                    .filter(|(_, ents)| !ents.is_empty())
+                    .map(|(&rank, _)| (rank, 0))
+                    .collect();
+                (out, incoming, Err(e))
+            }
+        };
+        if out.iter().any(|(_, m)| m.len() > MAX_MESSAGE_BYTES) {
+            // unreachable after prepack's limit check but for the status byte
+            return Err(Error::fatal(
+                akantu_core::FatalKind::Transport,
+                Error::Communication(format!("{tag}: message with its status byte too long")),
+            ));
+        }
+        let incoming: Vec<(Rank, usize)> = incoming
+            .into_iter()
+            .map(|(r, n)| (r, n.saturating_add(1)))
+            .collect();
+        let received = phases.exchange(name, |comm| {
+            let (recvs, sends) = post_requests(comm, out, incoming, mtag)?;
+            complete(recvs, sends)
+        })?;
+        let post = local.and_then(|()| {
+            let mut stripped = Vec::with_capacity(received.len());
+            for (rank, n, r) in received {
+                let r = match r {
+                    Ok(b) if b.first() == Some(&STATUS_OK) => Ok(b[1..].to_vec()),
+                    Ok(b) if b.first() == Some(&STATUS_FAILED) && b.len() == 1 => {
+                        return Err(Error::Communication(format!(
+                            "{tag}: rank {rank} failed before the exchange"
+                        )));
+                    }
+                    Ok(_) => Err(Error::Communication("malformed status byte".into())),
+                    Err(e) => Err(e),
+                };
+                stripped.push((rank, n.saturating_sub(1), r));
+            }
+            unpack_all(recv, stripped, accessor, tag, &self.sanity, me)
+        });
+        phases.deferred(&format!("{name}:post"), post, Severity::Recoverable)
+    }
+
+    /// The send schemes that pair with the receive schemes `recv` of an
+    /// exchange (whichever direction).
+    fn schemes_of(&self, recv: &Schemes<E>) -> (&Schemes<E>, &Schemes<E>) {
+        if std::ptr::eq(recv, &self.communications.recv) {
+            (&self.communications.send, &self.communications.recv)
+        } else {
+            (&self.communications.recv, &self.communications.send)
+        }
     }
 
     /// First half of an asynchronous exchange: prepack, agreement, post.
@@ -1236,6 +1339,12 @@ type Schemes<E> = BTreeMap<Rank, Vec<E>>;
 /// exchange.
 type Posted = (Vec<(Rank, usize, RecvRequest<u8>)>, Vec<SendRequest<u8>>);
 
+/// Status byte of a message of an exchange without a preceding agreement
+/// (D-126): the payload follows.
+const STATUS_OK: u8 = 1;
+/// Status byte of a sender whose preparation failed (no payload).
+const STATUS_FAILED: u8 = 0;
+
 #[allow(clippy::cast_possible_truncation)] // tag index < 64
 fn sanity_header(
     buffer: &mut CommunicationBuffer,
@@ -1408,6 +1517,7 @@ fn unpack_all<E>(
 #[cfg(test)]
 mod tests {
     use super::*;
+    use crate::phase::CollectiveChecks;
 
     struct Noop;
     impl DataAccessor<u32> for Noop {
@@ -1524,35 +1634,43 @@ mod tests {
                 Ok(())
             }
         }
-        let t0 = Instant::now();
-        let out = crate::run_local(2, Duration::from_secs(20), |c| {
-            let mut s: Synchronizer<u32> = Synchronizer::new("nodes", c.clone());
-            if c.rank() == 0 {
-                s.communications.send.insert(1, vec![0]);
-            } else {
-                s.communications.recv.insert(0, vec![0]);
-            }
-            let r = s.synchronize(&mut Failing(c.rank() == 0), SynchronizationTag::Test);
-            (r.map_err(|e| e.to_string()), Instant::now())
-        });
-        assert!(
-            t0.elapsed() < Duration::from_secs(2),
-            "completed long before the timeout"
-        );
-        assert!(
-            out[0]
-                .0
-                .as_ref()
-                .unwrap_err()
-                .contains("injected packing error")
-        );
-        assert!(
-            out[1]
-                .0
-                .as_ref()
-                .unwrap_err()
-                .contains("failed on another rank")
-        );
+        // both collective-check modes (D-126): every-phase agrees the
+        // packing failure before posting; commit points send the failed
+        // status in place of the payload (the receiver names the sender)
+        for mode in [CollectiveChecks::EveryPhase, CollectiveChecks::CommitPoints] {
+            let t0 = Instant::now();
+            let out = crate::run_local(2, Duration::from_secs(20), |c| {
+                c.set_collective_checks(mode);
+                let mut s: Synchronizer<u32> = Synchronizer::new("nodes", c.clone());
+                if c.rank() == 0 {
+                    s.communications.send.insert(1, vec![0]);
+                } else {
+                    s.communications.recv.insert(0, vec![0]);
+                }
+                let r = s.synchronize(&mut Failing(c.rank() == 0), SynchronizationTag::Test);
+                (r.map_err(|e| e.to_string()), Instant::now())
+            });
+            assert!(
+                t0.elapsed() < Duration::from_secs(2),
+                "completed long before the timeout"
+            );
+            assert!(
+                out[0]
+                    .0
+                    .as_ref()
+                    .unwrap_err()
+                    .contains("injected packing error")
+            );
+            let peer = match mode {
+                CollectiveChecks::EveryPhase => "failed on another rank",
+                CollectiveChecks::CommitPoints => "rank 0 failed before the exchange",
+            };
+            assert!(
+                out[1].0.as_ref().unwrap_err().contains(peer),
+                "{mode:?}: {:?}",
+                out[1].0
+            );
+        }
         // Bidirectional exchange of 1 MiB per direction, rendezvous sends.
         let t0 = Instant::now();
         let out = crate::run_local_with_mode(
