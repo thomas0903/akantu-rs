@@ -356,7 +356,7 @@ fn funneled_worker_policy() -> ! {
         .join()
         .expect("worker")
     });
-    let ph = parked.resume();
+    let mut ph = parked.resume();
     let settled = ph
         .settle::<()>(Err(Error::Communication(worker_err.clone())))
         .expect_err("x");
