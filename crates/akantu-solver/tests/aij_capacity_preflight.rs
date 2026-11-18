@@ -103,6 +103,8 @@ fn run(per_rank_caps: [BackendCapabilities; 2], extra: [usize; 2]) -> Vec<(Resul
         };
         let mut sol = [0.0];
         let res = aij.solve("J", &mut ctx, &[1.0 + f64::from(r)], &mut sol);
+        // the scope's owner settles it (D-126: what is deferred is agreed)
+        let res = ph.settle(res);
         (res, calls.load(Ordering::SeqCst))
     });
     assert!(

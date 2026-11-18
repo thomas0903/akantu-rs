@@ -618,38 +618,40 @@ impl<'a> NativeSolveContext<'a> {
     /// status is **identical on every rank**.
     pub fn form_function(&mut self, x: &[Real], f: &mut [Real]) -> i32 {
         let cb = &mut *self.callback;
-        let r = self.dofs.collective("native:form_function", |dofs| {
-            let n = dofs.local_system_size();
-            let shape = check_len("NativeSolveContext::form_function (f)", f.len(), n);
-            dofs.step("shape", |_| shape)?;
-            dofs.set_solution(x)?;
-            // upstream `NonLinearSolverPETSc::corrector(x)`: the trial
-            // increment is applied to the last converged step.
-            dofs.step("callback:restore_last_converged_step", |d| {
-                guarded("restore_last_converged_step", || {
-                    cb.restore_last_converged_step(d)
-                })
-            })?;
-            dofs.step("callback:corrector", |d| {
-                guarded("corrector", || cb.corrector(d))
-            })?;
-            dofs.zero_residual();
-            dofs.step("callback:assemble_residual", |d| {
-                guarded("assemble_residual", || cb.assemble_residual(d))
-            })?;
-            let blocked = dofs.blocked_snapshot();
-            let layout = dofs.layout();
-            let res = dofs.residual().values();
-            for (l, fl) in f.iter_mut().enumerate() {
-                *fl = if layout.is_owned(l) && !blocked[l] {
-                    -res[l]
-                } else {
-                    0.0
-                };
-            }
-            drop(res);
-            Ok(())
-        });
+        let r = self
+            .dofs
+            .collective_committed("native:form_function", |dofs| {
+                let n = dofs.local_system_size();
+                let shape = check_len("NativeSolveContext::form_function (f)", f.len(), n);
+                dofs.step("shape", |_| shape)?;
+                dofs.set_solution(x)?;
+                // upstream `NonLinearSolverPETSc::corrector(x)`: the trial
+                // increment is applied to the last converged step.
+                dofs.step("callback:restore_last_converged_step", |d| {
+                    guarded("restore_last_converged_step", || {
+                        cb.restore_last_converged_step(d)
+                    })
+                })?;
+                dofs.step("callback:corrector", |d| {
+                    guarded("corrector", || cb.corrector(d))
+                })?;
+                dofs.zero_residual();
+                dofs.step("callback:assemble_residual", |d| {
+                    guarded("assemble_residual", || cb.assemble_residual(d))
+                })?;
+                let blocked = dofs.blocked_snapshot();
+                let layout = dofs.layout();
+                let res = dofs.residual().values();
+                for (l, fl) in f.iter_mut().enumerate() {
+                    *fl = if layout.is_owned(l) && !blocked[l] {
+                        -res[l]
+                    } else {
+                        0.0
+                    };
+                }
+                drop(res);
+                Ok(())
+            });
         self.status(r)
     }
 
@@ -660,22 +662,24 @@ impl<'a> NativeSolveContext<'a> {
     pub fn form_jacobian(&mut self, x: &[Real]) -> i32 {
         let id = self.matrix_id.clone();
         let cb = &mut *self.callback;
-        let r = self.dofs.collective("native:form_jacobian", |dofs| {
-            dofs.set_solution(x)?;
-            dofs.step("callback:restore_last_converged_step", |d| {
-                guarded("restore_last_converged_step", || {
-                    cb.restore_last_converged_step(d)
-                })
-            })?;
-            dofs.step("callback:corrector", |d| {
-                guarded("corrector", || cb.corrector(d))
-            })?;
-            dofs.step("callback:assemble_matrix", |d| {
-                guarded("assemble_matrix", || cb.assemble_matrix(d, &id))
-            })?;
-            dofs.finalize_matrix(&id)?;
-            dofs.apply_boundary(&id)
-        });
+        let r = self
+            .dofs
+            .collective_committed("native:form_jacobian", |dofs| {
+                dofs.set_solution(x)?;
+                dofs.step("callback:restore_last_converged_step", |d| {
+                    guarded("restore_last_converged_step", || {
+                        cb.restore_last_converged_step(d)
+                    })
+                })?;
+                dofs.step("callback:corrector", |d| {
+                    guarded("corrector", || cb.corrector(d))
+                })?;
+                dofs.step("callback:assemble_matrix", |d| {
+                    guarded("assemble_matrix", || cb.assemble_matrix(d, &id))
+                })?;
+                dofs.finalize_matrix(&id)?;
+                dofs.apply_boundary(&id)
+            });
         self.status(r)
     }
 
@@ -770,7 +774,7 @@ impl<'a> NativeSolveContext<'a> {
     /// identical on every rank.
     pub fn finish(&mut self, x: &[Real]) -> i32 {
         let cb = &mut *self.callback;
-        let r = self.dofs.collective("native:finish", |dofs| {
+        let r = self.dofs.collective_committed("native:finish", |dofs| {
             dofs.set_solution(x)?;
             dofs.step("callback:restore_last_converged_step", |d| {
                 guarded("restore_last_converged_step", || {

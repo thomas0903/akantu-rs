@@ -494,7 +494,9 @@ mod tests {
                 Ok(None)
             };
             let mut sol = vec![-5.0; layout.nb_local()];
-            scatter_solution(&mut ph, "t", &sys, x, &mut sol).unwrap();
+            let r = scatter_solution(&mut ph, "t", &sys, x, &mut sol);
+            // the scope's owner settles it (D-126: what is deferred is agreed)
+            ph.settle(r).unwrap();
             sol
         });
         assert_eq!(out[0], [1.0, 1.0]);

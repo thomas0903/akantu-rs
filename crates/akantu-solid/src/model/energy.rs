@@ -392,7 +392,7 @@ impl SolidMechanicsModel {
         let p = &mut self.physics;
         self.solver
             .dof_manager
-            .collective("smm:stable_time_step", |dm| {
+            .reduction("smm:stable_time_step", |dm| {
                 let local = p.stable_time_step_local(dm);
                 all_reduce_in(dm, local, ReduceOp::Min)
             })
@@ -406,7 +406,7 @@ impl SolidMechanicsModel {
         let e = self
             .solver
             .dof_manager
-            .collective("smm:kinetic_energy", |dm| {
+            .reduction("smm:kinetic_energy", |dm| {
                 let local = p.kinetic_energy_local(dm);
                 all_reduce_in(dm, local, ReduceOp::Sum)
             })?;
@@ -422,7 +422,7 @@ impl SolidMechanicsModel {
         let w = self
             .solver
             .dof_manager
-            .collective("smm:external_work", |dm| {
+            .reduction("smm:external_work", |dm| {
                 let local = p.external_work_local(dm);
                 all_reduce_in(dm, local, ReduceOp::Sum)
             })?;
@@ -439,7 +439,7 @@ impl SolidMechanicsModel {
         let w = self.physics.external_work;
         self.solver
             .dof_manager
-            .collective("smm:external_work_new", |dm| {
+            .reduction("smm:external_work_new", |dm| {
                 all_reduce_in(dm, Ok(w), ReduceOp::Sum)
             })
     }
@@ -454,7 +454,7 @@ impl SolidMechanicsModel {
             "external work new" => self.external_work_new(),
             _ => {
                 let p = &mut self.physics;
-                self.solver.dof_manager.collective("smm:energy", |dm| {
+                self.solver.dof_manager.reduction("smm:energy", |dm| {
                     let local = p.materials_energy_local(dm, energy_id);
                     all_reduce_in(dm, local, ReduceOp::Sum)
                 })

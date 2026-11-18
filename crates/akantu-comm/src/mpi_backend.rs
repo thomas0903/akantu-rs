@@ -145,7 +145,8 @@ use akantu_core::{Error, FatalKind, Rank, Result};
 use mpi::ffi;
 
 use crate::communicator::{
-    CollDesc, CollOp, DESC_WORDS, MAX_MESSAGE_BYTES, ReductionPolicy, SendMode, check_entries,
+    CollDesc, CollOp, DESC_WORDS, HeaderStatus, MAX_MESSAGE_BYTES, ReductionPolicy, STATUS_WORDS,
+    SendMode, check_entries, set_verdict, status_error, status_verdict,
 };
 use crate::lifecycle::{
     Lifecycle, MpiEnvironment, MpiRuntime, ThreadKey, ThreadLevel, ThreadPolicy,
@@ -732,6 +733,13 @@ thread_local! {
 
 fn native_depth() -> usize {
     NATIVE_DEPTH.with(std::cell::Cell::get)
+}
+
+/// `true` while the current thread is inside a native region, collective
+/// or admitted ticket (a native library may communicate outside the
+/// collective protocol: D-126 keeps every agreement there).
+pub(crate) fn in_native_region() -> bool {
+    native_depth() > 0
 }
 
 /// Marks the current thread as inside a native call (panic-safe).
@@ -1952,8 +1960,9 @@ fn ensure_intra(policy: &ThreadPolicy, comm: RawComm, what: &str) -> Result<()> 
     Ok(())
 }
 
-/// Header words: sequence, info, ok, then the descriptor.
-const HEADER_WORDS: usize = 3 + DESC_WORDS;
+/// Header words: sequence, info, ok, the descriptor, then the protocol
+/// status (D-126, [`crate::communicator::HeaderStatus`]).
+const HEADER_WORDS: usize = 3 + DESC_WORDS + STATUS_WORDS;
 /// Bytes of the header words.
 const HEADER_WORDS_BYTES: usize = 8 * HEADER_WORDS;
 /// Inline payload slot of every header (zero-padded): a payload collective
@@ -2741,6 +2750,7 @@ impl MpiBackend {
         for w in [seq, info, u64::from(local.is_ok())]
             .into_iter()
             .chain(desc.words())
+            .chain(HeaderStatus::words(desc.status))
         {
             mine.extend_from_slice(&w.to_le_bytes());
         }
@@ -2772,6 +2782,19 @@ impl MpiBackend {
             u64::from_le_bytes(w)
         };
         let me = usize::try_from(self.rank).unwrap_or(0);
+        // D-126: a protocol status reported by any rank decides first
+        // (whatever the sequence numbers and descriptors say): the
+        // collective fails on every rank before any payload moves
+        if let Some(v) = status_verdict((0..self.size).map(|r| {
+            let mut st = [0u64; STATUS_WORDS];
+            for (k, w) in st.iter_mut().enumerate() {
+                *w = word(r, 3 + DESC_WORDS + k);
+            }
+            st
+        })) {
+            set_verdict(v);
+            return Err(status_error(v, local.err()));
+        }
         if let Some(r) = (0..self.size).find(|&r| word(r, 0) != word(me, 0)) {
             let e = Error::Communication(format!(
                 "collective mismatch: rank {} at collective #{}, rank {r} at #{} (operation {:?})",
