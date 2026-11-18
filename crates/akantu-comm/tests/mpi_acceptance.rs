@@ -20,7 +20,7 @@ use std::sync::Arc;
 use std::time::{Duration, Instant};
 
 use akantu_comm::lifecycle::{InitOwnership, ThreadLevel};
-use akantu_comm::phase::{Phases, Severity, agree, run_phase};
+use akantu_comm::phase::{CollectiveChecks, Phases, Severity, agree, run_phase};
 use akantu_comm::synchronizer::{SanityCheck, ScatterGatherEntities, SendRecv};
 use akantu_comm::{
     CommunicationBuffer, Communicator, DataAccessor, MpiOptions, ReduceOp, ReductionPolicy,
@@ -704,6 +704,10 @@ fn phase_protocol_ports() -> Outcome {
         ensure!(p == 1 || (d.is_err() && ph.failure() == Some(Severity::Recoverable)));
     }
     {
+        // D-018's post agreement (every-phase checks): the failure is agreed
+        // at once on every rank
+        let mode = c.collective_checks();
+        c.set_collective_checks(CollectiveChecks::EveryPhase);
         let mut ph = Phases::new(&c, "post");
         let post = ph.run("unpack", Ok(()), |comm, ()| {
             comm.barrier()?;
@@ -714,6 +718,25 @@ fn phase_protocol_ports() -> Outcome {
             })
         });
         ensure!(post.is_err() && ph.is_failed() && !ph.is_broken());
+        drop(ph);
+        // D-126 commit points: rank 0's post-processing failure is deferred
+        // (only rank 0 has an error) and agreed on every rank when the scope
+        // settles
+        c.set_collective_checks(CollectiveChecks::CommitPoints);
+        let mut ph = Phases::new(&c, "post-commit-points");
+        let post = ph.run("unpack", Ok(()), |comm, ()| {
+            comm.barrier()?;
+            Ok(if comm.rank() == 0 {
+                Err(Error::Numerical("bad received value".into()))
+            } else {
+                Ok(())
+            })
+        });
+        ensure!(post.is_err() == (c.rank() == 0) && !ph.is_failed());
+        let settled = ph.settle(post);
+        ensure!(p == 1 || (settled.is_err() && ph.is_failed() && !ph.is_broken()));
+        drop(ph);
+        c.set_collective_checks(mode);
     }
     // Agreed severity.
     {
