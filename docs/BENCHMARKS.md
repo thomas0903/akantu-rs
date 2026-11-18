@@ -37,12 +37,32 @@ medians with [min, max]; data `docs/benchmarks/perf-campaign/final/`):
   distribution 0.095–0.11×. The communication layer takes 6.46× raw MPI for
   an 8-byte ping-pong over shared memory and 2.52× for 16 MiB (part F).
 
-The full-size run on the JOSS mesh and the multi-node runs of the final
-campaign are measured separately and are not yet in this revision; their
-sections keep the measurements of 12 and 13 November. Sections marked
-"before the final campaign" are the dated records of 11 to 14 November,
-measured on other machines with the port as it was then; their numbers are
-not compared with the final campaign's.
+The full-size benchmark (the JOSS mesh, 4,392,183 tetrahedra, 5,000 steps
+with insertion; AMD EPYC 9R14; 2026-11-17 and 18 UTC; one run per
+configuration; data `docs/benchmarks/perf-campaign/final/G/` and
+`final/multinode/`; loop = step, check, energies and boundary conditions):
+
+- On one 128-core machine (AWS `m7a.32xlarge`, two sockets; port
+  `740a79a36`, part G) the port's run took 0.42–0.51 of upstream's wall
+  time and its loop 0.35–0.43 of upstream's at 32, 64 and 128 ranks (835 s
+  against 1,948 s at 128 ranks); 64 ranks × 2 threads bring its loop to
+  568 s. That machine does not scale from 64 to 128 ranks (the port's loop
+  846 s → 835 s, upstream's 1.25× faster), so the ratios at 128 ranks are
+  those of a saturated machine.
+- Across four 32-core hosts (AWS `m7a.8xlarge`, 128 ranks) the port took
+  1.48 and 1.51 times upstream's loop before the change of its collective
+  error protocol (1,538 s and 1,536 s against 1,040 s and 1,019 s, two
+  sessions on different hosts): it agreed after every phase, 51.6
+  collectives per step and rank against upstream's 8.4. With collective
+  checks at commit points (D-126, 20.5 collectives per step and rank,
+  results unchanged) the final revision `4a8d9d38e` takes 526 s on four
+  hosts, 0.51–0.52 of upstream's loop, and 722 s on two hosts against
+  upstream's 1,924 s (0.375). On one machine it takes 814 s at 128 ranks
+  (835 s before the change).
+
+Sections marked "before the final campaign" are the dated records of 11 to
+14 November, measured on other machines with the port as it was then;
+their numbers are not compared with the final campaign's.
 
 The summary this document opened with before the final campaign (the
 measurements of 11 to 14 November, the port before the performance
@@ -72,9 +92,9 @@ conclusion rests on them.
 | Machine | CPU | Dates | Measured there | Data |
 |---|---|---|---|---|
 | 4 × AWS `m7a.2xlarge` (8 cores, one thread per core, one NUMA node, 30.6 GiB visible, Ubuntu 24.04.5, kernel 7.0.0-1014-aws), one part per machine, nothing else running | AMD EPYC 9R14 | 2026-11-17 (sessions 10:33 to 18:59 UTC) | the final campaign, stage 1: machine 1 part C series `reh6`; machine 2 part C (other series); machine 3 parts B, D; machine 4 parts E, F, A | `docs/benchmarks/perf-campaign/final/` |
-| one 128-core node | — | measured separately; not yet available in this revision | the final campaign, part G (the JOSS mesh at 128 / 64 / 32 ranks, both codes) | to come |
+| AWS `m7a.32xlarge`, 128 cores, one thread per core, two NUMA nodes of 64 cores, 493 GiB visible, Ubuntu 24.04.5, kernel 7.0.0-1014-aws | AMD EPYC 9R14 | 2026-11-17 22:35 to 2026-11-18 03:38 UTC | the final campaign, part G (the JOSS mesh at 128 / 64 / 32 ranks, both codes; the port at 64 × 2, 32 × 4, 16 × 8 threads; port `740a79a36`) | `docs/benchmarks/perf-campaign/final/G/` |
 | AWS `m7a.2xlarge` (machine 3 again, same type) | AMD EPYC 9R14 | 2026-11-17 (17:06 to 20:20 UTC) | the final campaign, part D second pass at `4d974854d`: every variant of the first pass and the orderings `head-nd`, `head-auto` | `docs/benchmarks/perf-campaign/final/D-nd/` |
-| 4 hosts | — | measured separately; not yet available in this revision | the final campaign's multi-node run (128 ranks over 4 hosts, the port only) | to come |
+| 4 × AWS `m7a.8xlarge` per session (32 cores, one thread per core, one NUMA node, 123 GiB visible, same image and kernel), one cluster placement group; three sessions on three sets of hosts; and one 128-core machine of part G's description | AMD EPYC 9R14 | 2026-11-18 (04:12 to 19:37 UTC) | the multi-host runs: both codes at 128 ranks on four hosts and 64 on two, the port before and after D-126; the final revision on one machine | `docs/benchmarks/perf-campaign/final/multinode/` |
 | AWS `r7a.16xlarge`, one node, 64 cores, one thread per core, one NUMA node, 493 GiB visible | AMD EPYC 9R14 | 2026-11-12, 2026-11-13 | the full-size run (both codes at 64 and 32 ranks, the port at 8); the port's rerun after UD-1280 | `docs/benchmarks/c1-2026-11-12/`, `c1-rerun-2026-11-13/` |
 | 8 × AWS `r7a.2xlarge` (8 cores, 64 GiB each), one cluster placement group | AMD EPYC 9R14 | 2026-11-13 | the multi-node runs (the port only, up to 64 ranks) | `docs/benchmarks/mn-2026-11-13/` |
 | boat.dev `large` sandbox, 8 vCPU, 15.6 GiB, Ubuntu 24.04, kernel 6.8.0-117 | AMD EPYC 9455 | 2026-11-12, 2026-11-13 | the mid-size rehearsal and the MUMPS series; the weak and strong scaling series at 1–8 ranks | `docs/benchmarks/midsize-2026-11-12/`, `scaling-2026-11-13/` |
@@ -172,6 +192,45 @@ insertion check; core-µs per element and step and loop efficiency are
 defined as below. Ratios are paired per repetition, then the median
 [min, max]. A ratio column marked "unpaired" divides the medians of two
 groups.
+
+### Part G and the multi-host runs (2026-11-17 and 18)
+
+Part G ran the JOSS mesh on one AWS `m7a.32xlarge` (128 cores, two NUMA
+nodes of 64 cores) with the driver of stage 1, one run per point, both
+codes on the same exported partition per rank count, rank r with T threads
+on the r-th block of T cores, NUMA node 0 filled first. The multi-host
+runs used the multi-node launcher (`crates/akantu-bench/scripts/mn_cluster.py`,
+`mn_session.py`) on four `m7a.8xlarge` (32 cores, one NUMA node each,
+started together in one cluster placement group from the same machine
+image, Open MPI 5.0.7 over TCP between them), 32 ranks per host in
+consecutive blocks, rank 0 on the first host, part G's partitions and
+inputs; three sessions on three sets of hosts. The hosts' descriptions
+(CPU, cores, NUMA nodes, memory, kernel, transparent huge pages, NUMA
+balancing, Docker) are recorded in each run's `status.txt` (sessions 2
+and 3) or were read on each host before the session (session 1,
+`multinode/s1-port/hosts-record.txt`).
+
+Ranks bind themselves. Open MPI 5.0.7's launcher cannot start more than 10
+ranks per host with `--bind-to core` inside a Docker container with the
+default seccomp profile: every bound child's `set_mempolicy()` is refused
+without `CAP_SYS_NICE`, the warning it sends meets a closed pipe and the
+launcher aborts at the eleventh `SIGPIPE`. Part G's first attempt failed
+this way at the start of every run. Both codes' launchers therefore start
+`mpirun --bind-to none` and every rank binds itself with `taskset` to the
+r-th block of T cores of its container
+(`benchmarks/cohesive-perf/scripts/in-container/bind-rank.sh`, r the rank's
+index on its host): the same cores per rank as `--map-by core --bind-to
+core` (`--map-by slot:PE=T`). `docker run --cap-add SYS_NICE` would be the
+alternative. The recorded binding of every run is the planned one (part G:
+`bindings.py check` over every record, `G/README.md`; the multi-host runs:
+`status.txt` `bindings`, `binding_problems`).
+
+Every configuration ran once; the 128-rank port point of part G has a
+second sample, and two configurations ran on two sets of hosts (the port
+at `740a79a36` and C++ at 128 ranks on four hosts). The full-size tables
+give rank 0's phase totals; the loop of the multi-node tables includes the
+per-step energies and boundary conditions, the "loop s" of part G's
+generated tables does not.
 
 ### The earlier campaigns (11–14 November)
 
@@ -1396,14 +1455,122 @@ none) cost the port's explicit step about 8 % at 8 ranks (10.2 against
 
 ### The full-size run
 
-<!-- PLACEHOLDER final-G: paste the tables of docs/benchmarks/perf-campaign/final/G/summary.md here -->
-Final campaign, part G: measured separately; not yet available in this
-revision. The JOSS mesh, 5,000 steps, on one 128-core node, at 128, 64 and
-32 ranks with both codes (and the port at ranks × threads), the same
-partition per rank count, one run per point. Its tables go here as
-generated, from `docs/benchmarks/perf-campaign/final/G/`. Until then the
-full-size measurement is the run of 12 November below, made with the port
-before the performance campaign.
+#### Final campaign: one 128-core machine (part G, 2026-11-17/18)
+
+The JOSS mesh, 5,000 steps with insertion, on one AWS `m7a.32xlarge` (AMD
+EPYC 9R14, 128 cores, one thread per core, two NUMA nodes of 64 cores,
+493 GiB visible), 2026-11-17 22:35 to 2026-11-18 03:38 UTC. Both codes at
+128, 64 and 32 ranks, the port also at 64 × 2, 32 × 4 and 16 × 8 threads
+on all 128 cores; C++: the strict install with the JOSS emulation, MUMPS
+5.7.3; port: `740a79a36` (driver `90d301c9…`). The same Scotch partition
+per rank count, exported first by the C++ harness; every rank bound to its
+own cores (section "Method"), NUMA node 0 filled first: the 32- and
+64-rank runs use one socket, the 128-rank and hybrid runs both. One run
+per point. Data and the first 128-rank sample:
+`docs/benchmarks/perf-campaign/final/G/` (`README.md`). The tables below
+are those of `G/summary.md` as generated; their "loop s" is `solve_step`
+plus the check. The loop with the per-step energies and boundary
+conditions (the driver's loop, as in the multi-node tables) is in
+`multinode/table.md` and in the section "Multi-node runs".
+
+Table "Strong scaling" (rank 0's phases; core-µs per element and step = (`solve_step` + check) × cores / tetrahedra / steps; loop efficiency against 32 cores of the same code):
+
+| code | ranks x threads | cores | placement, NUMA nodes | wall s | read_mesh | dist_mesh | init_full | static solve | `solve_step` ms/step | check ms/step | energies ms/step | loop s | core-µs/el/step | loop efficiency |
+|---|---|---|---|---|---|---|---|---|---|---|---|---|---|---|
+| port | 32 x 1 | 32 | fill, 0 | 1,806 | 2.52 | 11.4 | 1.76 | 448 | 115 | 142 | 10.2 | 1,285 | 1.87 | 100% |
+| port | 64 x 1 | 64 | fill, 0 | 1,204 | 2.43 | 11.5 | 0.881 | 337 | 76.9 | 86.0 | 6.32 | 815 | 2.37 | 79% |
+| port | 128 x 1 | 128 | fill, 0,1 | 1,174 | 2.46 | 12.1 | 0.544 | 319 | 74.9 | 83.8 | 8.41 | 793 | 4.62 | 40% |
+| port | 64 x 2 | 128 | fill, 0,1 | 849 | 2.49 | 11.9 | 0.680 | 262 | 50.4 | 58.1 | 5.12 | 543 | 3.16 | 59% |
+| port | 32 x 4 | 128 | fill, 0,1 | 896 | 2.47 | 11.2 | 1.29 | 276 | 54.2 | 60.8 | 5.24 | 575 | 3.35 | 56% |
+| port | 16 x 8 | 128 | fill, 0,1 | 1,532 | 2.50 | 11.1 | 2.78 | 641 | 91.0 | 74.8 | 8.09 | 829 | 4.83 | 39% |
+| C++ | 32 x 1 | 32 | fill, 0 | 4,297 | 15.0 | 66.3 | 16.7 | 381 | 199 | 533 | 30.0 | 3,659 | 5.33 | 100% |
+| C++ | 64 x 1 | 64 | fill, 0 | 2,848 | 18.0 | 85.7 | 7.55 | 299 | 134 | 326 | 26.0 | 2,300 | 6.70 | 80% |
+| C++ | 128 x 1 | 128 | fill, 0,1 | 2,298 | 15.7 | 86.5 | 4.16 | 239 | 87.7 | 246 | 55.5 | 1,671 | 9.74 | 55% |
+
+Table "Phases" (rank 0's Chrono totals, s; per step = total / 5,000):
+
+| code | ranks | wall s | read_mesh | dist_mesh | init_full | static solve | before_step | `solve_step` s (ms/step) | check s (ms/step) | energies s (ms/step) | loop s | core-µs/el/step |
+|---|---|---|---|---|---|---|---|---|---|---|---|---|
+| port | 128 | 1,174 | 2.46 | 12.1 | 0.544 | 319 | 0.468 | 374 (74.9) | 419 (83.8) | 42.1 (8.41) | 793 | 4.62 |
+| C++ | 128 | 2,298 | 15.7 | 86.5 | 4.16 | 239 | 1.27 | 439 (87.7) | 1,232 (246) | 277 (55.5) | 1,671 | 9.74 |
+| port | 64 | 1,204 | 2.43 | 11.5 | 0.881 | 337 | 0.890 | 385 (76.9) | 430 (86.0) | 31.6 (6.32) | 815 | 2.37 |
+| port 64 x 2 | 64 | 849 | 2.49 | 11.9 | 0.680 | 262 | 0.606 | 252 (50.4) | 291 (58.1) | 25.6 (5.12) | 543 | 3.16 |
+| C++ | 64 | 2,848 | 18.0 | 85.7 | 7.55 | 299 | 2.33 | 669 (134) | 1,631 (326) | 130 (26.0) | 2,300 | 6.70 |
+| port | 32 | 1,806 | 2.52 | 11.4 | 1.76 | 448 | 1.56 | 574 (115) | 711 (142) | 51.2 (10.2) | 1,285 | 1.87 |
+| port 32 x 4 | 32 | 896 | 2.47 | 11.2 | 1.29 | 276 | 1.15 | 271 (54.2) | 304 (60.8) | 26.2 (5.24) | 575 | 3.35 |
+| C++ | 32 | 4,297 | 15.0 | 66.3 | 16.7 | 381 | 4.12 | 995 (199) | 2,664 (533) | 150 (30.0) | 3,659 | 5.33 |
+| port 16 x 8 | 16 | 1,532 | 2.50 | 11.1 | 2.78 | 641 | 2.48 | 455 (91.0) | 374 (74.8) | 40.4 (8.09) | 829 | 4.83 |
+
+Table "Port / upstream at the same rank count" (single runs):
+
+| ranks | wall | `init_full` | static solve | `dist_mesh` | `solve_step` | check | energies | loop | largest rank peak | total peak |
+|---|---|---|---|---|---|---|---|---|---|---|
+| 128 | 0.511 | 0.131 | 1.34 | 0.140 | 0.853 | 0.340 | 0.152 | 0.475 | 0.988 | 1.01 |
+| 64 | 0.423 | 0.117 | 1.13 | 0.134 | 0.575 | 0.264 | 0.243 | 0.354 | 1.03 | 0.929 |
+| 32 | 0.420 | 0.106 | 1.18 | 0.172 | 0.577 | 0.267 | 0.341 | 0.351 | 1.24 | 0.993 |
+
+Table "Memory" (GiB; sampler: VmHWM of every rank; container: the cgroup's `memory.peak`; static: the port's VmHWM at the end of the static solve):
+
+| code | ranks | largest rank | total (sampler) | container | static: largest rank / total | per-rank peak min / median / max |
+|---|---|---|---|---|---|---|
+| port | 128 | 4.53 | 321 | 206 | 4.53 / 319 | 2.05 / 2.41 / 4.53 |
+| C++ | 128 | 4.59 | 318 | 217 | — | 2.10 / 2.44 / 4.59 |
+| port | 64 | 5.89 | 218 | 196 | 5.88 / 216 | 2.57 / 3.21 / 5.89 |
+| port 64 x 2 | 64 | 6.44 | 197 | 176 | 6.38 / 192 | 2.33 / 2.91 / 6.44 |
+| C++ | 64 | 5.70 | 235 | 213 | — | 2.74 / 3.48 / 5.70 |
+| port | 32 | 10.9 | 187 | 183 | 10.8 / 183 | 4.39 / 5.58 / 10.9 |
+| port 32 x 4 | 32 | 8.05 | 178 | 175 | 7.91 / 171 | 4.01 / 5.41 / 8.05 |
+| C++ | 32 | 8.77 | 188 | 184 | — | 4.36 / 5.36 / 8.77 |
+| port 16 x 8 | 16 | 17.6 | 171 | 170 | 17.2 / 164 | 7.37 / 10.3 / 17.6 |
+
+Table "MUMPS" (the port's records; `INFOG` in MB, flops = `RINFOG(3)`):
+
+| ranks | ordering `INFOG(7)` | factor entries `INFOG(29)` | allocated sum / largest rank `INFOG(19)` / `(18)` | used sum / largest `INFOG(22)` / `(21)` | elimination flops | retries | matrix entries sum / largest rank |
+|---|---|---|---|---|---|---|---|
+| 128 (port) | 4 | 8.14e+09 | 199,175 / 3,766 | 122,002 / 2,139 | 1.67e+14 | 0 | 54,624,147 / 435,060 |
+| 64 (port) | 4 | 7.86e+09 | 182,002 / 5,639 | 107,667 / 3,988 | 1.52e+14 | 0 | 53,725,776 / 846,258 |
+| 64 (port 64 x 2) | 4 | 7.55e+09 | 158,306 / 6,017 | 101,194 / 5,298 | 1.33e+14 | 0 | 53,725,776 / 846,258 |
+| 32 (port) | 4 | 7.97e+09 | 174,331 / 11,183 | 106,523 / 7,547 | 1.58e+14 | 0 | 53,089,626 / 1,677,093 |
+| 32 (port 32 x 4) | 4 | 7.51e+09 | 155,575 / 7,569 | 97,472 / 5,150 | 1.31e+14 | 0 | 53,089,626 / 1,677,093 |
+| 16 (port 16 x 8) | 4 | 8.12e+09 | 152,678 / 16,879 | 101,682 / 13,533 | 1.66e+14 | 0 | 52,508,430 / 3,297,309 |
+
+Reading (single runs; ratios from `multinode/table.md`):
+
+- At the same rank count the port's run took 0.511, 0.423 and 0.420 of
+  upstream's wall time at 128, 64 and 32 ranks, and its loop with the
+  energies 0.429, 0.348 and 0.351 (835 s against 1,948 s, 846 s against
+  2,430 s, 1,336 s against 3,809 s): `solve_step` 0.853 / 0.575 / 0.577,
+  the check 0.340 / 0.264 / 0.267, the energies 0.152 / 0.243 / 0.341. The
+  static solve took 1.34 / 1.13 / 1.18 times upstream's, `init_full`
+  0.106–0.131 and the mesh distribution 0.134–0.172.
+- The machine does not scale from 64 to 128 ranks: the port's loop goes
+  from 846 s to 835 s, upstream's from 2,430 s to 1,948 s (1.25×). The
+  128-rank runs add the second socket; per element and step the port's
+  step and check cost 2.37 core-µs at 64 ranks and 4.62 at 128 (upstream
+  6.70 and 9.74). Across hosts the same 128 ranks run faster in both codes
+  (section "Multi-node runs"): the ratios at 128 ranks above are measured
+  on a saturated machine.
+- Ranks × threads on all 128 cores: 64 × 2 takes 568 s (loop with the
+  energies), 32 × 4 601 s and 16 × 8 870 s, against 835 s for 128
+  single-thread ranks; 64 × 2 and 32 × 4 peak at 176 and 175 GiB in the
+  container against 206 GiB.
+- Memory: container peaks 206 / 196 / 183 GiB for the port and 217 / 213 /
+  184 GiB for upstream at 128 / 64 / 32 ranks; the largest rank 0.988 /
+  1.03 / 1.24 times upstream's.
+- The repetition: the first 128-rank sample of the port (correct; repeated
+  because its binding record was incomplete, `G/README.md`) took 825.5 s
+  in the loop, 1,116 s in all and 271 s in the static solve, against
+  835.3 s, 1,174 s and 319 s in the table's run.
+- The final revision (`4a8d9d38e`, with D-126) on a 128-core machine of the
+  same description, 2026-11-18 19:18–19:37 UTC, 128 ranks, part G's
+  command (`multinode/one-machine-final/`): loop 814 s, 0.975 of the
+  table's 835 s and 0.986 of the first sample's 826 s; `solve_step` and the
+  check within 1.3 %, the energies 29.9 s against 42.1 s (one reduction for
+  the four energies).
+- A profile of the port at 64 and 128 ranks on that machine (2,000 steps,
+  system-wide cycles, `G/profile/`): the driver's own code 69.0 % and
+  51.0 % of the cycles, the kernel 13.1 % and 21.0 %, libc 13.1 % and
+  15.0 %, Open MPI 4.5 % and 12.4 %.
 
 #### Before the final campaign (AWS `r7a.16xlarge`, 2026-11-12)
 
@@ -1515,11 +1682,61 @@ insertion. One rank on a sandbox does not show the parallel overhead of a
 
 Upstream's JOSS study ran the same mesh and the same 5,000-step schedule
 with insertion (v5.0.4 Release with the JOSS patch, five runs per core
-count) on EPFL's jed cluster (Intel Xeon 8360Y, two 36-core sockets per
-node). Its timing files are committed verbatim in
+count, seven from 288 cores) on EPFL's jed cluster (Intel Xeon 8360Y, two
+36-core sockets per node). Its timing files are committed verbatim in
 `benchmarks/cohesive-perf/results/published-jed/`; the medians per core
-count are in `docs/manual/src/appendix/joss.md`. jed: medians of the v5.0.4
-cohesive file at the three core counts nearest to the full-size points.
+count are in `docs/manual/src/appendix/joss.md`.
+
+Final campaign (part G and the multi-host runs; `multinode/table.md`):
+
+| run | runs | step + check s | core-µs/el/step |
+|---|---|---|---|
+| jed, 9 cores | 5 | 9,445.2 [9,353.2, 9,839.5] | 3.87 |
+| jed, 18 cores | 5 | 4,871.9 [4,808.0, 5,009.9] | 3.99 |
+| jed, 36 cores | 5 | 2,686.8 [2,632.6, 2,739.0] | 4.40 |
+| jed, 72 cores | 5 | 1,829.2 [1,748.2, 1,868.0] | 6.00 |
+| jed, 144 cores | 5 | 888.1 [880.9, 1,008.3] | 5.82 |
+| jed, 288 cores | 7 | 953.2 [515.8, 1,213.4] | 12.50 |
+| jed, 432 cores | 7 | 1,095.4 [946.5, 1,162.7] | 21.55 |
+| jed, 576 cores | 7 | 908.4 [509.8, 1,054.2] | 23.83 |
+| jed, 648 cores | 7 | 940.0 [873.6, 1,086.8] | 27.74 |
+| jed, 720 cores | 7 | 988.7 [887.4, 1,096.7] | 32.41 |
+| port 740a79a36, 32, one 128-core machine (`G/full-hjoss-np32-r1-head`) | 1 | 1,285.0 | 1.87 |
+| port 740a79a36, 64, one 128-core machine (`G/full-hjoss-np64-r1-head`) | 1 | 814.6 | 2.37 |
+| port 740a79a36, 128, one 128-core machine (`G/full-hjoss-np128-r1-head`) | 1 | 793.2 | 4.62 |
+| port 4a8d9d38e, 128, one 128-core machine (`one-machine-final/run`) | 1 | 784.3 | 4.57 |
+| port 740a79a36, 64, 2 hosts x 32 (`s1-port/joss64x2-a1`) | 1 | 953.2 | 2.78 |
+| port 4a8d9d38e, 64, 2 hosts x 32 (`s3-final64/joss64x2-a1`) | 1 | 698.2 | 2.03 |
+| port 740a79a36, 128, 4 hosts x 32 (`s1-port/joss128x4-a1`) | 1 | 1,320.8 | 7.70 |
+| port 6cdb1b601, 128, 4 hosts x 32 (`s2-after/joss128x4-a1`) | 1 | 458.1 | 2.67 |
+| port 4a8d9d38e, 128, 4 hosts x 32 (`s3-final128/joss128x4-a1`) | 1 | 510.9 | 2.98 |
+| C++, 32, one 128-core machine (`G/full-hjoss-np32-r1-cpp`) | 1 | 3,658.9 | 5.33 |
+| C++, 64, one 128-core machine (`G/full-hjoss-np64-r1-cpp`) | 1 | 2,299.9 | 6.70 |
+| C++, 128, one 128-core machine (`G/full-hjoss-np128-r1-cpp`) | 1 | 1,670.9 | 9.74 |
+| C++, 64, 2 hosts x 32 (`s1-cpp64/joss64x2-a1`) | 1 | 1,785.2 | 5.20 |
+| C++, 128, 4 hosts x 32 (`s1-cpp/joss128x4-a1`) | 1 | 935.9 | 5.45 |
+| C++, 128, 4 hosts x 32 (`s2-cpp/joss128x4-a1`) | 1 | 923.5 | 5.38 |
+
+- jed's step + check falls to 888 s at 144 cores (two nodes) and stays
+  between 908 and 1,095 s (medians) from 288 to 720 cores: the reference
+  build of the paper stops scaling from 144 cores on.
+- The port's step + check at 128 ranks: 793 s (part G) and 784 s (final
+  revision) on one machine, 511 s across four hosts at the final revision
+  (458 s at `6cdb1b601`); upstream `35a85178` 1,671 s on one machine and
+  924–936 s across four hosts. Per element and step: 4.57 core-µs for the
+  final revision on one machine and 2.98 across four hosts, 9.74 and
+  5.38–5.45 for upstream, 5.82 for jed at 144 cores.
+- What cannot be compared, as below: absolute times of another processor
+  (Ice Lake against Genoa), another interconnect, another build (v5.0.4
+  Release) and another year; medians of five to seven runs on jed against
+  single runs here; upstream's distributed runs leave the serial problem
+  in both studies (UD-890). The one 128-core machine is saturated at 128
+  ranks (above), and the four-host runs measure the hosts' memory systems
+  as much as the network ("Multi-node runs").
+
+Before the final campaign (the runs of 12 November; jed: medians of the
+v5.0.4 cohesive file at the three core counts nearest to the full-size
+points):
 
 |  | jed, v5.0.4 (9 / 36 / 72 cores) | port (8 / 32 / 64 ranks) | upstream `35a85178` (— / 32 / 64 ranks) |
 |---|---|---|---|
@@ -1552,16 +1769,177 @@ took upstream's MUMPS retry path (UD-216) cannot be checked from the
 published files. The static solve
 took 2.1–2.8× jed's at the neighbouring core counts; jed's MUMPS ordering
 and BLAS are not recorded (here PORD with OpenBLAS). jed's points from 144
-cores on (several nodes) and the paper's elastic series at full size were
-not run.
+cores on (several nodes) were not run before the final campaign (above:
+128 ranks on four hosts); the paper's elastic series at full size was not
+run.
 
 ### Multi-node runs
 
-<!-- PLACEHOLDER final-multinode: paste the tables of the multi-node run here -->
-Final campaign: measured separately; not yet available in this revision.
-128 ranks over 4 hosts, the port only. Its tables go here as generated.
-Until then the multi-node measurement is that of 13 November below, made
-with the port before the performance campaign.
+#### Final campaign: four and two 32-core hosts (2026-11-18)
+
+The JOSS mesh, 5,000 steps with insertion, at 128 ranks on four hosts and
+64 ranks on two, both codes, the port before and after the change of its
+collective error protocol (D-126). Every host an AWS `m7a.8xlarge` (AMD
+EPYC 9R14, 32 cores, one thread per core, one NUMA node, 123 GiB visible);
+the hosts of a session in one cluster placement group; Open MPI 5.0.7 over
+TCP between the hosts; one container per host, 32 ranks per host, each
+bound to its own core, rank 0 on the first host (`mn_cluster.py`, ssh
+backend, `bind = self`). Both codes replay part G's partitions; the
+drivers' default settings; MUMPS static solve; C++ as in part G. One run
+per configuration, three sessions on three sets of hosts (UTC):
+
+- session 1 (04:12–06:23): the port at `740a79a36` (part G's driver
+  binary) at 128 ranks on four hosts and 64 on two, then C++ at the same;
+- session 2 (14:10–15:25), one run after the other on the same four hosts:
+  the port after the first round of D-126 (`6cdb1b601`), the port at
+  `740a79a36`, C++;
+- session 3 (18:23–18:56): the port at the final revision `4a8d9d38e` at
+  128 ranks on four hosts and 64 on two;
+- and the final revision on one 128-core machine (19:18–19:37), part G's
+  128-rank point.
+
+Data, sessions, binaries and commands:
+`docs/benchmarks/perf-campaign/final/multinode/` (`README.md`); every
+table here is printed by `python3 -I table.py` there (`table.md`) from the
+committed run records and part G's `runs.jsonl`. Times are rank 0's Chrono
+totals in seconds; init = read_mesh + dist_mesh + `init_full` + initial
+conditions + static solve + before_step; the loop is `solve_step` + check +
+energies + boundary conditions (the driver's `loop_time_s`, as in the
+tables of 13 November below).
+
+Table "Loop by configuration" (s):
+
+| ranks, machines | port 740a79a36 | port 6cdb1b601 | port 4a8d9d38e | C++ |
+|---|---|---|---|---|
+| 128, one 128-core machine | 835.3 | — | 814.3 | 1,948.3 |
+| 128, four 32-core hosts (session 1) | 1,537.7 | — | — | 1,040.2 |
+| 128, four 32-core hosts (session 2) | 1,535.8 | 484.7 | — | 1,019.3 |
+| 128, four 32-core hosts (session 3) | — | — | 526.4 | — |
+| 64, one 128-core machine | 846.3 | — | — | 2,430.0 |
+| 64, two 32-core hosts (sessions 1, 3) | 1,046.4 | — | 722.3 | 1,923.7 |
+| 32, one 128-core machine | 1,336.2 | — | — | 3,809.0 |
+
+Table "Every run" (s; peak memory: one machine, the container's cgroup
+peak; across hosts, the largest sampled sum of the ranks' resident memory
+on one host / the sum of those peaks over the hosts):
+
+| run | session | code | ranks, placement | wall | init | dist_mesh | static solve | solve_step | check | energies | step + check | loop | cohesive elements | peak GiB |
+|---|---|---|---|---|---|---|---|---|---|---|---|---|---|---|
+| G/full-hjoss-np128-r1-cpp | G | C++ | 128, one 128-core machine | 2,298 | 346.3 | 86.5 | 238.7 | 438.7 | 1,232.2 | 277.3 | 1,670.9 | 1,948.3 | 488,968 | 217.2 (container) |
+| G/full-hjoss-np128-r1-head | G | port 740a79a36 | 128, one 128-core machine | 1,174 | 335.1 | 12.1 | 319.5 | 374.4 | 418.8 | 42.1 | 793.2 | 835.3 | 475,470 | 206.4 (container) |
+| G/full-hjoss-np16-r1-head-t8 | G | port 740a79a36 | 16 x 8 threads, one 128-core machine | 1,532 | 659.6 | 11.1 | 640.8 | 455.0 | 374.2 | 40.4 | 829.2 | 869.7 | 475,781 | 170.0 (container) |
+| G/full-hjoss-np32-r1-cpp | G | C++ | 32, one 128-core machine | 4,297 | 483.1 | 66.3 | 381.1 | 994.5 | 2,664.4 | 150.1 | 3,658.9 | 3,809.0 | 482,745 | 184.0 (container) |
+| G/full-hjoss-np32-r1-head | G | port 740a79a36 | 32, one 128-core machine | 1,806 | 465.4 | 11.4 | 448.2 | 574.1 | 710.9 | 51.2 | 1,285.0 | 1,336.2 | 476,040 | 182.9 (container) |
+| G/full-hjoss-np32-r1-head-t4 | G | port 740a79a36 | 32 x 4 threads, one 128-core machine | 896 | 291.6 | 11.2 | 275.5 | 270.9 | 304.0 | 26.2 | 575.0 | 601.2 | 475,980 | 174.9 (container) |
+| G/full-hjoss-np64-r1-cpp | G | C++ | 64, one 128-core machine | 2,848 | 412.5 | 85.7 | 299.0 | 668.6 | 1,631.3 | 130.0 | 2,299.9 | 2,430.0 | 485,698 | 213.0 (container) |
+| G/full-hjoss-np64-r1-head | G | port 740a79a36 | 64, one 128-core machine | 1,204 | 352.6 | 11.5 | 336.9 | 384.6 | 430.0 | 31.6 | 814.6 | 846.3 | 476,352 | 196.1 (container) |
+| G/full-hjoss-np64-r1-head-t2 | G | port 740a79a36 | 64 x 2 threads, one 128-core machine | 849 | 277.8 | 11.9 | 262.1 | 251.9 | 290.6 | 25.6 | 542.5 | 568.1 | 476,315 | 176.2 (container) |
+| G/first-128head | G, first sample | port 740a79a36 | 128, one 128-core machine | 1,116 | 286.6 | 12.1 | 271.1 | 368.2 | 415.2 | 42.2 | 783.3 | 825.5 | 475,439 | 195.8 (container) |
+| one-machine-final/run | 4 | port 4a8d9d38e | 128, one 128-core machine | 1,098 | 280.0 | 12.0 | 264.6 | 369.5 | 414.8 | 29.9 | 784.3 | 814.3 | 475,439 | 200.5 (container) |
+| s1-port/joss128x4-a1 | 1 | port 740a79a36 | 128, 4 hosts x 32 | 1,854 | 314.6 | 11.5 | 300.0 | 484.0 | 836.8 | 216.9 | 1,320.8 | 1,537.7 | 475,478 | 55.8 / 205.8 (hosts) |
+| s1-port/joss64x2-a1 | 1 | port 740a79a36 | 64, 2 hosts x 32 | 1,352 | 303.0 | 11.1 | 288.2 | 404.3 | 548.9 | 93.1 | 953.2 | 1,046.4 | 476,207 | 108.9 / 213.0 (hosts) |
+| s1-cpp/joss128x4-a1 | 1 | C++ | 128, 4 hosts x 32 | 1,429 | 387.1 | 72.3 | 298.2 | 259.3 | 676.6 | 104.3 | 935.9 | 1,040.2 | 489,002 | 61.2 / 216.2 (hosts) |
+| s1-cpp64/joss64x2-a1 | 1 | C++ | 64, 2 hosts x 32 | 2,317 | 390.5 | 67.6 | 301.3 | 516.2 | 1,269.0 | 138.5 | 1,785.2 | 1,923.7 | 485,671 | 110.3 / 216.0 (hosts) |
+| s2-after/joss128x4-a1 | 2 | port 6cdb1b601 | 128, 4 hosts x 32 | 875 | 388.0 | 11.4 | 373.6 | 179.3 | 278.9 | 26.5 | 458.1 | 484.7 | 475,352 | 62.0 / 203.6 (hosts) |
+| s2-before/joss128x4-a1 | 2 | port 740a79a36 | 128, 4 hosts x 32 | 1,977 | 439.1 | 11.7 | 424.2 | 479.7 | 839.6 | 216.5 | 1,319.3 | 1,535.8 | 475,467 | 56.6 / 202.0 (hosts) |
+| s2-cpp/joss128x4-a1 | 2 | C++ | 128, 4 hosts x 32 | 1,467 | 445.5 | 71.0 | 358.2 | 257.3 | 666.2 | 95.8 | 923.5 | 1,019.3 | 488,998 | 64.2 / 233.9 (hosts) |
+| s3-final128/joss128x4-a1 | 3 | port 4a8d9d38e | 128, 4 hosts x 32 | 877 | 348.5 | 11.3 | 334.2 | 221.9 | 289.1 | 15.4 | 510.9 | 526.4 | 475,506 | 62.3 / 201.5 (hosts) |
+| s3-final64/joss64x2-a1 | 3 | port 4a8d9d38e | 64, 2 hosts x 32 | 994 | 268.8 | 11.1 | 254.0 | 323.0 | 375.2 | 24.0 | 698.2 | 722.3 | 476,327 | 103.1 / 194.5 (hosts) |
+
+Table "Port / upstream, same configuration":
+
+| ratio (single runs) | wall | init | static solve | solve_step | check | energies | step + check | loop |
+|---|---|---|---|---|---|---|---|---|
+| 128, one machine: port 740a79a36 / C++ | 0.511 | 0.967 | 1.338 | 0.853 | 0.340 | 0.152 | 0.475 | 0.429 |
+| 128, one machine: port 4a8d9d38e / C++ (other session) | 0.478 | 0.808 | 1.108 | 0.842 | 0.337 | 0.108 | 0.469 | 0.418 |
+| 64, one machine: port 740a79a36 / C++ | 0.423 | 0.855 | 1.127 | 0.575 | 0.264 | 0.243 | 0.354 | 0.348 |
+| 32, one machine: port 740a79a36 / C++ | 0.420 | 0.963 | 1.176 | 0.577 | 0.267 | 0.341 | 0.351 | 0.351 |
+| 128, four hosts, session 1: port 740a79a36 / C++ | 1.298 | 0.813 | 1.006 | 1.866 | 1.237 | 2.079 | 1.411 | 1.478 |
+| 128, four hosts, session 2: port 740a79a36 / C++ | 1.348 | 0.986 | 1.184 | 1.864 | 1.260 | 2.259 | 1.429 | 1.507 |
+| 128, four hosts, session 2: port 6cdb1b601 / C++ | 0.596 | 0.871 | 1.043 | 0.697 | 0.419 | 0.277 | 0.496 | 0.476 |
+| 128, four hosts: port 4a8d9d38e (session 3) / C++ (session 2) | 0.598 | 0.782 | 0.933 | 0.862 | 0.434 | 0.161 | 0.553 | 0.516 |
+| 128, four hosts: port 4a8d9d38e (session 3) / C++ (session 1) | 0.614 | 0.900 | 1.121 | 0.856 | 0.427 | 0.148 | 0.546 | 0.506 |
+| 64, two hosts, session 1: port 740a79a36 / C++ | 0.584 | 0.776 | 0.956 | 0.783 | 0.433 | 0.673 | 0.534 | 0.544 |
+| 64, two hosts: port 4a8d9d38e (session 3) / C++ (session 1) | 0.429 | 0.688 | 0.843 | 0.626 | 0.296 | 0.174 | 0.391 | 0.375 |
+
+Table "Across hosts / one machine, same code and binary":
+
+| ratio (single runs) | wall | init | static solve | solve_step | check | energies | step + check | loop |
+|---|---|---|---|---|---|---|---|---|
+| port 740a79a36, 128: four hosts (session 1) / one machine | 1.579 | 0.939 | 0.939 | 1.293 | 1.998 | 5.157 | 1.665 | 1.841 |
+| port 740a79a36, 128: four hosts (session 2) / one machine | 1.683 | 1.310 | 1.328 | 1.281 | 2.005 | 5.146 | 1.663 | 1.839 |
+| port 740a79a36, 64: two hosts / one machine | 1.123 | 0.859 | 0.855 | 1.051 | 1.276 | 2.945 | 1.170 | 1.236 |
+| port 4a8d9d38e, 128: four hosts (session 3) / one machine | 0.799 | 1.245 | 1.263 | 0.601 | 0.697 | 0.515 | 0.651 | 0.646 |
+| C++, 128: four hosts (session 1) / one machine | 0.622 | 1.118 | 1.249 | 0.591 | 0.549 | 0.376 | 0.560 | 0.534 |
+| C++, 128: four hosts (session 2) / one machine | 0.638 | 1.286 | 1.500 | 0.587 | 0.541 | 0.346 | 0.553 | 0.523 |
+| C++, 64: two hosts / one machine | 0.814 | 0.947 | 1.008 | 0.772 | 0.778 | 1.065 | 0.776 | 0.792 |
+
+Table "The collective checks at commit points (D-126)":
+
+| ratio (single runs) | wall | init | static solve | solve_step | check | energies | step + check | loop |
+|---|---|---|---|---|---|---|---|---|
+| 128, four hosts, session 2: port 6cdb1b601 / port 740a79a36 | 0.442 | 0.884 | 0.881 | 0.374 | 0.332 | 0.123 | 0.347 | 0.316 |
+| 128, four hosts: port 4a8d9d38e (session 3) / port 740a79a36 (session 2) | 0.444 | 0.794 | 0.788 | 0.463 | 0.344 | 0.071 | 0.387 | 0.343 |
+| 64, two hosts: port 4a8d9d38e (session 3) / port 740a79a36 (session 1) | 0.735 | 0.887 | 0.881 | 0.799 | 0.684 | 0.258 | 0.732 | 0.690 |
+| 128, one machine: port 4a8d9d38e / port 740a79a36 | 0.935 | 0.836 | 0.828 | 0.987 | 0.991 | 0.711 | 0.989 | 0.975 |
+| 128, one machine: port 4a8d9d38e / port 740a79a36, first sample | 0.984 | 0.977 | 0.976 | 1.004 | 0.999 | 0.710 | 1.001 | 0.986 |
+
+Table "Two sessions on different hosts of the same type":
+
+| ratio (single runs) | wall | init | static solve | solve_step | check | energies | step + check | loop |
+|---|---|---|---|---|---|---|---|---|
+| port 740a79a36: session 2 / session 1 | 1.066 | 1.396 | 1.414 | 0.991 | 1.003 | 0.998 | 0.999 | 0.999 |
+| C++: session 2 / session 1 | 1.026 | 1.151 | 1.201 | 0.992 | 0.985 | 0.918 | 0.987 | 0.980 |
+
+Reading:
+
+- Before D-126 the port lost across hosts. Its loop took 1,538 s
+  (session 1) and 1,536 s (session 2) at 128 ranks on four hosts, 1.84
+  times its 835 s on one machine, while upstream's fell from 1,948 s to
+  1,040 s and 1,019 s: the port took 1.48 and 1.51 times upstream's loop.
+  Across four hosts the port's energies took 5.2 times and its check 2.0
+  times their one-machine time. At 64 ranks on two hosts the port took
+  1,046 s (1.24 times its one-machine loop), upstream 1,924 s (0.79).
+- The cause, measured on a small four-host cluster
+  (`docs/benchmarks/perf-campaign/net/`): the port's collective error
+  protocol agreed after every phase, 51.6 collectives per step and rank
+  against upstream's 8.4 (8 ranks, h = 0.06), each with a linear
+  all-gather of the protocol header; across hosts a collective costs about
+  one round trip, so their number decided. D-126 agrees at commit points
+  and before exchanges instead: 20.5 collectives per step and rank, the
+  same results (bitwise, Eigen static solve), and after a failure the same
+  persistent state on every rank as the every-phase mode (section "MPI
+  layer").
+- After D-126: in session 2 the first round of the change (`6cdb1b601`)
+  took 485 s, 0.316 of the port before the change on the same hosts and
+  0.476 of upstream. The final revision (session 3, other hosts) took
+  526 s on four hosts, 0.516 of upstream's loop of session 2 and 0.506 of
+  session 1, and 722 s on two hosts, 0.375 of upstream's 1,924 s. Across
+  four hosts its loop is 0.646 of its loop on one machine (814 s);
+  upstream's is 0.523–0.534 of its own.
+- The final revision against the first round: `solve_step` 222 s against
+  179 s (the fix round's commit points before every persistent change,
+  D-126), energies 15 s against 27 s (one reduction for the four
+  energies); one run each on different hosts.
+- Repeatability: the same binary on two sets of hosts of the same type gave
+  loops within 0.1 % (port at `740a79a36`) and 2.0 % (C++); the static
+  solve and the set-up varied more (port 1.41 and 1.40 times between the
+  sessions).
+- What the comparison of one machine with four hosts measures: more than
+  the network. On one machine 128 ranks share two sockets' memory system,
+  on four hosts 32 ranks share each host's; upstream's loop gains 1.87
+  times from one machine to four hosts at 128 ranks, and its serial phases
+  on rank 0 run faster on the 32-core hosts too (read_mesh 0.80,
+  dist_mesh 0.84, `init_full` 0.66 of the one-machine times,
+  `multinode/compare.txt`). Ratios of the two codes on the same machines
+  and in the same session are the comparable figures.
+- Correctness (`multinode/compare.txt`): every multi-host run that has a
+  one-machine run of the same binary and rank count passes
+  `mn_compare.py` (placement, partition, distribution, static matrix,
+  MUMPS settings, and for C++ the driver, input, binding and phase
+  repetitions); their energies and insertions differ from the first
+  insertions on, as two runs with MUMPS's parallel factorisation do on one
+  machine, and the cohesive element counts by at most 0.03 %.
 
 #### Before the final campaign (8 × AWS `r7a.2xlarge`, 2026-11-13)
 
@@ -1813,6 +2191,47 @@ round trip; halo: one exchange with every other rank, slowest rank):
   8 KiB halos; over TCP 1.13–2.08×.
 - Head / before: 0.746 for 16 MiB and 0.851 for 1 MiB over shared memory;
   0.928–0.966 for the halos and the 8-byte ping-pong.
+
+### Collectives across hosts (D-126)
+
+The port's collective error protocol (D-018) agreed on every rank's
+outcome after every phase: one all-reduce of status, phase and digest per
+phase, carried by the header of a checked collective (one `MPI_Iallgather`,
+Open MPI's linear non-blocking algorithm). On one machine an agreement
+costs microseconds; across hosts about a round trip to the farthest host.
+Measured on a four-host cluster of 8-core machines
+(`docs/benchmarks/perf-campaign/net/README.md`; 8 ranks, h = 0.06,
+2,000 steps):
+
+- per step and rank the port made 51.6 collectives (41.8 of them
+  agreements), upstream 8.4; one agreement cost 2.9 µs with 8 ranks on one
+  host and 472 µs with 8 ranks on four hosts;
+- without the agreements (a diagnostic build) the port's results were
+  bitwise the same and its loop across four hosts fell from 88.8 s to
+  43.4 s.
+
+D-126 (`docs/DECISIONS.md`) keeps an agreement where the ranks decide
+together or are about to depend on each other: at commit points, before
+every point-to-point exchange and before every persistent change of an
+operation; purely local outcomes in between are deferred to the next
+agreement, and every checked collective's header carries the protocol
+status. From 64 ranks the header goes by gather and broadcast (254
+messages per agreement at 128 ranks against 16,147 for the all-gather).
+The mode is `AKANTU_COLLECTIVE_CHECKS` (`commit-points`, the default, or
+`every-phase`), the header exchange `AKANTU_COLLECTIVE_HEADER`
+([`docs/TESTING.md`](TESTING.md)). Results are bitwise unchanged in both
+modes; after a failure every rank's persistent state is the one the
+every-phase mode leaves; a peer's local failure becomes visible at the
+next agreement instead of at the end of the failed phase.
+
+The benchmark's step then makes 20.5 collectives per step and rank
+(upstream 8.4). At full size (section "Multi-node runs"): 128 ranks on
+four 32-core hosts took 1,538 s and 1,536 s in the loop before the change
+(upstream 1,040 s and 1,019 s) and 526 s at the final revision; 64 ranks on
+two hosts 1,046 s before and 722 s after (upstream 1,924 s). On one host
+the change is small: 814 s against 835 s at 128 ranks on the 128-core
+machine; the shared-memory suite cases of `net/README.md`, section 7, are
+within 1.5 % of the first round of the change.
 
 ### Before the final campaign (2026-11-14)
 
@@ -2090,12 +2509,15 @@ From the final campaign's tables (2026-11-17 UTC, AWS `m7a.2xlarge`, data
 | `update_insertion_facets` | head / before 2.49 [1.35, 3.21] (402 µs → 998 µs per call, `cohesive_insert_tet4`) | part B |
 | Small messages of the communication layer | 6.46× raw MPI for an 8-byte ping-pong over shared memory; 2.52× for 16 MiB | part F |
 | The mesh distribution from rank 0 | the head's `distribute` of 1,296,000 Tet4 grows from 2.09 s at 2 ranks to 2.70 s at 8 (0.095–0.107× upstream's `dist_mesh` in the cohesive driver) | part F |
+| Collectives across hosts | 20.5 collectives per step and rank after D-126 against upstream's 8.4 (51.6 before); across four hosts the final revision's loop is 0.646 of its one-machine loop, upstream's 0.523–0.534 | net round, multi-host runs |
+| 128 ranks on one 128-core machine | the loop from 64 to 128 ranks: port 846 → 835 s, upstream 2,430 → 1,948 s; step and check 2.37 → 4.62 core-µs per element and step (port) | part G |
 
 Limits of the measurements:
 
-- Stage 1 of the final campaign ran on 8-core machines: no table above
-  says anything about more than 8 ranks or several nodes. The JOSS mesh
-  (part G) and the multi-node run are measured separately.
+- Stage 1 of the final campaign ran on 8-core machines. Part G and the
+  multi-host runs give 32 to 128 ranks on one 128-core machine and on four
+  32-core hosts, one run per configuration; nothing beyond 128 ranks or
+  four hosts was measured.
 - The suites have no C++ twin; their tables compare the port with itself.
 - No hardware counters and no per-rank timings: the causes of the parallel
   overheads are not established.
@@ -2134,8 +2556,16 @@ From the final campaign's tables:
 
 - The 8-rank loop: the port's loop efficiency at 8 ranks (0.36 on h = 0.06)
   is below upstream's (0.55), and its lead over upstream is smallest there
-  in every series of part C. Whether it holds at 32 to 128 ranks is
-  measured by part G and the multi-node run.
+  in every series of part C. At full size on one 128-core machine the
+  port's loop is 0.35 of upstream's at 32 and 64 ranks and 0.43 at 128,
+  where the machine stops scaling (part G).
+- Collectives across hosts: after D-126 the port makes 20.5 collectives
+  per step and rank against upstream's 8.4, mostly the agreements before
+  point-to-point exchanges and the commit points of the step; its
+  four-host loop gains less over its one-machine loop (0.646) than
+  upstream's (0.523–0.534). The ideas left are listed in
+  `docs/benchmarks/perf-campaign/net/README.md`, section 6, and
+  `docs/reports/04-possible-improvements.md`.
 - Threads inside a rank do not replace ranks on these machines: 2 × 4 and
   4 × 2 take 0.993–1.22× the loop of 8 ranks.
 - The static solve phase: the port's assembly and MUMPS hand-over are

@@ -364,8 +364,13 @@ change of default results or of a public API raises the minor version.
   nested-dissection ordering the SparseLU static solve takes 0.305× and
   0.170× upstream's SparseLU at one thread (h = 0.12, 0.06; part D's
   second pass, `docs/benchmarks/perf-campaign/final/D-nd/`). The full-size
-  run and the multi-node run of the final campaign are measured separately
-  and have marked places.
+  benchmark (the JOSS mesh, one run per configuration, 2026-11-17 and 18
+  UTC; `docs/benchmarks/perf-campaign/final/G/`, `final/multinode/`): on
+  one 128-core AWS `m7a.32xlarge` the port's loop takes 0.35–0.43×
+  upstream's at 32 to 128 ranks; at 128 ranks on four 32-core hosts it
+  took 1.48–1.51× upstream's before the collective checks at commit points
+  (D-126) and takes 0.51–0.52× at the final revision (526 s against
+  1,019 s and 1,040 s), 0.375× at 64 ranks on two hosts.
 - `DamageParent::parent_potential_energy` takes the calling law's executor
   as its first argument.
 - `akantu_solid::materials::damage::DamageParent::{stress_kernel,

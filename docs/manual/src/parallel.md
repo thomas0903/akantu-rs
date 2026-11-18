@@ -216,6 +216,22 @@ Docker image ([`docs/TESTING.md`](../../TESTING.md), MPI tier).
 ![The square split into four parts, next to the horizontal displacement field](figures/examples/parallel_2d.png)
 *Figure: the example `parallel_2d` ([Examples](examples.md)): its partition on four ranks (left) and the displacement $u_x$ after 10 000 steps of the one-rank run (right) (computed with akantu-rs).*
 
+## Collective error checks
+
+When an operation fails on one rank, every rank ends it with an error: the
+ranks agree on their outcomes in collective checks. By default
+(`AKANTU_COLLECTIVE_CHECKS=commit-points`) a purely local failure is agreed
+at the ranks' next communication or commit point, so the other ranks learn
+of it there instead of at the end of the failed phase, and far fewer
+collectives are needed (across hosts each costs about a network round
+trip); `AKANTU_COLLECTIVE_CHECKS=every-phase` agrees after every phase. The
+results, and every rank's state after a failure, are the same in both
+modes; the setting must be the same on every rank (also
+`Communicator::set_collective_checks`). `AKANTU_COLLECTIVE_HEADER` chooses
+how the checks' header travels: `auto` (the default: an all-gather below
+64 ranks, a gather and a broadcast from 64), `allgather` or
+`gather-broadcast`.
+
 ## Sparse solvers on several ranks
 
 The `eigen` and `faer` sparse solvers assemble the global system on rank

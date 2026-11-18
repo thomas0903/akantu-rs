@@ -14,18 +14,23 @@ takes 0.79 to 0.96 times upstream's at 1 to 4 ranks and 0.91 to 1.11 at 8.
 On a 559 k-tetrahedron mesh the sum of the ranks' memory peaks is 0.77 to
 0.80 times upstream's. Against the port before the performance campaign
 the loop takes 0.36 to 0.62 times the time. On the JOSS mesh (4.39 million
-tetrahedra, 5,000 steps with fracture) the latest full-size measurement is
-that of 12 November, made with the port before the campaign: 0.875 times
-upstream's wall time at 64 ranks and 0.851 at 32 (one run each). The final
-campaign's full-size and multi-node runs are measured separately. Every
-number comes from `docs/BENCHMARKS.md` and the files it names, none from a
-development machine.
+tetrahedra, 5,000 steps with fracture; one run per configuration, 17 and 18
+November) the port's loop takes 0.35 to 0.43 times upstream's on one
+128-core machine at 32 to 128 ranks. Across four 32-core hosts at 128
+ranks the port took 1.48 to 1.51 times upstream's loop until its
+collective error protocol was changed (D-126); at the final revision it
+takes 0.51 to 0.52 times (526 s against 1,019 and 1,040 s), and 0.375
+times at 64 ranks on two hosts. Every number comes from
+`docs/BENCHMARKS.md` and the files it names, none from a development
+machine.
 
 ## Method
 
 | Machine | CPU | Used for |
 |---|---|---|
 | 4 × AWS `m7a.2xlarge`, 8 cores each, 17 November 2026 | AMD EPYC 9R14 | the final campaign: explicit step, suites, cohesive benchmark at 1 to 8 ranks, static solves, memory, set-up, MPI layer |
+| AWS `m7a.32xlarge`, 128 cores, two NUMA nodes, 17–18 November | AMD EPYC 9R14 | the final campaign's full-size run of both codes at 32 to 128 ranks |
+| 4 × AWS `m7a.8xlarge`, 32 cores each, one placement group, three sessions on 18 November | AMD EPYC 9R14 | the final campaign's multi-node runs of both codes (128 ranks on four hosts, 64 on two), before and after D-126 |
 | AWS `r7a.16xlarge`, one node, 64 cores, 12 November | AMD EPYC 9R14 | the full-size run of both codes (port before the campaign) |
 | 8 × AWS `r7a.2xlarge`, one placement group, 13 November | AMD EPYC 9R14 | multi-node runs of the port (before the campaign) |
 
@@ -140,11 +145,41 @@ time; the gain is smallest at 8 ranks (0.49 to 0.62).
 
 ## The full-size run
 
-Measured on 12 November with the port before the performance campaign;
-the final campaign's run on one 128-core node (128, 64 and 32 ranks, both
-codes) is measured separately. The JOSS mesh (2,203,782 DOFs), 5,000 steps
-with insertion, on one AWS `r7a.16xlarge`. The C++ run at 8 ranks did not
-fit the session's budget.
+The JOSS mesh (2,203,782 DOFs), 5,000 steps with insertion, on one AWS
+`m7a.32xlarge` (128 cores, two sockets), 17 and 18 November, port
+`740a79a36`, one run per point. Every rank is bound to its own core; the
+32- and 64-rank runs use one socket, the 128-rank runs both. The loop here
+is the explicit step, the insertion check and the per-step energies.
+
+| Code | Ranks | Wall s | Static solve s | Loop s | core-µs/el/step | Container peak GiB | Largest rank GiB |
+|---|---:|---:|---:|---:|---:|---:|---:|
+| port | 128 | 1,174 | 319 | 835 | 4.62 | 206 | 4.53 |
+| C++ | 128 | 2,298 | 239 | 1,948 | 9.74 | 217 | 4.59 |
+| port | 64 | 1,204 | 337 | 846 | 2.37 | 196 | 5.89 |
+| C++ | 64 | 2,848 | 299 | 2,430 | 6.70 | 213 | 5.70 |
+| port | 32 | 1,806 | 448 | 1,336 | 1.87 | 183 | 10.9 |
+| C++ | 32 | 4,297 | 381 | 3,809 | 5.33 | 184 | 8.77 |
+
+(`docs/benchmarks/perf-campaign/final/G/summary.md` and
+`multinode/table.md`; core-µs per element and step from the step and the
+check.)
+
+At 128, 64 and 32 ranks the port's run takes 0.511, 0.423 and 0.420 times
+upstream's wall time and its loop 0.429, 0.348 and 0.351 times; the
+insertion check 0.26 to 0.34, the explicit step 0.58 to 0.85, the static
+solve 1.13 to 1.34. The machine does not scale from 64 to 128 ranks: the
+port's loop goes from 846 to 835 s, upstream's improves 1.25 times; both
+codes run their 128 ranks faster on four 32-core hosts (next section), so
+the ratios at 128 ranks are those of a saturated machine. Using all 128
+cores as 64 ranks × 2 threads brings the port's loop to 568 s. At the
+final revision (with D-126) the port's loop at 128 ranks on a machine of
+the same description is 814 s.
+
+### Before the campaign (12 November)
+
+Measured with the port before the performance campaign: the JOSS mesh on
+one AWS `r7a.16xlarge` (64 cores). The C++ run at 8 ranks did not fit the
+session's budget.
 
 | Code | Ranks | Wall s | Static solve s | Step ms | Check ms | core-µs/el/step | Summed peak GiB | Largest rank GiB |
 |---|---:|---:|---:|---:|---:|---:|---:|---:|
@@ -178,7 +213,12 @@ core-µs at the smaller count over that at the larger one. From 8 to 32, 32
 to 64 and 8 to 64 ranks it was 90 %, 73 % and 66 % for the port and 88 %,
 73 % and 65 % on jed. The two machines differ in processor generation, in
 a dedicated node against a shared cloud host, and in build, so only the
-shape of the scaling curves can be compared.
+shape of the scaling curves can be compared. jed's step and check fall to
+888 s at 144 cores and stay between 908 and 1,095 s from 288 to 720 cores
+(medians of five to seven runs); in the final campaign the port's take
+784 s at 128 ranks on one machine and 511 s across four hosts, upstream's
+1,671 s and 924 to 936 s (single runs; `docs/BENCHMARKS.md`, "Comparison
+with upstream's published data").
 
 ## Parallel scaling
 
@@ -204,8 +244,34 @@ same 8 ranks on 1, 2, 4 and 8 hosts took 1.00, 0.76, 0.65 and 0.62 of the
 one-host loop time. Strong scaling of the port at h = 0.04 across hosts (8
 ranks per host) dropped to 0.45 at 32 ranks and 0.16 at 64. On the JOSS
 mesh, eight hosts took 1.11 times the single node's wall time at 64 ranks
-and 0.99 at 32. The final campaign's multi-node run (128 ranks over 4
-hosts) is measured separately.
+and 0.99 at 32.
+
+### Across hosts (final campaign, 18 November)
+
+128 ranks on four AWS `m7a.8xlarge` (32 cores each, TCP between them) and
+64 ranks on two, both codes, one run per configuration, three sessions on
+three sets of hosts (`docs/benchmarks/perf-campaign/final/multinode/`).
+Loop in seconds:
+
+| Ranks, machines | Port before D-126 | Port, final revision | C++ |
+|---|---:|---:|---:|
+| 128, one 128-core machine | 835 | 814 | 1,948 |
+| 128, four 32-core hosts | 1,538 and 1,536 | 526 | 1,040 and 1,019 |
+| 64, one 128-core machine | 846 | | 2,430 |
+| 64, two 32-core hosts | 1,046 | 722 | 1,924 |
+
+Before D-126 the port lost across hosts: its collective error protocol
+agreed on every rank's outcome after every phase, 51.6 collectives per
+step and rank against upstream's 8.4, and across hosts each costs about a
+network round trip. D-126 agrees at commit points and before exchanges:
+20.5 collectives per step and rank, the same results bit for bit, and the
+same state on every rank after a failure as before. The final revision
+takes 0.51 to 0.52 times upstream's loop on four hosts and 0.375 times on
+two. Moving the 128 ranks from one machine to four hosts makes upstream's
+loop 1.87 times faster and the final port's 1.55 times: on the hosts fewer
+ranks share each memory system, so this ratio measures the machines as
+well as the network. Two sessions on different hosts gave loops within
+0.1 % (port before D-126) and 2 % (C++).
 
 ## Memory
 
@@ -220,10 +286,13 @@ to 10,716 MiB, 0.63 to 0.70 times upstream's.
 
 ![Memory of the full-size run](figures/perf-memory-fullsize.svg)
 
-At full size (12 November, port before the campaign) the ranks' summed
-peaks were 227 GiB for the port and 212 GiB for upstream at 64 ranks, 189
-and 198 GiB at 32, and the port's largest rank peaked at 6.13 GiB against
-4.84 GiB at 64 ranks.
+At full size in the final campaign (one 128-core machine) the containers
+peaked at 206, 196 and 183 GiB for the port and 217, 213 and 184 GiB for
+upstream at 128, 64 and 32 ranks, the port's largest rank at 0.99, 1.03
+and 1.24 times upstream's. On 12 November (port before the campaign) the
+ranks' summed peaks were 227 GiB for the port and 212 GiB for upstream at
+64 ranks, 189 and 198 GiB at 32, and the port's largest rank peaked at
+6.13 GiB against 4.84 GiB at 64 ranks.
 
 ## Other components
 
@@ -245,7 +314,9 @@ Against raw MPI, the port's communication layer takes 6.46 times raw MPI's
 time for an 8-byte ping-pong over shared memory (0.84 against 0.13 µs),
 1.56 to 1.58 times for 64 KiB and 1 MiB, 2.52 times for 16 MiB, and 1.13 to
 2.08 times over TCP. Against the port before the campaign, a 16 MiB
-message over shared memory takes 0.746 times the time.
+message over shared memory takes 0.746 times the time. Collectives: after
+D-126 the cohesive step makes 20.5 collectives per step and rank against
+upstream's 8.4 (51.6 before D-126).
 
 ## Known slow points and limits
 
@@ -263,16 +334,21 @@ From the final campaign's tables:
   times, 0.4 to 1.0 ms per call) and element erasure (1.06 times).
 - The communication layer's fixed cost per message (6.46 times raw MPI at
   8 bytes).
+- Collectives across hosts: 20.5 per step and rank against upstream's 8.4;
+  across four hosts the final port's loop gains 1.55 times over one
+  machine, upstream's 1.87 times.
+- 128 ranks on one 128-core machine: the port's loop does not improve
+  from 64 to 128 ranks (846 and 835 s).
 
 `04-possible-improvements.md` ("Possible improvements to akantu-rs") lists
 what the campaign did with each finding.
 
 Limits of the comparison:
 
-- The final campaign's tables so far come from 8-core machines: they say
-  nothing about more ranks or several nodes. The full-size and multi-node
-  numbers above are those of 12 and 13 November, with the port before the
-  campaign and one run per point.
+- The full-size and multi-node numbers have one run per configuration
+  (one repeated 128-rank point and two sessions on four hosts give the
+  spread quoted above); nothing beyond 128 ranks or four hosts was
+  measured.
 - No per-rank timings or hardware counters: the causes given for the
   parallel overheads fit the data but are not proven.
 - The cohesive series use the strict C++ build.

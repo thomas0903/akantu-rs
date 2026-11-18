@@ -1,5 +1,5 @@
 <!-- SPDX-License-Identifier: LGPL-3.0-or-later -->
-# The final campaign: data (stage 1, parts A to F)
+# The final campaign: data (parts A to G, multi-host runs)
 
 The records of the final measurement campaign from which the tables of
 `docs/BENCHMARKS.md` are copied. The driver, its method and its checks are
@@ -15,6 +15,12 @@ described in `scripts/perf/final/README.md`.
 - Size `full`, 5 repetitions (one in part C's series `eig`).
 - Every group of every part is complete and passed its checks; each
   `summary.md` gives the counts.
+- Part G and the multi-host runs (2026-11-17 22:35 to 2026-11-18 19:37
+  UTC) ran on larger machines of the same CPU: part G on one AWS
+  `m7a.32xlarge` (128 cores, two NUMA nodes), the multi-host runs on
+  `m7a.8xlarge` (32 cores) and on one 128-core machine; their own READMEs
+  (`G/README.md`, `multinode/README.md`) give the machines, revisions and
+  sessions.
 
 | Directory | Part | Machine | Session (UTC) |
 |---|---|---|---|
@@ -26,6 +32,8 @@ described in `scripts/perf/final/README.md`.
 | `E/` | memory on h = 0.04 | 4 | 10:42 to 14:07 |
 | `F/` | set-up, distribution, the MPI layer | 4 | 14:07 to 15:53 |
 | `D-nd/` | part D's second pass at `4d974854d`: every variant of the first pass, and the orderings `head-nd`, `head-auto` | 3 | 17:06 to 20:20 |
+| `G/` | the JOSS mesh on one 128-core machine at 128 / 64 / 32 ranks, both codes, and the port at 64 × 2, 32 × 4, 16 × 8 threads (port `740a79a36`) | `m7a.32xlarge` | 17 Nov 22:35 to 18 Nov 03:38 |
+| `multinode/` | the JOSS mesh at 128 ranks on four and 64 on two 32-core hosts, both codes, before and after D-126; the port at `4a8d9d38e` on one 128-core machine | `m7a.8xlarge` × 4, one 128-core machine | 18 Nov 04:12 to 19:37 |
 
 Part C was split over two machines with `--only` to fit the day: `C/` holds
 every series but `reh6`, `C-reh6/` holds `reh6`. Each directory's plan has
@@ -89,11 +97,12 @@ summaries can be regenerated from it with
 `python3 scripts/perf/final/summarize.py DATA/<PART> --out FILE`, and the
 compact files with `extract.py DATA/<PART> OUTDIR`.
 
-## Still to come
+## Part G and the multi-host runs
 
-Measured separately, not yet in this revision; their places in
-`docs/BENCHMARKS.md` are marked `PLACEHOLDER`:
-
-- part G: the JOSS mesh on one 128-core node at 128, 64 and 32 ranks, both
-  codes;
-- the multi-node run: 128 ranks over 4 hosts, the port only.
+`G/` is committed as parts C to F are (its `README.md` adds the first
+128-rank sample, the binding check over every recorded binding and the
+port's profile on that machine). `multinode/` holds the records of the
+multi-host launcher, with the hosts' addresses and names replaced, and
+`multinode/table.md`, the tables of `docs/BENCHMARKS.md`'s sections "The
+full-size run" and "Multi-node runs", generated from `G/runs.jsonl` and the
+run folders by `multinode/table.py`.

@@ -1,0 +1,26 @@
+Part G plan: size full, 1 repetition(s), 128 cores
+series        groups   runs   expected
+full              13     13     5.20 h
+total             13     13     5.20 h
+
+Runs one at a time, so the machine time is their sum in any order; the order removes waste:
+the partitions of every rank count first (each run replays its file); the port at the largest
+rank count first (the shortest full-size run, it measures that rank count's memory before the
+C++ run); the longest and least needed run (8 ranks) last, so that a short budget drops it.
+Placement fill: rank r with T threads on the r-th block of T cores of the host's cores
+ordered NUMA node by NUMA node (one node filled before the next).
+step                     cores              expected peak GiB  expected wall  cumulative
+export np128             C++, partition only                            2 min       0.03h
+export np64              C++, partition only                            2 min       0.07h
+export np32              C++, partition only                            2 min       0.10h
+export np16              C++, partition only                            2 min       0.13h
+128:head                 128 (128 x 1)                  250.0         21 min       0.49h
+128:cpp                  128 (128 x 1)                  235.0         38 min       1.11h
+64:head                  64 (64 x 1)                    206.0         26 min       1.54h
+64:cpp                   64 (64 x 1)                    192.0         45 min       2.30h
+32:head                  32 (32 x 1)                    186.0         33 min       2.84h
+32:cpp                   32 (32 x 1)                    194.0         1.05 h       3.89h
+64x2:head                128 (64 x 2)                   206.0         22 min       4.25h
+32x4:head                128 (32 x 4)                   186.0         22 min       4.62h
+16x8:head                128 (16 x 8)                   175.0         35 min       5.20h
+Estimates and their basis: scripts/perf/final/plan.py (EST_*), g-estimates.txt.

@@ -556,7 +556,7 @@ advised before items 1.2, 2.1 and 4.1.
 
 ### 4.4 Fewer global agreements per step
 
-*Performance campaign (the final campaign, 2026-11-17 UTC, AWS `m7a.2xlarge`):* partly (one agreement skipped; the protocol unchanged); not measured.
+*Performance campaign (the final campaign, 2026-11-17 UTC, AWS `m7a.2xlarge`; full size 2026-11-18):* done (D-126, collective checks at commit points, the default; `AKANTU_COLLECTIVE_CHECKS=every-phase` keeps the former protocol). Counted with a PMPI interposer: 51.6 collectives per step and rank before, 20.5 after, upstream 8.4 (8 ranks, h = 0.06, `docs/benchmarks/perf-campaign/net/`); the full-size loop at 128 ranks on four 32-core hosts 1,538 and 1,536 s before, 526 s after (upstream 1,040 and 1,019 s), on one 128-core machine 835 s and 814 s (`docs/benchmarks/perf-campaign/final/multinode/`); results unchanged.
 
 - Where: the collective error protocol (`docs/ARCHITECTURE.md`,
   `crates/akantu-comm/src/phase.rs`): every `DofManager::step`, every
