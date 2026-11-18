@@ -212,12 +212,12 @@ impl SolverVector {
                 got: owned.len(),
             })
         };
-        let serial = phases.rank_size().1 == 1;
+        // the reduction is issued on every communicator, also of one rank
+        // (an identity there): a checked reduction must issue its
+        // collective on every rank (`Phases::run_collective`)
         phases.run_collective(name, prepared, |c, s| {
             let mut s = [s];
-            if !serial {
-                c.all_reduce(&mut s, ReduceOp::Sum)?;
-            }
+            c.all_reduce(&mut s, ReduceOp::Sum)?;
             Ok(s[0].sqrt())
         })
     }

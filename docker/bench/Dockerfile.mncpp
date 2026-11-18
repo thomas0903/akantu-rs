@@ -1,0 +1,51 @@
+# SPDX-License-Identifier: LGPL-3.0-or-later
+# akantu-rs multi-node image of the C++ reference harness (not ported from
+# Akantu): the oracle image akantu-oracle:dev (Open MPI 5.0.7, MUMPS, Scotch,
+# OpenBLAS pinned to Haswell, one thread) plus the strict build of the cohesive
+# benchmark driver of benchmarks/cohesive-perf, copied unchanged from the
+# harness volumes at the paths the single-node campaign runs it from:
+#
+#   * /perf/builds/strict/cohesive_extrinsic and its build-record.json;
+#   * /build/install-strict/lib/libakantu.so* and libiohelper.so (the
+#     oracle install's libraries the driver resolves) and the install's
+#     env.sh (LD_LIBRARY_PATH; mn_cluster.py forwards it to every rank);
+#   * what Open MPI's remote launch between containers needs, as in
+#     Dockerfile.mn: openssh-server / openssh-client from the Debian (trixie)
+#     index (versions in /usr/share/akantu-rs-bench/mn-packages.tsv), the
+#     session entrypoint mn-entrypoint.sh, sshd_config_mn, the memory sampler
+#     memsample.py, bind-rank.sh, /mn/work owned by `akantu`.
+#
+# Built by crates/akantu-bench/scripts/c1_images.sh export-mn-cpp, which then
+# checks in the built image that the driver and every library it resolves are
+# byte-identical to its build record (build_record.py verify and the SHA-256
+# of every recorded library). Nothing is compiled here.
+ARG BASE_IMAGE=akantu-oracle:dev
+FROM ${BASE_IMAGE}
+USER root
+RUN apt-get -qq update && apt-get -qq -y --no-install-recommends install \
+      openssh-server openssh-client \
+    && rm -rf /var/lib/apt/lists/* \
+    && rm -f /etc/ssh/ssh_host_* \
+    && mkdir -p /run/sshd /etc/akantu-mn /mn/work /usr/share/akantu-rs-bench /usr/local/share/akantu-rs-bench \
+    && chown akantu:akantu /mn/work \
+    && usermod -p '*' akantu \
+    && dpkg-query -W -f='${Package}\t${Version}\t${Architecture}\n' openssh-server openssh-client \
+         > /usr/share/akantu-rs-bench/mn-packages.tsv
+COPY lib/ /build/install-strict/lib/
+COPY env.sh /build/install-strict/share/akantu-oracle/env.sh
+COPY cohesive_extrinsic build-record.json /perf/builds/strict/
+COPY mn-entrypoint.sh /usr/local/sbin/mn-entrypoint.sh
+COPY sshd_config_mn /etc/ssh/sshd_config_mn
+COPY memsample.py /usr/local/share/akantu-rs-bench/memsample.py
+COPY bind-rank.sh /usr/local/share/akantu-rs-bench/bind-rank.sh
+COPY mn-provenance.txt /usr/share/akantu-rs-bench/mn-provenance.txt
+RUN chmod 0755 /usr/local/sbin/mn-entrypoint.sh /perf/builds/strict/cohesive_extrinsic \
+    && chmod 0644 /usr/local/share/akantu-rs-bench/bind-rank.sh \
+    && command -v taskset > /dev/null && command -v pkill > /dev/null \
+    && ssh-keygen -q -t ed25519 -N '' -f /tmp/k \
+    && /usr/sbin/sshd -t -f /etc/ssh/sshd_config_mn -h /tmp/k \
+    && rm -f /tmp/k /tmp/k.pub \
+    && LD_LIBRARY_PATH=/build/install-strict/lib ldd /perf/builds/strict/cohesive_extrinsic | grep -v 'not found' > /dev/null \
+    && ! LD_LIBRARY_PATH=/build/install-strict/lib ldd /perf/builds/strict/cohesive_extrinsic | grep -q 'not found'
+EXPOSE 2222
+ENTRYPOINT ["/usr/local/sbin/mn-entrypoint.sh"]

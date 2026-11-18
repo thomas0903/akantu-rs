@@ -35,14 +35,26 @@
 # and the halt reached every host.
 # env: WORK (DIR/e2e-ssh-<UTC stamp>), N_SSH (2), SSH_NET (10.79.0), E2E_EXTRA
 #   ("rust_cohesive_compat=upstream rust_doubled_node_load=follows_elements"),
-#   E2E_BIND (self: mn_cluster.py's `bind`)
+#   E2E_BIND (self: mn_cluster.py's `bind`), E2E_CODE (rust | cpp: the C++
+#   harness from the export-mn-cpp set; E2E_WORK then needs only
+#   parts/part-h012.csv, the plan is h012 + h012-stop without settings, and h012
+#   is compared with E2E_CPP_REF, a single-node C++ run of c1prep_campaign.sh of
+#   the same case: mn_compare.py --cpp)
 set -uo pipefail
 die() { echo "mn_e2e_ssh.sh: $*" >&2; exit 1; }
-[ $# -eq 2 ] || { sed -n '7,38p' "$0"; exit 2; }
+[ $# -eq 2 ] || { sed -n '7,43p' "$0"; exit 2; }
 dir="$(cd "$1" && pwd)" || exit 2
 ref="$(cd "$2" && pwd)" || exit 2
 n="${N_SSH:-2}" net="${SSH_NET:-10.79.0}"
 extra="${E2E_EXTRA-rust_cohesive_compat=upstream rust_doubled_node_load=follows_elements}"
+code="${E2E_CODE:-rust}" image=akantu-rs-bench:mn
+case "${code}" in
+  rust) ;;
+  cpp) image=akantu-rs-bench:mncpp extra=""
+       [ -d "${E2E_CPP_REF:-}" ] || die "E2E_CODE=cpp needs E2E_CPP_REF (a single-node C++ run directory)" ;;
+  *) die "E2E_CODE must be rust or cpp" ;;
+esac
+tarball="${image/:/-}.tar.gz"
 per=$((8 / n))
 [ $((per * n)) = 8 ] || die "N_SSH must divide 8"
 work="${WORK:-${dir}/e2e-ssh-$(date -u +%Y%m%dT%H%M%SZ)}"
@@ -111,12 +123,13 @@ while read -r _ f; do set_files+=("${dir}/${f}"); done < "${dir}/SHA256SUMS"
 "${scp_[@]}" "${ref}/parts/part-h012.csv" "${head}:mn/parts/" || die "upload partition"
 
 echo "== 2. on the head: checksums, repository subset, session, key ($((SECONDS - t0)) s)"
-{ printf 'backend = ssh\nimage = akantu-rs-bench:mn\nmemory = 6g\nnet_cidr = %s.0/24\nssh_user = ubuntu\n' "${net}"
+{ printf 'backend = ssh\nimage = %s\ncode = %s\nmemory = 6g\nnet_cidr = %s.0/24\nssh_user = ubuntu\n' \
+    "${image}" "${code}" "${net}"
   printf 'bind = %s\n' "${E2E_BIND:-self}"; } > "${work}/cluster.conf"
 : > "${work}/hosts"
 for a in "${addrs[@]}"; do echo "${a} slots=${per}" >> "${work}/hosts"; done
 { echo "h012      h0.12 8 ${n} 1500 auto  file:part-h012.csv 0.03 ${extra} @required"
-  echo "h012-eig  h0.12 8 ${n} 1500 eigen file:part-h012.csv 0.03 ${extra}"
+  [ "${code}" = cpp ] || echo "h012-eig  h0.12 8 ${n} 1500 eigen file:part-h012.csv 0.03 ${extra}"
   echo "h012-stop h0.12 8 ${n} 1500 auto  file:part-h012.csv 0.03 ${extra}"; } > "${work}/plan.txt"
 "${ssh_[@]}" "${head}" mkdir -p mn-session || die "session dir"
 "${scp_[@]}" "${work}/cluster.conf" "${work}/hosts" "${head}:mn-session/" || die "session files"
@@ -136,7 +149,7 @@ meshes=()   # the plan uses h = 0.12 only; the test mesh tarball is passed when 
 [ -f "${dir}/akantu-mn-meshes-test.tar.gz" ] && meshes=(--meshes mn/akantu-mn-meshes-test.tar.gz)
 "${ssh_[@]}" "${head}" bash mn/crates/akantu-bench/scripts/mn_session.sh start '$HOME/mn-session' '$HOME/mn-results' 1 \
   --deadline "${deadline}" \
-  --plan mn/plan.txt --image-tarball mn/akantu-rs-bench-mn.tar.gz --images-txt mn/images.txt \
+  --plan mn/plan.txt --image-tarball "mn/${tarball}" --images-txt mn/images.txt \
   ${meshes[@]+"${meshes[@]}"} --partitions mn/parts --fail-host "h012-stop:${n}:stop:8" \
   || die "session start"
 while "${ssh_[@]}" "${head}" 'kill -0 $(cat mn-results/session.pid)' 2>/dev/null; do sleep 10; done
@@ -148,9 +161,13 @@ echo "== 5. results back ($((SECONDS - t0)) s)"
 
 echo "== 6. compare with the single-container runs of ${ref} ($((SECONDS - t0)) s)"
 fails=""
-for c in h012 h012-eig; do
-  python3 -I "${sc}/mn_compare.py" --pair "${ref}/r1/runs/${c}-a1" "${work}/results/runs/${c}-a1" || fails="${fails} ${c}"
-done
+if [ "${code}" = cpp ]; then
+  python3 -I "${sc}/mn_compare.py" --cpp "${E2E_CPP_REF}" "${work}/results/runs/h012-a1" || fails="${fails} h012"
+else
+  for c in h012 h012-eig; do
+    python3 -I "${sc}/mn_compare.py" --pair "${ref}/r1/runs/${c}-a1" "${work}/results/runs/${c}-a1" || fails="${fails} ${c}"
+  done
+fi
 seq_=$(python3 -I - "${work}/results/state.json" <<'EOF'
 import json, sys
 st = json.load(open(sys.argv[1]))

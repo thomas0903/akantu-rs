@@ -193,6 +193,8 @@ tiers run through any Linux VM that provides Docker. Bitwise parity is claimed f
 | `AKANTU_RNG_LIBM_LONG=1` | `akantu-core` | the long libm run (14 domains × 2²² inputs against committed glibc hashes): `cargo test -p akantu-core --release --test random_libm` |
 | `AKA_SEED`, `SCOTCH_PTHREAD_NUMBER=1` | MPI tests, oracle | fixed seed and one Scotch thread make partitions repeatable (the images set the latter) |
 | `AKANTU_MPI_TEST_TIMEOUT_S`, `AKANTU_MPI_WATCHDOG_S` | MPI binaries | deadline of multi-rank waits (default 20 s); in-process watchdog |
+| `AKANTU_COLLECTIVE_CHECKS` | `akantu-comm` (every communicator family) | `every-phase` or `commit-points` (default): where the collective error protocol agrees (D-126); a change of the protocol runs the `test` and `par` tiers once in each mode; `scripts/mpi/in-docker.sh` passes it into the container |
+| `AKANTU_COLLECTIVE_HEADER` | `akantu-comm` (MPI) | `auto` (default), `allgather`, `gather-broadcast`: how the header of every checked collective is exchanged (D-126) |
 | `AKANTU_PERF_FACTOR` | MPI tier | limit of the MPI performance gate (default 8) |
 | `AKANTU_MUMPS_THREAD_LEVEL`, `AKANTU_MUMPS_ONLY`, `AKANTU_MUMPS_ORACLE=off`, `AKANTU_MUMPS_WATCHDOG_S` | `mumps_mpi` | thread level, scenario filter, disable the fixture check, watchdog |
 | `AKANTU_PETSC_THREAD_LEVEL`, `AKANTU_PETSC_ONLY` | `petsc_mpi` | thread level, scenario filter |

@@ -143,6 +143,12 @@ pub struct CohesiveExtension {
     /// (only the open check finishes or aborts; a stale one changes
     /// nothing).
     insertion_check: (Option<u64>, u64),
+    /// Flagged not-ghost facets over every rank at the last insertion of
+    /// a distributed model (the insertion order's all-reduced total, which
+    /// is the number of not-ghost cohesive elements it adds over every
+    /// rank); `None` before any, on one process, or after a facets-only
+    /// insertion.
+    last_global_flagged: Option<u64>,
     /// Synchronizers of a distributed mesh (upstream `cohesive_synchronizer`,
     /// `facet_stress_synchronizer`; [`crate::parallel`]); `None` when the
     /// mesh is not distributed.
@@ -1269,6 +1275,10 @@ impl SolverCallback for CohesiveCallback<'_> {
         compute_cohesive_tractions(self.physics, dofs)?;
         if let Some(sync) = self.cohesive_sync {
             exchange_cohesive_tractions(self.physics, dofs, sync)?;
+            // D-126: the exchange's unpacking is deferred; the solid
+            // residual below updates internal variables (stresses) and the
+            // external work
+            dofs.commit_point("cohesive:tractions_exchanged")?;
         }
         <SolidMechanicsPhysics as SolverCallback>::assemble_residual(self.physics, dofs)
     }
@@ -1278,6 +1288,7 @@ impl SolverCallback for CohesiveCallback<'_> {
             compute_cohesive_tractions(self.physics, dofs)?;
             if let Some(sync) = self.cohesive_sync {
                 exchange_cohesive_tractions(self.physics, dofs, sync)?;
+                dofs.commit_point("cohesive:tractions_exchanged")?;
             }
         }
         <SolidMechanicsPhysics as SolverCallback>::assemble_residual_part(self.physics, dofs, part)
@@ -1511,6 +1522,7 @@ impl SolidMechanicsModelCohesive {
                 symmetry_policy: akantu_linalg::SymmetryPolicy::default(),
                 staged_insertion_facets: None,
                 insertion_check: (None, 0),
+                last_global_flagged: None,
                 parallel,
             }),
         };
@@ -2167,6 +2179,17 @@ impl SolidMechanicsModelCohesive {
         self.check_cohesive_stress_finish(check)
     }
 
+    /// The number of not-ghost cohesive elements the last insertion of a
+    /// distributed model added over every rank (the flagged not-ghost
+    /// facets of its global insertion order, already all-reduced there);
+    /// `None` on one process, before any insertion, or after an insertion
+    /// that failed or doubled facets only. Lets a caller follow the global
+    /// cohesive count without a reduction of its own.
+    #[must_use]
+    pub fn last_insertion_global_count(&self) -> Option<u64> {
+        self.ext.last_global_flagged
+    }
+
     /// First phase of [`SolidMechanicsModelCohesive::check_cohesive_stress`]
     /// for a model with runtime cohesive laws (D-078): the facet
     /// stresses (`interpolateStress`) and the insertion checks of the
@@ -2204,6 +2227,7 @@ impl SolidMechanicsModelCohesive {
                 "This function can only be used for extrinsic cohesive elements",
             ));
         }
+        self.ext.last_global_flagged = None;
         let t0 = Instant::now();
         self.interpolate_stress()?;
         let t1 = Instant::now();
@@ -2658,13 +2682,17 @@ impl SolidMechanicsModelCohesive {
         // (owner -> ghost flags, global insertion order), on every rank,
         // also with nothing flagged locally; nothing flagged anywhere: no
         // transaction on any rank
+        self.ext.last_global_flagged = None;
+        let mut global = None;
         let order = if self.ext.parallel.is_some() {
             let mesh_h = self.smm.physics.base.mesh.clone();
             let m = mesh_h.read()?;
-            let mut ph = Phases::new(m.communicator(), "cohesive:insertion_order");
+            let mut ph = Phases::settling(m.communicator(), "cohesive:insertion_order");
             let r = self.ext.inserter.synchronize_insertion_in(&mut ph, &m);
             let o = ph.settle(r)?;
+            global = Some(o.global_flagged);
             if o.global_flagged == 0 {
+                self.ext.last_global_flagged = global;
                 return Ok(0);
             }
             Some(o.facets)
@@ -2721,6 +2749,9 @@ impl SolidMechanicsModelCohesive {
                     a.truncate(n);
                 }
             }
+        }
+        if r.is_ok() {
+            self.ext.last_global_flagged = global;
         }
         r
     }
@@ -2781,10 +2812,11 @@ impl SolidMechanicsModelCohesive {
         // distributed mesh: the decision is collective (owner -> ghost flags,
         // global insertion order) on every rank, also with nothing flagged
         // locally; nothing flagged anywhere: no transaction on any rank
+        self.ext.last_global_flagged = None;
         let order = if self.ext.parallel.is_some() {
             let mesh_h = self.smm.physics.base.mesh.clone();
             let m = mesh_h.read()?;
-            let mut ph = Phases::new(m.communicator(), "cohesive:facets_only_order");
+            let mut ph = Phases::settling(m.communicator(), "cohesive:facets_only_order");
             let r = self.ext.inserter.synchronize_insertion_in(&mut ph, &m);
             let o = ph.settle(r)?;
             if o.global_flagged == 0 {
@@ -3149,6 +3181,16 @@ impl SolidMechanicsModelCohesive {
     /// See `SolidMechanicsModel::energy`.
     pub fn energy(&mut self, id: &str) -> Result<Real> {
         self.smm.energy(id)
+    }
+
+    /// Several energies with one reduction over the ranks
+    /// ([`SolidMechanicsModel::energies`]; each value bitwise the one of
+    /// [`SolidMechanicsModelCohesive::energy`]).
+    ///
+    /// # Errors
+    /// As [`SolidMechanicsModelCohesive::energy`].
+    pub fn energies(&mut self, ids: &[&str]) -> Result<Vec<Real>> {
+        self.smm.energies(ids)
     }
 
     /// The cohesive material named `name`.

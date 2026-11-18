@@ -79,8 +79,9 @@
 //! family the request is leaked (buffers and MPI guard kept, no MPI call):
 //! the runtime aborts.
 
+use std::cell::Cell;
 use std::collections::{HashMap, HashSet, VecDeque};
-use std::sync::atomic::{AtomicU64, Ordering};
+use std::sync::atomic::{AtomicU8, AtomicU64, Ordering};
 use std::sync::{Arc, Condvar, Mutex};
 use std::time::{Duration, Instant};
 
@@ -412,6 +413,11 @@ pub(crate) struct CollDesc {
     /// collectives).
     pub(crate) count: Option<u64>,
     pub(crate) policy: ReductionPolicy,
+    /// Status of the collective error protocol carried in the header
+    /// (D-126; `None`: not armed). Not part of [`CollDesc::words`]: the
+    /// statuses are combined (worst severity, equal phase ids and digests),
+    /// not compared for equality.
+    pub(crate) status: Option<HeaderStatus>,
 }
 
 impl CollDesc {
@@ -423,6 +429,7 @@ impl CollDesc {
             ty: 0,
             count: None,
             policy,
+            status: None,
         }
     }
 
@@ -489,6 +496,133 @@ fn desc_field(k: usize, w: u64) -> String {
         5 => "native-mpi".to_owned(),
         _ => w.to_string(),
     }
+}
+
+/// Number of header words of the protocol status (D-126): armed flag and
+/// severity, phase id, digest.
+pub(crate) const STATUS_WORDS: usize = 3;
+
+/// The collective error protocol's status carried in the header of a checked
+/// collective (D-126): a deferred agreement folded into the collective
+/// ([`crate::phase::Phases::run_collective`]) or an agreement itself. Every
+/// rank's statuses are combined before any payload moves: a failure
+/// reported by any rank (or ranks at different phases) fails the collective
+/// on every rank with the combined verdict, whatever the descriptors say.
+#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+pub(crate) struct HeaderStatus {
+    /// `phase::Severity` as a number (0 = Ok).
+    pub(crate) severity: u8,
+    /// Phase id (FNV-1a of the qualified names folded since the last
+    /// agreement).
+    pub(crate) id: u64,
+    /// Schedule digest folded likewise.
+    pub(crate) digest: u64,
+    /// The sender's collective-check mode (`CollectiveChecks::code`), so
+    /// that ranks in different modes fail with one clear error.
+    pub(crate) mode: u8,
+}
+
+impl HeaderStatus {
+    /// Wire form: `[0, 0, 0]` when not armed, else `[1 + severity + 256 ×
+    /// mode, id, digest]`.
+    pub(crate) fn words(s: Option<Self>) -> [u64; STATUS_WORDS] {
+        s.map_or([0; STATUS_WORDS], |s| {
+            [
+                1 + u64::from(s.severity) + (u64::from(s.mode) << 8),
+                s.id,
+                s.digest,
+            ]
+        })
+    }
+}
+
+/// Combined protocol status of one checked collective (every rank computes
+/// the same).
+#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+pub(crate) struct StatusVerdict {
+    /// Worst reported severity (0 = Ok).
+    pub(crate) worst: u8,
+    /// Every rank armed a status, with the same phase id.
+    pub(crate) ids_match: bool,
+    /// Every armed digest is the same.
+    pub(crate) digests_match: bool,
+    /// Every armed status names the same collective-check mode.
+    pub(crate) modes_match: bool,
+}
+
+/// The verdict of the ranks' header statuses (rank order): `None` when no
+/// rank armed one, or every rank armed one reporting success with equal ids
+/// and digests (the collective proceeds); otherwise the verdict that fails
+/// the collective on every rank.
+pub(crate) fn status_verdict(
+    statuses: impl IntoIterator<Item = [u64; STATUS_WORDS]>,
+) -> Option<StatusVerdict> {
+    let all: Vec<[u64; STATUS_WORDS]> = statuses.into_iter().collect();
+    let armed: Vec<&[u64; STATUS_WORDS]> = all.iter().filter(|w| w[0] != 0).collect();
+    let first = armed.first()?;
+    let worst = armed.iter().map(|w| (w[0] - 1) & 0xff).max().unwrap_or(0);
+    let ids_match = armed.len() == all.len() && armed.iter().all(|w| w[1] == first[1]);
+    let digests_match = armed.iter().all(|w| w[2] == first[2]);
+    let modes_match = armed.iter().all(|w| (w[0] - 1) >> 8 == (first[0] - 1) >> 8);
+    let v = StatusVerdict {
+        worst: u8::try_from(worst).unwrap_or(u8::MAX),
+        ids_match,
+        digests_match,
+        modes_match,
+    };
+    (v.worst != 0 || !ids_match || !digests_match || !modes_match).then_some(v)
+}
+
+/// The error every rank reports when ranks use different collective-check
+/// modes (D-126).
+pub(crate) const MIXED_MODES: &str = "collective checks differ between ranks (every-phase on \
+     some, commit-points on others): set AKANTU_COLLECTIVE_CHECKS, or \
+     Communicator::set_collective_checks, alike on every rank";
+
+thread_local! {
+    /// A status armed by the current thread's live scope for the next
+    /// checked collective on the communicator of the given identity.
+    static ARMED: Cell<Option<(usize, HeaderStatus)>> = const { Cell::new(None) };
+    /// The verdict of the last checked collective of this thread that a
+    /// header status failed.
+    static VERDICT: Cell<Option<StatusVerdict>> = const { Cell::new(None) };
+}
+
+/// Arm `status` for the next checked collective this thread issues on
+/// `comm` (D-126).
+pub(crate) fn arm_status(comm: &Communicator, status: HeaderStatus) {
+    ARMED.with(|a| a.set(Some((comm.identity(), status))));
+    VERDICT.with(|v| v.set(None));
+}
+
+/// Disarm; `true` if the status had not been consumed.
+pub(crate) fn disarm_status() -> bool {
+    ARMED.with(Cell::take).is_some()
+}
+
+/// The verdict that failed this thread's last armed collective, if any
+/// (taken).
+pub(crate) fn take_verdict() -> Option<StatusVerdict> {
+    VERDICT.with(Cell::take)
+}
+
+pub(crate) fn set_verdict(v: StatusVerdict) {
+    VERDICT.with(|c| c.set(Some(v)));
+}
+
+/// The error of a collective that a header status failed: the rank's own
+/// local error when it has one, else a common description.
+pub(crate) fn status_error(v: StatusVerdict, own: Option<Error>) -> Error {
+    if !v.modes_match {
+        return Error::fatal(FatalKind::Agreed, comm_err(MIXED_MODES));
+    }
+    own.unwrap_or_else(|| {
+        comm_err(if v.worst != 0 {
+            "collective: the operation failed on another rank".to_owned()
+        } else {
+            "collective: ranks reached different phases of the operation".to_owned()
+        })
+    })
 }
 
 /// Compare the descriptors and local validation statuses of every rank
@@ -818,9 +952,26 @@ struct RegistryState {
 /// observed on any of them means a peer may be blocked in an unmatched
 /// operation, so none of them communicates again (the
 /// runtime aborts).
-#[derive(Debug, Default)]
+#[derive(Debug)]
 struct Family {
     broken: Mutex<Option<String>>,
+    /// [`crate::phase::CollectiveChecks`] code of the family (D-126).
+    checks: AtomicU8,
+}
+
+impl Default for Family {
+    fn default() -> Self {
+        // An invalid environment value is reported where creation can fail
+        // (`check_settings`: `Communicator::mpi_world`, `from_mpi`,
+        // `from_raw_mpi`); elsewhere it keeps every agreement (D-018's
+        // behaviour).
+        let mode = crate::phase::default_collective_checks()
+            .unwrap_or(crate::phase::CollectiveChecks::EveryPhase);
+        Self {
+            broken: Mutex::new(None),
+            checks: AtomicU8::new(mode.code()),
+        }
+    }
 }
 
 /// Collective scopes of one rank's communicator.
@@ -890,6 +1041,9 @@ impl ScopeRegistry {
 pub(crate) enum OpenRefusal {
     /// Another scope (named) is live on the communicator.
     Active(String),
+    /// A scope (named) of this thread holds deferred outcomes on another
+    /// communicator (D-126).
+    Deferred(String),
     /// The communicator observed a transport failure.
     Broken,
 }
@@ -1088,11 +1242,15 @@ impl LocalRank {
         payload: Vec<u8>,
         compute: impl FnOnce(Vec<Vec<u8>>) -> Result<Vec<Vec<u8>>>,
     ) -> Result<Vec<u8>> {
-        const HEAD: usize = DESC_WORDS * 8 + 1;
+        const HEAD: usize = (DESC_WORDS + STATUS_WORDS) * 8 + 1;
         let seq = self.next_seq();
         let ch = Channel::Collective(seq);
         let mut msg = Vec::with_capacity(HEAD + payload.len());
-        for w in desc.words() {
+        for w in desc
+            .words()
+            .into_iter()
+            .chain(HeaderStatus::words(desc.status))
+        {
             msg.extend_from_slice(&w.to_le_bytes());
         }
         msg.push(u8::from(local.is_ok()));
@@ -1103,18 +1261,27 @@ impl LocalRank {
             self.pop(0, ch, &format!("{what} result"))?
         } else {
             let mut entries = Vec::with_capacity(self.world.size);
+            let mut statuses = Vec::with_capacity(self.world.size);
             let mut payloads = Vec::with_capacity(self.world.size);
             let mut parse = |m: Vec<u8>| -> Result<()> {
                 if m.len() < HEAD {
                     return Err(comm_err("malformed collective message"));
                 }
-                let mut words = [0u64; DESC_WORDS];
-                for (k, w) in words.iter_mut().enumerate() {
+                let word = |k: usize| {
                     let mut b = [0u8; 8];
                     b.copy_from_slice(&m[8 * k..8 * k + 8]);
-                    *w = u64::from_le_bytes(b);
+                    u64::from_le_bytes(b)
+                };
+                let mut words = [0u64; DESC_WORDS];
+                for (k, w) in words.iter_mut().enumerate() {
+                    *w = word(k);
+                }
+                let mut st = [0u64; STATUS_WORDS];
+                for (k, w) in st.iter_mut().enumerate() {
+                    *w = word(DESC_WORDS + k);
                 }
                 entries.push((words, m[HEAD - 1] != 0));
+                statuses.push(st);
                 payloads.push(m[HEAD..].to_vec());
                 Ok(())
             };
@@ -1123,24 +1290,44 @@ impl LocalRank {
                 let r = Rank::try_from(r).map_err(|_| comm_err("rank overflow"))?;
                 parse(self.pop(r, ch, &what)?)?;
             }
-            let outcome =
-                check_entries(&entries).and_then(|()| compute(payloads).map_err(|e| e.to_string()));
-            let replies: Vec<Vec<u8>> = match outcome {
-                Ok(results) if results.len() == self.world.size => results
-                    .into_iter()
-                    .map(|mut b| {
-                        b.insert(0, 1);
-                        b
-                    })
-                    .collect(),
-                Ok(_) => {
-                    vec![b"\0internal error: wrong number of results".to_vec(); self.world.size]
+            // D-126: a protocol status reported by any rank decides first
+            // (whatever the descriptors), no payload is combined
+            let verdict = status_verdict(statuses);
+            let outcome = match verdict {
+                Some(_) => Err(String::new()),
+                None => check_entries(&entries)
+                    .and_then(|()| compute(payloads).map_err(|e| e.to_string())),
+            };
+            let replies: Vec<Vec<u8>> = match (verdict, outcome) {
+                (Some(v), _) => {
+                    vec![
+                        vec![
+                            2,
+                            v.worst,
+                            u8::from(v.ids_match),
+                            u8::from(v.digests_match),
+                            u8::from(v.modes_match),
+                        ];
+                        self.world.size
+                    ]
                 }
-                Err(e) => {
-                    let mut m = vec![0u8];
-                    m.extend_from_slice(e.as_bytes());
-                    vec![m; self.world.size]
-                }
+                (None, outcome) => match outcome {
+                    Ok(results) if results.len() == self.world.size => results
+                        .into_iter()
+                        .map(|mut b| {
+                            b.insert(0, 1);
+                            b
+                        })
+                        .collect(),
+                    Ok(_) => {
+                        vec![b"\0internal error: wrong number of results".to_vec(); self.world.size]
+                    }
+                    Err(e) => {
+                        let mut m = vec![0u8];
+                        m.extend_from_slice(e.as_bytes());
+                        vec![m; self.world.size]
+                    }
+                },
             };
             let mut replies = replies.into_iter();
             let own = replies.next().unwrap_or_default();
@@ -1152,6 +1339,16 @@ impl LocalRank {
         };
         match reply.split_first() {
             Some((1, rest)) => local.map(|()| rest.to_vec()),
+            Some((2, rest)) if rest.len() == 4 => {
+                let v = StatusVerdict {
+                    worst: rest[0],
+                    ids_match: rest[1] != 0,
+                    digests_match: rest[2] != 0,
+                    modes_match: rest[3] != 0,
+                };
+                set_verdict(v);
+                Err(status_error(v, local.err()))
+            }
             Some((_, rest)) => Err(local
                 .err()
                 .unwrap_or_else(|| comm_err(String::from_utf8_lossy(rest).into_owned()))),
@@ -1295,6 +1492,18 @@ fn prefix_folds<T: CommData>(
     Ok(out)
 }
 
+/// The process settings of the collective protocol (D-126), checked before
+/// an MPI communicator is created: an invalid `AKANTU_COLLECTIVE_CHECKS` or
+/// `AKANTU_COLLECTIVE_HEADER` is an error there (the local and serial
+/// constructors cannot fail; they keep every agreement on an invalid
+/// `AKANTU_COLLECTIVE_CHECKS`).
+#[cfg(feature = "mpi")]
+fn check_settings() -> Result<()> {
+    crate::phase::default_collective_checks()?;
+    crate::mpi_backend::header_exchange()?;
+    Ok(())
+}
+
 fn rank_index(r: Rank) -> Result<usize> {
     usize::try_from(r).map_err(|_| comm_err(format!("invalid rank {r}")))
 }
@@ -1389,6 +1598,7 @@ impl Communicator {
     /// retry.
     #[cfg(feature = "mpi")]
     pub fn mpi_world(options: crate::mpi_backend::MpiOptions) -> Result<Self> {
+        check_settings()?;
         let b = crate::mpi_backend::MpiBackend::world(options)?;
         Ok(Self::from_backend(
             Backend::Mpi(b),
@@ -1441,6 +1651,7 @@ impl Communicator {
         options: crate::mpi_backend::MpiOptions,
     ) -> Result<Self> {
         use mpi::raw::AsRaw;
+        check_settings()?;
         // SAFETY: `comm` is a live rsmpi communicator, borrowed (not freed)
         // for the duration of the call.
         let b = unsafe { crate::mpi_backend::MpiBackend::import(comm.as_raw(), options)? };
@@ -1494,6 +1705,7 @@ impl Communicator {
         raw: mpi::ffi::MPI_Comm,
         options: crate::mpi_backend::MpiOptions,
     ) -> Result<Self> {
+        check_settings()?;
         // SAFETY: forwarded from this function's contract.
         let b = unsafe { crate::mpi_backend::MpiBackend::import(raw, options)? };
         Ok(Self::from_backend(
@@ -1516,7 +1728,33 @@ impl Communicator {
     }
 
     fn desc(&self, op: CollOp) -> CollDesc {
-        CollDesc::new(op, self.reduction_policy())
+        let mut d = CollDesc::new(op, self.reduction_policy());
+        let me = self.identity();
+        d.status = ARMED.with(|a| match a.get() {
+            Some((id, s)) if id == me => {
+                a.set(None);
+                Some(s)
+            }
+            _ => None,
+        });
+        d
+    }
+
+    /// The collective-check mode of this communicator's family (D-126).
+    #[must_use]
+    pub fn collective_checks(&self) -> crate::phase::CollectiveChecks {
+        crate::phase::CollectiveChecks::from_code(self.scopes.family.checks.load(Ordering::Relaxed))
+    }
+
+    /// Set the collective-check mode of this communicator's family
+    /// (duplicates and splits share it). Call it on every rank, outside any
+    /// collective operation: ranks in different modes issue agreements at
+    /// different points.
+    pub fn set_collective_checks(&self, mode: crate::phase::CollectiveChecks) {
+        self.scopes
+            .family
+            .checks
+            .store(mode.code(), Ordering::Relaxed);
     }
 
     /// Register an owner scope named `name`, owned by the current thread.
@@ -1526,6 +1764,9 @@ impl Communicator {
     pub(crate) fn open_scope(&self, name: &str) -> std::result::Result<u64, OpenRefusal> {
         if self.scopes.broken().is_some() {
             return Err(OpenRefusal::Broken);
+        }
+        if let Some(other) = crate::phase::deferring_elsewhere(self.identity()) {
+            return Err(OpenRefusal::Deferred(other));
         }
         let mut st = self.scopes.lock();
         if let Some(s) = &st.live {
@@ -1655,6 +1896,12 @@ impl Communicator {
                 )),
             ));
         }
+        if let Some(other) = crate::phase::deferring_elsewhere(self.identity()) {
+            return Err(comm_err(format!(
+                "raw {what} refused: collective scope '{other}' of this thread holds deferred \
+                 outcomes on another communicator; finish or settle it first (D-126)"
+            )));
+        }
         let me = std::thread::current().id();
         let st = self.scopes.lock();
         match &st.live {
@@ -1756,8 +2003,8 @@ impl Communicator {
     }
 
     /// Identity of this rank's communicator (its shared state; equal for
-    /// clones, [`Communicator::is_same`]), carried by native capabilities.
-    #[cfg(feature = "mpi")]
+    /// clones, [`Communicator::is_same`]), carried by native capabilities
+    /// and by armed header statuses (D-126).
     pub(crate) fn identity(&self) -> usize {
         Arc::as_ptr(&self.shared) as usize
     }

@@ -415,7 +415,7 @@ impl<E: Clone> Synchronizer<E> {
         accessor: &mut dyn DataAccessor<E>,
         tag: SynchronizationTag,
     ) -> Result<()> {
-        let mut ph = Phases::new(&self.communicator, format!("sync:{}", self.id));
+        let mut ph = Phases::settling(&self.communicator, format!("sync:{}", self.id));
         let r = self.synchronize_in(&mut ph, accessor, tag);
         ph.settle(r)
     }
@@ -564,7 +564,9 @@ impl<E: Clone> Synchronizer<E> {
                 self.communicator.rank(),
             )
         });
-        phases.agreed(&format!("{name}:post"), unpacked, Severity::Recoverable)
+        // local (every request completed): under commit points agreed with
+        // the scope's next agreement (D-126)
+        phases.deferred(&format!("{name}:post"), unpacked, Severity::Recoverable)
     }
 
     /// Ghost → owner reduction (upstream `slaveReductionOnce`): ghosts pack
@@ -577,7 +579,7 @@ impl<E: Clone> Synchronizer<E> {
         accessor: &mut dyn DataAccessor<E>,
         tag: SynchronizationTag,
     ) -> Result<()> {
-        let mut ph = Phases::new(&self.communicator, format!("sync:{}", self.id));
+        let mut ph = Phases::settling(&self.communicator, format!("sync:{}", self.id));
         let r = self.slave_reduction_in(&mut ph, accessor, tag);
         ph.settle(r)
     }
@@ -1406,6 +1408,7 @@ fn unpack_all<E>(
 #[cfg(test)]
 mod tests {
     use super::*;
+    use crate::phase::CollectiveChecks;
 
     struct Noop;
     impl DataAccessor<u32> for Noop {
@@ -1522,35 +1525,42 @@ mod tests {
                 Ok(())
             }
         }
-        let t0 = Instant::now();
-        let out = crate::run_local(2, Duration::from_secs(20), |c| {
-            let mut s: Synchronizer<u32> = Synchronizer::new("nodes", c.clone());
-            if c.rank() == 0 {
-                s.communications.send.insert(1, vec![0]);
-            } else {
-                s.communications.recv.insert(0, vec![0]);
-            }
-            let r = s.synchronize(&mut Failing(c.rank() == 0), SynchronizationTag::Test);
-            (r.map_err(|e| e.to_string()), Instant::now())
-        });
-        assert!(
-            t0.elapsed() < Duration::from_secs(2),
-            "completed long before the timeout"
-        );
-        assert!(
-            out[0]
-                .0
-                .as_ref()
-                .unwrap_err()
-                .contains("injected packing error")
-        );
-        assert!(
-            out[1]
-                .0
-                .as_ref()
-                .unwrap_err()
-                .contains("failed on another rank")
-        );
+        // both collective-check modes (D-126): the packing failure is agreed
+        // before anything is posted
+        for mode in [CollectiveChecks::EveryPhase, CollectiveChecks::CommitPoints] {
+            let t0 = Instant::now();
+            let out = crate::run_local(2, Duration::from_secs(20), |c| {
+                c.set_collective_checks(mode);
+                let mut s: Synchronizer<u32> = Synchronizer::new("nodes", c.clone());
+                if c.rank() == 0 {
+                    s.communications.send.insert(1, vec![0]);
+                } else {
+                    s.communications.recv.insert(0, vec![0]);
+                }
+                let r = s.synchronize(&mut Failing(c.rank() == 0), SynchronizationTag::Test);
+                (r.map_err(|e| e.to_string()), Instant::now())
+            });
+            assert!(
+                t0.elapsed() < Duration::from_secs(2),
+                "completed long before the timeout"
+            );
+            assert!(
+                out[0]
+                    .0
+                    .as_ref()
+                    .unwrap_err()
+                    .contains("injected packing error")
+            );
+            assert!(
+                out[1]
+                    .0
+                    .as_ref()
+                    .unwrap_err()
+                    .contains("failed on another rank"),
+                "{mode:?}: {:?}",
+                out[1].0
+            );
+        }
         // Bidirectional exchange of 1 MiB per direction, rendezvous sends.
         let t0 = Instant::now();
         let out = crate::run_local_with_mode(

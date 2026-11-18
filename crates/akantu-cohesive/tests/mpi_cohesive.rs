@@ -45,6 +45,66 @@ fn world_with(reduction: ReductionPolicy) -> Communicator {
 
 type S = Box<dyn Fn(Communicator) -> par_coh::Outcome>;
 
+/// Bound of a run with an injected failure: well under the world's
+/// per-operation timeout (no rank waited for it).
+const FAILURE_BOUND: Duration = Duration::from_secs(30);
+
+/// `par_coh::checks::FAILURES` entry `name` under both modes, failing on
+/// the first then on the last rank.
+fn collective_failure(c: &Communicator, name: &str) -> par_coh::Outcome {
+    use par_coh::checks;
+    let &(_, pattern, nth, fatal) = checks::FAILURES
+        .iter()
+        .find(|f| f.0 == name)
+        .ok_or("unknown scenario")?;
+    let mode0 = c.collective_checks();
+    let rank = usize::try_from(c.rank()).map_err(|e| e.to_string())?;
+    let r = (|| {
+        for mode in checks::MODES {
+            for failing in [0, c.size() - 1] {
+                let what = format!("{pattern} #{nth}, {mode:?}, rank {failing} failing");
+                let s = checks::failure_run(c, mode, pattern, nth, failing);
+                checks::check_failure(&s, rank, failing, fatal, FAILURE_BOUND, &what)?;
+                // the same committed revisions on every rank
+                let mut lo = [s.revision];
+                let mut hi = [s.revision];
+                par_coh::ok(c.all_reduce(&mut lo, ReduceOp::Min), "revision min")?;
+                par_coh::ok(c.all_reduce(&mut hi, ReduceOp::Max), "revision max")?;
+                if lo != hi {
+                    return Err(format!(
+                        "{what}: committed mesh revisions differ between ranks ({} to {})",
+                        lo[0], hi[0]
+                    ));
+                }
+            }
+        }
+        Ok(())
+    })();
+    c.set_collective_checks(mode0);
+    r
+}
+
+/// The persistent state after a failure in each phase of the explicit
+/// solve step, `offset` steps after the first insertion, is the
+/// every-phase mode's (`par_coh::checks::check_states`).
+fn collective_state(c: &Communicator, offset: usize) -> par_coh::Outcome {
+    use par_coh::checks;
+    let mode0 = c.collective_checks();
+    let rank = usize::try_from(c.rank()).map_err(|e| e.to_string())?;
+    let r = checks::check_states(
+        rank,
+        &[0, c.size() - 1],
+        &mut |mode, inject, failing| checks::state_run(c, offset, mode, inject, failing),
+        &format!("step +{offset}"),
+    );
+    c.set_collective_checks(mode0);
+    let n = r?;
+    if rank == 0 {
+        println!("INFO collective_checks_state_step_plus_{offset}: {n} injected failures compared");
+    }
+    Ok(())
+}
+
 fn main() {
     std::thread::spawn(|| {
         std::thread::sleep(Duration::from_secs(900));
@@ -202,6 +262,40 @@ fn main() {
             not_run.push((
                 format!("fragments_tri_matches_oracle{sfx}"),
                 not_recorded("fragments_tri"),
+            ));
+        }
+    }
+    // The collective error protocol under both collective-check modes
+    // (D-018, D-126): a failure injected on one rank (the first, then the
+    // last) in chosen phases of the steps, and the persistent state after a
+    // failure in each phase of the explicit solve step (the scenario's
+    // partition rule exists for 2 and 4 ranks)
+    if matches!(size, 2 | 4) {
+        for &(name, ..) in &par_coh::checks::FAILURES {
+            scenarios.push((
+                format!("collective_checks_{name}"),
+                Box::new(move |c| collective_failure(&c, name)),
+                false,
+            ));
+        }
+        for offset in [0, 2] {
+            scenarios.push((
+                format!("collective_checks_state_step_plus_{offset}"),
+                Box::new(move |c| collective_state(&c, offset)),
+                false,
+            ));
+        }
+    } else {
+        for &(name, ..) in &par_coh::checks::FAILURES {
+            not_run.push((
+                format!("collective_checks_{name}"),
+                format!("the scenario's partition rule exists for 2 and 4 ranks, not {size}"),
+            ));
+        }
+        for offset in [0, 2] {
+            not_run.push((
+                format!("collective_checks_state_step_plus_{offset}"),
+                format!("the scenario's partition rule exists for 2 and 4 ranks, not {size}"),
             ));
         }
     }

@@ -806,7 +806,34 @@ domain); an `Error::Fatal { kind: Transport }` is never agreed: the
 communicator is marked broken and the runtime aborts the job. Owners
 convert their scope's state with `Phases::settle` before dropping it.
 Ordinary input errors therefore surface as errors on every rank, never as
-timeouts; the tests inject rank-specific failures on the local world.
+timeouts; the tests inject rank-specific failures on the local world
+(`akantu_comm::phase::testing::fail_phase` fails a chosen phase of one
+rank).
+
+Where agreements are spent depends on the communicator family's
+collective-check mode (D-126). `every-phase` agrees after every phase as
+above. `commit-points`, the default, defers, in a scope whose owner settles
+it (`Phases::settling`), a purely local phase's outcome
+(`Phases::defer`: the DOF manager's steps and joined operations, `run`'s
+post-processing, the mesh transaction's stages before its commit and its
+dispatch after it) to the scope's next agreement: before its next
+communication (`run`, `collective`), at a commit point (`Phases::commit`:
+the transaction's capability check and dispatch end, a DOF manager's
+outermost operation, the native trampolines; everything inside a native
+region) or when the scope settles. Every checked collective's header
+carries the protocol status, so a reduction carries the deferred outcomes
+itself (`run_collective`) and a failure reported by any rank fails the
+collective on every rank before any payload moves; an operation that ends
+with such a reduction closes with its verdict (`DofManager::reduction`).
+A failed rank leaves through its error path and takes part only in its
+scope's settle agreement, which its peers meet at their next agreement.
+Code that changes persistent state (DOF values, the lumped mass, internal
+variables, the mesh) after deferred steps first agrees what is deferred
+(`DofManager::commit_point`, `Phases::agree_deferred`; the time-step
+adapter places them for every solver), so a failed operation leaves every
+rank's state as `every-phase` does. While a scope holds deferred outcomes,
+its thread's scopes and raw collectives on another communicator are
+refused locally; on a one-rank communicator nothing is deferred.
 
 ### Synchronizers
 
@@ -816,7 +843,9 @@ variants that run inside an enclosing scope. `DataAccessor<E>` packs and
 unpacks per `SynchronizationTag`. An exchange is one phase: prepack and
 size every buffer, agree, post owned receives then sends, unpack in rank
 order with a typed wire contract (received length equals the announced
-size), agree. Message tags are `1024 + 64·tag + hash6(synchronizer id)`; two
+size), agree. Under the default collective checks (D-126) the post
+agreement is deferred; the agreement before the exchange stays (a rank
+that failed earlier is in an agreement, never in the exchange). Message tags are `1024 + 64·tag + hash6(synchronizer id)`; two
 synchronizers whose ids collide in the hash must not exchange the same tag
 concurrently.
 

@@ -1,0 +1,65 @@
+# Cost of one collective, 2026-11-18 06:57-07:00 UTC, four 8-core hosts (CPU models in
+# README.md), Open MPI 5.0.7, pml ob1, btl tcp,self,sm; ranks bound one per core.
+# Layout NxH: N ranks on H hosts (N/H per host, rank 0 on the first host).
+# mpi_bench (crates/akantu-comm/examples, perf/net 49ef30f1f): agree = phase::agree,
+#   allreduce = rank-ordered all-reduce (Max) of 5 u64 (what an agreement sends);
+# bench_baseline (scripts/mpi): MPI_Allreduce (MAX, 5 u64), MPI_Iallgather (128 B) + MPI_Wait.
+# 3000 collectives back to back after 301 warm-up ones; time per collective, slowest rank.
+8x1  mpi_bench agree                 2.86 us
+8x1  mpi_bench allreduce 5           2.95 us
+8x1  bench_baseline allreduce 5      0.82 us
+8x1  bench_baseline iallgather 128   1.96 us
+8x4  mpi_bench agree               472.37 us
+8x4  mpi_bench allreduce 5         492.52 us
+8x4  bench_baseline allreduce 5    868.04 us
+8x4  bench_baseline iallgather 128 504.21 us
+32x4 mpi_bench agree               760.19 us
+32x4 mpi_bench allreduce 5         740.16 us
+32x4 bench_baseline allreduce 5    892.43 us
+32x4 bench_baseline iallgather 128 744.03 us
+# the same with --mca coll_libnbc_iallgather_algorithm 2 (recursive doubling instead of linear)
+32x4 bench_baseline iallgather 128 587.08 us
+32x4 mpi_bench agree               586.40 us
+# point to point, 2 ranks on 2 hosts (first and second host): half round trip
+2x2  bench_baseline pingpong 8      25.42 us
+2x2  mpi_bench pingpong 8           28.42 us
+2x2  bench_baseline pingpong 65536 125.15 us
+# ICMP round trip from the first host: 0.25 ms to the second, 0.70 ms to the fourth host
+
+# --- after D-126 (collective checks at commit points) ---
+# libnbc's non-blocking reduction against the header forms, 2026-11-18 10:38 UTC (bench_baseline,
+# MPI_Iallreduce default algorithm = binomial reduce + broadcast; algorithm 4 = recursive doubling)
+8x1  bench_baseline iallgather 128      2.02 us
+8x1  bench_baseline iallreduce 12       1.49 us
+8x1  bench_baseline igather_bcast 128   2.22 us
+8x1  bench_baseline allreduce 12        0.87 us
+8x4  bench_baseline iallgather 128    506.24 us
+8x4  bench_baseline iallreduce 12    1072.41 us
+8x4  bench_baseline igather_bcast 128 813.27 us
+8x4  bench_baseline allreduce 12     1322.05 us
+32x4 bench_baseline iallgather 128    727.98 us
+32x4 bench_baseline iallreduce 12    1059.97 us
+32x4 bench_baseline igather_bcast 128 1028.49 us
+32x4 bench_baseline allreduce 12     1338.75 us
+32x4 bench_baseline iallreduce 12, recursive doubling (coll_libnbc_iallreduce_algorithm 4)  562.57 us
+# point-to-point messages per collective at 128 ranks on one host (Open MPI pml monitoring,
+# 128 ranks oversubscribed on 8 cores, counts only), all ranks together:
+iallgather (128 B)            16433
+iallreduce (12 u64, default)    254
+iallreduce (recursive doubling) 895
+igather + ibcast (128 B)        254
+allreduce (blocking, tuned)     254
+# akantu-comm's agreement (mpi_bench agree, build of 5995a7e50) at 128 ranks, by header form:
+agree, header by all-gather          16147 messages per agreement
+agree, header by gather + broadcast    254 messages per agreement
+# akantu-comm's agreement and rank-ordered reduction by header form (mpi_bench, 5995a7e50)
+8x1  allgather        agree 3.12 us   allreduce(5 u64) 2.92 us
+8x1  gather-broadcast agree 3.33 us   allreduce(5 u64) 3.26 us
+8x4  allgather        agree 511.15 us allreduce(5 u64) 428.59 us
+8x4  gather-broadcast agree 834.61 us allreduce(5 u64) 791.33 us
+32x4 allgather        agree 726.24 us allreduce(5 u64) 728.71 us
+32x4 gather-broadcast agree 1014.12 us allreduce(5 u64) 1028.49 us
+# On this network (round trip up to 0.7 ms) a collective is bound by latency: gather + broadcast
+# (two latency rounds) is slower than the one-round linear all-gather up to 32 ranks; the library
+# switches to it from 64 ranks (HEADER_GATHER_FROM), where the all-gather's P (P - 1) messages
+# dominate (the full-size losses: 0.8-0.9 us per network message and host).

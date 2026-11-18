@@ -465,6 +465,9 @@ impl SolverCallback for Adapter<'_> {
     fn predictor(&mut self, dofs: &mut DofManager) -> Result<()> {
         let model = &mut *self.model;
         model_step(dofs, "model:predictor", |d| model.predictor(d))?;
+        // D-126: the DOF values change below; no rank changes them while an
+        // earlier step of the operation may have failed on a peer
+        dofs.commit_point("predictor:dofs")?;
         let dt = self.time_step;
         for (dof_id, scheme) in self.schemes.iter_mut() {
             if dofs.has_previous_dofs(dof_id)? {
@@ -476,6 +479,8 @@ impl SolverCallback for Adapter<'_> {
     }
 
     fn corrector(&mut self, dofs: &mut DofManager) -> Result<()> {
+        // D-126: the corrector changes the DOF values
+        dofs.commit_point("corrector:dofs")?;
         self.corrected = true;
         let dt = self.time_step;
         for (dof_id, scheme) in self.schemes.iter_mut() {
@@ -494,6 +499,9 @@ impl SolverCallback for Adapter<'_> {
     }
 
     fn assemble_matrix(&mut self, dofs: &mut DofManager, matrix_id: &str) -> Result<()> {
+        // D-126: the matrices, the schemes' Jacobian caches and the release
+        // tracking persist between operations
+        dofs.commit_point("assemble_matrix:state")?;
         self.assemble_matrix_base(dofs, matrix_id)?;
         if matrix_id != "J" {
             return Ok(());
@@ -539,8 +547,13 @@ impl SolverCallback for Adapter<'_> {
     }
 
     fn assemble_residual(&mut self, dofs: &mut DofManager) -> Result<()> {
+        // the mass assembly agrees what is deferred before it changes the
+        // cached mass (its own commit points, D-126)
         self.assemble_mass(dofs)?;
         dofs.zero_residual();
+        // D-126: the model's residual updates internal variables (stresses,
+        // cohesive openings)
+        dofs.commit_point("assemble_residual:internals")?;
         let model = &mut *self.model;
         model_step(dofs, "model:assemble_residual", |d| {
             model.assemble_residual(d)
@@ -554,6 +567,8 @@ impl SolverCallback for Adapter<'_> {
 
     fn assemble_residual_part(&mut self, dofs: &mut DofManager, part: &str) -> Result<()> {
         self.assemble_mass(dofs)?;
+        // D-126: as `assemble_residual`
+        dofs.commit_point("assemble_residual:internals")?;
         if part != "inertial" {
             let model = &mut *self.model;
             model_step(dofs, &format!("model:assemble_residual:{part}"), |d| {
@@ -573,6 +588,9 @@ impl SolverCallback for Adapter<'_> {
     }
 
     fn before_solve_step(&mut self, dofs: &mut DofManager) -> Result<()> {
+        // D-126: the laws save their previous state and the schemes store
+        // the step's start (a solver's earlier steps may be deferred)
+        dofs.commit_point("before_solve_step:state")?;
         let model = &mut *self.model;
         model_step(dofs, "model:before_solve_step", |d| {
             model.before_solve_step(d)
@@ -584,6 +602,9 @@ impl SolverCallback for Adapter<'_> {
     }
 
     fn after_solve_step(&mut self, dofs: &mut DofManager, converged: bool) -> Result<()> {
+        // D-126: restores, increments and the laws' end-of-step updates
+        // change persistent state
+        dofs.commit_point("after_solve_step:state")?;
         if !converged {
             self.restore_last_converged_step(dofs)?;
         } else if !self.corrected {

@@ -113,6 +113,13 @@ impl Driven {
         }
     }
 
+    fn energies(&mut self, ids: &[&str]) -> Result<Vec<Real>> {
+        match self {
+            Self::Cohesive(m) => m.energies(ids),
+            Self::Solid(m) => m.energies(ids),
+        }
+    }
+
     fn stable_time_step(&mut self) -> Result<Real> {
         match self {
             Self::Cohesive(m) => m.stable_time_step(),
@@ -127,6 +134,18 @@ impl Driven {
             Self::Solid(_) => Err(Error::Unsupported(
                 "the rust_diag_* diagnostics need the cohesive model".into(),
             )),
+        }
+    }
+
+    /// The not-ghost cohesive elements the last insertion added over every
+    /// rank, when the model knows it without a reduction (distributed
+    /// cohesive model).
+    fn last_insertion_global_count(&self) -> Option<usize> {
+        match self {
+            Self::Cohesive(m) => m
+                .last_insertion_global_count()
+                .and_then(|n| usize::try_from(n).ok()),
+            Self::Solid(_) => None,
         }
     }
 
@@ -738,8 +757,15 @@ pub fn run(comm: &Communicator, cfg: &Config) -> Result<RunReport> {
                     n
                 }
             };
-            // upstream returns the global count; see `global_cohesive_count`
-            let total = global_cohesive_count(&shared, comm)?;
+            // upstream returns the global count; see `global_cohesive_count`.
+            // A distributed cohesive model already all-reduced the number of
+            // flagged not-ghost facets for its insertion order: the global
+            // count follows from it without a reduction per step (checked
+            // against the mesh at the end of the run)
+            let total = match model.last_insertion_global_count() {
+                Some(n) if psize > 1 => nb_cohesive_global + n,
+                _ => global_cohesive_count(&shared, comm)?,
+            };
             let nb_new = total.checked_sub(nb_cohesive_global).ok_or_else(|| {
                 Error::invalid("check_cohesive_stress: the number of cohesive elements decreased")
             })?;
@@ -786,10 +812,14 @@ pub fn run(comm: &Communicator, cfg: &Config) -> Result<RunReport> {
             log.after_solve(step, &shared, model.cohesive_mut()?)?;
         }
         if cfg.output_energy {
-            ed = model.energy("dissipated")?;
-            ep = model.energy("potential")?;
-            ek = model.energy("kinetic")?;
-            ew += model.energy("external work")?;
+            // upstream's four `getEnergy` calls (four `MPI_Allreduce`), as one
+            // reduction of the four contributions, each summed in rank order
+            // as before (bitwise the same values)
+            let e = model.energies(&["dissipated", "potential", "kinetic", "external work"])?;
+            ed = e[0];
+            ep = e[1];
+            ek = e[2];
+            ew += e[3];
             et = ed + ep + ek - ew;
             if prank == 0 {
                 energies.push((step, [ed, ep, ek, ew, et]));
@@ -847,6 +877,12 @@ pub fn run(comm: &Communicator, cfg: &Config) -> Result<RunReport> {
         )
     };
     let nb_cohesive_elements = all_reduce_usize(comm, nb_coh_local, ReduceOp::Sum)?;
+    if cfg.cohesive_insertion && nb_cohesive_elements != nb_cohesive_global {
+        return Err(Error::invalid(format!(
+            "the insertions added up to {nb_cohesive_global} cohesive elements but the mesh \
+             holds {nb_cohesive_elements}"
+        )));
+    }
     let ed_end = model.energy("dissipated")?;
     if verbose {
         let full = (init_time + loop_time).as_secs_f64();

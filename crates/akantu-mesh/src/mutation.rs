@@ -77,7 +77,7 @@
 
 use std::collections::HashMap;
 
-use akantu_comm::phase::{Phases, Severity, digest_bytes};
+use akantu_comm::phase::{CollectiveChecks, Phases, Severity, digest_bytes};
 use akantu_core::enums::EventPriority;
 use akantu_core::{
     Array, Element, ElementType, ElementTypeMapArray, Error, FatalKind, GhostType, GlobalIdx, Idx,
@@ -1887,7 +1887,8 @@ impl SharedMesh {
             return Err(e);
         }
         self.begin_mutation()?;
-        let mut phases = Phases::new(&self.0.comm, "mesh-mutation");
+        // settled on every error path, committed on success (D-126)
+        let mut phases = Phases::settling(&self.0.comm, "mesh-mutation");
         let result = self.mutate_inner(&mut phases, handlers, change, distributed);
         // Owner exit, for **every** error path — preflight and
         // topology agreements included: a transport failure observed by
@@ -1905,6 +1906,13 @@ impl SharedMesh {
                 // invariants: bounding-box parts, the state lock). Leaving
                 // a still-running scope means the peers continue without
                 // learning about it: the abort path.
+                // Under commit points (D-126) a local failure folded into
+                // the deferred outcomes reaches the peers through the scope's
+                // settle: agreed (the peers learn it at their next agreement,
+                // before any commit), not the abort path.
+                if !phases.is_failed() && phases.has_deferred() {
+                    let _ = phases.settle(Err::<(), _>(Error::Mesh(e.to_string())));
+                }
                 if !phases.is_failed() {
                     phases.mark_broken();
                 }
@@ -1965,13 +1973,17 @@ impl SharedMesh {
         let pre = self
             .preflight(handlers)
             .and_then(|order| Ok((order, self.try_write()?)));
+        // D-126: the stages before the commit change nothing irreversible
+        // (every rank rolls back on any failure): their agreements are
+        // deferred under commit points and agreed at the next communication
+        // or at the commit point (stage 3b)
         let (order, mut guard) = match pre {
             Ok(v) => {
-                ph.agree("preflight", Ok(()), Severity::Recoverable)?;
+                ph.defer("preflight", Ok(()), Severity::Recoverable)?;
                 v
             }
             Err(e) => {
-                return Err(own_error(ph.agree(
+                return Err(own_error(ph.defer(
                     "preflight",
                     Err(e),
                     Severity::Recoverable,
@@ -2006,7 +2018,7 @@ impl SharedMesh {
             hook_present && distributed_mesh,
             tx.mesh.mesh_facets.is_some(),
         );
-        if let Err(e) = ph.agree_digest("topology", topo, digest, Severity::Recoverable) {
+        if let Err(e) = ph.defer_digest("topology", topo, digest, Severity::Recoverable) {
             tx.rollback();
             return Err(e);
         }
@@ -2019,7 +2031,7 @@ impl SharedMesh {
                 let prep = h.prepare(tx.mesh, &events);
                 prepared = prep.is_ok();
                 let applied = ph
-                    .agree("hook:prepare", prep, Severity::Recoverable)
+                    .defer("hook:prepare", prep, Severity::Recoverable)
                     .map(|()| h.apply(&mut tx, &events, ph));
                 // Events the hook records during `apply` (relative to the
                 // state after the change, validated when recorded) follow
@@ -2035,7 +2047,7 @@ impl SharedMesh {
                 // communicating**: a transport-kind result,
                 // or an agreed-kind one after a recoverable failure (no
                 // longer agreeable), breaks the scope (abort path).
-                ph.agree("hook:apply", applied, Severity::Recoverable)?;
+                ph.defer("hook:apply", applied, Severity::Recoverable)?;
                 // The global counts below reduce one entry per event: the
                 // extended schedule must agree on every rank.
                 let digest = schedule_digest(
@@ -2044,7 +2056,7 @@ impl SharedMesh {
                     true,
                     tx.mesh.mesh_facets.is_some(),
                 );
-                ph.agree_digest("hook:schedule", Ok(()), digest, Severity::Recoverable)?;
+                ph.defer_digest("hook:schedule", Ok(()), digest, Severity::Recoverable)?;
             }
             // Bounding boxes after the hook, whenever nodes or elements were
             // added or removed (upstream recomputes them in the node events
@@ -2072,9 +2084,18 @@ impl SharedMesh {
                     upper.extend_from_slice(&b.upper);
                     locals.push(b);
                 }
-                ph.collective("bbox", |c| {
-                    crate::mesh::all_sum_bounds(c, &mut lower, &mut upper)
-                })?;
+                // under commit points a checked reduction that carries what
+                // is deferred (D-126); under every-phase checks the plain
+                // collective of D-018 (no agreement of its own)
+                if ph.collective_checks() == CollectiveChecks::CommitPoints {
+                    ph.run_collective("bbox", Ok(()), |c, ()| {
+                        crate::mesh::all_sum_bounds(c, &mut lower, &mut upper)
+                    })?;
+                } else {
+                    ph.collective("bbox", |c| {
+                        crate::mesh::all_sum_bounds(c, &mut lower, &mut upper)
+                    })?;
+                }
                 let mut off = 0;
                 for (&p, local) in parts.iter().zip(locals) {
                     let m = part_mut(tx.mesh, p)?;
@@ -2093,12 +2114,20 @@ impl SharedMesh {
                 .iter()
                 .map(|(_, e)| u64::try_from(event_len(e)).unwrap_or(u64::MAX))
                 .collect();
-            ph.collective("counts", |c| {
-                c.all_reduce(&mut counts, akantu_comm::ReduceOp::Sum)
-            })?;
+            if ph.collective_checks() == CollectiveChecks::CommitPoints {
+                ph.run_collective("counts", Ok(()), |c, ()| {
+                    c.all_reduce(&mut counts, akantu_comm::ReduceOp::Sum)
+                })?;
+            } else {
+                ph.collective("counts", |c| {
+                    c.all_reduce(&mut counts, akantu_comm::ReduceOp::Sum)
+                })?;
+            }
             // ---- stage 3b: consumer capability check, agreed -------------
+            // the commit point (D-126): every outcome before the commit is
+            // agreed here, immediately, in every mode
             let check = check_capabilities(tx.mesh, &tx.events, &counts, handlers);
-            ph.agree("capabilities", check, Severity::Recoverable)?;
+            ph.commit("capabilities", check, Severity::Recoverable)?;
             Ok(counts)
         })();
         let counts = match staged {
@@ -2160,7 +2189,11 @@ impl SharedMesh {
                 // communicating (as for the hook): the
                 // consumer's result decides the observing rank's fatal
                 // kind, not only the error that failed the internal phase.
-                if let Err(e) = ph.agree(
+                // after the commit a failure poisons the domain on every
+                // rank (fatal); under commit points the consumer's outcome
+                // joins the deferred ones, agreed at the next communication
+                // or at the end of the dispatch (D-126)
+                if let Err(e) = ph.defer(
                     &format!("dispatch:{ei}:{name}:{}", level.0),
                     local,
                     Severity::Fatal,
@@ -2168,6 +2201,17 @@ impl SharedMesh {
                     failure = Some(e);
                     break 'events;
                 }
+            }
+        }
+        // the end of the dispatch: a commit point (what is deferred is
+        // agreed, as fatal on every rank if anything failed anywhere)
+        if ph.has_deferred() {
+            let end = match failure.take() {
+                None => Ok(()),
+                Some(e) => Err(e),
+            };
+            if let Err(e) = ph.commit("dispatch:end", end, Severity::Fatal) {
+                failure = Some(e);
             }
         }
         drop(guard);

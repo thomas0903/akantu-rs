@@ -15,6 +15,8 @@
 //! mpirun -np N mpi_bench halo <bytes> <iterations>          # all-to-all irecv/isend/wait
 //! mpirun -np 2 mpi_bench calibrated pingpong <bytes> <iterations per block> <blocks>
 //! mpirun -np N mpi_bench calibrated halo <bytes> <iterations per block> <blocks>
+//! mpirun -np N mpi_bench allreduce <u64 words> <iterations>  # rank-ordered all-reduce (Max)
+//! mpirun -np N mpi_bench agree <iterations>                  # phase agreement (phase::agree)
 //! ```
 //!
 //! Prints one `PERF …` line on rank 0. Ping-pong: half round-trip time;
@@ -122,6 +124,45 @@ mod bench {
                 "PERF halo np={p} len={len}: {:.2} us per exchange ({} peers)",
                 v[0] / iters as f64 * 1e6,
                 p - 1
+            );
+        }
+        Ok(())
+    }
+
+    /// `iters` collectives of one kind, back to back: the mean time per
+    /// collective (maximum over the ranks). `allreduce`: rank-ordered
+    /// all-reduce (Max) of `words` u64; `agree`: one agreement of the
+    /// collective error protocol (`phase::agree`, all ranks succeeding).
+    fn collective(c: &Communicator, kind: &str, words: usize, iters: usize) -> R {
+        let warm = iters / 10 + 1;
+        let mut v = vec![0u64; words];
+        c.barrier().map_err(e2s)?;
+        let mut t0 = Instant::now();
+        for i in 0..iters + warm {
+            if i == warm {
+                c.barrier().map_err(e2s)?;
+                t0 = Instant::now();
+            }
+            if kind == "agree" {
+                akantu_comm::phase::agree(
+                    c,
+                    "bench",
+                    Ok(()),
+                    akantu_comm::phase::Severity::Recoverable,
+                )
+                .map_err(e2s)?;
+            } else {
+                v[0] = i as u64;
+                c.all_reduce(&mut v, ReduceOp::Max).map_err(e2s)?;
+            }
+        }
+        let mut t = [t0.elapsed().as_secs_f64()];
+        c.all_reduce(&mut t, ReduceOp::Max).map_err(e2s)?;
+        if c.rank() == 0 {
+            println!(
+                "PERF {kind} np={} words={words}: {:.2} us per collective",
+                c.size(),
+                t[0] / iters as f64 * 1e6
             );
         }
         Ok(())
@@ -355,11 +396,21 @@ mod bench {
             eprintln!("WATCHDOG: mpi_bench did not finish within {watchdog:?}");
             std::process::abort();
         });
-        if !["pingpong", "pingpong_pre", "halo", "calibrated"].contains(&name.as_str()) {
+        if ![
+            "pingpong",
+            "pingpong_pre",
+            "halo",
+            "calibrated",
+            "allreduce",
+            "agree",
+        ]
+        .contains(&name.as_str())
+        {
             println!("usage: mpi_bench pingpong|pingpong_pre|halo <bytes> <iterations>");
             println!(
                 "       mpi_bench calibrated pingpong|halo <bytes> <iterations per block> <blocks>"
             );
+            println!("       mpi_bench allreduce <u64 words> <iterations> | agree <iterations>");
             return;
         }
         let c = Communicator::mpi_world(MpiOptions {
@@ -379,6 +430,8 @@ mod bench {
                 }
                 _ => Err("calibrated: kind must be pingpong or halo".into()),
             },
+            "allreduce" => collective(&c, "allreduce", arg(2, 5), arg(3, 5000)),
+            "agree" => collective(&c, "agree", 5, arg(2, 5000)),
             _ => halo(&c, arg(2, 8192), arg(3, 2000)),
         };
         if let Err(e) = &r {

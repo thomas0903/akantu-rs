@@ -25,6 +25,9 @@
 # shared measurement host set) restricts the container to those cores
 # (docker --cpuset-cpus); unset, no restriction.
 #
+# AKANTU_COLLECTIVE_CHECKS and AKANTU_COLLECTIVE_HEADER (D-126) are passed
+# into the container (empty: the library's defaults).
+#
 # AKANTU_RS_MPI_TARGET (default /target) selects the cargo target directory
 # inside the target volume: give each worktree its own (never share a target
 # directory between worktrees).
@@ -46,6 +49,8 @@ exec docker run --rm ${tty[@]+"${tty[@]}"} ${cpuset[@]+"${cpuset[@]}"} \
   -v akantu-rs-mpi-target:/target \
   -v akantu-rs-mpi-cargo:/usr/local/cargo/registry \
   -e AKANTU_MPI_TEST_TIMEOUT_S="${AKANTU_MPI_TEST_TIMEOUT_S:-}" \
+  -e AKANTU_COLLECTIVE_CHECKS="${AKANTU_COLLECTIVE_CHECKS:-}" \
+  -e AKANTU_COLLECTIVE_HEADER="${AKANTU_COLLECTIVE_HEADER:-}" \
   -e CARGO_TARGET_DIR="${AKANTU_RS_MPI_TARGET:-/target}" \
   -e CARGO_INCREMENTAL="${AKANTU_RS_CARGO_INCREMENTAL:-0}" \
   -e CARGO_PROFILE_DEV_DEBUG="${AKANTU_RS_DEV_DEBUG:-line-tables-only}" \

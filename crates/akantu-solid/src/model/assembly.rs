@@ -914,6 +914,10 @@ impl SolidMechanicsPhysics {
                 akantu_core::enums::SynchronizationTag::SmmDensity,
             )?;
         }
+        // D-126: under commit points a failure after the exchange's leading
+        // agreement (a peer's unpacking) is deferred; agreed here, before
+        // the mass, `M` and the flag change
+        dofs.commit_point("smm:mass_lumped")?;
         alloc_nodal_shared_field(&mut self.mass, mesh.nb_nodes(), dim)?;
         if !dofs.has_lumped_matrix("M") {
             dofs.new_lumped_matrix("M")?;
@@ -973,6 +977,9 @@ impl SolidMechanicsPhysics {
                 |a, b| a + b,
             )?;
         }
+        // D-126: the periodic exchange's deferred outcomes, before `M` and
+        // the flag change (communicates only when something is deferred)
+        dofs.commit_point("smm:mass_lumped:assemble")?;
         dofs.assemble_to_lumped_matrix(DOF_ID, mass.view(), "M", 1.0)?;
         for m in mass.as_mut_slice() {
             if m.abs() < Real::EPSILON || m.is_nan() {
