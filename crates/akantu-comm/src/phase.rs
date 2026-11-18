@@ -364,6 +364,8 @@ struct Reduced {
     digests_match: bool,
     /// Every rank in the same collective-check mode (D-126).
     modes_match: bool,
+    /// Some rank's header carried its scope flag (failed verdicts only).
+    any_flag: bool,
 }
 
 impl Reduced {
@@ -373,6 +375,7 @@ impl Reduced {
             ids_match: v.ids_match,
             digests_match: v.digests_match,
             modes_match: v.modes_match,
+            any_flag: v.any_flag,
         }
     }
 }
@@ -470,7 +473,13 @@ fn count_agreement(start: Option<std::time::Instant>) {
     }
 }
 
-fn reduce_status(comm: &Communicator, id: u64, status: Severity, digest: u64) -> Result<Reduced> {
+fn reduce_status(
+    comm: &Communicator,
+    id: u64,
+    status: Severity,
+    digest: u64,
+    flag: bool,
+) -> Result<Reduced> {
     // max(status), max(id), max(!id) = !min(id), likewise for the digest:
     // one bounded all-reduce of five words.
     if one_rank_without_mpi(comm) {
@@ -481,6 +490,7 @@ fn reduce_status(comm: &Communicator, id: u64, status: Severity, digest: u64) ->
             ids_match: true,
             digests_match: true,
             modes_match: true,
+            any_flag: flag,
         });
     }
     // D-126: the agreement also carries its status (with the rank's
@@ -496,6 +506,7 @@ fn reduce_status(comm: &Communicator, id: u64, status: Severity, digest: u64) ->
             id,
             digest,
             mode: comm.collective_checks().code(),
+            flag,
         },
     );
     let disarm = Disarm;
@@ -513,6 +524,7 @@ fn reduce_status(comm: &Communicator, id: u64, status: Severity, digest: u64) ->
         ids_match: v[1] == !v[2],
         digests_match: v[3] == !v[4],
         modes_match: true,
+        any_flag: false,
     })
 }
 
@@ -672,7 +684,7 @@ pub fn agree_digest(
         });
     }
     let status = reported_severity(&local, severity_on_error);
-    let r = match reduce_status(comm, phase_id(name), status, digest) {
+    let r = match reduce_status(comm, phase_id(name), status, digest, false) {
         Ok(r) => r,
         Err(e) => {
             comm.mark_broken(&format!("agreement '{name}': {e}"));
@@ -756,6 +768,14 @@ struct ScopeCore {
     deferred: Option<Deferred>,
     /// Key of this scope in the thread's deferral registry.
     key: u64,
+    /// This rank's flag, carried by the header status of its agreements
+    /// ([`Phases::set_header_flag`]).
+    flag: bool,
+    /// Agreements and checked collectives this scope took part in.
+    checked: u64,
+    /// The agreement that failed the scope (its number in `checked`)
+    /// and whether any rank's header carried its flag.
+    failed_agreement: Option<(u64, bool)>,
 }
 
 impl Drop for ScopeCore {
@@ -776,7 +796,7 @@ impl Drop for ScopeCore {
             let agreed = !std::thread::panicking() && self.comm.broken().is_none() && {
                 let f = Deferred::fold(d, &q, Severity::Recoverable, 0);
                 let _step = self.comm.scope_step(self.uid);
-                reduce_status(&self.comm, f.id, f.worst, f.digest).is_ok()
+                reduce_status(&self.comm, f.id, f.worst, f.digest, self.flag).is_ok()
             };
             if agreed {
                 self.state = ScopeState::Failed(Severity::Recoverable);
@@ -1036,6 +1056,9 @@ impl Phases {
                 settles,
                 deferred: None,
                 key: NEXT_SCOPE_KEY.fetch_add(1, std::sync::atomic::Ordering::Relaxed),
+                flag: false,
+                checked: 0,
+                failed_agreement: None,
             },
             _thread: PhantomData,
         }
@@ -1168,6 +1191,34 @@ impl Phases {
     #[must_use]
     pub fn has_deferred(&self) -> bool {
         self.core.deferred.is_some()
+    }
+
+    /// Set this rank's flag, which the header status of each of the scope's
+    /// later agreements and checked collectives carries (one bit, no extra
+    /// communication); a failed one reports whether any rank had it set
+    /// ([`Phases::failed_agreement`]). For an owner that changes state
+    /// before its peers' deferred outcomes are known and must learn, at the
+    /// agreement that fails, whether some rank left before that change
+    /// (D-126: the DOF manager's blocked snapshot).
+    pub fn set_header_flag(&mut self, on: bool) {
+        self.core.flag = on;
+    }
+
+    /// The agreements and checked collectives this scope took part in so
+    /// far (successful or not; [`Phases::agreements`] also counts the
+    /// deferred phases).
+    #[must_use]
+    pub fn checked_agreements(&self) -> u64 {
+        self.core.checked
+    }
+
+    /// The agreement that failed this scope, as its number in
+    /// [`Phases::checked_agreements`], and whether any rank's header carried its
+    /// flag ([`Phases::set_header_flag`]); `None` while no agreement failed
+    /// (a scope broken by a transport failure included).
+    #[must_use]
+    pub fn failed_agreement(&self) -> Option<(u64, bool)> {
+        self.core.failed_agreement
     }
 
     /// Whether a checked reduction carries the agreement in its header
@@ -1416,8 +1467,10 @@ impl Phases {
             // (what the one-rank all-reduce returns), without the all-reduce,
             // the qualified name or the step guard.
             self.core.count += 1;
+            self.core.checked += 1;
             count_agreement(None);
             if local.is_err() {
+                self.core.failed_agreement = Some((self.core.checked, self.core.flag));
                 self.core.state = ScopeState::Failed(if status >= Severity::Fatal {
                     Severity::Fatal
                 } else {
@@ -1438,8 +1491,9 @@ impl Phases {
         };
         let reduced = {
             let _step = self.core.comm.scope_step(self.core.uid);
-            reduce_status(&self.core.comm, id, status, digest)
+            reduce_status(&self.core.comm, id, status, digest, self.core.flag)
         };
+        self.core.checked += 1;
         let r = match reduced {
             Ok(r) => r,
             Err(e) => {
@@ -1450,6 +1504,7 @@ impl Phases {
         };
         let out = interpret(&q, local, &r, "schedule descriptor");
         if out.is_err() {
+            self.core.failed_agreement = Some((self.core.checked, r.any_flag));
             // Agreed severity: the worst reported status, identical on
             // every rank. Ranks in different phases while all reporting
             // success is a protocol divergence: fatal.
@@ -1550,6 +1605,7 @@ impl Phases {
                 id: folded.id,
                 digest: folded.digest,
                 mode: self.core.mode.code(),
+                flag: self.core.flag,
             },
         );
         let disarm = Disarm;
@@ -1565,8 +1621,10 @@ impl Phases {
         count_agreement(Some(t));
         let unconsumed = disarm_status();
         drop(disarm);
+        self.core.checked += 1;
         if let Some(v) = take_verdict() {
             let r = Reduced::from_verdict(v);
+            self.core.failed_agreement = Some((self.core.checked, r.any_flag));
             self.core.state = ScopeState::Failed(if agreed_fatal(&r) {
                 Severity::Fatal
             } else {

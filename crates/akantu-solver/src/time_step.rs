@@ -246,7 +246,11 @@ impl TimeStepSolver {
         callback: &mut dyn SolverCallback,
     ) -> Result<()> {
         if self.schemes.is_empty() {
-            return self.non_linear_solver.solve(dofs, callback);
+            // D-126: the model's hooks change its state themselves; each
+            // starts with a commit point (as the adapter's)
+            return self
+                .non_linear_solver
+                .solve(dofs, &mut SchemeLess { model: callback });
         }
         let Self {
             non_linear_solver,
@@ -269,6 +273,86 @@ impl TimeStepSolver {
             corrected: false,
         };
         non_linear_solver.solve(dofs, &mut adapter)
+    }
+}
+
+/// The callback of a solver without integration scheme: the model's hooks,
+/// each after a commit point (D-126: a scheme-less model changes its DOF
+/// values and internal variables in its own hooks, so none of them may run
+/// on a rank while an earlier step may have failed on a peer). The commit
+/// points communicate only when an outcome is deferred.
+struct SchemeLess<'a> {
+    model: &'a mut dyn SolverCallback,
+}
+
+impl SolverCallback for SchemeLess<'_> {
+    fn matrix_type(&self, matrix_id: &str) -> MatrixType {
+        self.model.matrix_type(matrix_id)
+    }
+
+    fn assemble_matrix(&mut self, dofs: &mut DofManager, matrix_id: &str) -> Result<()> {
+        dofs.commit_point("model:assemble_matrix:state")?;
+        self.model.assemble_matrix(dofs, matrix_id)
+    }
+
+    fn assemble_lumped_matrix(&mut self, dofs: &mut DofManager, matrix_id: &str) -> Result<()> {
+        dofs.commit_point("model:assemble_lumped_matrix:state")?;
+        self.model.assemble_lumped_matrix(dofs, matrix_id)
+    }
+
+    fn assemble_residual(&mut self, dofs: &mut DofManager) -> Result<()> {
+        dofs.commit_point("model:assemble_residual:state")?;
+        self.model.assemble_residual(dofs)
+    }
+
+    fn assemble_residual_part(&mut self, dofs: &mut DofManager, part: &str) -> Result<()> {
+        dofs.commit_point("model:assemble_residual:state")?;
+        self.model.assemble_residual_part(dofs, part)
+    }
+
+    fn can_split_residual(&self) -> bool {
+        self.model.can_split_residual()
+    }
+
+    fn predictor(&mut self, dofs: &mut DofManager) -> Result<()> {
+        dofs.commit_point("model:predictor:state")?;
+        self.model.predictor(dofs)
+    }
+
+    fn corrector(&mut self, dofs: &mut DofManager) -> Result<()> {
+        dofs.commit_point("model:corrector:state")?;
+        self.model.corrector(dofs)
+    }
+
+    fn before_solve_step(&mut self, dofs: &mut DofManager) -> Result<()> {
+        dofs.commit_point("model:before_solve_step:state")?;
+        self.model.before_solve_step(dofs)
+    }
+
+    fn after_solve_step(&mut self, dofs: &mut DofManager, converged: bool) -> Result<()> {
+        dofs.commit_point("model:after_solve_step:state")?;
+        self.model.after_solve_step(dofs, converged)
+    }
+
+    fn restore_last_converged_step(&mut self, dofs: &mut DofManager) -> Result<()> {
+        dofs.commit_point("model:restore:state")?;
+        self.model.restore_last_converged_step(dofs)
+    }
+
+    fn init_solver(&mut self, dofs: &mut DofManager, ty: TimeStepSolverType) -> Result<()> {
+        self.model.init_solver(dofs, ty)
+    }
+
+    fn default_solver_type(&self) -> TimeStepSolverType {
+        self.model.default_solver_type()
+    }
+
+    fn default_solver_options(&self, ty: TimeStepSolverType) -> crate::ModelSolverOptions {
+        self.model.default_solver_options(ty)
+    }
+
+    fn as_any_mut(&mut self) -> Option<&mut dyn std::any::Any> {
+        self.model.as_any_mut()
     }
 }
 
@@ -527,6 +611,10 @@ impl SolverCallback for Adapter<'_> {
             }
         }
         dofs.finalize_matrix("J")?;
+        // D-126: `apply_boundary` records the blocked release as seen (the
+        // blocked snapshot's state): agreed after the deferred assembly and
+        // finalisation of `J`
+        dofs.commit_point("jacobian:boundary")?;
         dofs.apply_boundary("J")?;
         if track {
             *self.jacobian_release = dofs.matrix_release("J").ok();

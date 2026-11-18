@@ -831,7 +831,11 @@ Code that changes persistent state (DOF values, the lumped mass, internal
 variables, the mesh) after deferred steps first agrees what is deferred
 (`DofManager::commit_point`, `Phases::agree_deferred`; the time-step
 adapter places them for every solver), so a failed operation leaves every
-rank's state as `every-phase` does. While a scope holds deferred outcomes,
+rank's state as `every-phase` does. The blocked-DOF snapshot, updated by
+every solver right after `before_solve_step`, is protected without a
+commit point: a rank that leaves before its update says so with one bit
+of its next agreement's header status, and the ranks that updated put
+their snapshot back (`DofManager::mark_blocked_update`). While a scope holds deferred outcomes,
 its thread's scopes and raw collectives on another communicator are
 refused locally; on a one-rank communicator nothing is deferred.
 

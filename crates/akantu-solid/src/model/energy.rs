@@ -465,11 +465,14 @@ impl SolidMechanicsModel {
     /// Several energies of [`SolidMechanicsModel::energy`] at once, in the
     /// order of `ids`, with **one** reduction over the ranks: the local
     /// contributions form a vector whose elements are each summed in rank
-    /// order, so every value is bitwise the one `energy(id)` returns (the
-    /// same local computation, the same rank-ordered fold, the same
-    /// scaling after it: `½` for `kinetic`, `× Δt` for `external work`
-    /// outside static analyses). One collective instead of `ids.len()`
-    /// (D-126).
+    /// order, so under the default rank-ordered reduction policy every
+    /// value is bitwise the one `energy(id)` returns (the same local
+    /// computation, the same rank-ordered fold, the same scaling after it:
+    /// `½` for `kinetic`, `× Δt` for `external work` outside static
+    /// analyses). Under the opt-in native-MPI reduction policy
+    /// (`ReductionPolicy::NativeMpi`) the library's all-reduce of one
+    /// vector is not guaranteed to round as the all-reduces of its
+    /// elements one by one. One collective instead of `ids.len()` (D-126).
     ///
     /// # Errors
     /// As [`SolidMechanicsModel::energy`] for any of the ids.

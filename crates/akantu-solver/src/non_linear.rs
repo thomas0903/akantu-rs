@@ -580,6 +580,10 @@ impl NonLinearSolver for NativeNonLinear {
                         )));
                     }
                 }
+                // D-126: the blocked snapshot is updated after a deferred
+                // step; put back without communicating if a rank leaves
+                // before it
+                dofs.mark_blocked_update();
                 dofs.step("before_solve_step", |d| callback.before_solve_step(d))?;
                 dofs.update_global_blocked_dofs();
                 // Upstream NonLinearSolverTAO assembles J before the

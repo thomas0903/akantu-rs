@@ -28,9 +28,18 @@ change of default results or of a public API raises the minor version.
   every-phase mode does (commit points before persistent changes). While
   a scope holds deferred outcomes, its thread's scopes and raw collectives
   on another communicator are refused locally. Results are unchanged.
+- A failed solver operation also leaves the DOF manager's blocked snapshot
+  as the every-phase checks do (D-126): `DofManager::mark_blocked_update`
+  (each solver marks its update; the snapshot is put back without extra
+  communication when a rank left before its update), with
+  `Phases::{set_header_flag, checked_agreements, failed_agreement}`; commit
+  points before `apply_boundary("J")`, in the hooks of a solver without
+  integration scheme and in the diffusion model's residual and lumped
+  capacity.
 - `SolidMechanicsModel::energies` and `SolidMechanicsModelCohesive::energies`:
   several energies with one reduction over the ranks, each bitwise the
-  value of `energy` (the benchmark driver's four energies per step).
+  value of `energy` under the default rank-ordered reduction policy (the
+  benchmark driver's four energies per step).
 - `SolidMechanicsModelCohesive::last_insertion_global_count`: the
   not-ghost cohesive elements the last insertion of a distributed model
   added over every rank (no reduction; the benchmark driver's global

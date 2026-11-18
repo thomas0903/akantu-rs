@@ -116,6 +116,9 @@ impl NonLinearSolver for NonLinearSolverLumped {
     fn solve(&mut self, dofs: &mut DofManager, cb: &mut dyn SolverCallback) -> Result<()> {
         let alpha = self.alpha;
         dofs.collective(&format!("nls:{}", self.id), |dofs| {
+            // D-126: the blocked snapshot is updated after a deferred step;
+            // put back without communicating if a rank leaves before it
+            dofs.mark_blocked_update();
             dofs.step("before_solve_step", |d| cb.before_solve_step(d))?;
             dofs.update_global_blocked_dofs();
             dofs.step("predictor", |d| cb.predictor(d))?;

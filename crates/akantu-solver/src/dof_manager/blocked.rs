@@ -19,14 +19,104 @@ use akantu_mesh::Mesh;
 
 use super::DofManager;
 
+/// The blocked snapshot as it was before an update taken while outcomes of
+/// the running operation were deferred (D-126).
+#[derive(Debug)]
+pub(super) struct BlockedBackup {
+    /// `checked_agreements` of the operation's scope at the update.
+    seq: u64,
+    indexes: Vec<usize>,
+    previous: Vec<usize>,
+    release: u64,
+    previous_release: u64,
+    /// The flags, when the update rewrote them.
+    global_blocked: Option<Vec<bool>>,
+}
+
 impl DofManager {
+    /// Announce, at the start of a solver's collective operation, that the
+    /// operation will update the blocked snapshot
+    /// ([`DofManager::update_global_blocked_dofs`]) after steps whose
+    /// outcomes may be deferred (D-126). Until the update, this rank's
+    /// agreements carry a flag in their header status (one bit, nothing
+    /// more is communicated); a rank that leaves the operation before its
+    /// update therefore tells the ranks that updated, at the agreement where
+    /// they learn of its failure, to put their snapshot back — every rank
+    /// then holds the snapshot every-phase checks leave (no rank updated).
+    /// A no-op outside a collective operation.
+    pub fn mark_blocked_update(&mut self) {
+        if !self.in_collective() {
+            return;
+        }
+        if let Ok(mut ph) = self.check_out("mark_blocked_update") {
+            ph.set_header_flag(true);
+            self.check_in(ph);
+        }
+    }
+
+    /// Resolve the backup of the blocked snapshot once the operation's
+    /// scope took part in an agreement after the update: the first one
+    /// failed with the flag of a rank that left before its update → the
+    /// snapshot goes back (no rank updated under every-phase checks);
+    /// otherwise every rank passed the update and it stands.
+    pub(super) fn resolve_blocked_backup(&mut self, ph: &akantu_comm::phase::Phases) {
+        let Some(b) = &self.blocked_backup else {
+            return;
+        };
+        if ph.checked_agreements() <= b.seq {
+            return;
+        }
+        let Some(b) = self.blocked_backup.take() else {
+            return;
+        };
+        if ph.failed_agreement() == Some((b.seq + 1, true)) {
+            self.blocked_indexes = b.indexes;
+            self.previous_blocked_indexes = b.previous;
+            self.blocked_release = b.release;
+            self.previous_blocked_release = b.previous_release;
+            if let Some(g) = b.global_blocked {
+                self.global_blocked = g;
+            }
+        }
+    }
+
+    /// The scope's state at an update of the blocked snapshot inside a
+    /// collective operation: clears this rank's flag
+    /// ([`DofManager::mark_blocked_update`]) and returns the scope's
+    /// agreement count when outcomes are deferred (a backup is needed).
+    fn blocked_update_scope(&mut self) -> Option<u64> {
+        if !self.in_collective() {
+            return None;
+        }
+        let mut ph = self.check_out("update_global_blocked_dofs").ok()?;
+        ph.set_header_flag(false);
+        let seq = ph.has_deferred().then(|| ph.checked_agreements());
+        self.check_in(ph);
+        seq
+    }
+
     /// Upstream `updateGlobalBlockedDofs` (called at the start of every
     /// non-linear solve): the local equations of blocked DOFs (periodic
     /// slaves skipped), sorted and de-duplicated, become the blocked
     /// snapshot used by [`DofManager::apply_boundary`] and the convergence
     /// norms; the blocked release is incremented when the set changed.
-    /// Local (no communication).
+    /// Local (no communication). Inside a collective operation whose
+    /// outcomes are deferred (D-126) the previous snapshot is kept until
+    /// the next agreement and put back if a rank left before its update
+    /// ([`DofManager::mark_blocked_update`]).
     pub fn update_global_blocked_dofs(&mut self) {
+        // D-126: taken while outcomes of the operation are deferred, the
+        // update can be undone (`resolve_blocked_backup`)
+        if let Some(seq) = self.blocked_update_scope() {
+            self.blocked_backup = Some(BlockedBackup {
+                seq,
+                indexes: self.blocked_indexes.clone(),
+                previous: self.previous_blocked_indexes.clone(),
+                release: self.blocked_release,
+                previous_release: self.previous_blocked_release,
+                global_blocked: None,
+            });
+        }
         let local = self.layout.nb_local();
         self.previous_blocked_indexes
             .clone_from(&self.blocked_indexes);
@@ -62,6 +152,12 @@ impl DofManager {
         self.blocked_indexes.sort_unstable();
         self.blocked_indexes.dedup();
         let are_equal = self.blocked_indexes == self.previous_blocked_indexes;
+        if (self.blocked_indexes.is_empty() || !are_equal)
+            && let Some(b) = self.blocked_backup.as_mut()
+            && b.global_blocked.is_none()
+        {
+            b.global_blocked = Some(self.global_blocked.clone());
+        }
         if self.blocked_indexes.is_empty() {
             self.global_blocked.clear();
             self.global_blocked.resize(local, false);
