@@ -245,16 +245,107 @@ broadcast costs more than the one-round all-gather up to 32 ranks
 (1,014 against 726 µs per agreement at 32 ranks on four hosts), hence the
 switch at 64 ranks.
 
+## 5. Results after the fix (18 November 2026, 12:48–13:46 UTC)
+
+Port before (the image's driver, 5455adfc2, SHA-256 `bb7119e5…`), port
+after (7cafbd708, `9a37a052…`, default settings: commit points, header by
+all-gather below 64 ranks) and the C++ reference, interleaved, order
+rotated per repetition, 3 repetitions; loop and rank 0's phases in seconds,
+median [min, max] (`python3 -I summarize.py runs.csv fin`):
+
+| case | loop | check_cohesive_stress | solve_step | energies |
+|---|---|---|---|---|
+| before 8x1 | 69.2 [69.1, 69.5] | 40.6 [40.5, 40.9] | 26.0 [25.9, 26.0] | 2.6 [2.6, 2.6] |
+| after 8x1 | 68.8 [68.7, 69.0] | 40.3 [40.2, 40.5] | 26.0 [26.0, 26.0] | 2.5 [2.5, 2.5] |
+| C++ 8x1 | 176.5 [176.4, 176.5] | 118.6 [118.4, 118.7] | 49.8 [49.6, 49.8] | 8.0 [8.0, 8.5] |
+| before 8x4 | 90.0 [87.6, 91.5] | 42.5 [42.5, 44.3] | 30.7 [30.0, 31.1] | 16.0 [15.0, 16.7] |
+| after 8x4 | 51.2 [50.6, 51.9] | 31.0 [30.8, 31.6] | 14.7 [14.7, 15.4] | 5.1 [5.0, 5.5] |
+| C++ 8x4 | 132.6 [129.2, 132.6] | 84.0 [82.4, 84.9] | 34.0 [33.7, 34.4] | 13.9 [12.5, 14.6] |
+| before 32x4 | 104.1 [103.6, 104.6] | 48.2 [47.9, 48.7] | 38.0 [37.4, 38.2] | 18.0 [17.9, 18.0] |
+| after 32x4 | 65.0 [64.4, 70.9] | 38.1 [37.9, 41.3] | 20.8 [20.3, 21.9] | 6.1 [6.0, 7.7] |
+| C++ 32x4 | 135.9 [135.0, 136.2] | 87.9 [87.9, 87.9] | 39.0 [38.7, 39.2] | 8.8 [8.4, 9.3] |
+
+Paired ratios (same repetition), loop:
+
+| ratio | 8x1 | 8x4 | 32x4 |
+|---|---|---|---|
+| after / before | 0.994 [0.988, 0.998] | 0.563 [0.560, 0.593] | 0.622 [0.621, 0.681] |
+| before / C++ | 0.392 [0.392, 0.394] | 0.679 [0.661, 0.708] | 0.765 [0.762, 0.775] |
+| after / C++ | 0.390 [0.389, 0.391] | 0.392 [0.382, 0.396] | 0.481 [0.474, 0.521] |
+
+| ratio | before | after | C++ |
+|---|---|---|---|
+| 8 ranks: four hosts / one host | 1.302 [1.260, 1.322] | 0.745 [0.734, 0.755] | 0.751 [0.732, 0.751] |
+
+Across four hosts the port is now 2.55× faster than the reference at 8
+ranks (as on one host: 2.56×) and 2.08× at 32 ranks; moving its 8 ranks
+from one host to four makes it 25 % faster, like the reference (the
+compute phases run faster with 2 ranks per host, section 3), where before
+the change it lost 30 %. On one host nothing changed (0.994).
+
+Messages and collectives per step (NIC packets sent by all hosts, from the
+timing runs; collectives and the time in their requests per rank, from
+the interposer runs `cal-r8x4`, `pm-r32x4`, `pm-a8x4`, `pm-a32x4`):
+
+| | before 8x4 | after 8x4 | C++ 8x4 | before 32x4 | after 32x4 | C++ 32x4 |
+|---|---|---|---|---|---|---|
+| NIC packets per step | 3,083 | 1,460 | 903 | 44,284 | 16,730 | 2,741 |
+| collectives per step and rank | 51.6 | 19.4 | 8.4 | 48.3 | 17.7 | 7.8 |
+| ms per step in collective requests | 28.9 | 11.6 | – | 48.7 | 24.9 | – |
+
+Results: with the Eigen static solve (deterministic) `energies.csv`,
+`insertions.csv` and the 29 result values of `summary.json` are bitwise
+identical between the port before on one host and the port after on one
+host (`eig-final-8x1`) and on four hosts (`eig-v3-8x4`, an earlier build of
+the same protocol). The suite's MPI cases (below) give identical digests.
+
+Shared memory, one host (AMD EPYC 9B14), the MPI cases of `suite_solid`
+(size m) before (5455adfc2) and after (7cafbd708), 5 paired repetitions,
+`scripts/perf/suite/run_mpi.sh`, ranks bound to cores 0–7 (`suite-ab.txt`,
+raw data `suite/`):
+
+| case | ranks | phase | after / before | digests |
+|---|---|---|---|---|
+| par_cohesive_extrinsic | 2 | step | 0.970 [0.965, 0.976] | identical |
+| par_cohesive_extrinsic | 4 | step | 0.973 [0.968, 0.986] | identical |
+| par_cohesive_extrinsic | 8 | step | 0.977 [0.971, 0.994] | identical |
+| par_explicit_tet4_ss | 2 | solve_step | 0.975 [0.953, 0.982] | identical |
+| par_explicit_tet4_ss | 4 | solve_step | 0.992 [0.986, 1.005] | identical |
+| par_explicit_tet4_ss | 8 | solve_step | 1.008 [1.003, 1.011] | identical |
+| par_explicit_tet4_ss | 2 | energies | 1.015 [1.008, 1.023] | identical |
+
+No timed phase has a median ratio above 1.015.
+
+## 6. What is left
+
+- The port makes 19.4 collectives per step and rank against the
+  reference's 8.4 (section 4 lists them): mostly the agreements before
+  point-to-point exchanges (an exchange cannot carry the agreement, see
+  D-126) and the insertion transaction's checks. On this cluster each
+  costs about 0.5 ms across hosts; the port's per-step time in collective
+  requests across hosts is still 11.6 ms (8 ranks) and 24.9 ms (32 ranks).
+- At 64 and 128 ranks the header switches to gather and broadcast, which
+  this cluster (32 cores) cannot measure at that size; at 128 ranks it
+  sends 254 messages per collective instead of 16,147.
+- Item 5's conclusion (section 3) holds: the speed of the compute phases
+  depends on the ranks per host (shared memory bandwidth); the reference
+  gains across hosts for that reason, and so does the port now.
+
 ## Files
 
-- `runs.csv`: every run of the session (`collect.py`); `env` names the
-  interposer (`LD_PRELOAD`, `PMPI_BT`), the diagnostic switches and the Eigen
-  solve; timing tables use the runs without the interposer.
-- `summarize.py`: the tables of sections 1 and 3.
+- `runs.csv`: every run of the sessions (`collect.py`); `env` names the
+  interposer (`LD_PRELOAD`, `PMPI_BT`), the diagnostic switches and the
+  Eigen solve; timing tables use the runs without the interposer. Prefixes:
+  `cal-`, `d1-`, `d2-`, `rep-` diagnosis; `i5-` the contention experiment;
+  `eig-` bitwise checks; `fin-` the series of section 5; `bt*-`, `pm-`
+  interposer runs.
+- `summarize.py`: the tables of sections 1, 3 and 5.
 - `pmpistat.c`: the PMPI interposer (`mpicc -O2 -fPIC -shared`); its counters
-  `pmpi-counters.txt` (`pmpi_summary.py`); call sites
-  `collectives-by-phase.txt` (`btcat.py`).
-- `microbench.txt`: cost of one collective and point-to-point latency.
+  `pmpi-counters.txt` (`pmpi_summary.py`); call sites before and after the
+  fix `collectives-by-phase.txt` (`btcat.py`).
+- `microbench.txt`: the cost and message count of one collective, before
+  and after.
+- `suite-ab.txt`, `suite/`: the shared-memory A/B of section 5.
 
 Commands (head host; sessions as in the launcher's header, `hosts` with the
 four private addresses and `slots=8`): one run is

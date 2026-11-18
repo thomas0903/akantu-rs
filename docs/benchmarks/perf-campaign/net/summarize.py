@@ -18,7 +18,7 @@ PHASES = ("loop", "check_cohesive_stress", "solve_step", "energies", "interpolat
 # r: the port (diagnosis series); b / a: the port before / after D-126 (final series); c: C++
 RATIOS = (("r8x4", "r8x1"), ("c8x4", "c8x1"), ("r8x1", "c8x1"), ("r8x4", "c8x4"), ("r32x4", "c32x4"),
           ("a8x1", "b8x1"), ("a8x4", "b8x4"), ("a32x4", "b32x4"),
-          ("b8x4", "b8x1"), ("a8x4", "a8x1"), ("c8x4", "c8x1"),
+          ("b8x4", "b8x1"), ("a8x4", "a8x1"),
           ("b8x1", "c8x1"), ("a8x1", "c8x1"), ("b8x4", "c8x4"), ("a8x4", "c8x4"),
           ("b32x4", "c32x4"), ("a32x4", "c32x4"))
 
