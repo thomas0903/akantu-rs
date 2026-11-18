@@ -2045,7 +2045,7 @@ mod tests {
             let deferred = ph.has_deferred() && !ph.is_failed();
             let settled = ph.settle(
                 post.as_ref()
-                    .map(|()| ())
+                    .copied()
                     .map_err(|e| Error::Numerical(e.to_string())),
             );
             let own = settled
@@ -2065,7 +2065,7 @@ mod tests {
             out[0],
             (true, true, true, true, Some(Severity::Recoverable), false)
         );
-        assert_eq!(out[1].0, false, "rank 1's own post-processing succeeded");
+        assert!(!out[1].0, "rank 1's own post-processing succeeded");
         assert_eq!((out[1].1, out[1].2, out[1].3), (true, true, false));
         assert_eq!((out[1].4, out[1].5), (Some(Severity::Recoverable), false));
     }
