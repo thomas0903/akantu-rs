@@ -812,7 +812,8 @@ rank).
 
 Where agreements are spent depends on the communicator family's
 collective-check mode (D-126). `every-phase` agrees after every phase as
-above. `commit-points`, the default, defers a purely local phase's outcome
+above. `commit-points`, the default, defers, in a scope whose owner settles
+it (`Phases::settling`), a purely local phase's outcome
 (`Phases::defer`: the DOF manager's steps and joined operations, `run`'s
 post-processing, the mesh transaction's stages before its commit and its
 dispatch after it) to the scope's next agreement: before its next

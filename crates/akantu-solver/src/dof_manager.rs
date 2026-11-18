@@ -984,7 +984,8 @@ impl DofManager {
     }
 
     fn scope(&self, what: &str) -> Phases {
-        Phases::new(&self.communicator, format!("dof:{}:{what}", self.id))
+        // the manager settles its operation's scope on every path (D-126)
+        Phases::settling(&self.communicator, format!("dof:{}:{what}", self.id))
     }
 
     /// Resume the running operation's scope on the current thread (the

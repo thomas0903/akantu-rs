@@ -723,7 +723,7 @@ fn phase_protocol_ports() -> Outcome {
         // (only rank 0 has an error) and agreed on every rank when the scope
         // settles
         c.set_collective_checks(CollectiveChecks::CommitPoints);
-        let mut ph = Phases::new(&c, "post-commit-points");
+        let mut ph = Phases::settling(&c, "post-commit-points");
         let post = ph.run("unpack", Ok(()), |comm, ()| {
             comm.barrier()?;
             Ok(if comm.rank() == 0 {

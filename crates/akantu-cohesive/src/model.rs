@@ -2661,7 +2661,7 @@ impl SolidMechanicsModelCohesive {
         let order = if self.ext.parallel.is_some() {
             let mesh_h = self.smm.physics.base.mesh.clone();
             let m = mesh_h.read()?;
-            let mut ph = Phases::new(m.communicator(), "cohesive:insertion_order");
+            let mut ph = Phases::settling(m.communicator(), "cohesive:insertion_order");
             let r = self.ext.inserter.synchronize_insertion_in(&mut ph, &m);
             let o = ph.settle(r)?;
             if o.global_flagged == 0 {
@@ -2784,7 +2784,7 @@ impl SolidMechanicsModelCohesive {
         let order = if self.ext.parallel.is_some() {
             let mesh_h = self.smm.physics.base.mesh.clone();
             let m = mesh_h.read()?;
-            let mut ph = Phases::new(m.communicator(), "cohesive:facets_only_order");
+            let mut ph = Phases::settling(m.communicator(), "cohesive:facets_only_order");
             let r = self.ext.inserter.synchronize_insertion_in(&mut ph, &m);
             let o = ph.settle(r)?;
             if o.global_flagged == 0 {

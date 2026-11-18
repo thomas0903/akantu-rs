@@ -14,7 +14,7 @@ change of default results or of a public API raises the minor version.
   error protocol agrees only before communication and at commit points
   (`akantu_comm::phase::CollectiveChecks`, `AKANTU_COLLECTIVE_CHECKS`,
   `Communicator::set_collective_checks`); `every-phase` keeps an agreement
-  after every phase. New `Phases::{defer, deferred, defer_digest, commit,
+  after every phase. New `Phases::{settling, defer, deferred, defer_digest, commit,
   commit_agreed, classify, has_deferred, collective_checks}`, `DofManager::{reduction, collective_committed}`, the
   fault-injection aid `akantu_comm::phase::testing`, `phase::deferred_stats`.
   The header of every checked collective carries the protocol status; from

@@ -2441,9 +2441,14 @@ default `set_default_collective_checks` or `AKANTU_COLLECTIVE_CHECKS` =
 
 Mechanisms of `commit-points`:
 
-1. **Deferred outcomes.** `Phases::defer` / `deferred` record a purely
-   local phase's outcome in the scope (worst severity, folded phase ids and
-   digests) without communicating; the failing rank gets its own error at
+1. **Deferred outcomes.** In a scope whose owner settles it on every path
+   (`Phases::settling`: the DOF manager's operations, the mesh transaction,
+   the standalone synchronizer exchanges, the cohesive insertion order),
+   `Phases::defer` / `deferred` record a purely local phase's outcome
+   (worst severity, folded phase ids and digests) without communicating;
+   in any other scope (`Phases::new`) every outcome is agreed at once, as
+   under every-phase checks, so an owner that drops its scope without
+   settling cannot lose a peer's failure; the failing rank gets its own error at
    once and skips the rest of the operation. Deferred: the DOF manager's
    steps (solver callbacks) and joined operations, the post-processing
    (unpacking) of `Phases::run` and `Synchronizer::wait_in`, the mesh

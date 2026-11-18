@@ -696,15 +696,21 @@ struct ScopeCore {
     uid: Option<u64>,
     /// The communicator family's mode when the scope opened (D-126).
     mode: CollectiveChecks,
+    /// The owner settles the scope before it drops it ([`Phases::settling`]):
+    /// only then are local outcomes deferred.
+    settles: bool,
     /// Outcomes deferred since the last agreement (commit points only).
     deferred: Option<Deferred>,
 }
 
 impl Drop for ScopeCore {
     fn drop(&mut self) {
-        // An owner settles before it drops its scope (`Phases::settle`
-        // agrees what is still deferred), unless the operation already
-        // failed or broke on this rank.
+        if let Some(uid) = self.uid {
+            self.comm.close_scope(uid);
+        }
+        // A settling owner settles before it drops its scope
+        // (`Phases::settle` agrees what is still deferred), unless the
+        // operation already failed or broke on this rank.
         debug_assert!(
             self.deferred.is_none()
                 || self.state != ScopeState::Running
@@ -712,9 +718,6 @@ impl Drop for ScopeCore {
             "collective scope '{}' dropped with deferred outcomes not settled",
             self.scope
         );
-        if let Some(uid) = self.uid {
-            self.comm.close_scope(uid);
-        }
     }
 }
 
@@ -845,7 +848,21 @@ impl Phases {
     /// observed a transport failure.
     #[must_use]
     pub fn new(comm: &Communicator, scope: impl Into<String>) -> Self {
-        let scope = scope.into();
+        Self::open(comm, scope.into(), false)
+    }
+
+    /// [`Phases::new`] for an owner that **settles** the scope
+    /// ([`Phases::settle`]) on every path before it drops it: under commit
+    /// points (D-126) its local phases' outcomes may then be deferred to
+    /// the next agreement ([`Phases::defer`]); in a scope opened with
+    /// [`Phases::new`] every outcome is agreed at once, as under
+    /// every-phase checks.
+    #[must_use]
+    pub fn settling(comm: &Communicator, scope: impl Into<String>) -> Self {
+        Self::open(comm, scope.into(), true)
+    }
+
+    fn open(comm: &Communicator, scope: String, settles: bool) -> Self {
         let (state, uid) = match comm.open_scope(&scope) {
             Ok(uid) => (ScopeState::Running, Some(uid)),
             Err(OpenRefusal::Active(active)) => (ScopeState::Refused(active), None),
@@ -859,6 +876,7 @@ impl Phases {
                 state,
                 uid,
                 mode: comm.collective_checks(),
+                settles,
                 deferred: None,
             },
             _thread: PhantomData,
@@ -991,17 +1009,25 @@ impl Phases {
         self.core.deferred.is_some()
     }
 
-    /// Whether this scope defers local outcomes now: commit points, a
-    /// communicating world, outside native library regions.
-    fn defers(&self) -> bool {
+    /// Whether a checked reduction carries the agreement in its header
+    /// ([`Phases::run_collective`]): commit points, a communicating world,
+    /// outside native library regions.
+    fn folds(&self) -> bool {
         self.core.mode == CollectiveChecks::CommitPoints
             && !one_rank_without_mpi(&self.core.comm)
             && !in_native_region()
     }
 
+    /// Whether this scope defers local outcomes now: [`Phases::folds`] and
+    /// an owner that settles ([`Phases::settling`]).
+    fn defers(&self) -> bool {
+        self.core.settles && self.folds()
+    }
+
     /// A **purely local** phase's outcome (D-126). Under
-    /// [`CollectiveChecks::EveryPhase`] (and inside native regions) the
-    /// same as [`Phases::agree`]; under commit points it is not
+    /// [`CollectiveChecks::EveryPhase`], inside native regions and in a
+    /// scope not opened with [`Phases::settling`] the same as
+    /// [`Phases::agree`]; under commit points it is not
     /// communicated: it is folded into the scope's next agreement — before
     /// its next communication or commit point, or when it settles — and the
     /// rank's own error is returned at once (the other ranks learn of it
@@ -1302,7 +1328,7 @@ impl Phases {
         prepared: Result<P>,
         f: impl FnOnce(&Communicator, P) -> Result<R>,
     ) -> Result<R> {
-        if !self.defers() {
+        if !self.folds() {
             let payload =
                 self.agreed(&format!("{name}:prepare"), prepared, Severity::Recoverable)?;
             return self.collective(name, |c| f(c, payload));
@@ -2009,7 +2035,7 @@ mod tests {
     fn commit_points_post_failure_is_agreed_when_the_scope_settles() {
         let out = run_local(2, Duration::from_secs(10), |c| {
             c.set_collective_checks(CollectiveChecks::CommitPoints);
-            let mut ph = Phases::new(&c, "op2");
+            let mut ph = Phases::settling(&c, "op2");
             let post = ph.run("unpack", Ok(()), |comm, ()| {
                 comm.barrier()?;
                 Ok(if comm.rank() == 0 {
@@ -2054,7 +2080,7 @@ mod tests {
     fn commit_points_agreed_inner_error_settles_recoverably() {
         let out = run_local(2, Duration::from_secs(10), |c| {
             c.set_collective_checks(CollectiveChecks::CommitPoints);
-            let mut ph = Phases::new(&c, "pe01");
+            let mut ph = Phases::settling(&c, "pe01");
             let r: Result<()> = ph.run("native", Ok(()), |_, ()| {
                 agreed_or_transport::<()>(Err(Error::Communication(
                     "refused under MPI_THREAD_SERIALIZED (agreed by the header)".into(),
@@ -2093,7 +2119,7 @@ mod tests {
                 std::thread::sleep(Duration::from_millis(1500));
                 return (true, false);
             }
-            let mut ph = Phases::new(&c, "op");
+            let mut ph = Phases::settling(&c, "op");
             ph.defer("local", Ok(()), Severity::Recoverable).unwrap();
             let r = ph.settle(Ok(()));
             (r.is_err(), ph.is_broken())

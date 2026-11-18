@@ -415,7 +415,7 @@ impl<E: Clone> Synchronizer<E> {
         accessor: &mut dyn DataAccessor<E>,
         tag: SynchronizationTag,
     ) -> Result<()> {
-        let mut ph = Phases::new(&self.communicator, format!("sync:{}", self.id));
+        let mut ph = Phases::settling(&self.communicator, format!("sync:{}", self.id));
         let r = self.synchronize_in(&mut ph, accessor, tag);
         ph.settle(r)
     }
@@ -579,7 +579,7 @@ impl<E: Clone> Synchronizer<E> {
         accessor: &mut dyn DataAccessor<E>,
         tag: SynchronizationTag,
     ) -> Result<()> {
-        let mut ph = Phases::new(&self.communicator, format!("sync:{}", self.id));
+        let mut ph = Phases::settling(&self.communicator, format!("sync:{}", self.id));
         let r = self.slave_reduction_in(&mut ph, accessor, tag);
         ph.settle(r)
     }

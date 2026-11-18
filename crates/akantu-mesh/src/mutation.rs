@@ -1887,7 +1887,8 @@ impl SharedMesh {
             return Err(e);
         }
         self.begin_mutation()?;
-        let mut phases = Phases::new(&self.0.comm, "mesh-mutation");
+        // settled on every error path, committed on success (D-126)
+        let mut phases = Phases::settling(&self.0.comm, "mesh-mutation");
         let result = self.mutate_inner(&mut phases, handlers, change, distributed);
         // Owner exit, for **every** error path — preflight and
         // topology agreements included: a transport failure observed by
