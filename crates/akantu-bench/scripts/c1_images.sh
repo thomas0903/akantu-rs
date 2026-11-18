@@ -204,7 +204,11 @@ fi
 # strict driver, its build record and the install's libraries it resolves are
 # copied unchanged into akantu-rs-bench:mncpp (docker/bench/Dockerfile.mncpp), and
 # the built image is checked against the build record (build_record.py verify, with
-# the base image's id, and the SHA-256 of every recorded library). Writes
+# the base image's id, and the SHA-256 of every recorded library; those are the libraries
+# `ldd` resolves, not the Open MPI / PRRTE / PMIx plugins and programs loaded later, so
+# the export also refuses an image in which any Debian package of the base image changed
+# version or disappeared (`dpkg-query -W` of both images: the openssh install must only
+# add packages, listed as `added_package` lines in images.txt). Writes
 #   akantu-rs-bench-mncpp.tar.gz  docker save of akantu-rs-bench:mncpp
 #   akantu-rs-mn-repo.tar.gz      the repository subset of export-mn (MN_REVISION)
 #   images.txt (cpp_bin_sha256 = the driver's SHA-256, = run.json binary_sha256 of
@@ -250,6 +254,17 @@ for lib in rec["libraries"]:
         bad.append("%s: %s != %s" % (lib["realpath"], h, lib["sha256"]))
 print("\n".join(bad) or "%d libraries as recorded" % len(rec["libraries"]))
 sys.exit(1 if bad else 0)' || die "a library in akantu-rs-bench:mncpp differs from the build record"
+  # shellcheck disable=SC2016 # dpkg-query's own format fields, not shell expansions
+  q='${Package}\t${Version}\t${Architecture}\n'
+  docker run --rm --entrypoint dpkg-query akantu-oracle:dev -W -f "${q}" > "${ctx}/packages-base.tsv" \
+    || die "dpkg-query in akantu-oracle:dev"
+  docker run --rm --entrypoint dpkg-query akantu-rs-bench:mncpp -W -f "${q}" > "${ctx}/packages-mncpp.tsv" \
+    || die "dpkg-query in akantu-rs-bench:mncpp"
+  python3 -I -c 'import sys; sys.path.insert(0, sys.argv[1]); import mn_cluster as m; changed, added = m.package_changes(
+    open(sys.argv[2]).read(), open(sys.argv[3]).read()); print("\n".join("changed_package " + c for c in changed))
+open(sys.argv[4], "w").write("".join("added_package %s %s %s\n" % a for a in added)); sys.exit(1 if changed else 0)' \
+    crates/akantu-bench/scripts "${ctx}/packages-base.tsv" "${ctx}/packages-mncpp.tsv" "${ctx}/packages-added.txt" \
+    || die "packages of akantu-oracle:dev changed in akantu-rs-bench:mncpp (above)"
   echo "== save $(date -u +%T)"
   docker save akantu-rs-bench:mncpp | gzip -1 > "${dir}/akantu-rs-bench-mncpp.tar.gz" || die "save mncpp"
   git archive --format=tar --add-virtual-file="MN_REVISION:${rev}
@@ -261,6 +276,7 @@ sys.exit(1 if bad else 0)' || die "a library in akantu-rs-bench:mncpp differs fr
       | python3 -I -c 'import hashlib, json, sys; print("rootfs:" + hashlib.sha256("\n".join(json.load(sys.stdin)).encode()).hexdigest())')"
     echo "cpp_bin_sha256 ${bin_sha}"
     python3 -I -c 'import json, sys; r = json.load(open(sys.argv[1])); print("cpp_build_record_sha256", r["build_record_sha256"]); print("libakantu_sha256", r["libakantu_sha256"])' "${dir}/verify.json"
+    cat "${ctx}/packages-added.txt"
     echo "git_head ${rev}"; } > "${dir}/images.txt"
   find "${ctx}" -depth -mindepth 1 \( -type f -o -type l \) -delete; find "${ctx}" -depth -type d -empty -delete
   cd "${dir}" || exit 1

@@ -363,10 +363,132 @@ def mpirun_argv(np_, hostfile, wdir, cidr, bind, yield_idle=False):
 CPUS_SIB = ('cpus=$(awk \'/^Cpus_allowed_list:/ {print $2}\' /proc/self/status); c=${cpus%%[,-]*}; '
             'sib=$(cat "/sys/devices/system/cpu/cpu$c/topology/thread_siblings_list" 2>/dev/null); '
             'sib=${sib:--}; ')
-# every rank records where it runs (in --wdir, before it execs the driver); with bind = self
-# after bind-rank.sh has bound it, so the line is the binding the driver runs with
+# the environment a rank of a run receives (recorded per rank: env_rank<r>.txt, VAR=value
+# lines, `unset` when absent): the thread pins, the seed, and the C++ harness's variables
+ENV_VARS = ("OPENBLAS_CORETYPE", "OPENBLAS_NUM_THREADS", "OMP_NUM_THREADS", "SCOTCH_PTHREAD_NUMBER",
+            "AKA_SEED", "AKANTU_RS_FILL_NODES_TO_ELEMENTS", "LD_LIBRARY_PATH")
+# every rank records where it runs and what it received (in --wdir, before it execs the
+# driver); with bind = self after bind-rank.sh has bound it, so the lines are the binding
+# and the environment the driver runs with
 RECORD = (CPUS_SIB + 'echo "$(hostname) ${OMPI_COMM_WORLD_LOCAL_RANK:-unset} $cpus $sib" '
-          '> "binding_rank${OMPI_COMM_WORLD_RANK:-unset}.txt" && exec "$@"')
+          '> "binding_rank${OMPI_COMM_WORLD_RANK:-unset}.txt" && '
+          + "{ " + " ".join(f'echo "{v}=${{{v}:-unset}}";' for v in ENV_VARS)
+          + ' } > "env_rank${OMPI_COMM_WORLD_RANK:-unset}.txt" && exec "$@"')
+
+# The description of a host (preflight check.json `hosts[].description`, every run's
+# status.txt `host_descriptions`), read inside its node container from /proc and /sys
+# (the host's kernel view; no host name): CPU model, sockets, cores, threads per core, NUMA
+# nodes (CPU list, memory), total memory, kernel release, transparent huge pages, NUMA
+# balancing, load average. Kept as source text: run with `python3 -I -c` in the container
+# (the image has no copy of this module) and exec'd by the offline tests on a synthetic tree.
+HOST_PROBE = r"""
+import json, os, platform, re
+
+
+def describe_host(root="/"):
+    def rd(*parts):
+        try:
+            with open(os.path.join(root, *parts)) as f:
+                return f.read()
+        except OSError:
+            return None
+
+    def cpulist(text):
+        out = []
+        for part in (text or "").strip().split(","):
+            if part:
+                a, _, b = part.partition("-")
+                out.extend(range(int(a), int(b or a) + 1))
+        return out
+
+    d = {}
+    model = None
+    for line in (rd("proc", "cpuinfo") or "").splitlines():
+        if line.lower().startswith(("model name", "cpu model")):
+            model = line.split(":", 1)[1].strip()
+            break
+    d["cpu_model"] = model
+    online = cpulist(rd("sys", "devices", "system", "cpu", "online"))
+    pkgs, cores = set(), set()
+    for c in online:
+        t = os.path.join("sys", "devices", "system", "cpu", f"cpu{c}", "topology")
+        pk, co = rd(t, "physical_package_id"), rd(t, "core_id")
+        if pk is not None and co is not None:
+            pkgs.add(pk.strip())
+            cores.add((pk.strip(), co.strip()))
+    d["logical_cpus"] = len(online) or None
+    d["sockets"] = len(pkgs) or None
+    d["cores"] = len(cores) or None
+    d["threads_per_core"] = (len(online) // len(cores)) if cores else None
+    nodes = []
+    base = os.path.join(root, "sys", "devices", "system", "node")
+    for n in sorted((x for x in (os.listdir(base) if os.path.isdir(base) else [])
+                     if re.fullmatch(r"node[0-9]+", x)), key=lambda x: int(x[4:])):
+        m = re.search(r"MemTotal:\s+([0-9]+) kB", rd("sys", "devices", "system", "node", n, "meminfo") or "")
+        nodes.append({"node": int(n[4:]), "cpus": (rd("sys", "devices", "system", "node", n, "cpulist") or "").strip(),
+                      "mem_kib": int(m.group(1)) if m else None})
+    d["numa_nodes"] = nodes
+    m = re.search(r"MemTotal:\s+([0-9]+) kB", rd("proc", "meminfo") or "")
+    d["mem_total_kib"] = int(m.group(1)) if m else None
+    d["kernel"] = (rd("proc", "sys", "kernel", "osrelease") or platform.release()).strip()
+    thp = rd("sys", "kernel", "mm", "transparent_hugepage", "enabled")
+    m = re.search(r"\[([a-z]+)\]", thp or "")
+    d["transparent_hugepage"] = m.group(1) if m else (thp.strip() if thp else None)
+    nb = rd("proc", "sys", "kernel", "numa_balancing")
+    d["numa_balancing"] = nb.strip() if nb is not None else None
+    la = rd("proc", "loadavg")
+    d["loadavg"] = " ".join(la.split()[:3]) if la else None
+    return d
+
+
+if __name__ == "__main__":
+    print(json.dumps(describe_host()))
+"""
+
+
+def host_line(d):
+    """One line of a host description (mn_compare.py prints it)."""
+    if not d:
+        return "no description"
+    numa = ", ".join(f"node{n['node']} cpus {n['cpus']} {((n.get('mem_kib') or 0) / 2 ** 20):.0f} GiB"
+                     for n in d.get("numa_nodes") or [])
+    return (f"{d.get('cpu_model')}; {d.get('sockets')} socket(s), {d.get('cores')} cores, "
+            f"{d.get('threads_per_core')} thread(s)/core; NUMA [{numa}]; "
+            f"{((d.get('mem_total_kib') or 0) / 2 ** 20):.0f} GiB; kernel {d.get('kernel')}; "
+            f"THP {d.get('transparent_hugepage')}; numa_balancing {d.get('numa_balancing')}; "
+            f"load {d.get('loadavg')}; Docker {d.get('docker')}")
+
+
+def package_changes(base_tsv, new_tsv):
+    """Debian packages of two images (`dpkg-query -W -f '${Package}\\t${Version}\\t${Architecture}\\n'`):
+    ([base packages whose version or architecture changed or that disappeared, as text],
+    [(package, version, architecture) added by the new image]) (c1_images.sh export-mn-cpp)."""
+    def parse(text):
+        out = {}
+        for line in text.splitlines():
+            f = line.split("\t")
+            if len(f) == 3 and f[0]:
+                out[(f[0], f[2])] = f[1]
+        return out
+    a, b = parse(base_tsv), parse(new_tsv)
+    changed = [f"{p}:{arch} {v} -> {b.get((p, arch), 'absent')}" for (p, arch), v in sorted(a.items())
+               if b.get((p, arch)) != v]
+    added = [(p, v, arch) for (p, arch), v in sorted(b.items()) if (p, arch) not in a]
+    return changed, added
+
+
+def env_from(files):
+    """({VAR: value} of rank 0, [ranks whose environment differs from rank 0's]) from the
+    env_rank<r>.txt texts {name: text}."""
+    envs = {}
+    for name, text in files.items():
+        mo = re.fullmatch(r"env_rank([0-9]+)\.txt", name)
+        if mo:
+            envs[int(mo.group(1))] = dict(ln.split("=", 1) for ln in text.splitlines() if "=" in ln)
+    if not envs:
+        return {}, []
+    ref = envs[min(envs)]
+    return ref, sorted(r for r, e in envs.items() if e != ref)
 
 
 def app_argv(bind, argv, record=False):
@@ -834,7 +956,8 @@ class Cluster:
             st = self.alive(k)
             ok = st == "running" and self.ssh_from_head(k)
             report["hosts"].append({"address": addr, "slots": slots, "state": st, "ssh_from_head": ok,
-                                    "image": self.image_id(k)})
+                                    "image": self.image_id(k),
+                                    "description": self.describe(k) if st == "running" else None})
             if not ok:
                 report["problems"].append(f"{addr}: container {st}, SSH from the head {'ok' if ok else 'failed'}")
         ids = {h["image"] for h in report["hosts"]}
@@ -934,6 +1057,7 @@ class Cluster:
         (outdir / "hostfile").write_text(hostfile)
         limits = self.each(lambda k: self._prepare(k, rd, text, hostfile), idx)
         st["limits"] = {self.addr(k): v for k, v in limits.items()}
+        st["host_descriptions"] = {self.addr(k): v for k, v in self.each(self.describe, idx).items()}
         oom0 = self.each(self._oom_kills, idx)
         for k in idx:
             self.call(self.node_argv(k, ["python3", "-I", SAMPLER, f"{rd}/mem-h{idx.index(k) + 1}.jsonl"],
@@ -997,6 +1121,8 @@ class Cluster:
                                               (re.fullmatch(r"summary_rank([0-9]+)\.json", n) for n in names) if m)
         st["rank_hosts"] = rank_hosts
         st["bindings"] = bindings_from({p.name: p.read_text() for p in outdir.glob("binding_rank*.txt")})
+        st["environment"], st["environment_differs"] = env_from({p.name: p.read_text()
+                                                                for p in outdir.glob("env_rank*.txt")})
         st["binding_problems"] = binding_problems(st["bindings"], np_, self.conf["bind"])
         st["nb_rank_summaries"] = sum(len(v) for v in rank_hosts.values())
         st["summary"] = (outdir / "summary.json").exists()
@@ -1068,6 +1194,19 @@ class Cluster:
                                                  'echo "nproc $(env -u OMP_NUM_THREADS nproc)"; echo "hostname $(hostname)"']), check=True)
         return dict(line.split(" ", 1) for line in out.decode().splitlines() if " " in line)
 
+    def describe(self, k):
+        """Host k's description (HOST_PROBE in its node container, the Docker version of its
+        daemon); None fields where something is not readable."""
+        rc, out, _ = self.call(self.node_argv(k, ["python3", "-I", "-c", HOST_PROBE]), timeout=60)
+        try:
+            d = json.loads(out.decode()) if rc == 0 else {}
+        except ValueError:
+            d = {}
+        rc, out, _ = self.call(self.host_argv(k, ["docker", "version", "--format", "{{.Server.Version}}"]),
+                               timeout=60)
+        d["docker"] = out.decode().strip() if rc == 0 and out.strip() else None
+        return d
+
     def _oom_kills(self, k):
         rc, out, _ = self.call(self.node_argv(k, ["cat", "/sys/fs/cgroup/memory.events"]), timeout=30)
         if rc != 0:
@@ -1098,7 +1237,7 @@ class Cluster:
     def _collect(self, k, rd, outdir, head, tag):
         """Copies host k's files of the run into outdir; returns their names."""
         pat = "-type f" if head else ("-type f \\( -name 'summary_rank*.json' -o -name 'mem-h*.jsonl' "
-                                      "-o -name 'limits-h*.txt' -o -name 'binding_rank*.txt' \\)")
+                                      "-o -name 'limits-h*.txt' -o -name 'binding_rank*.txt' -o -name 'env_rank*.txt' \\)")
         rc, out, err = self.call(self.node_argv(k, ["sh", "-c", f'cd "$1" && find . -maxdepth 1 {pat} -print0 '
                                                     f'| tar --null -T - -cf -', "_", rd]), timeout=1800)
         if rc != 0:
@@ -1110,7 +1249,7 @@ class Cluster:
                 n = m.name[2:] if m.name.startswith("./") else m.name
                 if not m.isfile() or "/" in n or n in ("", ".", ".."):
                     continue
-                if not head and n.startswith(("summary_rank", "binding_rank")) and (outdir / n).exists():
+                if not head and n.startswith(("summary_rank", "binding_rank", "env_rank")) and (outdir / n).exists():
                     continue
                 with t.extractfile(m) as src:
                     (outdir / n).write_bytes(src.read())
