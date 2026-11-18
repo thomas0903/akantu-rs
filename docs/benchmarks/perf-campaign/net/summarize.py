@@ -26,7 +26,9 @@ def fmt3(v):
 
 
 def main(path, prefix, excluded=()):
-    rows = [r for r in csv.DictReader(open(path)) if r["run"].startswith(prefix + "-") and r["outcome"] == "ok"
+    with open(path, newline="") as f:
+        table = list(csv.DictReader(f))
+    rows = [r for r in table if r["run"].startswith(prefix + "-") and r["outcome"] == "ok"
             and r["run"] not in excluded]
     cases = {}
     for r in rows:

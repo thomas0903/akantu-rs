@@ -4,12 +4,17 @@
 # port by driver phase and kind, from the call stacks the interposer samples
 # (PMPI_BT=Iallgather: every MPI_Iallgather, i.e. every collective of the backend).
 #   python3 -I btcat.py DRIVER_BINARY STEPS summary_rank*.pmpi-bt.txt
-import collections, re, subprocess, sys
+import collections
+import re
+import subprocess
+import sys
+from pathlib import Path
+
 binary, steps, files = sys.argv[1], int(sys.argv[2]), sys.argv[3:]
 stacks = collections.Counter()
 for fn in files:
     cur, n = [], 0
-    for line in open(fn):
+    for line in Path(fn).read_text().splitlines(keepends=True):
         if line.startswith('== '):
             if cur: stacks[tuple(cur)] += n
             cur, n = [], int(line[3:])
@@ -20,7 +25,7 @@ for fn in files:
 addrs = sorted({a - 1 for s in stacks for a in s})
 names = {}
 for a in addrs:
-    o = subprocess.run(['addr2line', '-f', '-C', '-i', '-e', binary, hex(a)], capture_output=True, text=True).stdout.splitlines()
+    o = subprocess.run(['addr2line', '-f', '-C', '-i', '-e', binary, hex(a)], check=False, capture_output=True, text=True).stdout.splitlines()
     names[a + 1] = ' '.join(o[i] for i in range(0, len(o), 2))
 def phase(txt):
     if 'driver::global_cohesive_count' in txt: return 'check_cohesive_stress (driver count)'

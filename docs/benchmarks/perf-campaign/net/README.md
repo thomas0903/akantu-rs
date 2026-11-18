@@ -182,7 +182,7 @@ messages per host and step at 128 ranks).
 Same 4-rank job (h = 0.06, 2000 steps) on 4 cores of host 1, alone and with a
 4-rank job of the other code on the other 4 cores (`i5-*`), 3 repetitions:
 
-| | alone | with the other job | ratio |
+| | alone | with the other job | ratio of the medians |
 |---|---|---|---|
 | port | 69.0 [68.9, 69.1] | 108.6 [108.3, 109.7] | 1.57 |
 | C++ | 246.8 [245.1, 248.6] | 280.7 [280.5, 281.0] | 1.14 |
