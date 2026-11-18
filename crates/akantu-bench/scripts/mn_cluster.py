@@ -28,6 +28,13 @@ SESSION is a directory on the head node (never inside the repository) with
                    net_cidr    the hosts' network (Open MPI's btl_tcp_if_include and
                                PRRTE's oob_tcp_if_include; required)
                    prefix      container / volume name prefix (mn)
+                   code        rust (default: the port's driver, akantu-rs-bench:mn) |
+                               cpp (the C++ reference harness of
+                               benchmarks/cohesive-perf, strict build, in
+                               akantu-rs-bench:mncpp: c1_images.sh export-mn-cpp)
+                   fnte        cpp: AKANTU_RS_FILL_NODES_TO_ELEMENTS of the harness
+                               (joss, default: the JOSS-patch emulation of the
+                               final campaign | upstream)
                    bind        rank binding: self (default) | core | none.
                                self: mpirun --bind-to none, every rank binds
                                itself to one core of its container's cpuset with
@@ -100,7 +107,22 @@ stopped, paused or vanished node container is lost at once, a host whose
 probe gets no answer only after 3 such probes in a row; the wall-clock
 limit --timeout-s), kills it if a host is lost or the limit is
 reached, collects every host's files into OUTDIR and classifies the outcome
-(status.txt): ok | oom | host-lost | timeout | failed. One run at a time
+(status.txt): ok | oom | host-lost | timeout | failed.
+
+code = cpp runs the C++ reference harness (benchmarks/cohesive-perf, strict
+build, image akantu-rs-bench:mncpp from c1_images.sh export-mn-cpp) as the
+single-node campaign does (c1prep_campaign.sh ... cpp, in-container/run-one.sh):
+the input derived from the same upstream file by run-one.sh's rules
+(blocked_node = global, energy_precision = 17, output_energy = true,
+export_partition = true at P > 1), the strict driver and the oracle install's
+libraries (LD_LIBRARY_PATH) with AKANTU_RS_FILL_NODES_TO_ELEMENTS (`fnte`),
+AKA_SEED and SCOTCH_PTHREAD_NUMBER forwarded to every rank, the same binding,
+preflight (plus the harness's variables, driver and libraries on every rank),
+sampling, kill paths and outcomes. The harness partitions with Scotch itself:
+`--partition file:...` names the file its exported partition.csv must equal
+(partition_matches; a mismatch makes the run `failed`). run-one.sh's early
+abort on a MUMPS error or warning (UD-216) is kept: aborted.txt,
+ud216_markers, outcome `failed` with the reason in `failure`. One run at a time
 (lock SESSION/run.lock; refused while a `cohesive_extrinsic` process exists
 in a node container).
 """
@@ -128,6 +150,19 @@ SAMPLER = "/usr/local/share/akantu-rs-bench/memsample.py"
 # docker/bench/Dockerfile.mn: benchmarks/cohesive-perf/scripts/in-container/bind-rank.sh
 BINDER = "/usr/local/share/akantu-rs-bench/bind-rank.sh"
 BINDS = ("self", "core", "none")
+CODES = ("rust", "cpp")
+# code = cpp: the C++ harness as the single-node campaign runs it (c1prep_campaign.sh ... cpp,
+# benchmarks/cohesive-perf/scripts/in-container/run-one.sh): the strict build's driver and the
+# oracle install's libraries at the paths of the harness volumes, copied into the image
+# akantu-rs-bench:mncpp (docker/bench/Dockerfile.mncpp, c1_images.sh export-mn-cpp)
+CPP_DRIVER = "/perf/builds/strict/cohesive_extrinsic"
+CPP_LIBDIR = "/build/install-strict/lib"   # LD_LIBRARY_PATH of the install's env.sh
+# variables run-one.sh forwards to every rank (mpiexec -x) besides the thread pins; the
+# library path is inherited there from env.sh in the one container and must be forwarded here
+CPP_VARS = ("AKANTU_RS_FILL_NODES_TO_ELEMENTS", "LD_LIBRARY_PATH")
+# run-one.sh's early abort: upstream's MUMPS retry path (UD-216: the static solution is wrong)
+MUMPS_MARKERS = ("MUMPS dynamic memory is insufficient", "The MUMPS workarray is too small",
+                 "Error in mumps during solve process", "Warning in mumps during solve process")
 WORK = "/mn/work"
 # forwarded with -x; also the column order of the preflight's probe lines
 PIN_VARS = ("OPENBLAS_CORETYPE", "OPENBLAS_NUM_THREADS", "OMP_NUM_THREADS", "SCOTCH_PTHREAD_NUMBER", "AKA_SEED")
@@ -135,7 +170,8 @@ PIN_EXPECT = {"OMP_NUM_THREADS": "1", "OPENBLAS_NUM_THREADS": "1", "OPENBLAS_COR
               "SCOTCH_PTHREAD_NUMBER": "1", "AKA_SEED": "1"}
 DEFAULTS = {"backend": "local", "image": "akantu-rs-bench:mn", "memory": "12g", "shm": "4g",
             "ssh_port": "2222", "net_cidr": "", "prefix": "mn", "bind": "self", "network": "",
-            "cpuset_base": "0", "cpuset": "blocks", "ssh_user": "ubuntu", "remote_dir": ""}
+            "cpuset_base": "0", "cpuset": "blocks", "ssh_user": "ubuntu", "remote_dir": "",
+            "code": "rust", "fnte": "joss"}
 OUTCOMES = ("ok", "oom", "host-lost", "timeout", "failed")
 # liveness: a node container in one of these states has lost its processes (or never had
 # them): the host is lost at once; a probe that gets no answer ("unreachable": the Docker
@@ -180,6 +216,10 @@ def parse_conf(text):
         conf[k] = v
     if conf["backend"] not in ("local", "ssh"):
         raise ClusterError("cluster.conf: backend must be local or ssh")
+    if conf["code"] not in CODES:
+        raise ClusterError("cluster.conf: code must be rust or cpp")
+    if conf["fnte"] not in ("joss", "upstream"):
+        raise ClusterError("cluster.conf: fnte must be joss or upstream")
     if conf["bind"] not in BINDS:
         raise ClusterError("cluster.conf: bind must be self, core or none")
     if not re.fullmatch(r"[0-9]{1,3}(\.[0-9]{1,3}){3}/[0-9]{1,2}", conf["net_cidr"]):
@@ -275,6 +315,34 @@ def input_text(template, steps, mesh, partition, solver, extra):
     return "\n".join(out) + "\n"
 
 
+def input_text_cpp(template, steps, mesh, solver, extra):
+    """The C++ harness's input as run-one.sh derives it (sed on the upstream file): max_steps,
+    mesh and every key=value that exists in the file replaced in place, the other keys inserted
+    in order right after `user section [`; solver eigen: `sparse_solver_type = eigen` after
+    `    name = static` (PERF_STATIC_SPARSE_SOLVER)."""
+    lines = template.splitlines()
+    present = {m.group(1) for m in (re.match(r"^  ([^ ]+) = ", ln) for ln in lines) if m}
+    repl = {"max_steps": str(steps), "mesh": mesh}
+    insert = []
+    for kv in extra:
+        k, _, v = kv.partition("=")
+        if k in present:
+            repl[k] = v
+        else:
+            insert.append(f"  {k} = {v}")
+    out = []
+    for ln in lines:
+        m = re.match(r"^  ([^ ]+) = ", ln)
+        if m and m.group(1) in repl:
+            ln = f"  {m.group(1)} = {repl[m.group(1)]}"
+        out.append(ln)
+        if ln == "user section [":
+            out.extend(insert)
+        if solver != "auto" and ln == "    name = static":
+            out.append(f"    sparse_solver_type = {solver}")
+    return "\n".join(out) + "\n"
+
+
 def mpirun_argv(np_, hostfile, wdir, cidr, bind, yield_idle=False):
     # pml ob1 (+ the TCP / shared-memory BTLs) explicitly: the MPI image ships libucx0, and
     # Open MPI 5 only drops UCX by itself because no Mellanox device is found.
@@ -348,22 +416,44 @@ def binding_problems(bindings, np_, bind):
     return problems
 
 
-def run_script(rd, mpirun, app):
-    """bash script run in the head's node container (as akantu): the job."""
+def run_script(rd, mpirun, app, code="rust", fnte="joss"):
+    """bash script run in the head's node container (as akantu): the job. code = cpp: the
+    harness's environment (FNTE, the install's library path, forwarded to every rank) and
+    run-one.sh's early abort on a MUMPS error or warning (UD-216 class: aborted.txt, TERM to
+    mpirun)."""
     unset = " ".join(UNSET_ENV)
-    xs = " ".join(PIN_VARS)
+    xs = " ".join(PIN_VARS + (CPP_VARS if code == "cpp" else ()))
+    env = (f"export AKANTU_RS_FILL_NODES_TO_ELEMENTS={shlex.quote(fnte)} LD_LIBRARY_PATH={CPP_LIBDIR}\n"
+           if code == "cpp" else "")
+    run = f'{shlex.join(mpirun)} "${{xs[@]}}" {shlex.join(app)} > out.txt 2> err.txt'
+    if code == "cpp":
+        grep = " ".join(f"-e {shlex.quote(m)}" for m in MUMPS_MARKERS)
+        run = f"""{run} &
+job=$!
+( while kill -0 "$job" 2>/dev/null; do
+    if grep -qF {grep} out.txt err.txt 2>/dev/null; then
+      echo "MUMPS error/warning (UD-216 class): run stopped early" > aborted.txt
+      pkill -TERM -x mpirun; pkill -TERM -x prterun
+      break
+    fi
+    sleep 2
+  done ) &
+watcher=$!
+wait "$job"; rc=$?
+kill "$watcher" 2>/dev/null
+(exit "$rc")"""
     return f"""set -u
 cd {shlex.quote(rd)} || exit 90
 unset {unset}
 export OMP_NUM_THREADS=1 OPENBLAS_NUM_THREADS=1 SCOTCH_PTHREAD_NUMBER=1 AKA_SEED="${{AKA_SEED:-1}}"
-xs=()
+{env}xs=()
 for v in {xs}; do [ -n "${{!v+x}}" ] && xs+=(-x "$v"); done
 t0=$(date +%s.%N)
-{shlex.join(mpirun)} "${{xs[@]}}" {shlex.join(app)} > out.txt 2> err.txt
+{run}
 echo $? > exit
 t1=$(date +%s.%N)
 python3 -c "print(f'{{$t1-$t0:.3f}}')" > wall.txt
-sha256sum {DRIVER} > binary.sha256
+sha256sum {CPP_DRIVER if code == "cpp" else DRIVER} > binary.sha256
 """
 
 
@@ -378,7 +468,9 @@ def classify(st):
     ok         mpirun exited 0, summary.json exists, every rank wrote its
                summary_rank<r>.json and the binding records show no problem
                (binding_problems empty);
-    failed     anything else (with binding problems: the reason in
+    failed     anything else (with binding problems, a MUMPS error or warning
+               of the C++ harness (UD-216; c1prep_campaign.sh's `ud216`) or a
+               C++ partition that differs from the plan's file: the reason in
                `failure`)."""
     if any((v or 0) > 0 for v in (st.get("oom_kills") or {}).values()):
         return "oom"
@@ -386,6 +478,11 @@ def classify(st):
         return "host-lost"
     if st.get("killed") == "timeout":
         return "timeout"
+    cpp = st.get("case") == "cpp"
+    if cpp and (st.get("aborted") or st.get("ud216_markers")):   # UD-216 (c1prep_campaign.sh `ud216`)
+        return "failed"
+    if cpp and st.get("partition_matches") is False:   # the harness did not re-create the partition
+        return "failed"
     if (st.get("exit") == 0 and st.get("summary") and st.get("nb_rank_summaries") == st.get("np")
             and not st.get("binding_problems")):
         return "ok"
@@ -754,8 +851,14 @@ class Cluster:
         probe = (CPUS_SIB + 'echo "MNCHECK $(hostname) $OMPI_COMM_WORLD_RANK ${OPENBLAS_CORETYPE:-unset} '
                  '${OPENBLAS_NUM_THREADS:-unset} ${OMP_NUM_THREADS:-unset} ${SCOTCH_PTHREAD_NUMBER:-unset} '
                  '${AKA_SEED:-unset} $cpus ${OMPI_COMM_WORLD_LOCAL_RANK:-unset} $sib"')
+        cpp = self.conf["code"] == "cpp"
+        if cpp:   # the harness's variables on every rank, and its driver resolving its libraries there
+            probe += ('; echo "MNCPP $OMPI_COMM_WORLD_RANK ${AKANTU_RS_FILL_NODES_TO_ELEMENTS:-unset} '
+                      '${LD_LIBRARY_PATH:-unset} $(sha256sum ' + CPP_DRIVER + ' | cut -d\' \' -f1) '
+                      '$(ldd ' + CPP_DRIVER + ' | grep -c \'not found\') '
+                      '$(ldd ' + CPP_DRIVER + ' | awk \'$1 ~ /^libakantu/ {print $3}\')"')
         script = run_script(rd, mpirun_argv(np_all, f"{rd}/hostfile", rd, self.cidr, self.conf["bind"], self.shared_cpus()),
-                            app_argv(self.conf["bind"], ["sh", "-c", probe]))
+                            app_argv(self.conf["bind"], ["sh", "-c", probe]), self.conf["code"], self.conf["fnte"])
         rc, _, _ = self.call(self.node_argv(0, ["bash", "-c", script]), timeout=300)
         _, out, _ = self.call(self.node_argv(0, ["cat", f"{rd}/out.txt", f"{rd}/exit"]))
         _, err, _ = self.call(self.node_argv(0, ["cat", f"{rd}/err.txt"]))
@@ -765,6 +868,10 @@ class Cluster:
                                  key=lambda r: r[0])
         report["report_bindings"] = [ln for ln in err.decode(errors="replace").splitlines() if "bound" in ln][:64]
         report["problems"] += check_problems(report["ranks"], self.hosts, self.conf["bind"])
+        if cpp:
+            cl = [ln.split() for ln in out.decode(errors="replace").splitlines() if ln.startswith("MNCPP ")]
+            report["cpp"] = sorted(([int(f[1])] + f[2:] for f in cl if len(f) == 7), key=lambda r: r[0])
+            report["problems"] += cpp_check_problems(report["cpp"], np_all, self.conf["fnte"])
         return report
 
     # -- one run
@@ -796,7 +903,8 @@ class Cluster:
 
     def _run(self, name, outdir, np_, idx, hosts, per, rd, mesh, steps, partition, solver, extra,
              timeout_s, watch_s, fail, template):
-        st = {"case": "rust", "name": name, "np": np_, "nb_hosts": len(idx),
+        code = self.conf["code"]
+        st = {"case": code, "name": name, "np": np_, "nb_hosts": len(idx),
               "hosts": [a for a, _ in hosts], "ranks_per_host": per, "mesh": mesh, "steps": steps,
               "partition": partition, "solver": solver, "extra": extra, "timeout_s": timeout_s,
               "bind": self.conf["bind"], "backend": self.conf["backend"], "started": utc()}
@@ -810,7 +918,17 @@ class Cluster:
         if (np_ == 1) != (partition == "none"):
             raise ClusterError("partition: none at 1 rank, scotch or file:... at more ranks")
         extra_in = list(extra) + (["export_partition=true"] if np_ > 1 else [])
-        text = input_text(Path(template).read_text(), steps, mesh, partition, solver, extra_in)
+        if code == "cpp":
+            # c1prep_campaign.sh's C++ run: run-one.sh's arguments blocked_node=global
+            # energy_precision=17 output_energy=true [export_partition=true] [extra]; the harness
+            # partitions with Scotch itself (AKA_SEED = 1): partition file:... is the file its
+            # exported partition.csv must equal (partition_matches), not an input
+            st["fnte"] = self.conf["fnte"]
+            text = input_text_cpp(Path(template).read_text(), steps, mesh, solver,
+                                  ["blocked_node=global", "energy_precision=17", "output_energy=true"]
+                                  + (["export_partition=true"] if np_ > 1 else []) + list(extra))
+        else:
+            text = input_text(Path(template).read_text(), steps, mesh, partition, solver, extra_in)
         (outdir / "input.dat").write_text(text)
         hostfile = hostfile_text(hosts, per)
         (outdir / "hostfile").write_text(hostfile)
@@ -821,7 +939,9 @@ class Cluster:
             self.call(self.node_argv(k, ["python3", "-I", SAMPLER, f"{rd}/mem-h{idx.index(k) + 1}.jsonl"],
                                      detach=True), timeout=60)
         script = run_script(rd, mpirun_argv(np_, f"{rd}/hostfile", rd, self.cidr, self.conf["bind"], self.shared_cpus()),
-                            app_argv(self.conf["bind"], [DRIVER, "--aka_input_file", "input.dat"], record=True))
+                            app_argv(self.conf["bind"], [CPP_DRIVER if code == "cpp" else DRIVER,
+                                                         "--aka_input_file", "input.dat"], record=True),
+                            code, self.conf["fnte"])
         (outdir / "run.sh").write_text(script)
         t0 = time.time()
         log(f"run {name}: {np_} ranks on {len(idx)} hosts ({per} per host: {', '.join(st['hosts'])}), "
@@ -896,15 +1016,33 @@ class Cluster:
             st["partition_matches"] = st["partition_input_sha256"] == sha256_file(outdir / "partition.csv")
         if (outdir / "partition.csv").exists():
             st["partition_sha256"] = sha256_file(outdir / "partition.csv")
+        if (outdir / "binary.sha256").exists():
+            st["binary_sha256"] = ((outdir / "binary.sha256").read_text().split() or [None])[0]
+        if code == "cpp":
+            st["aborted"] = (outdir / "aborted.txt").read_text().strip() if (outdir / "aborted.txt").exists() else None
+            st["ud216_markers"] = sum((outdir / n).read_text(errors="replace").count(m)
+                                      for n in ("out.txt", "err.txt") if (outdir / n).exists() for m in MUMPS_MARKERS)
+            if np_ > 1 and partition.startswith("file:") and "partition_matches" not in st:
+                st["partition_matches"] = False   # no partition.csv: the harness did not export it
         st["outcome"] = classify(st)
-        if st["outcome"] == "failed" and st.get("binding_problems"):
-            st["failure"] = "binding: " + "; ".join(st["binding_problems"][:8])
+        if st["outcome"] == "failed":
+            why = []
+            if st.get("binding_problems"):
+                why.append("binding: " + "; ".join(st["binding_problems"][:8]))
+            if code == "cpp" and (st.get("aborted") or st.get("ud216_markers")):
+                why.append(f"UD-216: MUMPS error or warning ({st['ud216_markers']} marker(s)"
+                           + (", run stopped early" if st.get("aborted") else "") + ")")
+            if code == "cpp" and st.get("partition_matches") is False:
+                why.append("partition: the harness's partition.csv differs from " + partition[len("file:"):])
+            if why:
+                st["failure"] = "; ".join(why)
         st["finished"] = utc()
         write_status(outdir / "status.txt", st)
         log(f"run {name}: {st['outcome']} (exit {st['exit']}, {wall:.0f} s"
             + (f", lost {', '.join(lost)}" if lost else "")
             + (f", oom on {[h for h, v in st['oom_kills'].items() if v]}" if st["outcome"] == "oom" else "")
             + (f", binding problems: {'; '.join(st['binding_problems'][:8])}" if st.get("binding_problems") else "")
+            + (f", {st['failure']}" if st.get("failure") and not st.get("binding_problems") else "")
             + ")")
         return st
 
@@ -1006,6 +1144,25 @@ def session_busy(session_dir):
         return True
     finally:
         f.close()
+
+
+def cpp_check_problems(rows, np_all, fnte):
+    """code = cpp: problems of the preflight's per-rank lines [rank, fnte, LD_LIBRARY_PATH, driver
+    sha256, unresolved libraries, libakantu path]: every rank, the forwarded variables, one driver
+    on every host, all its libraries resolved, libakantu from the install."""
+    if [r[0] for r in rows] != list(range(np_all)):
+        return [f"preflight (cpp): {len(rows)} driver lines, expected ranks 0..{np_all - 1}"]
+    problems = []
+    for r in rows:
+        if r[1] != fnte or r[2] != CPP_LIBDIR:
+            problems.append(f"rank {r[0]}: AKANTU_RS_FILL_NODES_TO_ELEMENTS {r[1]}, LD_LIBRARY_PATH {r[2]} "
+                            f"(expected {fnte}, {CPP_LIBDIR})")
+        if r[4] != "0" or not r[5].startswith(CPP_LIBDIR + "/"):
+            problems.append(f"rank {r[0]}: {r[4]} unresolved libraries, libakantu {r[5]}")
+    shas = {r[3] for r in rows}
+    if len(shas) != 1:
+        problems.append(f"the C++ driver differs between ranks: {sorted(shas)}")
+    return problems
 
 
 def check_problems(ranks, hosts, bind):

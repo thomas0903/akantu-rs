@@ -16,6 +16,9 @@
     it says that the partition was not checked) and compares the mesh by file
     name without the `frozen-` prefix the campaign tool gives the h = 0.12 mesh.
     python3 -I mn_compare.py --smoke RESULTS IMAGES_TXT   # the AWS smoke session's verdict
+    python3 -I mn_compare.py --cpp REF RUN   # a C++ harness run of the launcher (code = cpp)
+                                         # against a single-node C++ run of c1prep_campaign.sh
+                                         # (<campaign>/cpp/np<N>/rep<k>: run.json, summary.json, ...)
 
 What is compared and how (docs/TESTING.md):
 
@@ -401,6 +404,104 @@ def compare_pair(ref, run, label, out, fails, d108=False):
                    f"{wb / wa:.2f} (timing on one sandbox, not a measurement of a network)")
 
 
+def chrono_row(run):
+    """{phase: seconds} of the C++ harness's chrono.csv (header `"psize", "<phase>", "<phase> nb_rep",
+    ...`, one row of rank 0's totals)."""
+    t = run.text("chrono.csv")
+    if t is None:
+        return {}
+    lines = [ln for ln in t.decode().splitlines() if ln.strip()]
+    if len(lines) < 2:
+        return {}
+    head = [h.strip().strip('"') for h in lines[0].split(",")]
+    vals = [v.strip().strip('"') for v in lines[1].split(",")]
+    out = {}
+    for h, v in zip(head, vals):
+        if h != "psize" and not h.endswith(" nb_rep"):
+            try:
+                out[h] = float(v)
+            except ValueError:
+                pass
+    return out
+
+
+def compare_cpp(ref, run, out, fails):
+    """--cpp: a launcher run of the C++ harness against a single-node C++ run of
+    c1prep_campaign.sh. Judged: both runs ok without UD-216 markers; the same driver
+    (binary_sha256 of run.json and of the launcher's status); the same input but the mesh
+    path (blocked node, steps, output and partition switches, static solver); the same mesh
+    (file name without `frozen-`, global node and element counts), rank count and FNTE mode;
+    the same partition (the reference's partition.csv against the run's, which the launcher
+    checked against the plan's file); the placement. Printed: the phases side by side
+    (chrono.csv), init / loop / wall times, energies and insertions (upstream's distributed
+    runs vary from run to run: not judged)."""
+    rj = ref.json("run.json") or {}
+    bad = []
+    if ref.st.get("outcome") != "ok":
+        bad.append(f"reference outcome {ref.st.get('outcome')}")
+    if run.st.get("outcome") != "ok":
+        bad.append(f"run outcome {run.st.get('outcome')} {run.st.get('failure') or ''}".strip())
+    if run.st.get("case") != "cpp":
+        bad.append(f"run case {run.st.get('case')}, expected cpp (code = cpp)")
+    for name, r in (("reference", ref), ("run", run)):
+        if r.st.get("ud216_markers") or r.st.get("aborted"):
+            bad.append(f"{name}: MUMPS error or warning (UD-216)")
+    if not rj.get("binary_sha256") or rj.get("binary_sha256") != run.st.get("binary_sha256"):
+        bad.append(f"driver {rj.get('binary_sha256')} vs {run.st.get('binary_sha256')}: not the same build")
+    ia, ib = ref.text("input.dat"), run.text("input.dat")
+    strip = (lambda t: [ln for ln in t.decode().splitlines() if not ln.startswith("  mesh = ")]) if ia and ib else None
+    if not strip or strip(ia) != strip(ib):
+        bad.append("input.dat differs (beyond the mesh path)")
+    if mesh_name(ref.s.get("mesh")) != mesh_name(run.s.get("mesh")):
+        bad.append(f"mesh {ref.s.get('mesh')} vs {run.s.get('mesh')}")
+    for k in ("psize", "nb_global_nodes_start", "nb_regular_elements_dim3", "max_steps", "fill_nodes_to_elements"):
+        if ref.s.get(k) is None or ref.s.get(k) != run.s.get(k):
+            bad.append(f"summary {k}: {ref.s.get(k)} vs {run.s.get(k)}")
+    if rj.get("fill_nodes_to_elements") != run.st.get("fnte"):
+        bad.append(f"FNTE {rj.get('fill_nodes_to_elements')} vs {run.st.get('fnte')}")
+    if (rj.get("static_sparse_solver") or "auto") != run.st.get("solver"):
+        bad.append(f"static solver {rj.get('static_sparse_solver') or 'auto'} vs {run.st.get('solver')}")
+    np_ = run.st.get("np") or 0
+    if rj.get("ranks") != np_:
+        bad.append(f"ranks {rj.get('ranks')} vs {np_}")
+    if np_ > 1:
+        pa = ref.text("partition.csv")
+        ha = hashlib.sha256(pa).hexdigest() if pa else None
+        if not ha or ha != run.st.get("partition_sha256"):
+            bad.append(f"partition.csv {ha} vs {run.st.get('partition_sha256')}")
+        if str(run.st.get("partition", "")).startswith("file:") and run.st.get("partition_matches") is not True:
+            bad.append("the run's partition differs from the plan's file")
+    per = run.st.get("ranks_per_host")
+    want = {h: list(range(i * per, (i + 1) * per)) for i, h in enumerate(run.st.get("hosts", []))} if per else None
+    if run.st.get("rank_hosts") != want:
+        bad.append(f"placement {run.st.get('rank_hosts')} != {want}")
+    if run.st.get("binding_problems"):
+        bad.append("binding: " + "; ".join(run.st["binding_problems"][:4]))
+    out.append(f"cpp: {run.d} ({run.st.get('nb_hosts')} host(s)) vs {ref.d} (one host)")
+    out.append("  judged (outcomes, UD-216, driver, input, mesh, ranks, FNTE, static solver, partition, placement, "
+               "binding): " + ("ok" if not bad else "FAIL: " + "; ".join(bad)))
+    fails += bad
+    ca, cb = chrono_row(ref), chrono_row(run)
+    if ca or cb:
+        out.append(f"  {'phase (rank 0, s)':<24} {'one host':>12} {'hosts':>12} {'ratio':>7}")
+        for k in list(ca) + [k for k in cb if k not in ca]:
+            a, b = ca.get(k), cb.get(k)
+            r = f"{b / a:7.2f}" if a and b is not None else "      —"
+            out.append(f"  {k:<24} {fmt(a, 3):>12} {fmt(b, 3):>12} {r}")
+    for k, a, b in (("init_time_s", ref.s.get("init_time_s"), run.s.get("init_time_s")),
+                    ("loop_time_s", ref.s.get("loop_time_s"), run.s.get("loop_time_s")),
+                    ("wall_s", rj.get("wall_s"), run.st.get("wall_s"))):
+        r = f"{b / a:7.2f}" if a and b is not None else "      —"
+        out.append(f"  {k:<24} {fmt(a, 3):>12} {fmt(b, 3):>12} {r}")
+    if not bad:
+        out.append("  printed, not judged (upstream's distributed runs vary from run to run): "
+                   + fmt_d(figures_d(ref, run)))
+
+
+def fmt(x, nd):
+    return "—" if x is None else f"{x:.{nd}f}"
+
+
 def failure_tests(work, out, fails):
     for n, name, mode, host in ((4, "h012-stop", "stop", 2), (4, "h012-pause", "pause", 1)):
         sp = work / f"r{n}" / "state.json"
@@ -532,6 +633,12 @@ def main(argv):
         compare_pair(Run(argv[2]), Run(argv[3]), "pair", out, fails, d108=len(argv) == 5)
         print("\n".join(out))
         print("PAIR: " + ("PASS" if not fails else "FAIL"))
+        return 0 if not fails else 1
+    if len(argv) == 4 and argv[1] == "--cpp":
+        out, fails = [], []
+        compare_cpp(Run(argv[2]), Run(argv[3]), out, fails)
+        print("\n".join(out))
+        print("CPP-PAIR: " + ("PASS" if not fails else "FAIL"))
         return 0 if not fails else 1
     if len(argv) == 4 and argv[1] == "--smoke":
         out, fails = smoke(argv[2], argv[3])

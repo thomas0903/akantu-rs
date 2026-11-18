@@ -8,6 +8,7 @@
 #   JOSS_MESH=/path/to/cube.msh bash crates/akantu-bench/scripts/c1_images.sh export DIR  # build host
 #   bash c1_images.sh smoke DIR                                                         # new host (tarballs only)
 #   bash crates/akantu-bench/scripts/c1_images.sh export-mn DIR                          # multi-node set 
+#   bash crates/akantu-bench/scripts/c1_images.sh export-mn-cpp DIR      # multi-node set of the C++ harness
 #   JOSS_MESH=/path/to/cube.msh bash crates/akantu-bench/scripts/c1_images.sh export-both DIR  # both, one build
 #
 # Every export first builds the driver from the checkout's HEAD (clean tree
@@ -77,7 +78,7 @@
 # against its JSON.
 set -uo pipefail
 cmd=${1:-}; dir=${2:-}
-[ -n "${cmd}" ] && [ -n "${dir}" ] || { sed -n '7,77p' "$0"; exit 2; }
+[ -n "${cmd}" ] && [ -n "${dir}" ] || { sed -n '7,78p' "$0"; exit 2; }
 mkdir -p "${dir}" && dir="$(cd "${dir}" && pwd)"
 die() { echo "c1_images.sh: $*" >&2; exit 1; }
 
@@ -196,6 +197,79 @@ if [ "${cmd}" = export-mn ]; then
   exit 0
 fi
 
+# export-mn-cpp DIR: the multi-node set of the C++ reference harness (mn_cluster.py
+# `code = cpp`), on a host with akantu-oracle:dev, the oracle build volume
+# ORACLE_VOLUME (akantu-oracle-build: /build/install-strict) and the harness volume
+# PERF_VOLUME (akantu-perf-cohesive: /perf/builds/strict). Builds nothing: the
+# strict driver, its build record and the install's libraries it resolves are
+# copied unchanged into akantu-rs-bench:mncpp (docker/bench/Dockerfile.mncpp), and
+# the built image is checked against the build record (build_record.py verify, with
+# the base image's id, and the SHA-256 of every recorded library). Writes
+#   akantu-rs-bench-mncpp.tar.gz  docker save of akantu-rs-bench:mncpp
+#   akantu-rs-mn-repo.tar.gz      the repository subset of export-mn (MN_REVISION)
+#   images.txt (cpp_bin_sha256 = the driver's SHA-256, = run.json binary_sha256 of
+#   the single-node C++ runs of that build), verify.json, SHA256SUMS, sizes.txt
+if [ "${cmd}" = export-mn-cpp ]; then
+  repo="$(cd "$(dirname "${BASH_SOURCE[0]}")/../../.." && pwd)"
+  cd "${repo}" || exit 1
+  [ -z "$(git status --porcelain)" ] || die "export-mn-cpp needs a clean committed tree"
+  rev="$(git rev-parse HEAD)"
+  ovol="${ORACLE_VOLUME:-akantu-oracle-build}" pvol="${PERF_VOLUME:-akantu-perf-cohesive}"
+  base_id="$(docker image inspect --format '{{.Id}}' akantu-oracle:dev)" || die "no akantu-oracle:dev"
+  ctx="$(mktemp -d "${dir}/ctx.XXXXXX")"
+  mkdir -p "${ctx}/lib"
+  echo "== copy the strict build from ${pvol} and ${ovol} $(date -u +%T)"
+  docker run --rm -u "$(id -u):$(id -g)" -v "${ovol}:/build:ro" -v "${pvol}:/perf:ro" -v "${ctx}:/out" \
+    akantu-oracle:dev sh -c 'cp -a /build/install-strict/lib/libakantu.so* /build/install-strict/lib/libiohelper.so* /out/lib/ \
+      && cp /build/install-strict/share/akantu-oracle/env.sh /out/ \
+      && cp /perf/builds/strict/cohesive_extrinsic /perf/builds/strict/build-record.json /out/' \
+    || die "the strict build is not in ${pvol} / ${ovol}"
+  cp docker/bench/Dockerfile.mncpp docker/bench/mn-entrypoint.sh docker/bench/sshd_config_mn \
+    crates/akantu-bench/scripts/memsample.py benchmarks/cohesive-perf/scripts/in-container/bind-rank.sh "${ctx}/"
+  bin_sha="$(sha256sum "${ctx}/cohesive_extrinsic" | cut -d' ' -f1)"
+  { echo "git_head=${rev}"; echo "built=$(date -u +%FT%TZ)"; echo "base=akantu-oracle:dev ${base_id}"
+    echo "cpp_bin_sha256=${bin_sha}"; } > "${ctx}/mn-provenance.txt"
+  echo "== akantu-rs-bench:mncpp $(date -u +%T)"
+  docker build -q -t akantu-rs-bench:mncpp -f "${ctx}/Dockerfile.mncpp" --build-arg BASE_IMAGE=akantu-oracle:dev \
+    "${ctx}" || die "docker build (mncpp)"
+  echo "== check the image against the build record $(date -u +%T)"
+  docker run --rm --entrypoint sh -e PERF_IMAGE_ID="${base_id}" \
+    -v "${repo}/benchmarks/cohesive-perf/scripts/in-container:/v:ro" akantu-rs-bench:mncpp -c \
+    '. /build/install-strict/share/akantu-oracle/env.sh && python3 -I /v/build_record.py verify /perf/builds/strict/build-record.json' \
+    > "${dir}/verify.json" || die "build_record.py verify failed in akantu-rs-bench:mncpp ($(cat "${dir}/verify.json"))"
+  docker run --rm --entrypoint python3 akantu-rs-bench:mncpp -I -c '
+import hashlib, json, sys
+rec = json.load(open("/perf/builds/strict/build-record.json"))
+bad = []
+for lib in rec["libraries"]:
+    try:
+        h = hashlib.sha256(open(lib["realpath"], "rb").read()).hexdigest()
+    except OSError as e:
+        h = str(e)
+    if h != lib["sha256"]:
+        bad.append("%s: %s != %s" % (lib["realpath"], h, lib["sha256"]))
+print("\n".join(bad) or "%d libraries as recorded" % len(rec["libraries"]))
+sys.exit(1 if bad else 0)' || die "a library in akantu-rs-bench:mncpp differs from the build record"
+  echo "== save $(date -u +%T)"
+  docker save akantu-rs-bench:mncpp | gzip -1 > "${dir}/akantu-rs-bench-mncpp.tar.gz" || die "save mncpp"
+  git archive --format=tar --add-virtual-file="MN_REVISION:${rev}
+" HEAD -- crates/akantu-bench/scripts docker/bench benchmarks/cohesive-perf/inputs \
+    benchmarks/cohesive-perf/meshes fixtures/perf_cohesive/meshes \
+    | gzip -9 > "${dir}/akantu-rs-mn-repo.tar.gz" || die "git archive"
+  { for i in akantu-rs-bench:mncpp akantu-oracle:dev; do echo "${i} $(docker image inspect --format '{{.Id}}' "${i}")"; done
+    echo "akantu-rs-bench:mncpp-rootfs $(docker image inspect --format '{{json .RootFS.Layers}}' akantu-rs-bench:mncpp \
+      | python3 -I -c 'import hashlib, json, sys; print("rootfs:" + hashlib.sha256("\n".join(json.load(sys.stdin)).encode()).hexdigest())')"
+    echo "cpp_bin_sha256 ${bin_sha}"
+    python3 -I -c 'import json, sys; r = json.load(open(sys.argv[1])); print("cpp_build_record_sha256", r["build_record_sha256"]); print("libakantu_sha256", r["libakantu_sha256"])' "${dir}/verify.json"
+    echo "git_head ${rev}"; } > "${dir}/images.txt"
+  find "${ctx}" -depth -mindepth 1 \( -type f -o -type l \) -delete; find "${ctx}" -depth -type d -empty -delete
+  cd "${dir}" || exit 1
+  sha256sum akantu-rs-bench-mncpp.tar.gz akantu-rs-mn-repo.tar.gz images.txt verify.json > SHA256SUMS
+  du -b akantu-rs-bench-mncpp.tar.gz akantu-rs-mn-repo.tar.gz | tee sizes.txt
+  cat images.txt SHA256SUMS
+  exit 0
+fi
+
 if [ "${cmd}" = export ]; then
   repo="$(cd "$(dirname "${BASH_SOURCE[0]}")/../../.." && pwd)"
   cd "${repo}" || exit 1
@@ -245,7 +319,7 @@ if [ "${cmd}" = export ]; then
   exit 0
 fi
 
-[ "${cmd}" = smoke ] || die "unknown command ${cmd} (export | export-mn | export-both | smoke)"
+[ "${cmd}" = smoke ] || die "unknown command ${cmd} (export | export-mn | export-mn-cpp | export-both | smoke)"
 cd "${dir}" || exit 1
 work="${WORK:-${dir}/smoke-$(date -u +%Y%m%dT%H%M%SZ)}"
 ovol="${ORACLE_VOLUME:-c1-oracle-build}"

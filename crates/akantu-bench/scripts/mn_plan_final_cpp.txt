@@ -1,0 +1,35 @@
+# SPDX-License-Identifier: LGPL-3.0-or-later
+# Part of akantu-rs, a Rust port of Akantu (EPFL/LSMS). No upstream
+# counterpart: the plan of the C++ reference on the final multi-node stage's
+# hosts (4 hosts of 32 cores, one rank per core), for mn_session.py (format
+# there) with `code = cpp` in cluster.conf and the image akantu-rs-bench:mncpp
+# (c1_images.sh export-mn-cpp: the strict build of the single-node campaign's
+# C++ runs, unchanged). The order is the order of importance: the budget rule
+# skips a run whose scaled estimate no longer fits, so the last lines are
+# dropped first.
+#
+# The runs are the single-node campaign's C++ runs (c1prep_campaign.sh ...
+# cpp with FNTE=joss CPP_CONFIG=strict PERF_MPI_BIND=core, run-one.sh): the
+# same input but the mesh path, the same driver and environment, one core
+# per rank (`bind = self`). The harness partitions with Scotch itself
+# (AKA_SEED = 1, one Scotch thread) and exports its partition, as the
+# single-node runs did: a `file:` partition is not replayed but the file the
+# exported partition must equal (status.txt partition_matches; a run whose
+# partition differs is `failed`). A MUMPS error or warning (UD-216) stops the
+# run early and makes it `failed`, as run-one.sh does.
+#
+# Meshes: h0.12 (frozen, repository subset), joss (cube-joss.msh +
+# cube-joss.json, the operator's tarball). Partitions: partition-np128.csv,
+# partition-np64.csv of the single-node campaign. Estimates: the single-machine
+# C++ runs took 0.64 h (128 ranks) and 0.79 h (64 ranks); the port needed 1.66
+# times its single-machine time across the hosts. Comparison with the
+# single-node C++ run of the same rank count:
+#   python3 -I mn_compare.py --cpp <campaign>/cpp/np<N>/rep1 <results>/runs/<name>-a1
+#
+# name        mesh   np  hosts steps solver partition                estimate_h
+# 1. smoke: placement, binding, the harness's environment on every host, MUMPS over the network
+smoke-h012    h0.12    8  4   1500  auto   scotch                     0.03  @required
+# 2. the benchmark at full size, 32 ranks per host
+joss128x4     joss   128  4   5000  auto   file:partition-np128.csv   1.0
+# 3. the same at 64 ranks on 2 hosts (32 per host)
+joss64x2      joss    64  2   5000  auto   file:partition-np64.csv    1.3
