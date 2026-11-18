@@ -879,7 +879,7 @@ impl<E: Clone> Synchronizer<E> {
                     Ok(b) if b.first() == Some(&STATUS_OK) => Ok(b[1..].to_vec()),
                     Ok(b) if b.first() == Some(&STATUS_FAILED) && b.len() == 1 => {
                         return Err(Error::Communication(format!(
-                            "{tag}: rank {rank} failed before the exchange"
+                            "{tag}: failed on another rank (rank {rank}, before the exchange)"
                         )));
                     }
                     Ok(_) => Err(Error::Communication("malformed status byte".into())),
@@ -1663,7 +1663,9 @@ mod tests {
             );
             let peer = match mode {
                 CollectiveChecks::EveryPhase => "failed on another rank",
-                CollectiveChecks::CommitPoints => "rank 0 failed before the exchange",
+                CollectiveChecks::CommitPoints => {
+                    "failed on another rank (rank 0, before the exchange)"
+                }
             };
             assert!(
                 out[1].0.as_ref().unwrap_err().contains(peer),
