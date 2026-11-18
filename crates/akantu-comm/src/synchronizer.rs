@@ -564,7 +564,9 @@ impl<E: Clone> Synchronizer<E> {
                 self.communicator.rank(),
             )
         });
-        phases.agreed(&format!("{name}:post"), unpacked, Severity::Recoverable)
+        // local (every request completed): under commit points agreed with
+        // the scope's next agreement (D-126)
+        phases.deferred(&format!("{name}:post"), unpacked, Severity::Recoverable)
     }
 
     /// Ghost → owner reduction (upstream `slaveReductionOnce`): ghosts pack

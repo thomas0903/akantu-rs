@@ -959,8 +959,21 @@ impl Phases {
     /// agreement needs every rank's success: no point-to-point exchange
     /// outside the scope's own steps, no effect another rank relies on.
     pub fn defer(&mut self, name: &str, local: Result<()>, severity: Severity) -> Result<()> {
+        self.defer_digest(name, local, 0, severity)
+    }
+
+    /// [`Phases::defer`] with a schedule `digest` (see
+    /// [`Phases::agree_digest`]): compared at the agreement that receives
+    /// the deferred outcome.
+    pub fn defer_digest(
+        &mut self,
+        name: &str,
+        local: Result<()>,
+        digest: u64,
+        severity: Severity,
+    ) -> Result<()> {
         if !self.defers() {
-            return self.agree(name, local, severity);
+            return self.agree_digest(name, local, digest, severity);
         }
         if let Err(e) = self.check(name) {
             if let Err(own) = &local {
@@ -976,7 +989,7 @@ impl Phases {
         }
         let status = reported_severity(&local, severity);
         let q = self.qualified(name);
-        self.core.deferred = Some(Deferred::fold(self.core.deferred, &q, status, 0));
+        self.core.deferred = Some(Deferred::fold(self.core.deferred, &q, status, digest));
         DEFERRED.fetch_add(1, std::sync::atomic::Ordering::Relaxed);
         local
     }
@@ -1941,7 +1954,7 @@ mod tests {
     #[test]
     fn commit_points_post_failure_is_agreed_when_the_scope_settles() {
         let out = run_local(2, Duration::from_secs(10), |c| {
-            assert_eq!(c.collective_checks(), CollectiveChecks::CommitPoints);
+            c.set_collective_checks(CollectiveChecks::CommitPoints);
             let mut ph = Phases::new(&c, "op2");
             let post = ph.run("unpack", Ok(()), |comm, ()| {
                 comm.barrier()?;
@@ -1986,6 +1999,7 @@ mod tests {
     #[test]
     fn commit_points_agreed_inner_error_settles_recoverably() {
         let out = run_local(2, Duration::from_secs(10), |c| {
+            c.set_collective_checks(CollectiveChecks::CommitPoints);
             let mut ph = Phases::new(&c, "pe01");
             let r: Result<()> = ph.run("native", Ok(()), |_, ()| {
                 agreed_or_transport::<()>(Err(Error::Communication(
