@@ -24,7 +24,7 @@
 use std::sync::{Arc, Mutex};
 use std::time::{Duration, Instant};
 
-use akantu_comm::phase::Phases;
+use akantu_comm::phase::{CollectiveChecks, Phases};
 use akantu_comm::{Communicator, Synchronizer, run_local};
 use akantu_core::enums::EventPriority;
 use akantu_core::{ElementType, Error, GhostType, Idx, NodeFlag, Result};
@@ -662,12 +662,21 @@ fn remote_hook_edits_are_rolled_back_when_a_peer_fails() {
 /// Count stage: ranks recording different event schedules
 /// — same number of events but a different kind, or a different number —
 /// fail at the descriptor agreement, before any count collective, and
-/// restore their complete state.
+/// restore their complete state. Under every-phase checks that agreement
+/// ends the topology stage (no hook phase starts); under commit points
+/// (D-126) the digest is agreed at the transaction's next agreement, so the
+/// hook may prepare first: it is then aborted, never committed.
 #[test]
 fn schedule_mismatch_rolls_back_on_all_ranks() {
-    for variant in 0..2 {
+    for (mode, variant) in [
+        (CollectiveChecks::EveryPhase, 0),
+        (CollectiveChecks::EveryPhase, 1),
+        (CollectiveChecks::CommitPoints, 0),
+        (CollectiveChecks::CommitPoints, 1),
+    ] {
         let t0 = Instant::now();
         let out = run_local(2, TIMEOUT, |comm| {
+            comm.set_collective_checks(mode);
             let mut s = sim(comm.clone());
             let before = s.fingerprint();
             let mut hook = Hook::default();
@@ -701,15 +710,23 @@ fn schedule_mismatch_rolls_back_on_all_ranks() {
             (
                 r.map_err(|e| e.to_string()),
                 s.fingerprint() == before,
-                hook.prepared,
+                (hook.prepared, hook.committed, hook.aborted),
             )
         });
         assert!(t0.elapsed() < PROMPT);
-        for (r, same, prepared) in &out {
+        for (r, same, (prepared, committed, aborted)) in &out {
             let err = r.as_ref().unwrap_err();
-            assert!(err.contains("disagree"), "{err}");
-            assert!(*same, "complete state restored");
-            assert_eq!(*prepared, 0, "no hook phase started");
+            assert!(err.contains("disagree"), "{mode:?}: {err}");
+            assert!(*same, "{mode:?}: complete state restored");
+            assert_eq!(*committed, 0, "{mode:?}: nothing committed");
+            match mode {
+                CollectiveChecks::EveryPhase => {
+                    assert_eq!(*prepared, 0, "no hook phase started");
+                }
+                CollectiveChecks::CommitPoints => {
+                    assert_eq!(prepared, aborted, "a prepared hook is aborted");
+                }
+            }
         }
     }
 }

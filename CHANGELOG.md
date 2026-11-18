@@ -15,14 +15,12 @@ change of default results or of a public API raises the minor version.
   (`akantu_comm::phase::CollectiveChecks`, `AKANTU_COLLECTIVE_CHECKS`,
   `Communicator::set_collective_checks`); `every-phase` keeps an agreement
   after every phase. New `Phases::{defer, deferred, defer_digest, commit,
-  commit_agreed, classify, status_in_messages, exchange, has_deferred,
-  collective_checks}`, `DofManager::{reduction, collective_committed}`, the
+  commit_agreed, classify, has_deferred, collective_checks}`, `DofManager::{reduction, collective_committed}`, the
   fault-injection aid `akantu_comm::phase::testing`, `phase::deferred_stats`.
   The header of every checked collective carries the protocol status; from
   64 ranks it is exchanged by gather and broadcast
   (`AKANTU_COLLECTIVE_HEADER`, `mpi_backend::{set_header_exchange,
-  header_exchange}`). Synchronizer exchanges without a preceding agreement
-  carry their sender's status in every message. Results are unchanged.
+  header_exchange}`). Results are unchanged.
 - The cohesive model runs on the execution policy's threads (D-123),
   bitwise at every thread count: the facet stresses and the insertion
   decision of the extrinsic check, the normals, openings and tractions of

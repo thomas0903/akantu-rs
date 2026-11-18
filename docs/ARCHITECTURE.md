@@ -836,11 +836,8 @@ unpacks per `SynchronizationTag`. An exchange is one phase: prepack and
 size every buffer, agree, post owned receives then sends, unpack in rank
 order with a typed wire contract (received length equals the announced
 size), agree. Under the default collective checks (D-126) the post
-agreement is deferred, and an exchange that follows an agreement with
-nothing deferred skips the first one too: every message then starts with
-its sender's status byte, and a rank whose packing failed sends the failed
-status alone, completes every receive and send, and the failure reaches
-every rank at the scope's next agreement. Message tags are `1024 + 64·tag + hash6(synchronizer id)`; two
+agreement is deferred; the agreement before the exchange stays (a rank
+that failed earlier is in an agreement, never in the exchange). Message tags are `1024 + 64·tag + hash6(synchronizer id)`; two
 synchronizers whose ids collide in the hash must not exchange the same tag
 concurrently.
 

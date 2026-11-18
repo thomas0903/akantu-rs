@@ -2468,14 +2468,7 @@ Mechanisms of `commit-points`:
    its reduction; a rank whose preparation failed joins with a header-only
    collective. The operations that end with such a reduction close with its
    verdict (`DofManager::reduction`: the energies, the stable time step).
-4. **The status in the message.** An owner-to-ghost exchange of a
-   `Synchronizer` that follows an agreement with nothing deferred
-   (`Phases::status_in_messages`) prefixes every message with its sender's
-   status byte; a rank whose packing failed sends the failed status alone
-   and still completes every receive and send (nothing waits, nothing is
-   left behind); a receiver of a failed status unpacks nothing and defers a
-   "failed on another rank" error to the next agreement.
-5. **Header exchange.** `MPI_Iallgather` below 64 ranks, `MPI_Igather` on
+4. **Header exchange.** `MPI_Iallgather` below 64 ranks, `MPI_Igather` on
    rank 0 then `MPI_Ibcast` from 64 ranks on (2 (P − 1) messages instead of
    P (P − 1); 254 against 16,147 per agreement at 128 ranks on one host);
    `AKANTU_COLLECTIVE_HEADER` = `auto` | `allgather` | `gather-broadcast`
@@ -2498,12 +2491,21 @@ Commit points (an immediate agreement in both modes; `Phases::commit`,
 - every other existing `agree` / `agreed` (unchanged call sites: they stay
   immediate and also agree what is deferred).
 
-Fallback, agreement before the exchange: a point-to-point exchange after
-deferred outcomes (the residual's ghost stresses and the cohesive
-tractions in the explicit step) is preceded by an agreement. The status
-in the message cannot replace it: a rank whose earlier local step failed
-has already left the operation through its error (`?`) and never reaches
-the exchange; letting every caller continue in a poisoned mode up to the
+Fallback, agreement before every point-to-point exchange (the decision
+asked for the sender's status in each message): every synchronizer
+exchange keeps its agreement before it under both modes (it folds what is
+deferred). A status in the message reaches only a rank that is at the
+exchange. A rank that failed earlier has left the operation through its
+error (`?`) and is then in an agreement — its scope's settle, or any
+agreement of an enclosing operation — while its peers would wait in the
+exchange for its message: a deadlock until the deadline. Under D-018 every
+communication of a rank starts with a collective, so two ranks always meet
+at one; only an agreement before the exchange keeps that invariant. A
+prototype (statuses in the messages after an agreement with nothing
+deferred, and as the first step of a scope) hung in four tests of the fast
+tier (`collective_failures`: the Newton and distributed mat-vec callback
+failures; `non_local_parallel`), a failing rank being in an agreement of
+another scope. Letting every caller continue in a poisoned mode up to the
 next exchange would touch every physics crate's step sequence.
 
 Failure semantics:
@@ -2511,8 +2513,7 @@ Failure semantics:
 - When a peer's purely local failure becomes visible: `every-phase` at the
   agreement that ends the failed phase; `commit-points` at the scope's next
   agreement (before its next communication, at a commit point, or when it
-  settles), or, for an exchange with the status in the message, when its
-  message arrives. In between, the other ranks run the scope's further
+  settles). In between, the other ranks run the scope's further
   local phases (before a commit, all of it is rolled back; after a commit,
   the domain is poisoned anyway).
 - Guaranteed in both: every rank ends a failed operation with an error;
@@ -2522,8 +2523,7 @@ Failure semantics:
   agreed severity class is the same on every rank (recoverable or agreed
   fatal; transport failures as before). The failing rank keeps its own
   error; a peer's message names the remote failure ("failed on another
-  rank", or "… failed on another rank (rank r, before the exchange)" from
-  a status byte) at the phase where it learned of it, which may be a later
+  rank") at the phase where it learned of it, which may be a later
   phase than under `every-phase` (the documented substitute).
 
 Consequence: 16.7 collectives per step and rank for the benchmark's step
@@ -2539,8 +2539,7 @@ Tests: `crates/akantu-cohesive/tests/collective_checks_failures.rs` (one
 rank failing the solve step, the insertion check, an energy, a mesh
 transaction before and after its commit, at 2 and 4 ranks, both modes),
 the protocol tests of `akantu-comm` (deferred post-processing, header
-verdicts, status in the message reaching the neighbour then every rank at
-the commit point, a silent peer bounded by the deadline), the existing
+verdicts, a silent peer bounded by the deadline), the existing
 fault-injection tests of the solver, mesh and solid crates in both modes.
 Governs `crates/akantu-comm/src/{phase,communicator,mpi_backend,synchronizer}.rs`,
 `crates/akantu-solver/src/dof_manager.rs`, `crates/akantu-mesh/src/mutation.rs`.
